@@ -3,7 +3,7 @@ import { leaveLocked } from "./addProjectsNav";
 import { ProjectScreen, useProjectFocus } from "./Onboarding";
 import { addPageApi, ProjectStepSession } from "./projectStep";
 
-// What App needs from the page: whether leaving is locked and whether File > Add Project… may run
+// What App needs from the page: whether leaving is locked and whether File > Add Projects… may run
 // Choose folder.
 export interface AddPageReport { locked: boolean; choose: boolean }
 
@@ -11,7 +11,7 @@ export interface AddPageReport { locked: boolean; choose: boolean }
 // page's own main instance. Each opening starts at choose; leaving drops an inspection in flight with the session.
 export function AddProjectsPage({ header, sidebar, projects, homeDirectory, mainCheckout, choose, onState, onCancel, onAdded }: {
   header: ReactNode; sidebar: ReactNode; projects: readonly string[]; homeDirectory: string | null; mainCheckout: (path: string) => boolean;
-  // Raised by File > Add Project… while the page shows; it runs Choose folder.
+  // Raised by File > Add Projects… while the page shows; it runs Choose folder.
   choose: number;
   onState(report: AddPageReport): void; onCancel(): void; onAdded(root: string): void;
 }) {

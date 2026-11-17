@@ -69,6 +69,11 @@ export function problemView(entry: FolderEntry, name: string, homeDirectory: str
 }
 
 // A problem or reading root still shows the Overview. The canvas shows only for a canvas of the loaded root.
+// The one-line sentences for a project that is still being read or can't be used, shared by the Home composer's send
+// line and the toasts of an Open that could not go through, so every screen names the project the same way.
+export function projectReadingLine(project: string): string { return `${project} is still being read.`; }
+export function projectUnavailableLine(project: string): string { return `${project} isn’t available. Fix it from its menu in the sidebar.`; }
+
 export function workspaceBody(screen: string, root: string | null, open: Pick<OpenCanvas, "folder"> | null): "overview" | "canvas" | null {
   if (screen !== "workspace" || root === null) return null;
   return open !== null && open.folder === root ? "canvas" : "overview";

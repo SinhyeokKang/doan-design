@@ -182,12 +182,12 @@ export function mergeCanvasMemory(saved: Readonly<Record<string, Readonly<Record
 export function wizardCloseFocus(root: string | null): "composer" | "previous" { return root ? "composer" : "previous"; }
 
 // A reply chip whose canvas cannot be opened (draft frame `toasts`). The canvas is
-// named by the link's id, since no row names it; the project by its sidebar name. A list still being read gets the
-// chip's own copy, which has no Open to try again; a project problem keeps Quick Open's.
+// named by the link's id, since no row names it; the project by its sidebar name. A project still being read or
+// with a problem says so as Quick Open does.
 export function replyChipRefusal(target: "missing" | "duplicate" | "unavailable", canvas: string, project: string, entry: FolderEntry | undefined): string {
   if (target === "missing") return `Couldn’t open ${canvas}. The canvas isn’t in ${project}.`;
   if (target === "duplicate") return `Couldn’t open ${canvas}. More than one canvas in ${project} uses this ID. Run doan check in a terminal to find them.`;
-  return entry?.kind === "loading" ? "Project is still being read. Try again shortly." : unavailableCanvasMessage(entry, canvas);
+  return unavailableCanvasMessage(entry, canvas, project);
 }
 
 // A Quick Open conversation that can no longer be opened (draft frame `open-failed`): the title quoted as the delete
@@ -231,7 +231,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const [exporting, setExporting] = useState<ReadonlySet<string>>(new Set());
   const exportTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   // The Add Projects page: where it returns to, the page's own report, and a
-  // counter File > Add Project… raises to run its Choose folder. Mounted anew (`seq`) on each opening.
+  // counter File > Add Projects… raises to run its Choose folder. Mounted anew (`seq`) on each opening.
   const [page, setPage] = useState<{ origin: AddPageOrigin; seq: number; chooseSeq: number } & AddPageReport>({ origin: { screen: "home" }, seq: 0, chooseSeq: 0, locked: false, choose: true });
   const pageRef = useRef(page); pageRef.current = page;
   // The Settings page: its category, what it was asked to focus on arrival, and
@@ -787,7 +787,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const openShellCanvas = (root: string, row: CanvasRow, cursor?: number, opened?: () => void) => {
     if (locked()) return;
     cancelRestore();
-    controller.current?.openCanvas(root, row, undefined, { opened: () => { completeNavigation(root, cursor); opened?.(); }, unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path)) });
+    controller.current?.openCanvas(root, row, undefined, { opened: () => { completeNavigation(root, cursor); opened?.(); }, unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path, live.current.projectLabel(root))) });
   };
   // arrived: after the move commits, for an entry point that asks the Overview for a conversation.
   const showShellOverview = (root: string, cursor?: number, arrived?: () => void) => {
@@ -806,7 +806,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   function openConversationCanvas(root: string, canvas: Canvas, conversationId?: string, trigger: PanelTrigger = { kind: "promotion" }) {
     const listed = entriesRef.current.find(entry => entry.path === root);
     const row = listed?.kind === "list" ? listed.canvases.find(row => sameCanvas(canvas, row)) : undefined;
-    if (!row) { live.current.toast.show(unavailableCanvasMessage(listed, canvas.path)); return; }
+    if (!row) { live.current.toast.show(unavailableCanvasMessage(listed, canvas.path, live.current.projectLabel(root))); return; }
     if (conversationId) live.current.openCanvasConversation(root, row, conversationId, trigger);
     else live.current.openShellCanvas(root, row);
   }
@@ -932,7 +932,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const listed = entriesRef.current.find(entry => entry.path === notice.root);
     const row = listed?.kind === "list" ? listed.canvases.find(row => row.path === notice.path) : undefined;
     if (row) openShellCanvas(notice.root, row);
-    else toast.show(unavailableCanvasMessage(listed, notice.path));
+    else toast.show(unavailableCanvasMessage(listed, notice.path, live.current.projectLabel(notice.root)));
   };
   const toggleProject = async (key: string) => {
     const group = cards.find(card => card.key === key); if (!group) return;
@@ -1243,7 +1243,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     pageRef.current = { ...pageRef.current, ...report };
     setPage(previous => ({ ...previous, ...report }));
   };
-  // File > Add Project… (⌘O) opens the page; on the page it runs Choose folder, which main allows only in choose.
+  // File > Add Projects… (⌘O) opens the page; on the page it runs Choose folder, which main allows only in choose.
   useEffect(() => window.doan.onOpenAddProjects(() => {
     live.current.openAddProjects();
     if (currentScreen.current === "addProjects" && pageRef.current.choose) setPage(previous => ({ ...previous, chooseSeq: previous.chooseSeq + 1 }));
@@ -1638,7 +1638,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (result.kind === "conversation") return pickConversation(result);
     const target = entries.find(entry => entry.path === result.root);
     const row = target?.kind === "list" ? target.canvases.find(row => row.path === result.path) : undefined;
-    const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, result.path));
+    const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, result.path, live.current.projectLabel(result.root)));
     if (!row) { unavailable(target); return; }
     const frameId = result.kind === "frame" ? result.frameId : undefined;
     const found = (ok: boolean) => { if (!ok) live.current.toast.show("This frame is no longer in the canvas."); };
@@ -1656,7 +1656,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const decision = decideOpen(result, openPage());
     if (decision.kind === "busy") { live.current.toast.showIn(topDialog(), blockedLinkMessage(decision.reason)); return; }
     cancelRestore();
-    const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, result.canvas));
+    const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, result.canvas, live.current.projectLabel(result.root)));
     if (decision.kind === "canvas_not_found") { unavailable(decision.entry); return; }
     controller.current?.openCanvas(result.root, decision.row, result.frame === undefined ? undefined : { frame: result.frame }, { unavailable, opened: () => completeNavigation(result.root) });
   }
@@ -1674,7 +1674,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const decision = decideOpen({ root, canvas: target.open.path }, openPage());
     if (decision.kind === "busy") return Promise.resolve(null);
     cancelRestore();
-    const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, target.open.path));
+    const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, target.open.path, live.current.projectLabel(root)));
     if (decision.kind === "canvas_not_found") { unavailable(decision.entry); return Promise.resolve(null); }
     controller.current?.openCanvas(root, decision.row, link.kind === "frame" ? { frame: link.id } : { element: link.id }, { unavailable, opened: () => completeNavigation(root) });
     return Promise.resolve(null);
@@ -1694,10 +1694,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       case "open": {
         cancelRestore();
         const path = step.row.path;
-        controller.current?.openCanvas(step.root, step.row, { anchor: step.anchor }, { unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, path)), opened: () => completeNavigation(step.root), located: missing });
+        controller.current?.openCanvas(step.root, step.row, { anchor: step.anchor }, { unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, path, live.current.projectLabel(step.root))), opened: () => completeNavigation(step.root), located: missing });
         return;
       }
-      case "canvas_not_found": live.current.toast.show(unavailableCanvasMessage(step.entry, step.path)); return;
+      case "canvas_not_found": live.current.toast.show(unavailableCanvasMessage(step.entry, step.path, live.current.projectLabel(step.root))); return;
       case "reply": void replyChip(step.root, step.link).then(missing); return;
       case "settings": openSettings({ section: "agents", ...(step.provider ? { provider: step.provider } : {}) }); return;
       case "conversation":
@@ -1809,7 +1809,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     // (POSTMORTEM 2026-10-25 recurrence).
     if (!row && !wait.expired && (entry?.kind === "loading" || (entry?.kind === "list" && entry === wait.entry))) return;
     done();
-    if (!row) { live.current.toast.show(entry?.kind === "list" ? handoffGoneText(to.canvas.path, live.current.projectLabel(root)) : unavailableCanvasMessage(entry, to.canvas.path)); return; }
+    if (!row) { live.current.toast.show(entry?.kind === "list" ? handoffGoneText(to.canvas.path, live.current.projectLabel(root)) : unavailableCanvasMessage(entry, to.canvas.path, live.current.projectLabel(root))); return; }
     openCanvasConversation(root, row, to.conversationId, { kind: "notification", permission: false });
   }
   function listedRow(root: string, canvas: Canvas): { entry: FolderEntry | undefined; row: CanvasRow | undefined } {
