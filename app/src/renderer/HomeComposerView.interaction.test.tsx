@@ -978,3 +978,62 @@ test("the notice's Retry keeps the notice while its send is out, busy and descri
   await vi.waitFor(() => expect(box.current.sending).toBeNull());
   expect(box.current.notice).toBeNull();
 });
+
+// DESIGN 'Busy action': a preset read's Retry keeps its notice and itself while the read is out, so focus stays on it;
+// only an answer changes what shows.
+const PRESETS_FAILED = { v: 1, ok: false, error: { code: "cli_error", reason: "failed", message: "", nextSteps: [] } } as unknown as PresetListReply;
+const PRESETS_FAILED_TEXT = "Doan couldn’t read the design presets: the doan command stopped without a result. You can still send without one.";
+const presetList = () => (doan.designSkills as unknown as { list: ReturnType<typeof vi.fn> }).list;
+const idleRetry = (tree: Record<string, unknown>[]) => find(tree, props => props.children === "Retry" && typeof props.onClick === "function");
+test("the preset popover's Retry keeps the notice and itself while the read is out, busy and described by the notice", async () => {
+  vi.stubGlobal("requestAnimationFrame", () => 0);
+  let answer!: (reply: PresetListReply) => void;
+  presetList().mockReturnValueOnce(new Promise(resolve => { answer = resolve; }));
+  const { box, render } = setup({ presets: PRESETS_FAILED });
+  let tree = render();
+  const retry = idleRetry(tree);
+  expect(find(tree, props => props.id === retry["aria-describedby"]).children).toBe(PRESETS_FAILED_TEXT);
+  call(retry, "onClick", {});
+  expect(presetList()).toHaveBeenCalledTimes(1);
+  tree = render();
+  expect(box.current.presets).toBe(PRESETS_FAILED);
+  const busy = find(tree, props => props["aria-busy"] === true && props["aria-describedby"] === retry["aria-describedby"]);
+  expect(busy["aria-disabled"]).toBe(true);
+  expect(find(tree, props => props.id === retry["aria-describedby"]).children).toBe(PRESETS_FAILED_TEXT);
+  // A press while the read is out reads nothing again.
+  call(busy, "onClick", {});
+  expect(presetList()).toHaveBeenCalledTimes(1);
+  answer(LISTED);
+  await vi.waitFor(() => expect(box.current.presets).toBe(LISTED));
+  expect(render().some(props => props.children === "Retry")).toBe(false);
+});
+
+test("a preset Retry that fails again keeps the notice, idle, and changes its text so the alert reads it again", async () => {
+  presetList().mockResolvedValueOnce(PRESETS_FAILED);
+  const { render } = setup({ presets: PRESETS_FAILED });
+  const retry = idleRetry(render());
+  call(retry, "onClick", {});
+  await vi.waitFor(() => expect(idleRetry(render())["aria-busy"]).toBeUndefined());
+  expect(find(render(), props => props.id === retry["aria-describedby"]).children).toBe(`${PRESETS_FAILED_TEXT} `);
+});
+
+// PRODUCT §5 item 1: whatever disables Send with a reason, Send stays focusable and carries that reason as its tooltip
+// and its accessible description, not only below the composer.
+const sendTip = (tree: Record<string, unknown>[]) => {
+  const tip = find(tree, props => Array.isArray(props.children) && (props.children as unknown[]).some(child => isValidElement<{ children?: unknown }>(child) && isValidElement<Record<string, unknown>>(child.props.children) && child.props.children.props["aria-label"] === "Send"));
+  return (tip.children as unknown[]).map(child => isValidElement<{ children?: unknown }>(child) ? child.props.children : null).find(child => typeof child === "string");
+};
+test.each([
+  ["no project", "Add a project to send.", {}, { entries: [] }],
+  ["no ready agent", "No agent is ready to run.", { auth: { revision: 1, providers: [] } }, {}],
+  ["text over the limit", "Shorten the message to send it.", { text: "x".repeat(33000) }, {}],
+  ["attachments being checked", "Checking attachments", { attachments: [{ key: "a", id: "1", name: "brief.pdf", kind: "file", pasted: false, status: "checking", size: 10, path: "/Users/ada/brief.pdf" }] }, {}],
+  ["another conversation running", "Another conversation is still running in doan-design.", {}, { running: new Map([["/code/doan-design", { conversationId: "c1", waiting: false }]]) }],
+] as [string, string, Partial<ComposerMemory>, Partial<HeroComposerProps>][])("with %s Send stays focusable and carries the reason as its tooltip and description", (_name, reason, memory, props) => {
+  const tree = setup({ text: "Draw a pricing page.", ...memory }, props).render();
+  const send = find(tree, item => item["aria-label"] === "Send");
+  expect(send).toMatchObject({ "aria-disabled": true, "data-disabled": "" });
+  expect(send.disabled).toBeUndefined();
+  expect(find(tree, item => item.id === send["aria-describedby"]).children).toBe(reason);
+  expect(sendTip(tree)).toBe(reason);
+});

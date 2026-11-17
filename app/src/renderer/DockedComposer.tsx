@@ -8,7 +8,7 @@ import { fieldSkillRuns } from "./skillWords";
 import { classifyFirstWord, commandCard, commandLists, planSend, PRESET_NOTICE, queuedCommand, STALE_MODE_CARD, type CommandCard, type CommandLists } from "./commandView";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
-import { retryButton } from "./ListRetryButton";
+import { retryButton, useRetry } from "./ListRetryButton";
 import { ContextRing, type RingUsage } from "./ContextRing";
 import type { ContextUsage } from "./contextWindow";
 import { distinctTargets, plainText, typedText } from "./anchorField";
@@ -95,7 +95,7 @@ export interface DockedComposerProps {
   onCard?(card: CommandCard | null): void;
   card?: CommandCard | null;
   presets: PresetListReply | undefined; suggested: readonly PresetSummary[];
-  onPresetsOpen(): void; onPresetsRetry(): void;
+  onPresetsOpen(): void; onPresetsRetry(): Promise<boolean>;
   thumbnails: Readonly<Record<string, string>>;
   // Attachments are main's: the host chooses or adds them and writes the chips into the draft; a removed chip's id is
   // handed back so the host can tell main. `report` shows a refusal (the limit, a file main refused) as this composer's
@@ -283,6 +283,7 @@ export function DockedComposer(props: DockedComposerProps) {
   // The terminal's provider, drawn on the fixed trigger.
   const fixedProvider = mode.kind === "new" ? props.provider : mode.provider;
   const presets = props.presets?.ok ? props.presets.result.presets : [];
+  const presetsRetry = useRetry();
   // The `/` list reads a field of typed text only; a chip anywhere means the field holds a message, not a search.
   const slash = slashQuery(text === typedText(draft.segments) ? text : "", dismissed, new Set([...skillNames, ...commandNames]));
   const slashView = slash !== null ? presetListView(props.presets, { project: props.project, suggested: props.suggested, query: slash, tab: null, slash: true, skills: props.skills }) : null;
@@ -554,8 +555,8 @@ export function DockedComposer(props: DockedComposerProps) {
         onKey={keyDown} onSteerKey={() => void steerAll()} sendNow={canSendNow} onSubmit={() => void send()} onPaste={paste} />
       <ComposerTools>
         <PresetsButton skills={props.skills} reply={props.presets} project={props.project} suggested={props.suggested} listId={listId} disabled={isSending || locked}
-          onOpen={() => { props.onSkillsWanted(); props.onPresetsOpen(); }} onChoose={(id, kind) => chooseRow(id, kind, false)} onRetry={props.onPresetsRetry} onPicked={() => { if (pickedSkill.current) { pickedSkill.current = false; field.current?.focus(); } else focus({ kind: "restored" }); }} canvasPress={props.canvasPress} />
-        {slashOpen && slashView && <SlashPresets skills={props.skills} view={slashView} query={slash} listId={listId} highlight={highlight} listRef={slashList} onHighlight={setHighlight} onChoose={(id, kind) => chooseRow(id, kind, true)} onRetry={props.onPresetsRetry} />}
+          onOpen={() => { props.onSkillsWanted(); props.onPresetsOpen(); }} onChoose={(id, kind) => chooseRow(id, kind, false)} retry={presetsRetry} onRetry={props.onPresetsRetry} onPicked={() => { if (pickedSkill.current) { pickedSkill.current = false; field.current?.focus(); } else focus({ kind: "restored" }); }} canvasPress={props.canvasPress} />
+        {slashOpen && slashView && <SlashPresets skills={props.skills} view={slashView} query={slash} listId={listId} highlight={highlight} listRef={slashList} onHighlight={setHighlight} onChoose={(id, kind) => chooseRow(id, kind, true)} retry={presetsRetry} onRetry={props.onPresetsRetry} />}
         <span className="grow" />
         <SendButton action={action} enabled={action === "stop" ? !isSending : availability.enabled} sending={isSending} onSend={() => { if (action === "stop") stop(); else void send(); }} hint={reason?.noAgent ? reason.text : undefined}
           tip={queueHint?.tip} description={queueHint?.description} />
