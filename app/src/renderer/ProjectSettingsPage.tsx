@@ -207,6 +207,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
     } catch (failure) { if (live.current && stale === generation.current) setError({ section, message: failure instanceof Error ? failure.message : String(failure) }); }
     finally {
       if (live.current) { setBusy(null); setWritingStorage(null); }
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- a field change sets this ref while the write awaits
       if (live.current && stale === generation.current && changedDuringWrite.current) { changedDuringWrite.current = false; void read(request.root, true); }
     }
   }

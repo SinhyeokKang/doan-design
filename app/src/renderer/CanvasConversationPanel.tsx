@@ -284,7 +284,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const saved = mode.kind === "new" ? (chosen ? props.prefs?.models?.[chosen] : undefined) : summary?.model ? { model: summary.model, ...(summary.effort ? { effort: summary.effort } : {}) } : undefined;
   const model = chosen && !fixed ? modelOption(listState, pick.model ?? null)?.id ?? defaultModel(listState, saved, preference) : null;
   const option = modelOption(listState, model);
-  const effort = fixed ? null : pick.effort !== undefined ? defaultEffort(option, pick.effort) : defaultEffort(option, saved?.model === model ? saved?.effort : undefined, preference);
+  const effort = fixed ? null : pick.effort !== undefined ? defaultEffort(option, pick.effort) : defaultEffort(option, saved?.model === model ? saved.effort : undefined, preference);
   // Fast, as effort: a new conversation's from its provider's Last used, an existing one's its own stored choice.
   const fast = pick.fast ?? (mode.kind === "new" ? defaultFast(props.prefs, chosen) : summary?.fast === true);
   const picker = modelPickerView(auth, lists, { provider: chosen, model, effort, fast });
@@ -452,7 +452,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
       return { ok: true, ...(follows ? { conversationId: reply.conversationId } : {}) };
     }
     // A message that waits for the usage limit's reset carries no picker change; the picks stay for the next send.
-    const waits = mode.kind === "existing" && waitsForReset(summary);
+    const waits = waitsForReset(summary);
     const reply = await calls.sendConversation({
       conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
       ...(waits ? {} : { ...(changedModel && model && !fixed ? { model, ...(effort ? { effort } : {}) } : {}), ...changedFast, ...(sentMode ? { permissionMode: sentMode } : {}) }), ...(request.attachments.length ? { attachments: request.attachments } : {}),

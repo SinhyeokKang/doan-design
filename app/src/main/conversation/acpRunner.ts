@@ -142,10 +142,15 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
       if (setting.value !== acpCurrent(current, setting.configId)) await acp.request("session/set_config_option", { sessionId, configId: setting.configId, value: setting.value }, OPEN_TIMEOUT_MS);
     }
   })();
-  try { await opened; if (dead) throw new Error("process_exited"); }
+  try {
+    await opened;
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the process exit callback sets this while the session opens
+    if (dead) throw new Error("process_exited");
+  }
   catch (error) {
     acp.close(); void group?.stop();
     const detail = failure || (error instanceof Error ? error.message : "");
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the exit and failure callbacks set these while the session opens
     throw new Error(dead && !failure ? "process_exited" : ["runtime_unsupported", "session_unavailable"].includes(detail) ? detail : transportCode(detail));
   }
   const stopTurn = async (reason: "user" | "appQuit") => {
@@ -171,6 +176,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
         // request). A cancel or a malformed answer can come before any model request, so it proves nothing.
         if (object(result) && typeof result.stopReason === "string" && RAN.has(result.stopReason)) input.confirm?.();
       } catch (error) {
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- the exit and failure callbacks set these while the prompt runs
         if (!state.terminal) apply(dead && !failure ? acpEnded(state) : acpPromptFailed(state, failure || (error instanceof Error ? error.message : "")));
       } finally { finished = true; expire(); void group?.stop(); }
     },

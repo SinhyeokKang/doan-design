@@ -388,7 +388,7 @@ export class AuthManager {
       else if (attempt?.kind === "check") this.stop(attempt.id);
     }
     let timer: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([Promise.allSettled([...this.pending]), new Promise(resolve => { timer = setTimeout(resolve, QUIT_WAIT_MS); timer.unref?.(); })]);
+    await Promise.race([Promise.allSettled([...this.pending]), new Promise(resolve => { timer = setTimeout(resolve, QUIT_WAIT_MS); timer.unref(); })]);
     clearTimeout(timer);
     for (const provider of PROVIDERS) if ((this.holds.get(provider) ?? 0) > 0) { this.holds.set(provider, 1); await this.drop(provider); }
   }
@@ -434,6 +434,7 @@ export class AuthManager {
       // (or on a refused login restores) the previous one. Vault providers log in on a scrubbed working copy.
       if (!auth.vault && live && login.code === 0) touch.live = true;
       if (this.cancelled(provider, attemptId)) throw new Cancelled();
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- the link timer sets this during the login
       if (missing) throw new Failure("sign_in_failed", "no browser-hook link was accepted");
       if (login.code !== 0) throw new Failure("sign_in_failed", tail(login.stderr) ?? tail(login.stdout));
     }
@@ -549,7 +550,7 @@ export class AuthManager {
     if (!this.options.stopMcp) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const stopped = this.options.stopMcp(provider).catch(error => console.error(`doan: ${provider} MCP work could not be stopped`, message(error)));
-    await Promise.race([stopped, new Promise(resolve => { timer = setTimeout(resolve, this.options.drainTimeoutMs ?? DRAIN_MS); timer.unref?.(); })]);
+    await Promise.race([stopped, new Promise(resolve => { timer = setTimeout(resolve, this.options.drainTimeoutMs ?? DRAIN_MS); timer.unref(); })]);
     clearTimeout(timer);
   }
 
@@ -604,7 +605,9 @@ export class AuthManager {
       return { code: 0, stdout: "", stderr: "" };
     } catch (error) {
       if (error instanceof Cancelled || error instanceof Failure) throw error;
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- the status callback sets this during the exchange
       console.error(`doan: ${provider} status check ${asked ? "found no usable login: the server asked for a new browser sign-in" : `failed: ${exchangeReason(error)}`}${serverLog(error)}`);
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- the status callback sets this during the exchange
       return { code: asked ? 2 : 1, stdout: "", stderr: message(error) };
     }
   }
@@ -699,6 +702,7 @@ export class AuthManager {
       throw new LookupFailure("the answer had no account email");
     } catch (error) {
       if (!this.stopRequests.has(attemptId)) {
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- the identity timer sets this when it aborts the lookup
         console.error(`doan: ${provider} account lookup failed: ${late ? `no answer within ${IDENTITY_MS} ms` : error instanceof LookupFailure ? error.message : "the request could not be completed"}`);
       }
       return null;
@@ -718,6 +722,7 @@ export class AuthManager {
     const owned = this.processes.get(attemptId) ?? new Set();
     owned.add(child); this.processes.set(attemptId, owned);
     const stop = () => child.stop();
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the signal can abort while the app-server is spawned
     if (signal.aborted) stop(); else signal.addEventListener("abort", stop, { once: true });
     let broken = false, buffer = "", stage = "initialize";
     const send = (value: unknown) => { if (!child.write) throw new Error("process_exited"); child.write(JSON.stringify(value) + "\n"); };
@@ -742,6 +747,7 @@ export class AuthManager {
       return codexAccountEmail(await dispatcher.request("account/read", { refreshToken: false }));
     };
     try { return await Promise.race([exchange(), child.exit.then(() => { throw new Error("process_exited"); })]); }
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the protocol handlers set this during the exchange
     catch (error) { throw new LookupFailure(broken ? "the app-server broke the protocol" : error instanceof RpcError ? `the app-server refused ${stage}` : "the app-server exited"); }
     finally {
       signal.removeEventListener("abort", stop); dispatcher.close(); child.stop(); await child.gone;
@@ -948,7 +954,7 @@ export function hookLinks(onLink: (raw: string) => void): { env: Record<string, 
     for (const line of text.slice(read, end).split("\n")) if (line) onLink(line);
     read = end + 1;
   }, LINK_POLL_MS);
-  timer.unref?.();
+  timer.unref();
   return { env: { [AUTH_LINK_FILE]: file }, close: () => { clearInterval(timer); rmSync(dir, { recursive: true, force: true }); } };
 }
 

@@ -159,7 +159,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const saved = mode.kind === "new" ? (chosen ? props.prefs?.models?.[chosen] : undefined) : summary?.model ? { model: summary.model, ...(summary.effort ? { effort: summary.effort } : {}) } : undefined;
   const model = chosen ? modelOption(listState, pick.model ?? null)?.id ?? defaultModel(listState, saved, fixed) : null;
   const option = modelOption(listState, model);
-  const effort = pick.effort !== undefined ? defaultEffort(option, pick.effort) : defaultEffort(option, saved?.model === model ? saved?.effort : undefined, fixed);
+  const effort = pick.effort !== undefined ? defaultEffort(option, pick.effort) : defaultEffort(option, saved?.model === model ? saved.effort : undefined, fixed);
   // Fast, as effort: a new conversation's from its provider's Last used, an existing one's its own stored choice.
   const fast = pick.fast ?? (mode.kind === "new" ? defaultFast(props.prefs, chosen) : summary?.fast === true);
   const picker = modelPickerView(auth, lists, { provider: chosen, model, effort, fast });

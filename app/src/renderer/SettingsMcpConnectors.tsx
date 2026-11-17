@@ -30,6 +30,7 @@ type Dialog = { kind: "add"; value: string; error: string | null; busy: boolean 
 const rowKey = (provider: McpProvider, name: string) => `${provider}:${name}`;
 const rowGroup = (provider: McpProvider, name: string) => document.querySelector<HTMLElement>(`[data-mcp-row="${rowKey(provider, name)}"]`);
 // A control that can't act: gone, natively disabled, or aria-disabled (a busy section's Connect keeps focus that way).
+// oxlint-disable-next-line typescript/no-unnecessary-condition -- the page tests focus a stub node without getAttribute
 const unusable = (node: HTMLElement) => !node.isConnected || node.matches(":disabled") || node.getAttribute?.("aria-disabled") === "true";
 const snapshotReply = (value: unknown): value is McpSnapshot => typeof value === "object" && value !== null && "revision" in value;
 

@@ -474,7 +474,7 @@ export function canvasScript(lib: CanvasLib): void {
       const element: Record<string, unknown> = { selector, html: html.html };
       if (usableId !== undefined) element.doanId = usableId;
       if (html.truncated) element.truncated = true;
-      const text = lib.textQuote(el.textContent ?? "", MAX_TEXT);
+      const text = lib.textQuote(el.textContent, MAX_TEXT);
       if (text !== "") element.text = text;
       target.element = element;
     }
@@ -651,6 +651,7 @@ export function canvasScript(lib: CanvasLib): void {
     started = true;
     const resized = new ResizeObserver(schedule);
     resized.observe(document.documentElement);
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- document.body is null until the parser has created it
     if (document.body) resized.observe(document.body);
     new MutationObserver(schedule).observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
     addEventListener("resize", schedule);

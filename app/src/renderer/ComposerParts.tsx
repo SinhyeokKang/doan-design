@@ -73,7 +73,7 @@ export function ComposerCard({ readonly, children }: { readonly: boolean; childr
 export function useComposerDrop(options: { blocked: () => boolean; onFiles(files: File[]): void; onNotice(text: string | null): void }) {
   const [dropping, setDropping] = useState(false);
   const depth = useRef(0);
-  const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes("Files");
+  const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer.types).includes("Files");
   const handlers = {
     onDragEnter: (event: DragEvent) => { if (!hasFiles(event)) return; event.preventDefault(); event.stopPropagation(); depth.current++; setDropping(true); },
     onDragOver: (event: DragEvent) => { if (!hasFiles(event)) return; event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = options.blocked() ? "none" : "copy"; },

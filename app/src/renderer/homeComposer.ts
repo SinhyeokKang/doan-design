@@ -664,6 +664,7 @@ export function attachmentLimit(existing: number, items: readonly { pasted: bool
     else leftOut++;
   });
   const notices = [
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the forEach callback above sets oversized
     ...(oversized ? ["This image is over 50 MB, so it wasn’t attached."] : []),
     ...(leftOut > 0 ? [`${LIMIT_TEXT} ${leftOut} ${leftOut === 1 ? "was" : "were"} left out.`] : []),
   ];
