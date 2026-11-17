@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import type { MouseEvent, RefObject } from "react";
 import { Popover } from "radix-ui";
 import { Crosshair, Download, Hand, MousePointer2, Play, Scan } from "lucide-react";
 import type { Playability } from "../main/prototype/playability";
@@ -52,6 +52,9 @@ export interface PlayTool {
 }
 // An open tooltip takes the Escape first (Radix prevents it), so each tooltip's Escape also runs `onEscape`, the
 // canvas's next Escape step; the tooltip still closes on that press (ARCHITECTURE §3 'Actions and focus').
+// A pointer press on a tool takes no focus, so focus stays on the canvas area and Space still pans; Tab still reaches
+// the tools. On each button, not the toolbar: the frame list's portal content bubbles React events through it.
+const keepFocus = (event: MouseEvent) => event.preventDefault();
 export function CanvasTools({ tool, picking, capturing, onTool, picker, capture, player, exporter, onEscape }: { tool: CanvasTool; picking: boolean; capturing: boolean; onTool(tool: CanvasTool): void; picker: PickerTool; capture: CaptureTool; player: PlayTool; exporter: ExportTool; onEscape(event: globalThis.KeyboardEvent): void }) {
   const pressed = (own: CanvasTool) => !picking && !capturing && tool === own;
   const captureOff = !capturing && !capture.enabled;
@@ -60,17 +63,17 @@ export function CanvasTools({ tool, picking, capturing, onTool, picker, capture,
     {/* The docked buddy's second floor, on the toolbar's top edge. */}
     <div className="docked-buddy-slot" ref={dockedBuddy.toolsSlot} aria-hidden="true" />
     {TOOLS.map(({ tool: own, label, key, Icon }) => <Tooltip key={own}><TooltipTrigger asChild>
-      <button type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed={pressed(own)} aria-label={label} aria-keyshortcuts={key}
+      <button onMouseDown={keepFocus} type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed={pressed(own)} aria-label={label} aria-keyshortcuts={key}
         tabIndex={pressed(own) ? 0 : -1} onClick={() => onTool(own)}><Icon aria-hidden="true" /></button>
     </TooltipTrigger><TooltipContent className="has-key" onEscapeKeyDown={onEscape}>{label}<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">{key}</span></TooltipContent></Tooltip>)}
     <Tooltip><TooltipTrigger asChild>
-      <button ref={picker.button} type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed={picking} aria-label="Pick from canvas" aria-keyshortcuts="Meta+L"
+      <button onMouseDown={keepFocus} ref={picker.button} type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed={picking} aria-label="Pick from canvas" aria-keyshortcuts="Meta+L"
         aria-disabled={!picker.enabled || undefined} tabIndex={picking ? 0 : -1} onClick={() => { if (picker.enabled) picker.onToggle(); }}><Crosshair aria-hidden="true" /></button>
     </TooltipTrigger>{picker.enabled
       ? <TooltipContent className="has-key" onEscapeKeyDown={onEscape}>Pick from canvas<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘L</span></TooltipContent>
       : <TooltipContent onEscapeKeyDown={onEscape}>{picker.reason ?? "Pick from canvas"}</TooltipContent>}</Tooltip>
     <Tooltip><TooltipTrigger asChild>
-      <button type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed={capturing} aria-label="Capture area" tabIndex={capturing ? 0 : -1}
+      <button onMouseDown={keepFocus} type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed={capturing} aria-label="Capture area" tabIndex={capturing ? 0 : -1}
         {...(captureOff ? { "aria-disabled": true, "aria-describedby": CAPTURE_REASON_ID } : {})}
         onClick={() => { if (!captureOff) capture.onToggle(); }}><Scan aria-hidden="true" /></button>
     </TooltipTrigger><TooltipContent onEscapeKeyDown={onEscape}>{captureOff ? capture.reason ?? "Capture area" : "Capture area"}</TooltipContent></Tooltip>
@@ -78,7 +81,7 @@ export function CanvasTools({ tool, picking, capturing, onTool, picker, capture,
     <span className="doan-canvas-tools-sep" role="separator" aria-orientation="vertical" />
     <Popover.Root open={drawer !== null && player.open} onOpenChange={next => { if (!next || drawer !== null) player.onOpenChange(next); }}>
       <Tooltip><Popover.Trigger asChild><TooltipTrigger asChild>
-        <button ref={player.button} type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Play prototype" tabIndex={-1} aria-describedby={PLAY_REASON_ID}
+        <button onMouseDown={keepFocus} ref={player.button} type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Play prototype" tabIndex={-1} aria-describedby={PLAY_REASON_ID}
           {...(player.kind === "disabled" ? { "aria-disabled": true } : { "data-own-description": "" })}
           {...(drawer !== null ? { "aria-haspopup": "listbox" } : { "aria-haspopup": undefined, "aria-expanded": undefined, "aria-controls": undefined })}
           onClick={() => { if (player.kind === "play") player.onPlay(); }}><Play aria-hidden="true" /></button>
@@ -87,7 +90,7 @@ export function CanvasTools({ tool, picking, capturing, onTool, picker, capture,
     </Popover.Root>
     <span className="sr-only" id={PLAY_REASON_ID}>{player.tooltip}</span>
     <Tooltip><TooltipTrigger asChild>
-      <button type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export canvas" tabIndex={-1}
+      <button onMouseDown={keepFocus} type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export canvas" tabIndex={-1}
         {...(exporter.reason !== null ? { "aria-disabled": true, "aria-describedby": EXPORT_REASON_ID } : {})}
         onClick={event => { if (exporter.reason === null) exporter.onExport(event.currentTarget); }}><Download aria-hidden="true" /></button>
     </TooltipTrigger><TooltipContent onEscapeKeyDown={onEscape}>{exporter.reason ?? "Export canvas"}</TooltipContent></Tooltip>

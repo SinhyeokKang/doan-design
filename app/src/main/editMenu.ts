@@ -40,9 +40,11 @@ export function lookUpLabel(selection: string): string {
 
 // Sections in macOS order (NSTextView.menu(for:) on macOS 26.6.2): spelling, Look Up, Cut/Copy/Paste, then Select All,
 // which NSTextView lacks but the Edit menu has. Empty sections are dropped, so separators only ever sit between two.
-export function editMenuItems(input: EditMenuInput): EditMenuItem[] {
+// `frameFields`: the prototype window's frame content is a subframe whose fields people type into while playing, so
+// an editable field there gets the menu; the rest of the frame, like the canvas iframe, gets none.
+export function editMenuItems(input: EditMenuInput, { frameFields = false }: { frameFields?: boolean } = {}): EditMenuItem[] {
   // The canvas iframe is never edited by hand (PRODUCT §3), so no edit commands are offered into it.
-  if (!input.mainFrame) return [];
+  if (!input.mainFrame && !(frameFields && input.editable)) return [];
   if (!input.editable && input.selection === "") return [];
   const role = (name: EditRole, enabled: boolean): EditMenuItem => ({ kind: "role", role: name, enabled });
   const suggestions: EditMenuItem[] = input.editable && !input.password && input.misspelled !== ""
@@ -101,7 +103,8 @@ const EDIT_LABELS: Record<EditRole, string> = { cut: "Cut", copy: "Copy", paste:
 // Only for the hint macOS draws beside the label: a click item loses the one a role item showed.
 const EDIT_ACCELERATORS: Record<EditRole, string> = { cut: "CmdOrCtrl+X", copy: "CmdOrCtrl+C", paste: "CmdOrCtrl+V", selectAll: "CmdOrCtrl+A" };
 
-// True only while the focused element is the one under the menu's point, or holds it (a chip inside the composer).
+// True only while the focused element is the one under the menu's point, or holds it (a chip inside the composer;
+// the prototype window's frame content, whose element is the focused one while a field inside it has focus).
 // A fixed script with two numbers in it: main never runs a string the renderer chose. Non-finite input gets no script,
 // so the item does nothing.
 export function fieldCheckScript(point: { x: number; y: number }): string | null {
@@ -116,7 +119,7 @@ export function fieldCheckScript(point: { x: number; y: number }): string | null
 // focus is still on the opened field, the way Edit > Undo checks for a focused chip field. Look Up and a non-editable
 // menu's Copy write nothing, so they are not checked. The webContents methods run the same Chromium editing commands as
 // the Edit menu's roles, so the chip field gets its usual DOM copy/cut/paste events.
-export function editMenuTemplate(input: EditMenuInput, contents: EditMenuContents): EditMenuTemplateItem[] {
+export function editMenuTemplate(input: EditMenuInput, contents: EditMenuContents, options: { frameFields?: boolean } = {}): EditMenuTemplateItem[] {
   const script = fieldCheckScript(input.point);
   const checked = (run: () => void) => () => {
     if (contents.isDestroyed()) return;
@@ -125,7 +128,7 @@ export function editMenuTemplate(input: EditMenuInput, contents: EditMenuContent
     // A rejected script (the page navigated or crashed) and any non-true answer leave the page alone.
     void contents.executeJavaScript(script).then(same => { if (same === true && !contents.isDestroyed()) run(); }, () => undefined);
   };
-  return editMenuItems(input).map((item): EditMenuTemplateItem => {
+  return editMenuItems(input, options).map((item): EditMenuTemplateItem => {
     switch (item.kind) {
       case "role": return { label: EDIT_LABELS[item.role], enabled: item.enabled, accelerator: EDIT_ACCELERATORS[item.role], click: checked(() => contents[item.role]()) };
       case "suggestion": return { label: item.word, click: checked(() => contents.replaceMisspelling(item.word)) };

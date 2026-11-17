@@ -198,10 +198,10 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       if (isMainFrame || code < 400 || run === null || !sameUrl(url, run.url) || !directChild(processId, routingId)) return;
       controller.readFailed(run.gen, status ? `HTTP ${code} ${status}` : `HTTP ${code}`);
     });
-    // The main window's text edit menu, for the conversation panel's composer and text. editMenuInput takes only the
-    // window's top frame, so the canvas iframe keeps having no menu. Nothing in the page handles DOM `contextmenu`.
+    // The main window's text edit menu, for the conversation panel's composer and text, and for an editable field in
+    // the frame content. Nothing in the page handles DOM `contextmenu`.
     contents.on("context-menu", (_event, params) => {
-      const template = editMenuTemplate(editMenuInput(params), contents);
+      const template = editMenuTemplate(editMenuInput(params), contents, { frameFields: true });
       if (template.length > 0) Menu.buildFromTemplate(template).popup({ window: created });
     });
     // A dead host renderer cannot show or report anything; the window goes by the normal closed path.

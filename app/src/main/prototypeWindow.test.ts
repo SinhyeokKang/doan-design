@@ -191,6 +191,16 @@ test("the text edit menu opens for the window's own page", async () => {
   expect(order.some(entry => entry.startsWith("menu "))).toBe(true);
 });
 
+test("the text edit menu opens for a field in the frame content, and nothing opens elsewhere in it", async () => {
+  const { window } = await opened();
+  const frameParams = (isEditable: boolean) => ({ isEditable, editFlags: { canCut: false, canCopy: true, canPaste: true, canSelectAll: true }, selectionText: "a", formControlType: "none", misspelledWord: "", dictionarySuggestions: [], frame: { parent: {} }, x: 1, y: 1 });
+  order.length = 0;
+  window.webContents.emit("context-menu", {}, frameParams(false));
+  expect(order.some(entry => entry.startsWith("menu "))).toBe(false);
+  window.webContents.emit("context-menu", {}, frameParams(true));
+  expect(order.some(entry => entry.startsWith("menu "))).toBe(true);
+});
+
 // A minimum above the current width does not widen the window, so the bounds go first when it rises; bounds below the
 // current minimum keep the minimum's width, so the minimum goes first when it falls.
 test("a refit into a work area narrower than 640 lowers the minimum before it narrows the window", async () => {
