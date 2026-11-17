@@ -721,6 +721,9 @@ export class ConversationService {
       if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { live.terminal = true; live.busy = false; live.done = event.type === "turn.done"; live.endedAt = Date.now(); delete live.asking; delete live.stage; delete live.stopping; this.endWork(id); this.dropSteers(id); this.ended(id, live, saved); }
     } catch (error) {
       live.failedPersistence = true; delete live.stage; console.error("doan: conversation event persistence failed", error); void live.runner?.close();
+      // Its end is never recorded, yet its turn/start may have told the thread its mode: the thread's mode is unknown
+      // until an ordinary turn in the picker's mode ends done (checkReview).
+      if (live.statedMode !== undefined) { delete live.statedMode; this.statedModes.delete(id); }
       this.endWork(id);
       this.dropSteers(id);
       // Its turn never ends, so it is never judged and must not hold its root, nor hand off.
