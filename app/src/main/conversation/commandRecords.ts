@@ -1,3 +1,5 @@
+import { COMMAND_ALIASES } from "./providerCommands";
+
 // Provider records that stand for a command's effect rather than a message: a context boundary the thread draws, or a
 // record the thread leaves out. Boundaries are rebuilt from the provider's session records, not kept in Doan's history,
 // so they read the same in this run and after a restart (Copilot's excepted: its session/load replay leaves the
@@ -14,6 +16,8 @@ function userText(message: unknown): string {
   return Array.isArray(message.content) ? message.content.filter(record).filter(c => c.type === "text" && typeof c.text === "string").map(c => c.text as string).join("") : "";
 }
 const STDOUT = "<local-command-stdout>";
+// Doan sends an alias as /clear, but a session the person cleared by an alias in a terminal may name the alias.
+const CLEAR_NAMES = ["clear", ...Object.entries(COMMAND_ALIASES.claude).filter(([, name]) => name === "clear").map(([alias]) => alias)];
 
 // A Claude stream message or session file line. compact_boundary comes in both (compact_metadata in the stream,
 // compactMetadata in the file). A clear shows in the stream as conversation_reset; in the files only as the /clear line
@@ -22,7 +26,7 @@ export function claudeBoundary(value: unknown): BoundaryKind | null {
   if (!record(value)) return null;
   if (value.type === "system" && value.subtype === "compact_boundary") return "compacted";
   if (value.type === "conversation_reset" && value.trigger === "clear") return "cleared";
-  if (value.type === "system" && value.subtype === "local_command" && typeof value.content === "string" && value.content.includes("<command-name>/clear</command-name>")) return "cleared";
+  if (value.type === "system" && value.subtype === "local_command" && typeof value.content === "string" && CLEAR_NAMES.some(name => (value.content as string).includes(`<command-name>/${name}</command-name>`))) return "cleared";
   return null;
 }
 // /compact leaves a summary user message (isCompactSummary) and a "Compacted" output line, as a user message in the

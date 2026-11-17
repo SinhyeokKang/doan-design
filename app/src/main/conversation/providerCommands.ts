@@ -26,6 +26,12 @@ export const COMMAND_ALLOWLIST: Record<Provider, { version: string; commands: re
   antigravity: { version: "1.3.0", commands: [] },
 };
 
+// Other names a provider runs one of its allowed commands under. They are not listed (only the command is), but typed
+// they run as the command does: Claude's /reset and /new clear the context and change the session id as /clear does.
+export const COMMAND_ALIASES: Record<Provider, Readonly<Record<string, string>>> = {
+  claude: { new: "clear", reset: "clear" }, codex: {}, cursor: {}, copilot: {}, antigravity: {},
+};
+
 // Built-ins that are never sent: Doan shows a card instead and gives the text back. Terminal-only commands Doan has
 // its own UI for, for every provider; and the PoC's candidates that did not run where they are not allowed, which the
 // model answers by claiming it cleared or compacted. Antigravity's /logout erases Doan's own sign-in, and its /plan
