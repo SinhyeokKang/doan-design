@@ -13,3 +13,10 @@ export function combineQueued<A>(items: readonly QueuedParts<A>[]): ({ ok: true 
   if (attachments.length > MAX_ATTACHMENTS) return { ok: false, error: "attachment_limit" };
   return { ok: true, text: texts.join("\n\n"), anchors, attachments };
 }
+// A provider command goes out alone (it must be the whole message for the provider to run it): the next send is either
+// one command or the messages queued before the next command.
+export function nextQueued<T>(items: readonly T[], isCommand: (item: T) => boolean): T[] {
+  if (items.length > 0 && isCommand(items[0]!)) return [items[0]!];
+  const end = items.findIndex(isCommand);
+  return items.slice(0, end === -1 ? items.length : end);
+}

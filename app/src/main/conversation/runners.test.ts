@@ -334,7 +334,7 @@ it("lists Claude's project skills from initialize without sending a prompt and r
   const release = vi.fn();
   try {
     expect(await listSkills({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root } }, release, () => {}))
-      .toEqual([{ name: "deploy", description: "Ship to staging." }]);
+      .toEqual([{ kind: "skill", name: "deploy", description: "Ship to staging." }]);
     await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
     expect(readFileSync(join(root, "seen"), "utf8")).not.toContain('"type":"user"');
   } finally { rmSync(root, { recursive: true, force: true }); }
@@ -386,7 +386,7 @@ it("lists Codex project skills with skills/list for the folder and starts no thr
   const root = mkdtempSync(join(tmpdir(), "doan-codex-skills-")), command = listingCodex(root);
   const release = vi.fn();
   try {
-    expect(await listSkills({ command, runtime: "codex", cwd: root, configDir: root, env: process.env }, release, () => {})).toEqual([{ name: "migrate", description: "Run migrations." }]);
+    expect(await listSkills({ command, runtime: "codex", cwd: root, configDir: root, env: process.env }, release, () => {})).toEqual([{ kind: "skill", name: "migrate", description: "Run migrations." }]);
     const requests = readFileSync(join(root, "seen"), "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as { method?: string; params?: unknown });
     expect(requests.map(r => r.method)).toEqual(["initialize", "initialized", "skills/list"]);
     expect(requests[2]!.params).toEqual({ cwds: [root], forceReload: true });

@@ -1,0 +1,61 @@
+import type { Provider } from "../agentAuth/types";
+
+// Provider built-in commands Doan runs, as the provider-commands PoC (2026-11-17) confirmed them live: the oldest CLI
+// version that ran each provider's commands, and the commands in name order. A later CLI keeps them until a live check
+// shows otherwise; adding a command or moving a version is a decision backed by such a check. Its own module, like
+// minimumVersions.ts, because the composers read these tables and the renderer must not load sessions.ts.
+// description: Doan's copy, shown when the provider reports none (Codex app-server reports no commands at all; Claude's
+// SDK says only "Built-in command."). An ACP row takes the server's own description.
+export interface CommandEntry { name: string; description: string }
+export const COMMAND_ALLOWLIST: Record<Provider, { version: string; commands: readonly CommandEntry[] }> = {
+  claude: { version: "2.1.326", commands: [
+    { name: "clear", description: "Clear conversation history and free up context." },
+    { name: "compact", description: "Clear conversation history but keep a summary in context." },
+    { name: "context", description: "" },
+    { name: "init", description: "Initialize a new CLAUDE.md file with codebase documentation" },
+    // Not in the SDK's command list (an alias of the bundled code-review), yet it runs.
+    { name: "review", description: "Review a pull request" },
+    { name: "usage", description: "Show plan usage limits" },
+  ] },
+  codex: { version: "0.167.1", commands: [
+    { name: "compact", description: "Summarize the conversation to free up context." },
+    { name: "review", description: "Review the current changes." },
+  ] },
+  cursor: { version: "2026.10.22", commands: [{ name: "copy-request-id", description: "" }] },
+  copilot: { version: "1.0.105", commands: ["compact", "context", "init", "rename", "review", "session", "usage"].map(name => ({ name, description: "" })) },
+  antigravity: { version: "1.3.0", commands: [] },
+};
+
+// Built-ins that are never sent: Doan shows a card instead and gives the text back. Terminal-only commands Doan has
+// its own UI for, for every provider; and the PoC's candidates that did not run where they are not allowed, which the
+// model answers by claiming it cleared or compacted. Antigravity's /logout erases Doan's own sign-in, and its /plan
+// waits for an approval Doan has no UI for. A command an ACP server lists that the PoC never sent is in neither table:
+// it goes out as text and the server handles it.
+const TERMINAL_ONLY = ["config", "login", "logout", "model", "permissions", "theme"];
+const CANDIDATES = ["clear", "compact", "context", "cost", "init", "review"];
+const notAllowed = (provider: Provider) => CANDIDATES.filter(name => !COMMAND_ALLOWLIST[provider].commands.some(c => c.name === name));
+export const UNSUPPORTED_COMMANDS: Record<Provider, readonly string[]> = {
+  claude: TERMINAL_ONLY,
+  codex: [...TERMINAL_ONLY, ...notAllowed("codex")],
+  cursor: [...TERMINAL_ONLY, ...notAllowed("cursor")],
+  copilot: TERMINAL_ONLY,
+  antigravity: [...TERMINAL_ONLY, ...notAllowed("antigravity"), "plan"],
+};
+
+// Codex runs its commands only as app-server requests: text "/compact" reaches the model, which claims it compacted
+// (PoC). The params leave out threadId, which the runner adds.
+export type ReviewTarget = { type: "uncommittedChanges" } | { type: "custom"; instructions: string };
+export type CommandRequest =
+  | { kind: "text"; text: string }
+  | { kind: "request"; method: "thread/compact/start"; params: Record<string, never> }
+  | { kind: "request"; method: "review/start"; params: { target: ReviewTarget } };
+// text: a command message as send assembly wrote it, "/<name>" and then its argument after one space.
+export function commandRequest(provider: Provider, text: string): CommandRequest {
+  const match = provider === "codex" ? /^\/(compact|review)(?:\s+([\s\S]*))?$/.exec(text) : null;
+  if (!match) return { kind: "text", text };
+  // thread/compact/start takes no instructions, so text after /compact has nowhere to go.
+  if (match[1] === "compact") return { kind: "request", method: "thread/compact/start", params: {} };
+  // Branch and commit targets are written as text too, so any text is custom instructions.
+  const instructions = match[2]?.trim() ?? "";
+  return { kind: "request", method: "review/start", params: { target: instructions ? { type: "custom", instructions } : { type: "uncommittedChanges" } } };
+}
