@@ -244,7 +244,7 @@ export function ReplyChip({ link }: { link: ReplyAnchor }) {
     onClick={() => { if (!disabled) void replyChip(link)?.then(outcome => { if (view.same && outcome === "missing") note.show(key); }); }}>{body}</button></ChipTip>;
 }
 
-// Agent output is untrusted, as the selection's `html`/`text` are (ARCHITECTURE §3 'Selection and inspector'): no raw
+// Agent output is untrusted, as the selection's `html`/`text` are (ARCHITECTURE §3 'Selection'): no raw
 // HTML (react-markdown escapes it; no rehype-raw), no images (their alt text stays), https links only; a `doan:` link
 // is a reply chip or text.
 const COMPONENTS: Components = {

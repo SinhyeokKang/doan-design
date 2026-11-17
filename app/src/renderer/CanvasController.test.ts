@@ -1,14 +1,12 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { InspectResult, InspectRow } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
 import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, MEASURE_ANSWER_MS, routeCanvasPublish, viewOnlyChange } from "./CanvasController";
 import { elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, screenToBoard } from "./viewport";
 import { unavailableCanvasMessage } from "./quickOpen";
 import { SELECTION_LOST } from "./selection";
 import { ADD_TO_MESSAGE_OUTSIDE_FRAMES, bubbleAddAvailability, targetAnchor } from "./canvasPicker";
-import { activityFor } from "./activity";
 import { CanvasTools } from "./CanvasTools";
 import { TooltipContent } from "./components/ui/tooltip";
 
@@ -19,7 +17,7 @@ it("updates the board synchronously without notifying React during pan", () => {
   const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => ({ x: 0, y: 0, left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, toJSON: () => ({}) }) });
   const board = { style: { transform: "", visibility: "" }, hidden: false, prepend: vi.fn() };
   const changed = vi.fn();
-  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer(), async () => null);
+  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), fakeLayer(), async () => null);
   controller.wheel({ dx: 10, dy: 20, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
   expect(board.style.transform).toBe("translate(-10px, -20px) scale(1)");
   expect(changed).not.toHaveBeenCalled();
@@ -31,7 +29,7 @@ it("notifies React only when the rounded zoom percentage changes", () => {
   const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => ({ x: 0, y: 0, left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, toJSON: () => ({}) }) });
   const board = { style: { transform: "", visibility: "" }, hidden: false, prepend: vi.fn() };
   const changed = vi.fn();
-  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer(), async () => null);
+  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), fakeLayer(), async () => null);
   const zoom = (dy: number) => controller.wheel({ dx: 0, dy, ctrl: true, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
   zoom(-0.1);
   expect(changed).not.toHaveBeenCalled();
@@ -65,7 +63,7 @@ describe("zoom to a scale", () => {
     vi.stubGlobal("window", new EventTarget());
     const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => new DOMRect() });
     const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
-    const controller = new CanvasController(viewport, board, { append: vi.fn() }, vi.fn(), vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer(), async () => null);
+    const controller = new CanvasController(viewport, board, { append: vi.fn() }, vi.fn(), vi.fn(), fakeLayer(), async () => null);
     try {
       controller.zoomTo(2);
       expect(controller.currentView().scale).toBe(1);
@@ -102,7 +100,7 @@ function loadedController() {
   const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => new DOMRect() });
   const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
   const changed = vi.fn();
-  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer(), async () => null);
+  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), fakeLayer(), async () => null);
   const row = { path: ".doan/canvases/a.html", url: "http://localhost/a.html", width: 600 };
   controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }]);
   controller.openCanvas("/repo", row);
@@ -208,14 +206,11 @@ function selectionHarness() {
   const overlay = { append: vi.fn() };
   const changed = vi.fn();
   const send = vi.fn();
-  // Each inspect call waits until the test resolves it, so answers can arrive late.
-  const inspections: { selector: string; resolve: (result: InspectResult) => void; reject: (error: unknown) => void }[] = [];
-  const inspect = vi.fn((selector: string) => new Promise<InspectResult>((resolve, reject) => { inspections.push({ selector, resolve, reject }); }));
   const layer = fakeLayer();
   // Where main says the OS cursor is, in the window's content coordinates; the viewport spans 0,0 to 800,600.
   const cursor = { at: { x: 400, y: 300 } as { x: number; y: number } | null };
   const pointer = vi.fn(async () => cursor.at);
-  const controller = new CanvasController(viewport, board, overlay, changed, send, inspect, layer, pointer);
+  const controller = new CanvasController(viewport, board, overlay, changed, send, layer, pointer);
   const row = { path: ".doan/canvases/a.html", id: "a", url: "http://localhost/t/k/f/.doan/canvases/a.html", width: 600 };
   const other = { ...row, path: ".doan/canvases/b.html", id: "b", url: "http://localhost/t/k/f/.doan/canvases/b.html" };
   controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row, other] }]);
@@ -229,7 +224,7 @@ function selectionHarness() {
   const markOf = (kind: string) => marks.find((mark) => mark.className.split(" ").includes(kind));
   const state = () => changed.mock.lastCall?.[0];
   layout();
-  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host, viewport, inspect, inspections, board, layer, doc, cursor, pointer, marks, nextFrame };
+  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host, viewport, board, layer, doc, cursor, pointer, marks, nextFrame };
 }
 
 // The canvas's answer to Esc's step past the outermost frame: a clear at the step's seq.
@@ -746,15 +741,6 @@ describe("selection", () => {
     });
   });
 
-  it("a path step asks the canvas for that anchor", () => {
-    const h = selectionHarness();
-    try {
-      h.select(1);
-      h.controller.selectPath({ label: "form", selector: "body > form:nth-of-type(1)" });
-      expect(h.current().contentWindow.postMessage).toHaveBeenLastCalledWith({ type: "select-anchor", seq: 2, selector: "body > form:nth-of-type(1)" }, "*");
-    } finally { h.controller.dispose(); }
-  });
-
   it("clears hover on app pointer movement outside the iframe without notifying React", () => {
     const h = selectionHarness();
     try {
@@ -995,38 +981,8 @@ describe("selection wiring", () => {
   });
 });
 
-describe("inspector rows from main", () => {
+describe("selection under a problem overlay", () => {
   afterEach(() => vi.unstubAllGlobals());
-  const width: InspectRow = { group: "box", label: "Width", value: "60px", state: "hardcoded" };
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
-
-  it("asks main for the selection's rows by its selector and shows them", async () => {
-    const h = selectionHarness();
-    try {
-      h.select(1);
-      expect(h.inspect).toHaveBeenCalledWith('[data-doan-id="cta"]');
-      expect(h.state().inspector).toEqual({ status: "loading" });
-      h.inspections[0]?.resolve({ ok: true, rows: [width] });
-      await settle();
-      expect(h.state().inspector).toEqual({ status: "ready", rows: [width] });
-    } finally { h.controller.dispose(); }
-  });
-
-  it("drops an answer for a selection that has changed since", async () => {
-    const h = selectionHarness();
-    try {
-      h.select(1);
-      h.select(2, { target: { ...h.target, element: { ...h.target.element, selector: "body > p:nth-of-type(1)" } } });
-      expect(h.inspections.map((call) => call.selector)).toEqual(['[data-doan-id="cta"]', "body > p:nth-of-type(1)"]);
-      h.inspections[1]?.resolve({ ok: true, rows: [width] });
-      h.inspections[0]?.resolve({ ok: true, rows: [] });
-      await settle();
-      expect(h.state().inspector).toEqual({ status: "ready", rows: [width] });
-      h.key("Escape");
-      stepAnswer(h);
-      expect(h.state().inspector).toBeNull();
-    } finally { h.controller.dispose(); }
-  });
 
   // Under a problem's overlay Esc takes no step on the covered canvas.
   it("keeps the selection on Escape while the canvas is covered", () => {
@@ -1042,58 +998,17 @@ describe("inspector rows from main", () => {
       expect(h.state().selection).toBeNull();
     } finally { h.controller.dispose(); }
   });
-
-  it("drops an answer that arrives after the selection was cleared", async () => {
-    const h = selectionHarness();
-    try {
-      h.select(1);
-      h.key("Escape");
-      stepAnswer(h);
-      h.inspections[0]?.resolve({ ok: true, rows: [width] });
-      await settle();
-      expect(h.state()).toMatchObject({ selection: null, inspector: null });
-    } finally { h.controller.dispose(); }
-  });
-
-  it("shows main's reason when it cannot inspect, and a generic one when the call fails", async () => {
-    const h = selectionHarness();
-    try {
-      vi.spyOn(console, "error").mockImplementation(() => {});
-      h.select(1);
-      h.inspections[0]?.resolve({ ok: false, reason: "No element matches the selector." });
-      await settle();
-      expect(h.state().inspector).toEqual({ status: "failed", reason: "No element matches the selector." });
-      h.select(2);
-      h.inspections[1]?.reject(new Error("No handler registered for 'inspect:get'"));
-      await settle();
-      expect(h.state().inspector).toEqual({ status: "failed", reason: "The canvas couldn’t be inspected." });
-    } finally { h.controller.dispose(); vi.restoreAllMocks(); }
-  });
-
-  it("asks a frame selection by its own path selector and asks again after a reload finds it", () => {
-    const h = selectionHarness();
-    try {
-      const { element: _element, ...frameTarget } = h.target;
-      h.select(1, { target: { ...frameTarget, path: [{ label: "hero", selector: "body > section:nth-of-type(2)" }] } });
-      expect(h.inspect).toHaveBeenLastCalledWith("body > section:nth-of-type(2)");
-      h.controller.command("reload");
-      h.layout();
-      h.select(1, { target: { ...frameTarget, path: [{ label: "hero", selector: "body > section:nth-of-type(2)" }] } });
-      expect(h.inspect).toHaveBeenCalledTimes(2);
-    } finally { h.controller.dispose(); }
-  });
 });
 
 describe("independent pending selection and hover commands", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it.each(["frame", "ancestor", "reload", "click"])("keeps a pending %s selection across Alt and leave", (kind) => {
+  it.each(["frame", "reload", "click"])("keeps a pending %s selection across Alt and leave", (kind) => {
     const h = selectionHarness();
     try {
       let selectionSeq = 1;
-      if (kind === "ancestor" || kind === "reload") h.select(1);
+      if (kind === "reload") h.select(1);
       if (kind === "frame") h.controller.selectFrame(1, "hero");
-      if (kind === "ancestor") { h.controller.selectPath(h.target.path[0]!); selectionSeq = 2; }
       if (kind === "reload") { h.controller.command("reload"); h.layout(); }
       h.receive({ type: "hover", seq: 0, rect: h.target.rect });
       h.host.dispatchEvent(new Event("pointermove"));
@@ -1104,7 +1019,6 @@ describe("independent pending selection and hover commands", () => {
       h.layout({ seq: selectionSeq, selected: h.target.rect });
       expect(h.state().selection?.tag).toBe("button");
       expect(h.markOf("selected")?.hidden).toBe(false);
-      expect(h.inspect).toHaveBeenLastCalledWith(h.target.element.selector);
     } finally { h.controller.dispose(); }
   });
 
@@ -1112,7 +1026,7 @@ describe("independent pending selection and hover commands", () => {
     const h = selectionHarness();
     try {
       h.select(1);
-      h.controller.selectPath(h.target.path[0]!);
+      h.controller.selectFrame(1, "hero");
       if (action === "Escape") { h.key("Escape"); stepAnswer(h); }
       else h.controller.selectFrame(0, "intro");
       h.key("Alt");
@@ -1716,46 +1630,6 @@ describe("a canvas moved with the same id", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("moves the activity to the new path and adds Moved once", () => {
-    const h = movedHarness();
-    try {
-      h.controller.updateEntries(h.list(h.moved, h.other));
-      h.layout({ href: h.moved.url });
-      const activity = h.state().activity;
-      expect(activityFor(activity, "/repo", h.moved.path, "a").map(event => [event.kind, event.from])).toEqual([["moved", h.row.path], ["opened", undefined]]);
-    } finally { h.controller.dispose(); }
-  });
-
-  // Activity is keyed by (root, canvas id) (R-B7 3); the path is only where it was.
-  it("does not give a new canvas id at a reused path the previous id's history, before or after a move", () => {
-    const h = movedHarness();
-    try {
-      const replacement = { ...h.row, id: "replacement" };
-      h.controller.updateEntries(h.list(replacement, h.other));
-      h.layout();
-      expect(activityFor(h.state().activity, "/repo", h.row.path, "replacement").map(event => event.kind)).toEqual(["reloaded"]);
-      const moved = { ...replacement, path: ".doan/canvases/new.html", url: "http://localhost/t/k/f/.doan/canvases/new.html" };
-      h.controller.updateEntries(h.list(moved, h.other));
-      h.layout({ href: moved.url });
-      expect(activityFor(h.state().activity, "/repo", moved.path, "replacement").map(event => event.kind)).toEqual(["moved", "reloaded"]);
-      expect(activityFor(h.state().activity, "/repo", h.row.path, "a").map(event => event.kind)).toEqual(["opened"]);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("keeps the history of a canvas left at the destination path under its own id", () => {
-    const h = movedHarness();
-    try {
-      h.controller.openCanvas("/repo", h.other);
-      h.layout({ href: h.other.url });
-      h.controller.openCanvas("/repo", h.row);
-      h.layout();
-      const moved = { ...h.row, path: h.other.path, url: h.other.url };
-      h.controller.updateEntries(h.list(moved, { ...h.other, path: ".doan/canvases/c.html", url: "http://localhost/t/k/f/.doan/canvases/c.html" }));
-      expect(activityFor(h.state().activity, "/repo", h.other.path, "a").map(event => event.kind)).toEqual(["moved", "opened", "opened"]);
-      expect(activityFor(h.state().activity, "/repo", ".doan/canvases/c.html", "b").map(event => event.kind)).toEqual(["opened"]);
-    } finally { h.controller.dispose(); }
-  });
-
   it("shows the selection-lost notice when the moved document no longer has the anchor", () => {
     const h = movedHarness();
     try {
@@ -1774,7 +1648,6 @@ describe("a canvas moved with the same id", () => {
       h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 3, canvases: [{ ...h.moved, rev: 4 }, h.other] }]);
       expect(h.frames).toHaveLength(frames + 1);
       expect(h.followed).toHaveBeenCalledOnce();
-      expect(h.state().activity.filter((event: { kind: string }) => event.kind === "moved")).toHaveLength(1);
     } finally { h.controller.dispose(); }
   });
 
@@ -1850,46 +1723,6 @@ describe("a canvas moved to the Trash", () => {
       expect(h.followed).toHaveBeenCalledOnce();
     } finally { h.controller.dispose(); }
   });
-});
-
-describe("Activity", () => {
-  function activityHarness() {
-    const h = selectionHarness();
-    const list = (...canvases: object[]) => [{ path: "/repo", kind: "list" as const, servedRev: 0, canvases }] as FolderEntry[];
-    return { ...h, list };
-  }
-
-  it("records a reload as Changed when the row revision moved, counting a missing one as 0, and as Reloaded otherwise", () => {
-    const h = activityHarness();
-    const kinds = () => activityFor(h.state().activity, "/repo", h.row.path, "a").map(event => event.kind);
-    try {
-      // ARCH §13: a row without rev has not changed since the folder was added.
-      h.controller.updateEntries(h.list({ ...h.row, rev: 1 }, h.other));
-      h.layout();
-      expect(kinds()).toEqual(["changed", "opened"]);
-      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [{ ...h.row, rev: 1 }, h.other] }]);
-      h.layout();
-      expect(kinds()).toEqual(["reloaded", "changed", "opened"]);
-      h.controller.command("reload");
-      h.layout();
-      expect(kinds()[0]).toBe("reloaded");
-      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [{ ...h.row, rev: 2 }, h.other] }]);
-      h.layout();
-      expect(kinds()[0]).toBe("changed");
-    } finally { h.controller.dispose(); }
-  });
-
-  it("keeps Changed when a plain reload replaces a changed one before it lays out", () => {
-    const h = activityHarness();
-    try {
-      h.controller.updateEntries(h.list({ ...h.row, rev: 1 }, h.other));
-      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [{ ...h.row, rev: 1 }, h.other] }]);
-      h.layout();
-      expect(activityFor(h.state().activity, "/repo", h.row.path, "a").map(event => event.kind)).toEqual(["changed", "opened"]);
-    } finally { h.controller.dispose(); }
-  });
-
-
 });
 
 describe("Escape and a blank click without a selection (L-17)", () => {
@@ -2193,7 +2026,7 @@ describe("first Fit", () => {
     vi.stubGlobal("document", { createElement: () => frame });
     const viewport = Object.assign(new EventTarget(), { clientWidth: width, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => new DOMRect() });
     const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
-    const controller = new CanvasController(viewport, board, { append: vi.fn() }, vi.fn(), vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer(), async () => null);
+    const controller = new CanvasController(viewport, board, { append: vi.fn() }, vi.fn(), vi.fn(), fakeLayer(), async () => null);
     const row = { path: ".doan/canvases/a.html", url: "http://localhost/a.html", width: 1200 };
     const other = { ...row, path: ".doan/canvases/b.html", url: "http://localhost/b.html" };
     controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row, other] }, { path: "/other", kind: "list", servedRev: 0, canvases: [other] }]);
@@ -2352,7 +2185,6 @@ describe("picking", () => {
       expect(h.state()).toMatchObject({ picking: false, selection: null });
       // Told once, when the pick started.
       expect(h.send).toHaveBeenCalledExactlyOnceWith(null);
-      expect(h.inspect).toHaveBeenCalledTimes(1);
       // A second reply for the same pick is dropped.
       picked(h, { target: h.target });
       expect(results).toHaveBeenCalledTimes(1);
@@ -2429,7 +2261,7 @@ describe("picking", () => {
       started(h);
       const sent = posted(h).filter(m => m.type === "clear" || m.type === "pick-start");
       expect(sent).toEqual([{ type: "clear", seq: 2 }, { type: "pick-start", document: "doc", seq: 1 }]);
-      expect(h.state()).toMatchObject({ picking: true, selection: null, inspector: null, notice: "" });
+      expect(h.state()).toMatchObject({ picking: true, selection: null, notice: "" });
       expect(h.send).toHaveBeenCalledExactlyOnceWith(null);
       expect(h.markOf("selected")?.hidden).toBe(true);
       // A select the canvas sent before the pick does not bring it back.
@@ -3290,7 +3122,7 @@ describe("hand tool", () => {
   // Switching to Hand drops the selection; a held Space does not.
   const clears = (h: H) => posted(h).filter(m => m.type === "clear");
   const cleared = (h: H) => {
-    expect(h.state()).toMatchObject({ tool: "hand", selection: null, inspector: null, notice: "" });
+    expect(h.state()).toMatchObject({ tool: "hand", selection: null, notice: "" });
     expect(h.send).toHaveBeenLastCalledWith(null);
     expect(h.markOf("selected")?.hidden).toBe(true);
   };
@@ -3741,8 +3573,10 @@ describe("hand tool", () => {
       const h = h2;
       h.controller.selectFrame(1, "hero");
       h.select(1, { target: frameReply });
-      h.controller.selectPath({ label: "cta", selector: '[data-doan-id="cta"]', doanId: "cta" });
-      h.select(2, { answer: "select-anchor" });
+      // A reload asks the new document for the selection's anchor.
+      h.controller.command("reload");
+      h.layout();
+      h.select(1, { answer: "select-anchor" });
       await flush();
       expect(h.state().selection?.element?.doanId).toBe("cta");
       expect(h.pointer).not.toHaveBeenCalled();
@@ -3802,7 +3636,7 @@ describe("hand tool", () => {
   it("a click at the seq of a command in flight still moves focus", async () => {
     const h = harness();
     try {
-      h.controller.selectPath({ label: "cta", selector: '[data-doan-id="cta"]', doanId: "cta" });
+      h.controller.selectFrame(1, "hero");
       h.receive({ type: "clear", seq: 1 });
       await flush();
       expect(h.viewport.focus).toHaveBeenCalledTimes(1);
@@ -4079,8 +3913,9 @@ describe("canvas press", () => {
       h.receive({ type: "clear", seq: 2 });
       h.controller.selectFrame(3, "hero");
       h.select(3, { target: { ...h.target, element: null, path: [], tag: "section" } });
-      h.controller.selectPath({ label: "cta", selector: '[data-doan-id="cta"]', doanId: "cta" });
-      h.select(4, { answer: "select-anchor" });
+      h.controller.command("reload");
+      h.layout();
+      h.select(1, { answer: "select-anchor" });
       expect(listener).not.toHaveBeenCalled();
     } finally { h.controller.dispose(); }
   });
@@ -5658,7 +5493,6 @@ describe("view-only publishes", () => {
   it("is not view-only when anything else changed, or nothing did", () => {
     expect(viewOnlyChange(base, { ...base, zoom: 80, picking: true })).toBe(false);
     expect(viewOnlyChange(base, { ...base, currentFrame: 2, layout: null, status: "loading" })).toBe(false);
-    expect(viewOnlyChange(base, { ...base, activity: [...base.activity] })).toBe(false);
     expect(viewOnlyChange(base, { ...base })).toBe(false);
   });
   it("the view store tells its subscribers only of a real change", () => {

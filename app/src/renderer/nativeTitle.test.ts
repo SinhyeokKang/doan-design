@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 
 // DESIGN 'Tooltip': the shared tooltip replaces every native `title` in the renderer. An iframe's title is its
-// accessible name, not a tooltip, and RightPanel.tsx (the Inspector) is not drawn.
+// accessible name, not a tooltip.
 const renderer = new URL("./", import.meta.url);
 function sources(): { path: string; text: string }[] {
   const out: { path: string; text: string }[] = [];
@@ -17,10 +17,9 @@ function sources(): { path: string; text: string }[] {
   return out;
 }
 
-test("no renderer element sets a native title, iframes and the undrawn Inspector aside", () => {
+test("no renderer element sets a native title, iframes aside", () => {
   const found: string[] = [];
   for (const file of sources()) {
-    if (file.path === "RightPanel.tsx") continue;
     file.text.split("\n").forEach((line, index) => {
       for (const match of line.matchAll(/\stitle=[{"]/g)) {
         // The element is the nearest tag opened before the attribute on its line; a capitalised one is a component prop.
