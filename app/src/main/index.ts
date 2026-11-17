@@ -1278,7 +1278,7 @@ async function start(): Promise<void> {
     send(message.channel, message.value);
     if (message.channel === "conversation:listChanged" || (message.channel === "conversation:event" && message.value.type === "conversation.bound")) known = null;
     if (prototype.window() === undefined) return;
-    const list = message.channel === "conversation:event" || message.channel === "conversation:stage" ? knownFor(message.value.conversationId) : known ?? [];
+    const list = message.channel === "conversation:event" || message.channel === "conversation:stage" || message.channel === "conversation:boundary" ? knownFor(message.value.conversationId) : known ?? [];
     if (prototypeReceives(message, prototype.controller.playing(), list)) prototype.send(message.channel, message.value);
     if (message.channel === "conversation:event" && prototypePromoted.event(message.value, list)) prototypeRelay.promoted();
   };
@@ -1296,7 +1296,9 @@ async function start(): Promise<void> {
   }, root => { broadcast({ channel: "conversation:listChanged", value: { root } }); updates?.conversationsChanged(); }, { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model), fast: (root, provider, model) => modelCatalog?.fast(root, provider, model) === true,
     limitWindows: (provider, connectionId) => usage ? usage.limitWindows(provider, connectionId) : Promise.resolve([]), resumed: listener => { powerMonitor.on("resume", listener); }, notice: event => notify.event(event) }, id => notify.close(id),
   // A stage is a live signal beside the events, never one of them: its own channel, sent to the same windows as events.
-  id => { updateConversationWork(endConversationWork(conversationWork, id)); updates?.conversationsChanged(); }, notice => broadcast({ channel: "conversation:handoff", value: notice }), signal => broadcast({ channel: "conversation:stage", value: signal }));
+  id => { updateConversationWork(endConversationWork(conversationWork, id)); updates?.conversationsChanged(); }, notice => broadcast({ channel: "conversation:handoff", value: notice }), signal => broadcast({ channel: "conversation:stage", value: signal }),
+  // A command turn's boundary, as a stage: its own channel to the same windows as events, never written to the history.
+  signal => broadcast({ channel: "conversation:boundary", value: signal }));
   conversations = conversationService;
   attachments.cleanup();
   modelCatalog = new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.readListing(input, listModels));

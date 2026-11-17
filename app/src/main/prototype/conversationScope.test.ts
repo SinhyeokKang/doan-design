@@ -65,6 +65,12 @@ describe("prototypeConversationScope", () => {
     }
   });
 
+  // An ACP conversation's commands name the conversation: only one of the playing canvas.
+  test("a skills request that names a conversation needs one of the playing canvas", () => {
+    expect(allowed("skills", { root: "/r", provider: "copilot", conversationId: "c-proto" })).toBe(true);
+    for (const id of ["c-other", "c-project", "c-proto-wt", "missing"]) expect(allowed("skills", { root: "/r", provider: "copilot", conversationId: id }), id).toBe(false);
+  });
+
   // The window's head menu deletes a conversation of the canvas it plays, never another canvas's or a project one.
   test("delete reaches only a conversation of the playing canvas in the playing root", () => {
     expect(allowed("delete", { conversationId: "c-proto" })).toBe(true);
@@ -187,6 +193,12 @@ describe("prototypeReceives", () => {
     }
     expect(receives({ channel: "conversation:event", value: ev("c-loose") }, PLAYING_LOOSE)).toBe(true);
     expect(receives({ channel: "conversation:event", value: ev("c-loose-wt") }, PLAYING_LOOSE)).toBe(false);
+  });
+
+  test("a command turn's boundary goes as its events do", () => {
+    const boundary = (conversationId: string) => ({ channel: "conversation:boundary" as const, value: { conversationId, turnId: "t", kind: "compacted" as const } });
+    expect(receives(boundary("c-proto"))).toBe(true);
+    for (const id of ["c-proto-wt", "c-other", "c-project", "missing"]) expect(receives(boundary(id)), id).toBe(false);
   });
 
   test("a list change goes for the playing root only", () => {

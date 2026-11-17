@@ -16,7 +16,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { ConversationHandoffNotice } from "../main/conversation/handoff";
 import type { AttachmentResult, RecheckResult } from "../main/attachments";
 import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
-import type { Anchor, Canvas, ConversationEvent, Runtime, SkillSummary, StageSignal, UnavailableReason } from "../main/conversation/types";
+import type { Anchor, BoundarySignal, Canvas, ConversationEvent, Runtime, SkillSummary, StageSignal, UnavailableReason } from "../main/conversation/types";
 import type {
   OnboardingCancelRequest, OnboardingCheckRequest, OnboardingCompleteRequest, OnboardingProjectCloneRequest,
   OnboardingProjectInspectRequest, OnboardingProjectSelectRequest, OnboardingResponse, OnboardingState, OnboardingStatusRequest,
@@ -201,8 +201,10 @@ const api = {
   // same read, for permissionOptions (permissionMode.ts); none for Claude and Codex.
   listConversationModels: (request: { root: string; runtime: Provider }): Promise<ModelsReply> => ipcRenderer.invoke("conversation:models", request),
   // The project skills the provider loads in this folder (Claude and Codex; an empty list for the others), read the
-  // same prompt-free way and kept by main for 30 seconds. An error carries a conversation start code.
-  listConversationSkills: (request: { root: string; provider: Provider }): Promise<{ skills: SkillSummary[] } | ConversationError> => ipcRenderer.invoke("conversation:skills", request),
+  // same prompt-free way and kept by main for 30 seconds, then the built-in commands Doan runs (rows of kind "command"):
+  // Claude's and Codex's at the installed version, and an ACP conversation's own (conversationId) from the last list its
+  // session pushed, none before its first session. An error carries a conversation start code.
+  listConversationSkills: (request: { root: string; provider: Provider; conversationId?: string }): Promise<{ skills: SkillSummary[] } | ConversationError> => ipcRenderer.invoke("conversation:skills", request),
   // Home attachments. Main checks each item (real path, a regular file or a folder, image signature) and answers per item
   // in order; nothing is copied except a pasted image, which main re-encodes to PNG under userData, and a folder is never
   // read. A thumbnail is PNG bytes.
@@ -242,6 +244,13 @@ const api = {
     const receive = (_event: Electron.IpcRendererEvent, signal: StageSignal) => listener(signal);
     ipcRenderer.on("conversation:stage", receive);
     return () => ipcRenderer.removeListener("conversation:stage", receive);
+  },
+  // A command turn's boundary as its provider reported it in this run, never stored. readConversation's commands carry
+  // the same boundaries once read (rebuilt from the record after a restart), so a boundary may arrive by both.
+  onConversationBoundary(listener: (signal: BoundarySignal) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, signal: BoundarySignal) => listener(signal);
+    ipcRenderer.on("conversation:boundary", receive);
+    return () => ipcRenderer.removeListener("conversation:boundary", receive);
   },
   // Agent accounts. Main checks provider and attempt IDs and binds sign-in, cancel, pasted addresses and link
   // opening to this window. Snapshots carry one revision; onAgentAuth delivers only ones newer than the last it

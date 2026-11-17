@@ -217,6 +217,30 @@ export function claudeTranscript(config: string, id: string): string | null {
   } catch { return null; }
   return null;
 }
+// The cwds a Claude session transcript's own lines name (each user, assistant and system line carries its sessionId and
+// cwd); broken lines and other sessions' lines are skipped.
+export function transcriptCwds(text: string, sessionId: string): string[] {
+  const cwds: string[] = [];
+  for (const line of text.split("\n")) {
+    if (!line) continue;
+    let record: unknown; try { record = JSON.parse(line); } catch { continue; }
+    if (object(record) && record.sessionId === sessionId && typeof record.cwd === "string") cwds.push(record.cwd);
+  }
+  return cwds;
+}
+// The session a person's /clear moved a conversation to, proved by its own transcript: in the project folder that holds
+// the conversation's current session (another project's session of the same profile is not this conversation's), and
+// naming only the conversation's cwd. A transcript that names none proves nothing. Read whole and small: a new session's
+// file holds only its /clear lines yet.
+const CLEARED_TRANSCRIPT_BYTES = 8 * 1024 * 1024;
+export function claudeClearedSession(config: string, previous: string, next: string, cwd: string): boolean {
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(next) || next.startsWith("-")) return false;
+  const held = claudeTranscript(config, previous); if (!held) return false;
+  try {
+    const cwds = transcriptCwds(readRegular(join(dirname(held), `${next}.jsonl`), CLEARED_TRANSCRIPT_BYTES), next);
+    return cwds.length > 0 && cwds.every(named => canonicalDirectory(named) === cwd);
+  } catch { return false; }
+}
 // The transcript's size now, 0 when it does not exist yet (a new session writes it with its first turn).
 export function transcriptSize(config: string, id: string): number {
   const path = claudeTranscript(config, id); if (!path) return 0;

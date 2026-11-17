@@ -25,37 +25,40 @@ const fs = require('node:fs'); const log = ${JSON.stringify(log)};
 const note = value => fs.appendFileSync(log, JSON.stringify(value) + '\\n');
 const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
 const mode = process.env.FAKE_MODE; let task = false;
+// The session the run asked for, as the real CLI answers under it (a frame under another id fails the turn).
+let sid = 's';
 process.on('SIGTERM', () => {
  note({ signal: 'SIGTERM', task });
  // FAKE_SLOW_TERM: the CLI's own SIGTERM handling stops the task, reports the empty set, then takes 300 ms to finish.
- if (process.env.FAKE_SLOW_TERM && task) { task = false; send({type:'system',subtype:'background_tasks_changed',tasks:[],session_id:'s'}); setTimeout(() => { note({ cleaned: true }); process.exit(143); }, 300); return; }
+ if (process.env.FAKE_SLOW_TERM && task) { task = false; send({type:'system',subtype:'background_tasks_changed',tasks:[],session_id:sid}); setTimeout(() => { note({ cleaned: true }); process.exit(143); }, 300); return; }
  process.exit(143);
 });
 const say = (id, text) => send({type:'assistant',parent_tool_use_id:null,message:{id,role:'assistant',content:[{type:'text',text}]}});
-const meta = () => { say('meta-m', 'The task finished.'); send({type:'result',subtype:'success',is_error:false,num_turns:0,result:'',session_id:'s'}); };
+const meta = () => { say('meta-m', 'The task finished.'); send({type:'result',subtype:'success',is_error:false,num_turns:0,result:'',session_id:sid}); };
 require('node:readline').createInterface({input:process.stdin}).on('line', line => {
  const r = JSON.parse(line); note(r);
+ if(r.type==='user' && typeof r.session_id==='string') sid = r.session_id;
  if(r.type==='control_request') { send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:r.request.subtype==='get_usage'?{rate_limits_available:true,rate_limits:{}}:{commands:[],models:[],account:{}}}}); return; }
  if(r.type!=='user') return;
- if(mode==='meta') { meta(); setTimeout(() => { send({type:'system',subtype:'init',user_message_uuids:[r.uuid],session_id:'s'}); say('own', '4'); send({type:'result',subtype:'success',is_error:false,num_turns:1,result:'4',user_message_uuids:[r.uuid],session_id:'s'}); }, 50); }
+ if(mode==='meta') { meta(); setTimeout(() => { send({type:'system',subtype:'init',user_message_uuids:[r.uuid],session_id:sid}); say('own', '4'); send({type:'result',subtype:'success',is_error:false,num_turns:1,result:'4',user_message_uuids:[r.uuid],session_id:sid}); }, 50); }
  if(mode==='unread') setTimeout(meta, 300);
- if(mode==='slow') { setTimeout(meta, 300); setTimeout(() => send({type:'system',subtype:'init',user_message_uuids:[r.uuid],session_id:'s'}), 400);
-  const poll = setInterval(() => { if(!fs.existsSync(${JSON.stringify(join(root, "go"))})) return; clearInterval(poll); say('own', '4'); send({type:'result',subtype:'success',is_error:false,result:'4',user_message_uuids:[r.uuid],session_id:'s'}); }, 20); }
- if(mode==='failed') send({type:'result',subtype:'error_during_execution',is_error:true,errors:['boom'],session_id:'s'});
- if(mode==='failread') { setInterval(() => {}, 1000); send({type:'system',subtype:'init',user_message_uuids:[r.uuid],session_id:'s'}); send({type:'result',subtype:'error_during_execution',is_error:true,errors:['boom'],user_message_uuids:[r.uuid],session_id:'s'}); }
+ if(mode==='slow') { setTimeout(meta, 300); setTimeout(() => send({type:'system',subtype:'init',user_message_uuids:[r.uuid],session_id:sid}), 400);
+  const poll = setInterval(() => { if(!fs.existsSync(${JSON.stringify(join(root, "go"))})) return; clearInterval(poll); say('own', '4'); send({type:'result',subtype:'success',is_error:false,result:'4',user_message_uuids:[r.uuid],session_id:sid}); }, 20); }
+ if(mode==='failed') send({type:'result',subtype:'error_during_execution',is_error:true,errors:['boom'],session_id:sid});
+ if(mode==='failread') { setInterval(() => {}, 1000); send({type:'system',subtype:'init',user_message_uuids:[r.uuid],session_id:sid}); send({type:'result',subtype:'error_during_execution',is_error:true,errors:['boom'],user_message_uuids:[r.uuid],session_id:sid}); }
  if(mode==='bg') {
   task = true;
-  send({type:'system',subtype:'background_tasks_changed',tasks:[{task_id:'b1',task_type:'local_bash',description:'Sleep',...(process.env.FAKE_AMBIENT ? {ambient:true} : {})}],session_id:'s'});
+  send({type:'system',subtype:'background_tasks_changed',tasks:[{task_id:'b1',task_type:'local_bash',description:'Sleep',...(process.env.FAKE_AMBIENT ? {ambient:true} : {})}],session_id:sid});
   say('own', 'started');
-  if(process.env.FAKE_RESULT==='failed') { send({type:'system',subtype:'init',user_message_uuids:[r.uuid],session_id:'s'}); send({type:'result',subtype:'error_during_execution',is_error:true,errors:['boom'],user_message_uuids:[r.uuid],session_id:'s'}); }
-  else send({type:'result',subtype:'success',is_error:false,result:'started',user_message_uuids:[r.uuid],session_id:'s'});
+  if(process.env.FAKE_RESULT==='failed') { send({type:'system',subtype:'init',user_message_uuids:[r.uuid],session_id:sid}); send({type:'result',subtype:'error_during_execution',is_error:true,errors:['boom'],user_message_uuids:[r.uuid],session_id:sid}); }
+  else send({type:'result',subtype:'success',is_error:false,result:'started',user_message_uuids:[r.uuid],session_id:sid});
   setTimeout(() => {
    task = false; note({ taskEnded: true });
-   send({type:'system',subtype:'background_tasks_changed',tasks:[],session_id:'s'});
-   setTimeout(() => { note({ model: true }); send({type:'system',subtype:'status',status:'requesting',session_id:'s'}); meta(); setTimeout(() => process.exit(0), 20); }, 100);
+   send({type:'system',subtype:'background_tasks_changed',tasks:[],session_id:sid});
+   setTimeout(() => { note({ model: true }); send({type:'system',subtype:'status',status:'requesting',session_id:sid}); meta(); setTimeout(() => process.exit(0), 20); }, 100);
   }, Number(process.env.FAKE_TASK_MS || 300));
  }
- if(mode==='done') { say('own', 'hello'); send({type:'result',subtype:'success',is_error:false,result:'hello',user_message_uuids:[r.uuid],session_id:'s'}); }
+ if(mode==='done') { say('own', 'hello'); send({type:'result',subtype:'success',is_error:false,result:'hello',user_message_uuids:[r.uuid],session_id:sid}); }
 }).on('close', () => {
  note({ closed: true });
  if(mode==='done') setTimeout(() => process.exit(0), Number(process.env.FAKE_EXIT_MS || 20));
