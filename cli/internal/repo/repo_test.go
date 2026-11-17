@@ -352,3 +352,51 @@ func TestFindNamesNoConfigForOtherFailures(t *testing.T) {
 	_, err = Find(root, filepath.Join(root, "locked/sub"))
 	expectConfig(t, err, "internal_error", "")
 }
+
+
+// A folder that cannot be read is reported by its repo-relative path and the walk lists the rest; Canvases, which
+// check and export use, still fails as a whole because the set of canvases is unknown.
+func TestCanvasListingReportsUnreadableFolders(t *testing.T) {
+	root := t.TempDir()
+	for _, p := range []string{".doan/canvases/a.html", ".doan/canvases/sub/x.html", ".doan/canvases/z/y.html", ".doan/ds/button.html", ".doan/ds/color/t.html", ".doan/canvases/.hide/x.html"} {
+		put(t, root, p, "")
+	}
+	locked(t, filepath.Join(root, ".doan/canvases/sub"))
+	locked(t, filepath.Join(root, ".doan/ds/color"))
+	locked(t, filepath.Join(root, ".doan/canvases/.hide"))
+	paths, folders, err := CanvasListing(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{".doan/canvases/a.html", ".doan/canvases/z/y.html", ".doan/ds/button.html"}; !reflect.DeepEqual(paths, want) {
+		t.Fatalf("paths %v", paths)
+	}
+	got := []string{}
+	for _, f := range folders {
+		if !errors.Is(f.Err, os.ErrPermission) {
+			t.Fatalf("%s: %v", f.Path, f.Err)
+		}
+		got = append(got, f.Path)
+	}
+	if want := []string{".doan/canvases/sub", ".doan/ds/color"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("folders %v", got)
+	}
+	if _, err := Canvases(root); !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("Canvases: %v", err)
+	}
+	if _, err := MiscasedCanvases(root); !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("MiscasedCanvases: %v", err)
+	}
+}
+
+// The canvas directory itself is a folder like any other: the other directory is still listed.
+func TestCanvasListingReportsAnUnreadableCanvasDirectory(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, ".doan/canvases/a.html", "")
+	put(t, root, ".doan/ds/button.html", "")
+	locked(t, filepath.Join(root, ".doan/canvases"))
+	paths, folders, err := CanvasListing(root)
+	if err != nil || !reflect.DeepEqual(paths, []string{".doan/ds/button.html"}) || len(folders) != 1 || folders[0].Path != ".doan/canvases" {
+		t.Fatalf("%v %v %v", paths, folders, err)
+	}
+}
