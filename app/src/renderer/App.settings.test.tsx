@@ -221,7 +221,7 @@ test("while a category holds a confirmation or a write, incoming targets wait an
     ["Quick Open", () => { listeners.menu!("quickOpen" as never); render(); }],
     ["Search", () => { settings()!.props.sidebar.props.search!(); render(); }],
     ["sidebar category", () => { settings()!.props.sidebar.props.settings!.select("about"); render(); }],
-    ["File > Add Project…", () => { listeners.openAddProjects!(); render(); }],
+    ["File > Add Projects…", () => { listeners.openAddProjects!(); render(); }],
     ["notification click", () => { listeners.notificationClick!({ conversationId: "c1", root: "/w/b" } as never); render(); }],
   ];
   for (const [name, move] of moves) {
@@ -630,7 +630,7 @@ test("while the page holds a picker, a confirmation or a write, every way out an
     ["Settings… (⌘,)", () => cmdComma()],
     ["sign-in toast", () => { harness.signIn.onToast!({ text: "Codex sign-in didn’t finish.", action: { label: "Open Agents settings", target: { section: "agents", provider: "codex" } } }); (harness.toast.show.mock.lastCall![2] as () => void)(); render(); }],
     ["notification click", () => { listeners.notificationClick!({ conversationId: "gone", root: "/w/b" } as never); render(); }],
-    ["File > Add Project…", () => { listeners.openAddProjects!(); render(); }],
+    ["File > Add Projects…", () => { listeners.openAddProjects!(); render(); }],
   ];
   for (const [name, move] of moves) {
     reset();
