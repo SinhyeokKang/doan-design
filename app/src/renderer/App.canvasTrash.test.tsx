@@ -160,6 +160,9 @@ test.each([
 
 // ui-state's conversationByCanvas forgets a canvas moved to the Trash, so the memory shrinks with the canvases.
 test("a canvas moved to the Trash leaves the canvas conversation memory; a refused move keeps it", async () => {
+  // Both remembered conversations are listed: a save drops what the read list does not name.
+  const listedSummary = (conversationId: string) => ({ conversationId, title: "", owner: "doan", provider: "codex", fromHome: false, phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-06T00:00:00Z", preview: "", working: false });
+  doan.listConversations = vi.fn(async () => [listedSummary("c1"), listedSummary("c2")]);
   await start({ ...workspace, conversationByCanvas: { "/w/a": { [A]: "c1", [B]: "c2" } } });
   const saved = () => (doan.saveUiState!.mock.calls.at(-1)?.[0] as { conversationByCanvas?: unknown } | undefined)?.conversationByCanvas;
   const move = async (row: CanvasRow, reply: unknown) => {

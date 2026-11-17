@@ -25,6 +25,7 @@ import { NameTip } from "./NameTip";
 import { countDescription, headArrow, sidebarGroups, visibleItems, type GroupId, type SidebarGroup, type SidebarItem } from "./sidebarGroups";
 import { DELETE_TOOLTIP, deleteItemLabel } from "./conversationDelete";
 import type { DeleteTarget } from "./ConversationDeleteDialog";
+import { refocusOnActivation } from "./activationFocus";
 import { canvasArrow, canvasDisclosure, canvasRowMark, conversationArrow, conversationRowKey, deleteFocus, listPlace, viewedCanvasConversations, type SidebarConversation } from "./sidebarConversations";
 
 interface Props {
@@ -232,6 +233,9 @@ export function ShellSidebar(props: Props) {
   // Where a canvas menu's focus goes when its row left the tree while it was open.
   const canvasMenuFocus = useRef<string | undefined>(undefined);
   const ownedFocus = useRef<string | null>(null);
+  // Cancels the wait for the window's activation after a recovery made in the background.
+  const activationFocus = useRef<() => void>(() => {});
+  useEffect(() => () => activationFocus.current(), []);
   const previousRows = useRef<TreeRow[]>([]);
   const previousProjects = useRef<string[]>([]);
   const elements = useRef(new Map<string, HTMLElement>());
@@ -370,7 +374,16 @@ export function ShellSidebar(props: Props) {
     if (lost && !rows.some(row => row.key === lost) && !document.querySelector('[role="dialog"], dialog[open]')) {
       const projectIndex = previousProjects.current.indexOf(lost);
       const target = projectIndex >= 0 ? cards[Math.min(projectIndex, cards.length - 1)]?.key : recoveryKey(previousRows.current, rows, lost);
-      if (document.activeElement === document.body || !document.activeElement?.isConnected) focus(target);
+      if (document.activeElement === document.body || !document.activeElement?.isConnected) {
+        focus(target);
+        // In the background (`doan open` from a terminal), the window's activation would restore focus to the row
+        // that went, and with that row gone to the first header control.
+        activationFocus.current();
+        activationFocus.current = refocusOnActivation(window, () => document.hasFocus(), () => {
+          const element = target === undefined ? undefined : Array.from(host.current?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? []).find(row => row.dataset.key === target);
+          if (element?.isConnected && document.activeElement !== element && !document.querySelector('[role="dialog"], dialog[open]')) element.focus();
+        });
+      }
       ownedFocus.current = null;
     }
     if (lost && rows.some(row => row.key === lost)) ownedFocus.current = null;

@@ -583,7 +583,8 @@ test("the panel opens on the conversation last seen on the canvas, and what is s
   await openCanvas({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, conversationByCanvas: { "/w/a": { a: "c2", other: "c9" } } });
   expect(shownId()).toBe("c2");
   selectShown("c1");
-  expect((saved() as { conversationByCanvas?: unknown }).conversationByCanvas).toEqual({ "/w/a": { a: "c1", other: "c9" } });
+  // `other` names a canvas and a conversation the read lists do not have: the save drops it.
+  expect((saved() as { conversationByCanvas?: unknown }).conversationByCanvas).toEqual({ "/w/a": { a: "c1" } });
 });
 
 // POSTMORTEM 2026-11-01: a conversation seen before the startup ui-state read sends no save; the first save after the
@@ -603,7 +604,7 @@ test("a conversation seen before the ui-state read sends no save, and the first 
   readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, conversationByCanvas: { "/w/a": { a: "c1", other: "c9" }, "/w/b": { x: "c8" } } });
   await Promise.resolve(); await Promise.resolve(); render();
   expect(doan.saveUiState).toHaveBeenCalled();
-  expect((doan.saveUiState!.mock.calls[0]![0] as { conversationByCanvas?: unknown }).conversationByCanvas).toEqual({ "/w/a": { a: "c2", other: "c9" }, "/w/b": { x: "c8" } });
+  expect((doan.saveUiState!.mock.calls[0]![0] as { conversationByCanvas?: unknown }).conversationByCanvas).toEqual({ "/w/a": { a: "c2" }, "/w/b": { x: "c8" } });
 });
 
 test("a canvas whose ID another canvas shares neither reads nor writes the memory", async () => {

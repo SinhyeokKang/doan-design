@@ -54,7 +54,8 @@ export function createPrepare(userData: string, appRuntime: string, inherited: N
       const occupancy = await claudeOccupancy(configDir, session.sessionId);
       // The resume target still names a session a terminal process holds, so the panel can show it waiting.
       if (occupancy === "occupied") throw Object.assign(new Error("session_in_use"), { runtime, sessionId: session.sessionId });
-      if (occupancy !== "free") throw new Error("session_unavailable");
+      // A live registry record Doan cannot read may hold it: still refused, but the resume target says why (ipc.ts).
+      if (occupancy !== "free") throw Object.assign(new Error("session_unavailable"), { unverified: true, runtime, sessionId: session.sessionId });
       if (!claudeSessionExists(configDir, session.sessionId)) throw new Error("session_unavailable");
     }
     // A reused server opens no thread/resume, and Doan's reservation already makes it the session's only owner.

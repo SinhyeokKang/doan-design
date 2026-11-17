@@ -34,6 +34,7 @@ import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState
 import { CanvasHeader } from "./CanvasHeader";
 import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool, type PlayTool } from "./CanvasTools";
 import { canvasPlayability, drawerPlayRequest, playDrawer, playRequest, playTooltip } from "./prototypePlay";
+import { canvasBubbleRoom } from "./sizeBubble";
 import { prototypeMainCalls } from "./prototype/mainCalls";
 import { PrototypeClosedFocus } from "./PrototypeClosedFocus";
 import { PrototypePlaying } from "./PrototypePlaying";
@@ -94,7 +95,7 @@ import { QuickOpen } from "./QuickOpenDialog";
 import { missingCanvasMessage, openLinkRefusal, removedCanvasMessage, sameShownConversation, unavailableCanvasMessage, type ConversationLists, type SearchResult, type ShownConversation } from "./quickOpen";
 import { blockedLinkMessage, blockedReason, decideOpen, type OpenPage } from "./openDecision";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
-import { conversationCanvasKey, withoutCanvas, withoutConversation, withoutRoots, type HomeMemory, type UiState, type ShellProject } from "../restore/uiState";
+import { conversationCanvasKey, withoutCanvas, withoutConversation, withoutRoots, withoutUnlisted, type HomeMemory, type UiState, type ShellProject } from "../restore/uiState";
 import { emptyComposer } from "./HomeComposerView";
 import { attachmentLimit, defaultProject, type AttachmentDraft } from "./homeComposer";
 import { OverviewRun } from "./overviewRun";
@@ -591,10 +592,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     instance.onPicked(result => live.current.pickEnded(result));
     instance.onCapture(rect => live.current.captured(rect));
     instance.linkedCanvas = root => live.current.completeNavigation(root);
-    // The floating tools cover the area's bottom: the size bubble stays above them, 8px clear (sizeBubble.ts).
+    // The notice column covers the area's top and the floating tools its bottom: the size bubble stays clear of both
+    // (sizeBubble.ts).
     instance.bubbleRoom = () => {
-      const tools = viewport.current?.querySelector<HTMLElement>(".doan-canvas-bottom");
-      return tools ? { top: 0, bottom: tools.offsetTop - 8 } : null;
+      const area = viewport.current;
+      if (!area) return null;
+      const column = area.querySelector<HTMLElement>(".doan-canvas-top"), tools = area.querySelector<HTMLElement>(".doan-canvas-bottom");
+      return canvasBubbleRoom({ height: area.clientHeight }, column?.childElementCount ? { bottom: column.offsetTop + column.offsetHeight } : null, tools ? { top: tools.offsetTop } : null);
     };
     instance.bubblePlay = {
       onPlay: () => sendPlay(playNext.current),
@@ -749,6 +753,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (restore !== "done" || !memoryRead.current) return;
     const instance = controller.current;
     if (!instance) return;
+    // Entries a read list no longer names go here: nothing else forgets a conversation deleted in the prototype window
+    // or a canvas deleted outside Doan, and the map would grow toward UI_STATE_MAX_BYTES.
+    conversationByCanvas.current = withoutUnlisted(conversationByCanvas.current, root => {
+      const entry = entriesRef.current.find(item => item.path === root), list = homeRun.current.listState(root);
+      return { canvases: entry?.kind === "list" ? entry.canvases : null, conversations: Array.isArray(list) ? list.map(c => c.conversationId) : null };
+    });
     const state = savedUiState({ ...persisted.current, view: instance.currentView(), memory: instance.memory(), conversationByRoot: conversationByRoot.current, conversationByCanvas: conversationByCanvas.current });
     if (state) void window.doan.saveUiState(state).then(saved => { if (!saved) console.error("doan: UI state was not saved"); }).catch(console.error);
   };
