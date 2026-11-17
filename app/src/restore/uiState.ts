@@ -301,6 +301,19 @@ export function withoutConversation(map: Record<string, Record<string, string>>,
   if (!Object.values(map).some(canvases => Object.values(canvases).includes(conversationId))) return map;
   return withoutEmpty(Object.fromEntries(Object.entries(map).map(([root, canvases]) => [root, Object.fromEntries(Object.entries(canvases).filter(([, id]) => id !== conversationId))])));
 }
+// The same memory without what a read list no longer names: a canvas missing from its root's canvas list, or a
+// conversation missing from its root's conversation list. Nothing else forgets a conversation deleted in the prototype
+// window or a canvas deleted outside Doan. A list not read (null: still reading, or failed) drops nothing, since an
+// unread list says nothing about what is gone. The same map when unchanged.
+export function withoutUnlisted(map: Record<string, Record<string, string>>, listed: (root: string) => { canvases: readonly { path: string; id?: string }[] | null; conversations: readonly string[] | null }): Record<string, Record<string, string>> {
+  const next = Object.fromEntries(Object.entries(map).map(([root, canvases]) => {
+    const { canvases: rows, conversations } = listed(root);
+    const keys = rows ? new Set(rows.map(conversationCanvasKey)) : null, ids = conversations ? new Set(conversations) : null;
+    return [root, Object.fromEntries(Object.entries(canvases).filter(([key, id]) => (!keys || keys.has(key)) && (!ids || ids.has(id))))];
+  }));
+  const count = (memory: Record<string, Record<string, string>>) => Object.values(memory).reduce((sum, canvases) => sum + Object.keys(canvases).length, 0);
+  return count(next) === count(map) ? map : withoutEmpty(next);
+}
 function withoutEmpty(map: Record<string, Record<string, string>>): Record<string, Record<string, string>> {
   return Object.fromEntries(Object.entries(map).filter(([, canvases]) => Object.keys(canvases).length > 0));
 }

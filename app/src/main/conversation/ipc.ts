@@ -178,6 +178,9 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
             // with the terminal work list (createPrepare names it).
             if (reason === "session_in_use" && error instanceof Error && "runtime" in error && validProvider(error.runtime) && "sessionId" in error && typeof error.sessionId === "string")
               return service.sessionHeld(error.runtime, undefined, error.sessionId) ? held : { available: false, reason, runtime: error.runtime, session: error.sessionId };
+            // A Claude session no registry record can vouch for: not offered, and the panel says why.
+            if (reason === "session_unavailable" && error instanceof Error && "unverified" in error && "runtime" in error && validProvider(error.runtime) && "sessionId" in error && typeof error.sessionId === "string")
+              return service.sessionHeld(error.runtime, undefined, error.sessionId) ? held : { available: false, reason: "session_unverified", runtime: error.runtime };
             return { available: false, reason: reason === "no_session" ? "no_record" : ["cli_missing", "outside_root", "session_unavailable", "session_in_use"].includes(reason) ? reason : "session_unavailable" };
           }
         }

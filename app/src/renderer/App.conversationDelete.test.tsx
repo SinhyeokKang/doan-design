@@ -245,7 +245,7 @@ test("a deleted conversation leaves the canvas conversation memory; a refused de
   doan.listConversations!.mockResolvedValue([summary("c1"), summary("c2")]);
   render();
   readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, conversationByRoot: { "/w/a": "c1" }, conversationByCanvas: { "/w/a": { a: "c1", b: "c2" } } }); await flushAll();
-  listeners.folders!([listed("/w/a")] as never); render();
+  listeners.folders!([{ ...listed("/w/a"), canvases: [rowA, { path: ".doan/canvases/b.html", id: "b", url: "u-b" }] }] as never); render();
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
   await flushAll();
   const memories = () => doan.saveUiState!.mock.calls.map(([state]) => (state as { conversationByCanvas?: unknown }).conversationByCanvas);

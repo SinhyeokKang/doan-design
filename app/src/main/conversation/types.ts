@@ -5,7 +5,7 @@ export interface SessionRecord {
   v: 1; at: string; root: string; canvas: Canvas; hash: string;
   runtime: Runtime; sessionId: string; cwd: string; configDir: string;
 }
-export type UnavailableReason = "cli_missing" | "outside_root" | "session_unavailable" | "session_in_use";
+export type UnavailableReason = "cli_missing" | "outside_root" | "session_unavailable" | "session_in_use" | "session_unverified";
 export interface DirectoryFacts {
   // Each non-null value is a caller-verified, existing canonical directory.
   root: string | null; cwd: string | null; configDir: string | null;

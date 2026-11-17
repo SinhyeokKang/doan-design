@@ -301,10 +301,12 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     const revision = run.revision(root);
     // A message that waits for the usage limit's reset carries no picker change; the picks stay for the next send.
     const waits = waitsForReset(summary);
+    // A message that waits for the reset becomes a queued row instead.
+    const settle = waits ? null : run.store.sendPending(mode.conversationId, { id: crypto.randomUUID(), text: request.text, anchors: request.anchors, attachments: request.files ?? [] });
     const reply = await props.onSendConversation(mode.provider, {
       conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
       ...(waits ? {} : { ...(changedModel && model ? { model, ...(effort ? { effort } : {}) } : {}), ...changedFast, ...(sentMode ? { permissionMode: sentMode } : {}) }), ...(request.attachments.length ? { attachments: request.attachments } : {}),
-    }).catch(() => ({ error: "unknown" }));
+    }).catch(() => ({ error: "unknown" })).finally(() => settle?.());
     if (reply && "error" in reply) return reply;
     if (reply && "scheduled" in reply) {
       run.queued(root, mode.conversationId, { id: reply.scheduled.itemId, text: stripRequestLines(request.text), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });

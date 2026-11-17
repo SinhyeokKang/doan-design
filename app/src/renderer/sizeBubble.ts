@@ -24,3 +24,10 @@ export function sizeBubblePlace(selection: { y: number; height: number }, bubble
   if (!visible || room.bottom - room.top < bubble.height) return { kind: "below" };
   return { kind: "inside", top: Math.max(room.top, Math.min(below, room.bottom - bubble.height)) };
 }
+
+// The canvas area's room: under the agent notice column at the area's top while it shows any notice, and over the
+// floating tools at its bottom, 8px clear of each. A bubble flipped above a selection under that column could not be
+// clicked there.
+export function canvasBubbleRoom(area: { height: number }, notices: { bottom: number } | null, tools: { top: number } | null): BubbleRoom {
+  return { top: notices ? notices.bottom + 8 : 0, bottom: tools ? tools.top - 8 : area.height };
+}

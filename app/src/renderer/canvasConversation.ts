@@ -2,7 +2,7 @@ import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas, Runtime } from "../main/conversation/types";
 import type { WorkItem } from "../main/workState";
-import type { SettingsAction } from "./agentAuthView";
+import { PROVIDER_NAMES, type SettingsAction } from "./agentAuthView";
 import { sameCanvas } from "./canvasConversationRows";
 import { conversationWork } from "./conversationList";
 import { dockedRefusal, type DockedBusy, type DockedMode } from "./dockedRules";
@@ -153,6 +153,8 @@ export interface NewConversationView {
   offer: Runtime | null;
   // pending: the resume target has not answered, so Send waits rather than sending in a mode a late choice would change.
   pending: boolean;
+  // Why no terminal session is offered, said only when Doan could not check whether the session is still in use.
+  reason?: string;
 }
 
 // `choice` is the person's pick between the terminal session and a new conversation; a refused terminal session's
@@ -161,9 +163,13 @@ export interface NewConversationView {
 export function newConversationMode(resumeTarget: ResumeTarget | undefined, prefs: { choice?: "resume" | "new" }): NewConversationView {
   if (resumeTarget === undefined) return { mode: "new", offer: null, pending: true };
   if ("available" in resumeTarget && resumeTarget.available) return { mode: prefs.choice ?? "resume", offer: resumeTarget.runtime, pending: false };
+  if ("available" in resumeTarget && resumeTarget.reason === "session_unverified" && resumeTarget.runtime) return { mode: "new", offer: null, pending: false, reason: unverifiedResumeText(resumeTarget.runtime) };
   return { mode: "new", offer: null, pending: false };
 }
 
+export function unverifiedResumeText(runtime: Runtime): string {
+  return `Can’t continue the ${PROVIDER_NAMES[runtime]} session from your terminal: Doan couldn’t check whether it’s still in use. Sending starts a new conversation.`;
+}
 export function canvasUnlistedText(project: string): string { return `This canvas isn’t listed in ${project}, so its conversation can’t continue.`; }
 export const ATTACHMENT_LIMIT_TEXT = `Only ${MAX_ATTACHMENTS} attachments can be added to a message. Remove some, then send again.`;
 export const DUPLICATE_CANVAS_TEXT = "Another canvas has the same ID, so this conversation can’t continue. Run doan check in a terminal to find it.";

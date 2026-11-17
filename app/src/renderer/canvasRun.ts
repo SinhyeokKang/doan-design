@@ -267,7 +267,7 @@ export class CanvasRun {
       this.resolve(s);
       // A conversation started or deleted (here or in the other window) can take or free the terminal session; a start
       // of this panel's own is left alone, so the mode it was sent with stays.
-      if (s.shown === null && s.askedIds !== undefined && Array.isArray(list) && listedKey(list) !== s.askedIds && !this.starting.has(canvasKey(s.target))) this.askResume(s, true);
+      if (s.shown === null && s.askedIds !== undefined && Array.isArray(list) && listedKey(list) !== s.askedIds && !this.starting.has(canvasKey(s.target)) && !unverified(s)) this.askResume(s, true);
       const shown = s.shown;
       if (shown && this.store.thread(shown)?.read === "ready") this.store.takeDraft(s.target.root, shown);
       // A first message a quit stopped waits in the canvas's new conversation draft (once a run; main hands it over once).
@@ -297,7 +297,7 @@ export class CanvasRun {
     if (conversationId !== null && this.store.track(conversationId)) this.store.takeDraft(s.target.root, conversationId);
     // The new conversation state asks for the terminal session when it first shows and every time it comes back: the
     // conversation shown meanwhile may hold the session now (one session is one conversation).
-    if (conversationId === null && (typeof was === "string" || (s.resume === undefined && s.ask === 0))) this.askResume(s, typeof was === "string");
+    if (conversationId === null && ((typeof was === "string" && !unverified(s)) || (s.resume === undefined && s.ask === 0))) this.askResume(s, typeof was === "string");
     this.checkSeen();
   }
   private resolve(s: CanvasState): void {
@@ -386,7 +386,7 @@ export class CanvasRun {
     if (again) delete s.resume;
     void this.calls.conversationResumeTarget({ root, canvas }).catch(() => ({ error: "unknown" })).then(reply => {
       if (s.ask !== ask) return;
-      s.resume = "error" in reply ? { error: reply.error } : reply.available ? { available: true, runtime: reply.runtime, lastCheckAt: reply.lastCheckAt, ...(reply.session ? { session: reply.session } : {}) } : { available: false, reason: reply.reason, ...(reply.runtime && reply.session ? { runtime: reply.runtime, session: reply.session } : {}) };
+      s.resume = "error" in reply ? { error: reply.error } : reply.available ? { available: true, runtime: reply.runtime, lastCheckAt: reply.lastCheckAt, ...(reply.session ? { session: reply.session } : {}) } : { available: false, reason: reply.reason, ...(reply.runtime && reply.session ? { runtime: reply.runtime, session: reply.session } : reply.runtime && reply.reason === "session_unverified" ? { runtime: reply.runtime } : {}) };
       this.host.changed();
     });
   }
@@ -408,6 +408,12 @@ export class CanvasRun {
     this.seenEnd.set(id, end!);
     this.host.markSeen(id, end!);
   }
+}
+
+// A terminal session Doan could not check stays unchecked for the rest of the visit: asking again would check the same
+// registry records again, and the reason line would flicker away while it waits.
+function unverified(s: CanvasState): boolean {
+  return !!s.resume && "available" in s.resume && !s.resume.available && s.resume.reason === "session_unverified";
 }
 
 // main's rule, as canvasConversationRows states it.

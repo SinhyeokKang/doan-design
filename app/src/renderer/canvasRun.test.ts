@@ -420,10 +420,10 @@ test("a terminal session Doan could not check shows its reason and is not asked 
   expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: false, offer: null, mode: "new", reason: expect.stringContaining("Claude Code") } });
   h.answer([summary(B, { canvas: CART })]);
   expect(doan.conversationResumeTarget).toHaveBeenCalledTimes(1);
-  // The next visit asks again.
+  // The next visit asks again (cart shows its conversation B, so only checkout asks).
   h.run.show(cart);
   h.run.show(checkout);
-  expect(doan.conversationResumeTarget).toHaveBeenCalledTimes(3);
+  expect(doan.conversationResumeTarget).toHaveBeenCalledTimes(2);
 });
 
 test("a terminal session answer that lands after the person left the canvas is dropped", async () => {
