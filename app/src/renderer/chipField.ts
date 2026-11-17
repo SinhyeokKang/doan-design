@@ -4,7 +4,7 @@ import {
   chipAt, distinctTargets, FILLER, hardLine, isLineStart, normalize, plainText, readFieldClipboard, sameSegments, sliceUnits, spliceUnits,
   unitLength, writeFieldClipboard, type FieldSegment,
 } from "./anchorField";
-import { fieldSkillRuns, insertSkillText, replaceSlashSkill, sameSkillNames, sameSkillRanges, skillAnnouncements, skillTextParts } from "./skillWords";
+import { fieldHighlightRuns, fieldSkillRuns, insertSkillText, replaceSlashSkill, sameSkillNames, sameSkillRanges, skillAnnouncements, skillTextParts } from "./skillWords";
 
 // The composer field's DOM, selection, clipboard, undo and IME handling over a contenteditable element.
 // ComposerField (ComposerParts.tsx) owns one per element.
@@ -28,6 +28,8 @@ export interface ChipFieldHooks {
   // The canvas this field's chips belong to; null takes no chips, so a chip clipboard pastes as the chips' names.
   scope(): string | null;
   skillNames?(): ReadonlySet<string>;
+  // Provider commands (and the built-ins Doan answers with a card), highlighted only as the field's first word.
+  commandNames?(): ReadonlySet<string>;
   // Chips every message carries from outside the field (the prototype window's playing frame): the place limit counts
   // them with the field's own.
   reserved?(): readonly FieldSegment[];
@@ -132,7 +134,7 @@ export class ChipField {
       this.reset(normalize(value));
       return;
     }
-    const names = this.hooks.skillNames?.() ?? new Set<string>();
+    const names = this.highlightNames();
     const changedNames = !sameSkillNames(this.names, names);
     this.names = new Set(names);
     if (changedNames) this.announceSkills(false);
@@ -157,7 +159,7 @@ export class ChipField {
   }
 
   private reset(segments: FieldSegment[]): void {
-    this.names = new Set(this.hooks.skillNames?.() ?? []);
+    this.names = this.highlightNames();
     this.pending = [];
     this.groupBefore = null;
     this.render(segments);
@@ -183,6 +185,14 @@ export class ChipField {
     this.replace(start, end, [{ kind: "chip", anchor }], "chip");
     this.hooks.onAnnounce(`Added ${chipLabel(anchor).label}`);
     return "inserted";
+  }
+
+  private highlightRuns(segments: readonly FieldSegment[]) {
+    return fieldHighlightRuns(segments, this.hooks.skillNames?.() ?? new Set(), this.hooks.commandNames?.() ?? new Set());
+  }
+  // Both lists in one set, to notice a change of either; a command is marked apart, since a skill of its name differs.
+  private highlightNames(): Set<string> {
+    return new Set([...this.hooks.skillNames?.() ?? [], ...[...this.hooks.commandNames?.() ?? []].map(name => `\0${name}`)]);
   }
 
   private reservedChips(): readonly FieldSegment[] { return this.hooks.reserved?.() ?? []; }
@@ -461,7 +471,7 @@ export class ChipField {
       if (node.nodeName === "BR" && this.breaks.has(node) && index === nodes.length - 1) continue;
       return true;
     }
-    if (!sameSkillRanges(fieldSkillRuns(this.segments, this.hooks.skillNames?.() ?? new Set()), spans)) return true;
+    if (!sameSkillRanges(this.highlightRuns(this.segments), spans)) return true;
     // A filler is only ever directly before a chip; one that took typed text keeps it as text until the next draw.
     const last = this.segments[this.segments.length - 1];
     const trailing = nodes[nodes.length - 1];
@@ -537,7 +547,7 @@ export class ChipField {
   // Always the same element: only its children change, so focus, the accessibility node and the IME client survive.
   private render(segments: FieldSegment[]): void {
     const nodes: Node[] = [];
-    const runs = fieldSkillRuns(segments, this.hooks.skillNames?.() ?? new Set());
+    const runs = this.highlightRuns(segments);
     let at = 0;
     for (const segment of segments) {
       if (segment.kind === "text") {

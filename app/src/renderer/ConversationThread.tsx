@@ -19,6 +19,8 @@ import { SKIP_FAILED_TEXT } from "./conversationStrip";
 import { focusAfter, type FocusAction } from "./composerRules";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { NameTip } from "./NameTip";
+import { CommandCardNotice } from "./ComposerParts";
+import type { CommandCard, CommandCardTarget } from "./commandView";
 import { handoffCardHead } from "./handoffView";
 import { providerLogo, sentFileView } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
@@ -96,6 +98,10 @@ export interface ConversationThreadProps {
   // once main stopped that work, false when it could not (the host says so in a toast).
   background?: { turnId: string; stopping?: true } | null;
   onStopBackground?(turnId: string): Promise<boolean>;
+  // The card of a built-in Doan does not run, sent from this conversation's composer: at the thread's end for this run.
+  card?: CommandCard | null;
+  onCardAction?(target: CommandCardTarget): void;
+  onCardDismiss?(): void;
 }
 // focusItem: an entry's focus on a waiting request: a question's first option or answer input, a
 // permission request's first choice; after a handoff's move, the handoff card itself. False
@@ -917,6 +923,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       }
       case "canvasCard": return <CanvasCard entry={entry} rows={latest.current.canvasRows ?? []} project={props.project} provider={provider} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
       case "handoffCard": return <HandoffCard entry={entry} headId={`${base}-${entry.key}-head`} project={props.project} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
+      case "boundary": return <div className="context-boundary" role="separator" aria-label={entry.label}><span>{entry.label}</span></div>;
       case "marker": {
         const canvas = entry.canvas, listed = props.canvasListed(canvas), name = canvas.path.split("/").at(-1) ?? canvas.path;
         return <div className="marker"><span><ArrowUpRight aria-hidden="true" />{listed ? `Moved to ${name}` : `Moved to ${name} · No longer in ${props.project}`}</span>
@@ -932,7 +939,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         // A run of cards stacks closer than thread items do (the draft's gap); each card stays its own item.
         : <div key={`stack:${run[0]!.key}`} className="thread-item"><div className="canvas-cards">{run.map(card => <ThreadEntry key={card.key} entry={card} deps={depsOf(card)} draw={item} />)}</div></div>)}
         {props.turn && settled.shown.kind !== "none" && settled.shown.kind !== "waiting" &&
-          <div className="thread-item"><TurnIndicator text={turnText(settled.shown, p)} at={props.turn.at} provider={provider} /></div>}
+          <div className="thread-item"><TurnIndicator text={props.turn.label ?? turnText(settled.shown, p)} at={props.turn.at} provider={provider} /></div>}
+        {props.card && <div className="thread-item"><CommandCardNotice card={props.card} onAction={target => latest.current.onCardAction?.(target)} onDismiss={() => latest.current.onCardDismiss?.()} /></div>}
         {line && <div className="thread-item" data-item={BACKGROUND_KEY}><div className="bg-line">
           <Terminal className="bg-icon" aria-hidden="true" /><span className="bg-text">Background work is still running. It stops when you send your next message or press Stop.</span>
           {/* aria-disabled rather than disabled while stopping, so a keyboard press keeps focus on it. */}

@@ -37,6 +37,18 @@ export function fieldSkillRuns(segments: readonly FieldSegment[], names: Readonl
   return runs;
 }
 
+// The field's highlighted words: skills wherever they are, and a provider command only as the field's first word, the
+// one place a provider runs it. A skill of the same name is the skill.
+export function fieldHighlightRuns(segments: readonly FieldSegment[], skills: ReadonlySet<string>, commands: ReadonlySet<string>): SkillRun[] {
+  const runs = fieldSkillRuns(segments, skills);
+  const first = normalize(segments)[0];
+  if (commands.size === 0 || first?.kind !== "text") return runs;
+  const lead = skillWords(first.text, commands)[0];
+  const word = /[^\p{White_Space}]/u.exec(first.text);
+  if (!lead || lead.start !== word?.index || runs.some(run => run.start === lead.start)) return runs;
+  return [lead, ...runs];
+}
+
 export function insertSkillText(segments: readonly FieldSegment[], caret: number | null, name: string): { segments: FieldSegment[]; caret: number } {
   const at = Math.max(0, Math.min(caret ?? unitLength(segments), unitLength(segments)));
   const previous = sliceUnits(segments, at - 1, at)[0];

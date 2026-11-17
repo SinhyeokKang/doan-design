@@ -273,3 +273,4 @@ Each screen's measured values, documented differences and Not verified list are 
 | Prototype links | [design/prototype.md](design/prototype.md) |
 | Frame prototype | [design/prototype.md](design/prototype.md) |
 | Usage-limit queue | [design/conversation.md](design/conversation.md) |
+| Provider commands | [design/conversation.md](design/conversation.md) |

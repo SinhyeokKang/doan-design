@@ -204,7 +204,7 @@ const api = {
   // same prompt-free way and kept by main for 30 seconds, then the built-in commands Doan runs (rows of kind "command"):
   // Claude's and Codex's at the installed version, and an ACP conversation's own (conversationId) from the last list its
   // session pushed, none before its first session. An error carries a conversation start code.
-  listConversationSkills: (request: { root: string; provider: Provider; conversationId?: string }): Promise<{ skills: SkillSummary[] } | ConversationError> => ipcRenderer.invoke("conversation:skills", request),
+  listConversationSkills: (request: { root: string; provider: Provider; conversationId?: string }): Promise<{ skills: SkillSummary[]; passthrough?: string[] } | ConversationError> => ipcRenderer.invoke("conversation:skills", request),
   // Home attachments. Main checks each item (real path, a regular file or a folder, image signature) and answers per item
   // in order; nothing is copied except a pasted image, which main re-encodes to PNG under userData, and a folder is never
   // read. A thumbnail is PNG bytes.

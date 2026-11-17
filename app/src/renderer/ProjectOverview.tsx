@@ -46,7 +46,9 @@ import { displayPath } from "./projectDisplay";
 import { projectHue, projectInitial } from "./shellNavigation";
 import type { SettingsTarget } from "./settingsSections";
 import { threadItems, withSending } from "./threadItems";
-import { stopBackground, threadTurn } from "./turnStatus";
+import { stopBackground, threadTurn, turnOf } from "./turnStatus";
+import { commandTurnLabel, firstTitleMessage, threadCommands } from "./commandView";
+import { CommandCardNotice, focusPicker } from "./ComposerParts";
 import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 import { dropAttachment } from "./conversationStore";
@@ -182,7 +184,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
   // A new connection of the provider has a list of its own to read.
   const generation = chosen ? generationOf(auth, chosen) : 0;
-  const projectSkills = useProjectSkills(window.doan, root, chosen, conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle", generation);
+  const projectSkills = useProjectSkills(window.doan, root, chosen, conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle", generation, conversationId);
   useEffect(() => { if (healthy && chosen && ready) support.readModels(root, chosen); }, [root, healthy, chosen, ready, generation]);
 
   const presets = support.presets?.ok ? support.presets.result.presets : [];
@@ -191,7 +193,17 @@ export function ProjectOverview(props: ProjectOverviewProps) {
 
   // The thread
   const handle = useRef<ConversationThreadHandle | null>(null);
-  const items = thread?.read === "ready" ? withSending(threadItems(thread.events, root, live), conversationId ? run.sending(conversationId) : []) : thread?.read === "error" || thread?.read === "retrying" ? "error" as const : null;
+  const commands = conversationId && provider && thread ? threadCommands(provider, thread.events, run.store.boundaries(conversationId)) : null;
+  const items = thread?.read === "ready" ? withSending(threadItems(thread.events, root, live, commands ?? undefined), conversationId ? run.sending(conversationId) : []) : thread?.read === "error" || thread?.read === "retrying" ? "error" as const : null;
+  // A command turn takes no message into it (main refuses Send now), so its rows wait for it to end.
+  const lastTurn = thread ? turnOf(thread.events, live) : null;
+  const commandRuns = !!lastTurn && !lastTurn.ended && !!commands?.turns.has(lastTurn.turnId);
+  const card = run.store.card(key);
+  const cardAction = (target: "modelPicker" | "permissionPicker" | "agentsSettings") => {
+    if (target === "agentsSettings") props.onSettings({ section: "agents", ...(chosen ? { provider: chosen } : {}) });
+    else focusPicker(document.querySelector(".ov-main .ov-foot"), target);
+  };
+  const dismissCard = () => { run.store.showCard(key, null); focusField(); };
   // An entry's scroll, also for the conversation already shown; it waits for the request's item when the list told
   // of it before its event arrived.
   const scroll = conversationId ? run.scrollRequest(conversationId) : null;
@@ -278,6 +290,11 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         support.clearPick(key);
         if (permissionMode) support.startedIn(draftKey({ kind: "existing", conversationId: outcome.conversationId, provider: chosen }), permissionMode);
         run.started(root, outcome.conversationId, chosen, revision);
+        // The column shows the started conversation unless the person chose something else meanwhile; only then does a
+        // command's leftover follow it.
+        const view = run.view(root);
+        const follows = view.kind === "conversation" && view.conversationId === outcome.conversationId;
+        return { ok: true, ...(follows ? { conversationId: outcome.conversationId } : {}) };
       }
       return "ok" in outcome ? { ok: true } : outcome;
     }
@@ -310,8 +327,11 @@ export function ProjectOverview(props: ProjectOverviewProps) {
 
   // The header
   const menuItems = listed ? projectConversationMenu(listed, props.now, props.seen) : [];
-  const firstMessage = thread?.events.find(event => event.type === "user.message");
-  const title = conversationId ? summary?.title || (firstMessage?.type === "user.message" ? requestTitleText(firstMessage.text) : "") : "New conversation";
+  // A command does not name the conversation (main leaves one a command started untitled until a message).
+  const firstMessage = thread && provider ? firstTitleMessage(provider, thread.events) : undefined;
+  // The lists' "Conversation" stands in once the history shows only commands; while it is read the title stays empty.
+  const untitled = thread?.events.some(event => event.type === "user.message") ? "Conversation" : "";
+  const title = conversationId ? summary?.title || (firstMessage ? requestTitleText(firstMessage.text) : untitled) : "New conversation";
   const picked = useRef(false);
   // The title menu's trigger, where focus returns after a Delete's confirmation; `deleting` keeps the closing menu from
   // taking focus back while the alert opens.
@@ -399,7 +419,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
                 : <div className="conv-list">{menuItems.map(item => <div key={item.conversationId} className="conv-row">
                   <DropdownMenu.RadioItem value={item.conversationId} textValue={item.title}
                     className={`doan-menu-item conv-item${item.conversationId === conversationId ? " current" : ""}`}>
-                    <ConversationHead line={item} name={item.title} nameClass="t" />
+                    <ConversationHead line={item} name={item.title || "Conversation"} nameClass="t" />
                     <span className="conv-preview">{item.preview}</span>
                   </DropdownMenu.RadioItem>
                   <ConversationDeleteItem conversationId={item.conversationId} title={item.title} deletable={item.deletable} onDelete={() => {
@@ -418,7 +438,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     {props.notice && <div className="doan-notice ov-notice" role="status"><AlertIcon /><span className="grow-text selectable">{props.notice}</span></div>}
     <div className="ov-scroll">
       {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project} homeDirectory={props.homeDirectory}
-        liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} turn={thread && Array.isArray(items) ? threadTurn(thread.events, items, live, run.store.stageOf(conversationId), root, summary?.stopping === true) : null}
+        liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} turn={thread && Array.isArray(items) ? threadTurn(thread.events, items, live, run.store.stageOf(conversationId), root, summary?.stopping === true, turnId => commands && commandTurnLabel(provider, commands, turnId)) : null}
+        card={card} onCardAction={cardAction} onCardDismiss={dismissCard}
         background={summary?.background ?? null} onStopBackground={turnId => stopBackground({ conversationId, turnId }, request => window.doan.interruptConversation(request)).then(failed => { if (failed) props.onNotice?.(failed); return failed === null; })} canvasListed={canvasListed}
         onAnswer={(requestId, optionId) => window.doan.answerConversationPermission({ conversationId, requestId, optionId })}
         onAnswerQuestion={(requestId, answer) => window.doan.answerConversationQuestion({ conversationId, requestId, ...answer })}
@@ -438,12 +459,13 @@ export function ProjectOverview(props: ProjectOverviewProps) {
             <span className="moved-title">{moved.title}</span><span className="moved-rest">{` moved to ${movedCanvas}.`}</span></span></NameTip>
             <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onOpenCanvas(moved.canvas, moved.conversationId)}>Open</button></div>}
           {list === "error" && listFailedNotice(listRetry, props.onRetryList)}
+          {card && <CommandCardNotice card={card} onAction={cardAction} onDismiss={dismissCard} />}
           {prompts.length > 0 && !started && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
             <SuggestionButton key={prompt.label} prompt={prompt} onPick={() => { run.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }} />)}</div>}
         </div>}
     </div>
     <div className="ov-foot"><div className="ov-col">
-      <DockedComposer skills={projectSkills.skills} onSkillsWanted={projectSkills.read} mode={mode} project={project} homeDirectory={props.homeDirectory} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined}
+      <DockedComposer skills={projectSkills.skills} passthrough={projectSkills.passthrough} onSkillsWanted={projectSkills.read} onCard={next => run.store.showCard(key, next)} card={card} mode={mode} project={project} homeDirectory={props.homeDirectory} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined}
         drafts={run.drafts} onDrafts={update => run.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}
@@ -457,12 +479,12 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => dropAttachment(window.doan, attachment)}
-        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events) : null} usage={ringUsage}
+        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}
         stepAside={{ waiting: asking, notice: !conversationId && !waiting && !!moved }}
         queued={conversationId ? run.queue(conversationId) : []}
         // Rows waiting for the usage limit's reset have no Send now: nothing runs to take them.
         limitResetsAt={summary?.limitResetsAt ?? null} scheduledFor={summary?.scheduledAt ?? null}
-        sendNow={!!conversationId && !!provider && !summary?.scheduledAt && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
+        sendNow={!!conversationId && !!provider && !summary?.scheduledAt && !commandRuns && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
         onSendQueuedNow={itemId => conversationId ? run.store.sendQueuedNow(conversationId, itemId) : Promise.resolve({ error: "not_running" })}
         onSend={send} onQueue={queue}
         // A conversation another sign-in owns leaves for a new one in this project, taking the refused draft along.
