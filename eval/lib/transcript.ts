@@ -303,7 +303,9 @@ function execHeaderEnd(lines: string[], first: number): number {
 // when an unquoted body holds a substitution, which the shell runs and this reader does not follow there. A body that
 // names doan and starts a process leaves NAMES_DOAN_BODY after its tag, since an interpreter that reads it as its
 // script may run doan; agents also feed interpreters long document-editing scripts whose text only mentions doan.
-function withoutHeredocsAndComments(command: string): { text: string; unread: boolean } {
+// When pythonDoanCalls can read every doan in that body, the tag gets PYTHON_CALLS and the index in `calls` of what it
+// read instead, for runGroups to take when Python is the program reading the body.
+function withoutHeredocsAndComments(command: string, calls: string[][][]): { text: string; unread: boolean } {
   let out = "", quote: string | null = null, unread = false;
   const pending: { tag: string; indented: boolean; quoted: boolean; at: number }[] = [];
   for (let i = 0; i < command.length; i++) {
@@ -342,7 +344,12 @@ function withoutHeredocsAndComments(command: string): { text: string; unread: bo
           if (!quoted && /\$\(|`/.test(line)) unread = true;
           body += line + "\n";
         }
-        if (NAMES_DOAN.test(body) && STARTS_PROCESS.test(body)) { out = out.slice(0, at + marked) + NAMES_DOAN_BODY + out.slice(at + marked); marked++; }
+        if (NAMES_DOAN.test(body) && STARTS_PROCESS.test(body)) {
+          const read = pythonDoanCalls(body);
+          const mark = read ? `${PYTHON_CALLS}${calls.push(read) - 1}` : NAMES_DOAN_BODY;
+          out = out.slice(0, at + marked) + mark + out.slice(at + marked);
+          marked += mark.length;
+        }
       }
     } else out += c;
   }
@@ -359,6 +366,29 @@ const NAMES_DOAN = /(?<![\w.-])doan(?![\w.-])/;
 const STARTS_PROCESS = /\b(?:subprocess|child_process|execa|commands\.getoutput|pty\.spawn|Bun\.spawn|Deno\.(?:Command|run)|Open3|do shell script)\b|\b(?:system|exec\w*|spawn\w*|popen|qx)\s*[("'{]|%x[({[]/;
 // Where withoutHeredocsAndComments marked a heredoc whose body names doan; U+0004 never occurs in a shell command.
 const NAMES_DOAN_BODY = "\u0004";
+// Where it marked one whose doan calls pythonDoanCalls read, before their index; U+0005 never occurs in a shell command.
+const PYTHON_CALLS = "\u0005";
+// A single-line Python string with nothing to decode and nothing the shell expands in an unquoted heredoc.
+const PY_STRING = String.raw`(?:'[^'\\\n$` + "`" + String.raw`]*'|"[^"\\\n$` + "`" + String.raw`]*")`;
+// A subprocess call whose first argument is a list of string literals, with the text before it on its line.
+const PY_ARGV_CALL = new RegExp(String.raw`^([^\n]*?)\bsubprocess\.(?:run|call|check_call|check_output|Popen)\(\s*\[\s*(${PY_STRING}(?:\s*,\s*${PY_STRING})*)\s*,?\s*\]`, "gm");
+
+// The doan commands a Python script runs, when each doan it names is the program of a subprocess call whose argv is a
+// list of string literals; undefined when any doan is anything else (a list built at run time, a string command, a
+// wrapper such as env, a comment, a string). A call after a `#` or a quote on its line may sit in a comment or a
+// string, and a triple quote may hide one across lines, so neither is read; shell= and executable= change what runs.
+// A call that is read is taken as run, as a shell command is.
+function pythonDoanCalls(body: string): string[][] | undefined {
+  if (/'''|"""|\b(?:shell|executable)\s*=/.test(body)) return undefined;
+  const calls: string[][] = [];
+  const rest = body.replace(PY_ARGV_CALL, (call, before: string, list: string) => {
+    const words = [...list.matchAll(/'([^']*)'|"([^"]*)"/g)].map(m => m[1] ?? m[2]!);
+    if (/[#'"]/.test(before) || !/^(?:.*\/)?doan$/.test(words[0]!)) return call;
+    calls.push(words);
+    return before;
+  });
+  return NAMES_DOAN.test(rest) ? undefined : calls;
+}
 // A key in the reader's variables for one assigned just the home directory, holding what followed it (`/` or
 // nothing), or for a function's argument that expands below it, holding the path below it; no shell name holds U+0002.
 const HOME_OF = "\u0002";
@@ -483,7 +513,8 @@ const UNSUPPORTED = /^(?:if|then|elif|else|fi|while|until|do|done|case|esac|sele
 // make the reader work without bound (a function that calls itself runs out of it).
 const LOOP_BUDGET = 256;
 
-interface ReadState { left: number; incomplete: boolean }
+// `pythonCalls` holds what pythonDoanCalls read from each marked heredoc of the whole read, by PYTHON_CALLS index.
+interface ReadState { left: number; incomplete: boolean; pythonCalls: string[][][] }
 // A shell function: the token groups of its body and its closing `}` group, whose redirections apply at each call.
 interface ShellFunction { body: string[][]; close: string[] }
 // `homePath`: the path below the home directory (`/.zshrc`, or "" for the home itself) when the shell expands the word to
@@ -556,8 +587,9 @@ const INLINE: [RegExp, RegExp][] = [
 
 // Whether an interpreter may run doan where this reader cannot see it: an argument (an inline script among them) that
 // names doan, a script file, or a script read from its input, unless that is a heredoc or here-string the transcript
-// shows and that does not name doan. A version or help query with no script runs nothing.
-function interpreterMayRunDoan(program: string, args: string[], redirects: Redirect[], heredocNamesDoan: boolean): boolean {
+// shows and that does not name doan. "heredoc" when Python runs a heredoc whose doan calls were read (`pythonCalls`),
+// which the caller then runs. A version or help query with no script runs nothing.
+function interpreterMayRunDoan(program: string, args: string[], redirects: Redirect[], heredocNamesDoan: boolean, pythonCalls: boolean): boolean | "heredoc" {
   if (args.some(word => NAMES_DOAN.test(word))) return true;
   const inline = INLINE.find(([name]) => name.test(program))?.[1];
   if (inline && args.some(word => inline.test(word))) return false;
@@ -566,7 +598,7 @@ function interpreterMayRunDoan(program: string, args: string[], redirects: Redir
   if (script === undefined && args.some(word => /^(?:-[vVh]|--version|--help)$/.test(word))) return false;
   const input = redirects.filter(redirect => /^0?(?:<<<|<<-?|<)$/.test(redirect.op)).at(-1);
   if (input?.op.endsWith("<<<")) return NAMES_DOAN.test(input.target);
-  if (input && /<<-?$/.test(input.op)) return heredocNamesDoan;
+  if (input && /<<-?$/.test(input.op)) return pythonCalls && /^python/.test(program) ? "heredoc" : heredocNamesDoan;
   return true;
 }
 
@@ -783,8 +815,17 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
     // A script the reader cannot see into may run doan: a shell reading a file or its input, a sourced or executed
     // script file, or a script of another language that may (see interpreterMayRunDoan).
     const program = words[0]?.split("/").pop() ?? "";
-    if (/^(?:ba|z|da)?sh$/.test(program) || ["source", "."].includes(program) || /\.(?:ba|z)?sh$/.test(program) ||
-      (INTERPRETER.test(program) && interpreterMayRunDoan(program, words.slice(1), redirects, raw.some(token => token.startsWith(MARK) && token.includes(NAMES_DOAN_BODY))))) { state.incomplete = true; continue; }
+    // The last input redirection is the script; its calls are read only when it is a heredoc.
+    const input = raw.filter(token => /^\u00010?(?:<<<|<<-?|<)\u0001/.test(token)).at(-1);
+    const read = input === undefined || !/^\u00010?<<-?\u0001/.test(input) ? undefined : new RegExp(`${PYTHON_CALLS}(\\d+)`).exec(input)?.[1];
+    const interpreted = INTERPRETER.test(program) && interpreterMayRunDoan(program, words.slice(1), redirects,
+      raw.some(token => token.startsWith(MARK) && (token.includes(NAMES_DOAN_BODY) || token.includes(PYTHON_CALLS))), read !== undefined);
+    if (/^(?:ba|z|da)?sh$/.test(program) || ["source", "."].includes(program) || /\.(?:ba|z)?sh$/.test(program) || interpreted === true) { state.incomplete = true; continue; }
+    if (interpreted === "heredoc") {
+      out.push({ words, homePaths, redirects });
+      for (const call of state.pythonCalls[Number(read)]!) out.push({ words: call, homePaths: call.map(() => undefined), redirects: [] });
+      continue;
+    }
     // eval runs its words, joined, as a command of this shell.
     if (words[0] === "eval") {
       if (open.some(Boolean)) state.incomplete = true; else append(parse(words.slice(1).join(" "), state, vars, functions));
@@ -817,7 +858,7 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
 }
 
 function parse(command: string, state: ReadState, vars = new Map<string, string>(), functions = new Map<string, ShellFunction>()): ShellCommand[] {
-  const plain = withoutHeredocsAndComments(command);
+  const plain = withoutHeredocsAndComments(command, state.pythonCalls);
   if (plain.unread) state.incomplete = true;
   const taken = substitutions(plain.text);
   if (taken === null) { state.incomplete = true; return []; }
@@ -845,7 +886,7 @@ function parse(command: string, state: ReadState, vars = new Map<string, string>
 // incomplete read lacks the commands it could not follow (see runGroups): what it does give is real, but it is not
 // the whole list. A command that is only redirections (`> file`) has no words.
 export function readCommands(command: string): { commands: ShellCommand[]; incomplete: boolean } {
-  const state: ReadState = { left: LOOP_BUDGET, incomplete: false };
+  const state: ReadState = { left: LOOP_BUDGET, incomplete: false, pythonCalls: [] };
   const commands = parse(command, state);
   return { commands, incomplete: state.incomplete };
 }
