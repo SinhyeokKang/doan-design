@@ -526,6 +526,9 @@ canvas.addEventListener("load", releaseInput);
 // ── Toolbar: buttons, ←/→ and the tooltip ─────────────────────────────────────
 
 for (const button of toolButtons) button.addEventListener("click", () => chooseTool(button.dataset.tool));
+// A pointer press leaves focus where it was (the canvas area), so Space after a click pans instead of
+// pressing the tool again; Chromium would otherwise focus the button. Focus that came by keyboard stays.
+for (const button of toolButtons) button.addEventListener("mousedown", (event) => event.preventDefault());
 
 tools.addEventListener("keydown", (event) => {
   const next = toolbarMove(toolButtons.indexOf(document.activeElement), toolButtons.length, event.key);
@@ -580,7 +583,7 @@ for (const button of toolButtons) {
   });
   button.addEventListener("pointerleave", hideTip);
   button.addEventListener("pointerdown", hideTip);
-  // Keyboard focus only: a press focuses the button too (in Chromium), and its tooltip is closed.
+  // Keyboard focus only: a pointer press does not focus the button, and closes its tooltip.
   button.addEventListener("focus", () => {
     if (button.matches(":focus-visible")) showTip(button);
   });
