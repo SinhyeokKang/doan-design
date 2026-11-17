@@ -64,16 +64,31 @@ function parse(text: string): { roots: Roots; newer: boolean } {
     }
   } else if (value.v === 2) {
     for (const [root, item] of Object.entries(value.roots)) {
-      if (!isObject(item)) continue;
-      const memory: RootMemory = { known: entries(item.known, (v): v is "seen" | "changed" => v === "seen" || v === "changed") ?? {} };
-      const legacy = entries(item.legacy, time);
-      const baseline = entries(item.baseline, (v): v is string => typeof v === "string" && HASH.test(v));
-      if (legacy) memory.legacy = legacy;
-      if (baseline) memory.baseline = baseline;
-      roots.set(root, memory);
+      const memory = memoryOf(item);
+      if (memory) roots.set(root, memory);
     }
   }
   return { roots, newer: false };
+}
+
+function memoryOf(item: unknown): RootMemory | undefined {
+  if (!isObject(item)) return undefined;
+  const memory: RootMemory = { known: entries(item.known, (v): v is "seen" | "changed" => v === "seen" || v === "changed") ?? {} };
+  const legacy = entries(item.legacy, time);
+  const baseline = entries(item.baseline, (v): v is string => typeof v === "string" && HASH.test(v));
+  if (legacy) memory.legacy = legacy;
+  if (baseline) memory.baseline = baseline;
+  return memory;
+}
+
+// Field by field per canvas, `kept`'s first: one root's memory under two spellings.
+function mergeMemory(kept: RootMemory | undefined, from: RootMemory): RootMemory {
+  const merged: RootMemory = { known: { ...from.known, ...kept?.known } };
+  const legacy = from.legacy || kept?.legacy ? { ...from.legacy, ...kept?.legacy } : undefined;
+  const baseline = from.baseline || kept?.baseline ? { ...from.baseline, ...kept?.baseline } : undefined;
+  if (legacy) merged.legacy = legacy;
+  if (baseline) merged.baseline = baseline;
+  return merged;
 }
 
 const serialize = (roots: Roots): string => `${JSON.stringify({ v: 2, roots: Object.fromEntries(roots) })}\n`;
@@ -128,11 +143,7 @@ export function createLocalSeen(file: string, write: (file: string, text: string
       for (const [alias, real] of aliases) {
         const from = roots.get(alias), kept = next.get(real);
         if (!from || alias === real) continue;
-        const merged: RootMemory = { known: { ...from.known, ...kept?.known } };
-        const legacy = from.legacy || kept?.legacy ? { ...from.legacy, ...kept?.legacy } : undefined;
-        const baseline = from.baseline || kept?.baseline ? { ...from.baseline, ...kept?.baseline } : undefined;
-        if (legacy) merged.legacy = legacy;
-        if (baseline) merged.baseline = baseline;
+        const merged = mergeMemory(kept, from);
         if (kept && JSON.stringify(merged) === JSON.stringify(kept)) continue;
         next.set(real, merged);
         changed = true;
@@ -300,4 +311,135 @@ function baselinePlan(before: RootMemory, absent: (id: string) => boolean, marke
   }
   // The frozen set is stored first (unchanged for a retry), then dropped once the marker landed.
   return { before: stored ?? before, writes: [...writes, ...marker], after: { known: { ...before.known, ...written } } };
+}
+
+// ---- device-local records (canvas-seen.json v3) ---------------------------------------------------------------------
+//
+// v3 keeps the whole read state on this device, so showing a canvas changes no file in the project. Per root:
+// `canvases`, keyed by canvas ID, holds `{html}` (the content last shown) or `{unseen}` ("new": judged a new canvas;
+// "migrated": unseen when the root's shared records were converted, content never recorded); `migrated` says the root's
+// `.doan/seen/` was read once into it and is never read again; `v2` is an older Doan's memory of a root not migrated
+// yet, kept until migrateRoot reads it.
+
+export type CanvasRecord = { html: string } | { unseen: "new" | "migrated" };
+export interface RootRecord {
+  migrated?: true;
+  canvases: Record<string, CanvasRecord>;
+  v2?: RootMemory;
+}
+// `corrupt`: not a canvas-seen.json at all; `newer`: a later Doan's, never overwritten.
+export type LocalSeenRead = { kind: "ok"; roots: Map<string, RootRecord> } | { kind: "corrupt" | "newer" };
+
+const canvasRecord = (value: unknown): value is CanvasRecord => isObject(value) && Object.keys(value).length === 1 &&
+  ((typeof value.html === "string" && HASH.test(value.html)) || value.unseen === "new" || value.unseen === "migrated");
+// A canvas ID such as "constructor" must not read Object.prototype.
+const recordOf = (record: RootRecord, id: string): CanvasRecord | undefined => Object.hasOwn(record.canvases, id) ? record.canvases[id] : undefined;
+
+// v1 and v2 roots become roots still to migrate, carrying their memory. A wrong-typed root, field or entry is dropped
+// on its own; only a file that is not a versioned object with roots at all is corrupt.
+export function parseLocalSeen(text: string): LocalSeenRead {
+  let value: unknown;
+  try { value = JSON.parse(text); } catch { return { kind: "corrupt" }; }
+  if (!isObject(value) || typeof value.v !== "number") return { kind: "corrupt" };
+  if (value.v > 3) return { kind: "newer" };
+  const v = value.v;
+  if ((v !== 1 && v !== 2 && v !== 3) || !isObject(value.roots)) return { kind: "corrupt" };
+  const roots = new Map<string, RootRecord>();
+  for (const [root, item] of Object.entries(value.roots)) {
+    if (v === 1) {
+      const legacy = entries(item, time);
+      if (legacy) roots.set(root, { canvases: {}, v2: { legacy, known: {} } });
+    } else if (v === 2) {
+      const memory = memoryOf(item);
+      if (memory) roots.set(root, { canvases: {}, v2: memory });
+    } else if (isObject(item)) {
+      const canvases = Object.fromEntries(Object.entries(entries(item.canvases, canvasRecord) ?? {}).filter(([id]) => validCanvasId(id)));
+      const record: RootRecord = item.migrated === true ? { migrated: true, canvases } : { canvases };
+      const memory = memoryOf(item.v2);
+      if (memory) record.v2 = memory;
+      roots.set(root, record);
+    }
+  }
+  return { kind: "ok", roots };
+}
+
+export function localSeenText(roots: ReadonlyMap<string, RootRecord>): string {
+  const value = Object.fromEntries([...roots].map(([root, record]) => [root, {
+    ...(record.migrated ? { migrated: true } : {}), canvases: record.canvases, ...(record.v2 ? { v2: record.v2 } : {}),
+  }]));
+  return `${JSON.stringify({ v: 3, roots: value })}\n`;
+}
+
+// A root's first read of its `.doan/seen/`, turned into its local record so every canvas shows the same dot as before.
+// A valid record under a present marker is copied. Anything else (a damaged, conflicted, unreadable or later-version
+// record, a bad or missing marker, a refused folder, no record) carries what this device showed: its v2 verdict, which
+// already falls back to `last` where the records could not be read; an older Doan's mtimes convert as they always did.
+// Without either, the canvas starts seen: a first registration lights nothing.
+export function migrateRoot(memory: RootMemory | undefined, reads: SeenReads, rows: readonly SeenRow[], last: (row: SeenRow) => Verdict | undefined): RootRecord {
+  const ids = uniqueIds(rows);
+  const copy = reads.dir === "ok" && reads.marker.kind === "present";
+  const before = memory && !memory.legacy ? judge(memory, reads, rows, last).verdicts : undefined;
+  const canvases: Record<string, CanvasRecord> = {};
+  for (const row of rows) {
+    if (row.id === undefined || !ids.has(row.id)) continue;
+    const read = reads.records.get(row.id);
+    if (copy && read?.kind === "seen") { canvases[row.id] = { html: read.html }; continue; }
+    if (copy && read?.kind === "migrated") { canvases[row.id] = { unseen: "migrated" }; continue; }
+    let verdict: Verdict | undefined;
+    if (memory?.legacy) {
+      const seen = memory.legacy[row.path];
+      verdict = seen !== undefined && seen === row.mtimeMs ? "seen" : "changed";
+    } else verdict = before ? before.get(row.path) : last(row);
+    if (verdict === "new") canvases[row.id] = { unseen: "new" };
+    else if (verdict === "changed") canvases[row.id] = { unseen: "migrated" };
+    // Seen, or never judged: the content now is the baseline. Unreadable content has none, so no record.
+    else if (row.fingerprint !== null) canvases[row.id] = { html: row.fingerprint };
+  }
+  return { migrated: true, canvases };
+}
+
+// The first listing after start or registration: every unique ID without a record is recorded as seen, so canvases
+// that appeared while the app was not watching (a pull, a branch switch, a run while it was closed) light nothing.
+// Records already there are kept, so a root registered again compares with them. The same record when nothing is added.
+export function absorbFirst(record: RootRecord, rows: readonly SeenRow[]): RootRecord {
+  const ids = uniqueIds(rows);
+  const added: Record<string, CanvasRecord> = {};
+  for (const row of rows) {
+    if (row.id === undefined || !ids.has(row.id) || row.fingerprint === null || recordOf(record, row.id)) continue;
+    added[row.id] = { html: row.fingerprint };
+  }
+  return Object.keys(added).length === 0 ? record : { ...record, canvases: { ...record.canvases, ...added } };
+}
+
+// The verdict of every listed canvas of one root from its local record. A missing or duplicated ID, or content that
+// cannot be read, keeps `last`; a unique ID without a record shows nothing (it is still pending, decided elsewhere).
+export function judgeLocal(record: RootRecord, rows: readonly SeenRow[], last: (row: SeenRow) => Verdict | undefined): Map<string, Verdict | undefined> {
+  const ids = uniqueIds(rows);
+  const verdicts = new Map<string, Verdict | undefined>();
+  for (const row of rows) {
+    if (row.id === undefined || !ids.has(row.id)) { verdicts.set(row.path, last(row)); continue; }
+    const kept = recordOf(record, row.id);
+    if (kept === undefined) verdicts.set(row.path, undefined);
+    else if ("unseen" in kept) verdicts.set(row.path, kept.unseen === "new" ? "new" : "changed");
+    else verdicts.set(row.path, row.fingerprint === null ? last(row) : row.fingerprint === kept.html ? "seen" : "changed");
+  }
+  return verdicts;
+}
+
+// Records `hash` as shown for `row`, whatever it held before (also a pending ID). A row without an ID unique among
+// `rows` records nothing. The same record when nothing changes, so the caller writes only what moved.
+export function markShown(record: RootRecord, row: { id?: string | undefined }, hash: string, rows: readonly { id?: string | undefined }[]): RootRecord {
+  if (row.id === undefined || !uniqueIds(rows).has(row.id)) return record;
+  const kept = recordOf(record, row.id);
+  if (kept && "html" in kept && kept.html === hash) return record;
+  return { ...record, canvases: { ...record.canvases, [row.id]: { html: hash } } };
+}
+
+// One root under two spellings (FolderStore's alias step): the real path's record wins per canvas and the alias's fills
+// what it lacks. Migrated if either was, and then the older memory has nothing left to do.
+export function mergeRoots(real: RootRecord | undefined, alias: RootRecord): RootRecord {
+  const canvases = { ...alias.canvases, ...real?.canvases };
+  if (real?.migrated || alias.migrated) return { migrated: true, canvases };
+  const v2 = alias.v2 ? mergeMemory(real?.v2, alias.v2) : real?.v2;
+  return v2 ? { canvases, v2 } : { canvases };
 }

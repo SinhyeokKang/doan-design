@@ -404,6 +404,14 @@ describe("absorbFirst", () => {
     expect(local(absorbFirst(record, rows), rows)).toEqual({ "a.html": "changed", "n.html": "seen" });
   });
 
+  test("a canvas ID that names an Object.prototype member is an ordinary ID", () => {
+    const rows = [row("c.html", "constructor", H("c")), row("t.html", "tostring", H("t"))];
+    const absorbed = absorbFirst(LOCAL({}), rows);
+    expect(absorbed).toEqual(LOCAL({ constructor: { html: H("c") }, tostring: { html: H("t") } }));
+    expect(local(LOCAL({}), rows)).toEqual({ "c.html": undefined, "t.html": undefined });
+    expect(markShown(LOCAL({}), rows[0]!, H("c"), rows)).toEqual(LOCAL({ constructor: { html: H("c") } }));
+  });
+
   test("nothing to add returns the same record", () => {
     const record = LOCAL({ a: { html: H("a") } });
     expect(absorbFirst(record, [row("a.html", "a", H("b")), row("x.html", "x", null)])).toBe(record);
