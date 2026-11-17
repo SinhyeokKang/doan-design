@@ -1,5 +1,7 @@
 import type { Provider } from "../agentAuth/types";
+import { COMMAND_ALLOWLIST } from "./providerCommands";
 import type { Prepared } from "./service";
+import { storedVersionAtLeast } from "./sessions";
 import type { SkillSummary } from "./types";
 
 // Both lists carry repository text that anyone with push access wrote, and it crosses IPC into every composer.
@@ -30,7 +32,7 @@ export function parseClaudeSkills(commands: unknown): SkillSummary[] {
   if (!Array.isArray(commands)) throw new Error("session_unavailable");
   return limited(commands.filter(record).filter(c => c.builtin !== true && name(c.name) && c.name !== "doan" &&
     typeof c.description === "string" && c.description.endsWith(PROJECT))
-    .map(c => ({ name: c.name as string, description: firstLine((c.description as string).slice(0, -PROJECT.length)) })));
+    .map(c => ({ kind: "skill" as const, name: c.name as string, description: firstLine((c.description as string).slice(0, -PROJECT.length)) })));
 }
 // Codex app-server skills/list (0.158.0, 0.166.0): {data: [{cwd, skills: [{name, description, path, scope, enabled,
 // pluginId, ...}], errors}]}. Only the repository's own skills: scope "user" includes the person's real ~/.agents/skills
@@ -42,7 +44,52 @@ export function parseCodexSkills(result: unknown): SkillSummary[] {
   if (!result.data.every(folder => record(folder) && Array.isArray(folder.skills))) throw new Error("session_unavailable");
   return limited((result.data as Record<string, unknown[]>[]).flatMap(folder => folder.skills!.filter(record))
     .filter(s => s.scope === "repo" && s.enabled !== false && s.pluginId == null && name(s.name))
-    .map(s => ({ name: s.name as string, description: typeof s.description === "string" ? firstLine(s.description) : "" })));
+    .map(s => ({ kind: "skill" as const, name: s.name as string, description: typeof s.description === "string" ? firstLine(s.description) : "" })));
+}
+
+// The provider's built-in commands Doan runs (providerCommands.ts): only at the version the PoC confirmed or later, so a
+// CLI whose version no run has read lists none. Claude and Codex list the whole table (Claude's SDK list lacks /review,
+// which runs), and `reported` only lends a description; an ACP server lists what it runs, so a row needs it there.
+// A reported description wins unless it is empty or Claude's placeholder.
+const PLACEHOLDER = "Built-in command.";
+export function allowedCommands(provider: Provider, installed: string | undefined, reported?: ReadonlyMap<string, string>): SkillSummary[] {
+  const table = COMMAND_ALLOWLIST[provider];
+  if (!storedVersionAtLeast(installed, table.version)) return [];
+  const acp = provider !== "claude" && provider !== "codex";
+  return table.commands.filter(c => !acp || reported?.has(c.name)).map(c => {
+    const said = reported?.get(c.name);
+    return { kind: "command" as const, name: c.name, description: said && said !== PLACEHOLDER ? said : c.description };
+  });
+}
+// Agent SDK initializationResult().commands, the same answer parseClaudeSkills reads: its builtin rows lend descriptions.
+export function parseClaudeCommands(commands: unknown, installed: string | undefined): SkillSummary[] {
+  if (!Array.isArray(commands)) throw new Error("session_unavailable");
+  const reported = new Map(commands.filter(record).filter(c => c.builtin === true && name(c.name) && typeof c.description === "string")
+    .map(c => [c.name as string, firstLine(c.description as string)]));
+  return allowedCommands("claude", installed, reported);
+}
+// An ACP session/update's update {sessionUpdate: "available_commands_update", availableCommands: [{name, description,
+// input?}]} (Cursor 2026.10.22, Copilot 1.0.105, Antigravity 1.3.0). Names come without the slash.
+export function parseAcpCommands(provider: Provider, update: unknown, installed: string | undefined): SkillSummary[] {
+  if (!record(update) || update.sessionUpdate !== "available_commands_update" || !Array.isArray(update.availableCommands)) throw new Error("session_unavailable");
+  const rows = update.availableCommands.filter(record).filter(c => name(c.name));
+  return allowedCommands(provider, installed, new Map(rows.map(c => [c.name as string, typeof c.description === "string" ? firstLine(c.description) : ""])));
+}
+// Every command name an available_commands_update reports, the ones Doan does not list included; null for one it cannot
+// read, as parseAcpCommands refuses it.
+export function acpReportedNames(update: unknown): string[] | null {
+  if (!record(update) || update.sessionUpdate !== "available_commands_update" || !Array.isArray(update.availableCommands)) return null;
+  return [...new Set(update.availableCommands.filter(record).map(c => c.name).filter(name))].slice(0, ROWS);
+}
+// The commands an ACP conversation's connection last reported. Servers push updates at their own times (Copilot even
+// before session/new answers), so the runner keeps the last one. One it cannot read keeps the list, as a failed skill
+// read does; a list belongs to the connection that sent it, so another connection never shows it (POSTMORTEM
+// 2026-11-06, the Codex model list that stayed the previous account's).
+export interface AcpCommandList { connectionId: string; commands: SkillSummary[] }
+export function acpCommandsAfter(previous: AcpCommandList | null, connectionId: string, provider: Provider, update: unknown, installed: string | undefined): AcpCommandList | null {
+  const kept = previous?.connectionId === connectionId ? previous : null;
+  try { return { connectionId, commands: parseAcpCommands(provider, update, installed) }; }
+  catch { return kept; }
 }
 
 function free(input: Prepared): void {

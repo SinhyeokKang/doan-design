@@ -20,7 +20,7 @@ import { conversationButton, playingFrameChip, prototypeHeadTitle, prototypeShow
 
 // Everything the panel calls: `window.doanPrototype`'s members of the same names as `window.doan`'s, and its own.
 export type PrototypeConversationCalls = ConversationCalls & StoreCalls & DockedSupportCalls & ResumeCalls & VisibleCalls
-  & Pick<DoanApi, "deleteConversation" | "markConversationSeen" | "onConversationEvent" | "onConversationStage" | "onConversationListChanged" | "getWork" | "onWorkChanged">
+  & Pick<DoanApi, "deleteConversation" | "markConversationSeen" | "onConversationEvent" | "onConversationStage" | "onConversationBoundary" | "onConversationListChanged" | "getWork" | "onWorkChanged">
   & Pick<PrototypeWindowApi, "listConversations" | "setShowing" | "reveal" | "rememberChoice" | "readComposerSettings" | "onComposerSettings" | "readTargetEntry" | "onTargetEntry" | "readDrawing" | "onDrawing" | "readPromoted" | "onPromoted" | "rememberedConversation">;
 
 export interface PrototypeRunHost {
@@ -114,6 +114,7 @@ export class PrototypeConversationRun {
     const offs = [
       this.calls.onConversationEvent(event => this.store.event(event)),
       this.calls.onConversationStage(signal => this.store.stage(signal)),
+      this.calls.onConversationBoundary(signal => this.store.boundary(signal)),
       this.calls.onConversationListChanged(({ root }) => { if (this.view?.root === root && this.view.canvasRow === "present") this.read(); }),
       this.calls.onWorkChanged(items => { this.workItems = items; this.host.changed(); }),
       this.calls.onTargetEntry(entry => { if (entry === null || entry.path === this.view?.root) { this.entryValue = entry; this.host.changed(); } }),

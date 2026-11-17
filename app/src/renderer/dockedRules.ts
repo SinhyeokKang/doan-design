@@ -2,7 +2,7 @@ import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Anchor, Canvas, ConversationEvent } from "../main/conversation/types";
-import { hasContent, toMessage, typedText, type FieldSegment } from "./anchorField";
+import { hasContent, sameSegments, toMessage, typedText, type FieldSegment } from "./anchorField";
 import { pickerAction, PROVIDER_NAMES, type SettingsAction } from "./agentAuthView";
 import type { ComposerShape, ComposerTurn } from "./composerRules";
 import { asksPerson, stripState } from "./conversationStrip";
@@ -131,6 +131,16 @@ export type DockedRefusal = { kind: "busy"; busy: DockedBusy } | { kind: "gone" 
 // A draft with anything in it: text, a preset or an attachment.
 export function hasDraft(draft: DockedDraft | undefined): draft is DockedDraft {
   return draft !== undefined && (draft.segments.length > 0 || draft.preset !== null || draft.attachments.length > 0);
+}
+export const sameDraft = (a: DockedDraft, b: DockedDraft) => sameSegments(a.segments, b.segments) && (a.preset?.id ?? null) === (b.preset?.id ?? null)
+  && a.attachments.map(item => item.key).join("\n") === b.attachments.map(item => item.key).join("\n");
+// An accepted send settles the draft it left from, only while the person has not changed it meanwhile: `left` is what
+// stays (empty, or a command's preset and attachments). A start moved the composer to the conversation it started
+// (`to`): what stays goes there, unless that draft already holds something, which stays as the person left it.
+export function settleSent(drafts: ReadonlyMap<string, DockedDraft>, at: string, sent: DockedDraft, left: DockedDraft, to?: string): ReadonlyMap<string, DockedDraft> {
+  if (!sameDraft(drafts.get(at) ?? EMPTY_DRAFT, sent)) return drafts;
+  if (to !== undefined && to !== at && hasDraft(left) && !hasDraft(drafts.get(to))) return new Map(drafts).set(to, left).set(at, EMPTY_DRAFT);
+  return new Map(drafts).set(at, left);
 }
 // "Start a new conversation" from a refused conversation carries the refused draft into the new conversation's field,
 // as a refused terminal session's does (the two share that field); a draft already waiting there stays.

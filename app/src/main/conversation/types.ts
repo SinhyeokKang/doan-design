@@ -36,9 +36,10 @@ export interface HandoffOrigin { kind: "handoff"; conversationId: string; canvas
 // reason: a judgement's reason (handoff.ts HandoffReason) or the refused start's code. target sits in its own object
 // because the event's envelope already has a conversationId, the history's own.
 export type HandoffResolution = { outcome: "started"; target: { conversationId: string; canvas: Canvas } } | { outcome: "refused"; reason: string } | { outcome: "cancelled" };
-// A project skill the conversation's provider loads for a folder (conversation "skills" method). Type-only here, since
-// the renderer imports it: the parsers live in skills.ts.
-export interface SkillSummary { name: string; description: string }
+// A row of the conversation "skills" method: a project skill the conversation's provider loads for a folder, or one of
+// the provider's built-in commands Doan runs (providerCommands.ts). Type-only here, since the renderer imports it: the
+// parsers live in skills.ts.
+export interface SkillSummary { kind: "skill" | "command"; name: string; description: string }
 export type FastUnusedReason = "plan" | "extra_usage" | "model" | "policy" | "cooldown";
 export type EventPayload =
   | { type: "user.message"; text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; origin?: HandoffOrigin }
@@ -105,6 +106,9 @@ export interface TransportState {
   claudeFailure?: FailureCode;
   // Claude only: the index of the thinking block now streaming, whose stop ends the thinking stage.
   thinkingBlock?: number;
+  // Claude only: the turn compacted the context (a top-level compact_boundary), with the tokens it left when the CLI
+  // said; its output after the boundary is the CLI's record, not text for the thread.
+  compacted?: { post?: number };
   // The turn's tool calls still running, in the order they started; absent when none runs. A tool's end reports general
   // only once this is empty, so a sibling's end never hides a tool still running. Every path that ends the turn clears it.
   running?: string[];
@@ -120,6 +124,9 @@ export type TurnStage =
 // A stage as main sends it to the renderer. seq: the conversation's last written event seq when it was sent, which
 // orders it against events; rev: a per-live-turn counter, which orders stages that share a seq.
 export interface StageSignal { conversationId: string; turnId: string; seq: number; rev: number; stage: TurnStage }
+// A command turn's boundary as the provider reported it in this run (conversation:boundary), never stored: after a
+// restart the thread rebuilds it from the record (service read, commandTurns.ts).
+export interface BoundarySignal { conversationId: string; turnId: string; kind: import("./commandRecords").BoundaryKind }
 // stage: the turn's stage after this frame, sent after its events; absent when the frame tells nothing new.
 export interface TransportResult { state: TransportState; events: EventPayload[]; stage?: TurnStage }
 export interface PermissionChoice { option: PermissionOption; response: unknown }

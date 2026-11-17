@@ -1,7 +1,8 @@
 import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
-import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, StageSignal } from "../main/conversation/types";
+import type { BoundaryKind } from "../main/conversation/commandRecords";
+import type { Anchor, AttachmentRecord, BoundarySignal, Canvas, ConversationEvent, StageSignal } from "../main/conversation/types";
 import { fromMessage, normalize, plainText, type FieldSegment } from "./anchorField";
 import { ATTACHMENT_LIMIT_TEXT } from "./canvasConversation";
 import type { SteerPhase } from "../main/conversation/steerSupport";
@@ -15,6 +16,7 @@ import { newerStage } from "./turnStatus";
 import { messageLine } from "../main/conversation/messageText";
 import { REPLACE_DRAFT, type ReplaceDraftConfirm } from "./homeConversations";
 import { stripRequestLines } from "../main/conversation/requestLines";
+import { STALE_MODE_CARD, type CommandCard } from "./commandView";
 import type { DoanApi } from "../preload";
 
 // What the Overview's main conversation and the canvas panel share: the threads
@@ -90,6 +92,11 @@ export class ConversationStore {
   // (a same-reset retry) is read again; only the read holding the current token may apply its answer.
   private schedules = new Map<string, { root: string; schedule: string; token: number }>();
   private scheduleReads = 0;
+  // Each conversation's boundaries by turn: a read's (main rebuilds them from Doan's command turns, so they outlive a
+  // restart) and this run's conversation:boundary signals, which may name the same turn in either order.
+  private bounds = new Map<string, Map<string, BoundaryKind>>();
+  // The card of a built-in Doan does not run, by draft key: this run only, shared by every screen showing the draft.
+  private cards = new Map<string, CommandCard>();
 
   constructor(private host: ConversationStoreHost, private calls: StoreCalls) {}
 
@@ -351,6 +358,25 @@ export class ConversationStore {
     this.host.changed();
   }
   stageOf(conversationId: string): StageSignal | null { return this.stages.get(conversationId) ?? null; }
+  boundaries(conversationId: string): ReadonlyMap<string, BoundaryKind> { return this.bounds.get(conversationId) ?? NO_BOUNDARIES; }
+  boundary(signal: BoundarySignal): void {
+    if (this.deletedIds.has(signal.conversationId)) return;
+    if (this.addBoundaries(signal.conversationId, [signal])) this.host.changed();
+  }
+  private addBoundaries(conversationId: string, boundaries: readonly { turnId: string; kind: BoundaryKind }[]): boolean {
+    const held = this.bounds.get(conversationId);
+    const fresh = boundaries.filter(boundary => held?.get(boundary.turnId) !== boundary.kind);
+    if (fresh.length === 0) return false;
+    // A new map, so a screen holding the last one sees the change.
+    this.bounds.set(conversationId, new Map([...held ?? [], ...fresh.map(boundary => [boundary.turnId, boundary.kind] as const)]));
+    return true;
+  }
+  card(key: string): CommandCard | null { return this.cards.get(key) ?? null; }
+  showCard(key: string, card: CommandCard | null): void {
+    if ((this.cards.get(key) ?? null) === card) return;
+    if (card) this.cards.set(key, card); else this.cards.delete(key);
+    this.host.changed();
+  }
   private currentTurn(conversationId: string): string | null {
     const events = this.threads.get(conversationId)?.events ?? [];
     for (let i = events.length - 1; i >= 0; i--) if (events[i]!.type === "turn.started") return events[i]!.turnId;
@@ -376,6 +402,7 @@ export class ConversationStore {
       }
       const events = mergeEvents(reply.events, thread.events, conversationId);
       this.threads.set(conversationId, { events, read: "ready", liveAfter: reply.lastSeq ?? events.at(-1)?.seq ?? 0 });
+      if (reply.commands) this.addBoundaries(conversationId, reply.commands.boundaries);
       // After the set: stage() reads the current turn from the merged history.
       if (reply.stage) this.stage(reply.stage);
       this.tell(conversationId, "read");
@@ -407,6 +434,10 @@ export class ConversationStore {
       this.addReturned(`conversation:${conversationId}`, returned);
       // main never refuses a send with attachment_limit; it only comes back as the reason a queue was returned.
       if (reply.reason === "attachment_limit") this.host.notice(ATTACHMENT_LIMIT_TEXT);
+      // A queued /review main would not send in another permission mode than the thread was last told (Codex
+      // review/start takes none): the text is back in the draft, and the card says why.
+      // A copy: the composer says each card it is given once, by object.
+      if (reply.reason === "command_mode_stale") this.showCard(`conversation:${conversationId}`, { ...STALE_MODE_CARD });
     });
   }
   // A new conversation's first message that a quit stopped before main accepted it, in an earlier run, comes into the
@@ -432,6 +463,8 @@ export class ConversationStore {
     });
   }
 }
+
+const NO_BOUNDARIES: ReadonlyMap<string, BoundaryKind> = new Map();
 
 // The phase Send now reads, with turnOf's order: a turn that runs or waits for a
 // permission answer has something to take the message; a judged turn with work left (a queue about to go out) and an

@@ -93,7 +93,7 @@ beforeEach(() => {
     setPanel: vi.fn(async () => {}), setShowing: vi.fn(async () => {}), reveal: vi.fn(async () => {}), rememberChoice: vi.fn(async () => {}),
     readComposerSettings: vi.fn(async () => null), readTargetEntry: vi.fn(async () => null), readDrawing: vi.fn(async () => null), readPromoted: vi.fn(async () => null), rememberedConversation: vi.fn(async () => null), getWork: vi.fn(async () => []), listConversations: vi.fn(() => new Promise(() => {})),
     conversationResumeTarget: vi.fn(() => new Promise(() => {})),
-    ...Object.fromEntries(["onComposerSettings", "onTargetEntry", "onWorkChanged", "onConversationEvent", "onConversationStage", "onConversationListChanged", "onConversationHandoff", "onAgentAuth", "onDrawing", "onPromoted"].map(name => [name, vi.fn(() => () => {})])),
+    ...Object.fromEntries(["onComposerSettings", "onTargetEntry", "onWorkChanged", "onConversationEvent", "onConversationStage", "onConversationBoundary", "onConversationListChanged", "onConversationHandoff", "onAgentAuth", "onDrawing", "onPromoted"].map(name => [name, vi.fn(() => () => {})])),
   };
   keydowns = [];
   const keys = {

@@ -1,5 +1,6 @@
 import { object } from "./sessions";
 import { codexPermission, endTransport, initialTransport, normalizeCodex, normalizeCodexReply, permissionAnswer, steerTransport, type CodexContext, type CodexReplyOwner, type SteerResult } from "./transport";
+import type { BoundaryKind } from "./commandRecords";
 import type { EventPayload, PendingPermission, TurnStage } from "./types";
 // The server's own error answer to a pending request; timeouts, write failures and exit reject with a plain Error.
 // code: the JSON-RPC error code, which tells an unknown method (-32601) apart whatever the server's wording.
@@ -15,7 +16,8 @@ export class CodexDispatcher {
   private closed = false;
   // consumed: a steered message the server echoed in this turn, called in line with emit. stage: the turn's stage after a
   // notification, called after its events.
-  constructor(private write: (value: unknown) => void, private emit: (value: EventPayload) => void, private cleanup: () => void, private consumed: (messageId: string) => void = () => {}, private stage: (stage: TurnStage) => void = () => {}) {}
+  // boundary: the turn's compaction completed (normalizeCodex), called in line with emit.
+  constructor(private write: (value: unknown) => void, private emit: (value: EventPayload) => void, private cleanup: () => void, private consumed: (messageId: string) => void = () => {}, private stage: (stage: TurnStage) => void = () => {}, private boundary: (kind: BoundaryKind) => void = () => {}) {}
   begin(context: CodexContext): void { this.expire(); this.context = context; this.state = initialTransport(); }
   started(turnId: string): void { this.context = { ...this.context, turnId }; }
   end(): void {
@@ -99,10 +101,11 @@ export class CodexDispatcher {
     for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(new Error("process_exited")); }
     this.pending.clear();
   }
-  private apply(result: SteerResult): void {
+  private apply(result: SteerResult & { boundary?: BoundaryKind }): void {
     this.state = result.state;
     for (const id of result.consumed ?? []) this.consumed(id);
     for (const event of result.events) this.emit(event);
+    if (result.boundary) this.boundary(result.boundary);
     if (result.stage) this.stage(result.stage);
     if (result.state.terminal) this.expire();
   }

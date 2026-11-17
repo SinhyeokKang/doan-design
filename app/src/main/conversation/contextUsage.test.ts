@@ -85,9 +85,22 @@ describe("Claude context usage", () => {
     frames[2]!.message.usage = { input_tokens: 120, cache_creation_input_tokens: null };
     expect(usageOf(run(frames).events)).toEqual([{ type: "context.usage", used: 120, size: 1_000_000 }]);
   });
-  it("records nothing for a /compact turn, which has no top-level call", () => {
-    const { events } = run(claudeContext.compact);
-    expect(events).toEqual([{ type: "turn.done" }]);
+  // /compact makes no top-level call: its boundary's post_tokens is the context left, in the window of the turn's
+  // largest model (the summary may run on a smaller auxiliary one).
+  it("records a /compact turn's context from its boundary's post_tokens", () => {
+    const { events } = run(clone(claudeContext.compact));
+    expect(events).toEqual([{ type: "context.usage", used: 6336, size: 1_000_000 }, { type: "turn.done" }]);
+  });
+  it("takes the largest window of a /compact turn's models", () => {
+    const frames = clone(claudeContext.compact) as Record<string, any>[];
+    frames[1]!.modelUsage["claude-haiku-5-5"].contextWindow = 200_000;
+    frames[1]!.modelUsage["claude-sonnet-5-5"].contextWindow = 400_000;
+    expect(usageOf(run(frames).events)).toEqual([{ type: "context.usage", used: 6336, size: 400_000 }]);
+  });
+  it("records nothing for a /compact boundary without post_tokens", () => {
+    const frames = clone(claudeContext.compact) as Record<string, any>[];
+    delete frames[0]!.compact_metadata.post_tokens;
+    expect(run(frames).events).toEqual([{ type: "turn.done" }]);
   });
   it("records nothing for a turn whose frames carry no usage", () => {
     expect(usageOf(run(claude).events)).toEqual([]);

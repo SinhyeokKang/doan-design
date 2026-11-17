@@ -20,6 +20,8 @@ const OPEN_TIMEOUT_MS = 60_000;
 // ACP stop reasons that mean the agent ran the prompt (protocol schema StopReason, minus "cancelled").
 const RAN = new Set(["end_turn", "max_tokens", "max_turn_requests", "refusal"]);
 const CANCEL_WAIT_MS = 5000;
+// Sessions whose command lists are kept before session/new names the run's own (Copilot pushed for one).
+const EARLY_SESSIONS = 4;
 // One server per turn: it is opened for a prompt, resumes the session with session/load and is stopped when the turn
 // ends, so the account lease (and the plaintext working credential) never outlives a running turn.
 export async function openAcp(input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void): Promise<Runner> {
@@ -65,9 +67,19 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     if (object(params.toolCall)) apply(normalizeAcp(state, { ...params.toolCall, sessionUpdate: "tool_call_update", status: "pending" }, input.cwd));
     permissions.set(requestId, { rpc, kind: "permission", choices: request.choices }); emit(request.event);
   }, (method, params) => {
+    // A command list comes at the server's own times: Copilot pushes one before session/new answers (when the session id
+    // is not known yet) and with every prompt, and every server during session/load.
+    if (method === "session/update" && object(params.update) && params.update.sessionUpdate === "available_commands_update") {
+      // Before the answer only each session's latest list is kept, and few sessions: a server cannot pile them up.
+      if (!sessionId) { if (early.has(params.sessionId) || early.size < EARLY_SESSIONS) early.set(params.sessionId, params.update); }
+      else if (params.sessionId === sessionId) input.acpCommands?.(params.update);
+      return;
+    }
     if (method !== "session/update" || !prompting || params.sessionId !== sessionId || !object(params.update)) return;
     apply(normalizeAcp(state, params.update, input.cwd));
   }, detail => { failure = detail; void group?.stop(); });
+  // Command lists pushed before session/new named the session, by session id, passed on once it did.
+  const early = new Map<unknown, unknown>();
   let sessionId = input.sessionId ?? "", models: ModelOption[] = [], modes: AcpModes | undefined, images = false;
   const decoder = new StringDecoder("utf8");
   child.stdout.on("data", (bytes: Buffer) => acp.receive(decoder.write(bytes)));
@@ -114,6 +126,8 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
       judge(acpSessionNew(input.runtime, { result: created }));
       if (!object(created) || typeof created.sessionId !== "string" || !created.sessionId || created.sessionId.length > 512) throw new Error("session_unavailable");
       sessionId = created.sessionId; models = parseAcpModels(created); modes = parseAcpModes(created); current = created;
+      if (early.has(sessionId)) input.acpCommands?.(early.get(sessionId));
+      early.clear();
     }
     // session/load comes back on the default model (Antigravity), so the choice is set again after every open,
     // unless the session already runs it: the setter is unverified for Copilot's only model.

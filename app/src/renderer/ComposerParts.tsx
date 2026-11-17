@@ -1,7 +1,7 @@
 import { forwardRef, Fragment, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type PointerEvent, type ReactElement, type ReactNode, type RefObject } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { DropdownMenu, Popover } from "radix-ui";
-import { ArrowUp, ArrowUpRight, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Folder, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, SquareSlash, Square, TextAlignStart, TriangleAlert, X, Zap } from "lucide-react";
+import { ArrowUp, ArrowUpRight, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Folder, Gauge, Info, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, SquareSlash, Square, Terminal, TextAlignStart, TriangleAlert, X, Zap } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
@@ -19,11 +19,12 @@ import {
   drawerSearchLabel, presetListView, providerLogo, type AttachmentDraft, type PresetListReply, type PresetRow, type PresetSummary, type SuggestedPrompt, type SuggestionPart,
 } from "./homeComposer";
 import type { PermissionIcon, PermissionPickerView } from "./permissionPicker";
+import type { CommandCard, CommandCardTarget } from "./commandView";
 
 // The composer's shared primitives: Home's HeroComposer assembles them today and the
 // docked composer will. Each draws the markup Home drew before the split, so Home's computed styles and DOM order stay.
 
-const GROUP_ICONS: Record<string, typeof Compass> = { "square-slash": SquareSlash, compass: Compass, "scan-eye": ScanEye, paintbrush: Paintbrush, "text-align-start": TextAlignStart, shapes: Shapes, "pencil-sparkles": PencilSparkles };
+const GROUP_ICONS: Record<string, typeof Compass> = { "square-slash": SquareSlash, compass: Compass, "scan-eye": ScanEye, paintbrush: Paintbrush, "text-align-start": TextAlignStart, shapes: Shapes, "pencil-sparkles": PencilSparkles, terminal: Terminal };
 // A suggested prompt's sentence with its project and canvas names highlighted; the text itself is unchanged, so the
 // button's accessible name stays the whole sentence.
 export function SuggestionLabel({ parts }: { parts: readonly SuggestionPart[] }) {
@@ -136,6 +137,8 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
   // caret and waiting chips even when the values are equal; the element itself stays, so focus and shape do too.
   draftKey?: string;
   skillNames?: ReadonlySet<string>;
+  // Provider commands, highlighted only as the first word (chipField commandNames).
+  commandNames?: ReadonlySet<string>;
   // The canvas the field's chips belong to (its canvas panel sets it); null, the default, takes no chips.
   chipScope?: string | null;
   // Chips sent with every message from outside the field, counted against its place limit.
@@ -166,12 +169,13 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
       scope: () => latest.current.chipScope ?? null,
       reserved: () => latest.current.reserved ?? [],
       skillNames: () => latest.current.skillNames ?? new Set(),
+      commandNames: () => latest.current.commandNames ?? new Set(),
       onChipClick: (anchor, chip) => latest.current.onChipClick?.(anchor, chip),
     }, latest.current.value, latest.current.draftKey);
     field.current = created;
     return () => { created.dispose(); field.current = null; };
   }, []);
-  useLayoutEffect(() => { field.current?.setValue(props.value, props.draftKey); }, [props.value, props.draftKey, props.skillNames]);
+  useLayoutEffect(() => { field.current?.setValue(props.value, props.draftKey); }, [props.value, props.draftKey, props.skillNames, props.commandNames]);
   useImperativeHandle(ref, () => ({
     focus: caret => field.current?.focus(caret === "end"),
     caretAtStart: () => field.current?.caretAtStart() ?? true,
@@ -277,7 +281,7 @@ function PresetOption({ row, index, slash, options }: { row: PresetRow; index: n
       else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); options.onChoose(row.id, row.kind); }
     }}>
     {/* A card: the preset's name over its one-line description (dogfooding); the full text stays in the tooltip. */}
-    <span className={`suggestion-icon${row.kind === "skill" ? " project-skill-icon" : ""}`}><GroupIcon name={row.icon} /></span>
+    <span className={`suggestion-icon${row.kind === "skill" ? " project-skill-icon" : row.kind === "command" ? " project-skill-icon command-icon" : ""}`}><GroupIcon name={row.icon} /></span>
     <span className="preset-text"><span className="preset-title">{row.title}</span>{row.description && <span className="preset-desc">{row.description}</span>}</span>
   </div></TooltipTrigger><TooltipContent>{row.tooltip}</TooltipContent></Tooltip>;
 }
@@ -356,7 +360,7 @@ export function PresetsButton(props: {
   const choose = (id: string, kind: PresetRow["kind"]) => { picked.current = true; setOpen(false); props.onChoose(id, kind); };
   return <Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) { pressed.current = false; setQuery(""); props.onOpen(); } }}>
     <IconTip label="Design presets"><Popover.Trigger asChild><button type="button" className="doan-icon-button composer-presets" aria-label="Design presets" disabled={props.disabled}><PencilSparkles aria-hidden="true" /></button></Popover.Trigger></IconTip>
-    <TooltipEscape value={() => setOpen(false)}><Popover.Portal><Popover.Content ref={content} onFocusCapture={event => { const target = event.target as HTMLElement; lastFocused.current = target.closest('[role="tab"], [role="listbox"]') ? target : null; }} className={`doan-floating preset-popover${props.skills?.length ? " has-skills" : ""}`} aria-label="Design presets" side="top" align="start" sideOffset={8} collisionPadding={8}
+    <TooltipEscape value={() => setOpen(false)}><Popover.Portal><Popover.Content ref={content} onFocusCapture={event => { const target = event.target as HTMLElement; lastFocused.current = target.closest('[role="tab"], [role="listbox"]') ? target : null; }} className={`doan-floating preset-popover${(props.skills ?? []).some(r => r.kind !== "command") ? " has-skills" : ""}${(props.skills ?? []).some(r => r.kind === "command") ? " has-commands" : ""}`} aria-label="Design presets" side="top" align="start" sideOffset={8} collisionPadding={8}
       onCloseAutoFocus={event => {
         if (picked.current) { picked.current = false; event.preventDefault(); props.onPicked(); }
         else if (pressed.current) { pressed.current = false; event.preventDefault(); }
@@ -617,4 +621,25 @@ export function SendButton({ enabled, sending, onSend, action = "send", hint, ti
     data-own-description={description && !hint ? "" : undefined} onClick={() => { if (enabled) onSend(); }}>
     {sending ? <span className="doan-spinner" aria-hidden="true" /> : action === "stop" ? <Square fill="currentColor" stroke="none" aria-hidden="true" /> : <ArrowUp aria-hidden="true" />}
     {described && <span id={hintId} className="sr-only">{described}</span>}</button></IconTip>;
+}
+
+
+// The card of a built-in Doan does not run (draft provider-commands frame unsupported-card): the shipped neutral thread
+// notice with an info icon, the action that leads to Doan's own control, and Dismiss. The composer that showed it said it
+// as status, so the card itself is no live region.
+export function CommandCardNotice({ card, onAction, onDismiss }: { card: CommandCard; onAction(target: CommandCardTarget): void; onDismiss(): void }) {
+  return <div className="doan-notice thread-notice command-card">
+    <Info className="doan-alert-icon" aria-hidden="true" />
+    <span className="strip-text selectable"><b>{card.title}</b><span>{card.body}</span></span>
+    <span className="strip-actions">
+      {card.action && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => onAction(card.action!.target)}>{card.action.label}</button>}
+      <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="ghost" onClick={onDismiss}>Dismiss</button>
+    </span>
+  </div>;
+}
+
+// Where a card's action leads within the composer it came from: its model or permission picker takes focus (draft:
+// "moves focus to the composer's model picker"); Settings > Agents is the host's.
+export function focusPicker(composer: ParentNode | null | undefined, target: Exclude<CommandCardTarget, "agentsSettings">): void {
+  composer?.querySelector<HTMLElement>(target === "modelPicker" ? ".composer-agent" : ".composer-permission")?.focus();
 }

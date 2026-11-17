@@ -2339,6 +2339,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   }), []);
   // A running turn's stage for the threads' turn indicator: one store serves both screens.
   useEffect(() => window.doan.onConversationStage(signal => overviewRun.current!.store.stage(signal)), []);
+  // A command turn's boundary as its provider reported it in this run (main stores none).
+  useEffect(() => window.doan.onConversationBoundary(signal => overviewRun.current!.store.boundary(signal)), []);
   // Every render follows a list change, so a waiting auto-off is tried again once a list may name its conversation.
   useEffect(() => { for (const [conversationId, seenAt] of fastOffPending.current) if (fastOffFor(conversationId, seenAt)) fastOffPending.current.delete(conversationId); });
   useEffect(() => window.doan.onConversationListChanged(({ root }) => homeRun.current.listChanged(root)), []);

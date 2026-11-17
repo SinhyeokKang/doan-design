@@ -783,6 +783,9 @@ body:has(.shell-top) { background: transparent; }
 .preset-popover { width: 600px; max-width: calc(100vw - var(--space-4)); }
 /* The / list keeps focus in the field, so it is drawn in place rather than as a focus-taking popover. */
 .slash-popover { position: absolute; z-index: 2; bottom: calc(100% + var(--space-2)); left: var(--space-8); }
+/* The / list opens above the whole composer, not the tool row, so it never covers the field (provider-commands draft
+   frame slash-list): the tool row stops being its containing block. On Home it may cover the project button above. */
+.composer-tools:has(> .slash-popover) { position: static; }
 .agent-popover { width: 300px; }
 .effort-popover { width: 200px; }
 /* fast-mode (draft frame effort-menu): with a Fast row the menu takes Permission's 280, so a description ends within
@@ -1821,11 +1824,21 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .bubble .skill-word { background: var(--surface-panel); }
 
 .preset-popover.has-skills:not(.slash-popover) { width: 691px; }
+.preset-popover.has-commands:not(.slash-popover) { width: 809px; }
 .preset-item .suggestion-icon svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-accent); }
 .preset-item .suggestion-icon.project-skill-icon { background: var(--affordance-backdrop-hover); }
 .preset-item .suggestion-icon.project-skill-icon svg { color: var(--text-standard); }
 .preset-popover .group-tabs button svg { color: var(--text-accent); }
-.preset-popover .group-tabs button[data-group="project"] svg { color: var(--text-metadata); }
+.preset-popover .group-tabs button:is([data-group="project"], [data-group="commands"]) svg { color: var(--text-metadata); }
+/* While the field starts with a command, the preset chip's place (provider-commands draft frame preset-chip-notice): the
+   queue status line's values. */
+.command-notice { align-items: center; gap: var(--space-2); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.command-notice svg { width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
+.command-card .doan-alert-icon { color: var(--text-metadata); }
+/* A context boundary after a /compact or /clear turn: the onboarding divider's values, wrapping inside its rules. */
+.context-boundary { display: flex; align-items: center; gap: var(--space-3); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); text-align: center; }
+.context-boundary::before, .context-boundary::after { content: ""; flex: 1; min-width: var(--space-6); height: 1px; background: var(--border-standard); }
+.context-boundary span { min-width: 0; overflow-wrap: anywhere; }
 
 /* Where the Doan files are kept (local-doan-files draft frames setup-dialog, setup-panel, clone, settings-*). */
 /* The Set Up dialog's field: the settings radio row's parts without a row box; the dialog's card is the group. */
