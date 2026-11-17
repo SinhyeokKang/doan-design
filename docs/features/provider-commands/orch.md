@@ -8,7 +8,7 @@
 ## 결정 기록
 1. `/compact` 외 명령의 실행 중 라벨(사용자): Claude `/clear` → "Clearing context…", Codex `/review` → "Reviewing…". 나머지 명령은 기존 턴 진행 표시를 그대로 쓴다.
 2. 배치 순서(지휘자 판단, 근거: 파일 겹침): B1 → B2 → B3를 직렬로 돈다. B2는 B1의 타입과 순수 함수를, B3는 B2가 내는 목록·경계·카드 데이터를 쓴다. `app/src/main/conversation/`의 types·queue·skills와 preload가 배치 사이에 겹친다.
-3. 모델(지휘자 판단): Claude 지휘자이므로 Claude 워커만 쓴다. 교차 없음.
+3. 모델: 구현 워커는 Claude만 쓴다(지휘자 판단). 리뷰 워커는 Codex를 쓴다(사용자 허용, 모델 교차 범위는 리뷰 워커뿐). 판단이 많은 diff는 `gpt-6-astra` medium으로 본다.
 4. `/agent-eval` 대상 여부(지휘자 판단, 근거: AGENTS 'Workflow'): 가이드, CLI 출력·메시지, `doan check` 규칙, 스킬 스텁을 바꾸지 않으므로 대상이 아니다. 배치 중 이 범위를 건드리면 다시 판단한다.
 
 ## 배치
@@ -20,7 +20,7 @@
 | B3 | task 8(+`/runtime-test`, `/design-sync`) | `app/src/renderer/`, `docs/design/conversation.md`·`docs/DESIGN.md` 측정값 | B2 | Opus high: 네 컴포저 공통 규칙, `/` 목록 위치 변경, 실제 앱 측정 | `npm --prefix app test`, `/runtime-test` 네 항목, `/design-sync` | 대기 |
 | 지휘자 | task 9, 10 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/features/provider-commands/` 삭제 | B3 | — | `verify.mjs` 종료 0, `/doc-check` 대상 문단 대조 | 대기 |
 
-- 각 배치 뒤 독립 리뷰 워커가 `/code-review`로 본다(모델은 diff 난이도로 정한다).
+- 각 배치 뒤 독립 Codex 리뷰 워커가 `/code-review`로 본다(모델·effort는 diff 난이도로 정한다).
 - tasks의 체크 항목은 모두 위 행 하나에 속한다. task 4의 테스트 목록은 B1, task 8의 `/runtime-test` 네 항목은 B3에 속한다.
 
 ## 겹침과 순서
