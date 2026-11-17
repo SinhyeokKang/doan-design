@@ -615,3 +615,37 @@ test("a failed Open again shows the alert with Open browser and reads it; a work
   await settle();
   expect(shown()).toContain("Finish connecting to Notion");
 });
+
+// The entry read is the page's only source until main publishes: when it rejects with no snapshot yet, the page says
+// so with a Retry (DESIGN 'Busy action') instead of staying blank with Add unavailable.
+const readFailed = () => all(tree).filter(element => typeof element.type === "string").some(element => words(element.props.children) === "Couldn’t read the MCP connectors." || words(element.props.children) === "Couldn’t read the MCP connectors. ");
+const retryButtons = () => all(tree).filter(element => element.type === "button" && words(element.props.children) === "Retry");
+test("an entry read that rejects before any snapshot shows the read failure with Retry; Retry is busy, and a read clears it", async () => {
+  watch = new McpConnectorsWatch({ api: api as never, running: provider => running.has(provider), pageShown: () => true, toast: vi.fn(), openPage: vi.fn() });
+  watch.start();
+  props = { ...props, watch };
+  api.readMcpConnectors!.mockRejectedValueOnce(new Error("ipc"));
+  await settle();
+  expect(readFailed()).toBe(true);
+  const retry = retryButtons()[0]!;
+  expect(all(tree).find(element => element.props.id === retry.props["aria-describedby"])).toBeDefined();
+  let answer!: (value: McpSnapshot) => void;
+  api.readMcpConnectors!.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+  click(retry);
+  render();
+  expect(readFailed()).toBe(true);
+  expect(retryButtons()[0]!.props).toMatchObject({ "aria-busy": true, "aria-disabled": true });
+  click(retryButtons()[0]);
+  expect(api.readMcpConnectors).toHaveBeenCalledTimes(2);
+  answer(snap());
+  await settle();
+  expect(readFailed()).toBe(false);
+  expect(all(tree).filter(element => element.type === "section")).toHaveLength(2);
+});
+
+test("an entry read that rejects while a snapshot is shown keeps the page as it is, with no failure line", async () => {
+  api.readMcpConnectors!.mockRejectedValueOnce(new Error("ipc"));
+  await settle();
+  expect(readFailed()).toBe(false);
+  expect(all(tree).filter(element => element.type === "section")).toHaveLength(2);
+});

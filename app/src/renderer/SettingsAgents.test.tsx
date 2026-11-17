@@ -636,3 +636,23 @@ test("the save Retry keeps the save failure while its save is out, busy; a repea
   expect(text()).toContain("Couldn’t save your new conversation choices.");
   expect(retries().at(-1)!.props["aria-busy"]).toBeUndefined();
 });
+
+// Only the latest save owns the failure line (POSTMORTEM 2026-10-25): an earlier choice's failure that answers after a
+// later choice was sent is dropped, so the line (and a Retry that would send the older choice again) never appears.
+test("an earlier choice's save failing after a later one was sent shows no failure line", async () => {
+  await settle({ preferences: prefs({ provider: "claude" }) });
+  const replies: ((value: unknown) => void)[] = [];
+  props.save = vi.fn(() => new Promise(resolve => { replies.push(resolve); })) as never;
+  render();
+  const choose = (value: string) => (all(tree).filter(element => element.type === DropdownMenu.RadioGroup)[0]!.props.onValueChange as (value: string) => void)(value);
+  choose("last");
+  render();
+  choose("claude");
+  expect(props.save).toHaveBeenCalledTimes(2);
+  replies[0]!(null);
+  await settle();
+  expect(text()).not.toContain("Couldn’t save your new conversation choices.");
+  replies[1]!({ ok: true, snapshot: { preferences: prefs({ provider: "claude" }), notice: null } });
+  await settle();
+  expect(text()).not.toContain("Couldn’t save your new conversation choices.");
+});

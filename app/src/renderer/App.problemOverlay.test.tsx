@@ -712,7 +712,7 @@ test("a canvas that failed to load shows the status block with the alert icon, i
   expect(inside.find(element => element.type === "h2")?.props.children).toBe("Couldn’t load the canvas");
   expect(inside.find(element => element.type === "p")?.props.children).toBe("Run doan check in a terminal.");
   const reload = inside.find(element => element.type === "button")!;
-  expect(reload.props).toMatchObject({ "data-ui-variant": "subtle", "data-ui-size": "sm", children: "Reload" });
+  expect(reload.props).toMatchObject({ "data-ui-variant": "subtle", "data-ui-size": "sm", children: "Retry" });
 });
 
 // D12: the status region is drawn at once, so its live region exists before Loading is written into it 300 ms later.

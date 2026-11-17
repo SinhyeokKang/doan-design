@@ -24,6 +24,10 @@ export interface Scene {
   detail?: string;
 }
 
+// The window's own first read of main's view failed and no view came since (main has no phase to send then): the read
+// failure's scene with Retry alone, which reads again; there is no detail to show.
+export const FIRST_READ_SCENE: Scene = { icon: "read", heading: "Couldn’t open this prototype", body: "Doan couldn’t start this window. Retry, or close it and play the frame again from the canvas.", failure: true };
+
 const LOST_CLAUSE = "; to play another, choose one from the frame menu above";
 
 // The state scene for a failure or a lost target; null while loading or ready. A lost scene names the frame menu only

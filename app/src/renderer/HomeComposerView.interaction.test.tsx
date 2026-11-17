@@ -312,6 +312,23 @@ test("Edit on Home asks before replacing a different draft, and fills an empty o
   expect(empty.box.current.text).toBe("");
 });
 
+// Home's Replace your draft? is an alertdialog named by its title and described by its body, as the other
+// confirmations (POSTMORTEM 2026-10-30: focus guards find a confirmation by this role).
+test("Home's Replace your draft? is an alertdialog named by its title and described by its body", () => {
+  const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: null, effort: null };
+  const busy = setup({ text: "Another idea" }, { restore: { request: last, seq: 1 } });
+  busy.render(); for (const effect of hooks.effects) effect();
+  const shown = busy.render();
+  const dialog = find(shown, props => typeof props.className === "string" && props.className.startsWith("doan-dialog ") && typeof props.onCancel === "function");
+  expect(dialog.role).toBe("alertdialog");
+  expect(dialog["aria-label"]).toBeUndefined();
+  const title = find(shown, props => props.className === "doan-dialog-title"), body = find(shown, props => String(props.className).startsWith("doan-dialog-description"));
+  expect(typeof dialog["aria-labelledby"]).toBe("string");
+  expect(title.id).toBe(dialog["aria-labelledby"]);
+  expect(typeof dialog["aria-describedby"]).toBe("string");
+  expect(body.id).toBe(dialog["aria-describedby"]);
+});
+
 // U4: Escape is Keep draft, as on every other modal: the confirmation closes and focus goes back to the field.
 test("Escape in Home's Replace your draft? runs Keep draft: the draft stays and focus returns to the field", () => {
   const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: null, effort: null };

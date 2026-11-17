@@ -609,9 +609,9 @@ export function HeroComposer(props: HeroComposerProps) {
         : <div className="composer-reason" role="status"><span>{reason.text}</span>{reason.kind === "running" && reason.open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation" onClick={() => props.openConversation(reason.open)}>Open</button>}</div>)}
       <div className="sr-only" role="status">{announcement}</div>
     </div>
-    {/* Escape is Keep draft, so both put focus back in the field. */}
-    {confirm && <dialog className="doan-dialog doan-scroll" data-ui-size="compact" aria-label={confirm.title} ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); keepDraft(); }}>
-      <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">{confirm.title}</h3><p className="doan-dialog-description">{confirm.body}</p></div></div>
+    {/* Escape is Keep draft, so both put focus back in the field. An alertdialog, as every confirmation. */}
+    {confirm && <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="home-replace-draft-title" aria-describedby="home-replace-draft-body" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); keepDraft(); }}>
+      <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="home-replace-draft-title">{confirm.title}</h3><p className="doan-dialog-description" id="home-replace-draft-body">{confirm.body}</p></div></div>
       <div className="doan-dialog-actions"><button type="button" className="doan-button" data-ui-variant="subtle" autoFocus onClick={keepDraft}>{confirm.cancel}</button><button type="button" className="doan-button" data-ui-variant="prominent" onClick={() => apply(confirm.request)}>{confirm.confirm}</button></div>
     </dialog>}
     <HomeCredit />

@@ -186,9 +186,13 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
     setLists(current => ({ ...current, [key]: "loading" }));
     void window.doan.listConversationModels({ root: project.root, runtime: provider }).catch(() => ({ error: "unknown" })).then(reply => setLists(current => ({ ...current, [key]: reply })));
   }, [key, runnable, listState === undefined]);
+  // Only the latest save, a choice's or Retry's, owns the failure line: an earlier choice's failure that answers after
+  // a later one was sent is dropped (POSTMORTEM 2026-10-25), or its Retry would send the older choice again.
+  const latest = useRef(0);
   const write = (patch: PreferencesPatch) => {
+    const request = ++latest.current;
     setFailed(null);
-    void save(patch).then(reply => { if (!reply || (!reply.ok && reply.reason !== "newer")) setFailed(patch); });
+    void save(patch).then(reply => { if (request === latest.current && (!reply || (!reply.ok && reply.reason !== "newer"))) setFailed(patch); });
   };
   // The Retries keep their failure lines until their request answers (DESIGN 'Busy action'): the save's line until a
   // save goes, the models' until the list is read again (not the Loading models line).
@@ -196,9 +200,10 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
   const retrySave = (pressed: HTMLElement | null) => {
     if (!failed) return;
     const patch = failed;
+    const request = ++latest.current;
     saveRetry.run(() => save(patch).then(reply => {
       const ok = !!reply && (reply.ok || reply.reason === "newer");
-      if (ok) setFailed(current => current === patch ? null : current);
+      if (ok && request === latest.current) setFailed(current => current === patch ? null : current);
       return ok;
     }), pressed);
   };
