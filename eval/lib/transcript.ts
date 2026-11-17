@@ -746,6 +746,7 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
           append(runGroups(body, vars, state, bodies, functions).map(entry => ({ ...entry, redirects: [...entry.redirects, ...redirects] })));
           // Where the group ends was matched by its braces; if its body held a construct the reader does not follow,
           // that match may be wrong, so nothing after it is read.
+          // oxlint-disable-next-line typescript/no-unnecessary-condition -- runGroups() sets state.incomplete after the reset above
           if (state.incomplete) { vars.clear(); return out; }
           state.incomplete = was;
         }
@@ -999,7 +1000,7 @@ function toolSearches(transcript: string): ToolSearch[] {
     const output = results.get(search.callId);
     // Keep empty lookup arrays: generic invocation output flattening drops them.
     const texts = Array.isArray(output) ? output.flatMap(part => record(part) && typeof part.text === "string" ? [part.text] : []) : [];
-    const excerpt = (texts.length ? texts.join("\n") : typeof output === "string" ? output : JSON.stringify(output) ?? "").slice(0, 300);
+    const excerpt = (texts.length ? texts.join("\n") : typeof output === "string" ? output : (JSON.stringify(output) as string | undefined) ?? "").slice(0, 300);
     return { ...search, excerpt };
   });
 }

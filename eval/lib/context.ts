@@ -56,7 +56,9 @@ export interface ContextOptions {
 
 export function sh(cmd: string, args: string[], cwd: string, env: NodeJS.ProcessEnv) {
   const result = spawnSync(cmd, args, { cwd, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 120_000, killSignal: "SIGKILL", maxBuffer: 64 << 20 });
-  return { code: result.status ?? -1, stdout: result.stdout ?? "", stderr: (result.stderr ?? "") + (result.error ? `\n${result.error.message}` : "") };
+  // spawnSync leaves stdout and stderr null when the command could not start, despite their string type.
+  const stdout = result.stdout as string | null, stderr = result.stderr as string | null;
+  return { code: result.status ?? -1, stdout: stdout ?? "", stderr: (stderr ?? "") + (result.error ? `\n${result.error.message}` : "") };
 }
 
 // Post-agent Git reads must not launch repository-configured helpers. Filters
