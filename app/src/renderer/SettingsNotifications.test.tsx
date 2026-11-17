@@ -1,5 +1,5 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
@@ -159,4 +159,85 @@ test("selectable: the save-failed message, but not its Retry button", async () =
   expect(words(line.props.children)).toContain("Couldn’t save your notification choices.");
   expect(String(line.props.className).split(" ")).toContain("selectable");
   expect(String(button("Retry").props.className).split(" ")).not.toContain("selectable");
+});
+
+// Only the latest save owns the failure line (POSTMORTEM 2026-10-25 'An older install failure replaced newer feedback'):
+// a reply to an earlier save that arrives after a later one was sent is dropped, in either completion order.
+describe("a late reply to an earlier save", () => {
+  type Reply = Awaited<ReturnType<typeof props.save>>;
+  const held = () => { const replies: ((reply: Reply) => void)[] = []; props.save = vi.fn(() => new Promise<Reply>(resolve => replies.push(resolve))); return replies; };
+  const failedReply = { ok: false as const, reason: "write_failed" as const, snapshot: snapshot() };
+  const savedReply = { ok: true as const, snapshot: snapshot() };
+  const failureShown = () => text().includes("Couldn’t save your notification choices.");
+
+  test("an earlier save failing after a later one succeeded shows no failure line", async () => {
+    const replies = held();
+    render();
+    toggle("Finished"); toggle("Approval requests");
+    replies[1]!(savedReply); await flush(); render();
+    replies[0]!(failedReply); await flush(); render();
+    expect(failureShown()).toBe(false);
+  });
+
+  // App's save answers null when the IPC call fails; it never rejects.
+  test("an earlier save answered null while a later one is out shows no failure line", async () => {
+    const replies = held();
+    render();
+    toggle("Finished"); toggle("Finished");
+    replies[0]!(null); await flush(); render();
+    expect(failureShown()).toBe(false);
+    replies[1]!(savedReply); await flush(); render();
+    expect(failureShown()).toBe(false);
+  });
+
+  test("an earlier save succeeding after a later one failed keeps the later failure under its own switch", async () => {
+    const replies = held();
+    render();
+    toggle("Finished"); toggle("Approval requests");
+    replies[1]!(failedReply); await flush(); render();
+    replies[0]!(savedReply); await flush(); render();
+    expect(failureShown()).toBe(true);
+    const row = all(tree).find(element => element.props.className === "doan-preference-row" && all(element).some(child => child.props["aria-label"] === "Approval requests"))!;
+    expect(words(all(row).map(element => element.props.children))).toContain("Couldn’t save your notification choices.");
+  });
+
+  test("a Retry's late failure after a later switch save is dropped too", async () => {
+    props.save = vi.fn(async () => failedReply);
+    render();
+    toggle("Finished"); await flush(); render();
+    const replies = held();
+    render();
+    click("Retry"); toggle("Approval requests");
+    replies[1]!(savedReply); await flush(); render();
+    replies[0]!(failedReply); await flush(); render();
+    expect(failureShown()).toBe(false);
+  });
+});
+
+// DESIGN 'Busy action' (the list Retry's model): Retry keeps its line and focus while the save is out.
+test("Retry keeps the failure line while its save is out, busy and named Retry; a repeat failure reads the line again; success clears it", async () => {
+  props.save = vi.fn(async () => ({ ok: false as const, reason: "write_failed" as const, snapshot: snapshot() }));
+  render();
+  toggle("Finished");
+  await flush(); render();
+  let answer!: (value: Awaited<ReturnType<typeof props.save>>) => void;
+  props.save = vi.fn(() => new Promise<Awaited<ReturnType<typeof props.save>>>(resolve => { answer = resolve; }));
+  render();
+  const lineText = () => words(all(tree).find(element => element.props.className === "settings-msg error selectable")?.props.children);
+  const first = lineText();
+  expect(button("Retry").props["aria-label"]).toBeUndefined();
+  const described = button("Retry").props["aria-describedby"] as string;
+  expect(all(tree).find(element => element.props.id === described)).toBeDefined();
+  click("Retry"); render();
+  expect(lineText()).toBe(first);
+  expect(button("Retry").props).toMatchObject({ "aria-busy": true, "aria-disabled": true });
+  click("Retry");
+  expect(props.save).toHaveBeenCalledOnce();
+  answer({ ok: false, reason: "write_failed", snapshot: snapshot() }); await flush(); render();
+  expect(button("Retry").props["aria-busy"]).toBeUndefined();
+  // The same sentence, changed by a no-break space so the alert reads it again.
+  expect(lineText()).toBe(`${first} `);
+  click("Retry"); render();
+  answer({ ok: true, snapshot: snapshot() }); await flush(); render();
+  expect(text()).not.toContain("Couldn’t save");
 });

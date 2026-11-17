@@ -4,7 +4,10 @@ import type { ConversationEvent } from "../main/conversation/types";
 // end. value fills the ring and stops at 100; percent is the real ratio the name and tooltip give.
 export interface ContextUsage { value: number; percent: number; used: number; size: number }
 
-export function contextRing(events: readonly ConversationEvent[]): ContextUsage | null {
+// stale: the last value is a session /clear left behind (commandView threadCommands usageStale); no ring until a turn
+// measures the new one, rather than a made-up empty value.
+export function contextRing(events: readonly ConversationEvent[], stale = false): ContextUsage | null {
+  if (stale) return null;
   let at = events.length - 1;
   while (at >= 0 && events[at]!.type !== "context.usage") at--;
   const last = events[at];

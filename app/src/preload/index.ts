@@ -16,7 +16,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { ConversationHandoffNotice } from "../main/conversation/handoff";
 import type { AttachmentResult, RecheckResult } from "../main/attachments";
 import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
-import type { Anchor, Canvas, ConversationEvent, Runtime, SkillSummary, StageSignal, UnavailableReason } from "../main/conversation/types";
+import type { Anchor, BoundarySignal, Canvas, ConversationEvent, Runtime, SkillSummary, StageSignal, UnavailableReason } from "../main/conversation/types";
 import type {
   OnboardingCancelRequest, OnboardingCheckRequest, OnboardingCompleteRequest, OnboardingProjectCloneRequest,
   OnboardingProjectInspectRequest, OnboardingProjectSelectRequest, OnboardingResponse, OnboardingState, OnboardingStatusRequest,
@@ -34,7 +34,6 @@ import type { TestNotificationReply } from "../main/notifyService";
 import type { AboutRead } from "../main/about";
 import type { StarMoment } from "../main/starPrompt";
 import type { InstallGate, UpdateSnapshot } from "../main/update/types";
-import type { InspectResult } from "../main/inspect";
 import type { FolderEntry, ReadStateProblem } from "../main/view";
 import type { TrashPlanReply, TrashReply } from "../main/canvasTrash";
 import type { ExportReply } from "../main/canvasExport";
@@ -157,6 +156,9 @@ const api = {
   // item is gone or already on its way out; attachment_missing: one of its files went away (it stays queued).
   sendQueuedNow: (request: { conversationId: string; itemId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:sendQueuedNow", request),
   takeConversationDraft: (request: { conversationId: string }): Promise<TakenDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeDraft", request),
+  // The first message of a new conversation in root (on canvas, or on none) that a quit stopped before main accepted it,
+  // in an earlier run, handed over once (attachments as recorded paths); null when there is none.
+  takeStartDraft: (request: { root: string; canvas?: Canvas }): Promise<TakenDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeStartDraft", request),
   // Deletes Doan's record of the conversation on this device (index entry, history, queue and returned draft); the
   // agent's own session files stay. busy while it works or the app quits; not_found when it is already gone; unknown
   // when the index cannot be read, and then nothing is deleted. A success is announced with onConversationListChanged.
@@ -199,8 +201,10 @@ const api = {
   // same read, for permissionOptions (permissionMode.ts); none for Claude and Codex.
   listConversationModels: (request: { root: string; runtime: Provider }): Promise<ModelsReply> => ipcRenderer.invoke("conversation:models", request),
   // The project skills the provider loads in this folder (Claude and Codex; an empty list for the others), read the
-  // same prompt-free way and kept by main for 30 seconds. An error carries a conversation start code.
-  listConversationSkills: (request: { root: string; provider: Provider }): Promise<{ skills: SkillSummary[] } | ConversationError> => ipcRenderer.invoke("conversation:skills", request),
+  // same prompt-free way and kept by main for 30 seconds, then the built-in commands Doan runs (rows of kind "command"):
+  // Claude's and Codex's at the installed version, and an ACP conversation's own (conversationId) from the last list its
+  // session pushed, none before its first session. An error carries a conversation start code.
+  listConversationSkills: (request: { root: string; provider: Provider; conversationId?: string }): Promise<{ skills: SkillSummary[]; passthrough?: string[] } | ConversationError> => ipcRenderer.invoke("conversation:skills", request),
   // Home attachments. Main checks each item (real path, a regular file or a folder, image signature) and answers per item
   // in order; nothing is copied except a pasted image, which main re-encodes to PNG under userData, and a folder is never
   // read. A thumbnail is PNG bytes.
@@ -240,6 +244,13 @@ const api = {
     const receive = (_event: Electron.IpcRendererEvent, signal: StageSignal) => listener(signal);
     ipcRenderer.on("conversation:stage", receive);
     return () => ipcRenderer.removeListener("conversation:stage", receive);
+  },
+  // A command turn's boundary as its provider reported it in this run, never stored. readConversation's commands carry
+  // the same boundaries once read (rebuilt from the record after a restart), so a boundary may arrive by both.
+  onConversationBoundary(listener: (signal: BoundarySignal) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, signal: BoundarySignal) => listener(signal);
+    ipcRenderer.on("conversation:boundary", receive);
+    return () => ipcRenderer.removeListener("conversation:boundary", receive);
   },
   // Agent accounts. Main checks provider and attempt IDs and binds sign-in, cancel, pasted addresses and link
   // opening to this window. Snapshots carry one revision; onAgentAuth delivers only ones newer than the last it
@@ -362,7 +373,7 @@ const api = {
     ipcRenderer.on("add-projects:changed", receive);
     return () => ipcRenderer.removeListener("add-projects:changed", receive);
   },
-  // File > Add Project… (⌘O): open the page, or its Choose folder when the page shows its choose phase. Main has
+  // File > Add Projects… (⌘O): open the page, or its Choose folder when the page shows its choose phase. Main has
   // already shown a hidden window.
   onOpenAddProjects(listener: () => void): () => void {
     const receive = () => listener();
@@ -385,8 +396,6 @@ const api = {
   reopenFolder: (path: string): Promise<void> => ipcRenderer.invoke("folders:reopen", path),
   // Main validates it again and keeps one selection for `doan active`.
   setSelection: (selection: Selection | null): Promise<void> => ipcRenderer.invoke("selection:set", selection),
-  // Main reads the canvas with CDP; values and token names are canvas text.
-  inspect: (selector: string): Promise<InspectResult> => ipcRenderer.invoke("inspect:get", { selector }),
   onFolders(listener: (entries: FolderEntry[], focus?: FolderFocus) => void): () => void {
     let active = true;
     const receive = (_event: Electron.IpcRendererEvent, entries: FolderEntry[], focus?: FolderFocus) => listener(entries, focus);

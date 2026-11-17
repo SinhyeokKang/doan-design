@@ -315,12 +315,72 @@ test("Remove asks first and locks the page; Cancel returns to the … button, Re
   click(all(tree).find(element => element.props["data-consent"] === "" && words(element.props.children) === "Remove"));
   render();
   expect(api.removeMcpServer).toHaveBeenCalledWith("doan-mcp-example-com");
-  expect(props.onLock).toHaveBeenLastCalledWith(false);
+  // DESIGN 'Busy action': the alert stays, busy, until the server is gone.
+  expect(alert()).toBeDefined();
+  expect(props.onLock).toHaveBeenLastCalledWith(true);
   feed(snap({ claude: { "doan-mcp-example-com": "removing" }, codex: { "doan-mcp-example-com": "removing" } }));
   render();
+  expect(alert()).toBeDefined();
   feed(snap({}, SERVERS.filter(server => server.name !== "doan-mcp-example-com")));
-  render();
+  // The snapshot's effect closes the alert; the next render draws that.
+  render(); render();
+  expect(all(tree).some(element => element.props.role === "alertdialog")).toBe(false);
+  expect(props.onLock).toHaveBeenLastCalledWith(false);
   expect(nodes.get('[data-mcp-row="codex:doan-mcp-two-com"]')?.focus).toHaveBeenCalled();
+});
+
+// DESIGN 'Busy action': while Remove's request is out the alert is busy and refuses its cancel; a failure shows inside the alert, where
+// Remove is the retry, and the row's own Remove-failed notice waits until the alert closes.
+test("while Remove is out the alert is busy and refuses Cancel and Escape; a failure shows inside it and Remove retries", async () => {
+  await settle();
+  (all(tree).find(element => element.props["data-mcp-remove"] === "codex:doan-mcp-example-com")!.props.onSelect as () => void)();
+  render();
+  const alert = () => all(tree).find(element => element.props.role === "alertdialog");
+  const confirm = () => all(tree).find(element => element.props["data-consent"] === "" && words(element.props.children) === "Remove")!;
+  const cancel = () => all(tree).find(element => element.type === "button" && words(element.props.children) === "Cancel" && element.props.autoFocus === true)!;
+  click(confirm());
+  await settle();
+  expect(confirm().props).toMatchObject({ "aria-busy": true, "aria-disabled": true });
+  expect(cancel().props).toMatchObject({ "aria-disabled": true, "data-disabled": "" });
+  click(cancel());
+  (alert()!.props.onCancel as (event: { preventDefault(): void }) => void)({ preventDefault: () => {} });
+  click(confirm());
+  render();
+  expect(alert()).toBeDefined();
+  expect(api.removeMcpServer).toHaveBeenCalledOnce();
+  feed(snap({}, SERVERS.map(server => server.name === "doan-mcp-example-com" ? { ...server, removeFailed: true } : server)));
+  // The snapshot's effect marks the alert failed; the next render draws that.
+  render(); render();
+  expect(alert()).toBeDefined();
+  const error = all(tree).find(element => element.props.id === "mcp-remove-error")!;
+  expect(error.props).toMatchObject({ className: "doan-notice error", role: "alert" });
+  expect(words(error.props.children)).toBe("Couldn’t remove mcp.example.com from Doan’s agents. Try again.");
+  expect(confirm().props["aria-busy"]).toBeUndefined();
+  expect(confirm().props["aria-describedby"]).toBe("mcp-remove-error");
+  // Not twice: the row's own failure notice is behind the alert that already says it.
+  expect(all(tree).filter(element => element.props.children === "Couldn’t remove mcp.example.com from Doan’s agents. Try again.")).toHaveLength(1);
+  click(confirm());
+  render();
+  expect(api.removeMcpServer).toHaveBeenCalledTimes(2);
+  expect(all(tree).some(element => element.props.id === "mcp-remove-error")).toBe(false);
+  // Main clears the earlier failure as the new attempt starts; the alert stays busy until this one answers.
+  feed(snap({ claude: { "doan-mcp-example-com": "removing" }, codex: { "doan-mcp-example-com": "removing" } }));
+  await settle();
+  expect(confirm().props["aria-busy"]).toBe(true);
+  feed(snap({}, SERVERS.map(server => server.name === "doan-mcp-example-com" ? { ...server, removeFailed: true } : server)));
+  render(); render();
+  expect(confirm().props["aria-busy"]).toBeUndefined();
+  // A refusal main answers at once is a failure too.
+  api.removeMcpServer!.mockResolvedValueOnce({ ok: false, reason: "busy" });
+  feed(snap({}, SERVERS));
+  render();
+  click(confirm());
+  await settle();
+  expect(words(all(tree).find(element => element.props.id === "mcp-remove-error")?.props.children)).toBe("Couldn’t remove mcp.example.com from Doan’s agents. Try again.");
+  click(cancel());
+  render();
+  expect(alert()).toBeUndefined();
+  expect(nodes.get('[data-mcp-more="codex:doan-mcp-example-com"]')?.focus).toHaveBeenCalled();
 });
 
 test("a signed-in agent that can't run says why in its header, with a way to Agents", async () => {
@@ -554,4 +614,38 @@ test("a failed Open again shows the alert with Open browser and reads it; a work
   feed(linked({ claude: { "doan-notion": "connecting" } }));
   await settle();
   expect(shown()).toContain("Finish connecting to Notion");
+});
+
+// The entry read is the page's only source until main publishes: when it rejects with no snapshot yet, the page says
+// so with a Retry (DESIGN 'Busy action') instead of staying blank with Add unavailable.
+const readFailed = () => all(tree).filter(element => typeof element.type === "string").some(element => words(element.props.children) === "Couldn’t read the MCP connectors." || words(element.props.children) === "Couldn’t read the MCP connectors. ");
+const retryButtons = () => all(tree).filter(element => element.type === "button" && words(element.props.children) === "Retry");
+test("an entry read that rejects before any snapshot shows the read failure with Retry; Retry is busy, and a read clears it", async () => {
+  watch = new McpConnectorsWatch({ api: api as never, running: provider => running.has(provider), pageShown: () => true, toast: vi.fn(), openPage: vi.fn() });
+  watch.start();
+  props = { ...props, watch };
+  api.readMcpConnectors!.mockRejectedValueOnce(new Error("ipc"));
+  await settle();
+  expect(readFailed()).toBe(true);
+  const retry = retryButtons()[0]!;
+  expect(all(tree).find(element => element.props.id === retry.props["aria-describedby"])).toBeDefined();
+  let answer!: (value: McpSnapshot) => void;
+  api.readMcpConnectors!.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+  click(retry);
+  render();
+  expect(readFailed()).toBe(true);
+  expect(retryButtons()[0]!.props).toMatchObject({ "aria-busy": true, "aria-disabled": true });
+  click(retryButtons()[0]);
+  expect(api.readMcpConnectors).toHaveBeenCalledTimes(2);
+  answer(snap());
+  await settle();
+  expect(readFailed()).toBe(false);
+  expect(all(tree).filter(element => element.type === "section")).toHaveLength(2);
+});
+
+test("an entry read that rejects while a snapshot is shown keeps the page as it is, with no failure line", async () => {
+  api.readMcpConnectors!.mockRejectedValueOnce(new Error("ipc"));
+  await settle();
+  expect(readFailed()).toBe(false);
+  expect(all(tree).filter(element => element.type === "section")).toHaveLength(2);
 });

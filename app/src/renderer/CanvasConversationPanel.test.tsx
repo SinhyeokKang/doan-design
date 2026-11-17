@@ -76,15 +76,13 @@ test("the thread notice's Retry runs while the list is read again, and a repeate
   expect(again).toContain("<span>Try again. You can still start a new conversation.\u00a0</span>");
 });
 
-// DESIGN 'Notices': the panel's agent notice is the shared one (body-sm, 12/16 padding), not the
-// inspector's 11px loading line that shares the canvas-notice class.
-test("a project conversation drawing the canvas is the shared notice with Open, without the inspector's canvas-notice", async () => {
+// DESIGN 'Notices': the panel's agent notice is the shared one (body-sm, 12/16 padding).
+test("a project conversation drawing the canvas is the shared notice with Open", async () => {
   drawing = "proj";
   const out = await panel([]);
   expect(out).toContain('<div class="doan-notice thread-notice" role="status">');
   expect(out).toContain("A project conversation is drawing this canvas.");
   expect(out).toContain('aria-label="Open the project conversation"');
-  expect(out).not.toContain("canvas-notice");
 });
 
 test("a canvas with a terminal session offers it first, with the time doan check linked it", async () => {
@@ -212,6 +210,23 @@ test("a queued message and the title before the list names the conversation show
   run.started({ root: ROOT, canvas: CANVAS }, "s1", "claude", run.revision());
   await flush();
   expect(canvasConversationTitle(run, []).title).toBe("Make Cart quieter");
+});
+
+// A conversation a provider command started has no title until a message: the lists' "Conversation" stands in, but
+// only once its history shows that; while it is still read the title stays empty, as before.
+test("the title before the list names it: empty while the history is read, Conversation for a command alone", async () => {
+  const doan = (window as unknown as { doan: Record<string, ReturnType<typeof vi.fn>> }).doan;
+  let answer!: (reply: unknown) => void;
+  doan.readConversation!.mockImplementation(() => new Promise(resolve => { answer = resolve; }));
+  const store = new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
+  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.started({ root: ROOT, canvas: CANVAS }, "s2", "claude", run.revision());
+  await flush();
+  expect(canvasConversationTitle(run, []).title).toBe("");
+  answer({ events: [{ v: 1, conversationId: "s2", seq: 1, turnId: "t", at: "2026-11-01T00:00:00Z", type: "user.message", text: "/compact", anchors: [] }], lastSeq: 1, turn: "idle" });
+  await flush();
+  expect(canvasConversationTitle(run, []).title).toBe("Conversation");
 });
 
 // The queue row shows the line; Send now shows the request itself, chips and files, in the thread.

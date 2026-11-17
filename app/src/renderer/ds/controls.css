@@ -92,30 +92,32 @@
 
 /* Hover, only for a fine pointer: after a tap on a touch screen it would stay lit. On the
    shell (chrome) the fills are translucent so the shell colour shows through. Variants with
-   their own fills are excluded from the opaque grey, which would otherwise win on weight. */
+   their own fills are excluded from the opaque grey, which would otherwise win on weight.
+   A data-disabled button (aria-disabled, kept focusable) is skipped like a disabled one, so
+   the disabled fill below stays under the pointer and press. */
 @media (hover: hover) and (pointer: fine) {
-  :is(.doan-button, .doan-icon-button)[data-ui-variant="prominent"]:hover:not(:disabled) { background: var(--affordance-prominent-hover); }
-  :is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="quiet"], [data-ui-variant="trigger"], [data-ui-variant="accent"], [data-ui-placement="chrome"]):hover:not(:disabled) { background: var(--affordance-subtle-hover); }
+  :is(.doan-button, .doan-icon-button)[data-ui-variant="prominent"]:hover:not(:disabled, [data-disabled]) { background: var(--affordance-prominent-hover); }
+  :is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="quiet"], [data-ui-variant="trigger"], [data-ui-variant="accent"], [data-ui-placement="chrome"]):hover:not(:disabled, [data-disabled]) { background: var(--affordance-subtle-hover); }
   /* Same weight as the shared rule above, so it wins by coming after it. */
-  :is(.doan-button, .doan-icon-button)[data-ui-variant="panel"]:hover:not(:disabled) { background: var(--affordance-panel-hover); }
-  .doan-icon-button[data-ui-placement="chrome"]:hover:not(:disabled) { background: var(--affordance-backdrop-hover); }
+  :is(.doan-button, .doan-icon-button)[data-ui-variant="panel"]:hover:not(:disabled, [data-disabled]) { background: var(--affordance-panel-hover); }
+  .doan-icon-button[data-ui-placement="chrome"]:hover:not(:disabled, [data-disabled]) { background: var(--affordance-backdrop-hover); }
   /* Quiet adds one backdrop layer over its own, like the header tabs, so the chip stays
      translucent; an inset shadow stacks the layer and still eases. */
-  .doan-button[data-ui-variant="quiet"]:hover:not(:disabled) { box-shadow: inset 0 0 0 100vmax var(--affordance-backdrop-hover); }
-  .doan-button[data-ui-variant="trigger"]:hover:not(:disabled) { background: var(--affordance-backdrop-hover); }
+  .doan-button[data-ui-variant="quiet"]:hover:not(:disabled, [data-disabled]) { box-shadow: inset 0 0 0 100vmax var(--affordance-backdrop-hover); }
+  .doan-button[data-ui-variant="trigger"]:hover:not(:disabled, [data-disabled]) { background: var(--affordance-backdrop-hover); }
   .doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled, [data-disabled]) { background: var(--affordance-accent-hover); }
 }
 
 /* Pressed, and a trigger whose popup is open: the fill deepens and nothing moves, so a
    pressed control never shifts the row it sits in. An open disclosure (aria-expanded
    without a popup) is not pressed: it shows its state in its label. */
-:is(.doan-button, .doan-icon-button)[data-ui-variant="prominent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-prominent-pressed); }
-:is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="quiet"], [data-ui-variant="trigger"], [data-ui-variant="accent"], [data-ui-placement="chrome"]):is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-subtle-pressed); }
-.doan-icon-button[data-ui-placement="chrome"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-backdrop-pressed); }
-.doan-button[data-ui-variant="quiet"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { box-shadow: inset 0 0 0 100vmax var(--affordance-backdrop-pressed); }
+:is(.doan-button, .doan-icon-button)[data-ui-variant="prominent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled]) { background: var(--affordance-prominent-pressed); }
+:is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="quiet"], [data-ui-variant="trigger"], [data-ui-variant="accent"], [data-ui-placement="chrome"]):is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled]) { background: var(--affordance-subtle-pressed); }
+.doan-icon-button[data-ui-placement="chrome"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled]) { background: var(--affordance-backdrop-pressed); }
+.doan-button[data-ui-variant="quiet"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled]) { box-shadow: inset 0 0 0 100vmax var(--affordance-backdrop-pressed); }
 /* An open trigger keeps its hover fill so the value still reads; only a press deepens it. */
-.doan-button[data-ui-variant="trigger"]:is([aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-backdrop-hover); }
-.doan-button[data-ui-variant="trigger"]:active:not(:disabled) { background: var(--affordance-backdrop-pressed); }
+.doan-button[data-ui-variant="trigger"]:is([aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled]) { background: var(--affordance-backdrop-hover); }
+.doan-button[data-ui-variant="trigger"]:active:not(:disabled, [data-disabled]) { background: var(--affordance-backdrop-pressed); }
 .doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled]) { background: var(--affordance-accent-pressed); }
 
 /* Disabled is a state of its own rather than a faded emphasis: a filled control turns to

@@ -1,14 +1,16 @@
 import { Fragment, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { DropdownMenu } from "radix-ui";
 import { Check, ChevronDown, Gauge } from "lucide-react";
-import type { AuthStatusDto, Provider } from "../main/agentAuth/types";
+import type { Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
 import type { NewConversationPreference, PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply } from "../main/preferences";
 import type { DoanApi } from "../preload";
-import { agentsSettingsView, PROVIDER_NAMES, type AuthButton, type AuthCommand, type ProviderView } from "./agentAuthView";
+import { agentsSettingsView, PROVIDER_NAMES, providerUnavailableReason, type AuthButton, type AuthCommand, type ProviderView } from "./agentAuthView";
 import type { AgentSignIn } from "./agentSignIn";
 import { AgentStepSession } from "./agentStep";
 import { AlertIcon } from "./AlertIcon";
+import { retryButton, useRetry } from "./ListRetryButton";
+import { announcedAgain } from "./listRetry";
 import { PermissionIconView, PermissionMenuItems, useOlderFold } from "./ComposerParts";
 import { generationOf, modelsKey } from "./dockedSupport";
 import { foldRows, olderOrder, modelPickerView, providerLogo, selectableProvider, type ModelsState } from "./homeComposer";
@@ -162,15 +164,6 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
   </>;
 }
 
-// Why a fixed default cannot start a conversation, by the same causes as Home's picker (providerShortStatus).
-function unavailable(name: string, status: AuthStatusDto | undefined): string {
-  if (!status || status.account === null) return `${name} isn’t signed in`;
-  const r = status.readiness;
-  if (!r.ready && r.cause === "reauth_required" && status.phase === "reauthRequired") return `${name}’s sign-in expired`;
-  if (!r.ready && (r.cause === "version_unsupported" || r.cause === "version_incompatible")) return `${name} needs an update`;
-  return `${name} isn’t available right now`;
-}
-
 const SAVE_FAILED = "Couldn’t save your new conversation choices. Your last saved choices still apply.";
 
 // The defaults Home starts a new input with (PRODUCT §5 item 0 'New conversations'). Last used hides Model and Effort, which then
@@ -193,9 +186,34 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
     setLists(current => ({ ...current, [key]: "loading" }));
     void window.doan.listConversationModels({ root: project.root, runtime: provider }).catch(() => ({ error: "unknown" })).then(reply => setLists(current => ({ ...current, [key]: reply })));
   }, [key, runnable, listState === undefined]);
+  // Only the latest save, a choice's or Retry's, owns the failure line: an earlier choice's failure that answers after
+  // a later one was sent is dropped (POSTMORTEM 2026-10-25), or its Retry would send the older choice again.
+  const latest = useRef(0);
   const write = (patch: PreferencesPatch) => {
+    const request = ++latest.current;
     setFailed(null);
-    void save(patch).then(reply => { if (!reply || (!reply.ok && reply.reason !== "newer")) setFailed(patch); });
+    void save(patch).then(reply => { if (request === latest.current && (!reply || (!reply.ok && reply.reason !== "newer"))) setFailed(patch); });
+  };
+  // The Retries keep their failure lines until their request answers (DESIGN 'Busy action'): the save's line until a
+  // save goes, the models' until the list is read again (not the Loading models line).
+  const saveRetry = useRetry(), modelsRetry = useRetry();
+  const retrySave = (pressed: HTMLElement | null) => {
+    if (!failed) return;
+    const patch = failed;
+    const request = ++latest.current;
+    saveRetry.run(() => save(patch).then(reply => {
+      const ok = !!reply && (reply.ok || reply.reason === "newer");
+      if (ok && request === latest.current) setFailed(current => current === patch ? null : current);
+      return ok;
+    }), pressed);
+  };
+  const retryModels = (pressed: HTMLElement | null) => {
+    if (!key || !project || !provider) return;
+    const at = key;
+    modelsRetry.run(() => window.doan.listConversationModels({ root: project.root, runtime: provider }).catch(() => ({ error: "unknown" })).then(reply => {
+      setLists(current => ({ ...current, [at]: reply }));
+      return !("error" in reply);
+    }), pressed);
   };
   const choose = (next: NewConversationPreference | null) => write({ newConversation: next });
 
@@ -244,7 +262,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
             {radio(LAST_USED, <span className="model-name">Last used</span>, provider === null)}
             {agents.map(item => radio(item, <><img className="logo" src={providerLogo(item)} alt="" /><span className="model-name">{PROVIDER_NAMES[item]}</span></>, item === provider))}
           </DropdownMenu.RadioGroup>)}</div>
-        {provider && auth && !runnable && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg warn" role="status"><AlertIcon /><span>{unavailable(name, status)}, so Home starts with the agent you sent with last.</span></p></div>}
+        {provider && auth && !runnable && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg warn" role="status"><AlertIcon /><span>{providerUnavailableReason(provider, status)}, so Home starts with the agent you sent with last.</span></p></div>}
       </div>
       {provider && <div className="doan-preference-row" data-disabled={project && (runnable || !auth) ? undefined : ""}>
         <div className="doan-preference-row-content"><span className="doan-preference-row-label">Model</span>
@@ -259,8 +277,8 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
               {modelRows!.older.length > 0 && olderOrder<ReactNode>(fold.line(provider, name, modelRows!.older.length),
                 fold.isOpen(provider) ? modelRows!.older.map(item => item.kind === "model" && radio(item.value, <span className="model-name">{item.label}</span>, item.selected, fold.olderKeyDown(provider))) : [], fold.placement.side)}
             </DropdownMenu.RadioGroup>, fold)}</div>}
-        {project && loadFailed && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span>Couldn’t load the models for {project.name}.</span></p>
-          <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => setLists(current => { const next = { ...current }; delete next[key!]; return next; })}>Retry</button></div>}
+        {project && loadFailed && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span id="settings-agents-models-error">{announcedAgain(`Couldn’t load the models for ${project.name}.`, modelsRetry.failures)}</span></p>
+          {retryButton({ running: modelsRetry.running, variant: "subtle", describedBy: "settings-agents-models-error", onRetry: retryModels })}</div>}
       </div>}
       {provider && effortMenu && <div className="doan-preference-row">
         <div className="doan-preference-row-content"><span className="doan-preference-row-label">Effort</span></div>
@@ -281,7 +299,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
         </DropdownMenu.Root></div>
       </div>}
     </div>
-    {failed && <div className="settings-msg-row settings-save-error"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span>{SAVE_FAILED}</span></p>
-      <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => write(failed)}>Retry</button></div>}
+    {failed && <div className="settings-msg-row settings-save-error"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span id="settings-agents-save-error">{announcedAgain(SAVE_FAILED, saveRetry.failures)}</span></p>
+      {retryButton({ running: saveRetry.running, variant: "subtle", describedBy: "settings-agents-save-error", onRetry: retrySave })}</div>}
   </section>;
 }

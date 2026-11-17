@@ -93,7 +93,7 @@ beforeEach(() => {
     setPanel: vi.fn(async () => {}), setShowing: vi.fn(async () => {}), reveal: vi.fn(async () => {}), rememberChoice: vi.fn(async () => {}),
     readComposerSettings: vi.fn(async () => null), readTargetEntry: vi.fn(async () => null), readDrawing: vi.fn(async () => null), readPromoted: vi.fn(async () => null), rememberedConversation: vi.fn(async () => null), getWork: vi.fn(async () => []), listConversations: vi.fn(() => new Promise(() => {})),
     conversationResumeTarget: vi.fn(() => new Promise(() => {})),
-    ...Object.fromEntries(["onComposerSettings", "onTargetEntry", "onWorkChanged", "onConversationEvent", "onConversationStage", "onConversationListChanged", "onConversationHandoff", "onAgentAuth", "onDrawing", "onPromoted"].map(name => [name, vi.fn(() => () => {})])),
+    ...Object.fromEntries(["onComposerSettings", "onTargetEntry", "onWorkChanged", "onConversationEvent", "onConversationStage", "onConversationBoundary", "onConversationListChanged", "onConversationHandoff", "onAgentAuth", "onDrawing", "onPromoted"].map(name => [name, vi.fn(() => () => {})])),
   };
   keydowns = [];
   const keys = {
@@ -208,6 +208,74 @@ describe("the still image", () => {
     show(view({ gen: 3, phase: "ready" }));
     expect(shell.layers.snapshot).toBeNull();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:1");
+  });
+});
+
+// The first read failed and no change came yet: the window shows the failure scene with Retry, not a blank panel.
+describe("a failed first read", () => {
+  const LINE = "Couldn’t open this prototype. Doan couldn’t start this window. Retry, or close it and play the frame again from the canvas.";
+  const failFirst = async () => {
+    api.read!.mockRejectedValueOnce(new Error("ipc"));
+    hooks.states = []; hooks.refs = []; hooks.effects = [];
+    render();
+    await vi.runAllTicks(); await Promise.resolve(); await Promise.resolve();
+    return render();
+  };
+  const settle = async () => { await vi.runAllTicks(); await Promise.resolve(); await Promise.resolve(); return render(); };
+
+  test("shows the failure scene and says it in the live region", async () => {
+    const s = await failFirst();
+    expect(s.view).toBeNull();
+    expect(s.readFailure).toEqual({ running: false });
+    expect(s.live).toBe(LINE);
+  });
+
+  test("Retry reads again and is busy until the read answers; a press meanwhile reads nothing more", async () => {
+    await failFirst();
+    const reads = api.read!.mock.calls.length;
+    let answer!: (value: PrototypeView | null) => void;
+    api.read!.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+    shell.onReadRetry!();
+    expect(render().readFailure).toEqual({ running: true });
+    shell.onReadRetry!();
+    expect(api.read).toHaveBeenCalledTimes(reads + 1);
+    answer(view({ gen: 5 }));
+    const s = await settle();
+    expect(s.readFailure ?? null).toBeNull();
+    expect(s.view?.gen).toBe(5);
+  });
+
+  test("a Retry that fails again keeps the scene, Retry pressable, and changes the line so it is read again", async () => {
+    await failFirst();
+    api.read!.mockRejectedValueOnce(new Error("ipc"));
+    shell.onReadRetry!();
+    const s = await settle();
+    expect(s.readFailure).toEqual({ running: false });
+    expect(s.live).toBe(`${LINE}\u00a0`);
+  });
+
+  test("a change from main replaces the scene with its view, and a Retry's later answer does not replace it", async () => {
+    await failFirst();
+    let answer!: (value: PrototypeView | null) => void;
+    api.read!.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+    shell.onReadRetry!();
+    const s = show(view({ gen: 7 }));
+    expect(s.readFailure ?? null).toBeNull();
+    answer(view({ gen: 3 }));
+    expect((await settle()).view?.gen).toBe(7);
+  });
+
+  test("the scene's title takes focus when focus is on the page", async () => {
+    await failFirst();
+    const heading = { focus: vi.fn() };
+    shell.heading!.current = heading as never;
+    doc.activeElement = doc.body;
+    api.read!.mockRejectedValueOnce(new Error("ipc"));
+    hooks.states = []; hooks.refs = []; hooks.effects = [];
+    render();
+    shell.heading!.current = heading as never;
+    await settle();
+    expect(heading.focus).toHaveBeenCalledWith({ preventScroll: true });
   });
 });
 

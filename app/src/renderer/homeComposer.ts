@@ -15,6 +15,7 @@ import { canvasLabel } from "./canvasTree";
 import { groupProjects } from "./homeCards";
 import { anotherConversation } from "./homeConversations";
 import { displayPath } from "./projectDisplay";
+import { projectReadingLine, projectUnavailableLine } from "./problemView";
 
 // Pure parts of the Home composer. Copy follows the confirmed draft
 // `.doan/canvases/doan-home.html`.
@@ -86,8 +87,8 @@ export function sendAvailability(input: SendInput): { enabled: boolean; reason: 
   if (input.sending) return off(null);
   if (input.projects === 0 || !input.root) return off({ kind: "noProject", text: "Add a project to send." });
   // A project still being read has nothing to fix in its sidebar menu, so the line sends nobody there.
-  if (input.root.kind === "loading") return off({ kind: "projectUnavailable", text: `${input.projectName} is still being read.` });
-  if (input.root.kind !== "list") return off({ kind: "projectUnavailable", text: unavailableProject(input.projectName) });
+  if (input.root.kind === "loading") return off({ kind: "projectUnavailable", text: projectReadingLine(input.projectName) });
+  if (input.root.kind !== "list") return off({ kind: "projectUnavailable", text: projectUnavailableLine(input.projectName) });
   const agent = agentProblem(input.auth, input.provider);
   if (agent) return off(agent);
   // An empty composer shows no line, running or not: Home keeps its suggestions until something is typed.
@@ -135,8 +136,6 @@ function typedPieces(draft: string | readonly FieldSegment[]): string[] {
   return pieces;
 }
 
-function unavailableProject(project: string): string { return `${project} isn’t available. Fix it from its menu in the sidebar.`; }
-
 const START_ERRORS: Record<string, { text: (p: string, project: string) => string; retry: boolean }> = {
   not_logged_in: { text: p => `Couldn’t start with ${p}: its sign-in has expired. Choose another agent.`, retry: false },
   cli_missing: { text: p => `Couldn’t start with ${p}: it isn’t installed on this Mac. Choose another agent.`, retry: false },
@@ -148,7 +147,7 @@ const START_ERRORS: Record<string, { text: (p: string, project: string) => strin
   process_exited: { text: p => `${p} stopped before it could start. Try again.`, retry: true },
   session_unavailable: { text: p => `Couldn’t start with ${p} right now. Try again, or choose another agent.`, retry: true },
   session_in_use: { text: p => `${p} is busy with another session. Try again in a moment.`, retry: true },
-  project_not_open: { text: (_p, project) => unavailableProject(project), retry: false },
+  project_not_open: { text: (_p, project) => projectUnavailableLine(project), retry: false },
   no_agent: { text: () => "No agent is ready to run.", retry: false },
 };
 
@@ -483,7 +482,7 @@ function tokenScore(fields: readonly string[], token: string): number {
 
 export type ProjectSkillSummary = SkillSummary;
 export interface PresetRow {
-  kind: "preset" | "skill"; key: string; icon: string;
+  kind: "preset" | "skill" | "command"; key: string; icon: string;
   id: string; title: string; description: string; scope: string; tooltip: string; group: string | null;
 }
 export interface PresetTab { key: string; label: string; icon: string; selected: boolean }
@@ -504,11 +503,26 @@ function skillRow(s: ProjectSkillSummary): PresetRow {
     description: s.description, scope: "", tooltip: s.description, group: null };
 }
 
-export function searchDrawer(presets: readonly PresetSummary[], skills: readonly ProjectSkillSummary[], query: string): PresetRow[] {
+// A provider's built-in command: the skill's gray tile with a terminal icon.
+function commandRow(s: ProjectSkillSummary): PresetRow {
+  return { ...skillRow(s), kind: "command", key: `command:${s.name}`, icon: "terminal" };
+}
+// conversation:skills answers skills and the provider's commands together. Rows from before commands had a kind are
+// skills. A project skill wins over a command of its name (PRODUCT §5 'Project skills').
+function splitRows(rows: readonly ProjectSkillSummary[]): { skills: ProjectSkillSummary[]; commands: ProjectSkillSummary[] } {
+  const skills = rows.filter(r => r.kind !== "command"), names = new Set(skills.map(r => r.name));
+  return { skills, commands: rows.filter(r => r.kind === "command" && !names.has(r.name)) };
+}
+const byName = (rows: readonly ProjectSkillSummary[]) => [...rows].sort((a, b) => a.name.localeCompare(b.name));
+
+// Rows in order: presets, then skills, then commands, each kind in name order.
+export function searchDrawer(presets: readonly PresetSummary[], rows: readonly ProjectSkillSummary[], query: string): PresetRow[] {
   const trimmed = query.trim(), tokens = searchText(trimmed).split(/\s+/).filter(Boolean);
+  const { skills, commands } = splitRows(rows);
   const entries = [
     ...presets.map(p => ({ row: presetRow(p, true), fields: [p.title, p.id, p.scope, p.description] })),
-    ...[...skills].sort((a, b) => a.name.localeCompare(b.name)).map(s => ({ row: skillRow(s), fields: [s.name, s.description] })),
+    ...byName(skills).map(s => ({ row: skillRow(s), fields: [s.name, s.description] })),
+    ...byName(commands).map(s => ({ row: commandRow(s), fields: [s.name, s.description] })),
   ];
   const exactPreset = presets.some(p => p.id === trimmed);
   return entries.flatMap(({ row, fields }, index) => {
@@ -520,8 +534,8 @@ export function searchDrawer(presets: readonly PresetSummary[], skills: readonly
   }).sort((a, b) => b.priority - a.priority || b.score - a.score || a.index - b.index).map(entry => entry.row);
 }
 
-export function drawerSearchLabel(skills: readonly ProjectSkillSummary[]): string {
-  return skills.length > 0 ? "Search presets and skills" : "Search presets";
+export function drawerSearchLabel(rows: readonly ProjectSkillSummary[]): string {
+  return splitRows(rows).skills.length > 0 ? "Search presets and skills" : "Search presets";
 }
 
 export function followDrawerHighlight(before: readonly PresetRow[], after: readonly PresetRow[], highlight: number): number {
@@ -547,11 +561,13 @@ function presetNotice(reply: PresetListReply | undefined): PresetNotice | null {
 }
 
 function drawerSummary(rows: readonly PresetRow[], query: string, hasSkills: boolean): string {
-  const presets = rows.filter(r => r.kind === "preset").length, skills = rows.length - presets;
+  const count = (kind: PresetRow["kind"]) => rows.filter(r => r.kind === kind).length;
+  const presets = count("preset"), skills = count("skill"), commands = count("command");
   if (!hasSkills) return `${presets} ${presets === 1 ? "preset matches" : "presets match"} ${query}`;
   const counts = [
     ...(presets ? [`${presets} preset${presets === 1 ? "" : "s"}`] : []),
     ...(skills ? [`${skills} skill${skills === 1 ? "" : "s"}`] : []),
+    ...(commands ? [`${commands} command${commands === 1 ? "" : "s"}`] : []),
   ];
   return `${counts.join(" and ")} ${rows.length === 1 ? "matches" : "match"} ${query}`;
 }
@@ -564,8 +580,9 @@ export function presetListView(reply: PresetListReply | undefined, opts: {
   const skills = opts.skills ?? [], notice = presetNotice(reply);
   if (notice && skills.length === 0) return notice;
   const presets = reply?.ok ? reply.result.presets : [], query = opts.query.trim();
-  const skillRows = searchDrawer([], skills, "");
-  const project = skills.length > 0 ? [{ title: "Project", rows: skillRows }] : [];
+  const split = splitRows(skills);
+  const project = split.skills.length > 0 ? [{ title: "Project", rows: searchDrawer([], split.skills, "") }] : [];
+  const commands = split.commands.length > 0 ? [{ title: "Commands", rows: searchDrawer([], split.commands, "") }] : [];
   const withNotice = notice ? { notice } : {};
   if (query) {
     const found = searchDrawer(presets, skills, query);
@@ -576,17 +593,18 @@ export function presetListView(reply: PresetListReply | undefined, opts: {
     return { kind: "list", tabs: [], sections: [{ title: null, rows: found }], summary: drawerSummary(found, query, skills.length > 0), ...withNotice };
   }
   if (opts.slash) return { kind: "list", tabs: [], sections: [{ title: null, rows: searchDrawer(presets, skills, "") }], summary: null, ...withNotice };
-  if (notice) return { kind: "list", tabs: [], sections: project, summary: null, notice };
+  if (notice) return { kind: "list", tabs: [], sections: [...project, ...commands], summary: null, notice };
   const suggested = opts.suggested.length > 0 ? [{ title: `Suggested for ${opts.project}`, rows: opts.suggested.map(p => presetRow(p, false)) }] : [];
-  if (!presets.every(p => p.group !== undefined)) return { kind: "list", tabs: [], sections: [...suggested, { title: "All presets", rows: presets.map(p => presetRow(p, false)) }, ...project], summary: null };
+  if (!presets.every(p => p.group !== undefined)) return { kind: "list", tabs: [], sections: [...suggested, { title: "All presets", rows: presets.map(p => presetRow(p, false)) }, ...project, ...commands], summary: null };
   const keys = [...new Set(presets.map(p => p.group!))];
-  const available = [...(suggested.length > 0 ? ["suggested"] : []), ...keys, ...(skills.length > 0 ? ["project"] : [])];
+  const available = [...(suggested.length > 0 ? ["suggested"] : []), ...keys, ...(project.length > 0 ? ["project"] : []), ...(commands.length > 0 ? ["commands"] : [])];
   const selected = opts.tab !== null && available.includes(opts.tab) ? opts.tab : available[0];
   const tabs = available.map(key => key === "suggested"
     ? { key, label: "Suggested", icon: PRESET_ICON, selected: key === selected }
     : key === "project" ? { key, label: "Project", icon: "square-slash", selected: key === selected }
+    : key === "commands" ? { key, label: "Commands", icon: "terminal", selected: key === selected }
     : { key, label: groupLabel(key)!, icon: groupIcon(key), selected: key === selected });
-  const sections = selected === "suggested" ? suggested : selected === "project" ? project
+  const sections = selected === "suggested" ? suggested : selected === "project" ? project : selected === "commands" ? commands
     : selected === undefined ? [] : [{ title: groupLabel(selected), rows: presets.filter(p => p.group === selected).map(p => presetRow(p, false)) }];
   return { kind: "list", tabs, sections, summary: null };
 }
@@ -771,13 +789,13 @@ export function chipRemoval(chips: readonly { label: string; preset?: boolean }[
 }
 
 // Arrows move; Enter picks unless an IME is composing; Tab and Escape close until the field is empty.
-// Returning null for an exact skill lets the composer's ordinary submit path handle Enter.
+// Returning null for an exact skill or command lets the composer's ordinary submit path handle Enter.
 export function slashKey(key: string, highlight: number, count: number, composing: boolean,
   skill?: { query: string; row: PresetRow | undefined },
 ): { kind: "move"; highlight: number } | { kind: "pick" } | { kind: "close"; dismiss: boolean } | null {
   if (key === "ArrowDown" || key === "ArrowUp") return count === 0 ? null : { kind: "move", highlight: (highlight + (key === "ArrowDown" ? 1 : -1) + count) % count };
   if (key === "Enter") {
-    if (composing || count === 0 || (skill?.row?.kind === "skill" && skill.query === skill.row.id)) return null;
+    if (composing || count === 0 || ((skill?.row?.kind === "skill" || skill?.row?.kind === "command") && skill.query === skill.row.id)) return null;
     return { kind: "pick" };
   }
   if (key === "Tab" || key === "Escape") return { kind: "close", dismiss: true };

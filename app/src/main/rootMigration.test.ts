@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, expect, test } from "vitest";
 import { pruneAuto } from "./autoFolders";
-import { createLocalSeen, judge } from "./canvasSeen";
+import { createLocalSeen, judge, migrateRoot } from "./canvasSeen";
 import { openFolderStore } from "./folderStore";
 import { createUiStateStore, moveUiStateRoots } from "./uiState";
 
@@ -64,15 +64,17 @@ test("a canvas-seen write that fails keeps the saved spelling, and the next laun
   const seen = createLocalSeen(files.seen);
   const next = await openFolderStore(files.folders, migration(seen, files.ui));
   expect(next.list()).toEqual([real, join(tmp, "other")]);
-  expect(seen.root(real)).toEqual({ legacy: { [A]: 1 }, known: {} });
-  const verdict = judge(seen.root(real), { dir: "absent", marker: { kind: "absent" }, records: new Map() }, [{ path: A, id: "a", mtimeMs: 2, fingerprint: null }], () => undefined);
-  expect(verdict.verdicts.get(A)).toBe("changed");
-  expect(json(files.seen)).toEqual({ v: 2, roots: { [alias]: { legacy: { [A]: 1 }, known: {} }, [real]: { legacy: { [A]: 1 }, known: {} } } });
+  const memory = { canvases: {}, v2: { legacy: { [A]: 1 }, known: {} } };
+  expect(seen.root(real)).toEqual(memory);
+  const rows = [{ path: A, id: "a", mtimeMs: 2, fingerprint: `sha256:${"a".repeat(64)}` }];
+  const record = migrateRoot(seen.root(real)!.v2, { dir: "absent", marker: { kind: "absent" }, records: new Map() }, rows, () => undefined);
+  expect(judge(record, rows, () => undefined).get(A)).toBe("changed");
+  expect(json(files.seen)).toEqual({ v: 3, roots: { [alias]: memory, [real]: memory } });
 });
 
 test("a newer Doan's canvas-seen.json is never overwritten: the spelling stays and every file is untouched", async () => {
   const { alias, files } = fixture();
-  const newer = JSON.stringify({ v: 3, roots: {} });
+  const newer = JSON.stringify({ v: 4, roots: {} });
   writeFileSync(files.folders, JSON.stringify([alias]));
   writeFileSync(files.marks, JSON.stringify([alias]));
   writeFileSync(files.seen, newer);

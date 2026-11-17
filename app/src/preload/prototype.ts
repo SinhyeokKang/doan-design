@@ -16,7 +16,7 @@ import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { QuestionAnswerInput } from "../main/conversation/question";
 import type { ConversationService, ScheduledItem, StartRequest, TakenDraft } from "../main/conversation/service";
 import type { ConversationSummary } from "../main/conversation/summary";
-import type { Anchor, Canvas, ConversationEvent, Runtime, SkillSummary, StageSignal, UnavailableReason } from "../main/conversation/types";
+import type { Anchor, BoundarySignal, Canvas, ConversationEvent, Runtime, SkillSummary, StageSignal, UnavailableReason } from "../main/conversation/types";
 import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
 import type {
   ExportTarget, FramesMessage, GotoMessage, PanelRequest, PrototypeComposerSettings, PrototypeMode, PrototypeSnapshot, PrototypeView, PrototypeWindowApi, RevealPayload, RunMessage,
@@ -35,7 +35,7 @@ export type SharedWithMain =
   | "onConversationListChanged" | "onConversationHandoff" | "openLink" | "interruptConversation" | "answerConversationPermission"
   | "answerConversationQuestion" | "readConversation" | "listConversationModels" | "listConversationSkills"
   | "chooseAttachments" | "addAttachmentFiles" | "addPastedImage" | "removeAttachment" | "recheckAttachments" | "attachmentsFromPaths" | "releaseAttachments"
-  | "onConversationEvent" | "onConversationStage" | "onAgentAuth" | "getWork" | "onWorkChanged" | "designSkills" | "onWindowVisible" | "droppedPath"
+  | "onConversationEvent" | "onConversationStage" | "onConversationBoundary" | "onAgentAuth" | "getWork" | "onWorkChanged" | "designSkills" | "onWindowVisible" | "droppedPath"
   | "deleteConversation" | "readAgentUsage" | "onAgentUsage";
 
 function listen<T>(channel: string, listener: (value: T) => void): () => void {
@@ -167,7 +167,7 @@ const api = {
   answerConversationQuestion: (request: { conversationId: string; requestId: string } & QuestionAnswerInput): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:answerQuestion", request),
   readConversation: (request: { conversationId: string }): Promise<ReturnType<ConversationService["read"]> | ConversationError> => ipcRenderer.invoke("conversation:read", request),
   listConversationModels: (request: { root: string; runtime: Provider }): Promise<ModelsReply> => ipcRenderer.invoke("conversation:models", request),
-  listConversationSkills: (request: { root: string; provider: Provider }): Promise<{ skills: SkillSummary[] } | ConversationError> => ipcRenderer.invoke("conversation:skills", request),
+  listConversationSkills: (request: { root: string; provider: Provider; conversationId?: string }): Promise<{ skills: SkillSummary[]; passthrough?: string[] } | ConversationError> => ipcRenderer.invoke("conversation:skills", request),
   // The Attach dialog opens over this window. Main forgets this window's ids when it closes.
   chooseAttachments: (): Promise<AttachmentResult[]> => ipcRenderer.invoke("attachments:choose"),
   // Dropped or pasted Finder files. A file the page made itself has no path and is refused here as not_found.
@@ -186,6 +186,7 @@ const api = {
   releaseAttachments: (ids: readonly string[]): Promise<boolean> => ipcRenderer.invoke("attachments:release", { ids: [...ids] }),
   onConversationEvent: (listener: (event: ConversationEvent) => void): (() => void) => listen("conversation:event", listener),
   onConversationStage: (listener: (signal: StageSignal) => void): (() => void) => listen("conversation:stage", listener),
+  onConversationBoundary: (listener: (signal: BoundarySignal) => void): (() => void) => listen("conversation:boundary", listener),
   designSkills: {
     list: (): Promise<DesignSkillReply<DesignSkillList>> => ipcRenderer.invoke("design-skills:list"),
     get: (id: string): Promise<DesignSkillReply<DesignSkillPreset>> => ipcRenderer.invoke("design-skills:get", { id }),

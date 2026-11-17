@@ -317,19 +317,21 @@ describe("served revision", () => {
     expect(shell.scope(join(root, "nope"))).toEqual([]);
   });
 
-  test("a .doan/seen/ change tells the read state and runs no doan ls, publishes nothing and bumps nothing", async () => {
+  test("a git HEAD change tells the read state and runs no doan ls, publishes nothing and bumps nothing", async () => {
     const counting = countingCli();
     const root = servedRepo({});
-    mkdirSync(join(root, ".doan/seen"));
-    const changes: FolderEntry[][] = [], seen: string[] = [];
-    const shell = await startShell(join(dir(), "folders.json"), counting.path, entries => { changes.push(entries); }, { seen: at => { seen.push(at); } });
+    mkdirSync(join(root, ".git"));
+    writeFileSync(join(root, ".git", "HEAD"), "ref: refs/heads/main\n");
+    const changes: FolderEntry[][] = [], git: string[] = [];
+    const shell = await startShell(join(dir(), "folders.json"), counting.path, entries => { changes.push(entries); }, { git: at => { git.push(at); } });
     shells.push(shell);
     await shell.open(root);
     await vi.waitFor(() => expect(listed(latest(changes), root)).toBeDefined(), until);
     await sleep(600);
     const reads = counting.reads(), published = changes.length;
-    writeFileSync(join(root, ".doan/seen", "a.json"), '{"v":1,"unseen":"migrated"}\n');
-    await vi.waitFor(() => expect(seen).toContain(root), until);
+    writeFileSync(join(root, ".git", "HEAD.lock"), "ref: refs/heads/other\n");
+    renameSync(join(root, ".git", "HEAD.lock"), join(root, ".git", "HEAD"));
+    await vi.waitFor(() => expect(git).toContain(root), until);
     await sleep(500);
     expect(counting.reads()).toBe(reads);
     expect(changes.length).toBe(published);

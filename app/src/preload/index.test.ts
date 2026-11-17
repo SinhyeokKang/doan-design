@@ -107,10 +107,8 @@ test("sends the selection to main on its dedicated IPC channel", async () => {
   expect(mocks.invoke).toHaveBeenNthCalledWith(2, "selection:set", null);
 });
 
-test("asks main for inspector rows on its dedicated IPC channel", async () => {
-  mocks.invoke.mockResolvedValue({ ok: false, reason: "No canvas is loaded." });
-  await expect(api.inspect('[data-doan-id="cta"]')).resolves.toEqual({ ok: false, reason: "No canvas is loaded." });
-  expect(mocks.invoke).toHaveBeenCalledWith("inspect:get", { selector: '[data-doan-id="cta"]' });
+test("exposes no inspector API, since the Inspector was removed", () => {
+  expect(Object.keys(api)).not.toContain("inspect");
 });
 
 test("project setup exposes choice IDs and forwards focus with folder state", async () => {
@@ -631,6 +629,16 @@ test("a conversation stage has its own event with its own cleanup, apart from co
   expect(stages).toHaveBeenCalledOnce();
   expect(emitter.listenerCount("conversation:stage")).toBe(0); expect(emitter.listenerCount("conversation:event")).toBe(1);
   stopEvents();
+});
+
+test("a command turn's boundary has its own event with its own cleanup", () => {
+  const boundaries = vi.fn();
+  const stop = api.onConversationBoundary(boundaries);
+  const signal = { conversationId: "c", turnId: "t", kind: "compacted" as const };
+  emitter.emit("conversation:boundary", {}, signal);
+  expect(boundaries).toHaveBeenCalledWith(signal);
+  stop(); stop(); emitter.emit("conversation:boundary", {}, signal);
+  expect(boundaries).toHaveBeenCalledOnce(); expect(emitter.listenerCount("conversation:boundary")).toBe(0);
 });
 
 test("conversation work has its own read and event with its own cleanup", async () => {

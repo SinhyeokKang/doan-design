@@ -418,6 +418,36 @@ describe("WindowShell states", () => {
   test("a running prototype has no overlay", () => {
     expect(markup()).not.toContain("problem-overlay");
   });
+
+  // The first read failed and no view came: the window's failure scene with Retry alone, not a blank panel. There is
+  // no detail to show and Close stays in the window's own chrome; the header controls stay as they are with no view.
+  test("a failed first read shows the failure scene with Retry, over the header's no-view controls", () => {
+    const html = markup({ view: null, layers: NO_LAYERS, readFailure: { running: false } });
+    expect(html).toContain('<div class="problem-overlay doan-scroll"><div class="problem-scene" role="group" aria-labelledby="prototype-state-heading">');
+    expect(html).toContain('<h2 id="prototype-state-heading" tabindex="-1" aria-describedby="prototype-state-line">Couldn’t open this prototype</h2>');
+    expect(html).toContain('<p id="prototype-state-line" class="selectable">Doan couldn’t start this window. Retry, or close it and play the frame again from the canvas.</p>');
+    expect([...html.matchAll(/<button[^>]*class="doan-button[^"]*"[^>]*>([^<]*)/g)].map(match => match[1])).toEqual(["Retry"]);
+    expect(html).toMatch(/data-ui-variant="prominent" data-ui-size="sm">Retry/);
+    for (const label of ["Reload prototype", "Fit", "Responsive", "Export prototype"]) expect(tag(html, `aria-label="${label}"`), label).toContain("disabled");
+    expect(html.indexOf('aria-label="Export prototype"')).toBeLessThan(html.indexOf("problem-overlay"));
+  });
+
+  test("a failed first read's Retry keeps its place while the read runs: aria-busy, aria-disabled, the spinner, and a press does nothing", () => {
+    const onReadRetry = vi.fn();
+    const idle = all(tree({ view: null, layers: NO_LAYERS, readFailure: { running: false }, onReadRetry })).find(element => element.type === "button" && String(element.props.className).startsWith("doan-button"))!;
+    (idle.props.onClick as () => void)();
+    expect(onReadRetry).toHaveBeenCalledOnce();
+    const html = markup({ view: null, layers: NO_LAYERS, readFailure: { running: true } });
+    expect(html).toContain('aria-busy="true"');
+    expect(html).toMatch(/<button[^>]*aria-disabled="true"[^>]*aria-busy="true"[^>]*><span class="doan-spinner" aria-hidden="true"><\/span>Retry<\/button>/);
+    const busy = all(tree({ view: null, layers: NO_LAYERS, readFailure: { running: true }, onReadRetry })).find(element => element.type === "button" && String(element.props.className).startsWith("doan-button"))!;
+    (busy.props.onClick as () => void)();
+    expect(onReadRetry).toHaveBeenCalledOnce();
+  });
+
+  test("no failed first read and no view draws no scene", () => {
+    expect(markup({ view: null, layers: NO_LAYERS })).not.toContain("problem-overlay");
+  });
 });
 
 describe("prototype window styles", () => {
@@ -452,7 +482,7 @@ describe("prototype window styles", () => {
     const none = css.match(/^([^{}\n]*\.pw-right > \.doan-icon-button\[aria-disabled="true"\]:is\(:hover, :active\)) \{ background: transparent; \}$/m)?.[1];
     expect(none).toBeDefined();
     const controls = readFileSync(new URL("../ds/controls.css", import.meta.url), "utf8");
-    const chrome = [/^\s*(\.doan-icon-button\[data-ui-placement="chrome"\]:hover:not\(:disabled\)) \{ background:/m, /^\s*(\.doan-icon-button\[data-ui-placement="chrome"\]:is\(:active,[^{]*\)) \{ background:/m]
+    const chrome = [/^\s*(\.doan-icon-button\[data-ui-placement="chrome"\]:hover:not\(:disabled, \[data-disabled\]\)) \{ background:/m, /^\s*(\.doan-icon-button\[data-ui-placement="chrome"\]:is\(:active,[^{]*\)) \{ background:/m]
       .map(rule => controls.match(rule)?.[1]);
     expect(chrome.every(selector => selector !== undefined)).toBe(true);
     for (const selector of chrome) expect(compareSpecificity(specificity(none!), specificity(selector!)), selector).toBeGreaterThan(0);

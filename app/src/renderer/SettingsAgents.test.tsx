@@ -149,6 +149,10 @@ test("a connected default that cannot run says the real cause, and Model says wh
   await settle({ preferences: prefs({ provider: "codex" }) });
   const warning = all(tree).find(element => element.props.role === "status" && words(element.props.children).includes("so Home starts"));
   expect(words(warning?.props.children)).toBe("Codex needs an update, so Home starts with the agent you sent with last.");
+  auth = { revision: 2, providers: [dto("claude"), dto("codex", { facts: { cli: "missing" } })] };
+  authListener(auth); render();
+  expect(words(all(tree).find(element => element.props.role === "status" && words(element.props.children).includes("so Home starts"))?.props.children))
+    .toBe("Codex isn’t installed, so Home starts with the agent you sent with last.");
   const model = labelled("Model for new conversations")[0]!;
   expect(model.props.disabled).toBe(true);
   const modelRow = all(tree).find(element => element.props.className === "doan-preference-row" && all(element.props.children as ReactNode).includes(model))!;
@@ -588,4 +592,67 @@ test("selectable: the save-failed and models-load-failed messages", async () => 
   const lines = all(tree).filter(isErrorLine);
   expect(lines.map(line => words(line.props.children))).toContain("Couldn’t save your new conversation choices. Your last saved choices still apply.");
   for (const line of lines) expect(selectableClass(line)).toBe(true);
+});
+
+// DESIGN 'Busy action' (the list Retry's model): a Retry keeps its line and focus while its request is out.
+const text = () => words(all(tree).filter(element => typeof element.type === "string").map(element => element.props.children));
+const retries = () => all(tree).filter(element => element.type === "button" && words(element.props.children) === "Retry");
+test("the models Retry keeps the load failure while it reads again, busy and described by the line", async () => {
+  api.listConversationModels!.mockResolvedValue({ error: "unknown" });
+  await settle({ preferences: prefs({ provider: "claude", model: "opus" }) });
+  await settle();
+  let answer!: (value: unknown) => void;
+  api.listConversationModels!.mockImplementation(() => new Promise(resolve => { answer = resolve; }));
+  const retry = retries()[0]!;
+  expect(retry.props["aria-label"]).toBeUndefined();
+  expect(all(tree).find(element => element.props.id === retry.props["aria-describedby"])).toBeDefined();
+  (retry.props.onClick as () => void)();
+  await settle();
+  expect(text()).toContain("Couldn’t load the models for acme-web.");
+  expect(text()).not.toContain("Loading models");
+  expect(retries()[0]!.props).toMatchObject({ "aria-busy": true, "aria-disabled": true });
+  (retries()[0]!.props.onClick as () => void)();
+  expect(api.listConversationModels).toHaveBeenCalledTimes(2);
+  answer({ models: [{ id: "opus", label: "Opus 5.5", default: true }] });
+  await settle();
+  expect(text()).not.toContain("Couldn’t load the models");
+});
+
+test("the save Retry keeps the save failure while its save is out, busy; a repeat failure keeps it", async () => {
+  await settle({ preferences: prefs({ provider: "claude" }) });
+  (all(tree).filter(element => element.type === DropdownMenu.RadioGroup)[0]!.props.onValueChange as (value: string) => void)("last");
+  await settle();
+  let answer!: (value: unknown) => void;
+  props.save = vi.fn(() => new Promise(resolve => { answer = resolve; })) as never;
+  render();
+  const retry = retries().at(-1)!;
+  expect(all(tree).find(element => element.props.id === retry.props["aria-describedby"])).toBeDefined();
+  (retry.props.onClick as () => void)();
+  render();
+  expect(text()).toContain("Couldn’t save your new conversation choices.");
+  expect(retries().at(-1)!.props).toMatchObject({ "aria-busy": true, "aria-disabled": true });
+  answer(null);
+  await settle();
+  expect(text()).toContain("Couldn’t save your new conversation choices.");
+  expect(retries().at(-1)!.props["aria-busy"]).toBeUndefined();
+});
+
+// Only the latest save owns the failure line (POSTMORTEM 2026-10-25): an earlier choice's failure that answers after a
+// later choice was sent is dropped, so the line (and a Retry that would send the older choice again) never appears.
+test("an earlier choice's save failing after a later one was sent shows no failure line", async () => {
+  await settle({ preferences: prefs({ provider: "claude" }) });
+  const replies: ((value: unknown) => void)[] = [];
+  props.save = vi.fn(() => new Promise(resolve => { replies.push(resolve); })) as never;
+  render();
+  const choose = (value: string) => (all(tree).filter(element => element.type === DropdownMenu.RadioGroup)[0]!.props.onValueChange as (value: string) => void)(value);
+  choose("last");
+  render();
+  choose("claude");
+  expect(props.save).toHaveBeenCalledTimes(2);
+  replies[0]!(null);
+  await settle();
+  expect(text()).not.toContain("Couldn’t save your new conversation choices.");
+  replies[1]!({ ok: true, snapshot: { preferences: prefs({ provider: "claude" }), notice: null } });
+  await settle();
+  expect(text()).not.toContain("Couldn’t save your new conversation choices.");
 });

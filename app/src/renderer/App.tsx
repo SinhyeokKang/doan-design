@@ -20,7 +20,7 @@ import type { ExportReply } from "../main/canvasExport";
 import type { AttachmentResult } from "../main/attachments";
 import { canvasExportReason, trashBlock } from "./canvasRowMenu";
 import { canvasStem, exportProgress, exportToast, trashToast } from "./canvasRowMessages";
-import { CanvasTrashDialog, trashDialogView } from "./CanvasTrashDialog";
+import { CanvasTrashDialog, trashDialogView, type TrashMove } from "./CanvasTrashDialog";
 import { ConversationDeleteDialog, unsentDraft, type DeleteTarget } from "./ConversationDeleteDialog";
 import { deleteAvailability, deleteDialogView, deleteRefusalText, quoted } from "./conversationDelete";
 import { focusFieldEnd } from "./chipField";
@@ -182,12 +182,12 @@ export function mergeCanvasMemory(saved: Readonly<Record<string, Readonly<Record
 export function wizardCloseFocus(root: string | null): "composer" | "previous" { return root ? "composer" : "previous"; }
 
 // A reply chip whose canvas cannot be opened (draft frame `toasts`). The canvas is
-// named by the link's id, since no row names it; the project by its sidebar name. A list still being read gets the
-// chip's own copy, which has no Open to try again; a project problem keeps Quick Open's.
+// named by the link's id, since no row names it; the project by its sidebar name. A project still being read or
+// with a problem says so as Quick Open does.
 export function replyChipRefusal(target: "missing" | "duplicate" | "unavailable", canvas: string, project: string, entry: FolderEntry | undefined): string {
   if (target === "missing") return `Couldn’t open ${canvas}. The canvas isn’t in ${project}.`;
   if (target === "duplicate") return `Couldn’t open ${canvas}. More than one canvas in ${project} uses this ID. Run doan check in a terminal to find them.`;
-  return entry?.kind === "loading" ? "Project is still being read. Try again shortly." : unavailableCanvasMessage(entry, canvas);
+  return unavailableCanvasMessage(entry, canvas, project);
 }
 
 // A Quick Open conversation that can no longer be opened (draft frame `open-failed`): the title quoted as the delete
@@ -213,7 +213,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The canvas the Move to Trash dialog asks about and main's plan for it (null until main answers);
   // `seq` drops a closed dialog's late plan. Set through `changeTrashing`, so a reply that lands before the next render
   // sees the dialog as it is.
-  const [trashing, setTrashing] = useState<{ root: string; row: CanvasRow; plan: TrashPlanReply | null; seq: number } | null>(null);
+  const [trashing, setTrashing] = useState<{ root: string; row: CanvasRow; plan: TrashPlanReply | null; seq: number; move: TrashMove } | null>(null);
   const trashingRef = useRef(trashing);
   const changeTrashing = (next: typeof trashing) => { trashingRef.current = next; setTrashing(next); };
   const trashSeq = useRef(0);
@@ -231,7 +231,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const [exporting, setExporting] = useState<ReadonlySet<string>>(new Set());
   const exportTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   // The Add Projects page: where it returns to, the page's own report, and a
-  // counter File > Add Project… raises to run its Choose folder. Mounted anew (`seq`) on each opening.
+  // counter File > Add Projects… raises to run its Choose folder. Mounted anew (`seq`) on each opening.
   const [page, setPage] = useState<{ origin: AddPageOrigin; seq: number; chooseSeq: number } & AddPageReport>({ origin: { screen: "home" }, seq: 0, chooseSeq: 0, locked: false, choose: true });
   const pageRef = useRef(page); pageRef.current = page;
   // The Settings page: its category, what it was asked to focus on arrival, and
@@ -546,7 +546,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const sendSelection = (selection: Selection | null) => {
       window.doan.setSelection(selection).catch((error: unknown) => console.error("selection:set failed", error));
     };
-    const instance = new CanvasController(viewport.current, board.current, overlay.current, canvasChanged, sendSelection, selector => window.doan.inspect(selector), dragLayer.current, () => window.doan.pointer());
+    const instance = new CanvasController(viewport.current, board.current, overlay.current, canvasChanged, sendSelection, dragLayer.current, () => window.doan.pointer());
     controller.current = instance;
     const stopFolders = window.doan.onFolders((all, focus) => {
       const next = shownFolders(all), before = entriesRef.current;
@@ -787,7 +787,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const openShellCanvas = (root: string, row: CanvasRow, cursor?: number, opened?: () => void) => {
     if (locked()) return;
     cancelRestore();
-    controller.current?.openCanvas(root, row, undefined, { opened: () => { completeNavigation(root, cursor); opened?.(); }, unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path)) });
+    controller.current?.openCanvas(root, row, undefined, { opened: () => { completeNavigation(root, cursor); opened?.(); }, unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path, live.current.projectLabel(root))) });
   };
   // arrived: after the move commits, for an entry point that asks the Overview for a conversation.
   const showShellOverview = (root: string, cursor?: number, arrived?: () => void) => {
@@ -806,7 +806,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   function openConversationCanvas(root: string, canvas: Canvas, conversationId?: string, trigger: PanelTrigger = { kind: "promotion" }) {
     const listed = entriesRef.current.find(entry => entry.path === root);
     const row = listed?.kind === "list" ? listed.canvases.find(row => sameCanvas(canvas, row)) : undefined;
-    if (!row) { live.current.toast.show(unavailableCanvasMessage(listed, canvas.path)); return; }
+    if (!row) { live.current.toast.show(unavailableCanvasMessage(listed, canvas.path, live.current.projectLabel(root))); return; }
     if (conversationId) live.current.openCanvasConversation(root, row, conversationId, trigger);
     else live.current.openShellCanvas(root, row);
   }
@@ -932,7 +932,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const listed = entriesRef.current.find(entry => entry.path === notice.root);
     const row = listed?.kind === "list" ? listed.canvases.find(row => row.path === notice.path) : undefined;
     if (row) openShellCanvas(notice.root, row);
-    else toast.show(unavailableCanvasMessage(listed, notice.path));
+    else toast.show(unavailableCanvasMessage(listed, notice.path, live.current.projectLabel(notice.root)));
   };
   const toggleProject = async (key: string) => {
     const group = cards.find(card => card.key === key); if (!group) return;
@@ -1243,7 +1243,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     pageRef.current = { ...pageRef.current, ...report };
     setPage(previous => ({ ...previous, ...report }));
   };
-  // File > Add Project… (⌘O) opens the page; on the page it runs Choose folder, which main allows only in choose.
+  // File > Add Projects… (⌘O) opens the page; on the page it runs Choose folder, which main allows only in choose.
   useEffect(() => window.doan.onOpenAddProjects(() => {
     live.current.openAddProjects();
     if (currentScreen.current === "addProjects" && pageRef.current.choose) setPage(previous => ({ ...previous, chooseSeq: previous.chooseSeq + 1 }));
@@ -1413,32 +1413,39 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     // is read every removal is marked (memoryTouched), and after it a root's conversation memory or Overview draft.
     if (!memoryRead.current || paths.some(root => root in conversationByRoot.current || root in conversationByCanvas.current || overviewRun.current?.drafts.has(`root:${root}`))) forgetConversations(paths);
   }
-  // The dialog asks main for its plan before it can be
-  // confirmed. A busy plan keeps it open with its working line; any other refusal closes it with that refusal's toast.
-  // Closing returns focus to the row's menu button through `beforeModal`.
+  // The dialog asks main for its plan before it can be confirmed. A busy plan keeps it open with its working line and a
+  // failed one with its reason; notListed and notFile close it with that refusal's toast. Closing returns focus to the
+  // row's menu button through `beforeModal`.
   function openTrash(root: string, row: CanvasRow, button: HTMLElement | null) {
     if (locked() || live.current.modal) return;
     beforeModal.current = button;
     const seq = ++trashSeq.current;
-    changeTrashing({ root, row, plan: null, seq });
+    changeTrashing({ root, row, plan: null, seq, move: { pending: false, failed: null } });
     const answered = (plan: TrashPlanReply) => {
       const current = trashingRef.current;
       if (current?.seq !== seq) return;
-      if (plan.kind === "refused" && plan.reason !== "busy") { closeTrash(); live.current.toast.show(trashToast(canvasStem(row.path), plan)); return; }
+      if (plan.kind === "refused" && (plan.reason === "notListed" || plan.reason === "notFile")) { closeTrash(); live.current.toast.show(trashToast(canvasStem(row.path), plan)); return; }
       changeTrashing({ ...current, plan });
     };
     window.doan.planCanvasTrash(root, row.path).then(answered, () => answered({ kind: "refused", reason: "failed" }));
   }
   function closeTrash() { changeTrashing(null); modalClosed(); }
-  // Confirmed: the dialog closes at once and the reply's toast is the only one. The mark set
-  // before the request makes the open canvas's removal a trash, not a move to another canvas of the same id.
+  // Cancel and Escape: refused while the move is out, since cancelling would stop nothing.
+  function cancelTrash() { if (!trashingRef.current?.move.pending) closeTrash(); }
+  // Confirmed: the dialog stays, busy and refusing its cancel, until main answers (DESIGN 'Busy action'). A move that
+  // went closes it with its toast; a refusal stays inside it, where Move to Trash tries again. The row leaving the list
+  // may close it first; the reply then still shows its toast. The mark set before the request makes the open canvas's
+  // removal a trash, not a move to another canvas of the same id.
   function confirmTrash() {
     const current = trashingRef.current;
-    if (!current) return;
-    closeTrash();
-    const { root, row } = current, marks = controller.current?.trash, mark = marks?.begin(root, row.path);
+    if (!current || current.move.pending) return;
+    changeTrashing({ ...current, move: { pending: true, failed: null } });
+    const { root, row, seq } = current, marks = controller.current?.trash, mark = marks?.begin(root, row.path);
     const done = (reply: TrashReply) => {
       if (mark) marks!.settle(mark, reply.kind === "trashed" ? "trashed" : "refused");
+      const open = trashingRef.current?.seq === seq ? trashingRef.current : null;
+      if (open && reply.kind === "refused") { changeTrashing({ ...open, move: { pending: false, failed: reply } }); return; }
+      if (open) closeTrash();
       live.current.toast.show(trashToast(canvasStem(row.path), reply));
     };
     window.doan.trashCanvas(root, row.path).then(done, () => done({ kind: "refused", reason: "failed" }));
@@ -1631,7 +1638,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (result.kind === "conversation") return pickConversation(result);
     const target = entries.find(entry => entry.path === result.root);
     const row = target?.kind === "list" ? target.canvases.find(row => row.path === result.path) : undefined;
-    const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, result.path));
+    const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, result.path, live.current.projectLabel(result.root)));
     if (!row) { unavailable(target); return; }
     const frameId = result.kind === "frame" ? result.frameId : undefined;
     const found = (ok: boolean) => { if (!ok) live.current.toast.show("This frame is no longer in the canvas."); };
@@ -1649,7 +1656,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const decision = decideOpen(result, openPage());
     if (decision.kind === "busy") { live.current.toast.showIn(topDialog(), blockedLinkMessage(decision.reason)); return; }
     cancelRestore();
-    const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, result.canvas));
+    const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, result.canvas, live.current.projectLabel(result.root)));
     if (decision.kind === "canvas_not_found") { unavailable(decision.entry); return; }
     controller.current?.openCanvas(result.root, decision.row, result.frame === undefined ? undefined : { frame: result.frame }, { unavailable, opened: () => completeNavigation(result.root) });
   }
@@ -1667,7 +1674,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const decision = decideOpen({ root, canvas: target.open.path }, openPage());
     if (decision.kind === "busy") return Promise.resolve(null);
     cancelRestore();
-    const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, target.open.path));
+    const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, target.open.path, live.current.projectLabel(root)));
     if (decision.kind === "canvas_not_found") { unavailable(decision.entry); return Promise.resolve(null); }
     controller.current?.openCanvas(root, decision.row, link.kind === "frame" ? { frame: link.id } : { element: link.id }, { unavailable, opened: () => completeNavigation(root) });
     return Promise.resolve(null);
@@ -1687,10 +1694,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       case "open": {
         cancelRestore();
         const path = step.row.path;
-        controller.current?.openCanvas(step.root, step.row, { anchor: step.anchor }, { unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, path)), opened: () => completeNavigation(step.root), located: missing });
+        controller.current?.openCanvas(step.root, step.row, { anchor: step.anchor }, { unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, path, live.current.projectLabel(step.root))), opened: () => completeNavigation(step.root), located: missing });
         return;
       }
-      case "canvas_not_found": live.current.toast.show(unavailableCanvasMessage(step.entry, step.path)); return;
+      case "canvas_not_found": live.current.toast.show(unavailableCanvasMessage(step.entry, step.path, live.current.projectLabel(step.root))); return;
       case "reply": void replyChip(step.root, step.link).then(missing); return;
       case "settings": openSettings({ section: "agents", ...(step.provider ? { provider: step.provider } : {}) }); return;
       case "conversation":
@@ -1802,7 +1809,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     // (POSTMORTEM 2026-10-25 recurrence).
     if (!row && !wait.expired && (entry?.kind === "loading" || (entry?.kind === "list" && entry === wait.entry))) return;
     done();
-    if (!row) { live.current.toast.show(entry?.kind === "list" ? handoffGoneText(to.canvas.path, live.current.projectLabel(root)) : unavailableCanvasMessage(entry, to.canvas.path)); return; }
+    if (!row) { live.current.toast.show(entry?.kind === "list" ? handoffGoneText(to.canvas.path, live.current.projectLabel(root)) : unavailableCanvasMessage(entry, to.canvas.path, live.current.projectLabel(root))); return; }
     openCanvasConversation(root, row, to.conversationId, { kind: "notification", permission: false });
   }
   function listedRow(root: string, canvas: Canvas): { entry: FolderEntry | undefined; row: CanvasRow | undefined } {
@@ -2332,6 +2339,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   }), []);
   // A running turn's stage for the threads' turn indicator: one store serves both screens.
   useEffect(() => window.doan.onConversationStage(signal => overviewRun.current!.store.stage(signal)), []);
+  // A command turn's boundary as its provider reported it in this run (main stores none).
+  useEffect(() => window.doan.onConversationBoundary(signal => overviewRun.current!.store.boundary(signal)), []);
   // Every render follows a list change, so a waiting auto-off is tried again once a list may name its conversation.
   useEffect(() => { for (const [conversationId, seenAt] of fastOffPending.current) if (fastOffFor(conversationId, seenAt)) fastOffPending.current.delete(conversationId); });
   useEffect(() => window.doan.onConversationListChanged(({ root }) => homeRun.current.listChanged(root)), []);
@@ -2509,7 +2518,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     return <ConversationDeleteDialog view={deleteDialogView(target.title, target.provider, draft, queued)} reason={availability.available ? null : availability.reason} pending={pending}
       cancel={closeDelete} confirm={() => void confirmDelete()} />;
   })()}
-  {trashing && <CanvasTrashDialog view={trashDialogView(canvasStem(trashing.row.path), trashing.row.path, trashing.plan, trashWorking(trashing.root, trashing.row))} cancel={closeTrash} confirm={confirmTrash} />}
+  {trashing && <CanvasTrashDialog view={trashDialogView(canvasStem(trashing.row.path), trashing.row.path, trashing.plan, trashWorking(trashing.root, trashing.row), trashing.move)} cancel={cancelTrash} confirm={confirmTrash} />}
   {toast.element}
   <PrototypeClosedFocus controller={controller} toolbar={playButton} />
   <PrototypePlaying onChange={setPlaying} />
@@ -2603,7 +2612,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
     {state.status && (state.status !== "missing" || state.message) && <div className="canvas-status" role="status">
       {state.status === "loading" ? <CanvasLoading />
         : state.status === "failed" ? <div className="canvas-status-block"><AlertIcon size={20} /><h2>Couldn’t load the canvas</h2><p>Run doan check in a terminal.</p>
-          <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => command("reload")}>Reload</button></div>
+          <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => command("reload")}>Retry</button></div>
         : state.status === "noWidth" ? <p className="selectable"><b>Couldn’t read a valid board width.</b>{state.message.slice("Couldn’t read a valid board width.".length)}</p>
         : <p className="selectable">{state.message}</p>}
     </div>}

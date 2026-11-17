@@ -11,7 +11,7 @@ import { ProjectAdder, type AdderProjects, type ProjectLocks } from "./onboardin
 export const ADD_PAGE_CHANNELS = {
   read: "add-projects:read", inspect: "add-projects:inspect", select: "add-projects:select", clone: "add-projects:clone", cancel: "add-projects:cancel",
   changed: "add-projects:changed",
-  // File > Add Project…: main asks the renderer to open the page, or its Choose folder when the page shows its choose phase.
+  // File > Add Projects…: main asks the renderer to open the page, or its Choose folder when the page shows its choose phase.
   open: "add-projects:open",
 } as const;
 

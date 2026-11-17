@@ -108,10 +108,13 @@ export function drawingCards(items: readonly ThreadItem[], status: TurnStatus): 
 
 // What both hosts pass the thread: the last turn's status, its id and its start, which the elapsed time
 // counts from. The id lets the thread drop the settle state of an earlier turn.
-export interface ThreadTurn { turnId: string; status: TurnStatus; at: string }
-export function threadTurn(events: readonly ConversationEvent[], items: readonly ThreadItem[], live: boolean, stage: StageSignal | null, root: string, stopping = false): ThreadTurn | null {
+// label: a command turn's own running words (commandView commandTurnLabel), shown in place of the status's.
+export interface ThreadTurn { turnId: string; status: TurnStatus; at: string; label?: string }
+export function threadTurn(events: readonly ConversationEvent[], items: readonly ThreadItem[], live: boolean, stage: StageSignal | null, root: string, stopping = false, labelOf?: (turnId: string) => string | null): ThreadTurn | null {
   const turn = turnOf(events, live);
-  return turn ? { turnId: turn.turnId, status: turnStatus(items, turn, stage, root, stopping), at: turn.at } : null;
+  if (!turn) return null;
+  const label = labelOf?.(turn.turnId);
+  return { turnId: turn.turnId, status: turnStatus(items, turn, stage, root, stopping), at: turn.at, ...(label ? { label } : {}) };
 }
 
 // Which stage to keep: within a turn the higher rev, since a read's reply and a push sent after it may

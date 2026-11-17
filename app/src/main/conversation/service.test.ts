@@ -1587,12 +1587,21 @@ describe("cancelled waits and their queues", () => {
     await expect(waiting).rejects.toThrow("busy");
     expect(h.service.takeDraft(id)).toMatchObject({ text: "behind it", reason: "interrupted" });
   });
-  it("keeps the queue on disk for the next start when the app quits during such a wait", async () => {
+  // The waiting send's own message comes back too, ahead of the queue that waited behind it.
+  // The send is in flight while it waits, so Restart to Update waits for it too.
+  it.each([["judgement", judgementWait], ["previous process", exitWait]] as const)("holds Restart to Update while a send waits for its %s", async (_name, setup) => {
+    const h = homeFixture(); const { id, waiting } = await setup(h);
+    expect(h.service.restartHolds().liveTurns).toBe(1);
+    await h.service.interrupt(id);
+    await expect(waiting).rejects.toThrow("busy");
+    expect(h.service.restartHolds().liveTurns).toBe(0);
+  });
+  it("keeps the waiting send and its queue on disk for the next start when the app quits during such a wait", async () => {
     const h = homeFixture(); const { id, waiting } = await judgementWait(h);
     await h.service.quit();
     await expect(waiting).rejects.toThrow("busy");
     expect(h.service.takeDraft(id)).toBeNull();
-    expect(new DraftStore(join(h.dir, "conversations")).returned(id)).toMatchObject({ text: "behind it", reason: "restarted" });
+    expect(new DraftStore(join(h.dir, "conversations")).returned(id)).toMatchObject({ text: "next\n\nbehind it", reason: "restarted" });
   });
 });
 

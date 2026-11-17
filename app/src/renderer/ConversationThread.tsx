@@ -11,12 +11,16 @@ import type { CanvasRow } from "../main/view";
 import { skillWords, skillTextParts } from "./skillWords";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
+import { retryButton } from "./ListRetryButton";
+import { announcedAgain, LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
 import { canvasCardText, middleCut, newCanvasesText, trailingCards } from "./canvasCardText";
 import { canvasLabel } from "./canvasTree";
 import { SKIP_FAILED_TEXT } from "./conversationStrip";
 import { focusAfter, type FocusAction } from "./composerRules";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { NameTip } from "./NameTip";
+import { CommandCardNotice } from "./ComposerParts";
+import type { CommandCard, CommandCardTarget } from "./commandView";
 import { handoffCardHead } from "./handoffView";
 import { providerLogo, sentFileView } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
@@ -55,6 +59,8 @@ export interface ConversationThreadProps {
   onEditAndResend(): void;
   onSignIn(): void;
   onRetry(): void;
+  // The read error's Retry: running while its read is out (the notice stays), failures the Retries that failed in a row.
+  retry?: ListRetry | undefined;
   onOpenCanvas(canvas: Canvas): void;
   // A canvas card's or handoff card's Open: that canvas with its panel on the given conversation, or the canvas alone
   // for a canvas card without a started handoff. Without it neither offers Open.
@@ -92,6 +98,10 @@ export interface ConversationThreadProps {
   // once main stopped that work, false when it could not (the host says so in a toast).
   background?: { turnId: string; stopping?: true } | null;
   onStopBackground?(turnId: string): Promise<boolean>;
+  // The card of a built-in Doan does not run, sent from this conversation's composer: at the thread's end for this run.
+  card?: CommandCard | null;
+  onCardAction?(target: CommandCardTarget): void;
+  onCardDismiss?(): void;
 }
 // focusItem: an entry's focus on a waiting request: a question's first option or answer input, a
 // permission request's first choice; after a handoff's move, the handoff card itself. False
@@ -244,7 +254,7 @@ export function ReplyChip({ link }: { link: ReplyAnchor }) {
     onClick={() => { if (!disabled) void replyChip(link)?.then(outcome => { if (view.same && outcome === "missing") note.show(key); }); }}>{body}</button></ChipTip>;
 }
 
-// Agent output is untrusted, as the selection's `html`/`text` are (ARCHITECTURE §3 'Selection and inspector'): no raw
+// Agent output is untrusted, as the selection's `html`/`text` are (ARCHITECTURE §3 'Selection'): no raw
 // HTML (react-markdown escapes it; no rehype-raw), no images (their alt text stays), https links only; a `doan:` link
 // is a reply chip or text.
 const COMPONENTS: Components = {
@@ -832,8 +842,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     [openCanvasId, props.frames, props.canvasRows, disabled, pressable]);
 
   if (items === "error") return <div className="conversation-thread">
-    <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text selectable"><b>Doan couldn’t read this conversation</b><span>Try again. If it keeps failing, start a new conversation.</span></span>
-      <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onRetry}>Retry</button></span></div>
+    <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text selectable" id={`thread-read-error-${props.conversationId}`}><b>Doan couldn’t read this conversation</b><span>{announcedAgain("Try again. If it keeps failing, start a new conversation.", (props.retry ?? LIST_RETRY_IDLE).failures)}</span></span>
+      <span className="strip-actions">{retryButton({ running: (props.retry ?? LIST_RETRY_IDLE).running, variant: "panel", describedBy: `thread-read-error-${props.conversationId}`, onRetry: () => props.onRetry() })}</span></div>
   </div>;
   if (items === null) return <div className="conversation-thread">{slow && <div className="thread-loading" role="status"><span className="doan-spinner" aria-hidden="true" /><span>Loading conversation</span></div>}</div>;
 
@@ -913,6 +923,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       }
       case "canvasCard": return <CanvasCard entry={entry} rows={latest.current.canvasRows ?? []} project={props.project} provider={provider} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
       case "handoffCard": return <HandoffCard entry={entry} headId={`${base}-${entry.key}-head`} project={props.project} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
+      case "boundary": return <div className="context-boundary" role="separator" aria-label={entry.label}><span>{entry.label}</span></div>;
       case "marker": {
         const canvas = entry.canvas, listed = props.canvasListed(canvas), name = canvas.path.split("/").at(-1) ?? canvas.path;
         return <div className="marker"><span><ArrowUpRight aria-hidden="true" />{listed ? `Moved to ${name}` : `Moved to ${name} · No longer in ${props.project}`}</span>
@@ -928,7 +939,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         // A run of cards stacks closer than thread items do (the draft's gap); each card stays its own item.
         : <div key={`stack:${run[0]!.key}`} className="thread-item"><div className="canvas-cards">{run.map(card => <ThreadEntry key={card.key} entry={card} deps={depsOf(card)} draw={item} />)}</div></div>)}
         {props.turn && settled.shown.kind !== "none" && settled.shown.kind !== "waiting" &&
-          <div className="thread-item"><TurnIndicator text={turnText(settled.shown, p)} at={props.turn.at} provider={provider} /></div>}
+          <div className="thread-item"><TurnIndicator text={props.turn.label ?? turnText(settled.shown, p)} at={props.turn.at} provider={provider} /></div>}
+        {props.card && <div className="thread-item"><CommandCardNotice card={props.card} onAction={target => latest.current.onCardAction?.(target)} onDismiss={() => latest.current.onCardDismiss?.()} /></div>}
         {line && <div className="thread-item" data-item={BACKGROUND_KEY}><div className="bg-line">
           <Terminal className="bg-icon" aria-hidden="true" /><span className="bg-text">Background work is still running. It stops when you send your next message or press Stop.</span>
           {/* aria-disabled rather than disabled while stopping, so a keyboard press keeps focus on it. */}

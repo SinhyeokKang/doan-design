@@ -40,7 +40,7 @@ beforeEach(() => {
   const on = (name: string, keep?: (listener: never) => void) => vi.fn((listener: never) => { order.push(`on:${name}`); keep?.(listener); return () => {}; });
   calls = {
     onConversationEvent: on("event", listener => { event = listener; }),
-    onConversationStage: on("stage"),
+    onConversationStage: on("stage"), onConversationBoundary: on("boundary"),
     onConversationListChanged: on("listChanged", listener => { listChanged = listener; }),
     onWorkChanged: on("work"), onTargetEntry: on("entry"), onComposerSettings: on("settings"), onAgentAuth: on("auth"), onWindowVisible: on("visible"),
     listConversations: vi.fn(({ root }: { root: string }) => { order.push(`list:${root}`); return new Promise(resolve => lists.set(root, resolve)); }),

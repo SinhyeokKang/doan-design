@@ -368,7 +368,11 @@ test("the automatic-check switch shows the pushed choice and saves a change; a f
   expect(words(line.props.children)).toBe("Couldn’t save your automatic-check choice. Your last saved choice still applies.");
   expect(line.props.role).toBeUndefined();
   expect(live()).toBe("Couldn’t save your automatic-check choice. Your last saved choice still applies.");
-  click("Save the automatic-check choice again");
+  // DESIGN 'Accessible names': named by its word, described by the line.
+  const retry = all(autoRow()!.props.children as ReactNode).find(element => element.type === "button" && words(element.props.children) === "Retry")!;
+  expect(retry.props["aria-label"]).toBeUndefined();
+  expect(retry.props["aria-describedby"]).toBe(all(autoRow()!.props.children as ReactNode).find(element => words(element.props.children) === "Couldn’t save your automatic-check choice. Your last saved choice still applies." && element.type === "span")!.props.id);
+  (retry.props.onClick as () => void)();
   expect(save).toHaveBeenLastCalledWith({ updates: { autoCheck: true } });
   await flush(); render();
   expect(all(autoRow()!.props.children as ReactNode).some(element => String(element.props.className) === "settings-msg error selectable")).toBe(false);
@@ -394,7 +398,11 @@ test("a press while the automatic-check save is pending saves nothing more; afte
   (toggle().props.onClick as () => void)(); await flush(); render();
   save.mockClear();
   save.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
-  click("Save the automatic-check choice again"); render();
+  // DESIGN 'Accessible names': named by its word, described by the line.
+  const retry = all(autoRow()!.props.children as ReactNode).find(element => element.type === "button" && words(element.props.children) === "Retry")!;
+  expect(retry.props["aria-label"]).toBeUndefined();
+  expect(retry.props["aria-describedby"]).toBe(all(autoRow()!.props.children as ReactNode).find(element => words(element.props.children) === "Couldn’t save your automatic-check choice. Your last saved choice still applies." && element.type === "span")!.props.id);
+  (retry.props.onClick as () => void)(); render();
   (toggle().props.onClick as () => void)();
   expect(save).toHaveBeenCalledOnce();
 });
@@ -564,4 +572,49 @@ test("selectable: a version read error row, a failed read, a failed copy and a f
 
   resetHooks(); render(); reply(null); await flush(); render();
   selectableIn(tree, element => element.type === "p" && words(element.props.children) === "Couldn’t read the versions.");
+});
+
+// DESIGN 'Busy action' (the list Retry's model): Retry keeps its line and focus while the read or save is out.
+const retryButtons = () => all(tree).filter(element => element.type === "button" && words(element.props.children) === "Retry");
+test("the versions Retry keeps the failed line while About is read again, busy, with no Checking rows under it", async () => {
+  render(); push(snap({ kind: "upToDate", manual: false })); render();
+  reply(null); await flush(); render();
+  const retry = retryButtons()[0]!;
+  expect(all(tree).find(element => element.props.id === retry.props["aria-describedby"])).toBeDefined();
+  (retry.props.onClick as () => void)(); render();
+  expect(doan.readAbout).toHaveBeenCalledTimes(2);
+  expect(text()).toContain("Couldn’t read the versions.");
+  expect(retryButtons()[0]!.props).toMatchObject({ "aria-busy": true, "aria-disabled": true });
+  expect(all(tree).some(element => element.props["data-about"] === "cli")).toBe(false);
+  (retryButtons()[0]!.props.onClick as () => void)();
+  expect(doan.readAbout).toHaveBeenCalledTimes(2);
+  reply(null); await flush(); render();
+  expect(retryButtons()[0]!.props["aria-busy"]).toBeUndefined();
+  (retryButtons()[0]!.props.onClick as () => void)(); render();
+  reply(READ); await flush(); render();
+  expect(text()).not.toContain("Couldn’t read the versions.");
+  expect(words(row("cli").props.children)).toContain("/Applications/Doan.app/Contents/Resources/bin/doan");
+});
+
+test("a version row's Retry keeps its line while About is read again, busy, instead of Checking", async () => {
+  render();
+  reply({ ...READ, cli: { ...READ.cli, version: null } }); await flush(); render();
+  (retryButtons()[0]!.props.onClick as () => void)(); render();
+  expect(words(row("cli").props.children)).toContain("Couldn’t read the doan command’s version.");
+  expect(words(row("cli").props.children)).not.toContain("Checking");
+  for (const retry of retryButtons()) expect(retry.props).toMatchObject({ "aria-busy": true, "aria-disabled": true });
+});
+
+test("the automatic-check Retry keeps its line while the save is out, busy", async () => {
+  render(); push(snap({ kind: "upToDate", manual: false })); render();
+  save.mockResolvedValueOnce({ ok: false, reason: "write_failed", snapshot: { preferences: DEFAULT_PREFERENCES, notice: null } });
+  (toggle().props.onClick as () => void)(); await flush(); render();
+  let answer!: (value: unknown) => void;
+  save.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+  const retry = () => all(autoRow()!.props.children as ReactNode).find(element => element.type === "button" && words(element.props.children) === "Retry")!;
+  (retry().props.onClick as () => void)(); render();
+  expect(words(autoRow()!.props.children)).toContain("Couldn’t save your automatic-check choice.");
+  expect(retry().props).toMatchObject({ "aria-busy": true, "aria-disabled": true });
+  answer({ ok: true, snapshot: { preferences: DEFAULT_PREFERENCES, notice: null } }); await flush(); render();
+  expect(words(autoRow()!.props.children)).not.toContain("Couldn’t save");
 });

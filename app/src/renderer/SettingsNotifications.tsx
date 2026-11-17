@@ -1,6 +1,8 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import type { NotificationPreferences, PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply } from "../main/preferences";
 import { AlertIcon } from "./AlertIcon";
+import { retryButton, useRetry } from "./ListRetryButton";
+import { announcedAgain } from "./listRetry";
 
 type EventKey = "approval" | "finished" | "failed";
 const EVENTS: readonly { key: EventKey; label: string; description: string }[] = [
@@ -33,18 +35,33 @@ export function SettingsNotifications({ preferences, save }: { preferences: Pref
   const [test, setTest] = useState<keyof typeof PERMISSION>("idle");
   const notifications = preferences?.preferences.notifications ?? null;
   const off = preferences === null || preferences.notice === "newer";
-  const write = (key: keyof NotificationPreferences, value: boolean) => {
-    const patch: PreferencesPatch = { notifications: { [key]: value } };
+  // Only the latest save, a switch's or Retry's, owns the failure line: a reply to an earlier one that comes after a
+  // later save was sent is dropped (POSTMORTEM 2026-10-25), so it cannot put a failure under another switch.
+  const latest = useRef(0);
+  const write = (key: keyof NotificationPreferences, patch: PreferencesPatch) => {
+    const request = ++latest.current;
     setFailed(null);
-    void save(patch).then(reply => { if (!reply || (!reply.ok && reply.reason !== "newer")) setFailed({ key, patch }); });
+    void save(patch).then(reply => { if (request === latest.current && (!reply || (!reply.ok && reply.reason !== "newer"))) setFailed({ key, patch }); });
   };
-  const retry = () => { if (!failed) return; const { patch } = failed; setFailed(null); void save(patch).then(reply => { if (!reply || (!reply.ok && reply.reason !== "newer")) setFailed({ key: failed.key, patch }); }); };
+  // Retry keeps the line while its save is out (DESIGN 'Busy action'); only a save that went clears it. It is a save
+  // too, so it takes a request number: a switch pressed meanwhile makes its reply stale.
+  const retrying = useRetry();
+  const retry = (pressed: HTMLElement | null) => {
+    if (!failed) return;
+    const { patch } = failed;
+    const request = ++latest.current;
+    retrying.run(() => save(patch).then(reply => {
+      const ok = !!reply && (reply.ok || reply.reason === "newer");
+      if (ok && request === latest.current) setFailed(current => current?.patch === patch ? null : current);
+      return ok;
+    }), pressed);
+  };
   const sendTest = () => { void window.doan.sendTestNotification().catch(() => null).then(reply => setTest(reply?.kind === "sent" ? "sent" : "failed")); };
   const sw = (key: keyof NotificationPreferences, label: string, disabled: boolean) => <button type="button" className="doan-switch" role="switch" aria-checked={notifications?.[key] ?? true} aria-label={label}
-    disabled={disabled} onClick={() => write(key, !(notifications?.[key] ?? true))} />;
+    disabled={disabled} onClick={() => write(key, { notifications: { [key]: !(notifications?.[key] ?? true) } })} />;
   const error = (key: keyof NotificationPreferences) => failed?.key === key && <div className="doan-preference-row-extra settings-msg-row">
-    <p className="settings-msg error selectable" role="alert"><AlertIcon /><span>{SAVE_FAILED}</span></p>
-    <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={retry}>Retry</button></div>;
+    <p className="settings-msg error selectable" role="alert"><AlertIcon /><span id={`settings-notifications-error-${key}`}>{announcedAgain(SAVE_FAILED, retrying.failures)}</span></p>
+    {retryButton({ running: retrying.running, variant: "subtle", describedBy: `settings-notifications-error-${key}`, onRetry: retry })}</div>;
   const enabled = notifications?.enabled ?? true, hint = PERMISSION[test];
   return <>
     {preferencesNotice(preferences?.notice)}

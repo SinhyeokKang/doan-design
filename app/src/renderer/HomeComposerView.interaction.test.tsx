@@ -50,6 +50,7 @@ beforeEach(() => {
     removeAttachment: vi.fn(async () => true), chooseAttachments: vi.fn(async () => []), addDroppedFiles: vi.fn(async () => {}), addProjects: vi.fn(),
     // Pasted test files are page-made (no disk path) unless a test says otherwise.
     droppedPath: vi.fn(() => null),
+    takeStartDraft: vi.fn(async () => null), attachmentsFromPaths: vi.fn(async () => []),
   };
   vi.stubGlobal("window", { doan });
   vi.stubGlobal("queueMicrotask", (run: () => void) => run());
@@ -312,6 +313,23 @@ test("Edit on Home asks before replacing a different draft, and fills an empty o
   expect(empty.box.current.text).toBe("");
 });
 
+// Home's Replace your draft? is an alertdialog named by its title and described by its body, as the other
+// confirmations (POSTMORTEM 2026-10-30: focus guards find a confirmation by this role).
+test("Home's Replace your draft? is an alertdialog named by its title and described by its body", () => {
+  const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: null, effort: null };
+  const busy = setup({ text: "Another idea" }, { restore: { request: last, seq: 1 } });
+  busy.render(); for (const effect of hooks.effects) effect();
+  const shown = busy.render();
+  const dialog = find(shown, props => typeof props.className === "string" && props.className.startsWith("doan-dialog ") && typeof props.onCancel === "function");
+  expect(dialog.role).toBe("alertdialog");
+  expect(dialog["aria-label"]).toBeUndefined();
+  const title = find(shown, props => props.className === "doan-dialog-title"), body = find(shown, props => String(props.className).startsWith("doan-dialog-description"));
+  expect(typeof dialog["aria-labelledby"]).toBe("string");
+  expect(title.id).toBe(dialog["aria-labelledby"]);
+  expect(typeof dialog["aria-describedby"]).toBe("string");
+  expect(body.id).toBe(dialog["aria-describedby"]);
+});
+
 // U4: Escape is Keep draft, as on every other modal: the confirmation closes and focus goes back to the field.
 test("Escape in Home's Replace your draft? runs Keep draft: the draft stays and focus returns to the field", () => {
   const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: null, effort: null };
@@ -351,6 +369,32 @@ test("first run's project is chosen once; the person's later choice wins and the
   call(field(render()), "onKeyDown", key("Enter"));
   await vi.waitFor(() => expect(start).toHaveBeenCalled());
   expect((start.mock.calls[0]![0] as { root: string }).root).toBe("/code/acme");
+});
+
+// A first message a quit stopped before main accepted it comes back after what is typed, for the picked project, once.
+test("Home takes the picked project's start message a quit stopped, after the typed text, and asks once", async () => {
+  doan.takeStartDraft!.mockResolvedValueOnce({ text: "Draw a pricing page.", anchors: [], attachments: [], reason: "restarted" });
+  const { box, render } = setup({ text: "Also" });
+  render(); runEffects();
+  await vi.waitFor(() => expect(box.current.text).toBe("Also\n\nDraw a pricing page."));
+  expect(doan.takeStartDraft).toHaveBeenCalledWith({ root: "/code/doan-design" });
+  render(); runEffects();
+  expect(doan.takeStartDraft).toHaveBeenCalledTimes(1);
+});
+
+// The draft is already taken from main, so it lands with its own project even when the person picked another meanwhile.
+test("a start message that arrives after another project was picked brings its own project back", async () => {
+  const reply = deferred<unknown>();
+  doan.takeStartDraft!.mockReturnValueOnce(reply.promise as never);
+  const { box, render } = setup({}, { entries: [ENTRY, B] });
+  render(); runEffects();
+  const projects = find(render(), props => typeof props.onValueChange === "function" && props.value === "/code/doan-design/.git");
+  (projects.onValueChange as (key: string) => void)("/code/acme/.git");
+  render(); runEffects();
+  expect(box.current.root).toBe("/code/acme");
+  reply.resolve({ text: "Draw a pricing page.", anchors: [], attachments: [], reason: "restarted" });
+  await vi.waitFor(() => expect(box.current.text).toBe("Draw a pricing page."));
+  expect(box.current.root).toBe("/code/doan-design");
 });
 
 test("a pending start keeps Home locked on a later visit, and a late reply clears only the draft it sent", async () => {
@@ -700,7 +744,10 @@ test("while a start is pending, Send, the submit key and the notice's Retry neit
   expect(sendButton(tree).disabled).toBe(true);
   call(sendButton(tree), "onClick", {});
   call(field(tree), "onKeyDown", key("Enter"));
-  call(find(tree, props => props.children === "Retry" && typeof props.onClick === "function"), "onClick", {});
+  // DESIGN 'Busy action': the notice's Retry shows the send that is out.
+  const retry = find(tree, props => props["aria-busy"] === true && String(props["aria-describedby"] ?? "").endsWith("-notice"));
+  expect(retry["aria-disabled"]).toBe(true);
+  call(retry, "onClick", {});
   await Promise.resolve();
   expect(start).toHaveBeenCalledTimes(1);
   expect(doany.hop).toHaveBeenCalledTimes(1);
@@ -910,4 +957,24 @@ test("a refreshed list changes both highlighted names and fixed send lines", asy
   expect(input(render()).skillNames).toEqual(new Set(["review"]));
   call(field(render()), "onKeyDown", key("Enter")); await flush();
   expect(start.mock.calls[0]?.[0]).toMatchObject({ text: "Use the project skill `review`.\n\n/deploy /review" });
+});
+
+// DESIGN 'Busy action' (the list Retry's model): the notice and its Retry stay while the send Retry started is out.
+test("the notice's Retry keeps the notice while its send is out, busy and described by the notice; the reply decides what stays", async () => {
+  const text = "Claude Code is finishing a previous run. Try again in a moment.";
+  const { box, start, render } = setup({ text: "Draw a pricing page.", notice: { text, retry: true } });
+  let answer!: (outcome: unknown) => void;
+  start.mockReturnValueOnce(new Promise(resolve => { answer = resolve; }) as never);
+  let tree = render();
+  const idle = find(tree, props => props.children === "Retry" && typeof props.onClick === "function");
+  expect(idle["aria-label"]).toBeUndefined();
+  expect(find(tree, props => props.id === idle["aria-describedby"]).children).toBe(text);
+  call(idle, "onClick", {});
+  await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+  tree = render();
+  expect(box.current.notice).toMatchObject({ text });
+  expect(find(tree, props => props["aria-busy"] === true && String(props["aria-describedby"] ?? "").endsWith("-notice"))["aria-disabled"]).toBe(true);
+  answer({ ok: true });
+  await vi.waitFor(() => expect(box.current.sending).toBeNull());
+  expect(box.current.notice).toBeNull();
 });

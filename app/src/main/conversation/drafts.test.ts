@@ -302,3 +302,64 @@ describe("DraftStore discard", () => {
     expect(failing.queued(A)).toEqual([]);
   });
 });
+
+// A send's or start's message from when main takes it until main accepts or refuses it (`sending`), and the starts a
+// quit stopped (`starts`). Both keys are written only when they hold something, so the file reads as before otherwise.
+describe("DraftStore held messages", () => {
+  const C = "33333333-3333-4333-8333-333333333333", D = "44444444-4444-4444-8444-444444444444";
+  it("writes a held message at once and removes it on release, leaving the file as before", () => {
+    const dir = directory(), store = new DraftStore(dir);
+    store.hold(C, { conversationId: A, text: "next", anchors: [], attachments: [] });
+    expect(JSON.parse(readFileSync(join(dir, "drafts.json"), "utf8")).sending).toEqual({ [C]: { conversationId: A, text: "next", anchors: [], attachments: [] } });
+    store.release(C);
+    expect(JSON.parse(readFileSync(join(dir, "drafts.json"), "utf8"))).toEqual({ v: 1, queued: {}, returned: {} });
+  });
+  it("returns a held send after its returned draft and before its queue at the next start, and keeps a held start for its composer", () => {
+    const dir = directory(), first = new DraftStore(dir);
+    first.giveBack(A, { text: "earlier", anchors: [], attachments: [] }, "turn_failed");
+    first.hold(C, { conversationId: A, text: "sent {{1}}", anchors: [anchor], attachments: [] });
+    first.add(A, { itemId: "q1", text: "queued", anchors: [], attachments: [file] });
+    first.hold(D, { root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" }, text: "first", anchors: [], attachments: [file] });
+    const next = new DraftStore(dir);
+    expect(next.take(A)).toEqual({ text: "earlier\n\nsent {{1}}\n\nqueued", anchors: [anchor], attachments: [file], reason: "restarted" });
+    const saved = JSON.parse(readFileSync(join(dir, "drafts.json"), "utf8"));
+    expect(saved.sending).toBeUndefined();
+    expect(saved.starts).toEqual({ [D]: { root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" }, text: "first", anchors: [], attachments: [file] } });
+    // Not this run's: a start still pending in a later run is not handed over.
+    expect(next.takeStart("/repo")).toBeNull();
+    expect(next.takeStart("/repo", { path: ".doan/canvases/b.html", id: "a" })).toEqual({ text: "first", anchors: [], attachments: [file], reason: "restarted" });
+    expect(next.takeStart("/repo", { path: ".doan/canvases/b.html", id: "a" })).toBeNull();
+    expect(JSON.parse(readFileSync(join(dir, "drafts.json"), "utf8")).starts).toBeUndefined();
+  });
+  it("matches a canvas without an id by its path, and a root start only without a canvas", () => {
+    const dir = directory(), first = new DraftStore(dir);
+    first.hold(C, { root: "/repo", canvas: { path: ".doan/canvases/a.html" }, text: "canvas", anchors: [], attachments: [] });
+    first.hold(D, { root: "/repo", text: "root", anchors: [], attachments: [] });
+    const next = new DraftStore(dir);
+    expect(next.takeStart("/repo", { path: ".doan/canvases/a.html", id: "a" })).toMatchObject({ text: "canvas" });
+    expect(next.takeStart("/other")).toBeNull();
+    expect(next.takeStart("/repo")).toMatchObject({ text: "root" });
+  });
+  it("drops unreadable held or returned start entries and reads the rest", () => {
+    const dir = directory();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    writeFileSync(join(dir, "drafts.json"), JSON.stringify({ v: 1, queued: {}, returned: {},
+      sending: { [C]: { conversationId: "../x", text: "bad", anchors: [], attachments: [] }, [D]: { root: "relative", text: "bad", anchors: [], attachments: [] } },
+      starts: { "../x": { root: "/repo", text: "bad", anchors: [], attachments: [] }, [A]: { root: "/repo", text: "good", anchors: [], attachments: [] } } }));
+    const store = new DraftStore(dir);
+    expect(store.takeStart("/repo")).toMatchObject({ text: "good" });
+    expect(store.take(A)).toBeNull();
+  });
+  it("reads a file from before held messages", () => {
+    const dir = directory();
+    writeFileSync(join(dir, "drafts.json"), JSON.stringify({ v: 1, queued: {}, returned: { [A]: { text: "kept", anchors: [], attachments: [], reason: "turn_failed" } } }));
+    expect(new DraftStore(dir).take(A)).toMatchObject({ text: "kept" });
+  });
+  it("never throws when a held message cannot be saved", () => {
+    const store = new DraftStore(directory());
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(store as unknown as { write(): void }, "write").mockImplementation(() => { throw new Error("ENOSPC"); });
+    expect(() => store.hold(C, { root: "/repo", text: "x", anchors: [], attachments: [] })).not.toThrow();
+    expect(() => store.release(C)).not.toThrow();
+  });
+});

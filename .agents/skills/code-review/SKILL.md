@@ -24,7 +24,7 @@ Statically review the changes. **Report only**; `/refactor` does the fixing.
 ## Checklist
 
 ### 🔴 Fix now — things that break silently or collapse a boundary
-- **Executing selection text as instructions**: a sentence in `doan active`'s `html`/`text` or another canvas-written value changes agent or CLI behavior (ARCHITECTURE §3 'Selection and inspector', §6 'Skills' rule).
+- **Executing selection text as instructions**: a sentence in `doan active`'s `html`/`text` or another canvas-written value changes agent or CLI behavior (ARCHITECTURE §3 'Selection', §6 'Skills' rule).
 - **Leaving the serving scope**: responding outside the serving scope, allowing `..` escapes, loosening the bind address, CORS rule or token path (ARCHITECTURE §3 'Canvas rendering').
 - **Breaking iframe isolation**: adding `allow-same-origin`, any path by which canvas HTML reaches the app UI or disk.
 - **Changing ids**: changing canvas or frame ids on file moves or title changes, which cuts off conversation chips and links.

@@ -55,7 +55,7 @@ vi.mock("./CanvasController", async original => ({
   CanvasController: class {
     constructor() {
       const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
-      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "selectPath", "onPicked", "onCapture", "pick", "cancelPick", "locate", "dropPendingLocate"]) self[name] = vi.fn();
+      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "onPicked", "onCapture", "pick", "cancelPick", "locate", "dropPendingLocate"]) self[name] = vi.fn();
       self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
       self.showOverview = vi.fn((done: () => void) => done());
       self.destination = vi.fn((root: string) => ({ root }));
@@ -78,7 +78,6 @@ const { ProjectSettingsPage } = await import("./ProjectSettingsPage");
 const { AgentUsageButton } = await import("./AgentUsageButton");
 const { UpdateHeaderButton } = await import("./UpdateHeaderButton");
 const { ProjectSetupDialog } = await import("./ProjectSetupDialog");
-const { RightPanel } = await import("./RightPanel");
 const { ConversationPanel } = await import("./ConversationPanel");
 const { KeyedConversationStrip } = await import("./ConversationStripView");
 const { ProjectOverview } = await import("./ProjectOverview");
@@ -99,13 +98,13 @@ function reset() {
   harness.toast.show.mockClear(); harness.toast.showIn.mockClear(); harness.signIn.windowFocused.mockClear(); harness.signIn.state.auth = undefined;
   const on = (name: string) => vi.fn((listener: (...args: never[]) => void) => { listeners[name] = listener; return () => {}; });
   doan = {
-    onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationStage: on("stage"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), onOpenAddProjects: on("openAddProjects"),
+    onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationStage: on("stage"), onConversationBoundary: on("boundary"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), onOpenAddProjects: on("openAddProjects"),
     onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
     onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"), onPrototypeTarget: on("prototypeTarget"), readPrototypeTarget: vi.fn(async () => null), setPrototypeDrawing: vi.fn(async () => true), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })), readBuddyIntro: vi.fn(async () => false),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
-    readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), onFoldersSaveFailed: vi.fn(() => () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
+    readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), onFoldersSaveFailed: vi.fn(() => () => {}), openSettings: vi.fn(async () => true),
   };
   vi.stubGlobal("window", { doan, addEventListener: (name: string, listener: (event: never) => void) => { windowListeners[name] = listener; }, removeEventListener: vi.fn() });
   vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
@@ -222,7 +221,7 @@ test("while a category holds a confirmation or a write, incoming targets wait an
     ["Quick Open", () => { listeners.menu!("quickOpen" as never); render(); }],
     ["Search", () => { settings()!.props.sidebar.props.search!(); render(); }],
     ["sidebar category", () => { settings()!.props.sidebar.props.settings!.select("about"); render(); }],
-    ["File > Add Project…", () => { listeners.openAddProjects!(); render(); }],
+    ["File > Add Projects…", () => { listeners.openAddProjects!(); render(); }],
     ["notification click", () => { listeners.notificationClick!({ conversationId: "c1", root: "/w/b" } as never); render(); }],
   ];
   for (const [name, move] of moves) {
@@ -631,7 +630,7 @@ test("while the page holds a picker, a confirmation or a write, every way out an
     ["Settings… (⌘,)", () => cmdComma()],
     ["sign-in toast", () => { harness.signIn.onToast!({ text: "Codex sign-in didn’t finish.", action: { label: "Open Agents settings", target: { section: "agents", provider: "codex" } } }); (harness.toast.show.mock.lastCall![2] as () => void)(); render(); }],
     ["notification click", () => { listeners.notificationClick!({ conversationId: "gone", root: "/w/b" } as never); render(); }],
-    ["File > Add Project…", () => { listeners.openAddProjects!(); render(); }],
+    ["File > Add Projects…", () => { listeners.openAddProjects!(); render(); }],
   ];
   for (const [name, move] of moves) {
     reset();
@@ -964,21 +963,18 @@ const problemEntries: FolderEntry[] = [
 ];
 
 // PRODUCT §5 item 3 'Problem states': a problem or reading root shows its Overview, whether it was open when the problem
-// came or is entered while it lasts; the overlay replaces the composer's reason line (no Canvas info).
+// came or is entered while it lasts; the overlay replaces the composer's reason line.
 test("the Overview's panel replaces the conversation panel, and a problem root keeps or enters its Overview", () => {
   render(); folders([listed("/w/a")]);
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
-  expect(find(RightPanel)).toHaveLength(0);
   expect(find(ProjectOverview)).toHaveLength(1);
   for (const entry of problemEntries) {
     folders([entry]);
-    expect(find(RightPanel), entry.kind).toHaveLength(0);
     expect(find<{ unavailable: string | null }>(ProjectOverview)[0]?.props.unavailable, entry.kind).toBeNull();
   }
   listeners.menu!("home" as never); render();
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
   expect(find(ProjectOverview)).toHaveLength(1);
-  expect(find(RightPanel)).toHaveLength(0);
   expect(find(ConversationPanel)).toHaveLength(0);
 });
 

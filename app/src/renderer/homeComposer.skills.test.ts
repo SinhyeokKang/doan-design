@@ -1,8 +1,9 @@
 import { expect, test } from "vitest";
+import type { SkillSummary } from "../main/conversation/types";
 import { composeRequest, splitRequest, draftProblem, TEXT_LIMIT, slashQuery, slashKey, searchDrawer, presetListView, drawerSearchLabel, followDrawerHighlight, type PresetListReply, type PresetSummary } from "./homeComposer";
 
 const preset: PresetSummary = { id: "audit", title: "Audit", description: "Review quality", scope: "screen", group: "review" };
-const skills = [{ name: "deploy", description: "Ship release" }, { name: "audit", description: "Review dependencies" }];
+const skills: SkillSummary[] = [{ kind: "skill", name: "deploy", description: "Ship release" }, { kind: "skill", name: "audit", description: "Review dependencies" }];
 const reply: PresetListReply = { v: 1, ok: true, result: { version: "1", presets: [preset] } };
 const opts = { project: "p", suggested: [preset], query: "", tab: null, skills };
 
@@ -48,7 +49,7 @@ test("searches every token with existing scores, preset ties first, and exact na
   expect(searchDrawer([preset], skills, "audit").map(r => r.key)).toEqual(["preset:audit", "skill:audit"]);
   expect(searchDrawer([{ ...preset, description: "deploy" }], skills, "deploy").map(r => r.key)).toEqual(["skill:deploy", "preset:audit"]);
   expect(searchDrawer([preset], skills, "review dep").map(r => r.key)).toEqual(["skill:audit"]);
-  expect(searchDrawer([], [{ name: "x", description: "predeploy" }, { name: "y", description: "a deploy" }, { name: "z", description: "deploy" }], "deploy").map(r => r.id)).toEqual(["z", "y", "x"]);
+  expect(searchDrawer([], [{ kind: "skill", name: "x", description: "predeploy" }, { kind: "skill", name: "y", description: "a deploy" }, { kind: "skill", name: "z", description: "deploy" }], "deploy").map(r => r.id)).toEqual(["z", "y", "x"]);
 });
 test("Project follows preset tabs and sorts skills by name with row icons", () => {
   const view = presetListView(reply, { ...opts, tab: "project" });

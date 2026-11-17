@@ -4,6 +4,7 @@ import { Bell, Bot, Check, ChevronDown, CircleMinus, Clock, Download, Ellipsis, 
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
+import { AlertIcon } from "./AlertIcon";
 import { cardRow, ROW_ACTION_ICONS as icons, ROW_ACTION_LABELS as labels, type HomeCard, type RowAction } from "./homeCards";
 import { projectExpanded, projectHue, projectInitial } from "./shellNavigation";
 import { sortedCanvases } from "./canvasOrder";
@@ -513,7 +514,7 @@ export function ShellSidebar(props: Props) {
                     {canvasRowMenu({ menu: props.canvasMenu, root: entry.path, row, name, reasonId: descriptionId, open: menu?.kind === "canvas" && menu.key === key, locked: !!locked, lock, tabIndex: active === key ? 0 : -1,
                       setOpen: open => setMenu(open ? { kind: "canvas", key } : null), rowNode: () => elements.current.get(key),
                       current: () => { const listed = live.current.cards.flatMap(item => item.rows).find(item => item.path === entry.path); return listed?.kind === "list" ? listed.canvases.find(item => item.path === row.path) : undefined; },
-                      lostFocus: () => focus(canvasMenuFocus.current) })}</div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre className="selectable">{detail}</pre>}</>}</ErrorDetails></div>}</div>
+                      lostFocus: () => focus(canvasMenuFocus.current) })}</div>{problem && <div id={descriptionId} className="shell-canvas-error"><AlertIcon /><div>{problem.sentence}<ErrorDetails detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre className="selectable">{detail}</pre>}</>}</ErrorDetails></div></div>}</div>
                     {/* The list is the canvas row's sibling, so the row's own focus rules and press never reach it. */}
                     {here && listShown && <div role="group" className="shell-conv-list" aria-label="Conversations" onPointerEnter={() => setListPointer(key)} onPointerLeave={() => setListPointer(null)}
                       onFocus={() => setListFocus(key)} onBlur={event => { if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget)) setListFocus(null); }}>{listItems.map(conversationRow)}</div>}

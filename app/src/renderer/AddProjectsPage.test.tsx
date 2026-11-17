@@ -204,14 +204,16 @@ test("a refused local setup says why in the panel's notice, with the choice stil
     .toContain("Couldn’t add Doan’s lines to <code>.git/info/exclude</code>, so nothing was set up. Make sure the repository’s Git metadata and its exclude file can be read and written, then retry.");
 });
 
-test("the clone screen asks under Save to, and keeps the choice disabled while the clone runs", () => {
+// While the clone runs the choice is aria-disabled, not disabled, so a radio focused when the clone starts keeps focus
+// (DESIGN 'Unavailable but focusable').
+test("the clone screen asks under Save to, and keeps the choice unavailable but focusable while the clone runs", () => {
   const clone = page({ storage: "local", phase: { kind: "clone", url: "https://github.com/acme/tokens", inspectionId: "i", destination: "/Users/ada/code/tokens" } });
   expect(clone).toContain('Change</button></div><div class="ob-field-label ob-spaced" id="ob-clone-storage-label">Doan files</div><div role="radiogroup"');
   expect(clone.indexOf("Doan files")).toBeLessThan(clone.indexOf("Already have this repository?"));
   expect(clone).toContain('<input type="radio" name="ob-clone-storage" checked=""/>');
   const running = page({ storage: "local", phase: cloning }, true);
-  expect(running).toContain('<input type="radio" disabled="" name="ob-clone-storage" checked=""/>');
-  expect(running).toContain('<input type="radio" disabled="" name="ob-clone-storage"/>');
+  expect(running).toContain('<input type="radio" aria-disabled="true" name="ob-clone-storage" checked=""/>');
+  expect(running).toContain('<input type="radio" aria-disabled="true" name="ob-clone-storage"/>');
 });
 
 // After a clone landed, a storage or setup failure is told in main's words, which say the clone stayed.

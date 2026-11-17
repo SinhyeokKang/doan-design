@@ -69,12 +69,12 @@ import { createOpaqueFallback } from "./opaqueFallback";
 import { createReadState, type ReadState } from "./readState";
 import { createFingerprints } from "./seenFingerprint";
 import { shownDocument } from "./seenProof";
-import { readSeen, writeSeen } from "./seenRecords";
+import { readSeen } from "./seenRecords";
+import { readGitSignal } from "./gitSignal";
 import { DESIGN_SKILL_CHANNELS, DESIGN_SKILL_REFUSED, designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
 import { folderState, realHome } from "./folderState";
 import { revealTarget, type FolderEntry } from "./view";
-import type { InspectResult } from "./inspect";
-import { createInspector, parseInspectRequest, type Inspector } from "./inspector";
+import { createWindowDebugger, type WindowDebugger } from "./windowDebugger";
 import { startRuntime, type Runtime } from "./runtime";
 import { menuState, updateMenu, type Screen } from "./menuState";
 import { electronUpdater, hasFeedConfig, releaseNotesUrl, UpdateService } from "./update/service";
@@ -255,7 +255,7 @@ let onboardingReady: (service: OnboardingService) => void = () => {};
 const onboardingStarted = new Promise<OnboardingService>(resolve => { onboardingReady = resolve; });
 // Each listed folder's canvas rows as last handed to the conversation service (conversation/refreshes.ts).
 let conversationLists = new Map<string, readonly { path: string; rev?: number }[]>();
-let inspector: Inspector | undefined;
+let windowDebugger: WindowDebugger | undefined;
 // One selection app-wide; the socket answers it only for
 // its own project. Memory only, never written to disk.
 let selection: Selection | null = null;
@@ -510,7 +510,7 @@ function setMenu(): void {
         label: "File",
         submenu: [
           { label: "New Conversation", accelerator: "CmdOrCtrl+N", enabled: enabled.newConversation, click: command("newConversation") },
-          { label: "Add Project…", accelerator: "CmdOrCtrl+O", enabled: enabled.addProject, click: openAddProjects },
+          { label: "Add Projects…", accelerator: "CmdOrCtrl+O", enabled: enabled.addProject, click: openAddProjects },
           { type: "separator" },
           // The focused window: from the prototype window it closes only that window.
           { label: "Close Window", accelerator: "CmdOrCtrl+W", click: (_item, focused) => {
@@ -659,7 +659,7 @@ function createWindow(buddy: BuddyId): BrowserWindow {
     // No `frame`: Electron uses it to add OS items such as Writing Tools, and the menu holds only Doan's items.
     if (template.length > 0) Menu.buildFromTemplate(template).popup({ window });
   });
-  inspector = createInspector(window.webContents.debugger, () => shell?.tokenBase ?? "", documents);
+  windowDebugger = createWindowDebugger(window.webContents.debugger, documents);
   // A reloaded or crashed renderer has lost the selection it reported; an
   // in-page navigation is not a new document, so it does not count.
   // A new renderer starts on Home again with no toast up.
@@ -790,7 +790,7 @@ async function chooseFolder(purpose: unknown): Promise<string | null> {
   return picked.canceled || path === undefined ? null : path;
 }
 
-// File > Add Project…: the Add Projects page, which the renderer opens (its Choose folder, when the page already shows
+// File > Add Projects…: the Add Projects page, which the renderer opens (its Choose folder, when the page already shows
 // its choose phase). A hidden window is shown first, as for every other way of reaching the window.
 function openAddProjects(): void {
   const window = win;
@@ -841,11 +841,11 @@ async function start(): Promise<void> {
     local: seenStore,
     fingerprint: (root, path) => fingerprints.of(root, path),
     read: readSeen,
-    write: writeSeen,
+    gitSignal: readGitSignal,
     entries: () => shellEntries(),
     // Only the main window's own canvas iframe proves a canvas shown (seenProof.ts).
     async shown(root, row) {
-      const main = await inspector?.mainFrame();
+      const main = await windowDebugger?.mainFrame();
       if (!main) return null;
       return shownDocument(documents.frames(), (frame, url) => documents.current(frame, url), main, { url: row.url, root, path: row.path })?.hash ?? null;
     },
@@ -888,7 +888,7 @@ async function start(): Promise<void> {
     readyOpenLinks();
   }, {
     response: record => documents.response(record),
-    seen: root => seen.recordsChanged(root),
+    git: root => seen.gitChanged(root),
     saveFailed: () => send("folders:save-failed"),
     // A vanished auto-registered worktree is cleaned up like Remove (folders:remove); its work items go with the
     // list's retainWorkRoots above.
@@ -1278,7 +1278,7 @@ async function start(): Promise<void> {
     send(message.channel, message.value);
     if (message.channel === "conversation:listChanged" || (message.channel === "conversation:event" && message.value.type === "conversation.bound")) known = null;
     if (prototype.window() === undefined) return;
-    const list = message.channel === "conversation:event" || message.channel === "conversation:stage" ? knownFor(message.value.conversationId) : known ?? [];
+    const list = message.channel === "conversation:event" || message.channel === "conversation:stage" || message.channel === "conversation:boundary" ? knownFor(message.value.conversationId) : known ?? [];
     if (prototypeReceives(message, prototype.controller.playing(), list)) prototype.send(message.channel, message.value);
     if (message.channel === "conversation:event" && prototypePromoted.event(message.value, list)) prototypeRelay.promoted();
   };
@@ -1292,10 +1292,13 @@ async function start(): Promise<void> {
   }, undefined, root => {
     const project = ready.entries().find(entry => entry.path === root);
     return project?.kind === "list" ? project.canvases : [];
-  }, root => broadcast({ channel: "conversation:listChanged", value: { root } }), { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model), fast: (root, provider, model) => modelCatalog?.fast(root, provider, model) === true,
+  // A send or start before acceptance holds Restart to Update without an event, so the gate is asked on list changes too.
+  }, root => { broadcast({ channel: "conversation:listChanged", value: { root } }); updates?.conversationsChanged(); }, { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model), fast: (root, provider, model) => modelCatalog?.fast(root, provider, model) === true,
     limitWindows: (provider, connectionId) => usage ? usage.limitWindows(provider, connectionId) : Promise.resolve([]), resumed: listener => { powerMonitor.on("resume", listener); }, notice: event => notify.event(event) }, id => notify.close(id),
   // A stage is a live signal beside the events, never one of them: its own channel, sent to the same windows as events.
-  id => { updateConversationWork(endConversationWork(conversationWork, id)); updates?.conversationsChanged(); }, notice => broadcast({ channel: "conversation:handoff", value: notice }), signal => broadcast({ channel: "conversation:stage", value: signal }));
+  id => { updateConversationWork(endConversationWork(conversationWork, id)); updates?.conversationsChanged(); }, notice => broadcast({ channel: "conversation:handoff", value: notice }), signal => broadcast({ channel: "conversation:stage", value: signal }),
+  // A command turn's boundary, as a stage: its own channel to the same windows as events, never written to the history.
+  signal => broadcast({ channel: "conversation:boundary", value: signal }));
   conversations = conversationService;
   attachments.cleanup();
   modelCatalog = new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.readListing(input, listModels));
@@ -1592,11 +1595,6 @@ async function start(): Promise<void> {
   handle("selection:set", undefined, (event, value: unknown) => {
     if (!fromWindow(event)) return;
     selection = validateSelection(value) && isOpen(value.root) ? value : null;
-  });
-  handle("inspect:get", { ok: false, reason: "The request was refused." }, async (event, request: unknown): Promise<InspectResult> => {
-    const selector = parseInspectRequest(request);
-    if (!fromWindow(event) || selector === null || inspector === undefined) return { ok: false, reason: "The request was refused." };
-    return inspector.inspect(selector);
   });
 
   const command = cliCommand(process.env, app.isPackaged, process.resourcesPath);

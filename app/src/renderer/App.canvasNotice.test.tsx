@@ -54,7 +54,7 @@ vi.mock("./CanvasController", async original => ({
     constructor(_viewport: unknown, _board: unknown, _overlay: unknown, setState: (state: unknown) => void) {
       harness.setState = setState;
       const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
-      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "selectPath", "onPicked", "onCapture", "pick", "cancelPick", "locate", "dropPendingLocate"]) self[name] = vi.fn();
+      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "onPicked", "onCapture", "pick", "cancelPick", "locate", "dropPendingLocate"]) self[name] = vi.fn();
       self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
       self.showOverview = vi.fn((done: () => void) => done());
       self.destination = vi.fn((root: string) => ({ root }));
@@ -83,13 +83,13 @@ function reset() {
   harness.toast.retry.mockClear();
   const on = (name: string) => vi.fn((listener: (...args: never[]) => void) => { listeners[name] = listener; return () => {}; });
   doan = {
-    onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationStage: on("stage"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })), onOpenAddProjects: on("openAddProjects"),
+    onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationStage: on("stage"), onConversationBoundary: on("boundary"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })), onOpenAddProjects: on("openAddProjects"),
     onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
     onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"), onPrototypeTarget: on("prototypeTarget"), readPrototypeTarget: vi.fn(async () => null), setPrototypeDrawing: vi.fn(async () => true), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })), readBuddyIntro: vi.fn(async () => false),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
-    readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
+    readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), openSettings: vi.fn(async () => true),
     showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: on("readStateProblem"),
     onFoldersSaveFailed: on("foldersSaveFailed"), saveFoldersAgain: vi.fn(async () => true),
   };
@@ -162,13 +162,13 @@ test("a read-state failure found meanwhile is a Retry toast only on its project 
   await start(rows({ unseen: "changed" }), [], workspace);
   show(rows({})[0]!);
   listeners.readStateProblem!({ root: "/w/b", problem: { kind: "records" } } as never);
-  listeners.readStateProblem!({ root: "/w/a", problem: { kind: "save", path: B, readOnly: true } } as never);
+  listeners.readStateProblem!({ root: "/w/a", problem: { kind: "save", path: B } } as never);
   expect(harness.toast.retry).not.toHaveBeenCalled();
-  listeners.readStateProblem!({ root: "/w/a", problem: { kind: "save", path: A, readOnly: true } } as never);
+  listeners.readStateProblem!({ root: "/w/a", problem: { kind: "save", path: A } } as never);
   expect(harness.toast.retry).toHaveBeenCalledTimes(1);
   const [message, label, busy, running, attempt] = harness.toast.retry.mock.lastCall! as [string, string, string, string, () => Promise<string | null>];
-  expect([message, label, busy, running]).toEqual(["Couldn’t save a’s read state. This folder is read-only.", "Retry", "Saving a’s read state.", "Retrying"]);
-  doan.retryReadState!.mockResolvedValueOnce({ kind: "save", path: A, readOnly: false });
+  expect([message, label, busy, running]).toEqual(["Couldn’t save a’s read state.", "Retry", "Saving a’s read state.", "Retrying"]);
+  doan.retryReadState!.mockResolvedValueOnce({ kind: "save", path: A });
   expect(await attempt()).toBe("Couldn’t save a’s read state.");
   expect(doan.retryReadState).toHaveBeenLastCalledWith({ root: "/w/a", path: A });
   doan.retryReadState!.mockResolvedValueOnce(null);
@@ -190,12 +190,12 @@ test("a failed project-list save is a Retry toast; Retry writes the list again",
 });
 
 test("entering a project tries its read state again and tells what still fails, once", async () => {
-  doan.retryReadState!.mockResolvedValue({ kind: "baseline", readOnly: true });
+  doan.retryReadState!.mockResolvedValue({ kind: "records" });
   await start(rows({}), [], workspace);
   await Promise.resolve(); await Promise.resolve(); render();
   expect(doan.retryReadState).toHaveBeenCalledWith({ root: "/w/a" });
   expect(harness.toast.retry).toHaveBeenCalledTimes(1);
-  expect(harness.toast.retry.mock.lastCall![0]).toBe("Couldn’t save the initial read state. This folder is read-only.");
+  expect(harness.toast.retry.mock.lastCall![0]).toBe("Read state couldn’t be read, so it started fresh. Canvases already in the list count as seen.");
   folders(rows({ mtimeMs: 20 }));
   await Promise.resolve(); render();
   expect(doan.retryReadState).toHaveBeenCalledTimes(1);

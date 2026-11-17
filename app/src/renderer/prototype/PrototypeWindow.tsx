@@ -21,7 +21,8 @@ import { applyBuddy } from "../buddyPaint";
 import { dockedBuddy } from "../dockedBuddyShell";
 import { useVisibleClock } from "../visibleClock";
 import { useToast } from "../Toast";
-import { CLOSE, covered, DETAILS, drawerGroups, drawerLabel, EMPTY_DRAWER, exportAvailability, linkMove, liveText, LOADING_LABEL, modeTooltip, RETRY, stateScene, windowTitle, type SceneIcon } from "./view";
+import { CLOSE, covered, DETAILS, drawerGroups, drawerLabel, EMPTY_DRAWER, exportAvailability, FIRST_READ_SCENE, linkMove, liveText, LOADING_LABEL, modeTooltip, RETRY, stateScene, windowTitle, type SceneIcon } from "./view";
+import { announcedAgain } from "../listRetry";
 import { FrameListBody } from "../FrameListBody";
 import { useHeaderNoDrag } from "../headerNoDrag";
 
@@ -58,6 +59,11 @@ interface ExportRun {
 
 export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   const [view, setView] = useState<PrototypeView | null>(null);
+  // The first read's failure while no view came: whether its Retry runs (DESIGN 'Busy action'), and how many reads
+  // failed, so a Retry that fails again has the live region read the same line again.
+  const [readFailure, setReadFailure] = useState<{ running: boolean } | null>(null);
+  const [readFailures, setReadFailures] = useState(0);
+  const changed = useRef(false);
   const [layers, setLayers] = useState<HostLayers>(NO_LAYERS);
   const [readingGen, setReadingGen] = useState<number | null>(null);
   const [details, setDetails] = useState(false);
@@ -114,12 +120,24 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     return () => window.removeEventListener("resize", resize);
   }, []);
 
+  const readAgain = useRef(() => {});
   useEffect(() => {
-    let changed = false;
-    const stop = api.onChanged(next => { changed = true; setView(next); });
-    void api.read().then(first => { if (!changed) setView(first); }, () => {});
+    // A view main sends wins over any read's answer, the first one's or a Retry's.
+    const read = () => void api.read().then(first => { if (changed.current) return; setReadFailure(null); setView(first); }, () => {
+      if (changed.current) return;
+      setReadFailures(count => count + 1);
+      setReadFailure({ running: false });
+    });
+    const stop = api.onChanged(next => { changed.current = true; setReadFailure(null); setView(next); });
+    readAgain.current = read;
+    read();
     return stop;
   }, [api]);
+  const retryRead = () => {
+    if (readFailure === null || readFailure.running) return;
+    setReadFailure({ running: true });
+    readAgain.current();
+  };
 
   useEffect(() => api.onSnapshot(({ gen, png, box }) => {
     const url = URL.createObjectURL(new Blob([png as Uint8Array<ArrayBuffer>], { type: "image/png" }));
@@ -267,8 +285,8 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   // A new state closes Details. Focus moves to a new scene's title only when it was inside the content, which the
   // overlay now covers, or already fell to the page when a load made the content inert; otherwise it stays where the
   // person put it and the live region speaks.
-  const scene = view === null ? null : stateScene(view);
-  const sceneKey = scene === null ? null : `${gen}\n${phase}`;
+  const scene = view === null ? (readFailure === null ? null : FIRST_READ_SCENE) : stateScene(view);
+  const sceneKey = scene === null ? null : view === null ? "first-read" : `${gen}\n${phase}`;
   const focusWasInside = useRef(false);
   const active = document.activeElement;
   focusWasInside.current = active === null || active === document.body || (!!content.current && content.current.contains(active));
@@ -405,7 +423,8 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   })();
 
   const readingShown = phase === "loading" && readingGen === gen;
-  return <WindowShell view={view} layers={layers} readingShown={readingShown} details={details} live={liveText(view, readingShown, view !== null && announced === view.gen)}
+  const live = view === null && readFailure !== null ? announcedAgain(`${FIRST_READ_SCENE.heading}. ${FIRST_READ_SCENE.body}`, readFailures - 1) : liveText(view, readingShown, view !== null && announced === view.gen);
+  return <WindowShell view={view} layers={layers} readingShown={readingShown} details={details} live={live} readFailure={view === null ? readFailure : null} onReadRetry={retryRead}
     width={width} menuOpen={menuOpen} content={content} heading={heading} name={name} frames={frames.current}
     onBack={() => void api.back()} onForward={() => void api.forward()} onReload={() => { if (gen !== null) void api.reload(gen); }} onReloadPress={onReloadPress} onReloadClick={onReloadClick}
     onMode={mode => void api.setMode(mode)} onMenuOpen={setMenuOpen} exporting={exporting} onExport={onExport} toast={toast.element} dialog={deleteDialog}
@@ -460,6 +479,9 @@ export interface ShellProps {
   name?: RefObject<HTMLButtonElement | null>;
   frames?: Map<number, HTMLIFrameElement>;
   conversation?: ShellConversation;
+  // The first read failed and no view came yet: its scene with Retry, busy while the read runs again (onReadRetry).
+  readFailure?: { running: boolean } | null;
+  onReadRetry?(): void;
   // onReload: the failure scene's Retry. The header's Reload reports its primary press and whether a pointer clicked it,
   // so only a pointer Reload hands focus back to the new run.
   onBack(): void; onForward(): void; onReload(): void; onReloadPress(): void; onReloadClick(pointer: boolean): void; onMode(mode: PrototypeMode): void; onMenuOpen(open: boolean): void;
@@ -470,8 +492,10 @@ export interface ShellProps {
 // them, so neither the frame's Tab stops nor a focus trap in it keeps the panel out of reach; the state overlay covers
 // the content panel only, so they stay usable over it. Every control keeps one element tree in every state (no view
 // yet, pressed or not, either row) so a focused control or the open frame menu survives the change.
-export function WindowShell({ view, layers, readingShown, details, live, width, menuOpen, exporting, toast, dialog, content, heading, name, frames, conversation: conv = FOLDED, onBack, onForward, onReload, onReloadPress, onReloadClick, onMode, onMenuOpen, onChoose, onClose, onDetails, onExport }: ShellProps) {
-  const scene = view === null ? null : stateScene(view);
+export function WindowShell({ view, layers, readingShown, details, live, width, menuOpen, exporting, toast, dialog, content, heading, name, frames, conversation: conv = FOLDED, readFailure = null, onReadRetry, onBack, onForward, onReload, onReloadPress, onReloadClick, onMode, onMenuOpen, onChoose, onClose, onDetails, onExport }: ShellProps) {
+  const firstRead = view === null && readFailure !== null;
+  const scene = view === null ? (firstRead ? FIRST_READ_SCENE : null) : stateScene(view);
+  const retrying = firstRead && readFailure.running;
   // Export's rule is the canvas toolbar's: disabled with no reason before the first view, otherwise aria-disabled with
   // its reason, so it keeps its Tab stop and stays the same element (and focus) through an export.
   const exportState = exportAvailability(view, exporting);
@@ -546,8 +570,11 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
             <p id={SCENE_LINE_ID} className="selectable">{scene.body}</p>
           </div>
           <div className="problem-actions">
-            {scene.failure && <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={onReload}>{RETRY}</button>}
-            <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={onClose}>{CLOSE}</button>
+            {scene.failure && (firstRead
+              ? <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" aria-disabled={retrying || undefined} aria-busy={retrying || undefined}
+                onClick={() => { if (!retrying) onReadRetry?.(); }}>{retrying ? <><span className="doan-spinner" aria-hidden="true" />{RETRY}</> : RETRY}</button>
+              : <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={onReload}>{RETRY}</button>)}
+            {!firstRead && <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={onClose}>{CLOSE}</button>}
             {scene.failure && scene.detail !== undefined && <button type="button" className="doan-button ghost" data-ui-size="sm" aria-expanded={details} onClick={onDetails}>{DETAILS}{details ? " ▾" : " ▸"}</button>}
           </div>
           {scene.failure && details && scene.detail !== undefined && <pre className="problem-detail selectable">{scene.detail}</pre>}

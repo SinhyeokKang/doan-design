@@ -8,8 +8,10 @@ import type { AgentSignIn } from "./agentSignIn";
 import { AlertIcon } from "./AlertIcon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { providerLogo } from "./homeComposer";
-import { addError, mcpPageView, removeFocus, type McpButton, type McpCommand, type McpRowView } from "./mcpConnectorsView";
+import { addError, mcpPageView, removeFailedText, removeFocus, type McpButton, type McpCommand, type McpRowView } from "./mcpConnectorsView";
 import type { McpConnectorsWatch } from "./mcpConnectorsWatch";
+import { retryButton, useRetry } from "./ListRetryButton";
+import { announcedAgain } from "./listRetry";
 import { dialogKeys, NoticeView, openModal } from "./Onboarding";
 
 export interface SettingsMcpConnectorsProps {
@@ -22,7 +24,8 @@ export interface SettingsMcpConnectorsProps {
   // The page header's actions slot, where Add server by URL sits.
   actions: HTMLElement | null;
 }
-type Dialog = { kind: "add"; value: string; error: string | null; busy: boolean } | { kind: "remove"; provider: McpProvider; name: string; label: string };
+// remove: busy while main removes the server; failed once it answered that it could not (the alert stays open).
+type Dialog = { kind: "add"; value: string; error: string | null; busy: boolean } | { kind: "remove"; provider: McpProvider; name: string; label: string; busy: boolean; failed: boolean };
 
 const rowKey = (provider: McpProvider, name: string) => `${provider}:${name}`;
 const rowGroup = (provider: McpProvider, name: string) => document.querySelector<HTMLElement>(`[data-mcp-row="${rowKey(provider, name)}"]`);
@@ -51,10 +54,16 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
   // Announcements made before the page opened are not read again.
   const since = useRef<number | null>(null);
   if (since.current === null) since.current = watch.announcementSeq();
+  // The entry read is the page's only source until main publishes: one that rejects with no snapshot yet shows the read
+  // failure with a Retry instead of a blank page. With a snapshot shown, the page stays as it is.
+  const [readFailed, setReadFailed] = useState(false);
+  const readRetry = useRetry();
+  const readEntry = () => window.doan.readMcpConnectors({ refresh: true }).then(reply => { if (snapshotReply(reply)) { watch.receive(reply); setReadFailed(false); } return true; },
+    () => { if (watch.snapshot === null) setReadFailed(true); return false; });
   useEffect(() => {
     const offWatch = watch.subscribe(redraw), offAuth = signIn.subscribe(redraw);
     // Status commands use the network, so they run on entering the page, never on a timer.
-    void window.doan.readMcpConnectors({ refresh: true }).then(reply => { if (snapshotReply(reply)) watch.receive(reply); }, () => {});
+    void readEntry();
     return () => {
       offWatch(); offAuth();
       if (locked.current) { locked.current = false; live.current.onLock(false); }
@@ -67,8 +76,9 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
   // aria-disabled), its row group takes focus. wasUnusable: it was already off when focused, so only a removal moves it.
   const focusWatch = useRef<{ provider: McpProvider; name: string; node: HTMLElement; wasUnusable: boolean } | null>(null);
   const watchFocus = (row: McpRowView, node: HTMLElement) => { focusWatch.current = { provider: row.provider, name: row.name, node, wasUnusable: unusable(node) }; };
-  // Focus that waits for a snapshot: the new item after Add, the next item after Remove.
-  const pending = useRef<{ kind: "added"; name: string } | { kind: "removed"; provider: McpProvider; name: string; names: string[] } | null>(null);
+  // Focus that waits for a snapshot: the new item after Add, the next item after Remove. `alert`: the Remove alert waits
+  // too; `replied` once main took the request, since a snapshot before that may still carry the last attempt's failure.
+  const pending = useRef<{ kind: "added"; name: string } | { kind: "removed"; provider: McpProvider; name: string; names: string[]; alert: boolean; replied: boolean } | null>(null);
   useEffect(() => {
     const waiting = pending.current;
     if (waiting?.kind === "added") {
@@ -81,9 +91,13 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
       const server = watch.snapshot?.servers.find(item => item.name === waiting.name);
       if (!server) {
         pending.current = null; focusWatch.current = null;
+        if (waiting.alert && current.current?.kind === "remove") setDialog(null);
         const target = removeFocus(waiting.names, waiting.name);
         if (target) requestAnimationFrame(() => rowGroup(waiting.provider, target)?.focus());
-      } else if (server.removeFailed) pending.current = null;
+      } else if (server.removeFailed && (!waiting.alert || waiting.replied)) {
+        pending.current = null;
+        if (waiting.alert) removeFailed();
+      }
     }
     const watched = focusWatch.current;
     if (!watched || current.current) return;
@@ -118,11 +132,21 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
       case "remove": startRemove(row); break;
     }
   };
-  const startRemove = (row: McpRowView) => {
+  const startRemove = (row: McpRowView, alert = false) => {
     const names = view.sections.find(section => section.provider === row.provider)?.rows.map(item => item.name) ?? [];
-    pending.current = { kind: "removed", provider: row.provider, name: row.name, names };
-    void window.doan.removeMcpServer(row.name);
+    const waiting = { kind: "removed" as const, provider: row.provider, name: row.name, names, alert, replied: false };
+    pending.current = waiting;
+    const answered = window.doan.removeMcpServer(row.name);
+    if (!alert) { void answered; return; }
+    void answered.catch(() => ({ ok: false as const })).then(reply => {
+      if (pending.current !== waiting) return;
+      if (!reply.ok) { pending.current = null; removeFailed(); return; }
+      waiting.replied = true;
+      redraw();
+    });
   };
+  // The open Remove alert's request failed: it stays, with the failure inside it and Remove as the retry.
+  const removeFailed = () => { const open = current.current; if (open?.kind === "remove") setDialog({ ...open, busy: false, failed: true }); };
 
   const openAdd = () => setDialog({ kind: "add", value: "", error: null, busy: false });
   const closeAdd = () => { setDialog(null); requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-mcp-add]")?.focus()); };
@@ -136,25 +160,23 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
     setDialog({ kind: "add", value: open.value, error: addError(reply), busy: false });
   };
   // Remove asks first; the alert opens a frame later so the closing menu's focus return does not land after it.
-  const askRemove = (row: McpRowView) => requestAnimationFrame(() => setDialog({ kind: "remove", provider: row.provider, name: row.name, label: row.label }));
+  const askRemove = (row: McpRowView) => requestAnimationFrame(() => setDialog({ kind: "remove", provider: row.provider, name: row.name, label: row.label, busy: false, failed: false }));
+  // Refused while the request is out: cancelling would stop nothing (as conversation Delete's alert).
   const closeRemove = () => {
     const open = current.current;
+    if (open?.kind === "remove" && open.busy) return;
     setDialog(null);
     if (open?.kind === "remove") requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-mcp-more="${rowKey(open.provider, open.name)}"]`)?.focus());
   };
+  // The alert stays open, busy, until main answers (DESIGN 'Busy action'): the server gone closes it and focus goes to
+  // the next item; a failure stays inside it.
   const confirmRemove = () => {
     const open = current.current;
-    if (open?.kind !== "remove") return;
-    setDialog(null);
+    if (open?.kind !== "remove" || open.busy) return;
     const row = view.sections.find(section => section.provider === open.provider)?.rows.find(item => item.name === open.name);
-    if (!row) return;
-    // The … button is disabled while the server is removed, so its row group holds focus meanwhile.
-    requestAnimationFrame(() => {
-      const group = rowGroup(open.provider, open.name);
-      group?.focus();
-      if (group) focusWatch.current = { provider: open.provider, name: open.name, node: group, wasUnusable: false };
-    });
-    startRemove(row);
+    if (!row) { setDialog({ ...open, failed: true }); return; }
+    setDialog({ ...open, busy: true, failed: false });
+    startRemove(row, true);
   };
 
   // The page live region is the only announcement channel (spec 2): notices keep their look without live roles. Every
@@ -164,6 +186,8 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
   return <>
     {actions && createPortal(<button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-mcp-add="" disabled={view.addDisabled} onClick={openAdd}>
       <Plus aria-hidden="true" />Add server by URL</button>, actions)}
+    {readFailed && watch.snapshot === null && <div className="settings-msg-row"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span id="settings-mcp-read-error">{announcedAgain("Couldn’t read the MCP connectors.", readRetry.failures)}</span></p>
+      {retryButton({ running: readRetry.running, variant: "subtle", describedBy: "settings-mcp-read-error", onRetry: pressed => readRetry.run(readEntry, pressed) })}</div>}
     {view.notice && <div className="settings-notice"><NoticeView notice={view.notice} run={() => {}} live={false} /></div>}
     {view.sections.map(section => {
       const titleId = `mcp-agent-${section.provider}`;
@@ -179,7 +203,8 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
             aria-label={section.header.action.ariaLabel} onClick={() => openAgents(section.provider)}>{section.header.action.label}</button></div>}
         </div>
         <div className="doan-settings-group" data-layout="rows">
-          {section.rows.map(row => <McpRow key={row.name} row={row} run={run(row)} askRemove={() => askRemove(row)} focused={node => watchFocus(row, node)}
+          {/* The open Remove alert already says its failure, so the row behind it does not say it again. */}
+          {section.rows.map(row => <McpRow key={row.name} row={dialog?.kind === "remove" && dialog.failed && dialog.name === row.name ? { ...row, notice: null } : row} run={run(row)} askRemove={() => askRemove(row)} focused={node => watchFocus(row, node)}
             runningNotice={noticeAt === row.name ? watch.noticeText(section.provider) : null} />)}
         </div>
         {/* A removed server's notice stays in its section, under the list it left. */}
@@ -188,7 +213,7 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
     })}
     <p className="ob-live" role="status">{announced}</p>
     {dialog?.kind === "add" && <AddServerDialog dialog={dialog} change={value => setDialog({ ...dialog, value, error: null })} submit={() => void submitAdd()} close={closeAdd} />}
-    {dialog?.kind === "remove" && <RemoveAlert label={dialog.label} confirm={confirmRemove} close={closeRemove} />}
+    {dialog?.kind === "remove" && <RemoveAlert label={dialog.label} busy={dialog.busy} failed={dialog.failed} confirm={confirmRemove} close={closeRemove} />}
   </>;
 }
 
@@ -257,15 +282,18 @@ function AddServerDialog({ dialog, change, submit, close }: { dialog: Extract<Di
   </dialog>;
 }
 
-// Remove can't be undone, so it asks first (spec 8); Cancel is focused, Escape cancels.
-function RemoveAlert({ label, confirm, close }: { label: string; confirm(): void; close(): void }) {
+// Remove can't be undone, so it asks first (spec 8); Cancel is focused, Escape cancels. While the request is out Remove
+// is busy and Cancel takes the disabled look; a failure reads the row's sentence above the actions.
+function RemoveAlert({ label, busy, failed, confirm, close }: { label: string; busy: boolean; failed: boolean; confirm(): void; close(): void }) {
   return <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="mcp-remove-title" aria-describedby="mcp-remove-body" ref={openModal}
     onCancel={event => { event.preventDefault(); close(); }} onKeyDown={dialogKeys(close)}>
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="mcp-remove-title">{`Remove ${label} from Doan’s agents?`}</h3>
       <p className="doan-dialog-description" id="mcp-remove-body">Claude Code and Codex disconnect from it. Your terminal setup is not changed.</p></div></div>
+    {failed && <p className="doan-notice error" role="alert" id="mcp-remove-error"><AlertIcon /><span className="selectable">{removeFailedText(label)}</span></p>}
     <div className="doan-dialog-actions">
-      <button type="button" className="doan-button" data-ui-variant="subtle" autoFocus onClick={close}>Cancel</button>
-      <button type="button" className="doan-button" data-ui-variant="prominent" data-consent="" onClick={confirm}>Remove</button>
+      <button type="button" className="doan-button" data-ui-variant="subtle" autoFocus aria-disabled={busy || undefined} data-disabled={busy ? "" : undefined} onClick={close}>Cancel</button>
+      <button type="button" className="doan-button" data-ui-variant="prominent" data-consent="" aria-disabled={busy || undefined} aria-busy={busy || undefined}
+        aria-describedby={failed ? "mcp-remove-error" : undefined} onClick={confirm}>{busy ? <><span className="doan-spinner" aria-hidden="true" />Remove</> : "Remove"}</button>
     </div>
   </dialog>;
 }

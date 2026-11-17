@@ -110,3 +110,26 @@ test("a reply without a stage leaves the held one", async () => {
   await flush();
   expect(store.stageOf(A)).toBe(pushed);
 });
+
+// DESIGN 'Busy action': the thread's Retry keeps its notice while the read runs, so the thread stays an error that is
+// retrying, and a Retry that fails again counts, so the notice can be read again.
+test("Retry keeps the thread's read error while it reads again, counts a repeat failure and ends at ready", async () => {
+  const { store } = harness();
+  const read = window.doan.readConversation as ReturnType<typeof vi.fn>;
+  read.mockResolvedValueOnce({ error: "unknown" });
+  store.track(A);
+  await flush();
+  expect(store.thread(A)).toMatchObject({ read: "error", failures: 0 });
+  read.mockResolvedValueOnce({ error: "unknown" });
+  store.retryThread(A);
+  expect(store.thread(A)?.read).toBe("retrying");
+  // A second press while it runs reads nothing more.
+  store.retryThread(A);
+  expect(read).toHaveBeenCalledTimes(2);
+  await flush();
+  expect(store.thread(A)).toMatchObject({ read: "error", failures: 1 });
+  read.mockResolvedValueOnce({ events: history, lastSeq: history.at(-1)!.seq });
+  store.retryThread(A);
+  await flush();
+  expect(store.thread(A)?.read).toBe("ready");
+});

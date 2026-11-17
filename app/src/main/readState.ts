@@ -1,20 +1,24 @@
-import { judge, plan, uniqueIds, type LocalSeen, type RootMemory, type SeenReads, type SeenRow, type Verdict } from "./canvasSeen";
-import { MARKER, readOnlyError, recordName, recordText, SeenWriteError, type SeenSnapshot } from "./seenRecords";
+import { absorbFirst, judge, markShown, migrateRoot, uniqueIds, type CanvasRecord, type LocalSeen, type RootRecord, type SeenRow, type Verdict } from "./canvasSeen";
+import { GRACE_MS, settlePending, type GitSignalEntry, type Pending } from "./gitSignal";
+import { validCanvasId, type SeenSnapshot } from "./seenRecords";
 import type { CanvasRow, FolderEntry, ReadStateProblem } from "./view";
 
 // The canvas read state as the window shows it: each listed canvas's verdict (canvasSeen.ts) from its HTML fingerprint
-// and the project's shared records, the records written when the canvas page shows a canvas, and the failures the
+// and this device's record of the root, the record written when the canvas page shows a canvas, and the failures the
 // window tells with a Retry toast. Electron-free; index.ts wires the window, the watcher and the document bindings.
 //
-// Reading never writes. Writes happen only for a mark (a canvas proven shown), a project's initial records, or Retry,
-// so a write's own watcher event reads the same records again and stops there. After a failed write nothing is retried
-// on its own: the person's Retry, re-entering the project (`retry`) or showing the canvas again does it.
+// Nothing under the root is ever written. A root's former shared records (`.doan/seen/`) are read once, into its local
+// record. The first listing after start or registration is the baseline: what it lists counts as seen. A canvas ID that
+// appears later waits GRACE_MS; it lights as new unless the git signal moved around its appearance (a pull, a branch
+// switch: git brought it) or the canvas page showed it meanwhile.
 
 export interface ReadStateDeps {
   local: LocalSeen;
   fingerprint(root: string, path: string): Promise<string | null>;
+  // The root's former shared records, read once for its migration (seenRecords.ts readSeen).
   read(root: string, ids: Iterable<string>): Promise<SeenSnapshot>;
-  write(root: string, name: string, text: string, expected: Buffer | null): Promise<void>;
+  // The root's git signal now (gitSignal.ts readGitSignal).
+  gitSignal(root: string): string;
   entries(): readonly FolderEntry[];
   // The hash of the bytes the canvas page shows for this row, or null while that is not proven (seenProof.ts).
   shown(root: string, row: CanvasRow): Promise<string | null>;
@@ -22,6 +26,9 @@ export interface ReadStateDeps {
   changed(): void;
   // A failure found while the person did not ask for it, for the window to toast when it is on that project.
   problem(root: string, problem: ReadStateProblem): void;
+  // The clock and the timer of the grace; real ones unless a test stands in.
+  now?(): number;
+  after?(ms: number, run: () => void): () => void;
 }
 
 export interface ReadState {
@@ -30,50 +37,59 @@ export interface ReadState {
   decorate(entries: readonly FolderEntry[]): FolderEntry[];
   // The shell's list changed: works out the verdicts of each listed root that changed, and forgets roots that left.
   listed(entries: readonly FolderEntry[]): void;
-  // `.doan/seen/` of the root changed on disk (a pull, a copy, another device, or this app's own write).
-  recordsChanged(root: string): void;
+  // The root's gitdir HEAD, FETCH_HEAD or ORIG_HEAD changed (watch.ts `git`).
+  gitChanged(root: string): void;
   // `{root, path}` while the canvas page is meant to show that canvas, null when it stops. False for a bad value.
   showing(value: unknown): boolean;
   // Something the visible proof reads moved.
   documentsChanged(): void;
-  // `{root, path?}`: Retry, or re-entering the project. Tries the failed writes again and reads the records again;
-  // resolves to what still fails (the canvas's own failure first when `path` is given), or null. False for a bad value.
+  // `{root, path?}`: Retry, or re-entering the project. Tries the failed writes again; resolves to what still fails (the
+  // canvas's own failure first when `path` is given), or null. False for a bad value.
   retry(value: unknown): Promise<ReadStateProblem | null | false>;
   // Resolves once no read-state work is queued (tests).
   idle(): Promise<void>;
 }
 
 type ListEntry = Extract<FolderEntry, { kind: "list" }>;
-interface Failure { kind: "save" | "id"; readOnly: boolean; hash: string }
+interface Failure { kind: "save" | "id"; hash: string }
 interface Run {
   queue: Promise<void>;
   evaluateQueued: boolean;
   listedEntry?: ListEntry;
   judged: boolean;
   rows: Map<string, { verdict: Verdict | undefined; fingerprint: string | null }>;
-  snapshot?: SeenSnapshot;
-  problem?: ReadStateProblem | undefined;
-  // An automatic initial-records write failed: no more until Retry or re-entry.
-  blocked: boolean;
-  writeProblem?: ReadStateProblem | undefined;
+  // The first listing since start or registration was taken as the baseline.
+  absorbed: boolean;
+  // IDs without a record that count as seen once their content can be read: listed by the first listing while their
+  // HTML could not be read or their ID was shared, or brought by git while unreadable. Never treated as appearing.
+  baseline: Set<string>;
+  pending: Map<string, Pending>;
+  // The git signal as observed, oldest first (settlePending).
+  history: GitSignalEntry[];
+  timer?: { at: number; cancel: () => void } | undefined;
   failures: Map<string, Failure>;
 }
 // The canvas page's current canvas. `failed`: a write for it failed in this showing, so it is not tried again until the
-// canvas is shown again or Retry. `races`: writes refused because the record changed meanwhile, bounded.
-interface Intent { root: string; path: string; failed: boolean; races: number }
+// canvas is shown again or Retry.
+interface Intent { root: string; path: string; failed: boolean }
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
-const readsOf = (snapshot: SeenSnapshot): SeenReads => ({
-  dir: snapshot.dir, marker: snapshot.marker.read, records: new Map([...snapshot.records].map(([id, item]) => [id, item.read])),
-});
-const sameProblem = (a: ReadStateProblem | undefined, b: ReadStateProblem | undefined) => JSON.stringify(a) === JSON.stringify(b);
-const MAX_RACES = 2;
+const recordOf = (record: RootRecord, id: string): CanvasRecord | undefined => Object.hasOwn(record.canvases, id) ? record.canvases[id] : undefined;
+const withRecord = (record: RootRecord, id: string, value: CanvasRecord): RootRecord => ({ ...record, canvases: { ...record.canvases, [id]: value } });
 
 export function createReadState(deps: ReadStateDeps): ReadState {
+  const now = deps.now ?? Date.now;
+  const after = deps.after ?? ((ms, run) => {
+    const timer = setTimeout(run, ms);
+    timer.unref?.();
+    return () => clearTimeout(timer);
+  });
   const runs = new Map<string, Run>();
   let intent: Intent | null = null;
   let marking: Promise<void> | null = null;
   let markAgain = false;
+  // canvas-seen.json's own problem, told once: the answer to the first project entry or Retry that has nothing of its own.
+  let fileProblem: ReadStateProblem | undefined = deps.local.problem === "newer" ? { kind: "unsupported" } : deps.local.problem === "corrupt" ? { kind: "records" } : undefined;
 
   const listEntry = (root: string): ListEntry | undefined => {
     const entry = deps.entries().find(item => item.path === root);
@@ -82,7 +98,7 @@ export function createReadState(deps: ReadStateDeps): ReadState {
   const runOf = (root: string): Run => {
     let run = runs.get(root);
     if (!run) {
-      run = { queue: Promise.resolve(), evaluateQueued: false, judged: false, rows: new Map(), blocked: false, failures: new Map() };
+      run = { queue: Promise.resolve(), evaluateQueued: false, judged: false, rows: new Map(), absorbed: false, baseline: new Set(), pending: new Map(), history: [], failures: new Map() };
       runs.set(root, run);
     }
     return run;
@@ -117,96 +133,115 @@ export function createReadState(deps: ReadStateDeps): ReadState {
     if (run?.judged && decoration(run, root!) !== before) deps.changed();
   };
 
-  const lastOf = (run: Run, memory: RootMemory | undefined, row: SeenRow): Verdict | undefined =>
-    run.rows.get(row.path)?.verdict ?? (row.id === undefined ? undefined : memory?.known[row.id]);
+  const lastOf = (run: Run, row: SeenRow): Verdict | undefined => run.rows.get(row.path)?.verdict;
 
-  const recordIds = (root: string, rows: readonly SeenRow[]) => new Set([...uniqueIds(rows), ...Object.keys(deps.local.root(root)?.baseline ?? {})]);
+  // Appends the git signal when it moved; true if it did.
+  const observeGit = (run: Run, root: string, at: number): boolean => {
+    const signal = deps.gitSignal(root);
+    if (run.history.at(-1)?.signal === signal) return false;
+    run.history.push({ at, signal });
+    return true;
+  };
+  // Keeps what a later settle can still compare with: the entries from GRACE_MS before the oldest pending ID (or now),
+  // and the one entry before them, the value a change in that window is compared against.
+  const pruneHistory = (run: Run, at: number) => {
+    const from = Math.min(at, ...[...run.pending.values()].map(item => item.appearedAt)) - GRACE_MS;
+    let keep = 0;
+    for (let i = 0; i < run.history.length; i++) if (run.history[i]!.at < from) keep = i;
+    run.history.splice(0, keep);
+  };
+  // Runs the root's evaluation again when its oldest pending ID's grace ends.
+  const armTimer = (run: Run, root: string, at: number) => {
+    const due = run.pending.size === 0 ? undefined : Math.min(...[...run.pending.values()].map(item => item.appearedAt)) + GRACE_MS;
+    if (run.timer?.at === due) return;
+    run.timer?.cancel();
+    run.timer = undefined;
+    if (due === undefined) return;
+    run.timer = { at: due, cancel: after(Math.max(0, due - at), () => { if (runs.get(root) === run) { run.timer = undefined; evaluateSoon(root); } }) };
+  };
 
-  // Inside the root's queue. `quiet`: the caller (Retry) answers with the outcome itself, so no toast event goes out.
-  const evaluate = async (root: string, quiet: boolean): Promise<void> => {
+  // Inside the root's queue.
+  const evaluate = async (root: string): Promise<void> => {
     const entry = listEntry(root);
     const run = runs.get(root);
     if (!entry || !run) return;
     const rows: SeenRow[] = await Promise.all(entry.canvases.map(async row => ({
       path: row.path, id: row.id, mtimeMs: row.mtimeMs, fingerprint: row.error ? null : await deps.fingerprint(root, row.path),
     })));
-    let snapshot = await deps.read(root, recordIds(root, rows));
     if (runs.get(root) !== run) return;
-    if (!run.blocked) {
-      const steps = plan(deps.local.root(root), readsOf(snapshot), rows);
-      if (steps) {
-        // The frozen baseline is saved before the first write, so an interruption retries the same set; a set this
-        // device could not save is never written from.
-        let failed: unknown = deps.local.set(root, steps.before) || steps.writes.length === 0 ? undefined : new Error("canvas-seen.json not saved");
-        for (const write of failed === undefined ? steps.writes : []) {
-          // A project removed meanwhile gets no further writes.
-          if (runs.get(root) !== run) return;
-          const name = write.id === undefined ? MARKER : recordName(write.id);
-          try { await deps.write(root, name, recordText(write.value), null); } catch (error) { failed = error; break; }
-        }
+    const stored = deps.local.root(root);
+    let record: RootRecord = stored ?? { canvases: {} };
+    if (!record.migrated) {
+      // Once per root. A root this device knew under an older Doan carries its shared records and that memory over; any
+      // other (a new worktree, another machine, a moved-aside or later canvas-seen.json) is a first registration and
+      // its `.doan/seen/` is never read.
+      const v2 = record.v2;
+      if (v2) {
+        const snapshot = await deps.read(root, uniqueIds(rows));
         if (runs.get(root) !== run) return;
-        if (failed === undefined) {
-          deps.local.set(root, steps.after);
-          run.writeProblem = undefined;
-        } else if (!(failed instanceof SeenWriteError && failed.code === "changed")) {
-          // Another writer's record is read again by the watcher's next pass; any other failure waits for the person.
-          run.blocked = true;
-          run.writeProblem = { kind: "baseline", readOnly: readOnlyError(failed) };
-        }
-        if (steps.writes.length > 0) snapshot = await deps.read(root, recordIds(root, rows));
-        if (runs.get(root) !== run) return;
-      }
+        record = migrateRoot(v2, snapshot, rows, row => lastOf(run, row) ?? (row.id === undefined ? undefined : v2.known[row.id]));
+      } else record = { migrated: true, canvases: record.canvases };
     }
-    const memory = deps.local.root(root);
-    const judgement = judge(memory, readsOf(snapshot), rows, row => lastOf(run, memory, row));
-    if (memory) {
-      const known = { ...memory.known };
-      const ids = uniqueIds(rows);
+    const at = now();
+    observeGit(run, root, at);
+    const ids = uniqueIds(rows);
+    if (!run.absorbed) {
+      record = absorbFirst(record, rows);
+      run.absorbed = true;
+      for (const row of rows) if (validCanvasId(row.id) && !recordOf(record, row.id)) run.baseline.add(row.id);
+    } else {
       for (const row of rows) {
-        const record = row.id !== undefined && ids.has(row.id) ? snapshot.records.get(row.id)?.read.kind : undefined;
-        const verdict = judgement.verdicts.get(row.path);
-        if ((record === "seen" || record === "migrated") && (verdict === "seen" || verdict === "changed")) known[row.id!] = verdict;
+        const id = row.id;
+        if (id === undefined || !ids.has(id) || recordOf(record, id) || run.pending.has(id)) continue;
+        if (!run.baseline.has(id)) run.pending.set(id, { appearedAt: at });
+        else if (row.fingerprint !== null) {
+          record = withRecord(record, id, { html: row.fingerprint });
+          run.baseline.delete(id);
+        }
       }
-      if (JSON.stringify(known) !== JSON.stringify(memory.known)) deps.local.set(root, { ...memory, known });
     }
+    for (const [id, pending] of run.pending) {
+      // Gone, shared with another canvas, or recorded meanwhile (shown): no longer waiting.
+      if (!ids.has(id) || recordOf(record, id)) { run.pending.delete(id); continue; }
+      const outcome = settlePending(pending, run.history, at);
+      if (outcome === "pending") continue;
+      run.pending.delete(id);
+      const fingerprint = rows.find(row => row.id === id)!.fingerprint;
+      if (outcome === "new") record = withRecord(record, id, { unseen: "new" });
+      else if (fingerprint !== null) record = withRecord(record, id, { html: fingerprint });
+      else run.baseline.add(id);
+    }
+    pruneHistory(run, at);
+    armTimer(run, root, at);
+    // A record this device cannot save stays in memory for the run: the next run's first listing is a baseline again.
+    if (record !== stored) deps.local.set(root, record);
+    const verdicts = judge(record, rows, row => lastOf(run, row));
     const before = run.judged ? decoration(run, root) : null;
-    run.rows = new Map(rows.map(row => [row.path, { verdict: judgement.verdicts.get(row.path), fingerprint: row.fingerprint }]));
-    run.snapshot = snapshot;
+    run.rows = new Map(rows.map(row => [row.path, { verdict: verdicts.get(row.path), fingerprint: row.fingerprint }]));
     run.judged = true;
     for (const path of [...run.failures.keys()]) if (run.rows.get(path)?.verdict === "seen") run.failures.delete(path);
-    const problem = run.writeProblem ?? (judgement.problem ? { kind: judgement.problem } : undefined);
-    if (!sameProblem(problem, run.problem)) {
-      run.problem = problem;
-      if (problem && !quiet) deps.problem(root, problem);
-    }
     if (before !== decoration(run, root)) deps.changed();
     void tryMark();
   };
 
-  const evaluateSoon = (root: string) => {
+  function evaluateSoon(root: string): void {
     const run = runOf(root);
     if (run.evaluateQueued) return;
     run.evaluateQueued = true;
     void enqueue(root, async () => {
       run.evaluateQueued = false;
-      await evaluate(root, false);
+      await evaluate(root);
     });
-  };
+  }
 
-  const storedHtml = (run: Run, row: CanvasRow, ids: Set<string>): string | undefined => {
-    if (row.id === undefined || !ids.has(row.id)) return undefined;
-    const record = run.snapshot?.records.get(row.id)?.read;
-    return record?.kind === "seen" ? record.html : undefined;
-  };
-
-  // Records `hash` as shown for the canvas at `path`, inside the root's queue. Never replaces a record that cannot be
-  // read as one, and only a still-unseen canvas carries a failure: a canvas already seen (a first registration whose
-  // records could not be written, a stale screen) gets no new dot.
+  // Records `hash` as shown for the canvas at `path`, inside the root's queue. Only a still-unseen canvas carries a
+  // failure: a canvas already seen (a stale screen) gets no new dot.
   const mark = async (root: string, path: string, hash: string, quiet: boolean, session: Intent | null): Promise<void> => {
     const entry = listEntry(root);
     const run = runs.get(root);
     const row = entry?.canvases.find(item => item.path === path);
-    if (!entry || !run || !row) return;
+    const record = deps.local.root(root);
+    if (!entry || !run || !row || !record) return;
     const unseen = marks(run, root, path).unseen !== undefined;
     const fail = (failure: Failure) => {
       const before = decoration(run, root);
@@ -214,45 +249,21 @@ export function createReadState(deps: ReadStateDeps): ReadState {
       if (!unseen) return;
       run.failures.set(path, failure);
       if (before !== decoration(run, root)) deps.changed();
-      if (!quiet) deps.problem(root, failure.kind === "id" ? { kind: "id", path } : { kind: "save", path, readOnly: failure.readOnly });
+      if (!quiet) deps.problem(root, failure.kind === "id" ? { kind: "id", path } : { kind: "save", path });
     };
-    const ids = uniqueIds(entry.canvases);
-    if (row.id === undefined || !ids.has(row.id)) {
-      if (unseen) fail({ kind: "id", readOnly: false, hash });
+    if (row.id === undefined || !uniqueIds(entry.canvases).has(row.id)) {
+      if (unseen) fail({ kind: "id", hash });
       return;
     }
-    const fresh = (await deps.read(root, [row.id])).records.get(row.id);
-    const read = fresh?.read;
-    // A page behind the disk never takes back a record of what the disk holds now (another device's, or this one's).
-    if (read?.kind === "seen" && read.html !== hash && !row.error && read.html === await deps.fingerprint(root, path)) {
-      await evaluate(root, quiet);
+    const next = markShown(record, row, hash, entry.canvases);
+    if (next !== record && !deps.local.commit(root, next)) {
+      fail({ kind: "save", hash });
       return;
     }
-    if (read?.kind === "seen" && read.html === hash) {
-      run.failures.delete(path);
-      await evaluate(root, quiet);
-      return;
-    }
-    if (!fresh || fresh.bytes === undefined || !(read?.kind === "absent" || read?.kind === "seen" || read?.kind === "migrated")) {
-      // A damaged or later-version record is the project's records problem, told by the evaluation.
-      if (session) session.failed = true;
-      await evaluate(root, quiet);
-      return;
-    }
-    try {
-      await deps.write(root, recordName(row.id), recordText({ html: hash }), fresh.bytes);
-    } catch (error) {
-      if (error instanceof SeenWriteError && error.code === "changed" && session && session.races < MAX_RACES) {
-        // Another writer got there first: judge from what it wrote, then the next pass decides again.
-        session.races++;
-        await evaluate(root, quiet);
-        return;
-      }
-      fail({ kind: "save", readOnly: readOnlyError(error), hash });
-      return;
-    }
+    run.pending.delete(row.id);
+    run.baseline.delete(row.id);
     run.failures.delete(path);
-    await evaluate(root, quiet);
+    await evaluate(root);
   };
 
   const markOnce = async (): Promise<void> => {
@@ -264,7 +275,9 @@ export function createReadState(deps: ReadStateDeps): ReadState {
     if (!entry || !run?.judged || !row) return;
     const hash = await deps.shown(current.root, row);
     if (!hash || intent !== current || current.failed) return;
-    const stored = storedHtml(run, row, uniqueIds(entry.canvases));
+    const record = deps.local.root(current.root);
+    const kept = record && row.id !== undefined && uniqueIds(entry.canvases).has(row.id) ? recordOf(record, row.id) : undefined;
+    const stored = kept && "html" in kept ? kept.html : undefined;
     // The record already holds what the disk holds and the page is behind it: the reload records nothing new.
     if (stored === hash || (stored !== undefined && stored === run.rows.get(row.path)?.fingerprint)) return;
     await enqueue(current.root, () => mark(current.root, current.path, hash, false, current));
@@ -289,7 +302,9 @@ export function createReadState(deps: ReadStateDeps): ReadState {
     return marking;
   }
 
+  // The root's local record stays: registering it again compares with it.
   const forget = (root: string) => {
+    runs.get(root)?.timer?.cancel();
     runs.delete(root);
     if (intent?.root === root) intent = null;
   };
@@ -299,13 +314,17 @@ export function createReadState(deps: ReadStateDeps): ReadState {
       const failure = run.failures.get(at);
       const shown = marks(run, root, at).saveFailed;
       if (!failure || !shown) return null;
-      return failure.kind === "id" ? { kind: "id", path: at } : { kind: "save", path: at, readOnly: failure.readOnly };
+      return failure.kind === "id" ? { kind: "id", path: at } : { kind: "save", path: at };
     };
     if (path !== undefined) {
       const own = visible(path);
       if (own) return own;
     }
-    if (run.problem) return run.problem;
+    if (fileProblem) {
+      const told = fileProblem;
+      fileProblem = undefined;
+      return told;
+    }
     for (const at of run.failures.keys()) {
       const other = visible(at);
       if (other) return other;
@@ -332,8 +351,6 @@ export function createReadState(deps: ReadStateDeps): ReadState {
     listed(entries) {
       const registered = new Set(entries.map(entry => entry.path));
       for (const root of [...runs.keys()]) if (!registered.has(root)) forget(root);
-      // A root that leaves the list leaves its device-local memory; its shared records stay in the project.
-      for (const root of deps.local.roots()) if (!registered.has(root)) deps.local.set(root, undefined);
       for (const entry of entries) {
         if (entry.kind !== "list") continue;
         const run = runOf(entry.path);
@@ -342,8 +359,11 @@ export function createReadState(deps: ReadStateDeps): ReadState {
         evaluateSoon(entry.path);
       }
     },
-    recordsChanged(root) {
-      if (listEntry(root)) evaluateSoon(root);
+    gitChanged(root) {
+      const run = runs.get(root);
+      // Before the first listing there is nothing to compare with: that listing reads the signal itself.
+      if (!run?.absorbed) return;
+      if (observeGit(run, root, now()) && run.pending.size > 0) evaluateSoon(root);
     },
     showing(value) {
       if (value === null) {
@@ -354,7 +374,7 @@ export function createReadState(deps: ReadStateDeps): ReadState {
       const { root, path } = value;
       if (!deps.entries().some(entry => entry.path === root)) return false;
       if (intent?.root === root && intent.path === path) return true;
-      moveIntent(() => { intent = { root, path, failed: false, races: 0 }; });
+      moveIntent(() => { intent = { root, path, failed: false }; });
       void tryMark();
       return true;
     },
@@ -367,19 +387,12 @@ export function createReadState(deps: ReadStateDeps): ReadState {
       const path = typeof value.path === "string" ? value.path : undefined;
       if (!listEntry(root)) return deps.entries().some(entry => entry.path === root) ? null : false;
       const run = runOf(root);
-      run.blocked = false;
-      run.writeProblem = undefined;
       await enqueue(root, async () => {
         for (const [at, failure] of [...run.failures]) await mark(root, at, failure.hash, true, null);
-        await evaluate(root, true);
+        await evaluate(root);
       });
       const current = intent;
-      if (current?.root === root && !run.failures.has(current.path)) {
-        moveIntent(() => {
-          current.failed = false;
-          current.races = 0;
-        });
-      }
+      if (current?.root === root && !run.failures.has(current.path)) moveIntent(() => { current.failed = false; });
       void tryMark();
       return relevant(run, root, path);
     },

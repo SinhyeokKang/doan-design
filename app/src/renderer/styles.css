@@ -46,11 +46,7 @@ code, kbd { font-family: var(--type-family); }
 .side { background: var(--surface-panel); border-right: 1px solid var(--border-standard); }
 .right { background: var(--surface-panel); border-left: 1px solid var(--border-standard); }
 .right.doan-scroll { overflow: auto; }
-.row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 12px; font: 12.5px var(--type-family); color: var(--text-subtle); position: relative; white-space: nowrap; cursor: pointer; }
-.row .g { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
-.row:hover { background: var(--surface-inset); }
 .glyph { color: var(--text-disabled); width: 12px; flex: none; text-align: center; }
-.err { color: var(--text-danger); font: 10.5px var(--type-family); }
 .recovery .doan-button { margin: 4px 4px 0 0; }
 /* The board is the light grey inset surface, so a white canvas stays distinguishable when zoomed out and the agent's white dot field shows. */
 .area { position: relative; overflow: hidden; background: var(--surface-inset); }
@@ -131,48 +127,8 @@ code, kbd { font-family: var(--type-family); }
 .canvas-status-block .doan-alert-icon { margin: 0 0 var(--space-2); }
 .canvas-status-block h2 { color: var(--text-standard); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
 .canvas-status-block .doan-button { margin-top: var(--space-4); }
-.canvas-notice { padding: 7px 12px; background: var(--surface-inset); color: var(--text-standard); font: 11px var(--type-family); }
 .phead { font: 600 12px var(--type-family); padding: 11px 14px 10px; border-bottom: 1px solid var(--border-standard); }
-.pempty { padding: 14px; font: 12.5px var(--type-family); color: var(--text-metadata); }
-.isec { padding: 10px 12px 12px; border-bottom: 1px solid var(--border-standard); }
-.ihead { font: 10.5px var(--type-family); letter-spacing: .1em; text-transform: uppercase; color: var(--text-metadata); margin-bottom: 8px; }
-.kv { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 5px 8px; font: 11.5px var(--type-family); }
-.kv dt { color: var(--text-metadata); }
-.kv dd { overflow-wrap: anywhere; }
-.activity { border: 0; }
-.tl-row { display: flex; gap: 8px; padding: 3px 12px 3px 0; font: 11px var(--type-family); color: var(--text-metadata); }
-.tl-row time { color: var(--text-metadata); width: 54px; flex: none; }
-.tl-row b { font-weight: 400; color: var(--text-subtle); }
-.tl-row .from { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.truncate { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.inspect-head { padding: 12px; border-bottom: 1px solid var(--border-standard); display: flex; flex-direction: column; gap: 6px; }
-.inspect-head h3 { font-size: 12.5px; font-weight: var(--type-weight-semibold); }
-.selector { color: var(--text-subtle); font-size: 11.5px; }
-.head-kv { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 5px 8px; font-size: 11.5px; }
-.head-kv dt { color: var(--text-metadata); }
-.ancestors { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-.ancestors button { max-width: 100%; padding: 3px 5px; border-radius: 4px; font-size: 11px; color: var(--text-subtle); background: var(--surface-inset); }
-.ancestors button[aria-current="true"] { color: var(--text-standard); background: var(--surface-navigation-selected); }
-.ancestors span { color: var(--text-disabled); font-size: 11px; }
-.use-hint { color: var(--text-metadata); font-size: 11.5px; line-height: 1.5; }
-/* Not in the draft: main's reason when it could not read the values. */
-.inspect-failed { padding: 10px 12px; border-bottom: 1px solid var(--border-standard); color: var(--text-metadata); font-size: 11.5px; line-height: 1.5; }
-.inspect-row { margin-bottom: 7px; font-size: 11.5px; }
-.inspect-row:last-child { margin-bottom: 0; }
-.value-line { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 16px; }
-.prop { color: var(--text-metadata); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .value { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.value.default { color: var(--text-metadata); }
-.source-line { margin-left: 86px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
-.token { max-width: 100%; font-size: 10.5px; color: var(--text-standard); background: var(--surface-inset); padding: 2px 5px; border-radius: 4px; }
-.state { color: var(--text-metadata); font-size: 10px; line-height: 1.5; }
-.state.hardcoded { color: var(--text-warning); }
-.swatch { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border-standard); flex: none; }
-/* Short attribute labels stay fully readable at the fixed panel width. */
-.doan-attributes .prop { overflow: visible; text-overflow: clip; }
-
-/* These buttons set a colour at the same specificity as button:disabled and come later, so they restate disabled. */
-.ancestors button:disabled { color: var(--text-disabled); }
 
 .right-stack { min-height: 0; display: flex; flex-direction: column; background: var(--surface-panel); border-left: 1px solid var(--border-standard); }
 .right-stack > .right { min-height: 100px; flex: 0 1 278px; border-left: 0; border-bottom: 1px solid var(--border-standard); }
@@ -412,7 +368,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-chip.warn { background: var(--affordance-warning); color: var(--text-warning); }
 .ob-chip.err { background: var(--affordance-danger); color: var(--text-danger); }
 .ob-field { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-4) 0; border-top: 1px solid var(--border-standard); }
-/* Project names and paths share inline flow; Inspector values use flex. */
+/* Project names and paths share inline flow, not the global .value flex. */
 .ob-field .value { display: block; gap: normal; align-items: normal; min-width: 0; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); overflow-wrap: anywhere; }
 /* A token path stays on one line, its full text in title. */
 .ob-field .value.token-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -438,8 +394,6 @@ code, kbd { font-family: var(--type-family); }
    dialog has no transform, so fixed positioning is relative to the window. */
 .toast[data-placement="dialog"] { position: fixed; }
 .toast .msg { min-width: 0; overflow-wrap: anywhere; }
-/* A running Retry keeps focus, so it is `data-disabled` rather than `:disabled`, and the hover fill must not come back. */
-.toast .doan-button[data-disabled]:hover { background: var(--affordance-disabled); }
 
 /* Surfaces that float on their own over the content (toasts, the GitHub star card) take the panel's ring with a wider
    drop, so they read above whatever is under them. They enter as a dialog does, rising 8px and fading in; they leave
@@ -583,7 +537,7 @@ body:has(.shell-top) { background: transparent; }
 .shell-projects { overflow: auto; min-height: 0; padding-bottom: 20px; }
 .shell-projects-heading { margin: 0 0 4px; padding: 4px 10px; color: var(--text-metadata); font: 400 10px/16px var(--type-family); letter-spacing: .08em; }
 .shell-project + .shell-project { margin-top: 16px; }
-.shell-side .row { display: flex; align-items: center; gap: 8px; height: 32px; min-height: 32px; padding: 0 8px; border-radius: 8px; font: 400 14px/20px var(--type-family); cursor: pointer; }
+.shell-side .row { display: flex; align-items: center; gap: 8px; height: 32px; min-height: 32px; padding: 0 8px; border-radius: 8px; font: 400 14px/20px var(--type-family); color: var(--text-subtle); position: relative; white-space: nowrap; cursor: pointer; }
 .shell-side .row:hover { background: var(--affordance-backdrop-hover); }
 .shell-side .row[aria-current="location"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
 .shell-side .shell-project-row { gap: 4px; padding: 0 0 0 10px; margin-bottom: 4px; }
@@ -639,6 +593,11 @@ body:has(.shell-top) { background: transparent; }
 .shell-empty, .shell-canvas-error { padding: 4px 8px 4px 32px; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
 .shell-empty { padding: 6px 10px 10px 34px; }
 .shell-canvas-error pre { white-space: pre-wrap; }
+/* An unreadable canvas is an inline error (DESIGN 'No coloured edge stripes') at the tree's caption density: the small
+   alert icon on the first caption line, then the sentence, Details and its opened message. */
+.shell-canvas-error { display: flex; align-items: flex-start; gap: var(--space-1h); color: var(--text-danger); }
+.shell-canvas-error > div { min-width: 0; }
+.shell-canvas-error .doan-alert-icon { width: var(--size-icon-sm); height: var(--size-icon-sm); margin-block: calc((var(--type-caption-line-height) - var(--size-icon-sm)) / 2); }
 /* A group head is a tree row one level below the project (design-system-canvases draft): chevron where a row's icon
    sits, label, count at the end. Rows and lines inside a group move in by the chevron and its gap, so a row's icon sits
    under the group label. */
@@ -824,6 +783,9 @@ body:has(.shell-top) { background: transparent; }
 .preset-popover { width: 600px; max-width: calc(100vw - var(--space-4)); }
 /* The / list keeps focus in the field, so it is drawn in place rather than as a focus-taking popover. */
 .slash-popover { position: absolute; z-index: 2; bottom: calc(100% + var(--space-2)); left: var(--space-8); }
+/* The / list opens above the whole composer, not the tool row, so it never covers the field (provider-commands draft
+   frame slash-list): the tool row stops being its containing block. On Home it may cover the project button above. */
+.composer-tools:has(> .slash-popover) { position: static; }
 .agent-popover { width: 300px; }
 .effort-popover { width: 200px; }
 /* fast-mode (draft frame effort-menu): with a Fast row the menu takes Permission's 280, so a description ends within
@@ -1117,8 +1079,6 @@ body:has(.shell-top) { background: transparent; }
 .mcp-agent .settings-section-header { align-items: center; }
 .mcp-agent-title { display: flex; align-items: center; gap: var(--space-1h); }
 .mcp-more { color: var(--text-subtle); }
-/* A busy section's Connect looks disabled but keeps hover and focus for its tooltip. */
-.mcp-agent .doan-button[data-disabled]:hover { background: var(--affordance-disabled); }
 /* A removed server's running-turn notice stays under its section's list. */
 .mcp-section-notice { margin-top: var(--space-3); }
 
@@ -1392,7 +1352,7 @@ body:has(.shell-top) { background: transparent; }
 .conv-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 /* A running Retry row keeps its highlight (it is busy, not unavailable) and takes the in-button spinner's size and ink. */
 .conv-error .doan-menu-item > .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; }
-.conv-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.conv-error { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); color: var(--text-danger); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 /* A conversation's first line, shared with the right panel's rows: logo, name, status mark, short time flush right. */
 .cv-head { display: flex; align-items: center; gap: var(--space-1h); min-width: 0; }
 .cv-head .logo { width: var(--size-icon-sm); height: var(--size-icon-sm); object-fit: contain; flex: none; }
@@ -1448,7 +1408,10 @@ body:has(.shell-top) { background: transparent; }
 .rp-empty { margin: 0 var(--space-2) var(--space-2); padding: var(--space-4); border: 1px dashed var(--border-standard); border-radius: var(--radius-chip); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .rp-empty p + p { margin-top: var(--space-2); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .rp-loading { padding: var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
-.rp-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.rp-error { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); color: var(--text-danger); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+/* A list read failure is an inline error (DESIGN 'No coloured edge stripes'): the alert icon, the sentence taking the
+   rest of the row, Retry at its end. */
+:is(.rp-error, .conv-error) > span { flex: 1; min-width: 0; }
 
 /* doan-canvas: the canvas panel, an opaque white header above the board (.doan/canvases/doan-canvas.html, confirmed
    2026-11-01). The header does not cover the board: the board starts under it. Isolation keeps the board's floating
@@ -1861,11 +1824,21 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .bubble .skill-word { background: var(--surface-panel); }
 
 .preset-popover.has-skills:not(.slash-popover) { width: 691px; }
+.preset-popover.has-commands:not(.slash-popover) { width: 809px; }
 .preset-item .suggestion-icon svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-accent); }
 .preset-item .suggestion-icon.project-skill-icon { background: var(--affordance-backdrop-hover); }
 .preset-item .suggestion-icon.project-skill-icon svg { color: var(--text-standard); }
 .preset-popover .group-tabs button svg { color: var(--text-accent); }
-.preset-popover .group-tabs button[data-group="project"] svg { color: var(--text-metadata); }
+.preset-popover .group-tabs button:is([data-group="project"], [data-group="commands"]) svg { color: var(--text-metadata); }
+/* While the field starts with a command, the preset chip's place (provider-commands draft frame preset-chip-notice): the
+   queue status line's values. */
+.command-notice { align-items: center; gap: var(--space-2); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.command-notice svg { width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
+.command-card .doan-alert-icon { color: var(--text-metadata); }
+/* A context boundary after a /compact or /clear turn: the onboarding divider's values, wrapping inside its rules. */
+.context-boundary { display: flex; align-items: center; gap: var(--space-3); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); text-align: center; }
+.context-boundary::before, .context-boundary::after { content: ""; flex: 1; min-width: var(--space-6); height: 1px; background: var(--border-standard); }
+.context-boundary span { min-width: 0; overflow-wrap: anywhere; }
 
 /* Where the Doan files are kept (local-doan-files draft frames setup-dialog, setup-panel, clone, settings-*). */
 /* The Set Up dialog's field: the settings radio row's parts without a row box; the dialog's card is the group. */
@@ -1879,12 +1852,12 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .storage-option:has(> input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
 .storage-option:has(> input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
 .storage-option:has(> input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }
-.storage-option:has(> input:disabled), .storage-option > input:disabled { cursor: default; }
+.storage-option:has(> input[aria-disabled="true"]), .storage-option > input[aria-disabled="true"] { cursor: default; }
 /* While Set Up writes, the options take the disabled roles as .storage-row does; a code chip keeps its own ink. */
-.storage-option:has(> input:disabled) :is(strong, small) { color: var(--text-disabled); }
-.storage-option:has(> input:disabled) .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }
-.storage-option:has(> input:disabled:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }
-.storage-option:has(> input:disabled:checked) .ob-radio::before { background: var(--text-disabled); }
+.storage-option:has(> input[aria-disabled="true"]) :is(strong, small) { color: var(--text-disabled); }
+.storage-option:has(> input[aria-disabled="true"]) .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }
+.storage-option:has(> input[aria-disabled="true"]:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }
+.storage-option:has(> input[aria-disabled="true"]:checked) .ob-radio::before { background: var(--text-disabled); }
 /* A command or path chip in a caption description keeps the caption size and never breaks inside itself. */
 :is(.storage-option small, .storage-pref .doan-preference-row-description) code { white-space: nowrap; color: var(--text-standard); background: var(--surface-inset); border-radius: var(--radius-inline); padding: 0 var(--space-1); }
 .storage-fact { grid-column: 2 / -1; display: grid; gap: var(--space-half); }
@@ -1901,11 +1874,11 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .storage-row:has(> input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
 .storage-row:has(> input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }
 /* While a clone runs the choice keeps its value and is disabled, like Save to's Change. */
-.storage-row:has(> input:disabled), .storage-row > input:disabled { cursor: default; }
-.storage-row:has(> input:disabled) .ob-provider-label :is(strong, span) { color: var(--text-disabled); }
-.storage-row:has(> input:disabled) .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }
-.storage-row:has(> input:disabled:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }
-.storage-row:has(> input:disabled:checked) .ob-radio::before { background: var(--text-disabled); }
+.storage-row:has(> input[aria-disabled="true"]), .storage-row > input[aria-disabled="true"] { cursor: default; }
+.storage-row:has(> input[aria-disabled="true"]) .ob-provider-label :is(strong, span) { color: var(--text-disabled); }
+.storage-row:has(> input[aria-disabled="true"]) .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }
+.storage-row:has(> input[aria-disabled="true"]:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }
+.storage-row:has(> input[aria-disabled="true"]:checked) .ob-radio::before { background: var(--text-disabled); }
 /* Project Settings: the thread's settings radio row (.conversation-thread .q-pref) outside the thread. */
 .storage-pref { position: relative; align-items: start; cursor: pointer; }
 .storage-pref .ob-radio { margin-top: 0; }

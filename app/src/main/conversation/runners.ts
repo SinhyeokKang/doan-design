@@ -10,10 +10,12 @@ import { afterTurnCleanup, OwnedGroup } from "./process";
 import { readRegularFileNoFollowSync } from "../regularFile";
 import { object } from "./sessions";
 import { applyClaudeFastUnavailable, parseClaudeModels, parseCodexModels } from "./models";
-import { parseClaudeSkills, parseCodexSkills } from "./skills";
+import { allowedCommands, parseClaudeCommands, parseClaudeSkills, parseCodexSkills } from "./skills";
+import { claudeBoundary } from "./commandRecords";
+import { commandName, commandRequest } from "./providerCommands";
 import { CodexStartupWatch, codexProfileServers } from "./mcpStartup";
 import { connectorLabels } from "../mcpConnectors/presets";
-import { backgroundTasks, CLAUDE_QUESTION_TOOL, claudePermissionSummary, claudeQuestion, claudeQuestionResult, claudeReportedMode, claudeUnansweredSupport, endPromptWait, endSteerWait, endTransport, initialTransport, normalizeClaude, promptTransport, steerTransport, storedAnswers, transportError, type ClaudeQuestion } from "./transport";
+import { backgroundTasks, claudeSessionLost, CLAUDE_QUESTION_TOOL, claudePermissionSummary, claudeQuestion, claudeQuestionResult, claudeReportedMode, claudeUnansweredSupport, endPromptWait, endSteerWait, endTransport, initialTransport, normalizeClaude, promptTransport, steerTransport, storedAnswers, transportError, type ClaudeQuestion } from "./transport";
 import { questionAnswer } from "./questionAnswer";
 import { promptSuggestionText } from "./promptSuggestion";
 import { claudePermission, codexDefaults, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
@@ -37,8 +39,9 @@ export const listModels: ReadModels = async (input, exited, registerStop) => {
   const runner = await (input.runtime === "claude" ? openClaude : input.runtime === "codex" ? openCodexList : openAcp)(input.runtime === "claude" ? { ...input, fast: true } : input, () => {}, exited, registerStop);
   try { return await runner.models!(); } finally { await runner.close(); }
 };
-// The same prompt-free read for the folder's project skills. Only Claude and Codex list them apart from built-in
-// commands; the ACP servers' command lists name no source (Cursor, Copilot) or no skills (Antigravity).
+// The same prompt-free read for the folder's project skills, followed by the built-in commands Doan runs at the installed
+// version (skills.ts allowedCommands). Only Claude and Codex list skills apart from built-in commands; the ACP servers'
+// command lists name no source (Cursor, Copilot) or no skills (Antigravity), and come only with a session.
 export const listSkills: ReadListing<SkillSummary[]> = async (input, exited, registerStop) => {
   if (input.runtime !== "claude" && input.runtime !== "codex") throw new Error("runtime_unsupported");
   const runner = await (input.runtime === "claude" ? openClaude : openCodexList)(input, () => {}, exited, registerStop);
@@ -100,6 +103,8 @@ function profileServers(configDir: string): string[] {
   try { return codexProfileServers(readRegularFileNoFollowSync(join(configDir, "config.toml"), 1024 * 1024).toString("utf8")); }
   catch { return []; }
 }
+// How long a compaction's send waits for the turn its {} reply opened; the server started it at once (PoC, 0.167.1).
+const COMPACTION_START_MS = 10_000;
 // One Codex send's start (runners.ts openCodex): stopped by a Stop that came before its turn existed, wake ends its wait.
 interface Start { stopped: boolean; wake(): void }
 function openCodexList(input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void): Promise<Runner> {
@@ -122,6 +127,9 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
   // reloadOwed: a reload the server refused, sent again before the next turn. closing: close() ran.
   const startup = new CodexStartupWatch();
   let starting: Start | undefined, latest: Start | undefined, settled = Promise.resolve(), reloadOwed = false, closing = false;
+  // Set while a compaction waits for the turn it opened (compactionTurn).
+  let turnStarted: ((id: string | undefined) => void) | undefined;
+  const startedTurn = (raw: unknown): string | undefined => object(raw) && raw.method === "turn/started" && object(raw.params) && raw.params.threadId === sessionId && object(raw.params.turn) && typeof raw.params.turn.id === "string" ? raw.params.turn.id : undefined;
   let group: OwnedGroup | undefined, sessionId = input.sessionId ?? "", activeTurn = "", localTurn = "", buffer = "", dead = false;
   let defaults: CodexDefaults | undefined, workspace: CodexWorkspace = {};
   const write = (value: unknown) => { if (dead || !child.stdin.writable) throw new Error("process_exited"); child.stdin.write(JSON.stringify(value) + "\n"); };
@@ -132,7 +140,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     if (event.type === "turn.done") void input.usageAtTurnEnd?.(() => dispatcher.query("account/rateLimits/read", undefined)).catch(() => {});
     // A turn the usage limit stopped reads it too, for the reset the service schedules its message for.
     else if (event.type === "turn.failed" && event.code === "rate_limited") void input.usageAtTurnEnd?.(() => dispatcher.query("account/rateLimits/read", undefined), true).catch(() => {});
-  }, () => failProtocol(), id => input.steerConsumed?.(id), stage => input.stage?.(stage));
+  }, () => failProtocol(), id => input.steerConsumed?.(id), stage => input.stage?.(stage), kind => input.boundary?.(kind));
   const failProtocol = () => {
     if (protocolFailed) return; protocolFailed = true;
     emit({ type: "turn.failed", code: "session_unavailable" }); dispatcher.close(); void group?.stop();
@@ -145,13 +153,19 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     while ((end = buffer.indexOf("\n")) >= 0) {
       const line = buffer.slice(0, end); buffer = buffer.slice(end + 1);
       // Startup statuses name a thread but no turn, and the reply that names the thread can still be on its way here.
-      try { const raw: unknown = JSON.parse(line); if (startup.receive(raw, sessionId)) continue; if (startingTurn && object(raw) && typeof raw.method === "string") { if (queued.length >= 4096) throw new Error("Protocol queue limit"); queued.push(raw); } else dispatcher.receive(raw); } catch { failProtocol(); }
+      try {
+        const raw: unknown = JSON.parse(line); if (startup.receive(raw, sessionId)) continue;
+        if (startingTurn && object(raw) && typeof raw.method === "string") {
+          if (queued.length >= 4096) throw new Error("Protocol queue limit"); queued.push(raw);
+          const started = turnStarted && startedTurn(raw); if (started) turnStarted?.(started);
+        } else dispatcher.receive(raw);
+      } catch { failProtocol(); }
     }
   });
   const transportDied = () => {
     if (dead) return; dead = true;
     // Transport loss ends the turn now; only group disappearance releases ownership.
-    dispatcher.end(); starting?.wake(); void group?.stop();
+    dispatcher.end(); starting?.wake(); turnStarted?.(undefined); void group?.stop();
   };
   child.stderr.resume(); child.stdin.on("error", transportDied); child.stdout.once("end", transportDied);
   child.once("exit", () => { transportDied(); group?.childExited(); });
@@ -173,7 +187,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
       };
       return { sessionId: "", models: () => listed(async () => ({ models: parseCodexModels(await dispatcher.request("model/list", {})) })),
         // forceReload: a skill added since this app-server's cache was filled is listed (the person or an agent just made it).
-        skills: () => listed(async () => parseCodexSkills(await dispatcher.request("skills/list", { cwds: [input.cwd], forceReload: true }))), send: async () => { throw new Error("session_unavailable"); }, steer: async () => { throw new Error("not_running"); }, answer: () => false, stop: async () => { await group?.stop(); }, close: async () => { dispatcher.close(); await group?.stop(); } };
+        skills: () => listed(async () => [...parseCodexSkills(await dispatcher.request("skills/list", { cwds: [input.cwd], forceReload: true })), ...allowedCommands("codex", input.installed)]), send: async () => { throw new Error("session_unavailable"); }, steer: async () => { throw new Error("not_running"); }, answer: () => false, stop: async () => { await group?.stop(); }, close: async () => { dispatcher.close(); await group?.stop(); } };
     }
     const result = await judgedStep(dispatcher.request(resume ? "thread/resume" : "thread/start", resume ? { threadId: input.sessionId } : { cwd: input.cwd }), reply => { if (!resume) judge(codexThreadStart(reply)); });
     if (!object(result) || !object(result.thread) || typeof result.thread.id !== "string" || !result.thread.id) throw new Error("session_unavailable");
@@ -216,6 +230,17 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     if (dead || closing) throw new Error("process_exited");
     return started && !phase.stopped;
   };
+  // The turn a compaction opened: its turn/started may be queued already, before the {} reply, or still to come. A Stop
+  // keeps waiting, so the turn can be interrupted once it exists; past the bound, or once the server is gone, there is none.
+  const compactionTurn = (): Promise<string | undefined> => {
+    const early = queued.map(startedTurn).find(id => id !== undefined);
+    if (early !== undefined) return Promise.resolve(early);
+    return new Promise(resolve => {
+      const timer = setTimeout(() => settle(undefined), COMPACTION_START_MS); timer.unref?.();
+      const settle = (id: string | undefined) => { clearTimeout(timer); turnStarted = undefined; resolve(id); };
+      turnStarted = settle;
+    });
+  };
   // A server that cannot interrupt its own turn is stopped instead.
   const interrupt = (turnId: string) => dispatcher.request("turn/interrupt", { threadId: sessionId, turnId }).then(() => {}, () => { void group?.stop(); });
   return {
@@ -241,21 +266,35 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
         if (!await serversReady(own, choice?.reloadMcp === true || reloadOwed, labels)) { stopped(); return; }
         startingTurn = true;
         let result: unknown;
+        // A command runs only as its own request (text "/compact" reaches the model, which claims it compacted); the
+        // request keeps the thread's model and permission state.
+        const command = commandRequest("codex", prompt);
         // Passed on every turn, as Claude and ACP must be, though Codex keeps a turn's model for the next.
-        try { result = await dispatcher.request("turn/start", { threadId: sessionId, input: [{ type: "text", text: prompt }], ...(turn.model ? { model: turn.model } : {}), ...(turn.effort ? { effort: turn.effort } : {}), ...permission, ...tier }); } catch (error) { startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw); throw error; }
+        try {
+          result = await (command.kind === "request" ? dispatcher.request(command.method, { threadId: sessionId, ...command.params })
+            : dispatcher.request("turn/start", { threadId: sessionId, input: [{ type: "text", text: prompt }], ...(turn.model ? { model: turn.model } : {}), ...(turn.effort ? { effort: turn.effort } : {}), ...permission, ...tier }));
+        } catch (error) { startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw); throw error; }
         if (dead) throw new Error("process_exited");
-        if (!object(result) || !object(result.turn) || typeof result.turn.id !== "string") { failProtocol(); throw new Error("session_unavailable"); }
+        // thread/compact/start answers {} and opens a turn of its own, named only by its turn/started.
+        const native = command.kind === "request" && command.method === "thread/compact/start" ? await compactionTurn()
+          : object(result) && object(result.turn) && typeof result.turn.id === "string" ? result.turn.id : undefined;
+        if (dead) throw new Error("process_exited");
+        if (native === undefined) {
+          startingTurn = false;
+          if (command.kind === "request" && command.method === "thread/compact/start") { for (const raw of queued.splice(0)) dispatcher.receive(raw); if (own.stopped) { stopped(); return; } throw new Error("session_unavailable"); }
+          failProtocol(); throw new Error("session_unavailable");
+        }
         startingTurn = false;
         // Stopped while turn/start was unanswered: the native turn is interrupted, never adopted as this turn's.
         // A turn that already completed in the frames queued behind the reply has nothing left to interrupt.
         if (own.stopped) {
-          const native = result.turn.id, frames = queued.splice(0);
+          const frames = queued.splice(0);
           const over = frames.some(raw => object(raw) && raw.method === "turn/completed" && object(raw.params) && object(raw.params.turn) && raw.params.turn.id === native);
           for (const raw of frames) dispatcher.receive(raw);
           if (!over) await interrupt(native);
           stopped(); return;
         }
-        activeTurn = result.turn.id; dispatcher.started(activeTurn);
+        activeTurn = native; dispatcher.started(activeTurn);
         for (const raw of queued.splice(0)) dispatcher.receive(raw);
       } finally { if (starting === own) starting = undefined; settle(); }
     },
@@ -412,13 +451,22 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     if (input.fence && (spawnFailed || refused)) throw new Error("process_exited");
     throw error;
   }
-  return {
+  // The session the run is on: the one it opened, or the one the person's /clear moved it to.
+  let current = sessionId;
+  const runner: SteeringRunner = {
     sessionId,
     models: async () => ({ models: applyClaudeFastUnavailable(object(initialized) ? initialized.fast_mode_disabled_reason : undefined, parseClaudeModels(await timeout(q.supportedModels()))) }),
     // initialize's commands, not supportedCommands(): the latter adds MCP prompts once servers connect.
-    skills: async () => parseClaudeSkills(object(initialized) ? initialized.commands : undefined),
+    skills: async () => {
+      const commands = object(initialized) ? initialized.commands : undefined;
+      return [...parseClaudeSkills(commands), ...parseClaudeCommands(commands, input.installed)];
+    },
     async send(prompt, turnId) {
       if (finished) throw new Error("process_exited");
+      // Only a send that is the person's /clear (an alias goes out as /clear) may move the run to another session, once
+      // the clear's conversation_reset came; its new id is system/init's, never new_conversation_id (PoC, 2.1.326).
+      const clearing = commandName("claude", prompt) === "clear";
+      let reset = false;
       // The group stops as on any terminal that leaves a steered uuid unread; the SDK error that follows is that stop's.
       const expireRead = () => {
         readWait = undefined;
@@ -448,6 +496,23 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
               suggestionSeen = true;
               const text = promptSuggestionText(raw);
               if (text && !suggestionEnded) input.suggested?.(text);
+            }
+            const frame: unknown = raw;
+            if (!after && object(frame) && !frame.parent_tool_use_id) {
+              const boundary = claudeBoundary(frame); if (boundary) input.boundary?.(boundary);
+              if (frame.type === "conversation_reset" && frame.trigger === "clear") reset = true;
+              const init = frame.type === "system" && frame.subtype === "init";
+              const moved = init || frame.type === "result" ? frame.session_id : undefined;
+              if (typeof moved === "string" && moved !== current) {
+                // Once, from the system/init that follows the clear's own reset; a result only confirms it.
+                if (clearing && reset && init && current === sessionId) { current = moved; runner.sessionId = moved; input.sessionChanged?.(moved); }
+                else {
+                  // Doan never follows a session it did not ask for (PRODUCT 'Resume and permissions').
+                  const lost = claudeSessionLost(state); state = lost.state;
+                  for (const event of lost.events) emit(event);
+                  closeInput(); void term(); break;
+                }
+              }
             }
             unanswered = claudeUnansweredSupport(raw) ?? unanswered;
             // Only a turn sent with Plan follows a reported switch (the plan's approval); a suggestion's setMode on another
@@ -497,7 +562,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       // The prompt carries a uuid the CLI echoes once it read it; registered before it is written (promptTransport).
       const promptId = randomUUID();
       state = promptTransport(state, promptId);
-      void enqueue({ type: "user", message: { role: "user", content: prompt }, parent_tool_use_id: null, session_id: sessionId, uuid: promptId as NonNullable<SDKUserMessage["uuid"]> }).catch(() => {});
+      void enqueue({ type: "user", message: { role: "user", content: prompt }, parent_tool_use_id: null, session_id: current, uuid: promptId as NonNullable<SDKUserMessage["uuid"]> }).catch(() => {});
       await consume;
     },
     // Registered with the transport before it is written, so a result the CLI sends before reading it does not end the
@@ -506,7 +571,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     async steer(prompt, turnId, messageId) {
       if (finished || inputClosed || state.terminal || !turn || turnId !== turn) throw new Error("not_running");
       state = steerTransport(state, messageId);
-      await enqueue({ type: "user", message: { role: "user", content: prompt }, parent_tool_use_id: null, session_id: sessionId, uuid: messageId as NonNullable<SDKUserMessage["uuid"]> });
+      await enqueue({ type: "user", message: { role: "user", content: prompt }, parent_tool_use_id: null, session_id: current, uuid: messageId as NonNullable<SDKUserMessage["uuid"]> });
     },
     answer(id, option) {
       const request = pending.get(id); if (!request || !["allow", "deny", ...(request.suggestions.length ? ["always"] : [])].includes(option)) return false;
@@ -535,4 +600,5 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     async stop() { state = { ...state, stop: "user" }; endReadWait(); expire(); controller.abort(); closeInput(); await term(); },
     async close() { state = { ...state, stop: "appQuit" }; endReadWait(); expire(); controller.abort(); closeInput(); await term(); },
   };
+  return runner;
 }

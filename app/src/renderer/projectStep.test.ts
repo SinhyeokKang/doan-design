@@ -422,6 +422,24 @@ test("an operation retired from the published list is read by its id", async () 
   expect(phase(h)).toMatchObject({ kind: "candidates" });
 });
 
+// A read of a retired operation that rejects (main threw) is asked again on the next published state, so the step
+// does not wait on it forever with its progress up.
+test("a rejected read of a retired operation is asked again on the next published state", async () => {
+  const h = harness();
+  h.session.setUrl("https://github.com/acme/studio");
+  const running = op("project_inspect", { state: "running" });
+  h.queue.inspect!.push(ok(running));
+  h.api.readOnboardingSession.mockRejectedValueOnce(new Error("ipc"));
+  h.api.readOnboardingSession.mockResolvedValueOnce({ v: 2, ok: true, op: "status", result: { sessionId: "s1", revision: 9, completed: false, agents: null, project: null, operations: [{ ...running, state: "succeeded", inspection: inspection([["/code/studio"]]) }] } });
+  const finding = h.session.findRepository();
+  await flush();
+  h.emit([]); await flush();
+  h.emit([]);
+  await finding;
+  expect(h.api.readOnboardingSession).toHaveBeenCalledTimes(2);
+  expect(phase(h)).toMatchObject({ kind: "candidates" });
+});
+
 test("Retry on a cancelled clone plans the current destination, not an older failure", async () => {
   const h = harness();
   h.session.setUrl("https://github.com/acme/studio");

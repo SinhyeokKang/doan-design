@@ -207,14 +207,14 @@ it("uses the tree fallback for blank frame labels", () => {
 });
 
 it("only calls a canvas missing when its project was successfully listed", () => {
-  expect(unavailableCanvasMessage({ kind: "list", path: "/p", servedRev: 0, canvases: [] }, ".doan/canvases/moved.html")).toBe("moved is no longer in .doan/canvases/");
-  expect(unavailableCanvasMessage({ kind: "loading", path: "/p" }, ".doan/canvases/moved.html")).toBe("Project is still being read. Try again shortly.");
-  expect(unavailableCanvasMessage({ kind: "cliError", path: "/p", reason: "failed" }, ".doan/canvases/moved.html")).toBe("Project is unavailable. Fix it from its menu in the sidebar, then try again.");
-  expect(unavailableCanvasMessage(undefined, ".doan/canvases/moved.html")).toBe("Project is unavailable. Fix it from its menu in the sidebar, then try again.");
+  expect(unavailableCanvasMessage({ kind: "list", path: "/p", servedRev: 0, canvases: [] }, ".doan/canvases/moved.html", "acme-web")).toBe("moved is no longer in .doan/canvases/");
+  expect(unavailableCanvasMessage({ kind: "loading", path: "/p" }, ".doan/canvases/moved.html", "acme-web")).toBe("acme-web is still being read. Try again shortly.");
+  expect(unavailableCanvasMessage({ kind: "cliError", path: "/p", reason: "failed" }, ".doan/canvases/moved.html", "acme-web")).toBe("acme-web isn’t available. Fix it from its menu in the sidebar.");
+  expect(unavailableCanvasMessage(undefined, ".doan/canvases/moved.html", "acme-web")).toBe("acme-web isn’t available. Fix it from its menu in the sidebar.");
 });
 
 it("names the directory the missing or removed canvas was in", () => {
-  expect(unavailableCanvasMessage({ kind: "list", path: "/p", servedRev: 0, canvases: [] }, ".doan/ds/button.html")).toBe("button is no longer in .doan/ds/");
+  expect(unavailableCanvasMessage({ kind: "list", path: "/p", servedRev: 0, canvases: [] }, ".doan/ds/button.html", "acme-web")).toBe("button is no longer in .doan/ds/");
   expect(missingCanvasMessage(".doan/ds/forms/input.html")).toBe("input is no longer in .doan/ds/");
   expect(missingCanvasMessage(".doan/canvases/sub/home.html")).toBe("home is no longer in .doan/canvases/");
   expect(removedCanvasMessage(canvas(".doan/ds/button.html"))).toBe("button was removed from .doan/ds/");
@@ -222,7 +222,7 @@ it("names the directory the missing or removed canvas was in", () => {
 });
 
 it("does not call a still-listed canvas deleted when its captured identity became stale", () => {
-  expect(unavailableCanvasMessage({ kind: "list", path: "/repo", servedRev: 0, canvases: [canvas(".doan/canvases/a.html")] }, ".doan/canvases/a.html"))
+  expect(unavailableCanvasMessage({ kind: "list", path: "/repo", servedRev: 0, canvases: [canvas(".doan/canvases/a.html")] }, ".doan/canvases/a.html", "acme-web"))
     .toBe("Canvas changed while opening. Choose it again from the sidebar or Quick Open.");
 });
 

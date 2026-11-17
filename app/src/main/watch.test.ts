@@ -404,29 +404,48 @@ describe("watchFolder classifies changes", () => {
     await expectChange(w, () => writeFileSync(join(root, ".doan", "config.json"), '{"v":1,"serve":[]}'), REREAD);
   });
 
-  // The read-state records: the app's own writes land here, so they must cost one records read and nothing else.
-  test("a .doan/seen/ change only reads the records again: no re-read, nothing served", async () => {
+  // The read state's git signal: HEAD, FETCH_HEAD and ORIG_HEAD in the gitdir, which git replaces by rename.
+  test("a gitdir HEAD, FETCH_HEAD or ORIG_HEAD change only reads the git signal again; other gitdir files are ignored", async () => {
     const root = repo();
-    mkdirSync(join(root, ".doan", "seen"));
+    mkdirSync(join(root, ".git"));
+    writeFileSync(join(root, ".git", "HEAD"), "ref: refs/heads/main\n");
     vi.mocked(fsWatch).mockClear();
     const w = await watchScope(root, [".doan/canvases"]);
-    expect(watchedPaths()).toContain(join(root, ".doan", "seen"));
-    expect(recursivePaths()).not.toContain(join(root, ".doan", "seen"));
-    writeFileSync(join(root, ".doan", "seen", ".a.json.0123456789ab.tmp"), '{"v":1}\n');
-    renameSync(join(root, ".doan", "seen", ".a.json.0123456789ab.tmp"), join(root, ".doan", "seen", "a.json"));
-    expect(await within(1_000, () => w.calls().length >= 1)).toBe(true);
+    expect(watchedPaths()).toContain(join(root, ".git"));
+    expect(recursivePaths()).not.toContain(join(root, ".git"));
+    writeFileSync(join(root, ".git", "index"), "x");
+    writeFileSync(join(root, ".git", "HEAD.lock"), "ref: refs/heads/other\n");
+    expect(await within(1_000, () => raw.events > 0)).toBe(true);
     await settle(() => w.calls().length);
-    expect(w.calls().length).toBeGreaterThan(0);
-    for (const call of w.calls()) expect(call).toEqual({ reread: false, served: false, seen: true });
+    expect(w.calls().filter(call => call.git)).toEqual([]);
+    for (const name of ["HEAD", "FETCH_HEAD", "ORIG_HEAD"]) {
+      w.reset();
+      if (name === "HEAD") renameSync(join(root, ".git", "HEAD.lock"), join(root, ".git", "HEAD"));
+      else writeFileSync(join(root, ".git", name), `${name}\n`);
+      expect(await within(1_000, () => w.calls().some(call => call.git)), name).toBe(true);
+      await settle(() => w.calls().length);
+      for (const call of w.calls()) expect(call, name).toEqual({ reread: false, served: false, git: true });
+    }
   });
 
-  test("the .doan/seen/ folder appearing is one .doan re-read, and it is watched from then on", async () => {
+  test("a linked worktree's gitdir outside the root is watched, and again once the .git link names another", async () => {
     const root = repo();
+    const first = join(tmp, `gitdir${count++}`), second = join(tmp, `gitdir${count++}`);
+    for (const dir of [first, second]) { mkdirSync(dir); writeFileSync(join(dir, "HEAD"), "ref: refs/heads/main\n"); }
+    writeFileSync(join(root, ".git"), `gitdir: ${first}\n`);
+    vi.mocked(fsWatch).mockClear();
     const w = await watchScope(root, [".doan/canvases"]);
-    await expectChange(w, () => mkdirSync(join(root, ".doan", "seen")), REREAD);
+    expect(watchedPaths()).toContain(first);
     w.reset();
-    writeFileSync(join(root, ".doan", "seen", "_project.json"), '{"v":1}\n');
-    expect(await within(1_000, () => w.calls().some(call => call.seen))).toBe(true);
+    writeFileSync(join(first, "ORIG_HEAD"), "x\n");
+    expect(await within(1_000, () => w.calls().some(call => call.git))).toBe(true);
+    await settle(() => w.calls().length);
+    writeFileSync(join(root, ".git"), `gitdir: ${second}\n`);
+    expect(await within(1_000, () => watchedPaths().includes(second))).toBe(true);
+    await settle(() => w.calls().length);
+    w.reset();
+    writeFileSync(join(second, "FETCH_HEAD"), "x\n");
+    expect(await within(1_000, () => w.calls().some(call => call.git))).toBe(true);
   });
 
   // A `.doan/` change must not reload the canvas, even when `serve` points into `.doan`.

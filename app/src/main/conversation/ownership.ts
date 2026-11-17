@@ -23,3 +23,8 @@ export function releaseReservation(reservations: readonly Reservation[], owner: 
   // Codex process_exited means its owned server exited, not merely that a turn ended.
   return evidence === "process_exited" || evidence === "not_spawned" ? reservations.filter(r => r.owner !== owner) : [...reservations];
 }
+// The owner's session moved (the person's /clear): its reservation names the new session, unless another owner holds it.
+export function rekeyReservation(reservations: readonly Reservation[], owner: string, key: SessionKey): ReservationResult {
+  if (reservations.some(r => r.owner !== owner && r.key && sameKey(r.key, key))) return { ok: false, code: "session_in_use" };
+  return { ok: true, reservations: reservations.map(r => r.owner === owner ? { owner, key } : r) };
+}

@@ -7,7 +7,7 @@ import type { UiState } from "../../restore/uiState";
 import type { AuthSnapshot } from "../agentAuth/ipc";
 import type { ConversationHandoffNotice } from "../conversation/handoff";
 import type { Preferences } from "../preferences";
-import type { Canvas, ConversationEvent, StageSignal } from "../conversation/types";
+import type { BoundarySignal, Canvas, ConversationEvent, StageSignal } from "../conversation/types";
 import type { FolderEntry } from "../view";
 import type { WorkItem } from "../workState";
 import type { PrototypeComposerSettings, PrototypeReveal, RevealPayload } from "./ipc";
@@ -84,7 +84,8 @@ export function prototypeConversationScope(method: string, payload: unknown, pla
   const request = record(payload);
   const row = playingRow(playing, entries);
   if (!PROTOTYPE_CONVERSATION_METHODS.has(method) || request === null || playing === null || row === null) return false;
-  if (ROOT_ONLY.has(method)) return request.root === playing.root;
+  // An ACP conversation's command list names its conversation too, which must be one of the playing canvas.
+  if (ROOT_ONLY.has(method)) return request.root === playing.root && (request.conversationId === undefined || conversationInScope(request.conversationId, playing, row, conversations, entries) !== null);
   if (BY_CANVAS.has(method)) {
     if (method === "start" && request.mode !== "new" && request.mode !== "resume") return false;
     const canvas = canvasValue(request.canvas);
@@ -114,6 +115,7 @@ export function prototypeListRows<T extends { canvas?: Canvas }>(rows: readonly 
 export type ConversationBroadcast =
   | { channel: "conversation:event"; value: ConversationEvent }
   | { channel: "conversation:stage"; value: StageSignal }
+  | { channel: "conversation:boundary"; value: BoundarySignal }
   | { channel: "conversation:listChanged"; value: { root: string } }
   | { channel: "conversation:handoff"; value: ConversationHandoffNotice };
 
@@ -130,7 +132,8 @@ export function prototypeReceives(message: ConversationBroadcast, playing: Playi
   if (playing === null) return false;
   switch (message.channel) {
     case "conversation:event":
-    case "conversation:stage": {
+    case "conversation:stage":
+    case "conversation:boundary": {
       const id = message.value.conversationId;
       const conversation = conversations.find(candidate => candidate.conversationId === id);
       return conversation !== undefined && onPlayingKey(conversation.canvas, conversation.root, playing);

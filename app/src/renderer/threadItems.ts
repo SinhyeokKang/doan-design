@@ -1,6 +1,7 @@
 import type { Question, QuestionOutcome, StoredAnswer } from "../main/conversation/question";
 import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, FailureCode, FastUnusedReason, HandoffOrigin, PermissionOption } from "../main/conversation/types";
 import { fastReason, splitRequest, type PresetRef } from "./homeComposer";
+import { boundaryLabel, type ThreadCommands } from "./commandView";
 import { PRESETS } from "../main/mcpConnectors/presets";
 
 // A conversation's merged events (main's state.ts mergeEvents) as the thread draws them.
@@ -37,7 +38,9 @@ export type ThreadItem =
   | { kind: "canvasCard"; key: string; canvas: Canvas; drawing: boolean; drawn: boolean; handoff?: CardHandoff }
   // A conversation a handoff started: its first message is the earlier agent's text, never the person's, so it is not
   // read for a preset line or {{n}} markers.
-  | { kind: "handoffCard"; key: string; seq: number; origin: HandoffOrigin; text: string };
+  | { kind: "handoffCard"; key: string; seq: number; origin: HandoffOrigin; text: string }
+  // After a /compact or /clear turn that ran (draft provider-commands frame boundaries).
+  | { kind: "boundary"; key: string; label: string };
 
 export type CardHandoff = { outcome: "pending" | "cancelled" | "missed" } | { outcome: "started"; target: { conversationId: string; canvas: Canvas } } | { outcome: "refused"; reason: string };
 type CanvasCard = Extract<ThreadItem, { kind: "canvasCard" }>;
@@ -157,8 +160,11 @@ export function sameItem(a: unknown, b: unknown): boolean {
 // last turn without an end event while nothing is live was cut by a quit or crash: main never writes that end, its
 // fold folds the turn (state.ts), and the thread shows it as stopped before it finished, as it does for a turn folded
 // by the next turn.started.
-export function threadItems(events: readonly ConversationEvent[], root: string, live: boolean): ThreadItem[] {
+// commands: the conversation's command turns and boundaries (commandView threadCommands). A command turn's bubble
+// highlights its word as written (an alias too); a turn with a boundary draws it in place of No reply.
+export function threadItems(events: readonly ConversationEvent[], root: string, live: boolean, commands?: ThreadCommands): ThreadItem[] {
   const items: ThreadItem[] = [];
+  const opened = new Set<string>();
   const agents = new Map<string, Extract<ThreadItem, { kind: "agent" }>>();
   const permissions = new Map<string, Extract<ThreadItem, { kind: "permission" }>>();
   // Apart from permissions, as main's fold keeps them: a resolution settles only a request of its own kind.
@@ -205,6 +211,10 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         if (event.origin) { push({ kind: "handoffCard", key: `u${event.seq}`, seq: event.seq, origin: event.origin, text: event.text }, event.turnId); continue; }
         const attachments = (event.attachments ?? []).map((a): SentFile => a.kind === "directory" ? { name: a.name, kind: a.kind, path: a.path } : { name: a.name, size: a.size, kind: a.kind, path: a.path });
         const { preset, skills, body } = splitRequest(event.text, attachments.length);
+        const first = !opened.has(event.turnId);
+        opened.add(event.turnId);
+        const command = first && commands?.turns.has(event.turnId) ? /^\/(\S+)/.exec(body)?.[1] : undefined;
+        if (command !== undefined) skills.push(command);
         push({ kind: "user", key: `u${event.seq}`, seq: event.seq, parts: anchorParts(body), anchors: event.anchors, preset, ...(skills.length ? { skills } : {}), attachments }, event.turnId);
         continue;
       }
@@ -297,10 +307,13 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
       case "fast.unused":
         push({ kind: "fast", key: `f${event.seq}`, seq: event.seq, text: fastUnusedText(event), turnedOff: event.turnedOff === true }, event.turnId);
         break;
-      case "turn.done":
+      case "turn.done": {
         endTurn(event.turnId);
-        if (!replied.has(event.turnId)) push({ kind: "noReply", key: `n${event.seq}` }, event.turnId);
+        const boundary = commands?.turns.has(event.turnId) ? commands.boundaries.get(event.turnId) : undefined;
+        if (boundary) push({ kind: "boundary", key: `b${event.turnId}`, label: boundaryLabel(boundary) }, event.turnId);
+        else if (!replied.has(event.turnId)) push({ kind: "noReply", key: `n${event.seq}` }, event.turnId);
         break;
+      }
       case "turn.failed":
         endTurn(event.turnId);
         push({ kind: "end", key: `e${event.seq}`, seq: event.seq, end: { kind: "failed", code: event.code, ...(event.model !== undefined ? { model: event.model } : {}), ...(event.code === "rate_limited" && event.detail !== undefined ? { detail: event.detail } : {}) } }, event.turnId);
