@@ -17,14 +17,14 @@ class FakeWindow extends EventEmitter {
     getOSProcessId: () => 1,
     mainFrame: { frames: [] },
   });
-  constructor() { super(); created.push(this); }
+  constructor(readonly options: { minWidth?: number; minHeight?: number; webPreferences?: { additionalArguments?: string[] } } = {}) { super(); created.push(this); }
   isDestroyed() { return this.destroyed; }
   destroy() { if (this.destroyed) return; this.destroyed = true; this.emit("closed"); }
   close() { this.emit("close"); this.destroy(); }
   bounds = { x: 0, y: 0, width: 406, height: 908 };
   minimum: [number, number] = [0, 0];
-  // As macOS does: bounds narrower than the minimum keep the minimum's width, and a minimum alone resizes nothing.
-  setContentBounds(bounds: { x: number; y: number; width: number; height: number }) { this.bounds = { ...bounds, width: Math.max(bounds.width, this.minimum[0]) }; }
+  // As macOS does: bounds smaller than the minimum keep the minimum's size, and a minimum alone resizes nothing.
+  setContentBounds(bounds: { x: number; y: number; width: number; height: number }) { this.bounds = { ...bounds, width: Math.max(bounds.width, this.minimum[0]), height: Math.max(bounds.height, this.minimum[1]) }; }
   getContentBounds() { return this.bounds; }
   setMinimumSize(width: number, height: number) { this.minimum = [width, height]; order.push(`minimum ${width}`); }
   getMinimumSize() { return this.minimum; }
@@ -57,7 +57,7 @@ async function opened() {
   const { createPrototypeWindow } = await import("./prototypeWindow");
   const closed = vi.fn();
   const focusChanged = vi.fn();
-  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed, denyPermissions: vi.fn(), reread: vi.fn(), focusChanged, buddy: () => "puri" });
+  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed, denyPermissions: vi.fn(), reread: vi.fn(), focusChanged, buddy: () => "puri", clockHour12: () => false });
   prototype.controller.play("main", play);
   expect(created).toHaveLength(1);
   return { prototype, closed, focusChanged, window: created[0]! };
@@ -111,7 +111,7 @@ test("a replaced window's late focus and blur are not reported", async () => {
 test("a play while the app is hidden shows the app before the window, for a new window and a raised one", async () => {
   const { createPrototypeWindow } = await import("./prototypeWindow");
   let hidden = true;
-  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), appHidden: () => hidden, buddy: () => "puri" });
+  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), appHidden: () => hidden, buddy: () => "puri", clockHour12: () => true });
   const target = { root: "/r", canvas: { id: "proto" }, frame: "phone" };
   expect(prototype.controller.playFromCli({ target, size: { width: 390, height: 844 } })).toBe("played");
   expect(order).toEqual(["app.show", "window.show", "window.focus"]);
@@ -129,7 +129,7 @@ test("a play while the app is hidden shows the app before the window, for a new 
 test("the window's native visibility goes to its page on show, hide, minimize, restore and an app hide", async () => {
   const { createPrototypeWindow } = await import("./prototypeWindow");
   let hidden = false;
-  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), appHidden: () => hidden, buddy: () => "puri" });
+  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), appHidden: () => hidden, buddy: () => "puri", clockHour12: () => true });
   prototype.controller.play("main", play);
   const window = created[0]!;
   const pushed = () => window.webContents.send.mock.calls.filter(call => call[0] === "prototype:visible").map(call => call[1]);
@@ -149,7 +149,7 @@ test("the window's native visibility goes to its page on show, hide, minimize, r
 test("tells main each time the window is shown, hidden, minimized, restored or closed", async () => {
   const { createPrototypeWindow } = await import("./prototypeWindow");
   const seen: boolean[] = [];
-  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), buddy: () => "puri",
+  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), buddy: () => "puri", clockHour12: () => true,
     shownChanged: () => seen.push(prototype.visible()) });
   prototype.controller.play("main", play);
   const window = created[0]!;
@@ -173,10 +173,16 @@ test("opening the conversation panel widens a narrow window to 640 and keeps it 
   prototype.controller.request("prototype:panel", "prototype", { open: true });
   // 1400 + 640 would leave the 1600 work area: moved left to 960.
   expect(window.bounds).toEqual({ x: 960, y: 50, width: 640, height: 908 });
-  expect(window.minimum).toEqual([640, 0]);
+  expect(window.minimum).toEqual([640, 360]);
   prototype.controller.request("prototype:panel", "prototype", { open: false });
   expect(window.bounds).toEqual({ x: 960, y: 50, width: 640, height: 908 });
-  expect(window.minimum).toEqual([360, 0]);
+  expect(window.minimum).toEqual([360, 360]);
+});
+
+test("the window is created at least 360 high and with the clock's hour cycle main read from macOS", async () => {
+  const { window } = await opened();
+  expect(window.options.minHeight).toBe(360);
+  expect(window.options.webPreferences?.additionalArguments).toEqual(["--doan-clock-hour12=0"]);
 });
 
 test("the text edit menu opens for the window's own page", async () => {
@@ -190,11 +196,11 @@ test("the text edit menu opens for the window's own page", async () => {
 test("a refit into a work area narrower than 640 lowers the minimum before it narrows the window", async () => {
   const { prototype, window } = await opened();
   prototype.controller.request("prototype:panel", "prototype", { open: true });
-  expect(window.minimum).toEqual([640, 0]);
+  expect(window.minimum).toEqual([640, 360]);
   workArea = { x: 0, y: 0, width: 600, height: 1000 };
   prototype.controller.play("main", { ...play, frame: "tablet" });
   expect(window.bounds.width).toBe(600);
-  expect(window.minimum).toEqual([600, 0]);
+  expect(window.minimum).toEqual([600, 360]);
 });
 
 test("opening the panel on a narrow window raises the minimum after the bounds", async () => {
@@ -210,7 +216,7 @@ test("the window's own debugger attaches before the opaque fallback sees the win
   const vibrancyWindow = vi.fn((window: unknown) => {
     expect((window as FakeWindow).webContents.debugger.attach).toHaveBeenCalledWith("1.3");
   });
-  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), buddy: () => "puri", vibrancyWindow });
+  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), buddy: () => "puri", clockHour12: () => true, vibrancyWindow });
   prototype.controller.play("main", play);
   expect(vibrancyWindow).toHaveBeenCalledWith(created[0]);
 });

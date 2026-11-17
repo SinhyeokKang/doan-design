@@ -372,6 +372,7 @@ const prototype = createPrototypeWindow({
     prototypeRelay.changed();
   },
   buddy: () => prototypeBuddy(),
+  clockHour12: systemClockHour12,
   viewSent: () => prototypeRelay.changed(),
   canvasChanged: () => prototypeRelay.changed(),
   denyPermissions,
@@ -613,6 +614,13 @@ function denyPermissions(target: Session = session.defaultSession): void {
   target.on("will-download", (event) => event.preventDefault());
 }
 
+function systemClockHour12(): boolean {
+  return clockHour12({
+    force24: systemPreferences.getUserDefault("AppleICUForce24HourTime", "boolean") === true,
+    force12: systemPreferences.getUserDefault("AppleICUForce12HourTime", "boolean") === true,
+  }, app.getSystemLocale());
+}
+
 // buddy: the saved buddy, passed in the renderer's query for the first paint.
 function createWindow(buddy: BuddyId): BrowserWindow {
   // Launched by `onboarding start` behind the app in use: create hidden and wait, unless Doan became active during
@@ -642,10 +650,7 @@ function createWindow(buddy: BuddyId): BrowserWindow {
       sandbox: true,
       // CJS: a sandboxed preload cannot load ESM, and package.json is "type": "module".
       preload: fileURLToPath(new URL("../preload/index.cjs", import.meta.url)),
-      additionalArguments: [clockArgument(clockHour12({
-        force24: systemPreferences.getUserDefault("AppleICUForce24HourTime", "boolean") === true,
-        force12: systemPreferences.getUserDefault("AppleICUForce12HourTime", "boolean") === true,
-      }, app.getSystemLocale()))],
+      additionalArguments: [clockArgument(systemClockHour12())],
     },
   });
   const devUrl = process.env.ELECTRON_RENDERER_URL;

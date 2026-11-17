@@ -69,6 +69,16 @@ test("every request goes to its prototype channel with the payload main parses",
   expect(new Set(mocks.invoke.mock.calls.map(call => call[0]))).toEqual(new Set(PROTOTYPE_WINDOW_REQUESTS));
 });
 
+test("reads the clock's hour cycle main passed to the window, 12-hour by default, as the main preload does", async () => {
+  expect(api.clockHour12).toBe(true);
+  const argv = process.argv;
+  try {
+    process.argv = [...argv, "--doan-clock-hour12=0"];
+    vi.resetModules(); mocks.expose.mockClear(); await import("./prototype");
+    expect(mocks.expose.mock.calls[0]?.[1].clockHour12).toBe(false);
+  } finally { process.argv = argv; }
+});
+
 test("view and snapshot events reach their listeners until unsubscribed", () => {
   const views = vi.fn();
   const snapshots = vi.fn();

@@ -36,7 +36,7 @@ export type SharedWithMain =
   | "answerConversationQuestion" | "readConversation" | "listConversationModels" | "listConversationSkills"
   | "chooseAttachments" | "addAttachmentFiles" | "addPastedImage" | "removeAttachment" | "recheckAttachments" | "attachmentsFromPaths" | "releaseAttachments"
   | "onConversationEvent" | "onConversationStage" | "onConversationBoundary" | "onAgentAuth" | "getWork" | "onWorkChanged" | "designSkills" | "onWindowVisible" | "droppedPath"
-  | "deleteConversation" | "readAgentUsage" | "onAgentUsage";
+  | "deleteConversation" | "readAgentUsage" | "onAgentUsage" | "clockHour12";
 
 function listen<T>(channel: string, listener: (value: T) => void): () => void {
   const receive = (_event: Electron.IpcRendererEvent, value: T) => listener(value);
@@ -44,9 +44,17 @@ function listen<T>(channel: string, listener: (value: T) => void): () => void {
   return () => ipcRenderer.removeListener(channel, receive);
 }
 
+// main/clockHourCycle.ts's argument, read as the main preload reads it (a shared value import would become a chunk).
+function clockHour12(argv: readonly string[]): boolean {
+  const value = argv.find(arg => arg.startsWith("--doan-clock-hour12="))?.slice("--doan-clock-hour12=".length);
+  return value !== "0";
+}
+
 // Channel names stay literal (pinned against PROTOTYPE_CHANNELS and the main preload in the test): a value import
 // shared with the main preload would become a chunk, which a sandboxed preload cannot require.
 const api = {
+  // Whether the conversation panel's clock reads in 12-hour form (macOS's setting when this window opened).
+  clockHour12: clockHour12(process.argv),
   read: (): Promise<PrototypeView | null> => ipcRenderer.invoke("prototype:read"),
   onChanged(listener: (view: PrototypeView | null) => void): () => void {
     const receive = (_event: Electron.IpcRendererEvent, view: PrototypeView | null) => listener(view);

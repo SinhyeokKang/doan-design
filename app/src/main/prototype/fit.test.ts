@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
-  PROTOTYPE_CHROME, PROTOTYPE_HEADER_RIGHT, PROTOTYPE_HEADER_RIGHT_OPEN, PROTOTYPE_NAME_MIN_WIDTH, PROTOTYPE_NAME_ROW_HEIGHT, PROTOTYPE_PANEL_GAP, PROTOTYPE_PANEL_MIN_WIDTH, PROTOTYPE_PANEL_WINDOW_MIN_WIDTH, PROTOTYPE_WINDOW_MIN_WIDTH,
+  PROTOTYPE_CHROME, PROTOTYPE_HEADER_RIGHT, PROTOTYPE_HEADER_RIGHT_OPEN, PROTOTYPE_NAME_MIN_WIDTH, PROTOTYPE_NAME_ROW_HEIGHT, PROTOTYPE_PANEL_GAP, PROTOTYPE_PANEL_MIN_WIDTH, PROTOTYPE_PANEL_WINDOW_MIN_WIDTH, PROTOTYPE_WINDOW_MIN_HEIGHT, PROTOTYPE_WINDOW_MIN_WIDTH,
   fitPrototypeWindow, openPanelResize, prototypeCaptureRect, prototypeHeaderRows, prototypePanelBounds, prototypePanelFit, prototypeSideLayout, prototypeViewportBox,
 } from "./fit";
 
@@ -10,6 +10,7 @@ describe("chrome constants", () => {
   test("the header is --size-chrome and the panel sits 8px in from the sides and bottom", () => {
     expect(PROTOTYPE_CHROME).toEqual({ header: 56, side: 8, bottom: 8 });
     expect(PROTOTYPE_WINDOW_MIN_WIDTH).toBe(360);
+    expect(PROTOTYPE_WINDOW_MIN_HEIGHT).toBe(360);
   });
 
   test("the header's right group is the mode toggle, Export and the conversation button; the name needs 80 or takes a 44 second row", () => {
@@ -95,6 +96,52 @@ describe("fitPrototypeWindow", () => {
     const narrow = { x: 0, y: 0, width: 365, height: 2000 };
     expect(fitPrototypeWindow({ width: 390, height: 844 }, narrow)).toMatchObject({ width: 365, height: 952 });
     expect(fitPrototypeWindow({ width: 390, height: 844 }, { ...narrow, height: 900 })).toMatchObject({ width: 365, height: 900 });
+  });
+});
+
+// A mark shorter than the window's 360 minimum height (600x10) used to open a window 74 high, holding an open
+// conversation panel to that height.
+describe("the minimum height", () => {
+  test("a short mark opens a window 360 high, centred in the work area", () => {
+    // 10 + 56 + 8 = 74 is under 360; 616 keeps the name on the first row.
+    expect(fitPrototypeWindow({ width: 600, height: 10 }, laptop)).toEqual({ x: 448, y: 317, width: 616, height: 360 });
+    // At 360 wide the name takes the second row: 1 + 100 + 8 is still under 360.
+    expect(fitPrototypeWindow({ width: 1, height: 1 }, laptop)).toMatchObject({ width: 360, height: 360 });
+  });
+
+  test("a mark whose fitted height is 360 or more keeps it", () => {
+    expect(fitPrototypeWindow({ width: 600, height: 296 }, laptop)).toMatchObject({ width: 616, height: 360 });
+    expect(fitPrototypeWindow({ width: 600, height: 297 }, laptop)).toMatchObject({ width: 616, height: 361 });
+  });
+
+  test("a replaced frame keeps the window's top-left at the minimum height", () => {
+    expect(fitPrototypeWindow({ width: 600, height: 10 }, laptop, { x: 100, y: 100, width: 800, height: 600 })).toEqual({ x: 100, y: 100, width: 616, height: 360 });
+  });
+
+  test("a work area shorter than the minimum keeps the minimum at its top edge, as the width does", () => {
+    expect(fitPrototypeWindow({ width: 600, height: 10 }, { x: 0, y: 20, width: 1512, height: 300 })).toMatchObject({ y: 20, height: 360 });
+  });
+
+  test("with the conversation panel open a short mark also opens 360 high", () => {
+    // 600 + 24 + 320 = 944; L = 616 keeps the name on the first row.
+    expect(prototypePanelFit({ width: 600, height: 10 }, laptop, 320)).toEqual({ bounds: { x: 284, y: 317, width: 944, height: 360 }, panel: 320, minimum: 640 });
+    // At 640 the panel leaves L 352 and the name takes the second row: 1 + 100 + 8 is still under 360.
+    expect(prototypePanelFit({ width: 1, height: 1 }, laptop, 280)).toMatchObject({ bounds: { width: 640, height: 360 }, panel: 280 });
+  });
+
+  test("Fit centres the short frame vertically in the content panel, with the panel closed and open", () => {
+    const closed = fitPrototypeWindow({ width: 600, height: 10 }, laptop);
+    // The content panel is 600 x 296 (360 - 56 - 8): the frame sits at y (296 - 10) / 2 = 143.
+    expect(prototypeCaptureRect(closed, { width: 600, height: 10 }, "fit")).toEqual({ rect: { x: 8, y: 199, width: 600, height: 10 }, box: { x: 0, y: 143, width: 600, height: 10 } });
+    const open = prototypePanelFit({ width: 600, height: 10 }, laptop, 320);
+    expect(prototypeCaptureRect(open.bounds, { width: 600, height: 10 }, "fit", open.panel)).toEqual({ rect: { x: 8, y: 199, width: 600, height: 10 }, box: { x: 0, y: 143, width: 600, height: 10 } });
+  });
+
+  test("Responsive fills the whole content panel of the minimum-height window, with the panel closed and open", () => {
+    const closed = fitPrototypeWindow({ width: 600, height: 10 }, laptop);
+    expect(prototypeCaptureRect(closed, { width: 600, height: 10 }, "responsive")).toEqual({ rect: { x: 8, y: 56, width: 600, height: 296 }, box: { x: 0, y: 0, width: 600, height: 296 } });
+    const open = prototypePanelFit({ width: 600, height: 10 }, laptop, 320);
+    expect(prototypeCaptureRect(open.bounds, { width: 600, height: 10 }, "responsive", open.panel)).toEqual({ rect: { x: 8, y: 56, width: 600, height: 296 }, box: { x: 0, y: 0, width: 600, height: 296 } });
   });
 });
 
