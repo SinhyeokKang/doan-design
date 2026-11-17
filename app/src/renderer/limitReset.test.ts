@@ -116,5 +116,12 @@ describe("localClock", () => {
     try { expect(localClock().hour12).toBe(true); } finally { vi.unstubAllGlobals(); }
     expect(typeof localClock().hour12).toBe("boolean");
   });
+
+  test("the prototype window's panel takes it from its own preload", () => {
+    vi.stubGlobal("window", { doanPrototype: { clockHour12: false } });
+    try { expect(localClock().hour12).toBe(false); } finally { vi.unstubAllGlobals(); }
+    vi.stubGlobal("window", { doanPrototype: { clockHour12: true } });
+    try { expect(localClock().hour12).toBe(true); } finally { vi.unstubAllGlobals(); }
+  });
 });
 
