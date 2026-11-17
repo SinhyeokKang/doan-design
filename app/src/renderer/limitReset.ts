@@ -6,11 +6,13 @@ import type { Slot } from "./homeConversations";
 
 export interface Clock { timeZone: string; hour12: boolean }
 
-// The renderer's own time zone, and macOS's 12/24-hour setting as main passed it to the window: the renderer's Intl
-// follows the locale instead, so it is only the fallback where the preload value is missing (tests).
+// The renderer's own time zone, and macOS's 12/24-hour setting as main passed it to the window (the main window's
+// `doan`, the prototype window's `doanPrototype`): the renderer's Intl follows the locale instead, so it is only the
+// fallback where the preload value is missing (tests).
 export function localClock(): Clock {
   const options = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions();
-  const passed = (globalThis as { window?: { doan?: { clockHour12?: unknown } } }).window?.doan?.clockHour12;
+  const page = (globalThis as { window?: { doan?: { clockHour12?: unknown }; doanPrototype?: { clockHour12?: unknown } } }).window;
+  const passed = page?.doan?.clockHour12 ?? page?.doanPrototype?.clockHour12;
   return { timeZone: options.timeZone, hour12: typeof passed === "boolean" ? passed : options.hour12 ?? true };
 }
 

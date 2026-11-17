@@ -111,7 +111,7 @@ test("a replaced window's late focus and blur are not reported", async () => {
 test("a play while the app is hidden shows the app before the window, for a new window and a raised one", async () => {
   const { createPrototypeWindow } = await import("./prototypeWindow");
   let hidden = true;
-  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), appHidden: () => hidden, buddy: () => "puri" });
+  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), appHidden: () => hidden, buddy: () => "puri", clockHour12: () => true });
   const target = { root: "/r", canvas: { id: "proto" }, frame: "phone" };
   expect(prototype.controller.playFromCli({ target, size: { width: 390, height: 844 } })).toBe("played");
   expect(order).toEqual(["app.show", "window.show", "window.focus"]);
@@ -129,7 +129,7 @@ test("a play while the app is hidden shows the app before the window, for a new 
 test("the window's native visibility goes to its page on show, hide, minimize, restore and an app hide", async () => {
   const { createPrototypeWindow } = await import("./prototypeWindow");
   let hidden = false;
-  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), appHidden: () => hidden, buddy: () => "puri" });
+  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), appHidden: () => hidden, buddy: () => "puri", clockHour12: () => true });
   prototype.controller.play("main", play);
   const window = created[0]!;
   const pushed = () => window.webContents.send.mock.calls.filter(call => call[0] === "prototype:visible").map(call => call[1]);
@@ -149,7 +149,7 @@ test("the window's native visibility goes to its page on show, hide, minimize, r
 test("tells main each time the window is shown, hidden, minimized, restored or closed", async () => {
   const { createPrototypeWindow } = await import("./prototypeWindow");
   const seen: boolean[] = [];
-  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), buddy: () => "puri",
+  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), buddy: () => "puri", clockHour12: () => true,
     shownChanged: () => seen.push(prototype.visible()) });
   prototype.controller.play("main", play);
   const window = created[0]!;

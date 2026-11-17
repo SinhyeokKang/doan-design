@@ -7,6 +7,9 @@ import type { PrototypeSize } from "./mark";
 export const PROTOTYPE_CHROME = { header: 56, side: 8, bottom: 8 } as const;
 
 export const PROTOTYPE_WINDOW_MIN_WIDTH = 360;
+// The window's content is at least as high as it is wide at its narrowest, so a short mark (600x10) still leaves the
+// conversation panel room; Fit centres the frame vertically in the taller content panel.
+export const PROTOTYPE_WINDOW_MIN_HEIGHT = 360;
 
 // The header's right group: the Fit/Responsive toggle (2 + 32 + 32 + 2), then 4 and Export (32), then 4 and the
 // conversation button (32). Main's fit and capture and the renderer's header read the same value; styles.css mirrors it
@@ -47,7 +50,7 @@ export function fitPrototypeWindow(size: PrototypeSize, workArea: Rect, current?
 }
 
 function placed(width: number, size: PrototypeSize, header: number, workArea: Rect, current?: Rect): Rect {
-  const height = Math.min(size.height + header + PROTOTYPE_CHROME.bottom, workArea.height);
+  const height = Math.max(PROTOTYPE_WINDOW_MIN_HEIGHT, Math.min(size.height + header + PROTOTYPE_CHROME.bottom, workArea.height));
   const x = current?.x ?? workArea.x + Math.floor((workArea.width - width) / 2);
   const y = current?.y ?? workArea.y + Math.floor((workArea.height - height) / 2);
   return { x: place(x, width, workArea.x, workArea.width), y: place(y, height, workArea.y, workArea.height), width, height };
