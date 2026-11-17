@@ -546,7 +546,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const sendSelection = (selection: Selection | null) => {
       window.doan.setSelection(selection).catch((error: unknown) => console.error("selection:set failed", error));
     };
-    const instance = new CanvasController(viewport.current, board.current, overlay.current, canvasChanged, sendSelection, selector => window.doan.inspect(selector), dragLayer.current, () => window.doan.pointer());
+    const instance = new CanvasController(viewport.current, board.current, overlay.current, canvasChanged, sendSelection, dragLayer.current, () => window.doan.pointer());
     controller.current = instance;
     const stopFolders = window.doan.onFolders((all, focus) => {
       const next = shownFolders(all), before = entriesRef.current;
