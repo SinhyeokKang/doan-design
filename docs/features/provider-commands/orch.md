@@ -19,8 +19,8 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| B1 | task 3, 4 | `app/src/main/conversation/types.ts`(`SkillSummary`), 새 순수 함수 모듈과 테스트(main `conversation/`, renderer 보내기 조립·하이라이트 helper) | 없음 | Opus high: 허용 목록·첫 단어 판정·경계 근거·숨길 기록 규칙이 PoC 표 해석에 달려 있고, 틀리면 B2·B3가 모두 따라 틀린다 | `npm --prefix app run typecheck`, `npm --prefix app test` | R1(Codex astra medium): 🔴0 🟡3 💬3. 수정 라운드 1 진행 중 |
-| B2 | task 5, 6, 7 | `app/src/main/conversation/`(skills·runners·acpRunner·acp·queue·service·store·sessions 등), `app/src/preload/` | B1 | Opus high: 세션 id 고정 검사 예외, ACP 연결 수명, Codex 요청 매핑. 틀리면 세션을 몰래 바꾸거나 다른 연결의 목록을 보인다 | `npm --prefix app test`, typecheck | 대기 |
+| B1 | task 3, 4 | `app/src/main/conversation/types.ts`(`SkillSummary`), 새 순수 함수 모듈과 테스트(main `conversation/`, renderer 보내기 조립·하이라이트 helper) | 없음 | Opus high: 허용 목록·첫 단어 판정·경계 근거·숨길 기록 규칙이 PoC 표 해석에 달려 있고, 틀리면 B2·B3가 모두 따라 틀린다 | `npm --prefix app run typecheck`, `npm --prefix app test` | 통합 끝(b971f3dec..5141c71af). R1(Codex astra medium) 🔴0 🟡3 💬3, 수정 1라운드. verify PASS(5141c71af). worktree 정리함 |
+| B2 | task 5, 6, 7 | `app/src/main/conversation/`(skills·runners·acpRunner·acp·queue·service·store·sessions 등), `app/src/preload/` | B1 | Opus high: 세션 id 고정 검사 예외, ACP 연결 수명, Codex 요청 매핑. 틀리면 세션을 몰래 바꾸거나 다른 연결의 목록을 보인다 | `npm --prefix app test`, typecheck | 진행 중(pc-b2) |
 | B3 | task 8(+`/runtime-test`, `/design-sync`) | `app/src/renderer/`, `docs/design/conversation.md`·`docs/DESIGN.md` 측정값 | B2 | Opus high: 네 컴포저 공통 규칙, `/` 목록 위치 변경, 실제 앱 측정 | `npm --prefix app test`, `/runtime-test` 네 항목, `/design-sync` | 대기 |
 | 지휘자 | task 9, 10 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/features/provider-commands/` 삭제 | B3 | — | `verify.mjs` 종료 0, `/doc-check` 대상 문단 대조 | 대기 |
 
