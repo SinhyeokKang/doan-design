@@ -84,7 +84,11 @@ function readinessView(status: AuthStatusDto, ctx: ProviderContext, view: Provid
     case "version_unknown": return { ...view, notice: alert(`Check that ${name} is installed correctly, then check again.`, [check(provider, "Check again", true)], `Couldn’t read the ${name} version`) };
     case "version_incompatible": return { ...view, notice: alert(`Update ${name} or wait for a Doan update, then check again.`, [check(provider, "Check again", true)], `Doan can’t run this ${name} version`) };
     case "sign_out_failed": return { ...view, notice: alert(`Doan couldn’t sign out of ${name}. Sign out again before you use it.`, [button("signOut", "Sign out")]) };
-    case "account_mismatch": return { ...view, notice: alert(`You signed in with a different ${name} account. Sign in again with the same account, or sign out first.`, reauth) };
+    case "account_mismatch": {
+      // Main reports a different account and a different organization (Copilot: host) as one code.
+      const part = provider === "claude" ? "organization" : provider === "copilot" ? "host" : null;
+      return { ...view, notice: alert(part ? `You signed in with a different ${name} account or ${part}. Sign in again with the same account and ${part}, or sign out first.` : `You signed in with a different ${name} account. Sign in again with the same account, or sign out first.`, reauth) };
+    }
     case "reauth_required": {
       // A failed Sign in again keeps the connection, so its error is shown with the same recovery buttons.
       const failed = errorNotice(status, ctx)?.body;

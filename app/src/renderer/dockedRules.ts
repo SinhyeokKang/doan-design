@@ -176,7 +176,8 @@ const SEND_ERRORS: Record<string, (p: string) => string> = {
   // The code alone does not tell an expired sign-in from none.
   not_logged_in: p => `Sign in to ${p} in Settings > Agents, then send again.`,
   rate_limited: p => `${p} reached a usage limit. Send again after it resets.`,
-  session_in_use: p => `${p} is using this session elsewhere. Try again when it finishes there.`,
+  // The holder may be a terminal or a Doan conversation's background work; the window cannot tell which.
+  session_in_use: p => `${p} is still using this session. Try again when it finishes.`,
 };
 
 // Every refusal of a terminal session reads the same way and never says "Choose another agent": its provider is the
@@ -188,7 +189,7 @@ export function resumeRefusalText(code: string, provider: Provider): string {
 const RESUME_REASONS: Record<string, (p: string) => string> = {
   no_session: () => "it’s no longer available",
   session_unavailable: () => "it isn’t available right now",
-  session_in_use: () => "it’s open elsewhere",
+  session_in_use: p => `${p} is still using it`,
   // The code alone does not tell an expired sign-in from none.
   not_logged_in: p => `sign in to ${p} in Settings > Agents, then send again`,
   cli_missing: p => `${p} isn’t installed on this Mac`,

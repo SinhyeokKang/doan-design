@@ -296,7 +296,7 @@ describe("the Buddy step and the existing-user buddy screen", () => {
     const tree = scene(selection());
     const heading = all(tree).find(element => element.type === "h2")!;
     expect(heading.props).toMatchObject({ id: "ob-buddy-title", tabIndex: -1, children: "Choose your buddy" });
-    expect(words(all(tree).find(element => element.type === "p")!.props.children)).toBe("It keeps you company in Doan and sets the app’s accent color. You can change it later in Settings.");
+    expect(words(all(tree).find(element => element.type === "p")!.props.children)).toBe("It keeps you company in Doan and sets the app’s accent color. You can change it later in Settings. After each change there, your buddy stays for 24 hours.");
     expect(all(tree).find(element => element.props.role === "radiogroup")!.props["aria-labelledby"]).toBe("ob-buddy-title");
     expect(all(tree).some(element => element.props.className?.toString().includes("doan-notice"))).toBe(false);
     expect(all(tree).find(element => element.props.className === "ob-live")!.props.children).toBe("");
