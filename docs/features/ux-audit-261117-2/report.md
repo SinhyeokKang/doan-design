@@ -180,7 +180,7 @@
 | B1 Retry·확인 창 처리 중 | `fix/ux-retry-busy` | F1, F4, F11, D1 | `ux-audit-261117-2-b1` |
 | B2 문구 통일 | `fix/ux-wording-sources` | F3, F8, F9 | 없음 (문구만 바뀐다) |
 | B3 오류 표시·버튼 상태 | `fix/ux-error-presentation` | F6, F7, F12 | `ux-audit-261117-2-b3` |
-| B4 늦은 결과·빈 창 | `fix/ux-late-state` | F2, F5, F10 | `ux-audit-261117-2-b4` |
+| B4 늦은 결과·빈 창 | `fix/ux-late-state` | F2, F5, F10, D2, D3 | `ux-audit-261117-2-b4` |
 
 **순서와 겹침**
 - B1과 B2는 둘 다 `SettingsAgents.tsx`를 고친다. 그래서 B1을 머지한 뒤 B2를 시작한다.
@@ -202,7 +202,7 @@
    - 대상: `SettingsAbout.tsx`, `SettingsAgents.tsx`, `SettingsNotifications.tsx`, `SettingsGeneral.tsx`, `Onboarding.tsx:725`, `ConversationThread.tsx:834-838`, `HomeComposerView.tsx:604`, `DockedComposer.tsx:536`
 2. F11: Retry의 보조기술용 이름은 "Retry"로 시작한다. 무엇을 다시 하는지는 `aria-describedby`로 연결한다.
 3. F4: 휴지통 plan을 읽는 동안 Move to Trash는 busy 상태를 보여 준다. 읽지 못하면 그 이유 줄을 보여 준다.
-4. D1(확정 후): Move to Trash와 MCP Remove는 응답이 올 때까지 열린 채 busy로 남는다. 실패하면 창 안에 안내와 다시 시도를 보여 준다.
+4. D1: Move to Trash와 MCP Remove는 응답이 올 때까지 열린 채 busy로 남는다. 실패하면 창 안에 안내와 다시 시도를 보여 준다.
 
 ### B2 문구 통일
 1. F3: `providerShortStatus`에 미설치("Not installed") 분기를 넣는다. `SettingsAgents.unavailable()`은 이 함수의 결과를 쓴다.
@@ -218,3 +218,19 @@
 1. F2: 프로토타입 창의 첫 읽기 실패에 오류 안내와 Retry를 보여 준다. 메인 창의 오류 안내 패턴을 쓴다.
 2. F5: 알림 스위치 저장에 요청 번호를 넣는다.
 3. F10: 초안 교체 확인 창에 `role="alertdialog"`와 `aria-describedby`를 붙인다.
+4. D2: 캔버스 로드 실패(`App.tsx:2605`)에 Retry를 둔다.
+5. D3: StorageChoice 라디오를 aria-disabled로 바꾼다(`StorageChoice.tsx:21,34`).
+
+## 사용자 결정 (2026-11-17)
+
+사용자는 "가능한 표준에 맞추고, 그 외에는 다 괜찮다"고 답했다. 이 답에 따라 각 항목을 다음과 같이 정했다.
+- **D1:** 파괴적 확인 창은 대화 삭제처럼 응답이 올 때까지 열린 채 busy로 남는다. Move to Trash와 MCP Remove도 같다. 실패하면 창 안에 안내를 보여 주고 확인 버튼으로 다시 시도한다(B1).
+- **F6:** 좁은 목록의 읽기 실패도 DESIGN.md:111-114 표준(AlertIcon + danger 문구)을 따른다. 행 밀도는 유지한다(B3).
+- **D2:** 캔버스 로드 실패에도 목록·설정 읽기 실패처럼 앱 안 Retry를 둔다. "Run doan check" 안내는 그대로 둔다(B4).
+- **D3:** StorageChoice 라디오는 ProjectSetupDialog처럼 aria-disabled를 써서 포커스를 지킨다(B4).
+- **D4:** 이름 인용 방식은 지금대로 둔다. 바꿀 표준이 없다.
+- **D5:** 문서에 없던 의도된 차이 세 가지를 지금 동작대로 PRODUCT·DESIGN에 적는다. 각 배치의 문서 승격 단계에서 해당 화면을 고치는 배치가 맡는다.
+  - 첫 실행의 클론 취소 Retry
+  - Onboarding의 Connected 버튼
+  - 업데이트를 받을 수 없는 빌드의 Check for Updates 메뉴
+- 캔버스의 제안 문구는 확정했다. 컨덕터가 다듬을 때도 뜻은 유지한다.
