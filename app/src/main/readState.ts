@@ -172,11 +172,15 @@ export function createReadState(deps: ReadStateDeps): ReadState {
     const stored = deps.local.root(root);
     let record: RootRecord = stored ?? { canvases: {} };
     if (!record.migrated) {
-      // Once per root: its former shared records, or this device's older memory, become its local record.
+      // Once per root. A root this device knew under an older Doan carries its shared records and that memory over; any
+      // other (a new worktree, another machine, a moved-aside or later canvas-seen.json) is a first registration and
+      // its `.doan/seen/` is never read.
       const v2 = record.v2;
-      const snapshot = await deps.read(root, uniqueIds(rows));
-      if (runs.get(root) !== run) return;
-      record = migrateRoot(v2, snapshot, rows, row => lastOf(run, row) ?? (row.id === undefined ? undefined : v2?.known[row.id]));
+      if (v2) {
+        const snapshot = await deps.read(root, uniqueIds(rows));
+        if (runs.get(root) !== run) return;
+        record = migrateRoot(v2, snapshot, rows, row => lastOf(run, row) ?? (row.id === undefined ? undefined : v2.known[row.id]));
+      } else record = { migrated: true, canvases: record.canvases };
     }
     const at = now();
     observeGit(run, root, at);
@@ -245,7 +249,7 @@ export function createReadState(deps: ReadStateDeps): ReadState {
       if (!unseen) return;
       run.failures.set(path, failure);
       if (before !== decoration(run, root)) deps.changed();
-      if (!quiet) deps.problem(root, failure.kind === "id" ? { kind: "id", path } : { kind: "save", path, readOnly: false });
+      if (!quiet) deps.problem(root, failure.kind === "id" ? { kind: "id", path } : { kind: "save", path });
     };
     if (row.id === undefined || !uniqueIds(entry.canvases).has(row.id)) {
       if (unseen) fail({ kind: "id", hash });
@@ -310,7 +314,7 @@ export function createReadState(deps: ReadStateDeps): ReadState {
       const failure = run.failures.get(at);
       const shown = marks(run, root, at).saveFailed;
       if (!failure || !shown) return null;
-      return failure.kind === "id" ? { kind: "id", path: at } : { kind: "save", path: at, readOnly: false };
+      return failure.kind === "id" ? { kind: "id", path: at } : { kind: "save", path: at };
     };
     if (path !== undefined) {
       const own = visible(path);

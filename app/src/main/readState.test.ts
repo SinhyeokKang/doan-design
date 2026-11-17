@@ -247,6 +247,21 @@ test("a canvas whose HTML could not be read at the first listing is not new once
   expect(local.root(root)?.canvases.b).toEqual({ html: hashOf("B") });
 });
 
+test("a project in a subfolder of its repository sees the repository's branch switch", async () => {
+  const repo = project({});
+  const root = join(repo, "packages/web");
+  mkdirSync(join(root, ".doan/canvases"), { recursive: true });
+  writeFileSync(join(root, pathOf("a")), html("A"));
+  const { list, advance, git, marks } = app();
+  await list(root);
+  writeFileSync(join(repo, ".git/HEAD"), "ref: refs/heads/other\n");
+  writeFileSync(join(root, pathOf("b")), html("B"));
+  await git(root);
+  await list(root);
+  await advance(GRACE_MS);
+  expect(marks(root)).toEqual({});
+});
+
 test("a project outside git, or with a .git that cannot be read, settles new canvases as new", async () => {
   const root = project({ a: "A" });
   rmSync(join(root, ".git"), { recursive: true });
@@ -290,14 +305,14 @@ test("a save that fails keeps the dot as a save failure on the shown canvas, tel
   fail = true;
   await show(root, "a");
   expect(marks(root)).toEqual({ a: "changed:save" });
-  expect(problems).toEqual([{ root, problem: { kind: "save", path: pathOf("a"), readOnly: false } }]);
+  expect(problems).toEqual([{ root, problem: { kind: "save", path: pathOf("a") } }]);
   expect(local.root(root)?.canvases.a).toEqual({ html: hashOf("A") });
   // No retry loop on the same screen: later proofs and listings tell nothing.
   state.documentsChanged();
   await list(root);
   expect(problems).toHaveLength(1);
   // Retry while it still fails answers the failure itself, without another event.
-  expect(await state.retry({ root, path: pathOf("a") })).toEqual({ kind: "save", path: pathOf("a"), readOnly: false });
+  expect(await state.retry({ root, path: pathOf("a") })).toEqual({ kind: "save", path: pathOf("a") });
   expect(problems).toHaveLength(1);
   fail = false;
   expect(await state.retry({ root, path: pathOf("a") })).toBeNull();
@@ -376,15 +391,25 @@ test("a screen still showing A while the record and the disk both hold B records
   expect(marks(root)).toEqual({});
 });
 
-test("a project's .doan/seen/ records become its local record once, keeping every dot, and are never read again", async () => {
+// A project whose `.doan/seen/` holds records an older Doan wrote: a seen as it is now, b seen at older content, c
+// unseen when it was converted.
+function sharedProject(): string {
   const root = project({ a: "A", b: "B", c: "C" });
   mkdirSync(join(root, SEEN_DIR));
   writeFileSync(join(root, SEEN_DIR, "_project.json"), `{"v":1}\n`);
   writeFileSync(join(root, SEEN_DIR, "a.json"), `{"v":1,"html":"${hashOf("A")}"}\n`);
   writeFileSync(join(root, SEEN_DIR, "b.json"), `{"v":1,"html":"${hashOf("old")}"}\n`);
   writeFileSync(join(root, SEEN_DIR, "c.json"), `{"v":1,"unseen":"migrated"}\n`);
+  return root;
+}
+
+test("a project's .doan/seen/ records become its local record once, keeping every dot, and are never read again", async () => {
+  const root = sharedProject();
   const records = tree(root);
   const userData = join(tmp, `u${count++}`);
+  mkdirSync(userData);
+  // This device knew the project under an older Doan.
+  writeFileSync(join(userData, "canvas-seen.json"), JSON.stringify({ v: 2, roots: { [root]: { known: { a: "seen", b: "changed", c: "changed" } } } }));
   const first = app(userData);
   await first.list(root);
   expect(first.marks(root)).toEqual({ b: "changed", c: "changed" });
@@ -400,6 +425,27 @@ test("a project's .doan/seen/ records become its local record once, keeping ever
   await restarted.list(root);
   expect(restarted.marks(root)).toEqual({ c: "changed" });
   expect(restarted.reads).toEqual([]);
+});
+
+test("a new worktree or another machine with tracked .doan/seen/ records starts as a first registration and never reads them", async () => {
+  const root = sharedProject();
+  const { list, advance, marks, reads, local } = app();
+  await list(root);
+  await advance(GRACE_MS);
+  expect(marks(root)).toEqual({});
+  expect(reads).toEqual([]);
+  expect(local.root(root)).toEqual({ migrated: true, canvases: { a: { html: hashOf("A") }, b: { html: hashOf("B") }, c: { html: hashOf("C") } } });
+});
+
+test("after a damaged canvas-seen.json is moved aside, a project with .doan/seen/ records lights nothing", async () => {
+  const root = sharedProject();
+  const userData = join(tmp, `u${count++}`);
+  mkdirSync(userData);
+  writeFileSync(join(userData, "canvas-seen.json"), "{");
+  const { list, marks, reads } = app(userData);
+  await list(root);
+  expect(marks(root)).toEqual({});
+  expect(reads).toEqual([]);
 });
 
 test("an older Doan's device-local record is converted keeping its unseen canvases unseen", async () => {

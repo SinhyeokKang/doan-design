@@ -1,5 +1,8 @@
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, test } from "vitest";
-import { GRACE_MS, parseGitSignal, resolveGitDir, settlePending, type GitFileRead, type GitSignalEntry } from "./gitSignal";
+import { GRACE_MS, gitDirOf, parseGitSignal, resolveGitDir, settlePending, type GitFileRead, type GitSignalEntry } from "./gitSignal";
 
 const SHA1 = "a".repeat(40);
 const SHA256 = "b".repeat(64);
@@ -24,6 +27,32 @@ test("a .git file that is not a gitdir link, or no .git at all, has no gitdir", 
   expect(resolveGitDir({ kind: "file", path: "/wt/.git", text: "" })).toBeNull();
   expect(resolveGitDir({ kind: "file", path: "/wt/.git", text: "gitdir:\n" })).toBeNull();
   expect(resolveGitDir({ kind: "none" })).toBeNull();
+});
+
+// --- gitDirOf: the nearest .git at or above the root, below HOME (Go gitLocation) ---
+
+test("the nearest .git at or above the root names the gitdir, and nothing at or above HOME counts", () => {
+  const base = realpathSync(mkdtempSync(join(tmpdir(), "doan-gitdir-")));
+  const home = join(base, "home"), repo = join(home, "repo"), sub = join(repo, "packages/web");
+  mkdirSync(sub, { recursive: true });
+  expect(gitDirOf(sub, home)).toBeNull();
+  mkdirSync(join(repo, ".git"));
+  expect(gitDirOf(sub, home)).toBe(join(repo, ".git"));
+  expect(gitDirOf(repo, home)).toBe(join(repo, ".git"));
+  // A nearer linked worktree wins.
+  writeFileSync(join(sub, ".git"), `gitdir: ${join(repo, ".git/worktrees/web")}\n`);
+  expect(gitDirOf(sub, home)).toBe(join(repo, ".git/worktrees/web"));
+  // A .git in HOME or above it is never the repository of a folder under HOME, nor of HOME itself.
+  const plain = join(home, "plain");
+  mkdirSync(plain);
+  mkdirSync(join(home, ".git"));
+  mkdirSync(join(base, ".git"));
+  expect(gitDirOf(plain, home)).toBeNull();
+  expect(gitDirOf(home, home)).toBeNull();
+  // Outside HOME the walk goes up as well, but never into a folder above HOME.
+  mkdirSync(join(base, "other/.git"), { recursive: true });
+  expect(gitDirOf(join(base, "other/sub"), home)).toBe(join(base, "other/.git"));
+  expect(gitDirOf(join(base, "elsewhere"), home)).toBeNull();
 });
 
 // --- parseGitSignal ---

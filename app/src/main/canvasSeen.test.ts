@@ -180,8 +180,8 @@ describe("migrateRoot", () => {
     const r = reads("present", { a: { kind: "seen", html: H("a") }, b: { kind: "seen", html: H("x") }, c: { kind: "migrated" } });
     const expected = LOCAL({ a: { html: H("a") }, b: { html: H("x") }, c: { unseen: "migrated" } });
     expect(migrateRoot(READY, r, rows, none)).toEqual(expected);
-    // Another device's records that came with the project are copied the same on this device's first registration.
-    expect(migrateRoot(undefined, r, rows, none)).toEqual(expected);
+    // Without this device's own memory of the root (a new worktree, another machine), they are not copied.
+    expect(migrateRoot(undefined, r, rows, none)).toEqual(LOCAL({ a: { html: H("a") }, b: { html: H("b") }, c: { html: H("c") } }));
   });
 
   test("damaged, conflicted, unreadable and later-version records carry this device's last verdict, else the baseline", () => {
@@ -219,8 +219,9 @@ describe("migrateRoot", () => {
     expect(migrateRoot(LEGACY, reads("present", { b: { kind: "seen", html: H("b") } }), rows, none)).toEqual(LOCAL({ b: { html: H("b") } }));
   });
 
-  test("a first registration starts every canvas seen, whatever records it finds besides valid ones", () => {
+  test("a first registration starts every canvas seen, whatever records it finds, valid ones included", () => {
     const rows = [row("a.html", "a", H("a")), row("b.html", "b", H("b")), row("c.html", "c", null)];
+    expect(migrateRoot(undefined, reads("present", { a: { kind: "seen", html: H("x") }, b: { kind: "migrated" } }), rows, none)).toEqual(LOCAL({ a: { html: H("a") }, b: { html: H("b") } }));
     expect(migrateRoot(undefined, reads("absent", {}, "absent"), rows, none)).toEqual(LOCAL({ a: { html: H("a") }, b: { html: H("b") } }));
     expect(migrateRoot(undefined, reads("present", { b: { kind: "corrupt" } }), rows, none)).toEqual(LOCAL({ a: { html: H("a") }, b: { html: H("b") } }));
     expect(migrateRoot(undefined, reads("corrupt"), rows, none)).toEqual(LOCAL({ a: { html: H("a") }, b: { html: H("b") } }));

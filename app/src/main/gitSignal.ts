@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { statSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { lstatSync, realpathSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, relative } from "node:path";
 import { gitdirFromLink } from "./onboarding/gitConfig";
 import { readRegularFileSync } from "./regularFile";
 
@@ -94,10 +95,37 @@ export function settlePending(pending: Pending, gitSignalHistory: readonly GitSi
   return now >= to ? "new" : "pending";
 }
 
-// `.git` at the root as it is now. A link is followed as git follows it; anything but a directory or a regular file (a
-// FIFO, a socket) is no repository, and the file read itself never blocks.
-function dotGitOf(root: string): DotGit {
-  const path = join(root, ".git");
+// The home folder as roots are spelled (real paths).
+function realHomeDir(): string {
+  const home = process.env.HOME ?? homedir();
+  try { return realpathSync.native(home); } catch { return home; }
+}
+
+// Go repo ignoreAtOrAboveHome: HOME's own .git, or one above it, is never a folder's repository.
+const atOrAboveHome = (dir: string, home: string): boolean => {
+  if (!isAbsolute(dir) || !isAbsolute(home)) return false;
+  const rel = relative(dir, home);
+  return rel !== ".." && !rel.startsWith("../") && !isAbsolute(rel);
+};
+
+// The nearest `.git` at or above the root, as Go repo gitLocation finds it (a Doan root can be a subfolder of its
+// repository), as it is now. A link is followed as git follows it, only after the nearest one is chosen; anything but a
+// directory or a regular file (a FIFO, a socket) is no repository, and the file read itself never blocks.
+function dotGitOf(root: string, home: string): DotGit {
+  let tree = root;
+  for (;;) {
+    if (atOrAboveHome(tree, home)) return { kind: "none" };
+    try {
+      lstatSync(join(tree, ".git"));
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") return { kind: "none" };
+    }
+    const parent = dirname(tree);
+    if (parent === tree) return { kind: "none" };
+    tree = parent;
+  }
+  const path = join(tree, ".git");
   try {
     const stat = statSync(path);
     if (stat.isDirectory()) return { kind: "directory", path };
@@ -107,7 +135,7 @@ function dotGitOf(root: string): DotGit {
 }
 
 // The root's gitdir, where HEAD, FETCH_HEAD and ORIG_HEAD are (a linked worktree's own); null without one.
-export const gitDirOf = (root: string): string | null => resolveGitDir(dotGitOf(root));
+export const gitDirOf = (root: string, home: string = realHomeDir()): string | null => resolveGitDir(dotGitOf(root, home));
 
 function readText(path: string): string | null {
   try { return readRegularFileSync(path); } catch { return null; }

@@ -269,13 +269,16 @@ export function localSeenText(roots: ReadonlyMap<string, RootRecord>): string {
 }
 
 // A root's first read of its `.doan/seen/`, turned into its local record so every canvas shows the same dot as before.
-// A valid record under a present marker is copied. Anything else (a damaged, conflicted, unreadable or later-version
+// A valid record under a present marker is copied when this device has its own older memory of the root (`memory`);
+// without it the records are someone else's, and every canvas starts seen. Anything else (a damaged, conflicted, unreadable or later-version
 // record, a bad or missing marker, a refused folder, no record) carries what this device showed: its v2 verdict, which
 // already falls back to `last` where the records could not be read; an older Doan's mtimes convert as they always did.
 // Without either, the canvas starts seen: a first registration lights nothing.
 export function migrateRoot(memory: RootMemory | undefined, reads: SeenReads, rows: readonly SeenRow[], last: (row: SeenRow) => Verdict | undefined): RootRecord {
   const ids = uniqueIds(rows);
-  const copy = reads.dir === "ok" && reads.marker.kind === "present";
+  // Only a root this device knew under an older Doan carries its shared records over: a new worktree or another machine
+  // gets tracked records that say what someone else saw, and starts as a first registration instead.
+  const copy = memory !== undefined && reads.dir === "ok" && reads.marker.kind === "present";
   const before = memory && !memory.legacy ? judgeV2(memory, reads, rows, last) : undefined;
   const canvases: Record<string, CanvasRecord> = {};
   for (const row of rows) {

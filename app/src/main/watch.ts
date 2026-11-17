@@ -160,6 +160,9 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
 
   const onEvent = (path: string, filename: string | null) => {
     if (closed) return;
+    // Git touches its index and lock files on every `git status`; those neither re-arm nor reach the refresher. The
+    // gitdir's own name stays: deleting a watched directory arrives named after it (POSTMORTEM 2026-10-22).
+    if (path === gitTarget?.path && filename !== null && !GIT_NAMES.has(filename) && filename !== basename(path)) return;
     rearm();
     const change = classify(path, filename);
     if (change) refresher.trigger(change);

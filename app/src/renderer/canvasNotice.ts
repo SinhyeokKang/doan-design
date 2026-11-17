@@ -55,12 +55,10 @@ export function shownIntent(entries: readonly FolderEntry[], page: CanvasPage): 
 
 // The Retry toast's text, and the text while its Retry runs.
 export function readStateToast(problem: ReadStateProblem): { message: string; busy: string } {
-  const readOnly = "readOnly" in problem && problem.readOnly ? " This folder is read-only." : "";
   switch (problem.kind) {
-    case "save": return { message: `Couldn’t save ${canvasStem(problem.path)}’s read state.${readOnly}`, busy: `Saving ${canvasStem(problem.path)}’s read state.` };
+    case "save": return { message: `Couldn’t save ${canvasStem(problem.path)}’s read state.`, busy: `Saving ${canvasStem(problem.path)}’s read state.` };
     case "id": return { message: "Couldn’t save the read state because the canvas ID is missing or duplicated. Fix the ID, then retry.", busy: `Saving ${canvasStem(problem.path)}’s read state.` };
-    case "baseline": return { message: `Couldn’t save the initial read state.${readOnly}`, busy: "Saving the initial read state." };
     case "records": return { message: "Read state couldn’t be read, so it started fresh. Canvases already in the list count as seen.", busy: "Reading the read state." };
-    case "unsupported": return { message: "Read state is from a newer Doan version and won’t be saved this session. Update Doan, then retry.", busy: "Reading the read state." };
+    case "unsupported": return { message: "Read state is from a newer Doan version and won’t be saved this session. Update Doan to keep it.", busy: "Reading the read state." };
   }
 }
