@@ -148,7 +148,7 @@ describe("dockedRefusal", () => {
     expect(dockedRefusal("busy", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code is finishing a previous run. Try again in a moment." });
     expect(dockedRefusal("rate_limited", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code reached a usage limit. Send again after it resets." });
     expect(dockedRefusal("bad_request", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Couldn’t send your message. Try again." });
-    expect(dockedRefusal("session_in_use", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code is using this session elsewhere. Try again when it finishes there." });
+    expect(dockedRefusal("session_in_use", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code is still using this session. Try again when it finishes." });
     // the code alone does not tell an expired sign-in from none.
     expect(dockedRefusal("not_logged_in", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Sign in to Claude Code in Settings > Agents, then send again." });
   });
@@ -180,7 +180,7 @@ describe("dockedRefusal", () => {
   });
   test("a terminal session's refusal names the session, not another agent", () => {
     const resume = { kind: "resume", root: "/r", canvas: { path: ".doan/canvases/billing.html" }, provider: "codex" } as const;
-    expect(dockedRefusal("session_in_use", resume, "codex", "doan-design")).toEqual({ kind: "notice", text: "Couldn’t continue the terminal session: it’s open elsewhere." });
+    expect(dockedRefusal("session_in_use", resume, "codex", "doan-design")).toEqual({ kind: "notice", text: "Couldn’t continue the terminal session: Codex is still using it." });
   });
 });
 

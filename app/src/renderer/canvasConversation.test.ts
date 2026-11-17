@@ -129,7 +129,7 @@ describe("canvasConversationError", () => {
   });
 
   test("a send refused while a terminal holds the session says so", () => {
-    expect(canvasConversationError("session_in_use", EXISTING, "claude", "acme-web")).toEqual({ kind: "notice", text: "Claude Code is using this session elsewhere. Try again when it finishes there.", retry: false, startNew: false });
+    expect(canvasConversationError("session_in_use", EXISTING, "claude", "acme-web")).toEqual({ kind: "notice", text: "Claude Code is still using this session. Try again when it finishes.", retry: false, startNew: false });
   });
 
   test("a send to a conversation of another account or an earlier sign-in offers a new conversation, not Retry", () => {
@@ -172,7 +172,7 @@ describe("canvasConversationError", () => {
   });
 
   test.each([
-    ["session_in_use", "Couldn’t continue the terminal session: it’s open elsewhere."],
+    ["session_in_use", "Couldn’t continue the terminal session: Claude Code is still using it."],
     ["no_session", "Couldn’t continue the terminal session: it’s no longer available."],
     ["session_unavailable", "Couldn’t continue the terminal session: it isn’t available right now."],
     ["not_logged_in", "Couldn’t continue the terminal session: sign in to Codex in Settings > Agents, then send again."],
