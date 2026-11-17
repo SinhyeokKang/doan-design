@@ -78,7 +78,7 @@ Reference: `.doan/canvases/context-window-ring.html` (frames `place-capsule`, `p
 ### Documented differences from the draft
 
 - **Panel composer width.** The composer is 295 wide at panel 320 (255 at 280) where the draft draws 296 (256): the panel's 1 px start border. Everything right-anchored (the ring, Permission) lands at the same offsets; the model label is 1 px narrower.
-- **Computed values without effect.** The ring's svg computes `flex-shrink: 1` (the draft board's `:where(svg)` rule gives 0; the svg's parent is a block), and the value circle computes `display: flex; gap: 6px` from the Inspector's global `.value` rule (CSS display other than `none` does not change an SVG shape; the usage ring's circle has the same values).
+- **Computed values without effect.** The ring's svg computes `flex-shrink: 1` (the draft board's `:where(svg)` rule gives 0; the svg's parent is a block), and the value circle computes `display: flex; gap: 6px` from the global `.value` rule (CSS display other than `none` does not change an SVG shape; the usage ring's circle has the same values).
 - **Context, not deviations:** the Overview's board width (720 drawn, tray 666 measured); the fixed tray's disabled Attach and `.is-fixed` cursors, shipped rules the draft does not copy; the tooltip's `white-space` (the draft's static stand-in sets `nowrap`; the measured widths match).
 
 ### Not verified

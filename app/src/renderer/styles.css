@@ -127,48 +127,8 @@ code, kbd { font-family: var(--type-family); }
 .canvas-status-block .doan-alert-icon { margin: 0 0 var(--space-2); }
 .canvas-status-block h2 { color: var(--text-standard); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
 .canvas-status-block .doan-button { margin-top: var(--space-4); }
-.canvas-notice { padding: 7px 12px; background: var(--surface-inset); color: var(--text-standard); font: 11px var(--type-family); }
 .phead { font: 600 12px var(--type-family); padding: 11px 14px 10px; border-bottom: 1px solid var(--border-standard); }
-.pempty { padding: 14px; font: 12.5px var(--type-family); color: var(--text-metadata); }
-.isec { padding: 10px 12px 12px; border-bottom: 1px solid var(--border-standard); }
-.ihead { font: 10.5px var(--type-family); letter-spacing: .1em; text-transform: uppercase; color: var(--text-metadata); margin-bottom: 8px; }
-.kv { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 5px 8px; font: 11.5px var(--type-family); }
-.kv dt { color: var(--text-metadata); }
-.kv dd { overflow-wrap: anywhere; }
-.activity { border: 0; }
-.tl-row { display: flex; gap: 8px; padding: 3px 12px 3px 0; font: 11px var(--type-family); color: var(--text-metadata); }
-.tl-row time { color: var(--text-metadata); width: 54px; flex: none; }
-.tl-row b { font-weight: 400; color: var(--text-subtle); }
-.tl-row .from { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.truncate { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.inspect-head { padding: 12px; border-bottom: 1px solid var(--border-standard); display: flex; flex-direction: column; gap: 6px; }
-.inspect-head h3 { font-size: 12.5px; font-weight: var(--type-weight-semibold); }
-.selector { color: var(--text-subtle); font-size: 11.5px; }
-.head-kv { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 5px 8px; font-size: 11.5px; }
-.head-kv dt { color: var(--text-metadata); }
-.ancestors { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-.ancestors button { max-width: 100%; padding: 3px 5px; border-radius: 4px; font-size: 11px; color: var(--text-subtle); background: var(--surface-inset); }
-.ancestors button[aria-current="true"] { color: var(--text-standard); background: var(--surface-navigation-selected); }
-.ancestors span { color: var(--text-disabled); font-size: 11px; }
-.use-hint { color: var(--text-metadata); font-size: 11.5px; line-height: 1.5; }
-/* Not in the draft: main's reason when it could not read the values. */
-.inspect-failed { padding: 10px 12px; border-bottom: 1px solid var(--border-standard); color: var(--text-metadata); font-size: 11.5px; line-height: 1.5; }
-.inspect-row { margin-bottom: 7px; font-size: 11.5px; }
-.inspect-row:last-child { margin-bottom: 0; }
-.value-line { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 16px; }
-.prop { color: var(--text-metadata); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .value { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.value.default { color: var(--text-metadata); }
-.source-line { margin-left: 86px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
-.token { max-width: 100%; font-size: 10.5px; color: var(--text-standard); background: var(--surface-inset); padding: 2px 5px; border-radius: 4px; }
-.state { color: var(--text-metadata); font-size: 10px; line-height: 1.5; }
-.state.hardcoded { color: var(--text-warning); }
-.swatch { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border-standard); flex: none; }
-/* Short attribute labels stay fully readable at the fixed panel width. */
-.doan-attributes .prop { overflow: visible; text-overflow: clip; }
-
-/* These buttons set a colour at the same specificity as button:disabled and come later, so they restate disabled. */
-.ancestors button:disabled { color: var(--text-disabled); }
 
 .right-stack { min-height: 0; display: flex; flex-direction: column; background: var(--surface-panel); border-left: 1px solid var(--border-standard); }
 .right-stack > .right { min-height: 100px; flex: 0 1 278px; border-left: 0; border-bottom: 1px solid var(--border-standard); }
@@ -408,7 +368,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-chip.warn { background: var(--affordance-warning); color: var(--text-warning); }
 .ob-chip.err { background: var(--affordance-danger); color: var(--text-danger); }
 .ob-field { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-4) 0; border-top: 1px solid var(--border-standard); }
-/* Project names and paths share inline flow; Inspector values use flex. */
+/* Project names and paths share inline flow, not the global .value flex. */
 .ob-field .value { display: block; gap: normal; align-items: normal; min-width: 0; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); overflow-wrap: anywhere; }
 /* A token path stays on one line, its full text in title. */
 .ob-field .value.token-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
