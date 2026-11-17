@@ -30,6 +30,13 @@
 - IPC 타입: `SkillSummary`에 행 종류(`skill` | `command`)를 추가한다. 디스크 형식이 아니므로 JSON Schema는 바뀌지 않는다.
 - 대화 기록: 바꾸지 않는다(결정 4). 경계는 프로바이더 세션 기록에서 다시 만들고, 카드는 기록에 남기지 않는다.
 - 세션 연결(`SessionBinding`): 필드는 그대로 두고 값만 새 id로 다시 쓴다(결정 5). 형식이 바뀌어야 한다면 PoC 뒤 이 절을 다시 열고, schema·`v`·TS/Go 공유 fixture(ARCHITECTURE §11)를 이 feature에 추가한다.
+- **PoC 뒤 다시 연 항목(결정 필요, task 2 이후 진행 전 멈춤).**
+  - 세션 연결: 형식 변경이 필요 없다. `/clear`가 동작하는 프로바이더는 Claude뿐이다. 새 id는 `system/init`의 `session_id`로 받아 기존 필드에 다시 쓰면 된다.
+  - 대화 기록: Copilot `/compact`의 경계는 결정 4대로 만들 수 없다. `session/load` 재생에 압축 기록이 없고, Copilot 내부 파일 `session-state/<id>/events.jsonl`에만 남는다('재시작 뒤 경계'). 길은 셋이다.
+    - (a) 대화 기록에 경계 항목을 추가한다. 이것은 대화 기록 형식 변경이다(schema·`v`·공유 fixture).
+    - (b) Copilot의 비공개 `events.jsonl`을 읽는다. 형식 변경은 없지만 문서화되지 않은 파일에 기댄다.
+    - (c) Copilot `/compact`는 이번 실행에서만 경계를 보인다. 결정 4에 예외를 둔다.
+  - 이 선택이 정해질 때까지 이 feature는 task 1에서 멈춘다.
 
 ## ACP 명령 목록의 수명
 - ACP 서버는 세션이 열린 뒤 `available_commands_update`를 보낸다. 지금 runner는 prompting 중인 `session/update`만 처리한다.
@@ -46,6 +53,73 @@
 - Codex: `thread/compact/start`, `review/start`의 실제 응답과 이벤트, `/clear`에 대응하는 요청이 있는지 확인한다. 요청 이름은 `codex app-server generate-json-schema`(0.167.1)로 확인했다.
 - ACP 세 프로바이더: `available_commands_update`가 오는 시점과 내용, 그 명령을 보냈을 때의 결과를 확인한다.
 - 결과는 프로바이더×명령 표로 남긴다. 각 칸은 '동작함 / 표시 필요 / 동작 안 함' 중 하나와 기대 결과, 확인 버전이다.
+
+### PoC 결과 (task 1, 2026-11-17)
+
+**확인 방법.** `.scratch/provider-commands-poc/`에서 프로바이더마다 격리 프로필을 썼다. HOME은 임시 디렉터리로 두고, `CLAUDE_CONFIG_DIR`·`CODEX_HOME`·`GEMINI_HOME`·`DOAN_RUNTIME`도 그 안을 가리켰다. 작업 디렉터리는 빈 git 저장소다. 실제 HOME, `~/.claude`, `~/.codex`, userData는 쓰지 않았다.
+- Claude: `runners.ts`처럼 Agent SDK `query()`를 턴마다 새로 열고 `resume`으로 이었다. 가짜 HOME에는 로그인 Keychain이 없어서 `claude auth login`이 저장에 실패했다. 그래서 `claude setup-token` 토큰을 `CLAUDE_CODE_OAUTH_TOKEN`으로 넘겼다.
+- Codex: `codex app-server`에 `thread/start`·`turn/start`·`thread/compact/start`·`review/start`·`thread/read`를 직접 보냈다. 로그인은 `cli_auth_credentials_store="file"`이다.
+- ACP: `acpRunner.ts`와 같은 `initialize` → `session/new`/`session/load` → `session/prompt` 순서로 보냈다. 권한 요청은 allow_once로 답했다.
+
+**확인 버전.**
+
+| 프로바이더 | 확인 버전 |
+|---|---|
+| Claude Code | CLI 2.1.326, Agent SDK 0.3.312 |
+| Codex | codex-cli 0.167.1 (app-server) |
+| Cursor | cursor-agent 2026.10.22-27dcf5f (`agent acp`) |
+| GitHub Copilot | 1.0.105 (`--acp --stdio`) |
+| Antigravity | ACP 서버 1.3.0 (`agy_acp_server.par`) |
+
+**판정 기준.**
+- 동작함: 텍스트로 보내면 프로바이더가 명령으로 처리하고, 결과가 일반 답변이나 일반 턴으로 와서 지금 표시로 충분하다.
+- 표시 필요: 명령으로 처리되지만 경계, 실행 라벨, 요청 매핑, 기록 정리처럼 Doan 쪽 처리가 더 있어야 한다.
+- 동작 안 함: 명령으로 처리되지 않는다. 텍스트가 모델에 일반 메시지로 가거나, 대응하는 요청이 없다.
+
+#### 프로바이더×명령 표
+
+| 명령 | Claude Code | Codex | Cursor | GitHub Copilot | Antigravity |
+|---|---|---|---|---|---|
+| `/compact` | **표시 필요.** `system/status`(`compacting`) → `status: null, compact_result: success` → `system/compact_boundary`(`trigger: manual`, `pre_tokens`·`post_tokens`) → 요약 `user` 메시지와 `<local-command-stdout>Compacted </local-command-stdout>` → `result` success(`result: ""`, `num_turns: 0`). 기대: "Compacting…" 뒤 압축 경계와 컨텍스트 링 갱신. 요약 메시지와 stdout 줄은 숨긴다. | **표시 필요.** `thread/compact/start`로 보낸다. 응답은 곧바로 `{}`이고, 사용자 메시지 없는 턴이 따로 열린다(`turn/started` → `item/started` `contextCompaction` → `thread/tokenUsage/updated` → `item/completed` → `turn/completed`). `thread/compacted` 알림은 오지 않았다. 텍스트 `/compact`는 동작 안 함이다(모델이 "Context compacted."라고만 답하고 압축은 없다). | **동작 안 함.** 목록에 없다. 모델이 대화 요약을 답으로 쓸 뿐이다. | **표시 필요.** 모델 호출 없이 "Compacted conversation history and removed 1 message and 0 tokens." 텍스트와 `usage_update`가 온다. 재시작 뒤 경계를 ACP로 다시 만들 수 없다(아래 '재시작 뒤 경계'). | **동작 안 함.** 목록에 없다. 모델이 요약을 지어 답하고, `usage_update`의 `used`는 계속 늘었다(12172 → 12293). |
+| `/clear` | **표시 필요.** `conversation_reset`(`trigger: clear`)이 온 뒤, 다음 `system/init`부터 새 `session_id`가 온다(5625b508… → bda22031…). `result`는 success, `result: ""`이다. `conversation_reset.new_conversation_id`(94d0fd20…)는 새 세션 id와 **다르다**. 새 id로 `resume`하면 이어진다. 기대: 지움 경계, 대화가 init의 새 `session_id`를 따라간다. | **동작 안 함.** app-server에 대응 요청이 없다(스키마 0.167.1). TUI의 `/clear`는 "clear the terminal and start a new chat"(바이너리 문자열)이고, 이것은 새 thread다. 텍스트 `/clear`는 모델이 "Ready for a new task."라고 답할 뿐이다. | **동작 안 함.** 목록에 없다. 모델이 "컨텍스트를 비웠다"라고 답하지만 지우지 않는다. | **동작 안 함.** 목록에 없다. 모델에 그대로 가서 직전 답("hello")을 되풀이했다. | **동작 안 함.** 목록에 없다. 모델이 "Context cleared."라고 답하지만 지우지 않는다. |
+| `/init` | **동작함.** 도구를 쓰는 에이전트 턴으로 돈다. 결과는 텍스트 답변이다. 목록에 있다. | **동작 안 함.** app-server에 대응 요청이 없다(TUI: "create an AGENTS.md file with instructions for Codex"). 텍스트로 보내면 모델이 짐작해서 `AGENTS.md`를 만들었다. 명령으로 처리된 것은 아니다. | **동작 안 함.** 목록에 없다. 모델이 무엇을 만들지 되물었다. | **동작함.** 서버가 "Analyze this codebase and create a .github/copilot-instructions.md…" 프롬프트로 바꿔 에이전트 턴을 돌린다. 파일을 만들고 텍스트로 답한다. | **동작 안 함.** 목록에 없다. 모델이 도구로 저장소를 훑고 `GEMINI.md`를 만들었다. 서버가 명령으로 바꿨는지는 로그로 구분할 수 없었다. 목록에 없으므로 명령으로 다루지 않는다. |
+| `/review` | **동작함(목록 밖).** 번들 code-review가 서브에이전트로 돌고(`task_started` description `/code-review`) 텍스트로 답했다. 그런데 `initializationResult().commands`에 `review`가 없다. 따라서 교집합 규칙(design '순수 함수')을 쓰면 빠진다. | **표시 필요.** `review/start`(`target: {type: "uncommittedChanges"}`)로 보낸다. 응답에 사용자 메시지 "current changes"가 있는 턴이 오고, 아이템은 `enteredReviewMode` → (명령 실행) → `exitedReviewMode`(리뷰 본문) → `agentMessage`다. target은 `uncommittedChanges`·`baseBranch`·`commit`·`custom` 넷이다. 인자 텍스트를 target으로 바꾸는 규칙이 필요하다. 재시작 뒤 `thread/read`에는 리뷰 턴 앞에 `rootTurnId`가 리뷰 턴인 자식 턴이 `interrupted`로 따로 나온다. 리뷰용 rollout 파일도 하나 더 생긴다. 이 자식 턴은 숨겨야 한다. 텍스트 `/review`는 동작 안 함이다(모델이 일반 리뷰를 했다). | **동작 안 함.** 목록에 없다. 모델이 "리뷰할 변경이 없다"라고 답했다. 목록의 `multi-model-review`는 보내 보지 않았다. | **동작함.** 리뷰 에이전트 턴이 돌고 텍스트로 답한다. 재시작 뒤 `session/load` 재생에서는 사용자 메시지가 "Review: my code changes"로 바뀌고, 답 텍스트가 두 번 재생된다. | **동작 안 함.** 목록에 없다. 모델이 작업 트리를 읽고 일반 리뷰 텍스트로 답했다. |
+| `/context` | **동작함.** 모델 호출 없이 마크다운 표 텍스트(Model, Tokens, 항목별 사용량)를 `result`로 돌려준다. 목록에 있다. | **동작 안 함.** 대응 요청이 없다. 모델이 작업 디렉터리를 설명했다. | **동작 안 함.** 목록에 없다. 모델이 지어서 답했다. | **동작함.** 모델 호출 없이 컨텍스트 사용량 텍스트 블록이 온다(ASCII 격자와 항목별 토큰, 고정폭 글꼴 전제). 재시작 뒤 재생에는 나오지 않는다. | **동작 안 함.** 목록에 없다. 모델이 작업 디렉터리와 대화 id를 나열했다. |
+| `/cost` | **동작함(목록 밖).** 텍스트(Estimated cost, duration, 모델별 사용량)로 답한다. 기록에는 `/usage`로 남는다. 목록에는 `cost`가 없고 `usage`가 있다. | **동작 안 함.** 대응 요청이 없다. 모델이 "I don’t have access…"라고 답했다. | **동작 안 함.** 목록에 없다. | **동작 안 함.** 목록에 없다. 대신 목록의 `/usage`가 모델 호출 없이 세션 사용량 텍스트를 돌려준다. | **동작 안 함.** 목록에 없다. 모델이 도구로 자기 대화 파일을 뒤져 사용량을 찾으려 했다. |
+
+#### ACP 서버가 알려 주는 명령
+
+| 프로바이더 | `available_commands_update` 시점 | 내용 | 보내 본 결과 |
+|---|---|---|---|
+| Cursor | `session/new` 응답 뒤 약 0.6초. `session/load` 때는 기록 재생과 응답이 끝난 뒤. 한 번 온다. | 25개: `copy-request-id`, `multi-model-review`, `simplify`, `worktree`, `apply-worktree`, `delete-worktree`, `best-of-n`, `agent-sdk-create-agent`, `autopilot`, `create-hook`, `create-rule`, `create-skill`, `create-subagent`, `goal`, `loop`, `migrate-to-skills`, `new-repo`, `origin`, `rename-chat`, `sdk`, `share`, `shell`, `split-to-prs`, `statusline`, `update-cli-config`. `input.hint`는 모두 없다. 후보 여섯 개는 하나도 없다. | `/copy-request-id`: 모델 호출 없이 "No request ID found…" 텍스트(동작함). `/rename-chat`: 모델이 "rename_chat 도구가 없다"라고 답했다(동작 안 함). `/statusline`: 모델이 `~/.cursor` 설정을 읽고 수정을 제안하는 에이전트 턴(터미널 설정용). 나머지는 보내지 않았다. |
+| GitHub Copilot | `session/new` 응답 **전**(1.3초, 응답은 3.0초)과 응답 직후에 한 번 더 온다. `session/load` 때도 응답 전에 오고, 프롬프트마다 다시 온다. | 32개: `add-dir`, `allow-all`, `permissions`, `autopilot`, `compact`, `blame`, `chronicle`, `context`, `cwd`, `env`, `every`, `after`, `fleet`, `init`, `list-dirs`, `mcp`, `memory`, `model`, `plan`, `plugin`, `rename`, `research`, `remote`, `reset-allowed-tools`, `review`, `sandbox`, `security-review`, `session`, `share`, `skills`, `subconscious`, `usage`. `session/load` 뒤에는 `index`가 더해져 33개다. 대부분 `input.hint`가 있다(예: `compact` "focus instructions"). | `/usage`, `/session`: 모델 호출 없이 텍스트(동작함). `/rename poc-renamed`: `session_info_update`(title)와 텍스트(동작함). `/model`: "The model-picker dialog is only available in the interactive CLI."(동작 안 함, 결정 2의 카드 대상). 나머지는 보내지 않았다. |
+| Antigravity | `session/new` 응답 직후(같은 ms). `session/load` 때는 기록 재생 중간에 온다. | 2개: `plan`, `logout`. | `/plan <작업>`: 계획 문서(`<GEMINI_HOME>/antigravity-acp/brain/<id>/task.md`)를 만들고 "click **Proceed**"로 승인을 기다리는 텍스트로 끝난다. 편집 도구 호출 하나는 "approved but never executed"로 실패한다. 재생 때는 사용자 메시지가 `/BuiltinSlashCommandName.PLAN …`으로 나온다(표시 필요). `/logout`: 저장된 인증 정보와 `settings.json`의 `auth.type`을 지운다. `acp_token.json`이 사라졌다. Doan 연결을 몰래 끊으므로 보내면 안 된다(결정 2의 카드 대상). |
+
+#### `/clear`와 세션 id
+- Claude만 `/clear`가 실제로 동작하고, 세션 id가 바뀐다. 새 id는 `conversation_reset` 다음의 `system/init`과 `result`의 `session_id`에서 읽는다. `conversation_reset.new_conversation_id`는 세션 id가 아니라서 쓰면 안 된다.
+- 새 세션의 기록 파일(`<id>.jsonl`)은 `/clear` 명령 줄(`<command-name>/clear</command-name>`, `system` `local_command`)로 시작한다. 이전 세션 파일에는 `/clear` 기록이 없다. 두 파일은 서로의 id를 담지 않는다.
+- Codex, Cursor, Copilot, Antigravity에는 같은 대화에서 컨텍스트를 비우는 경로가 없다.
+
+#### 재시작 뒤 경계를 다시 만들 수 있는가
+| 경계 | 근거 이벤트 | 가능 여부 |
+|---|---|---|
+| Claude 압축 | 세션 기록 파일의 `system` `compact_boundary`(`compactMetadata.trigger: manual`) | 가능 |
+| Claude 지움 | 새 세션 기록 파일 첫머리의 `/clear` 명령 줄 | 가능. 대화가 새 id를 따라간 경우에 한한다 |
+| Codex 압축 | `thread/read`(새 app-server, `thread/resume` 뒤)에서 `contextCompaction` 아이템 하나뿐인 턴. rollout에는 `compacted` 줄 | 가능 |
+| Copilot 압축 | `session/load` 재생에는 `/compact` 턴이 통째로 빠진다. `~/.copilot/session-state/<id>/events.jsonl`에만 `session.compaction_start`/`session.compaction_complete`가 있다 | ACP로는 불가능. 비공개 파일을 읽어야 한다 |
+
+#### 결정에 영향을 주는 관찰
+- Claude의 `builtin: true` 목록(54개)은 터미널 명령만이 아니다. `deep-research`, `design`, `code-review`, `simplify` 같은 번들 스킬도 `builtin: true`로 온다. `review`와 `cost`는 동작하지만 목록에 없다. 그래서 '허용 목록 ∩ CLI 목록' 규칙으로는 Claude의 `/review`·`/cost`가 빠진다.
+- 목록 밖 명령은 대부분 모델에 일반 텍스트로 간다. 이때 모델이 "컨텍스트를 비웠다", "압축했다"처럼 실제로 하지 않은 일을 했다고 답한다(Codex·Cursor·Antigravity). 결정 2의 카드가 이 오해를 막는다.
+- Claude `/model`(인자 없음)은 현재 모델과 사용법을 텍스트로 돌려준다. Copilot `/model`은 거절 텍스트를 돌려준다. 둘 다 결정 2의 카드 대상이다.
+- 압축 중 상태는 Claude만 이벤트로 온다(`system/status` `compacting`). Codex는 `contextCompaction` 아이템의 시작·완료가 그 역할을 한다. Copilot은 결과 텍스트 한 번뿐이다.
+- 이 문서 '순수 함수로 뗄 부분'의 경계 뷰는 Codex에 `thread/compacted`를 쓴다고 적었다. 0.167.1에서 이 알림은 오지 않았다. 압축 경계의 근거는 `contextCompaction` 아이템이다.
+
+#### 확인하지 못한 것
+- 컨텍스트 링 값이 압축 뒤 실제로 줄어드는지는 재지 않았다. 대화가 짧아서 Codex와 Copilot의 사용량은 거의 그대로였다. Claude는 `post_tokens`(3596)만 보았고, 앱의 링 읽기 경로로는 재지 않았다.
+- ACP 목록의 명령은 표에 적은 것만 보냈다. 나머지(Cursor 22개, Copilot 25개)는 보내지 않았다.
+- 실행 중인 턴에 명령을 보내는 경우(결정 6)와 Claude에서 `/clear` 뒤 이전 세션 id로 `resume`하는 경우는 보내지 않았다.
+- Antigravity `/init`이 서버의 명령 처리인지 모델의 판단인지 구분하지 못했다.
 
 ## postmortem에서 가져온 주의
 - 2026-11 "The Codex model list stayed the previous account's…": 목록 읽기는 요청마다 자기 lease로 준비한다. 같은 `SkillCatalog` 경로를 쓴다.
