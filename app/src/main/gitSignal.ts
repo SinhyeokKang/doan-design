@@ -1,10 +1,13 @@
 import { createHash } from "node:crypto";
-import { dirname } from "node:path";
+import { statSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { gitdirFromLink } from "./onboarding/gitConfig";
+import { readRegularFileSync } from "./regularFile";
 
-// Pure rules for telling a canvas the app watched appear from one that arrived with a git operation (pull, merge,
-// rebase, branch switch). No file is read here: the caller reads the git files (through readRegularFileSync, so a FIFO
-// cannot stall main) and hands their text and stat in. Never runs git (PRODUCT §3 Out of scope).
+// Rules for telling a canvas the app watched appear from one that arrived with a git operation (pull, merge, rebase,
+// branch switch): pure functions over the git files' text and stat, and the one reader that feeds them (readGitSignal),
+// which opens every git file through readRegularFileSync so a FIFO cannot stall main. Never runs git (PRODUCT §3 Out of
+// scope).
 
 // How long a new canvas id waits for a git signal change before it counts as new, and how far before its appearance a
 // change still explains it: git writes the working tree first and HEAD or a ref afterwards.
@@ -89,4 +92,38 @@ export function settlePending(pending: Pending, gitSignalHistory: readonly GitSi
     if (entry.signal !== gitSignalHistory[i - 1]!.signal) return "html";
   }
   return now >= to ? "new" : "pending";
+}
+
+// `.git` at the root as it is now. A link is followed as git follows it; anything but a directory or a regular file (a
+// FIFO, a socket) is no repository, and the file read itself never blocks.
+function dotGitOf(root: string): DotGit {
+  const path = join(root, ".git");
+  try {
+    const stat = statSync(path);
+    if (stat.isDirectory()) return { kind: "directory", path };
+    if (stat.isFile()) return { kind: "file", path, text: readRegularFileSync(path) };
+  } catch { /* absent or unreadable */ }
+  return { kind: "none" };
+}
+
+// The root's gitdir, where HEAD, FETCH_HEAD and ORIG_HEAD are (a linked worktree's own); null without one.
+export const gitDirOf = (root: string): string | null => resolveGitDir(dotGitOf(root));
+
+function readText(path: string): string | null {
+  try { return readRegularFileSync(path); } catch { return null; }
+}
+
+function readFile(path: string): GitFileRead | null {
+  try {
+    const stat = statSync(path);
+    if (!stat.isFile()) return null;
+    return { size: stat.size, mtimeMs: stat.mtimeMs, text: readRegularFileSync(path) };
+  } catch { return null; }
+}
+
+// The root's git signal now (parseGitSignal). Synchronous and bounded: a few small files.
+export function readGitSignal(root: string): string {
+  const gitDir = gitDirOf(root);
+  if (gitDir === null) return parseGitSignal({ head: null, fetchHead: null, origHead: null });
+  return parseGitSignal({ head: readText(join(gitDir, "HEAD")), fetchHead: readFile(join(gitDir, "FETCH_HEAD")), origHead: readFile(join(gitDir, "ORIG_HEAD")) });
 }

@@ -85,7 +85,7 @@ test("the Retry toast's words", () => {
   expect(readStateToast({ kind: "save", path: ".doan/canvases/checkout.html", readOnly: true })).toEqual({ message: "Couldn’t save checkout’s read state. This folder is read-only.", busy: "Saving checkout’s read state." });
   expect(readStateToast({ kind: "baseline", readOnly: true }).message).toBe("Couldn’t save the initial read state. This folder is read-only.");
   expect(readStateToast({ kind: "baseline", readOnly: false }).message).toBe("Couldn’t save the initial read state.");
-  expect(readStateToast({ kind: "records" }).message).toBe("Read-state records couldn’t be read. Restore them, then retry.");
-  expect(readStateToast({ kind: "unsupported" }).message).toBe("These read-state records need a compatible app version. Use that version, then retry.");
+  expect(readStateToast({ kind: "records" }).message).toBe("Read state couldn’t be read, so it started fresh. Canvases already in the list count as seen.");
+  expect(readStateToast({ kind: "unsupported" }).message).toBe("Read state is from a newer Doan version and won’t be saved this session. Update Doan, then retry.");
   expect(readStateToast({ kind: "id", path: ".doan/canvases/checkout.html" }).message).toBe("Couldn’t save the read state because the canvas ID is missing or duplicated. Fix the ID, then retry.");
 });

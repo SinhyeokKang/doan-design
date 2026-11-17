@@ -69,7 +69,8 @@ import { createOpaqueFallback } from "./opaqueFallback";
 import { createReadState, type ReadState } from "./readState";
 import { createFingerprints } from "./seenFingerprint";
 import { shownDocument } from "./seenProof";
-import { readSeen, writeSeen } from "./seenRecords";
+import { readSeen } from "./seenRecords";
+import { readGitSignal } from "./gitSignal";
 import { DESIGN_SKILL_CHANNELS, DESIGN_SKILL_REFUSED, designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
 import { folderState, realHome } from "./folderState";
 import { revealTarget, type FolderEntry } from "./view";
@@ -841,7 +842,7 @@ async function start(): Promise<void> {
     local: seenStore,
     fingerprint: (root, path) => fingerprints.of(root, path),
     read: readSeen,
-    write: writeSeen,
+    gitSignal: readGitSignal,
     entries: () => shellEntries(),
     // Only the main window's own canvas iframe proves a canvas shown (seenProof.ts).
     async shown(root, row) {
@@ -888,7 +889,7 @@ async function start(): Promise<void> {
     readyOpenLinks();
   }, {
     response: record => documents.response(record),
-    seen: root => seen.recordsChanged(root),
+    git: root => seen.gitChanged(root),
     saveFailed: () => send("folders:save-failed"),
     // A vanished auto-registered worktree is cleaned up like Remove (folders:remove); its work items go with the
     // list's retainWorkRoots above.
