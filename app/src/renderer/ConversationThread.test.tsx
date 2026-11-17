@@ -707,3 +707,24 @@ describe("openReplyLink", () => {
     expect(notice).not.toHaveBeenCalled();
   });
 });
+
+// DESIGN 'Busy action' and 'Accessible names': the read error's Retry is named Retry, described by the notice's text,
+// and busy while its read runs; a repeat failure changes the line by a no-break space so the alert reads it again.
+describe("the read error's Retry", () => {
+  test("is named Retry and described by the notice text", () => {
+    const out = html("error");
+    const described = /<button[^>]*aria-describedby="([^"]+)"[^>]*>Retry<\/button>/.exec(out)?.[1];
+    expect(described).toBeDefined();
+    expect(out).toContain(`<span class="strip-text selectable" id="${described}">`);
+    expect(out).not.toMatch(/<button[^>]*aria-label/);
+  });
+  test("is busy while the read runs", () => {
+    const out = html("error", { retry: { running: true, failures: 0 } });
+    expect(out).toContain('aria-busy="true"');
+    expect(out).toMatch(/<span class="doan-spinner" aria-hidden="true"><\/span>Retry<\/button>/);
+    expect(out).toContain("Try again. If it keeps failing, start a new conversation.</span>");
+  });
+  test("a repeat failure changes the line so it is read again", () => {
+    expect(html("error", { retry: { running: false, failures: 1 } })).toContain("Try again. If it keeps failing, start a new conversation. </span>");
+  });
+});

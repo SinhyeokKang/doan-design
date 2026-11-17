@@ -82,3 +82,60 @@ test("selectable: the description and the reason text, but not the title or the 
   expect(html).not.toMatch(/<h3[^>]*selectable/);
   expect(html).not.toMatch(/<button[^>]*selectable/);
 });
+
+// DESIGN 'Busy action': while main's plan is out the confirm is busy, not unavailable without a reason.
+test("while main's plan is out, Move to Trash keeps its fill with the spinner, aria-busy and aria-disabled; Cancel stays available", () => {
+  const cancel = vi.fn(), confirm = vi.fn();
+  const view = trashDialogView("checkout", PATH, null, false);
+  expect(view).toMatchObject({ confirmable: false, busy: true, cancellable: true, reason: null, error: null });
+  const tree = CanvasTrashDialog({ view, cancel, confirm });
+  const [cancelButton, trash] = buttons(tree);
+  expect(trash!.props).toMatchObject({ "aria-busy": true, "aria-disabled": true });
+  expect(trash!.props["data-disabled"]).toBeUndefined();
+  expect(renderToStaticMarkup(trash!)).toMatch(/<span class="doan-spinner" aria-hidden="true"><\/span>Move to Trash<\/button>$/);
+  (trash!.props.onClick as () => void)();
+  expect(confirm).not.toHaveBeenCalled();
+  expect(cancelButton!.props["aria-disabled"]).toBeUndefined();
+  (cancelButton!.props.onClick as () => void)();
+  expect(cancel).toHaveBeenCalledOnce();
+});
+
+test("a plan read that failed keeps the dialog with a reason line; Move to Trash is unavailable and reads it", () => {
+  const view = trashDialogView("checkout", PATH, { kind: "refused", reason: "failed" }, false);
+  expect(view).toMatchObject({ confirmable: false, busy: false, cancellable: true, error: null,
+    reason: "Doan couldn’t get this canvas ready to move. Close and try again, or move the file to the Trash in Finder." });
+  const trash = buttons(CanvasTrashDialog({ view, cancel: vi.fn(), confirm: vi.fn() }))[1]!;
+  expect(trash.props).toMatchObject({ "aria-disabled": true, "data-disabled": "", "aria-describedby": "canvas-trash-reason" });
+  expect(trash.props["aria-busy"]).toBeUndefined();
+});
+
+// D1: a confirmation that can fail stays open, busy, until main answers; Cancel and Escape are refused meanwhile.
+test("while the move is out the confirm is busy and Cancel and Escape are refused", () => {
+  const cancel = vi.fn(), confirm = vi.fn();
+  const view = trashDialogView("checkout", PATH, { kind: "ready" }, false, { pending: true, failed: null });
+  expect(view).toMatchObject({ confirmable: false, busy: true, cancellable: false, error: null });
+  const tree = CanvasTrashDialog({ view, cancel, confirm });
+  const [cancelButton, trash] = buttons(tree);
+  expect(cancelButton!.props).toMatchObject({ "aria-disabled": true, "data-disabled": "" });
+  expect(trash!.props).toMatchObject({ "aria-busy": true, "aria-disabled": true });
+  (cancelButton!.props.onClick as () => void)();
+  const escape = { preventDefault: vi.fn() };
+  (tree.props.onCancel as (event: unknown) => void)(escape);
+  expect(escape.preventDefault).toHaveBeenCalledOnce();
+  (trash!.props.onClick as () => void)();
+  expect(cancel).not.toHaveBeenCalled();
+  expect(confirm).not.toHaveBeenCalled();
+});
+
+test("a refused move shows the refusal's sentence as an error notice inside the dialog, and Move to Trash retries", () => {
+  const cancel = vi.fn(), confirm = vi.fn();
+  const view = trashDialogView("checkout", PATH, { kind: "ready" }, false, { pending: false, failed: { kind: "refused", reason: "failed" } });
+  expect(view).toMatchObject({ confirmable: true, busy: false, cancellable: true, reason: null, error: "Couldn’t move “checkout” to Trash. Try again, or move the file in Finder." });
+  const tree = CanvasTrashDialog({ view, cancel, confirm });
+  const html = renderToStaticMarkup(tree);
+  expect(html).toMatch(/<p class="doan-notice error" role="alert" id="canvas-trash-error"><svg[^>]*>.*?<\/svg><span class="selectable">Couldn’t move “checkout” to Trash\. Try again, or move the file in Finder\.<\/span><\/p><div class="doan-dialog-actions">/);
+  const trash = buttons(tree)[1]!;
+  expect(trash.props["aria-describedby"]).toBe("canvas-trash-error");
+  (trash.props.onClick as () => void)();
+  expect(confirm).toHaveBeenCalledOnce();
+});

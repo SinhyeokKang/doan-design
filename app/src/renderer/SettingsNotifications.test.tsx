@@ -160,3 +160,31 @@ test("selectable: the save-failed message, but not its Retry button", async () =
   expect(String(line.props.className).split(" ")).toContain("selectable");
   expect(String(button("Retry").props.className).split(" ")).not.toContain("selectable");
 });
+
+// DESIGN 'Busy action' (the list Retry's model): Retry keeps its line and focus while the save is out.
+test("Retry keeps the failure line while its save is out, busy and named Retry; a repeat failure reads the line again; success clears it", async () => {
+  props.save = vi.fn(async () => ({ ok: false as const, reason: "write_failed" as const, snapshot: snapshot() }));
+  render();
+  toggle("Finished");
+  await flush(); render();
+  let answer!: (value: Awaited<ReturnType<typeof props.save>>) => void;
+  props.save = vi.fn(() => new Promise(resolve => { answer = resolve; }));
+  render();
+  const lineText = () => words(all(tree).find(element => element.props.className === "settings-msg error selectable")?.props.children);
+  const first = lineText();
+  expect(button("Retry").props["aria-label"]).toBeUndefined();
+  const described = button("Retry").props["aria-describedby"] as string;
+  expect(all(tree).find(element => element.props.id === described)).toBeDefined();
+  click("Retry"); render();
+  expect(lineText()).toBe(first);
+  expect(button("Retry").props).toMatchObject({ "aria-busy": true, "aria-disabled": true });
+  click("Retry");
+  expect(props.save).toHaveBeenCalledOnce();
+  answer({ ok: false, reason: "write_failed", snapshot: snapshot() }); await flush(); render();
+  expect(button("Retry").props["aria-busy"]).toBeUndefined();
+  // The same sentence, changed by a no-break space so the alert reads it again.
+  expect(lineText()).toBe(`${first} `);
+  click("Retry"); render();
+  answer({ ok: true, snapshot: snapshot() }); await flush(); render();
+  expect(text()).not.toContain("Couldn’t save");
+});

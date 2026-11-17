@@ -55,7 +55,7 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 const words = (node: unknown): string => Array.isArray(node) ? node.map(words).join("") : typeof node === "string" ? node : isValidElement<Record<string, unknown>>(node) ? words(node.props.children) : "";
 type PageProps = Parameters<typeof SettingsPage>[0];
 const agents = { signIn: {} as never, preferences: null, save: vi.fn(), project: null } satisfies PageProps["agents"];
-const buddy: PageProps["buddy"] = { shown: "doany", failure: null, lockedUntil: null, select: vi.fn(async () => true), settled: async () => true, commit: async () => true, dismiss: vi.fn() };
+const buddy: PageProps["buddy"] = { shown: "doany", failure: null, saving: false, lockedUntil: null, select: vi.fn(async () => true), settled: async () => true, commit: async () => true, dismiss: vi.fn() };
 let tree: ReactNode;
 function render(props: Partial<PageProps> = {}) {
   hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = [];
