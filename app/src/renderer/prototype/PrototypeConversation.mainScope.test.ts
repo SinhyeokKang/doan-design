@@ -53,7 +53,7 @@ beforeEach(() => {
     conversations: () => all.map(c => ({ conversationId: c.conversationId, root: ROOT, ...(c.canvas ? { canvas: c.canvas } : {}) })),
   });
   const calls = {
-    onConversationEvent: on, onConversationStage: on, onWorkChanged: on, onTargetEntry: on, onComposerSettings: on, onDrawing: on, onPromoted: on,
+    onConversationEvent: on, onConversationStage: on, onConversationBoundary: on, onWorkChanged: on, onTargetEntry: on, onComposerSettings: on, onDrawing: on, onPromoted: on,
     onConversationListChanged: (listener: typeof listChanged) => { listChanged = listener; return () => {}; },
     listConversations: (payload: unknown) => {
       const reply = list(payload);

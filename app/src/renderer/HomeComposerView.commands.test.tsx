@@ -4,13 +4,9 @@ import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
-import { textSegments } from "./anchorField";
 import * as Parts from "./ComposerParts";
-import { tabKey } from "./ComposerParts";
-import { modelsKey } from "./dockedSupport";
-import { emptyComposer, HeroComposer, pasteAction, slashKey, type ComposerMemory, type HeroComposerProps } from "./HomeComposerView";
+import { emptyComposer, HeroComposer, type ComposerMemory, type HeroComposerProps } from "./HomeComposerView";
 import type { PresetListReply, PresetSummary } from "./homeComposer";
-import type { LastRequest } from "./homeConversations";
 
 // Home's composer with provider commands (draft `.doan/canvases/provider-commands.html`). Hooks run as plain state
 // (HomeComposerView.interaction).

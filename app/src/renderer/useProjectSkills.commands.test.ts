@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi, type Mock } from "vitest";
 import type { Provider } from "../main/agentAuth/types";
+import type { SkillsCalls } from "./useProjectSkills";
 
 // The hook run as plain state (useProjectSkills.test). An ACP agent's commands are its conversation's: main answers
 // them only for a conversationId, with the server's unconfirmed commands as `passthrough`.
@@ -21,10 +22,10 @@ vi.mock("react", async original => ({
 }));
 const { useProjectSkills } = await import("./useProjectSkills");
 
-let list: ReturnType<typeof vi.fn>;
+let list: Mock<SkillsCalls["listConversationSkills"]>;
 beforeEach(() => {
   hooks.states = []; hooks.refs = []; hooks.effects = [];
-  list = vi.fn(async () => ({ skills: [{ kind: "command", name: "compact", description: "" }], passthrough: ["share"] }));
+  list = vi.fn<SkillsCalls["listConversationSkills"]>(async () => ({ skills: [{ kind: "command", name: "compact", description: "" }], passthrough: ["share"] }));
 });
 afterEach(() => vi.unstubAllGlobals());
 const settle = () => new Promise(resolve => setTimeout(resolve, 0));

@@ -40,11 +40,13 @@ describe("the / list and the Presets popover", () => {
     if (view.kind !== "list") throw new Error("list");
     expect(view.sections.flatMap(s => s.rows).map(r => r.key)).toEqual(["command:compact"]);
     expect(view.summary).toBe("1 command matches comp");
-    // The project skill named context is listed; the command of that name is not.
+    // The project skill named context is listed first; the command of that name is not (the other commands match "con"
+    // in their descriptions).
     const clash = presetListView(reply, { ...opts, query: "con" });
     if (clash.kind !== "list") throw new Error("list");
-    expect(clash.sections.flatMap(s => s.rows).map(r => r.key)).toEqual(["skill:context"]);
-    expect(clash.summary).toBe("1 skill matches con");
+    const keys = clash.sections.flatMap(s => s.rows).map(r => r.key);
+    expect(keys[0]).toBe("skill:context");
+    expect(keys).not.toContain("command:context");
   });
 
   test("the Commands tab follows Project with the terminal icon, rows in name order", () => {

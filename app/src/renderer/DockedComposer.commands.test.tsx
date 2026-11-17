@@ -21,7 +21,10 @@ vi.mock("react", async original => ({
   useReducer: () => [0, () => {}],
   useEffect: (effect: () => unknown) => { hooks.effects.push(effect); },
   useLayoutEffect: (effect: () => unknown) => { hooks.effects.push(effect); },
-  useImperativeHandle: () => {},
+  useImperativeHandle: (ref: { current: unknown } | undefined, create: () => Record<string, unknown>) => {
+    const handle = create();
+    if (ref && "sendAll" in handle) ref.current = handle;
+  },
   useRef: (value: unknown) => { const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
   useState: (value: unknown) => { const index = hooks.cursor++; if (!(index in hooks.states)) hooks.states[index] = typeof value === "function" ? (value as () => unknown)() : value; return [hooks.states[index], (next: unknown) => { hooks.states[index] = typeof next === "function" ? (next as (v: unknown) => unknown)(hooks.states[index]) : next; }]; },
 }));
@@ -160,18 +163,21 @@ test("an unconfirmed ACP command is sent as written, alone", async () => {
 test("while the field starts with a command the preset chip leaves for the notice, and comes back with the word gone", () => {
   const { render } = setup({}, [[KEY, draft("", { preset: POLISH, shape: "box" })]]);
   const chip = (tree: Record<string, unknown>[]) => tree.some(props => typeof props.className === "string" && props.className.includes("preset-chip"));
+  // The notice row (the composer's status region keeps its last words, so the text alone is not the row).
+  const notice = (tree: Record<string, unknown>[]) => tree.some(props => typeof props.className === "string" && props.className.includes("command-notice"));
   let tree = render();
   expect(chip(tree)).toBe(true);
-  expect(has(tree, PRESET_NOTICE)).toBe(false);
+  expect(notice(tree)).toBe(false);
   type(tree, "/compact ");
   tree = render();
+  expect(notice(tree)).toBe(true);
   expect(has(tree, PRESET_NOTICE)).toBe(true);
   expect(chip(tree)).toBe(false);
   expect(find(tree, props => typeof props.className === "string" && props.className.includes("command-notice")).className).toBe("composer-chips command-notice");
   expect(said(tree)).toBe(PRESET_NOTICE);
   type(tree, "Tighten the spacing");
   tree = render();
-  expect(has(tree, PRESET_NOTICE)).toBe(false);
+  expect(notice(tree)).toBe(false);
   expect(chip(tree)).toBe(true);
 });
 
@@ -186,4 +192,14 @@ test("a queued command row has no Send now; the message rows keep theirs", () =>
   const tree = render(true);
   const sendNow = tree.filter(props => props.className === "doan-button queue-send");
   expect(sendNow.map(props => props["aria-describedby"])).toEqual(["id-0", "id-2"]);
+});
+
+test("Control+Enter sends the message rows now and leaves a command row queued", async () => {
+  vi.stubGlobal("document", { body: {}, activeElement: null });
+  const onSendQueuedNow = vi.fn(async () => {});
+  const { render } = setup({ turn: "running", sendNow: true, onSendQueuedNow, queued: [{ id: "q1", text: "Also this" }, { id: "q2", text: "/compact" }] });
+  const tree = render(true);
+  (input(tree).onSteerKey as () => void)();
+  await flush();
+  expect(onSendQueuedNow.mock.calls.map(call => (call as unknown[])[0])).toEqual(["q1"]);
 });
