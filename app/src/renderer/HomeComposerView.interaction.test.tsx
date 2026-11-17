@@ -50,6 +50,7 @@ beforeEach(() => {
     removeAttachment: vi.fn(async () => true), chooseAttachments: vi.fn(async () => []), addDroppedFiles: vi.fn(async () => {}), addProjects: vi.fn(),
     // Pasted test files are page-made (no disk path) unless a test says otherwise.
     droppedPath: vi.fn(() => null),
+    takeStartDraft: vi.fn(async () => null), attachmentsFromPaths: vi.fn(async () => []),
   };
   vi.stubGlobal("window", { doan });
   vi.stubGlobal("queueMicrotask", (run: () => void) => run());
@@ -368,6 +369,32 @@ test("first run's project is chosen once; the person's later choice wins and the
   call(field(render()), "onKeyDown", key("Enter"));
   await vi.waitFor(() => expect(start).toHaveBeenCalled());
   expect((start.mock.calls[0]![0] as { root: string }).root).toBe("/code/acme");
+});
+
+// A first message a quit stopped before main accepted it comes back after what is typed, for the picked project, once.
+test("Home takes the picked project's start message a quit stopped, after the typed text, and asks once", async () => {
+  doan.takeStartDraft!.mockResolvedValueOnce({ text: "Draw a pricing page.", anchors: [], attachments: [], reason: "restarted" });
+  const { box, render } = setup({ text: "Also" });
+  render(); runEffects();
+  await vi.waitFor(() => expect(box.current.text).toBe("Also\n\nDraw a pricing page."));
+  expect(doan.takeStartDraft).toHaveBeenCalledWith({ root: "/code/doan-design" });
+  render(); runEffects();
+  expect(doan.takeStartDraft).toHaveBeenCalledTimes(1);
+});
+
+// The draft is already taken from main, so it lands with its own project even when the person picked another meanwhile.
+test("a start message that arrives after another project was picked brings its own project back", async () => {
+  const reply = deferred<unknown>();
+  doan.takeStartDraft!.mockReturnValueOnce(reply.promise as never);
+  const { box, render } = setup({}, { entries: [ENTRY, B] });
+  render(); runEffects();
+  const projects = find(render(), props => typeof props.onValueChange === "function" && props.value === "/code/doan-design/.git");
+  (projects.onValueChange as (key: string) => void)("/code/acme/.git");
+  render(); runEffects();
+  expect(box.current.root).toBe("/code/acme");
+  reply.resolve({ text: "Draw a pricing page.", anchors: [], attachments: [], reason: "restarted" });
+  await vi.waitFor(() => expect(box.current.text).toBe("Draw a pricing page."));
+  expect(box.current.root).toBe("/code/doan-design");
 });
 
 test("a pending start keeps Home locked on a later visit, and a late reply clears only the draft it sent", async () => {
