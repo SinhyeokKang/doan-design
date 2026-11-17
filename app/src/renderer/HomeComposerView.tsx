@@ -10,7 +10,7 @@ import type { HomeMemory, ShellProject } from "../restore/uiState";
 import { localClock, resetTimeText } from "./limitReset";
 import { useProjectSkills, type SkillsCalls } from "./useProjectSkills";
 import { fieldSkillRuns } from "./skillWords";
-import { classifyFirstWord, commandCard, commandLists, planSend, PRESET_NOTICE, type CommandCard } from "./commandView";
+import { classifyFirstWord, commandCard, commandLists, planSend, PRESET_NOTICE, STALE_MODE_CARD, type CommandCard } from "./commandView";
 import { AlertIcon } from "./AlertIcon";
 import { retryButton } from "./ListRetryButton";
 import {
@@ -302,10 +302,12 @@ export function HeroComposer(props: HeroComposerProps) {
   const commandNames = new Set(commands ? [...commands.commands, ...commands.aliases.keys(), ...commands.unsupported] : []);
   const first = commands ? classifyFirstWord(text, commands).kind : "text";
   // The preset stays chosen but goes with no command: its chip leaves the row for the notice until the word goes.
-  const presetHeld = first !== "text" && first !== "skill" && preset !== null;
+  const isCommand = first !== "text" && first !== "skill";
+  const presetHeld = isCommand && preset !== null;
   const chips = [...attachments.map(a => ({ label: attachmentChipView(a, props.homeDirectory).label })), ...(preset ? [{ label: preset.title, preset: true }] : [])];
   const running = root ? props.running.get(root) ?? null : null;
-  const availability = sendAvailability({ projects: cards.length, root: entry, projectName: project, auth, provider, text, preset, skills: matched, attachments, running, sending });
+  // A command goes out alone, so the attachments it leaves here do not hold it.
+  const availability = sendAvailability({ projects: cards.length, root: entry, projectName: project, auth, provider, text, preset: isCommand ? null : preset, skills: isCommand ? [] : matched, attachments: isCommand ? [] : attachments, running, sending });
   const composed = composeRequest(text, preset, matched, attachments.length);
   const counter = lengthCounter(composed.length);
   const slash = slashQuery(text, dismissed, new Set([...skillNames, ...commandNames]));
@@ -497,6 +499,11 @@ export function HeroComposer(props: HeroComposerProps) {
       update(current => ({ sending: null, notice: null, attachments: markRefused(current.attachments, missing, replaced) }));
     // A late project_busy is shown by the reason line, which the run's list now carries.
     } else if (outcome.error === "project_busy") update({ sending: null, notice: null });
+    // Codex's /review before any message told the thread a permission mode: the card says to send one first; the text stays.
+    else if (outcome.error === "command_mode_stale") {
+      update({ sending: null, notice: null, card: { ...STALE_MODE_CARD } });
+      setAnnouncement(`${STALE_MODE_CARD.title}. ${STALE_MODE_CARD.body}`);
+    }
     else update({ sending: null, notice: startErrorView(outcome.error, provider, project, outcome.resetsAt ? resetTimeText(outcome.resetsAt, Date.now(), localClock()) : null) });
     queueMicrotask(() => field.current?.focus());
   };

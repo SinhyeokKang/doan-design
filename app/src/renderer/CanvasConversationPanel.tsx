@@ -445,7 +445,11 @@ export function CanvasConversation(props: CanvasConversationProps) {
       support.clearPick(key);
       if (mode.kind === "new" && permissionMode) support.startedIn(draftKey({ kind: "existing", conversationId: reply.conversationId, provider: runtime }), permissionMode);
       run.started(target, reply.conversationId, runtime, revision);
-      return { ok: true };
+      // The panel shows the started conversation, by this reply or a list read that came first, unless the person chose
+      // something else meanwhile; only then does a command's leftover follow it.
+      const view = run.view();
+      const follows = view?.kind === "conversation" && view.conversationId === reply.conversationId;
+      return { ok: true, ...(follows ? { conversationId: reply.conversationId } : {}) };
     }
     // A message that waits for the usage limit's reset carries no picker change; the picks stay for the next send.
     const waits = mode.kind === "existing" && waitsForReset(summary);
@@ -534,7 +538,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
           onClick={() => notice.kind === "drawing" ? props.onOpenProjectConversation(notice.open) : (props.onOpenPromoted ?? openConversation)(notice.open)}>Open</button></span></div>}
     </div>
     <div className="cp-foot">
-      <DockedComposer skills={projectSkills.skills} passthrough={projectSkills.passthrough} onSkillsWanted={projectSkills.read} onCard={next => store.showCard(key, next)} mode={mode} project={project} homeDirectory={null} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined} chipScope={canvasScope(target)}
+      <DockedComposer skills={projectSkills.skills} passthrough={projectSkills.passthrough} onSkillsWanted={projectSkills.read} onCard={next => store.showCard(key, next)} card={card} mode={mode} project={project} homeDirectory={null} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined} chipScope={canvasScope(target)}
         {...(props.pick ? { pick: props.pick } : {})} {...(props.composerLink ? { link: props.composerLink } : {})} onLocate={props.onLocate} canvasPress={props.canvasPress}
         drafts={store.drafts} onDrafts={update => store.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}

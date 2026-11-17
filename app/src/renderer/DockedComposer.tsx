@@ -11,7 +11,7 @@ import { AlertIcon } from "./AlertIcon";
 import { retryButton } from "./ListRetryButton";
 import { ContextRing, type RingUsage } from "./ContextRing";
 import type { ContextUsage } from "./contextWindow";
-import { distinctTargets, plainText, sameSegments, typedText } from "./anchorField";
+import { distinctTargets, plainText, typedText } from "./anchorField";
 import { LIMITS } from "../main/conversation/messageText";
 import {
   AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, PermissionPicker, PresetsButton,
@@ -19,7 +19,7 @@ import {
 } from "./ComposerParts";
 import { composerAction, composerShape, focusAfter, steerAllPlan, type ComposerAction, type ComposerTurn, type FocusAction } from "./composerRules";
 import {
-  canvasGoneText, composerPlaceholder, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT,
+  canvasGoneText, composerPlaceholder, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT, sameDraft, settleSent,
   type DockedBusy, type DockedDraft, type DockedMode, type DockedRefusal,
 } from "./dockedRules";
 import { slashKey, pasteAction } from "./HomeComposerView";
@@ -59,7 +59,8 @@ export interface DockedFieldLink {
 // The composer's Pick from canvas button: pressed while the canvas picks; `reason` is the tooltip while unavailable.
 export interface DockedPicker { pressed: boolean; enabled: boolean; reason: string | null; onToggle(): void }
 // resetsAt: a usage-limit refusal's reset time (ISO), when main knew it.
-export type DockedOutcome = { ok: true; itemId?: string } | { error: string; missing?: string[]; replaced?: string[]; resetsAt?: string };
+// conversationId: the conversation a start began, which the composer now shows (the host's run moved to it).
+export type DockedOutcome = { ok: true; itemId?: string; conversationId?: string } | { error: string; missing?: string[]; replaced?: string[]; resetsAt?: string };
 
 export interface DockedComposerProps {
   mode: DockedMode;
@@ -89,8 +90,10 @@ export interface DockedComposerProps {
   // The ACP conversation's commands sent as written but listed nowhere (useProjectSkills passthrough).
   passthrough?: readonly string[];
   // A built-in Doan does not run, or main's refusal of a Codex /review: the card the host shows for this draft key, and
-  // null once a send went out.
+  // null once a send went out. `card`: the one the host shows for this draft key, from here or a queue main returned; the
+  // composer says each card once through its status region (the card is no live region of its own).
   onCard?(card: CommandCard | null): void;
+  card?: CommandCard | null;
   presets: PresetListReply | undefined; suggested: readonly PresetSummary[];
   onPresetsOpen(): void; onPresetsRetry(): void;
   thumbnails: Readonly<Record<string, string>>;
@@ -168,6 +171,9 @@ export function playingMessage(draft: DockedDraft, skills: readonly string[], fr
 }
 
 const NO_NAMES: ReadonlySet<string> = new Set();
+// Cards already said, by object: a card shows in every composer of its draft key and stays until dismissed, so it is said
+// once, where it first shows.
+const SAID = new WeakSet<CommandCard>();
 // The draft is a command the person sends alone: typed text only (a chip makes it a message), whose first word is a
 // command, an unconfirmed ACP command or a built-in Doan answers with a card.
 function isCommand(draft: DockedDraft, lists: CommandLists | null): boolean {
@@ -176,8 +182,6 @@ function isCommand(draft: DockedDraft, lists: CommandLists | null): boolean {
   return kind !== "text" && kind !== "skill";
 }
 
-const sameDraft = (a: DockedDraft, b: DockedDraft) => sameSegments(a.segments, b.segments) && (a.preset?.id ?? null) === (b.preset?.id ?? null)
-  && a.attachments.map(item => item.key).join("\n") === b.attachments.map(item => item.key).join("\n");
 
 // Anchor chips count like attachment and preset chips: a message with a chip becomes a box whose text and chips wrap
 // above the tools, instead of a one-line capsule that clips them in the narrow panel.
@@ -254,7 +258,9 @@ export function DockedComposer(props: DockedComposerProps) {
   const limited = limitResetsAt !== null || scheduledFor !== null;
   const now = Date.now(), clock = localClock();
   const lead = playing ? playingMessage(draft, matched, playing.frame) : undefined;
-  const checked = lead === null && !isSending && !props.unavailable ? { enabled: false, reason: { text: ANCHOR_LIMIT_TEXT } } : dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft, skills: matched, turn: props.turn, busy, sending: isSending, unavailable: props.unavailable ?? null, external: !!props.fixed, limited });
+  // A command goes out alone, so neither the playing frame's place limit nor the attachments' state holds it.
+  const checked = lead === null && !commandFirst && !isSending && !props.unavailable ? { enabled: false, reason: { text: ANCHOR_LIMIT_TEXT } }
+    : dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft: commandFirst ? { ...draft, preset: null, attachments: [] } : draft, skills: commandFirst ? [] : matched, turn: props.turn, busy, sending: isSending, unavailable: props.unavailable ?? null, external: !!props.fixed, limited });
   const availability = blocked && !isSending && !props.unavailable ? { enabled: false, reason: { text: blocked.text, ...(blocked.action ? { action: blocked.action } : {}) } }
     : props.held && checked.enabled ? { enabled: false, reason: checked.reason } : checked;
   // The person's own message decides Stop, Queue and Send: the pinned frame goes with every request but is not
@@ -431,7 +437,7 @@ export function DockedComposer(props: DockedComposerProps) {
       // command leaves the preset and attachments it did not take.
       const left = command ? { ...EMPTY_DRAFT, preset: sent.preset, attachments: sent.attachments } : EMPTY_DRAFT;
       const settled = { ...left, shape: composerShape("capsule", { empty: true, chips: chipCount(left, pinned), overflows: false }) };
-      props.onDrafts(drafts => sameDraft(drafts.get(at) ?? EMPTY_DRAFT, sent) ? new Map(drafts).set(at, settled) : drafts);
+      props.onDrafts(drafts => settleSent(drafts, at, sent, settled, outcome.conversationId ? `conversation:${outcome.conversationId}` : undefined));
       if (at === shown.current) focus({ kind: "sent" });
       return outcome;
     }
@@ -442,7 +448,7 @@ export function DockedComposer(props: DockedComposerProps) {
         return current ? new Map(drafts).set(at, { ...current, attachments: markRefused(current.attachments, missing, replaced) }) : drafts;
       });
     } else if (outcome.error === "command_mode_stale") {
-      showCard(STALE_MODE_CARD);
+      showCard({ ...STALE_MODE_CARD });
     } else {
       const provider = mode.kind === "new" ? props.provider : mode.provider;
       const resets = outcome.resetsAt ? resetTimeText(outcome.resetsAt, Date.now(), localClock()) : null;
@@ -453,19 +459,19 @@ export function DockedComposer(props: DockedComposerProps) {
     if (at === shown.current) focus({ kind: "sent" });
     return outcome;
   };
-  const showCard = (card: CommandCard) => {
-    props.onCard?.(card);
-    setAnnouncement(`${card.title}. ${card.body}`);
-  };
+  // Each card is a new object (commandCard, a copy of STALE_MODE_CARD), so the same refusal again is said again.
+  const showCard = (card: CommandCard) => { props.onCard?.(card); };
   const steerAll = async () => {
     const plan = steerAllPlan({ sendNow: canSendNow, rows: props.queued.length, draft: own.text.trim() !== "" });
     if (plan === "enter") { await send(); return; }
     if (plan === "none") return;
     if (plan.rows) queueRows.current?.sendAll();
     if (plan.draft) {
+      // A command is never steered into a turn (main refuses it): it only queues.
+      const steers = !commandFirst;
       const outcome = await send();
       // A queue reply belongs to the conversation it left from, not a newly mounted rows handle.
-      if (outcome && "ok" in outcome && outcome.itemId && key === shown.current) void queueRows.current?.sendNow(outcome.itemId);
+      if (steers && outcome && "ok" in outcome && outcome.itemId && key === shown.current) void queueRows.current?.sendNow(outcome.itemId);
     }
   };
   const keyDown = (event: KeyboardEvent<HTMLDivElement>): boolean => {
@@ -510,6 +516,12 @@ export function DockedComposer(props: DockedComposerProps) {
     slotAction.current = action;
     if (stopLeft) field.current?.focus();
   });
+  useEffect(() => {
+    const card = props.card;
+    if (!card || SAID.has(card)) return;
+    SAID.add(card);
+    setAnnouncement(`${card.title}. ${card.body}`);
+  }, [props.card]);
 
   if (props.canvasGone || refusal?.kind === "gone") return <div className="doan-notice" role="status"><AlertIcon /><span className="grow-text selectable">{canvasGoneText(props.project)}</span></div>;
   const reason = availability.reason;

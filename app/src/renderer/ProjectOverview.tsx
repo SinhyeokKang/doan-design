@@ -290,6 +290,11 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         support.clearPick(key);
         if (permissionMode) support.startedIn(draftKey({ kind: "existing", conversationId: outcome.conversationId, provider: chosen }), permissionMode);
         run.started(root, outcome.conversationId, chosen, revision);
+        // The column shows the started conversation unless the person chose something else meanwhile; only then does a
+        // command's leftover follow it.
+        const view = run.view(root);
+        const follows = view.kind === "conversation" && view.conversationId === outcome.conversationId;
+        return { ok: true, ...(follows ? { conversationId: outcome.conversationId } : {}) };
       }
       return "ok" in outcome ? { ok: true } : outcome;
     }
@@ -460,7 +465,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         </div>}
     </div>
     <div className="ov-foot"><div className="ov-col">
-      <DockedComposer skills={projectSkills.skills} passthrough={projectSkills.passthrough} onSkillsWanted={projectSkills.read} onCard={next => run.store.showCard(key, next)} mode={mode} project={project} homeDirectory={props.homeDirectory} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined}
+      <DockedComposer skills={projectSkills.skills} passthrough={projectSkills.passthrough} onSkillsWanted={projectSkills.read} onCard={next => run.store.showCard(key, next)} card={card} mode={mode} project={project} homeDirectory={props.homeDirectory} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined}
         drafts={run.drafts} onDrafts={update => run.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}

@@ -436,7 +436,8 @@ export class ConversationStore {
       if (reply.reason === "attachment_limit") this.host.notice(ATTACHMENT_LIMIT_TEXT);
       // A queued /review main would not send in another permission mode than the thread was last told (Codex
       // review/start takes none): the text is back in the draft, and the card says why.
-      if (reply.reason === "command_mode_stale") this.showCard(`conversation:${conversationId}`, STALE_MODE_CARD);
+      // A copy: the composer says each card it is given once, by object.
+      if (reply.reason === "command_mode_stale") this.showCard(`conversation:${conversationId}`, { ...STALE_MODE_CARD });
     });
   }
   // A new conversation's first message that a quit stopped before main accepted it, in an earlier run, comes into the
