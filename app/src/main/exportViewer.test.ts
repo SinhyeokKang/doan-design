@@ -1203,6 +1203,9 @@ describe("the viewer header in a real DOM", () => {
       pressed: document.querySelector('#tools [aria-pressed="true"]')?.getAttribute("data-tool") ?? null,
       pan: document.getElementById("board")!.hasAttribute("data-pan"),
     }));
+    // In a browser the viewer is the top document and has the keys; here it is a frame of the test window, and a press
+    // that moves no focus would leave the keys with that window.
+    await frame.evaluate(() => window.focus());
     await frame.click('#tools [data-tool="hand"]');
     expect(await state()).toEqual({ active: "BODY", pressed: "hand", pan: true });
     await frame.click('#tools [data-tool="select"]');
@@ -1215,7 +1218,7 @@ describe("the viewer header in a real DOM", () => {
     await frame.focus('#tools [data-tool="select"]');
     await page.keyboard.press("ArrowRight");
     await page.keyboard.down("Space");
-    expect(await state()).toMatchObject({ active: "hand", pan: true });
+    expect(await state()).toEqual({ active: "hand", pressed: "select", pan: false });
     await page.keyboard.up("Space");
     expect(await state()).toEqual({ active: "hand", pressed: "hand", pan: true });
   }, 60_000);
