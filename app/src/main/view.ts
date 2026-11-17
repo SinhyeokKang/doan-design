@@ -30,13 +30,12 @@ export interface CanvasRow {
   url: string;
 }
 
-// What the read-state toast tells, with Retry: a canvas whose read state could not be saved (`path`), or a project
-// whose initial records could not be written or whose records cannot be read. `readOnly`: the write was refused for
-// permissions.
+// What the read-state toast tells, with Retry: a canvas whose read state could not be saved to this device's
+// canvas-seen.json (`save`) or has a missing or duplicated ID (`id`); or that file itself, told once: `records`, a
+// damaged file moved aside so this run started fresh, `unsupported`, a later Doan's file this run never writes.
 export type ReadStateProblem =
-  | { kind: "save"; path: string; readOnly: boolean }
+  | { kind: "save"; path: string }
   | { kind: "id"; path: string }
-  | { kind: "baseline"; readOnly: boolean }
   | { kind: "records" }
   | { kind: "unsupported" };
 

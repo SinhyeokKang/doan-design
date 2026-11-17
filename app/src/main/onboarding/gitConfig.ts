@@ -106,6 +106,13 @@ export function parseGitConfig(text: string): { remotes: { name: string; url: st
 
 function errorCode(error: unknown): string { return typeof error === "object" && error !== null && "code" in error ? String(error.code) : "UNKNOWN"; }
 
+// The gitdir a linked worktree's .git file names, resolved against the worktree root; null when the first line is not a
+// `gitdir:` link.
+export function gitdirFromLink(root: string, text: string): string | null {
+  const line = /^gitdir: (.+)$/.exec(text.split("\n", 1)[0]!.replace(/\r$/, ""));
+  return line ? resolve(root, line[1]!) : null;
+}
+
 // A linked worktree's .git is a file naming its gitdir, whose commondir points at the shared repository and config.
 function configPath(root: string): string | RemoteRead {
   const dotGit = join(root, ".git");
@@ -119,9 +126,9 @@ function configPath(root: string): string | RemoteRead {
   }
   try {
     if (!statSync(dotGit).isDirectory()) {
-      const line = /^gitdir: (.+)$/.exec(readRegularFileSync(dotGit).split("\n", 1)[0]!.replace(/\r$/, ""));
-      if (!line) return { ok: false, reason: "unreadable" };
-      gitDir = resolve(root, line[1]!);
+      const linked = gitdirFromLink(root, readRegularFileSync(dotGit));
+      if (!linked) return { ok: false, reason: "unreadable" };
+      gitDir = linked;
     }
   } catch { return { ok: false, reason: "unreadable" }; }
   try { return join(resolve(gitDir, readRegularFileSync(join(gitDir, "commondir")).trim()), "config"); }

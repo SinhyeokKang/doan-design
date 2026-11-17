@@ -1,6 +1,7 @@
-import { lstatSync, watch, type FSWatcher } from "node:fs";
+import { lstatSync, statSync, watch, type FSWatcher } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { CANVAS_DIRS } from "../formats/canvasPath";
+import { gitDirOf } from "./gitSignal";
 
 const DEBOUNCE_MS = 200;
 
@@ -16,12 +17,14 @@ export interface Change {
   // when no canvas directory event is in the change. Relative to the repo, not to each
   // directory, so a merged set keeps `.doan/canvases/a.html` and `.doan/ds/a.html` apart.
   names?: readonly string[] | null;
-  // `.doan/seen/` changed: only the read-state records are read again. No `doan ls`, no served bump, no canvas reload,
-  // so the app's own record writes cost one read and nothing more.
-  seen?: boolean;
+  // HEAD, FETCH_HEAD or ORIG_HEAD in the root's gitdir changed: only the read state's git signal is read again
+  // (gitSignal.ts). No `doan ls`, no served bump, no canvas reload.
+  git?: boolean;
 }
 
-const SEEN: Change = { reread: false, served: false, seen: true };
+const GIT: Change = { reread: false, served: false, git: true };
+// The gitdir files whose change is a git signal; other gitdir entries (index, refs, logs) are ignored.
+const GIT_NAMES = new Set(["HEAD", "FETCH_HEAD", "ORIG_HEAD"]);
 const REREAD: Change = { reread: true, served: false };
 const SERVED: Change = { reread: false, served: true };
 const BOTH: Change = { reread: true, served: true };
@@ -74,7 +77,7 @@ export function createRefresher(run: (change: Change) => Promise<void>, delayMs 
   };
   const trigger = (change: Change) => {
     if (closed) return;
-    pending = { reread: pending.reread || change.reread, served: pending.served || change.served, ...(pending.seen || change.seen ? { seen: true } : {}) };
+    pending = { reread: pending.reread || change.reread, served: pending.served || change.served, ...(pending.git || change.git ? { git: true } : {}) };
     if (change.names === null) names = null;
     else if (change.names !== undefined && names !== null) names = new Set([...(names ?? []), ...change.names]);
     if (running) {
@@ -111,7 +114,9 @@ interface Target {
 // Watches what `doan ls` reads: the root (non-recursive, to see
 // `.doan` come and go), the canvas directories `.doan/canvases/` and `.doan/ds/`
 // (recursive) and `.doan/` (config.json); plus the served paths outside `.doan`
-// from the latest scope.
+// from the latest scope, and the gitdir (non-recursive) for the read state's git signal.
+// Git replaces HEAD and friends by rename, which ends a watcher on the file itself, so
+// their directory is watched.
 // A watcher on a deleted directory stays on the old inode, so the sub-watchers are
 // re-armed whenever their parent changes.
 export function watchFolder(root: string, refresh: (change: Change) => Promise<void>): FolderWatch {
@@ -125,15 +130,16 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
     ...canvasDirs,
     assetsDir,
     { path: join(root, ".doan"), recursive: false, change: REREAD },
-    // Non-recursive: the records sit directly in it. Its coming and going is a `.doan` entry, a re-read as before.
-    { path: join(root, ".doan/seen"), recursive: false, change: SEEN },
   ];
+  // Resolved again on every re-arm: a linked worktree's `.git` file can be rewritten to name another gitdir, and a
+  // root event (`.git` coming or going) re-arms.
+  let gitTarget: Target | undefined;
   let served: Target[] = [];
   // Served files directly in the root go through the root watcher.
   let rootNames = new Set<string>();
   let closed = false;
 
-  const targets = () => [...fixed, ...served];
+  const targets = () => [...fixed, ...served, ...(gitTarget ? [gitTarget] : [])];
 
   const classify = (path: string, filename: string | null): Change | undefined => {
     if (path === root) {
@@ -154,6 +160,9 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
 
   const onEvent = (path: string, filename: string | null) => {
     if (closed) return;
+    // Git touches its index and lock files on every `git status`; those neither re-arm nor reach the refresher. The
+    // gitdir's own name stays: deleting a watched directory arrives named after it (POSTMORTEM 2026-10-22).
+    if (path === gitTarget?.path && filename !== null && !GIT_NAMES.has(filename) && filename !== basename(path)) return;
     rearm();
     const change = classify(path, filename);
     if (change) refresher.trigger(change);
@@ -180,6 +189,8 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
   };
 
   const rearm = () => {
+    const gitDir = gitDirOf(root);
+    if (gitDir !== gitTarget?.path) gitTarget = gitDir === null ? undefined : { path: gitDir, recursive: false, change: GIT, names: GIT_NAMES };
     const wanted = targets();
     for (const target of wanted) {
       const { path, recursive } = target;
@@ -187,7 +198,9 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
       // lstat: `doan ls` does not follow a symlinked canvas directory, and a
       // recursive watch through `doan -> .` would cover the whole repo.
       try {
-        const stat = path.startsWith(join(root, ".doan") + "/") && !lstatSync(join(root, ".doan")).isDirectory() ? undefined : lstatSync(path);
+        // The gitdir is git's, reached as git reaches it: through a link too. It lies outside `.doan`.
+        const stat = target === gitTarget ? statSync(path)
+          : path.startsWith(join(root, ".doan") + "/") && !lstatSync(join(root, ".doan")).isDirectory() ? undefined : lstatSync(path);
         if (stat?.isDirectory()) ino = stat.ino;
       } catch {
         ino = undefined;

@@ -162,13 +162,13 @@ test("a read-state failure found meanwhile is a Retry toast only on its project 
   await start(rows({ unseen: "changed" }), [], workspace);
   show(rows({})[0]!);
   listeners.readStateProblem!({ root: "/w/b", problem: { kind: "records" } } as never);
-  listeners.readStateProblem!({ root: "/w/a", problem: { kind: "save", path: B, readOnly: true } } as never);
+  listeners.readStateProblem!({ root: "/w/a", problem: { kind: "save", path: B } } as never);
   expect(harness.toast.retry).not.toHaveBeenCalled();
-  listeners.readStateProblem!({ root: "/w/a", problem: { kind: "save", path: A, readOnly: true } } as never);
+  listeners.readStateProblem!({ root: "/w/a", problem: { kind: "save", path: A } } as never);
   expect(harness.toast.retry).toHaveBeenCalledTimes(1);
   const [message, label, busy, running, attempt] = harness.toast.retry.mock.lastCall! as [string, string, string, string, () => Promise<string | null>];
-  expect([message, label, busy, running]).toEqual(["Couldn’t save a’s read state. This folder is read-only.", "Retry", "Saving a’s read state.", "Retrying"]);
-  doan.retryReadState!.mockResolvedValueOnce({ kind: "save", path: A, readOnly: false });
+  expect([message, label, busy, running]).toEqual(["Couldn’t save a’s read state.", "Retry", "Saving a’s read state.", "Retrying"]);
+  doan.retryReadState!.mockResolvedValueOnce({ kind: "save", path: A });
   expect(await attempt()).toBe("Couldn’t save a’s read state.");
   expect(doan.retryReadState).toHaveBeenLastCalledWith({ root: "/w/a", path: A });
   doan.retryReadState!.mockResolvedValueOnce(null);
@@ -190,12 +190,12 @@ test("a failed project-list save is a Retry toast; Retry writes the list again",
 });
 
 test("entering a project tries its read state again and tells what still fails, once", async () => {
-  doan.retryReadState!.mockResolvedValue({ kind: "baseline", readOnly: true });
+  doan.retryReadState!.mockResolvedValue({ kind: "records" });
   await start(rows({}), [], workspace);
   await Promise.resolve(); await Promise.resolve(); render();
   expect(doan.retryReadState).toHaveBeenCalledWith({ root: "/w/a" });
   expect(harness.toast.retry).toHaveBeenCalledTimes(1);
-  expect(harness.toast.retry.mock.lastCall![0]).toBe("Couldn’t save the initial read state. This folder is read-only.");
+  expect(harness.toast.retry.mock.lastCall![0]).toBe("Read state couldn’t be read, so it started fresh. Canvases already in the list count as seen.");
   folders(rows({ mtimeMs: 20 }));
   await Promise.resolve(); render();
   expect(doan.retryReadState).toHaveBeenCalledTimes(1);
