@@ -239,3 +239,33 @@ test("a file main checks after its chip was removed, and a held chip's removal, 
   expect(calls.removeAttachment).toHaveBeenCalledWith("held");
   expect(calls.releaseAttachments).toHaveBeenCalledWith(["held"]);
 });
+
+// The prototype window's composer takes the same lists and rules as the canvas panel's (POSTMORTEM 2026-10 prototype
+// composer push order): an ACP conversation's commands come by its id through the window's call object, and a card the
+// composer shows lands in the shared store for the thread.
+test("an ACP conversation's commands, unconfirmed names and card reach the composer through the call object", async () => {
+  const calls = fakeCalls();
+  calls.listConversationSkills.mockImplementation(async () => ({ skills: [{ kind: "command", name: "compact", description: "" }], passthrough: ["share"] }) as never);
+  const list: ListView = [{ conversationId: "c1", canvas: CANVAS, title: "Ideas", owner: "doan", provider: "copilot", fromHome: false,
+    phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" }];
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, calls);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, calls);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.sync();
+  await flush();
+  const support = new DockedSupport(() => {}, calls);
+  const panel = () => CanvasConversation({
+    calls, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
+    prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
+    onLocate: vi.fn(async () => "shown" as const), onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
+  });
+  render(panel);
+  await flush();
+  expect(calls.listConversationSkills).toHaveBeenCalledWith({ root: ROOT, provider: "copilot", conversationId: "c1" });
+  const composer = dockedProps(render(panel))! as { skills: unknown; passthrough: unknown; onCard(card: unknown): void };
+  expect(composer.skills).toEqual([{ kind: "command", name: "compact", description: "" }]);
+  expect(composer.passthrough).toEqual(["share"]);
+  const card = { title: "/model doesn’t run in Doan", body: "Choose the model from the model picker.", action: null };
+  composer.onCard(card);
+  expect(store.card("conversation:c1")).toBe(card);
+});
