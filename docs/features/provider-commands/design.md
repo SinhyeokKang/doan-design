@@ -30,13 +30,9 @@
 - IPC 타입: `SkillSummary`에 행 종류(`skill` | `command`)를 추가한다. 디스크 형식이 아니므로 JSON Schema는 바뀌지 않는다.
 - 대화 기록: 바꾸지 않는다(결정 4). 경계는 프로바이더 세션 기록에서 다시 만들고, 카드는 기록에 남기지 않는다.
 - 세션 연결(`SessionBinding`): 필드는 그대로 두고 값만 새 id로 다시 쓴다(결정 5). 형식이 바뀌어야 한다면 PoC 뒤 이 절을 다시 열고, schema·`v`·TS/Go 공유 fixture(ARCHITECTURE §11)를 이 feature에 추가한다.
-- **PoC 뒤 다시 연 항목(결정 필요, task 2 이후 진행 전 멈춤).**
-  - 세션 연결: 형식 변경이 필요 없다. `/clear`가 동작하는 프로바이더는 Claude뿐이다. 새 id는 `system/init`의 `session_id`로 받아 기존 필드에 다시 쓰면 된다.
-  - 대화 기록: Copilot `/compact`의 경계는 결정 4대로 만들 수 없다. `session/load` 재생에 압축 기록이 없고, Copilot 내부 파일 `session-state/<id>/events.jsonl`에만 남는다('재시작 뒤 경계'). 길은 셋이다.
-    - (a) 대화 기록에 경계 항목을 추가한다. 이것은 대화 기록 형식 변경이다(schema·`v`·공유 fixture).
-    - (b) Copilot의 비공개 `events.jsonl`을 읽는다. 형식 변경은 없지만 문서화되지 않은 파일에 기댄다.
-    - (c) Copilot `/compact`는 이번 실행에서만 경계를 보인다. 결정 4에 예외를 둔다.
-  - 이 선택이 정해질 때까지 이 feature는 task 1에서 멈춘다.
+- **PoC 뒤 다시 연 항목(정함).**
+  - 세션 연결: 형식 변경이 필요 없다. `/clear`가 동작하는 프로바이더는 Claude뿐이다. 새 id는 `system/init`의 `session_id`로 받아 기존 필드에 다시 쓴다.
+  - 대화 기록: Copilot `/compact`의 경계는 이번 실행에서만 보인다(결정 4의 예외). `session/load` 재생에 압축 기록이 없고, Copilot 내부 파일 `session-state/<id>/events.jsonl`에만 남기 때문이다. 대화 기록 형식은 바꾸지 않는다.
 
 ## ACP 명령 목록의 수명
 - ACP 서버는 세션이 열린 뒤 `available_commands_update`를 보낸다. 지금 runner는 prompting 중인 `session/update`만 처리한다.
@@ -135,7 +131,7 @@
    - 닫기는 Dismiss이고, 보낸 텍스트는 컴포저로 돌아온다.
    - 내장 명령 이름을 아는 경로: Claude는 SDK의 `builtin` 목록, Codex는 PoC로 만든 고정 이름 표, ACP는 `available_commands_update`다.
 3. **명령은 혼자서만 보낸다.** 명령을 고르면 프리셋 칩이 빠지고 "Presets don’t apply to commands"로 알린다. 명령 단어를 지우면 칩을 복원한다. 명령 메시지에는 고정 줄을 붙이지 않는다.
-4. **경계만 재시작 뒤에 남는다.** 경계는 프로바이더 세션 기록 이벤트에서 다시 만든다. 카드는 이번 실행에서만 보인다.
+4. **경계만 재시작 뒤에 남는다.** 경계는 프로바이더 세션 기록 이벤트에서 다시 만든다. 카드는 이번 실행에서만 보인다. 예외: Copilot의 압축 경계는 이번 실행에서만 보인다. Copilot은 압축 기록을 세션 복원(session/load)에 내주지 않고, Doan은 비공개 파일(events.jsonl)을 읽지 않으며 기록 형식도 바꾸지 않는다(PoC).
 5. **`/clear`로 세션 id가 바뀌면 새 id를 따라간다.** 사람이 고른 `/clear`에 한해 대화의 세션 연결을 새 id로 다시 쓴다. 다시 쓸 때도 profile·cwd 검증(PRODUCT 'Session identity')을 거친다.
 6. **실행 중인 턴에 보낸 명령은 별도 큐 행이 된다.** 다른 메시지와 합치지 않고 턴이 끝난 뒤 혼자 간다. 명령 행에서 Send now는 비활성이다.
 7. **명령 턴은 기존 턴 표시를 쓴다.**
