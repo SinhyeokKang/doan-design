@@ -321,6 +321,21 @@ describe("Codex /review and the permission mode", () => {
     h.service.receive(id, { type: "interrupted", reason: "user" });
     await expect(h.service.send(id, "/review", [], { permissionMode: "default" })).rejects.toThrow("command_mode_stale");
   });
+  // A turn whose history stopped taking writes never records its end, yet its turn/start may have told the thread a
+  // wider mode: the mode is unknown until an ordinary turn in the picker's mode ends done (R2b review repro).
+  it("forgets the stated mode when a turn ends through a failed history write", async () => {
+    const h = fixture();
+    const id = await h.start("hello", { permissionMode: "plan" }); done(h, id);
+    await h.service.send(id, "Do it all", [], { permissionMode: "bypass" });
+    const append = vi.spyOn(h.store, "append").mockImplementationOnce(() => { throw new Error("EIO"); });
+    h.service.receive(id, { type: "activity", kind: "command", summary: "Running a command" });
+    append.mockRestore();
+    h.exits[0]!();
+    await expect(h.service.send(id, "/review", [], { permissionMode: "plan" })).rejects.toThrow("command_mode_stale");
+    await h.service.send(id, "Back to planning", [], { permissionMode: "plan" }); done(h, id);
+    await h.service.send(id, "/review", [], { permissionMode: "plan" });
+    expect(h.prompts().at(-1)).toBe("/review");
+  });
   it("sends /compact whatever the mode, since it runs no tools, and a /compact turn states none", async () => {
     const h = fixture();
     const id = await h.start("hello"); done(h, id);
