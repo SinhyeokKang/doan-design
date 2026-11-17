@@ -41,7 +41,7 @@ test("a refused local setup keeps Keep out of Git chosen and shows why", () => {
   expect(html).toContain('<input type="radio" name="setup-storage" checked=""/><span class="ob-radio" aria-hidden="true"></span><strong>Keep out of Git (this Mac only)</strong>');
   expect(html).toContain('role="alert"');
   expect(html).toContain("Choose Include in Git, or run <code>git init</code> here first.");
-  expect(fields({}, { running: true })).toContain('<input type="radio" name="setup-storage" aria-disabled="true" checked=""/>');
+  expect(fields({}, { running: true })).toContain('<input type="radio" aria-disabled="true" name="setup-storage" checked=""/>');
 });
 
 // design-sync (draft frame setup-dialog, 'Not a Git repository'): the command in the refusal is a code chip.

@@ -212,8 +212,8 @@ test("the clone screen asks under Save to, and keeps the choice unavailable but 
   expect(clone.indexOf("Doan files")).toBeLessThan(clone.indexOf("Already have this repository?"));
   expect(clone).toContain('<input type="radio" name="ob-clone-storage" checked=""/>');
   const running = page({ storage: "local", phase: cloning }, true);
-  expect(running).toContain('<input type="radio" name="ob-clone-storage" aria-disabled="true" checked=""/>');
-  expect(running).toContain('<input type="radio" name="ob-clone-storage" aria-disabled="true"/>');
+  expect(running).toContain('<input type="radio" aria-disabled="true" name="ob-clone-storage" checked=""/>');
+  expect(running).toContain('<input type="radio" aria-disabled="true" name="ob-clone-storage"/>');
 });
 
 // After a clone landed, a storage or setup failure is told in main's words, which say the clone stayed.

@@ -232,12 +232,13 @@ describe("a failed first read", () => {
 
   test("Retry reads again and is busy until the read answers; a press meanwhile reads nothing more", async () => {
     await failFirst();
+    const reads = api.read!.mock.calls.length;
     let answer!: (value: PrototypeView | null) => void;
     api.read!.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
     shell.onReadRetry!();
     expect(render().readFailure).toEqual({ running: true });
     shell.onReadRetry!();
-    expect(api.read).toHaveBeenCalledTimes(2);
+    expect(api.read).toHaveBeenCalledTimes(reads + 1);
     answer(view({ gen: 5 }));
     const s = await settle();
     expect(s.readFailure ?? null).toBeNull();

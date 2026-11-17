@@ -2603,7 +2603,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
     {state.status && (state.status !== "missing" || state.message) && <div className="canvas-status" role="status">
       {state.status === "loading" ? <CanvasLoading />
         : state.status === "failed" ? <div className="canvas-status-block"><AlertIcon size={20} /><h2>Couldn’t load the canvas</h2><p>Run doan check in a terminal.</p>
-          <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => command("reload")}>Reload</button></div>
+          <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => command("reload")}>Retry</button></div>
         : state.status === "noWidth" ? <p className="selectable"><b>Couldn’t read a valid board width.</b>{state.message.slice("Couldn’t read a valid board width.".length)}</p>
         : <p className="selectable">{state.message}</p>}
     </div>}

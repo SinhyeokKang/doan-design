@@ -1879,12 +1879,12 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .storage-option:has(> input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
 .storage-option:has(> input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
 .storage-option:has(> input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }
-.storage-option:has(> input:disabled), .storage-option > input:disabled { cursor: default; }
+.storage-option:has(> input[aria-disabled="true"]), .storage-option > input[aria-disabled="true"] { cursor: default; }
 /* While Set Up writes, the options take the disabled roles as .storage-row does; a code chip keeps its own ink. */
-.storage-option:has(> input:disabled) :is(strong, small) { color: var(--text-disabled); }
-.storage-option:has(> input:disabled) .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }
-.storage-option:has(> input:disabled:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }
-.storage-option:has(> input:disabled:checked) .ob-radio::before { background: var(--text-disabled); }
+.storage-option:has(> input[aria-disabled="true"]) :is(strong, small) { color: var(--text-disabled); }
+.storage-option:has(> input[aria-disabled="true"]) .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }
+.storage-option:has(> input[aria-disabled="true"]:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }
+.storage-option:has(> input[aria-disabled="true"]:checked) .ob-radio::before { background: var(--text-disabled); }
 /* A command or path chip in a caption description keeps the caption size and never breaks inside itself. */
 :is(.storage-option small, .storage-pref .doan-preference-row-description) code { white-space: nowrap; color: var(--text-standard); background: var(--surface-inset); border-radius: var(--radius-inline); padding: 0 var(--space-1); }
 .storage-fact { grid-column: 2 / -1; display: grid; gap: var(--space-half); }
@@ -1901,11 +1901,11 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .storage-row:has(> input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
 .storage-row:has(> input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }
 /* While a clone runs the choice keeps its value and is disabled, like Save to's Change. */
-.storage-row:has(> input:disabled), .storage-row > input:disabled { cursor: default; }
-.storage-row:has(> input:disabled) .ob-provider-label :is(strong, span) { color: var(--text-disabled); }
-.storage-row:has(> input:disabled) .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }
-.storage-row:has(> input:disabled:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }
-.storage-row:has(> input:disabled:checked) .ob-radio::before { background: var(--text-disabled); }
+.storage-row:has(> input[aria-disabled="true"]), .storage-row > input[aria-disabled="true"] { cursor: default; }
+.storage-row:has(> input[aria-disabled="true"]) .ob-provider-label :is(strong, span) { color: var(--text-disabled); }
+.storage-row:has(> input[aria-disabled="true"]) .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }
+.storage-row:has(> input[aria-disabled="true"]:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }
+.storage-row:has(> input[aria-disabled="true"]:checked) .ob-radio::before { background: var(--text-disabled); }
 /* Project Settings: the thread's settings radio row (.conversation-thread .q-pref) outside the thread. */
 .storage-pref { position: relative; align-items: start; cursor: pointer; }
 .storage-pref .ob-radio { margin-top: 0; }
