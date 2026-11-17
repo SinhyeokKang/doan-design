@@ -3,7 +3,7 @@ import type { AuthReason, AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import { PROVIDERS, type AccountIdentity, type AuthAttempt, type AuthErrorCode, type AuthPhase, type AuthState, type AuthStatusDto, type Provider, type RecoveryAction, type ToolFacts } from "../main/agentAuth/types";
 import {
-  agentsSettingsView, authListView, cancelledAnnouncement, installedAnnouncement, installRowView, MAX_PASTE, noAgentReadyNotice, pasteDialog, pasteSubmittable, pickerAction, pickerFooter, PROVIDER_NAMES, providerShortStatus, providerView, readyAnnouncements, replyEffect, signInToast, stopDialog,
+  agentsSettingsView, authListView, cancelledAnnouncement, installedAnnouncement, installRowView, MAX_PASTE, noAgentReadyNotice, pasteDialog, pasteSubmittable, pickerAction, pickerFooter, PROVIDER_NAMES, providerShortStatus, providerUnavailableReason, providerView, readyAnnouncements, replyEffect, signInToast, stopDialog,
   type AuthButton, type InstallState, type ProviderView,
 } from "./agentAuthView";
 
@@ -53,12 +53,12 @@ test("readiness action update: below the minimum shows Update, even before sign-
   expect(view.button?.ariaLabel).toBe("Update Cursor");
 });
 
-test("readiness action retry for version causes: alerts in the tools-check format with a Retry that costs nothing", () => {
+test("readiness action retry for version causes: alerts in the tools-check format with a Check again that costs nothing", () => {
   const unknown = providerView(dto("copilot", { account: ACCOUNT, verified: true, facts: { version: "unknown" } }));
-  expect(only(unknown)).toEqual({ detail: "ada@example.com", button: null, helper: null, notice: { role: "alert", spinner: false, title: "Couldn’t read the GitHub Copilot version", body: "Check that GitHub Copilot is installed correctly, then retry.", actions: ["prominent:Retry:check"] } });
+  expect(only(unknown)).toEqual({ detail: "ada@example.com", button: null, helper: null, notice: { role: "alert", spinner: false, title: "Couldn’t read the GitHub Copilot version", body: "Check that GitHub Copilot is installed correctly, then check again.", actions: ["prominent:Check again:check"] } });
   expect(unknown.notice?.actions[0]?.ariaLabel).toBeUndefined();
   const incompatible = providerView(dto("codex", { facts: { version: "incompatible" } }));
-  expect(only(incompatible).notice).toEqual({ role: "alert", spinner: false, title: "Doan can’t run this Codex version", body: "Update Codex or wait for a Doan update, then retry.", actions: ["prominent:Retry:check"] });
+  expect(only(incompatible).notice).toEqual({ role: "alert", spinner: false, title: "Doan can’t run this Codex version", body: "Update Codex or wait for a Doan update, then check again.", actions: ["prominent:Check again:check"] });
 });
 
 test("readiness action repair: missing or failed doan tools show Check again", () => {
@@ -107,7 +107,7 @@ test("readiness action signOut: a failed sign-out is its own alert with Sign out
 test("readiness action reauth: expiry, a missing Claude organization and a different account each have their own copy", () => {
   const expired = dto("codex", { account: ACCOUNT, verified: true, expired: true });
   expect(expired.readiness).toMatchObject({ cause: "reauth_required", action: "reauth" });
-  expect(only(providerView(expired)).notice).toEqual({ role: "alert", spinner: false, title: undefined, body: "Your Codex connection expired. Sign in again.", actions: ["subtle:Sign out:signOut", "prominent:Sign in again:reauth"] });
+  expect(only(providerView(expired)).notice).toEqual({ role: "alert", spinner: false, title: undefined, body: "Your Codex sign-in expired. Sign in again.", actions: ["subtle:Sign out:signOut", "prominent:Sign in again:reauth"] });
   const org = dto("claude", { account: { id: "acct-1", workspace: null, email: "ada@example.com" }, verified: true });
   expect(org).toMatchObject({ phase: "connected", readiness: { cause: "reauth_required" } });
   expect(only(providerView(org))).toMatchObject({ button: null, notice: { body: "Sign in to Claude Code again so Doan can confirm your organization.", actions: ["subtle:Sign out:signOut", "prominent:Sign in again:reauth"] } });
@@ -310,14 +310,26 @@ test("Home's short status names why a connected provider can't run, with no acti
   expect(short(dto("codex", { account: ACCOUNT, expired: true }))).toBe("Sign-in expired");
   expect(short(dto("cursor", { account: ACCOUNT, verified: true, facts: { version: "unsupported" } }))).toBe("Needs an update");
   expect(short(dto("codex", { account: ACCOUNT, verified: true, facts: { version: "incompatible" } }))).toBe("Needs an update");
-  for (const facts of [{ version: "unknown" }, { cli: "missing" }, { tools: "missing" }] as Partial<ToolFacts>[])
+  expect(short(dto("copilot", { account: ACCOUNT, verified: true, facts: { cli: "missing" } }))).toBe("Not installed");
+  for (const facts of [{ version: "unknown" }, { tools: "missing" }] as Partial<ToolFacts>[])
     expect(short(dto("copilot", { account: ACCOUNT, verified: true, facts }))).toBe("Not available right now");
+});
+
+// Settings' New conversations names the same cause as Home's picker, as a sentence about the provider.
+test("the unavailable reason names the provider and the picker's cause", () => {
+  const reason = (status: AuthStatusDto | undefined) => providerUnavailableReason("codex", status);
+  expect(reason(undefined)).toBe("Codex isn’t signed in");
+  expect(reason(dto("codex"))).toBe("Codex isn’t signed in");
+  expect(reason(dto("codex", { account: ACCOUNT, expired: true }))).toBe("Codex’s sign-in expired");
+  expect(reason(dto("codex", { account: ACCOUNT, verified: true, facts: { version: "unsupported" } }))).toBe("Codex needs an update");
+  expect(reason(dto("codex", { account: ACCOUNT, verified: true, facts: { cli: "missing" } }))).toBe("Codex isn’t installed");
+  expect(reason(dto("codex", { account: ACCOUNT, verified: true, facts: { tools: "missing" } }))).toBe("Codex isn’t available right now");
 });
 
 test("the short status leaves the onboarding row copy unchanged", () => {
   const status = dto("codex", { account: ACCOUNT, expired: true });
   providerShortStatus(status);
-  expect(only(providerView(status)).notice?.body).toBe("Your Codex connection expired. Sign in again.");
+  expect(only(providerView(status)).notice?.body).toBe("Your Codex sign-in expired. Sign in again.");
 });
 
 // the Settings page reuses the same rows with a Settings context.

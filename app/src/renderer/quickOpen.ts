@@ -5,6 +5,7 @@ import { canvasDir } from "../formats/canvasPath";
 import { conversationCanvasMatch } from "./canvasConversationRows";
 import { canvasLabel, frameLabel } from "./canvasTree";
 import { shortAgo } from "./overviewConversation";
+import { projectReadingLine, projectUnavailableLine } from "./problemView";
 
 export interface SearchFrame {
   id: string;
@@ -354,11 +355,12 @@ export function removedCanvasMessage(row: CanvasRow): string {
   return `${canvasLabel(row)} was removed from ${listedIn(row.path)}`;
 }
 
-export function unavailableCanvasMessage(entry: FolderEntry | undefined, path: string): string {
+// `project`: the sidebar's name for the canvas's project.
+export function unavailableCanvasMessage(entry: FolderEntry | undefined, path: string, project: string): string {
   if (entry?.kind === "list" && entry.canvases.some(row => row.path === path)) return "Canvas changed while opening. Choose it again from the sidebar or Quick Open.";
   if (entry?.kind === "list") return missingCanvasMessage(path);
-  if (entry?.kind === "loading") return "Project is still being read. Try again shortly.";
-  return "Project is unavailable. Fix it from its menu in the sidebar, then try again.";
+  if (entry?.kind === "loading") return `${projectReadingLine(project)} Try again shortly.`;
+  return projectUnavailableLine(project);
 }
 
 // A doan:// link main refused (ARCHITECTURE §7 'Deep links'): one toast without an action, since a

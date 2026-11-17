@@ -149,6 +149,10 @@ test("a connected default that cannot run says the real cause, and Model says wh
   await settle({ preferences: prefs({ provider: "codex" }) });
   const warning = all(tree).find(element => element.props.role === "status" && words(element.props.children).includes("so Home starts"));
   expect(words(warning?.props.children)).toBe("Codex needs an update, so Home starts with the agent you sent with last.");
+  auth = { revision: 2, providers: [dto("claude"), dto("codex", { facts: { cli: "missing" } })] };
+  authListener(auth); render();
+  expect(words(all(tree).find(element => element.props.role === "status" && words(element.props.children).includes("so Home starts"))?.props.children))
+    .toBe("Codex isn’t installed, so Home starts with the agent you sent with last.");
   const model = labelled("Model for new conversations")[0]!;
   expect(model.props.disabled).toBe(true);
   const modelRow = all(tree).find(element => element.props.className === "doan-preference-row" && all(element.props.children as ReactNode).includes(model))!;

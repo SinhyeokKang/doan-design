@@ -41,7 +41,7 @@ test("disables Settings while the wizard is open", () => {
 // selecting and cloning phases, which nothing may leave.
 describe("Add Projects page", () => {
   const main = { wizardOpen: false };
-  test("Add Project… only in the choose phase, where it opens Choose folder; Home and Quick Open stay; no canvas items", () => {
+  test("Add Projects… only in the choose phase, where it opens Choose folder; Home and Quick Open stay; no canvas items", () => {
     expect(menuState("addProjects", false, { ...main, choose: true })).toEqual({ addProject: true, home: true, canvasView: false, quickOpen: true, settings: true, newConversation: false, pickFromCanvas: false, toggleSidebar: true });
     expect(menuState("addProjects", false, { ...main, choose: false })).toEqual({ addProject: false, home: true, canvasView: false, quickOpen: true, settings: true, newConversation: false, pickFromCanvas: false, toggleSidebar: true });
     expect(menuState("addProjects", false, main).addProject).toBe(false);
@@ -66,10 +66,10 @@ describe("Add Projects page", () => {
 });
 
 // The Settings page is a screen of its own. Settings… there focuses the category
-// title again, Add Project… moves to the Add Projects page, and `locked` is the page's write or confirmation.
+// title again, Add Projects… moves to the Add Projects page, and `locked` is the page's write or confirmation.
 describe("settings page", () => {
   const main = { wizardOpen: false };
-  test("Settings…, Add Project…, Home and Quick Open stay; no canvas items", () => {
+  test("Settings…, Add Projects…, Home and Quick Open stay; no canvas items", () => {
     expect(menuState("settings", false, main)).toEqual({ settings: true, addProject: true, home: true, canvasView: false, quickOpen: true, newConversation: false, pickFromCanvas: false, toggleSidebar: true });
     expect(menuState("settings", false, { ...main, choose: true })).toEqual({ settings: true, addProject: true, home: true, canvasView: false, quickOpen: true, newConversation: false, pickFromCanvas: false, toggleSidebar: true });
   });

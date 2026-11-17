@@ -374,7 +374,7 @@ test("defines the requested window geometry and File menu", () => {
   expect(window().options).toMatchObject({ width: 1238, height: 780, minWidth: 960, minHeight: 600, titleBarStyle: "hiddenInset", trafficLightPosition: { x: 16, y: 21 }, backgroundColor: "#00000000", vibrancy: "sidebar", visualEffectState: "followWindow" });
   // macOS's forced 24-hour time reaches the renderer, which cannot read it itself (clockHourCycle.ts).
   expect(window().options.webPreferences).toMatchObject({ additionalArguments: ["--doan-clock-hour12=0"] });
-  expect(item("Add Project…").accelerator).toBe("CmdOrCtrl+O");
+  expect(item("Add Projects…").accelerator).toBe("CmdOrCtrl+O");
   expect(item("Close Window").accelerator).toBe("CmdOrCtrl+W");
 });
 
@@ -425,7 +425,7 @@ test("ignores activate without a window and disposes only on quit", () => {
 });
 
 test("File menu opens the Add Projects page and closes the window", async () => {
-  const open = item("Add Project…").click;
+  const open = item("Add Projects…").click;
   Reflect.apply(open ?? (() => { throw new Error("no open handler"); }), undefined, []);
   expect(window().webContents.send).toHaveBeenCalledWith("add-projects:open");
   expect(mocks.dialog.showOpenDialog).not.toHaveBeenCalled();
@@ -985,9 +985,9 @@ describe("menus", () => {
     // Settings… replaces Set Up doan… right after About (orch.md decision).
     expect(submenu("Doan").map((entry) => entry.label ?? entry.role ?? entry.type)).toEqual(["About Doan", "Check for Updates…", "Settings…", "separator", "services", "separator", "Hide Doan", "hideOthers", "unhide", "separator", "Quit Doan"]);
     expect(item("Settings…").accelerator).toBe("CmdOrCtrl+,");
-    expect(submenu("File").map((entry) => entry.label ?? entry.type)).toEqual(["New Conversation", "Add Project…", "separator", "Close Window"]);
+    expect(submenu("File").map((entry) => entry.label ?? entry.type)).toEqual(["New Conversation", "Add Projects…", "separator", "Close Window"]);
     expect(item("New Conversation").accelerator).toBe("CmdOrCtrl+N");
-    expect(item("Add Project…").accelerator).toBe("CmdOrCtrl+O");
+    expect(item("Add Projects…").accelerator).toBe("CmdOrCtrl+O");
     expect(item("Close Window").accelerator).toBe("CmdOrCtrl+W");
     expect(submenu("Go").map((entry) => [entry.label ?? entry.type, entry.accelerator])).toEqual([["Home", "Shift+CmdOrCtrl+H"], ["Quick Open…", "CmdOrCtrl+K"]]);
     // Undo and Redo keep working in text fields (routed below); a removal has no Undo of its own.
@@ -996,7 +996,7 @@ describe("menus", () => {
   });
 
   test("the app starts on Home, where only canvas-free items are enabled", () => {
-    expect(menuEnabled("Add Project…")).toBe(true);
+    expect(menuEnabled("Add Projects…")).toBe(true);
     expect(menuEnabled("Home")).toBe(false);
     for (const label of ["Zoom In", "Zoom Out", "Actual Size", "Fit", "Reload Canvas"]) expect(menuEnabled(label), label).toBe(false);
   });
@@ -1010,7 +1010,7 @@ describe("menus", () => {
     expect(menuEnabled("Home")).toBe(true);
     expect(menuEnabled("Zoom In")).toBe(false);
     await invoke("menu:state", contents, null, state("canvas", true));
-    for (const label of ["Add Project…", "Home", "Zoom In"]) expect(menuEnabled(label), label).toBe(false);
+    for (const label of ["Add Projects…", "Home", "Zoom In"]) expect(menuEnabled(label), label).toBe(false);
     // A modal may hold a text field, so its ⌘Z stays a text undo.
     expect(submenu("Edit")[0]?.label).toBe("Undo");
   });
@@ -1154,10 +1154,10 @@ describe("menus", () => {
   });
 
   // The page opens in the renderer; no native picker, and none with multiSelections, opens here.
-  test("Add Project… shows a hidden window first, then tells the renderer to open the Add Projects page", async () => {
+  test("Add Projects… shows a hidden window first, then tells the renderer to open the Add Projects page", async () => {
     window().emit("close", { preventDefault: vi.fn() });
     expect(window().hide).toHaveBeenCalledOnce();
-    click("Add Project…");
+    click("Add Projects…");
     expect(window().show).toHaveBeenCalledOnce();
     expect(window().webContents.send).toHaveBeenCalledWith("add-projects:open");
     expect(window().show.mock.invocationCallOrder[0]).toBeLessThan(window().webContents.send.mock.invocationCallOrder.at(-1) ?? 0);
@@ -1166,37 +1166,37 @@ describe("menus", () => {
     expect(mocks.flow.add).not.toHaveBeenCalled();
   });
 
-  test("the Add Projects page: Add Project… only in its choose phase, Home and Quick Open, no canvas items", async () => {
+  test("the Add Projects page: Add Projects… only in its choose phase, Home and Quick Open, no canvas items", async () => {
     const contents = window().webContents;
     await invoke("menu:state", contents, null, { ...state("addProjects"), choose: true });
-    expect(menuEnabled("Add Project…")).toBe(true);
+    expect(menuEnabled("Add Projects…")).toBe(true);
     expect(menuEnabled("Home")).toBe(true);
     expect(menuEnabled("Quick Open…")).toBe(true);
     for (const label of ["Zoom In", "Reload Canvas"]) expect(menuEnabled(label), label).toBe(false);
     await invoke("menu:state", contents, null, state("addProjects"));
-    expect(menuEnabled("Add Project…")).toBe(false);
+    expect(menuEnabled("Add Projects…")).toBe(false);
     await invoke("menu:state", contents, null, { ...state("addProjects"), choose: false });
-    expect(menuEnabled("Add Project…")).toBe(false);
+    expect(menuEnabled("Add Projects…")).toBe(false);
   });
 
   test("a locked page disables everything that leaves it", async () => {
     const contents = window().webContents;
     await invoke("menu:state", contents, null, { ...state("addProjects"), choose: true, locked: true });
-    for (const label of ["Add Project…", "Home", "Quick Open…"]) expect(menuEnabled(label), label).toBe(false);
+    for (const label of ["Add Projects…", "Home", "Quick Open…"]) expect(menuEnabled(label), label).toBe(false);
     expect(submenu("Edit")[0]?.label).toBe("Undo");
     await invoke("menu:state", contents, null, { ...state("addProjects"), choose: true, locked: false });
-    expect(menuEnabled("Add Project…")).toBe(true);
+    expect(menuEnabled("Add Projects…")).toBe(true);
   });
 
   // The Settings page is a screen; its lock (and the Add Projects page's) disables Settings… too.
-  test("the Settings page keeps Add Project…, Home and Quick Open; a lock on either page disables Settings…", async () => {
+  test("the Settings page keeps Add Projects…, Home and Quick Open; a lock on either page disables Settings…", async () => {
     const contents = window().webContents;
     await completeFirstRun();
     await invoke("menu:state", contents, null, state("settings"));
-    for (const label of ["Settings…", "Add Project…", "Home", "Quick Open…"]) expect(menuEnabled(label), label).toBe(true);
+    for (const label of ["Settings…", "Add Projects…", "Home", "Quick Open…"]) expect(menuEnabled(label), label).toBe(true);
     expect(menuEnabled("Zoom In")).toBe(false);
     await invoke("menu:state", contents, null, { ...state("settings"), locked: true });
-    for (const label of ["Settings…", "Add Project…", "Home", "Quick Open…"]) expect(menuEnabled(label), label).toBe(false);
+    for (const label of ["Settings…", "Add Projects…", "Home", "Quick Open…"]) expect(menuEnabled(label), label).toBe(false);
     await invoke("menu:state", contents, null, { ...state("addProjects"), choose: true, locked: true });
     expect(menuEnabled("Settings…")).toBe(false);
   });
@@ -1210,7 +1210,7 @@ describe("menus", () => {
       await invoke("menu:state", contents, null, bad);
     }
     expect(mocks.menu.mock.calls.length).toBe(builds);
-    expect(menuEnabled("Add Project…")).toBe(true);
+    expect(menuEnabled("Add Projects…")).toBe(true);
   });
 });
 
@@ -3183,7 +3183,7 @@ describe("background onboarding launch and start", () => {
   test.each([
     ["activate", () => { mocks.app.isActive.mockReturnValue(true); mocks.app.emit("activate"); }],
     ["second-instance", () => mocks.app.emit("second-instance")],
-    ["Add Project…", () => Reflect.apply(item("Add Project…").click ?? (() => { throw new Error("no click handler"); }), undefined, [])],
+    ["Add Projects…", () => Reflect.apply(item("Add Projects…").click ?? (() => { throw new Error("no click handler"); }), undefined, [])],
   ])("showing the window through %s ends the wait, so a later activation does not show it again", async (_name, reveal) => {
     await launch({ background: true, active: false });
     reveal();

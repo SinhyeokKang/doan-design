@@ -81,8 +81,8 @@ function readinessView(status: AuthStatusDto, ctx: ProviderContext, view: Provid
     case "cli_missing": case "version_unsupported": return {
       ...view, detail: r.cause === "cli_missing" ? "Not installed" : "This version is older than Doan supports.", ...installRowView({ cause: r.cause }, ctx.install ?? null, name),
     };
-    case "version_unknown": return { ...view, notice: alert(`Check that ${name} is installed correctly, then retry.`, [check(provider, "Retry", true)], `Couldn’t read the ${name} version`) };
-    case "version_incompatible": return { ...view, notice: alert(`Update ${name} or wait for a Doan update, then retry.`, [check(provider, "Retry", true)], `Doan can’t run this ${name} version`) };
+    case "version_unknown": return { ...view, notice: alert(`Check that ${name} is installed correctly, then check again.`, [check(provider, "Check again", true)], `Couldn’t read the ${name} version`) };
+    case "version_incompatible": return { ...view, notice: alert(`Update ${name} or wait for a Doan update, then check again.`, [check(provider, "Check again", true)], `Doan can’t run this ${name} version`) };
     case "sign_out_failed": return { ...view, notice: alert(`Doan couldn’t sign out of ${name}. Sign out again before you use it.`, [button("signOut", "Sign out")]) };
     case "account_mismatch": return { ...view, notice: alert(`You signed in with a different ${name} account. Sign in again with the same account, or sign out first.`, reauth) };
     case "reauth_required": {
@@ -90,7 +90,7 @@ function readinessView(status: AuthStatusDto, ctx: ProviderContext, view: Provid
       const failed = errorNotice(status, ctx)?.body;
       // Expiry settles as phase reauthRequired; otherwise only a Claude connection without an organization needs reauth.
       const organization = provider === "claude" && status.phase !== "reauthRequired";
-      return { ...view, notice: alert(failed ?? (organization ? `Sign in to ${name} again so Doan can confirm your organization.` : `Your ${name} connection expired. Sign in again.`), reauth) };
+      return { ...view, notice: alert(failed ?? (organization ? `Sign in to ${name} again so Doan can confirm your organization.` : `Your ${name} sign-in expired. Sign in again.`), reauth) };
     }
     case "tools_missing": case "tools_failed": return { ...view, notice: alert("Doan couldn’t find its command-line tool. Reinstall Doan, then check again.", [check(provider, "Check again", false)]) };
     case "not_connected": {
@@ -192,19 +192,40 @@ function withSignOut(status: AuthStatusDto, ctx: ProviderContext, view: Provider
   return { ...view, signOut: button("signOut", "Sign out", "subtle", false, `Sign out of ${view.name}`) };
 }
 
+// Why a connected provider can't run, as Home's picker labels it and as Settings' New conversations says it about the
+// provider: one table, so the two never name one cause differently.
+const BLOCKED = {
+  expired: { short: "Sign-in expired", sentence: (name: string) => `${name}’s sign-in expired` },
+  update: { short: "Needs an update", sentence: (name: string) => `${name} needs an update` },
+  missing: { short: "Not installed", sentence: (name: string) => `${name} isn’t installed` },
+  other: { short: "Not available right now", sentence: (name: string) => `${name} isn’t available right now` },
+};
+// null: ready, unverified (main checks it on send) or not connected.
+function blocked(status: AuthStatusDto): (typeof BLOCKED)[keyof typeof BLOCKED] | null {
+  const r = status.readiness;
+  if (r.ready) return null;
+  switch (r.cause) {
+    case "not_connected": case "unverified": return null;
+    case "reauth_required": return status.phase === "reauthRequired" ? BLOCKED.expired : BLOCKED.other;
+    case "version_unsupported": case "version_incompatible": return BLOCKED.update;
+    case "cli_missing": return BLOCKED.missing;
+    default: return BLOCKED.other;
+  }
+}
+
 // Home's agent picker lists connected providers only and has no recovery buttons (2026-10-29 user), so a row
 // that can't run gets a short status without action words; Settings later puts the action in the same place.
 // null: ready, or not connected (Home doesn't list it). Unverified stays selectable because main checks it on send.
 export function providerShortStatus(status: AuthStatusDto): string | null {
-  const r = status.readiness;
-  if (r.ready) return null;
-  switch (r.cause) {
-    case "not_connected": return null;
-    case "unverified": return "Checks your connection when you send.";
-    case "reauth_required": return status.phase === "reauthRequired" ? "Sign-in expired" : "Not available right now";
-    case "version_unsupported": case "version_incompatible": return "Needs an update";
-    default: return "Not available right now";
-  }
+  if (!status.readiness.ready && status.readiness.cause === "unverified") return "Checks your connection when you send.";
+  return blocked(status)?.short ?? null;
+}
+
+// Why a provider fixed as the default can't start a conversation, by the picker's causes.
+export function providerUnavailableReason(provider: Provider, status: AuthStatusDto | undefined): string {
+  const name = PROVIDER_NAMES[provider];
+  if (!status || status.account === null) return `${name} isn’t signed in`;
+  return (blocked(status) ?? BLOCKED.other).sentence(name);
 }
 
 // show: the row displays it. dialog: confirm stopping runs, then resend with stop. reread: read the latest state.

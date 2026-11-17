@@ -361,7 +361,7 @@ const api = {
     ipcRenderer.on("add-projects:changed", receive);
     return () => ipcRenderer.removeListener("add-projects:changed", receive);
   },
-  // File > Add Project… (⌘O): open the page, or its Choose folder when the page shows its choose phase. Main has
+  // File > Add Projects… (⌘O): open the page, or its Choose folder when the page shows its choose phase. Main has
   // already shown a hidden window.
   onOpenAddProjects(listener: () => void): () => void {
     const receive = () => listener();

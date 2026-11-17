@@ -207,7 +207,7 @@ test("a chip whose canvas the list does not name shows the canvas-not-found toas
   clearController();
   await reveal({ kind: "chip", root: "/w/a", canvas: { path: ".doan/canvases/gone.html", id: "gone" }, conversationId: "c1", anchor: { frame: { id: "x" } } });
   expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
-  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(unavailableCanvasMessage(listA(), ".doan/canvases/gone.html"));
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(unavailableCanvasMessage(listA(), ".doan/canvases/gone.html", "a"));
 });
 
 test("an open dialog stays open: the toast names the chip and the reason inside it", async () => {
@@ -250,7 +250,7 @@ test("a conversation's Open with a canvas, and a handoff's Open, open that canva
   expect(harness.controller!.openCanvas).toHaveBeenCalled();
   clearController();
   await reveal({ kind: "handoff", root: "/w/a", canvas: { path: ".doan/canvases/gone.html" }, conversationId: "c8" });
-  expect(harness.toast.show).toHaveBeenLastCalledWith(unavailableCanvasMessage(listA(), ".doan/canvases/gone.html"));
+  expect(harness.toast.show).toHaveBeenLastCalledWith(unavailableCanvasMessage(listA(), ".doan/canvases/gone.html", "a"));
 });
 
 test("a conversation's Open without a canvas shows its root's Overview", async () => {

@@ -21,8 +21,8 @@ export interface MenuEnabled {
 // Design 'Menus and per-screen enablement'. `workspace` is a workspace with no
 // canvas open. An open modal disables main-window actions so the window
 // cannot act behind it.
-// `addProjects` is the Add Projects page: Add Project… opens its Choose folder, so only in its choose phase (`choose`).
-// `settings` is the Settings page: Settings… there focuses its category title again, Add Project… moves to Add Projects.
+// `addProjects` is the Add Projects page: Add Projects… opens its Choose folder, so only in its choose phase (`choose`).
+// `settings` is the Settings page: Settings… there focuses its category title again, Add Projects… moves to Add Projects.
 // `locked`: a page phase nothing may leave — Add Projects' selecting and cloning,
 // Settings' writes and confirmations. Settings… is a page move, so a lock or a modal
 // disables it too.

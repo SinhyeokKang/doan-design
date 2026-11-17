@@ -1,11 +1,11 @@
 import { Fragment, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { DropdownMenu } from "radix-ui";
 import { Check, ChevronDown, Gauge } from "lucide-react";
-import type { AuthStatusDto, Provider } from "../main/agentAuth/types";
+import type { Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
 import type { NewConversationPreference, PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply } from "../main/preferences";
 import type { DoanApi } from "../preload";
-import { agentsSettingsView, PROVIDER_NAMES, type AuthButton, type AuthCommand, type ProviderView } from "./agentAuthView";
+import { agentsSettingsView, PROVIDER_NAMES, providerUnavailableReason, type AuthButton, type AuthCommand, type ProviderView } from "./agentAuthView";
 import type { AgentSignIn } from "./agentSignIn";
 import { AgentStepSession } from "./agentStep";
 import { AlertIcon } from "./AlertIcon";
@@ -164,15 +164,6 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
   </>;
 }
 
-// Why a fixed default cannot start a conversation, by the same causes as Home's picker (providerShortStatus).
-function unavailable(name: string, status: AuthStatusDto | undefined): string {
-  if (!status || status.account === null) return `${name} isn’t signed in`;
-  const r = status.readiness;
-  if (!r.ready && r.cause === "reauth_required" && status.phase === "reauthRequired") return `${name}’s sign-in expired`;
-  if (!r.ready && (r.cause === "version_unsupported" || r.cause === "version_incompatible")) return `${name} needs an update`;
-  return `${name} isn’t available right now`;
-}
-
 const SAVE_FAILED = "Couldn’t save your new conversation choices. Your last saved choices still apply.";
 
 // The defaults Home starts a new input with (PRODUCT §5 item 0 'New conversations'). Last used hides Model and Effort, which then
@@ -266,7 +257,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
             {radio(LAST_USED, <span className="model-name">Last used</span>, provider === null)}
             {agents.map(item => radio(item, <><img className="logo" src={providerLogo(item)} alt="" /><span className="model-name">{PROVIDER_NAMES[item]}</span></>, item === provider))}
           </DropdownMenu.RadioGroup>)}</div>
-        {provider && auth && !runnable && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg warn" role="status"><AlertIcon /><span>{unavailable(name, status)}, so Home starts with the agent you sent with last.</span></p></div>}
+        {provider && auth && !runnable && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg warn" role="status"><AlertIcon /><span>{providerUnavailableReason(provider, status)}, so Home starts with the agent you sent with last.</span></p></div>}
       </div>
       {provider && <div className="doan-preference-row" data-disabled={project && (runnable || !auth) ? undefined : ""}>
         <div className="doan-preference-row-content"><span className="doan-preference-row-label">Model</span>
