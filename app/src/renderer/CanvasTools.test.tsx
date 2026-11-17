@@ -89,11 +89,14 @@ describe("CanvasTools", () => {
 
   // A pointer press that left focus on a button would make the next Space press it instead of panning
   // (PRODUCT §5 item 2 'Toolbar'); the click still runs and Tab still reaches the tools.
-  it("a pointer press anywhere on the toolbar keeps focus where it was", () => {
-    const root = CanvasTools(props()) as ReactElement<{ onMouseDown?: (event: { preventDefault(): void }) => void }>;
-    const preventDefault = vi.fn();
-    root.props.onMouseDown?.({ preventDefault });
-    expect(preventDefault).toHaveBeenCalledOnce();
+  it("a pointer press on any tool keeps focus where it was", () => {
+    const tools = buttons(CanvasTools(props()));
+    expect(tools).toHaveLength(6);
+    for (const button of tools) {
+      const preventDefault = vi.fn();
+      (button.props.onMouseDown as ((event: { preventDefault(): void }) => void) | undefined)?.({ preventDefault });
+      expect(preventDefault, String(button.props["aria-label"])).toHaveBeenCalledOnce();
+    }
   });
 
   it("Select and Hand choose their tool, also when already pressed, while picking or during capture mode", () => {

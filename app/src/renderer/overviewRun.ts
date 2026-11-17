@@ -137,8 +137,9 @@ export class OverviewRun {
     this.visible = root;
     if (root) {
       const s = this.state(root);
-      // Reopened with nothing asked for it meanwhile: the conversation is picked again; the drafts by key stay.
-      if (s.leftAt !== undefined && s.leftAt === s.intent && !s.request) { delete s.current; s.moved = null; }
+      // Reopened with nothing asked for it meanwhile: the conversation is picked again; the drafts by key stay. The
+      // moved line stays until the next send or choice (PRODUCT §5 item 3 'Promotion'), not until the Overview is left.
+      if (s.leftAt !== undefined && s.leftAt === s.intent && !s.request) delete s.current;
       this.resolve(root, s);
     }
     this.checkSeen();
