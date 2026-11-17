@@ -508,3 +508,13 @@ test("the Fast switch thumb takes the shared switch's slide and reduced-motion e
   expect(css).toMatch(/\.fast-switch::before \{[^}]*transition: transform var\(--time-settle\) var\(--ease-settle\);/);
   expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^@]*\.fast-switch::before \{ transition: none; \}/);
 });
+
+// The / list keeps Home's 600px, but a narrow canvas or prototype conversation panel is narrower than that: there it
+// ends at the composer's right edge instead of running past the panel.
+test("the / list never runs past the composer's right edge", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".slash-popover { position: absolute; z-index: 2; bottom: calc(100% + var(--space-2)); left: var(--space-8); max-width: calc(100% - var(--space-8)); }");
+  expect(css).toContain(".preset-popover { width: 600px; max-width: calc(100vw - var(--space-4)); }");
+  // Same weight as the shared popover rule, so it wins by coming after it.
+  expect(css.indexOf(".slash-popover {")).toBeGreaterThan(css.indexOf(".preset-popover {"));
+});

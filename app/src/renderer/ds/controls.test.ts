@@ -97,20 +97,21 @@ test("screens set only outer margins on a notice: no per-screen padding, gap, ty
 test("quiet, trigger and accent own their hover and pressed fills, so the shared opaque rules skip them", () => {
   const css = read("./controls.css");
   const excluded = ':not([data-ui-variant="prominent"], [data-ui-variant="quiet"], [data-ui-variant="trigger"], [data-ui-variant="accent"], [data-ui-placement="chrome"])';
-  expect(css).toContain(`:is(.doan-button, .doan-icon-button)${excluded}:hover:not(:disabled, [data-disabled]) { background: var(--affordance-subtle-hover); }`);
-  expect(css).toContain(`:is(.doan-button, .doan-icon-button)${excluded}:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled]) { background: var(--affordance-subtle-pressed); }`);
+  expect(css).toContain(`:is(.doan-button, .doan-icon-button)${excluded}:hover:not(:disabled, [data-disabled], [aria-busy="true"]) { background: var(--affordance-subtle-hover); }`);
+  expect(css).toContain(`:is(.doan-button, .doan-icon-button)${excluded}:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled], [aria-busy="true"]) { background: var(--affordance-subtle-pressed); }`);
   // A disabled Send keeps the disabled fill instead of vanishing like a ghost button.
   expect(css).toContain(':is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="subtle"], [data-ui-variant="panel"], [data-ui-variant="accent"]):is(:disabled, [data-disabled]) { background: transparent; }');
 });
 
 // DESIGN 'Busy action': a refused Cancel or a running toast action is `data-disabled` (focus stays on it) and keeps the
 // disabled fill under the pointer; the shared hover and pressed fills skip it as they skip a native disabled one, so no
-// screen restores the disabled fill itself.
-test("every shared hover and pressed fill skips a data-disabled button as it skips a disabled one", () => {
+// screen restores the disabled fill itself. A busy confirm or Retry (aria-busy, no data-disabled) keeps its resting
+// fill under the pointer and press, so a control that cannot be pressed does not look pressable.
+test("every shared hover and pressed fill skips a data-disabled or busy button as it skips a disabled one", () => {
   const css = read("./controls.css");
   const fills = css.split("\n").filter(line => /^\s*(:is\(\.doan-button, \.doan-icon-button\)|\.doan-button|\.doan-icon-button)[^{]*(:hover|:active|\[data-state="open"\])[^{]*:not\(:disabled/.test(line));
   expect(fills.length).toBe(14);
-  for (const line of fills) expect(line, line).toContain(":not(:disabled, [data-disabled]) {");
+  for (const line of fills) expect(line, line).toContain(':not(:disabled, [data-disabled], [aria-busy="true"]) {');
   const styles = read("../styles.css");
   expect(styles).not.toMatch(/\.doan-button\[data-disabled\]:hover \{/);
 });
@@ -119,8 +120,8 @@ test("panel rests on the panel white for a notice's inset fill, hovers one step 
   const css = read("./controls.css");
   expect(css).toContain(':is(.doan-button, .doan-icon-button)[data-ui-variant="panel"] { background: var(--surface-panel); }');
   // Its hover comes after the shared opaque hover of the same weight, so it wins.
-  const hover = ':is(.doan-button, .doan-icon-button)[data-ui-variant="panel"]:hover:not(:disabled, [data-disabled]) { background: var(--affordance-panel-hover); }';
-  expect(css.indexOf(hover)).toBeGreaterThan(css.indexOf(":hover:not(:disabled, [data-disabled]) { background: var(--affordance-subtle-hover); }"));
+  const hover = ':is(.doan-button, .doan-icon-button)[data-ui-variant="panel"]:hover:not(:disabled, [data-disabled], [aria-busy="true"]) { background: var(--affordance-panel-hover); }';
+  expect(css.indexOf(hover)).toBeGreaterThan(css.indexOf(':hover:not(:disabled, [data-disabled], [aria-busy="true"]) { background: var(--affordance-subtle-hover); }'));
   expect(read("../tokens.css")).toContain("--affordance-panel-hover: var(--neutral-3);");
   // Not excluded from the shared pressed rule, and a filled control when disabled.
   expect(css).not.toMatch(/:not\([^)]*\[data-ui-variant="panel"\][^)]*\):hover/);
@@ -131,8 +132,8 @@ test("panel rests on the panel white for a notice's inset fill, hovers one step 
 test("quiet is the header capsule's backdrop with a blur, and steps one backdrop layer on hover and pressed", () => {
   const css = read("./controls.css");
   expect(rule(css, '.doan-button[data-ui-variant="quiet"]')).toBe("background: var(--affordance-backdrop-hover); -webkit-backdrop-filter: blur(var(--blur-md)); backdrop-filter: blur(var(--blur-md));");
-  expect(css).toContain('.doan-button[data-ui-variant="quiet"]:hover:not(:disabled, [data-disabled]) { box-shadow: inset 0 0 0 100vmax var(--affordance-backdrop-hover); }');
-  expect(css).toContain('.doan-button[data-ui-variant="quiet"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled]) { box-shadow: inset 0 0 0 100vmax var(--affordance-backdrop-pressed); }');
+  expect(css).toContain('.doan-button[data-ui-variant="quiet"]:hover:not(:disabled, [data-disabled], [aria-busy="true"]) { box-shadow: inset 0 0 0 100vmax var(--affordance-backdrop-hover); }');
+  expect(css).toContain('.doan-button[data-ui-variant="quiet"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled], [aria-busy="true"]) { box-shadow: inset 0 0 0 100vmax var(--affordance-backdrop-pressed); }');
   expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\) \{\s*\.doan-button\[data-ui-variant="quiet"\] \{ background: var\(--affordance-subtle\); -webkit-backdrop-filter: none; backdrop-filter: none; \}/);
   expect(rule(css, ":is(.doan-button, .doan-icon-button)")).toContain("box-shadow var(--time-state) var(--ease-state)");
 });
@@ -150,9 +151,9 @@ test("trigger has no fill at rest, 8px inline padding after the size rules, and 
   const css = read("./controls.css");
   expect(rule(css, '.doan-button[data-ui-variant="trigger"]')).toBe("padding-inline: var(--space-2);");
   expect(css.indexOf('.doan-button[data-ui-variant="trigger"] {')).toBeGreaterThan(css.indexOf('.doan-button[data-ui-size="lg"] {'));
-  expect(css).toContain('.doan-button[data-ui-variant="trigger"]:hover:not(:disabled, [data-disabled]) { background: var(--affordance-backdrop-hover); }');
-  expect(css).toContain('.doan-button[data-ui-variant="trigger"]:is([aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled]) { background: var(--affordance-backdrop-hover); }');
-  expect(css).toContain('.doan-button[data-ui-variant="trigger"]:active:not(:disabled, [data-disabled]) { background: var(--affordance-backdrop-pressed); }');
+  expect(css).toContain('.doan-button[data-ui-variant="trigger"]:hover:not(:disabled, [data-disabled], [aria-busy="true"]) { background: var(--affordance-backdrop-hover); }');
+  expect(css).toContain('.doan-button[data-ui-variant="trigger"]:is([aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled], [aria-busy="true"]) { background: var(--affordance-backdrop-hover); }');
+  expect(css).toContain('.doan-button[data-ui-variant="trigger"]:active:not(:disabled, [data-disabled], [aria-busy="true"]) { background: var(--affordance-backdrop-pressed); }');
 });
 
 test("icon button size xs is a 24px pill with the small icon; variant accent is the violet fill", () => {
@@ -161,8 +162,8 @@ test("icon button size xs is a 24px pill with the small icon; variant accent is 
   expect(rule(css, '.doan-icon-button[data-ui-size="xs"] > svg')).toBe("width: var(--size-icon-sm); height: var(--size-icon-sm);");
   expect(rule(css, '.doan-icon-button[data-ui-variant="accent"]')).toBe("border-radius: var(--radius-pill); background: var(--affordance-accent); color: var(--text-on-accent);");
   // An aria-disabled Send drawn disabled (data-disabled, its reason in the tooltip) keeps the disabled fill under the pointer.
-  expect(css).toContain('.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled, [data-disabled]) { background: var(--affordance-accent-hover); }');
-  expect(css).toContain('.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled]) { background: var(--affordance-accent-pressed); }');
+  expect(css).toContain('.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled, [data-disabled], [aria-busy="true"]) { background: var(--affordance-accent-hover); }');
+  expect(css).toContain('.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled], [aria-busy="true"]) { background: var(--affordance-accent-pressed); }');
   // The accent resting fill must come before the shared disabled rule of equal weight, which then wins.
   expect(css.indexOf('.doan-icon-button[data-ui-variant="accent"] {')).toBeLessThan(css.indexOf(":is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled]) {"));
 });

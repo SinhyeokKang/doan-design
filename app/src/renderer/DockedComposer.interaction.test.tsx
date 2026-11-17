@@ -1213,3 +1213,25 @@ test("the notice's Retry is busy while its send is out and described by the noti
   await flush();
   expect(find(render(), item => item.children === "Retry")["aria-busy"]).toBeUndefined();
 });
+
+// DESIGN 'Busy action': the preset list's Retry keeps its notice and itself while the read the host started is out.
+test("the preset popover's Retry stays, busy and described by the notice, until the read answers", async () => {
+  vi.stubGlobal("requestAnimationFrame", () => 0);
+  const failed = { v: 1, ok: false, error: { code: "cli_error", reason: "failed", message: "", nextSteps: [] } } as never;
+  let answer!: (ok: boolean) => void;
+  const onPresetsRetry = vi.fn(() => new Promise<boolean>(resolve => { answer = resolve; }));
+  const { render } = setup({ presets: failed, onPresetsRetry });
+  const retry = find(render(), item => item.children === "Retry" && typeof item.onClick === "function");
+  const text = "Doan couldn’t read the design presets: the doan command stopped without a result. You can still send without one.";
+  expect(find(render(), item => item.id === retry["aria-describedby"]).children).toBe(text);
+  (retry.onClick as (event: unknown) => void)({});
+  expect(onPresetsRetry).toHaveBeenCalledTimes(1);
+  const busy = find(render(), item => item["aria-busy"] === true && item["aria-describedby"] === retry["aria-describedby"]);
+  expect(busy["aria-disabled"]).toBe(true);
+  (busy.onClick as (event: unknown) => void)({});
+  expect(onPresetsRetry).toHaveBeenCalledTimes(1);
+  answer(false);
+  await flush();
+  expect(find(render(), item => item.children === "Retry" && typeof item.onClick === "function")["aria-busy"]).toBeUndefined();
+  expect(find(render(), item => item.id === retry["aria-describedby"]).children).toBe(`${text} `);
+});
