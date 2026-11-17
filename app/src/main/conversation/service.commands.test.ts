@@ -220,3 +220,81 @@ describe("ACP command lists", () => {
     expect(h.service.acpCommands(id, "/repo", "copilot")).toEqual([]);
   });
 });
+
+// Codex's review/start takes no permission mode: the review runs in the mode the thread was last told on a turn. Main
+// sends /review only while that is the picker's mode now, known in this run (an override holds across thread/resume, and
+// nothing in the record says which mode a turn stated).
+describe("Codex /review and the permission mode", () => {
+  const done = (h: ReturnType<typeof fixture>, id: string) => h.service.receive(id, { type: "turn.done" });
+  it("sends /review after a turn that stated the picker's mode", async () => {
+    const h = fixture();
+    const id = await h.start("hello", { permissionMode: "acceptEdits" }); done(h, id);
+    await h.service.send(id, "/review", []);
+    expect(h.prompts().at(-1)).toBe("/review");
+  });
+  it("refuses /review once the picker changed after the last turn, and sends it after a message in the new mode", async () => {
+    const h = fixture();
+    const id = await h.start("hello"); done(h, id);
+    h.service.setPermissionMode(id, "acceptEdits");
+    await expect(h.service.send(id, "/review", [])).rejects.toThrow("command_mode_stale");
+    await expect(h.service.send(id, "/review", [], { permissionMode: "plan" })).rejects.toThrow("command_mode_stale");
+    expect(h.prompts()).toHaveLength(1);
+    await h.service.send(id, "Tighten the header", []); done(h, id);
+    await h.service.send(id, "/review", []);
+    expect(h.prompts().at(-1)).toBe("/review");
+  });
+  it("refuses /review as a conversation's first message, and after a restart until a message states the mode", async () => {
+    const h = fixture();
+    await expect(h.start("/review")).rejects.toThrow("command_mode_stale");
+    const id = await h.start("hello"); done(h, id);
+    const again = new ConversationService(h.store, h.prepare, h.open, () => {});
+    await expect(again.send(id, "/review", [])).rejects.toThrow("command_mode_stale");
+  });
+  it("forgets the stated mode when a turn in another mode did not end done", async () => {
+    const h = fixture();
+    const id = await h.start("hello"); done(h, id);
+    await h.service.send(id, "Try plan mode", [], { permissionMode: "plan" });
+    h.service.receive(id, { type: "interrupted", reason: "user" });
+    await expect(h.service.send(id, "/review", [], { permissionMode: "default" })).rejects.toThrow("command_mode_stale");
+  });
+  it("sends /compact whatever the mode, since it runs no tools, and a /compact turn states none", async () => {
+    const h = fixture();
+    const id = await h.start("hello"); done(h, id);
+    h.service.setPermissionMode(id, "plan");
+    await h.service.send(id, "/compact", []); done(h, id);
+    expect(h.prompts().at(-1)).toBe("/compact");
+    await expect(h.service.send(id, "/review", [])).rejects.toThrow("command_mode_stale");
+  });
+  it("hands a queued /review back with the refusal when the mode changed before it went out", async () => {
+    const h = fixture();
+    const id = await h.start("hello");
+    h.service.queue(id, { text: "/review", anchors: [] });
+    h.service.setPermissionMode(id, "plan");
+    done(h, id);
+    await vi.waitFor(() => expect(h.service.takeDraft(id)).toMatchObject({ text: "/review", reason: "command_mode_stale" }));
+    expect(h.prompts()).toHaveLength(1);
+  });
+});
+
+// A command the ACP conversation's server reported (not confirmed) goes out as is, alone, and with no anchors or files.
+describe("unconfirmed ACP commands", () => {
+  const update = (names: string[]) => ({ sessionUpdate: "available_commands_update", availableCommands: names.map(name => ({ name, description: "" })) });
+  it("sends a reported command as is, and lists it apart from the confirmed rows", async () => {
+    const h = fixture("copilot");
+    const id = await h.start("hello"); h.inputs[0]!.acpCommands!(update(["compact", "fleet", "model"]));
+    expect(h.service.acpPassthrough(id, "/repo", "copilot")).toEqual(["fleet"]);
+    h.service.receive(id, { type: "turn.done" }); h.exits[0]!();
+    await h.service.send(id, "/fleet run the tests", []);
+    expect(h.prompts().at(-1)).toBe("/fleet run the tests");
+    await expect(h.service.send(id, "/fleet", [{ frame: { id: "f" } }])).rejects.toThrow();
+  });
+  it("wraps it as a message once the server's list no longer has it, and for another connection", async () => {
+    const h = fixture("copilot");
+    const id = await h.start("hello"); h.inputs[0]!.acpCommands!(update(["fleet"]));
+    h.service.connectionChanged("copilot", "conn-2");
+    expect(h.service.acpPassthrough(id, "/repo", "copilot")).toEqual([]);
+    h.service.receive(id, { type: "turn.done" }); h.exits[0]!();
+    await h.service.send(id, "/fleet", []);
+    expect(h.prompts().at(-1)).toMatch(/^The JSON below/);
+  });
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commandBoundary, commandName, unsupportedCommand } from "./providerCommands";
+import { commandBoundary, commandName, passthroughCommands, passthroughName, unsupportedCommand } from "./providerCommands";
 
 // A command message is the whole text send assembly writes for a command: "/<name>", or "/<name> <argument>". Main reads
 // it the same way for a send and for a stored turn, so a turn reads as the same command in this run and after a restart.
@@ -62,5 +62,25 @@ describe("commandBoundary", () => {
     expect(commandBoundary("claude", "clear")).toBe("cleared");
     for (const [provider, name] of [["claude", "context"], ["codex", "review"], ["copilot", "rename"], ["cursor", "copy-request-id"]] as const)
       expect(commandBoundary(provider, name)).toBeNull();
+  });
+});
+
+// An ACP server's reported command that no live check confirmed is sent as is (no wrapping), with no card.
+describe("passthroughCommands", () => {
+  it("keeps the reported names that are neither in the table nor a card", () => {
+    expect(passthroughCommands("copilot", ["compact", "model", "permissions", "fleet", "plan"])).toEqual(["fleet", "plan"]);
+    expect(passthroughCommands("antigravity", ["plan", "logout"])).toEqual([]);
+    expect(passthroughCommands("cursor", ["copy-request-id", "rename-chat", "rename-chat"])).toEqual(["rename-chat"]);
+  });
+  it("lists none for Claude and Codex, whose tables are all Doan sends as commands", () => {
+    expect(passthroughCommands("claude", ["fleet"])).toEqual([]);
+    expect(passthroughCommands("codex", ["fleet"])).toEqual([]);
+  });
+});
+describe("passthroughName", () => {
+  it("names a whole message whose first word is a passed-through command", () => {
+    expect(passthroughName("/fleet run the tests", ["fleet"])).toBe("fleet");
+    expect(passthroughName("/fleet", ["fleet"])).toBe("fleet");
+    for (const text of ["/fleets", " /fleet", "run /fleet", "/Users/fleet", "Use the project skill `fleet`.\n\n/fleet"]) expect(passthroughName(text, ["fleet"]), text).toBeNull();
   });
 });

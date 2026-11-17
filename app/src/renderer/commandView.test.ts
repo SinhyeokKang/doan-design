@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SkillSummary } from "../main/conversation/types";
-import { boundaryLabel, classifyFirstWord, commandCard, commandLists, commandRunningLabel, planSend } from "./commandView";
+import { boundaryLabel, classifyFirstWord, commandCard, commandLists, commandRunningLabel, planSend, STALE_MODE_CARD } from "./commandView";
 
 const skill = (name: string): SkillSummary => ({ kind: "skill", name, description: "" });
 const command = (name: string): SkillSummary => ({ kind: "command", name, description: "" });
@@ -151,5 +151,35 @@ describe("boundaryLabel", () => {
   it("labels the compaction and clear boundaries", () => {
     expect(boundaryLabel("compacted")).toBe("Context compacted — the agent keeps a summary of messages above");
     expect(boundaryLabel("cleared")).toBe("Context cleared — the agent won’t see messages above");
+  });
+});
+
+// A command the ACP server reported but no live check confirmed goes out as its own text (no preset or skill line, no
+// wrapping), with no card and no row; the server handles it. Only the conversation's current list counts.
+describe("unconfirmed ACP commands", () => {
+  const COPILOT = commandLists("copilot", [command("compact")], ["compact", "model", "fleet", "plan", "deploy"]);
+  it("passes on the server's names that are neither listed, a card, nor a skill", () => {
+    expect(COPILOT.passthrough).toEqual(new Set(["fleet", "plan", "deploy"]));
+    expect(commandLists("copilot", [skill("deploy"), command("compact")], ["deploy", "fleet"]).passthrough).toEqual(new Set(["fleet"]));
+    expect(commandLists("copilot", [command("compact")]).passthrough).toEqual(new Set());
+  });
+  it("reads such a first word as a command that is sent as is", () => {
+    expect(classifyFirstWord("/fleet run the tests", COPILOT)).toEqual({ kind: "passthrough", name: "fleet", args: "run the tests" });
+    expect(classifyFirstWord("/plan해줘", COPILOT)).toEqual({ kind: "passthrough", name: "plan", args: "해줘" });
+    expect(classifyFirstWord("/model", COPILOT)).toEqual({ kind: "unsupported", name: "model" });
+    expect(classifyFirstWord("/compact", COPILOT)).toEqual({ kind: "command", name: "compact", args: "" });
+    expect(classifyFirstWord("please /fleet", COPILOT)).toEqual({ kind: "text" });
+  });
+  it("sends it alone, without preset or skill lines and without attachments", () => {
+    expect(planSend("/fleet  run the tests ", preset, ["deploy"], 2, COPILOT)).toEqual({ kind: "passthrough", name: "fleet", text: "/fleet run the tests", sendsAttachments: false });
+    expect(planSend("/fleet", null, [], 0, COPILOT)).toEqual({ kind: "passthrough", name: "fleet", text: "/fleet", sendsAttachments: false });
+    expect(planSend("/Users/me/a.png", null, [], 0, COPILOT)).toEqual({ kind: "message", text: "/Users/me/a.png", sendsAttachments: true });
+  });
+});
+
+// Main refuses a Codex /review that would run under a permission mode the thread was not last told (command_mode_stale).
+describe("STALE_MODE_CARD", () => {
+  it("asks for a message first, with no action", () => {
+    expect(STALE_MODE_CARD).toEqual({ title: "/review can’t use the new permission mode yet", body: "Send a message first so Codex picks up the permission mode, then run /review again.", action: null });
   });
 });

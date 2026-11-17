@@ -143,7 +143,9 @@ it("adds an ACP conversation's commands to conversation:skills when the request 
     const skills = new SkillCatalog((root, provider) => prepare({ root, mode: "new", runtime: provider, text: "", anchors: [] }), vi.fn());
     const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { skills });
     const id = "6190301c-24ce-42a9-8a51-ad4fdf91835e";
-    expect(await handle(true, "skills", { root: "/repo", provider: "copilot", conversationId: id })).toEqual({ skills: [{ kind: "command", name: "compact", description: "Compact." }] });
+    const pass = vi.spyOn(service, "acpPassthrough").mockReturnValue(["fleet"]);
+    expect(await handle(true, "skills", { root: "/repo", provider: "copilot", conversationId: id })).toEqual({ skills: [{ kind: "command", name: "compact", description: "Compact." }], passthrough: ["fleet"] });
+    expect(pass).toHaveBeenCalledWith(id, "/repo", "copilot");
     expect(acp).toHaveBeenCalledWith(id, "/repo", "copilot");
     expect(await handle(true, "skills", { root: "/repo", provider: "copilot" })).toEqual({ skills: [] });
     expect(await handle(true, "skills", { root: "/repo", provider: "copilot", conversationId: "not an id" })).toEqual({ error: "bad_request" });
