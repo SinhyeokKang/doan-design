@@ -95,6 +95,7 @@ Checked in the built, packaged and development (`StrictMode`) apps with a probe 
 - Loading: the still PNG with no `data-state`, then the canvas and `idle` (packaged: textures from `app.asar` file URLs).
 - A click, Enter or Space hops once: one beret impulse of about −0.81 (one `hatV -= .9`), and Enter or Space dispatches no button click. A held key hops once: key repeats are ignored (unlike the draft), so the beret stays inside the canvas. Typing gives `attentive`.
 - A Send, submit key or notice Retry that starts a send hops once; a disabled Send or an empty submit key neither hops nor starts.
+- A notice Retry keeps its notice while the send it started is out, busy (spinner, `aria-busy`, `aria-disabled`) and described by the notice text; the reply then clears it or replaces it. The docked composer's notice Retry does the same. Unit tests only, not a real-app probe.
 - Reduced motion: `reduced-motion`, a click neither hops nor draws, the field still takes input, and switching it off returns to `idle`.
 - Behind the first-run Welcome, Home's Doany draws no frame and its canvas pixels do not change.
 - 24 Home visits leave no "Too many active WebGL contexts" warning, and the last Doany still draws; a control that leaks 20 contexts does print it.

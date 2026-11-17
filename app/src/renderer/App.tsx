@@ -20,7 +20,7 @@ import type { ExportReply } from "../main/canvasExport";
 import type { AttachmentResult } from "../main/attachments";
 import { canvasExportReason, trashBlock } from "./canvasRowMenu";
 import { canvasStem, exportProgress, exportToast, trashToast } from "./canvasRowMessages";
-import { CanvasTrashDialog, trashDialogView } from "./CanvasTrashDialog";
+import { CanvasTrashDialog, trashDialogView, type TrashMove } from "./CanvasTrashDialog";
 import { ConversationDeleteDialog, unsentDraft, type DeleteTarget } from "./ConversationDeleteDialog";
 import { deleteAvailability, deleteDialogView, deleteRefusalText, quoted } from "./conversationDelete";
 import { focusFieldEnd } from "./chipField";
@@ -213,7 +213,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The canvas the Move to Trash dialog asks about and main's plan for it (null until main answers);
   // `seq` drops a closed dialog's late plan. Set through `changeTrashing`, so a reply that lands before the next render
   // sees the dialog as it is.
-  const [trashing, setTrashing] = useState<{ root: string; row: CanvasRow; plan: TrashPlanReply | null; seq: number } | null>(null);
+  const [trashing, setTrashing] = useState<{ root: string; row: CanvasRow; plan: TrashPlanReply | null; seq: number; move: TrashMove } | null>(null);
   const trashingRef = useRef(trashing);
   const changeTrashing = (next: typeof trashing) => { trashingRef.current = next; setTrashing(next); };
   const trashSeq = useRef(0);
@@ -1413,32 +1413,39 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     // is read every removal is marked (memoryTouched), and after it a root's conversation memory or Overview draft.
     if (!memoryRead.current || paths.some(root => root in conversationByRoot.current || root in conversationByCanvas.current || overviewRun.current?.drafts.has(`root:${root}`))) forgetConversations(paths);
   }
-  // The dialog asks main for its plan before it can be
-  // confirmed. A busy plan keeps it open with its working line; any other refusal closes it with that refusal's toast.
-  // Closing returns focus to the row's menu button through `beforeModal`.
+  // The dialog asks main for its plan before it can be confirmed. A busy plan keeps it open with its working line and a
+  // failed one with its reason; notListed and notFile close it with that refusal's toast. Closing returns focus to the
+  // row's menu button through `beforeModal`.
   function openTrash(root: string, row: CanvasRow, button: HTMLElement | null) {
     if (locked() || live.current.modal) return;
     beforeModal.current = button;
     const seq = ++trashSeq.current;
-    changeTrashing({ root, row, plan: null, seq });
+    changeTrashing({ root, row, plan: null, seq, move: { pending: false, failed: null } });
     const answered = (plan: TrashPlanReply) => {
       const current = trashingRef.current;
       if (current?.seq !== seq) return;
-      if (plan.kind === "refused" && plan.reason !== "busy") { closeTrash(); live.current.toast.show(trashToast(canvasStem(row.path), plan)); return; }
+      if (plan.kind === "refused" && (plan.reason === "notListed" || plan.reason === "notFile")) { closeTrash(); live.current.toast.show(trashToast(canvasStem(row.path), plan)); return; }
       changeTrashing({ ...current, plan });
     };
     window.doan.planCanvasTrash(root, row.path).then(answered, () => answered({ kind: "refused", reason: "failed" }));
   }
   function closeTrash() { changeTrashing(null); modalClosed(); }
-  // Confirmed: the dialog closes at once and the reply's toast is the only one. The mark set
-  // before the request makes the open canvas's removal a trash, not a move to another canvas of the same id.
+  // Cancel and Escape: refused while the move is out, since cancelling would stop nothing.
+  function cancelTrash() { if (!trashingRef.current?.move.pending) closeTrash(); }
+  // Confirmed: the dialog stays, busy and refusing its cancel, until main answers (DESIGN 'Busy action'). A move that
+  // went closes it with its toast; a refusal stays inside it, where Move to Trash tries again. The row leaving the list
+  // may close it first; the reply then still shows its toast. The mark set before the request makes the open canvas's
+  // removal a trash, not a move to another canvas of the same id.
   function confirmTrash() {
     const current = trashingRef.current;
-    if (!current) return;
-    closeTrash();
-    const { root, row } = current, marks = controller.current?.trash, mark = marks?.begin(root, row.path);
+    if (!current || current.move.pending) return;
+    changeTrashing({ ...current, move: { pending: true, failed: null } });
+    const { root, row, seq } = current, marks = controller.current?.trash, mark = marks?.begin(root, row.path);
     const done = (reply: TrashReply) => {
       if (mark) marks!.settle(mark, reply.kind === "trashed" ? "trashed" : "refused");
+      const open = trashingRef.current?.seq === seq ? trashingRef.current : null;
+      if (open && reply.kind === "refused") { changeTrashing({ ...open, move: { pending: false, failed: reply } }); return; }
+      if (open) closeTrash();
       live.current.toast.show(trashToast(canvasStem(row.path), reply));
     };
     window.doan.trashCanvas(root, row.path).then(done, () => done({ kind: "refused", reason: "failed" }));
@@ -2509,7 +2516,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     return <ConversationDeleteDialog view={deleteDialogView(target.title, target.provider, draft, queued)} reason={availability.available ? null : availability.reason} pending={pending}
       cancel={closeDelete} confirm={() => void confirmDelete()} />;
   })()}
-  {trashing && <CanvasTrashDialog view={trashDialogView(canvasStem(trashing.row.path), trashing.row.path, trashing.plan, trashWorking(trashing.root, trashing.row))} cancel={closeTrash} confirm={confirmTrash} />}
+  {trashing && <CanvasTrashDialog view={trashDialogView(canvasStem(trashing.row.path), trashing.row.path, trashing.plan, trashWorking(trashing.root, trashing.row), trashing.move)} cancel={cancelTrash} confirm={confirmTrash} />}
   {toast.element}
   <PrototypeClosedFocus controller={controller} toolbar={playButton} />
   <PrototypePlaying onChange={setPlaying} />

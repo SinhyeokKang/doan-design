@@ -313,7 +313,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
 
   // The thread, and an entry's scroll to its pending permission request.
   const handle = useRef<ConversationThreadHandle | null>(null);
-  const items = thread?.read === "ready" ? withSending(threadItems(thread.events, root, live), conversationId ? store.sending(conversationId) : []) : thread?.read === "error" ? "error" as const : null;
+  const items = thread?.read === "ready" ? withSending(threadItems(thread.events, root, live), conversationId ? store.sending(conversationId) : []) : thread?.read === "error" || thread?.read === "retrying" ? "error" as const : null;
   const scroll = conversationId ? run.scrollRequest(conversationId) : null;
   const asking = summary?.phase === "waiting";
   useEffect(() => {
@@ -498,7 +498,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         }}
         onSignIn={() => props.onSettings({ section: "agents", provider })}
         limitResets={liveReset(summary?.limitResetsAt, props.now, localClock())} resendHidden={store.resendHidden(conversationId)}
-        onRetry={() => store.retryThread(conversationId)}
+        onRetry={() => store.retryThread(conversationId)} retry={thread ? { running: thread.read === "retrying", failures: thread.failures ?? 0 } : undefined}
         onOpenCanvas={() => {}} {...(props.onOpenHandoff ? { onOpenHandoff: props.onOpenHandoff } : {})}
         onOpenLink={url => void openReplyLink(target => calls.openLink(target), url, props.onNotice)}
         onCopy={text => Promise.resolve(copyText(text))}

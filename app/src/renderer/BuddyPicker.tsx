@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { AlertIcon } from "./AlertIcon";
+import { retryButton } from "./ListRetryButton";
 import { BUDDY_IDS, FIRST_RUN_ORDER, buddy, knownBuddyId, type BuddyId } from "./buddies";
 import { buddyFailureText } from "./buddyChoice";
 import type { BuddyFailure } from "./buddySelection";
@@ -159,11 +160,12 @@ export function BuddyRows({ name, labelledBy, selected, disabled, inert, request
 // A failed save: the picked buddy, the one that stays, and Retry, named by its visible word and described by the
 // sentence. No live role: the screen's own live region reads the failure once. `className` places it (first run's
 // notice under the row, or Settings' notice above the group). `panel`: first run's white panel notice, where Retry is
-// subtle; on Settings' inset notice a subtle fill would match the notice's, so Retry is panel there.
-export function BuddyFailureNotice({ failure, id, className, panel = false, retry }: { failure: BuddyFailure; id: string; className: string; panel?: boolean; retry(): void }): ReactNode {
+// subtle; on Settings' inset notice a subtle fill would match the notice's, so Retry is panel there. `running`: a save
+// is out, so Retry stays, busy, and keeps focus (DESIGN 'Busy action').
+export function BuddyFailureNotice({ failure, id, className, panel = false, running = false, retry }: { failure: BuddyFailure; id: string; className: string; panel?: boolean; running?: boolean; retry(): void }): ReactNode {
   return <div className={`doan-notice error${panel ? " doan-panel" : ""} ${className}`}>
     <AlertIcon /><span className="selectable" id={id}>{buddyFailureText(failure)}</span>
-    <button type="button" className="doan-button" data-ui-variant={panel ? "subtle" : "panel"} data-ui-size="sm" aria-describedby={id} onClick={retry}>Retry</button>
+    {retryButton({ running, variant: panel ? "subtle" : "panel", describedBy: id, onRetry: retry })}
   </div>;
 }
 

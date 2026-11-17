@@ -7,6 +7,7 @@ import type { Anchor, SkillSummary } from "../main/conversation/types";
 import { fieldSkillRuns } from "./skillWords";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
+import { retryButton } from "./ListRetryButton";
 import { ContextRing, type RingUsage } from "./ContextRing";
 import type { ContextUsage } from "./contextWindow";
 import { distinctTargets, plainText, sameSegments, typedText } from "./anchorField";
@@ -532,8 +533,9 @@ export function DockedComposer(props: DockedComposerProps) {
     {notice && (notice.startNew
       ? <div className="composer-reason docked-reason reason-stack" role="status"><span>{notice.text}</span>
         <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => { clearRefusal(key); props.onStartNew?.(); focus({ kind: "restored" }); }}>Start a new conversation</button></div>
-      : <div className="doan-notice error composer-notice" role="alert"><AlertIcon /><span className="grow-text selectable">{notice.text}</span>
-        {notice.retry && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => void send()}>Retry</button>}</div>)}
+      : <div className="doan-notice error composer-notice" role="alert"><AlertIcon /><span className="grow-text selectable" id={`${listId}-notice`}>{notice.text}</span>
+        {/* The notice stays while the send its Retry started is out; Retry shows that send (DESIGN 'Busy action'). */}
+        {notice.retry && retryButton({ running: isSending, variant: "panel", describedBy: `${listId}-notice`, onRetry: () => void send() })}</div>)}
     {reason && !reason.noAgent && (reason.alert
       ? <div className="doan-notice error composer-notice" role="alert" id={reasonId}><AlertIcon /><span className="grow-text selectable">{reason.text}</span></div>
       : <div className="composer-reason docked-reason" role="status" id={reasonId}><span>{reason.text}</span>

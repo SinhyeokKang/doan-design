@@ -589,3 +589,46 @@ test("selectable: the save-failed and models-load-failed messages", async () => 
   expect(lines.map(line => words(line.props.children))).toContain("Couldn’t save your new conversation choices. Your last saved choices still apply.");
   for (const line of lines) expect(selectableClass(line)).toBe(true);
 });
+
+// DESIGN 'Busy action' (the list Retry's model): a Retry keeps its line and focus while its request is out.
+const text = () => words(all(tree).filter(element => typeof element.type === "string").map(element => element.props.children));
+const retries = () => all(tree).filter(element => element.type === "button" && words(element.props.children) === "Retry");
+test("the models Retry keeps the load failure while it reads again, busy and described by the line", async () => {
+  api.listConversationModels!.mockResolvedValue({ error: "unknown" });
+  await settle({ preferences: prefs({ provider: "claude", model: "opus" }) });
+  await settle();
+  let answer!: (value: unknown) => void;
+  api.listConversationModels!.mockImplementation(() => new Promise(resolve => { answer = resolve; }));
+  const retry = retries()[0]!;
+  expect(retry.props["aria-label"]).toBeUndefined();
+  expect(all(tree).find(element => element.props.id === retry.props["aria-describedby"])).toBeDefined();
+  (retry.props.onClick as () => void)();
+  await settle();
+  expect(text()).toContain("Couldn’t load the models for acme-web.");
+  expect(text()).not.toContain("Loading models");
+  expect(retries()[0]!.props).toMatchObject({ "aria-busy": true, "aria-disabled": true });
+  (retries()[0]!.props.onClick as () => void)();
+  expect(api.listConversationModels).toHaveBeenCalledTimes(2);
+  answer({ models: [{ id: "opus", label: "Opus 5.5", default: true }] });
+  await settle();
+  expect(text()).not.toContain("Couldn’t load the models");
+});
+
+test("the save Retry keeps the save failure while its save is out, busy; a repeat failure keeps it", async () => {
+  await settle({ preferences: prefs({ provider: "claude" }) });
+  (all(tree).filter(element => element.type === DropdownMenu.RadioGroup)[0]!.props.onValueChange as (value: string) => void)("last");
+  await settle();
+  let answer!: (value: unknown) => void;
+  props.save = vi.fn(() => new Promise(resolve => { answer = resolve; })) as never;
+  render();
+  const retry = retries().at(-1)!;
+  expect(all(tree).find(element => element.props.id === retry.props["aria-describedby"])).toBeDefined();
+  (retry.props.onClick as () => void)();
+  render();
+  expect(text()).toContain("Couldn’t save your new conversation choices.");
+  expect(retries().at(-1)!.props).toMatchObject({ "aria-busy": true, "aria-disabled": true });
+  answer(null);
+  await settle();
+  expect(text()).toContain("Couldn’t save your new conversation choices.");
+  expect(retries().at(-1)!.props["aria-busy"]).toBeUndefined();
+});

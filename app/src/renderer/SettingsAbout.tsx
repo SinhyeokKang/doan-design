@@ -8,6 +8,8 @@ import type { PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply } fro
 import type { UpdateSnapshot } from "../main/update/types";
 import { releaseNotesFailedLine, UPDATE_BLOCKED, updateView, type UpdateButton, type UpdateRowView } from "../main/update/view";
 import { AlertIcon } from "./AlertIcon";
+import { retryButton, useRetry } from "./ListRetryButton";
+import { announcedAgain } from "./listRetry";
 import { providerLogo } from "./homeComposer";
 import { preferencesNotice } from "./SettingsNotifications";
 
@@ -98,22 +100,26 @@ export function SettingsAbout({ actions, preferences, save }: {
   const [notesFailed, setNotesFailed] = useState<string | null>(null);
   const notesRequest = useRef(0);
   const announce = (text: string) => setAnnounced(previous => ({ text, seq: previous.seq + 1 }));
-  // Entry and Retry say Checking; a re-read on focus keeps the shown versions until the new ones arrive, and a read
-  // already running (a CLI run in main) is not started again.
-  const load = (fresh: boolean) => {
-    if (!fresh && inFlight.current) return;
+  // Entry says Checking; a re-read on focus keeps the shown versions until the new ones arrive, and a read already
+  // running (a CLI run in main) is not started again. Retry keeps what failed on screen, its line and its busy Retry,
+  // until the read answers (DESIGN 'Busy action'). Resolves whether main answered with versions.
+  const load = (mode: "entry" | "focus" | "retry"): Promise<boolean> => {
+    if (mode === "focus" && inFlight.current) return Promise.resolve(true);
     const request = ++reads.current;
     inFlight.current = true;
-    if (fresh) { setRead(null); setFailed(false); }
-    void window.doan.readAbout().catch(() => null).then(reply => {
-      if (request !== reads.current) return;
+    if (mode === "entry") { setRead(null); setFailed(false); }
+    return window.doan.readAbout().catch(() => null).then(reply => {
+      if (request !== reads.current) return reply !== null;
       inFlight.current = false;
-      if (reply || fresh) { setRead(reply); setFailed(reply === null); }
+      if (reply || mode !== "focus") { setRead(reply); setFailed(reply === null); }
+      return reply !== null;
     });
   };
+  const versionsRetry = useRetry();
+  const retryVersions = (pressed: HTMLElement | null) => versionsRetry.run(() => load("retry"), pressed);
   useEffect(() => {
-    load(true);
-    const focused = () => load(false);
+    void load("entry");
+    const focused = () => { void load("focus"); };
     window.addEventListener("focus", focused);
     return () => { reads.current++; window.removeEventListener("focus", focused); };
   }, []);
@@ -153,8 +159,8 @@ export function SettingsAbout({ actions, preferences, save }: {
           : item.value !== null && <span className="settings-value selectable">{item.value}</span>}
         {item.status !== null && <span className={TONES[item.tone]}>{item.status}</span>}
       </div>}
-      {item.error !== null && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span>{item.error}</span></p>
-        <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => load(true)}>Retry</button></div>}
+      {item.error !== null && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span id={`settings-about-${item.id}-error`}>{item.error}</span></p>
+        {retryButton({ running: versionsRetry.running, variant: "subtle", describedBy: `settings-about-${item.id}-error`, onRetry: retryVersions })}</div>}
       {item.id === "cli" && notice !== null && <div className="doan-preference-row-extra">{setupNotice(notice)}</div>}
     </div>;
   };
@@ -176,22 +182,26 @@ export function SettingsAbout({ actions, preferences, save }: {
     // The gate is asked at the press; a blocked answer is the one time the reason is read.
     else void window.doan.installUpdate().catch(() => null).then(reply => { if (reply?.kind === "blocked") announce(BLOCKED_READ); });
   };
-  const saveAuto = (patch: PreferencesPatch) => {
-    if (autoSaving.current) return;
+  // A Retry keeps the failed line until its save answers; a press of the switch starts over. Resolves whether it saved.
+  const saveAuto = (patch: PreferencesPatch, retry = false): Promise<boolean> => {
+    if (autoSaving.current) return Promise.resolve(false);
     autoSaving.current = true;
-    setAutoFailed(null);
-    void save(patch).catch(() => null).then(reply => {
+    if (!retry) setAutoFailed(null);
+    return save(patch).catch(() => null).then(reply => {
       autoSaving.current = false;
-      if (!reply || (!reply.ok && reply.reason !== "newer")) { setAutoFailed(patch); announce(AUTO_SAVE_FAILED); }
+      if (!reply || (!reply.ok && reply.reason !== "newer")) { setAutoFailed(patch); announce(AUTO_SAVE_FAILED); return false; }
+      setAutoFailed(null);
+      return true;
     });
   };
+  const autoRetry = useRetry();
   const auto = shown?.autoCheck ?? null;
   const autoRow = auto !== null && <div className="doan-preference-row">
     <div className="doan-preference-row-content"><span className="doan-preference-row-label">{auto.label}</span><span className="doan-preference-row-description">{auto.description}</span></div>
     <div className="doan-preference-row-trailing"><button type="button" className="doan-switch" role="switch" aria-checked={auto.checked} aria-label={auto.label}
-      disabled={preferences === null || preferences.notice === "newer"} onClick={() => saveAuto({ updates: { autoCheck: !auto.checked } })} /></div>
-    {autoFailed !== null && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error selectable"><AlertIcon /><span>{AUTO_SAVE_FAILED}</span></p>
-      <span className="update-msg-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-label="Save the automatic-check choice again" onClick={() => saveAuto(autoFailed)}>Retry</button></span></div>}
+      disabled={preferences === null || preferences.notice === "newer"} onClick={() => { void saveAuto({ updates: { autoCheck: !auto.checked } }); }} /></div>
+    {autoFailed !== null && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error selectable"><AlertIcon /><span id="settings-about-auto-error">{AUTO_SAVE_FAILED}</span></p>
+      <span className="update-msg-actions">{retryButton({ running: autoRetry.running, variant: "subtle", describedBy: "settings-about-auto-error", onRetry: pressed => autoRetry.run(() => saveAuto(autoFailed, true), pressed) })}</span></div>}
   </div>;
   const copyDetails = () => { void window.doan.copyAbout().catch(() => ({ kind: "error" as const })).then(reply => setCopy(reply.kind === "success" ? "copied" : "failed")); };
   return <>
@@ -199,8 +209,8 @@ export function SettingsAbout({ actions, preferences, save }: {
       {copy === "copied" ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}{copy === "copied" ? "Copied" : "Copy details"}</button>, actions)}
     {copy === "failed" && <p className="settings-msg error selectable" role="alert"><AlertIcon /><span>Couldn’t copy the details. Try again.</span></p>}
     {auto !== null && preferencesNotice(preferences?.notice)}
-    {failed && <div className="settings-msg-row"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span>Couldn’t read the versions.</span></p>
-      <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => load(true)}>Retry</button></div>}
+    {failed && <div className="settings-msg-row"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span id="settings-about-read-error">{announcedAgain("Couldn’t read the versions.", versionsRetry.failures)}</span></p>
+      {retryButton({ running: versionsRetry.running, variant: "subtle", describedBy: "settings-about-read-error", onRetry: retryVersions })}</div>}
     <section className="settings-section" aria-labelledby="settings-about-doan">
       <div className="settings-section-header"><div className="settings-header-copy"><h2 className="settings-section-title" id="settings-about-doan">Doan</h2></div></div>
       <div className="doan-settings-group" data-layout="rows">{versionRow(shown?.row ?? null, notesFailed, stateId, press)}{autoRow}{!failed && view.app.map(row)}</div>

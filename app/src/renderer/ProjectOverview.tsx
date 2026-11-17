@@ -191,7 +191,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
 
   // The thread
   const handle = useRef<ConversationThreadHandle | null>(null);
-  const items = thread?.read === "ready" ? withSending(threadItems(thread.events, root, live), conversationId ? run.sending(conversationId) : []) : thread?.read === "error" ? "error" as const : null;
+  const items = thread?.read === "ready" ? withSending(threadItems(thread.events, root, live), conversationId ? run.sending(conversationId) : []) : thread?.read === "error" || thread?.read === "retrying" ? "error" as const : null;
   // An entry's scroll, also for the conversation already shown; it waits for the request's item when the list told
   // of it before its event arrived.
   const scroll = conversationId ? run.scrollRequest(conversationId) : null;
@@ -428,7 +428,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         limitResets={liveReset(summary?.limitResetsAt, props.now, localClock())} resendHidden={run.store.resendHidden(conversationId)}
         onEditAndResend={() => editAndResend(conversationId)}
         onSignIn={() => props.onSettings({ section: "agents", provider })}
-        onRetry={() => run.retryThread(conversationId)}
+        onRetry={() => run.retryThread(conversationId)} retry={thread ? { running: thread.read === "retrying", failures: thread.failures ?? 0 } : undefined}
         onOpenCanvas={canvas => props.onOpenCanvas(canvas, conversationId)} onOpenHandoff={(canvas, id) => props.onOpenCanvas(canvas, id)}
         onOpenLink={url => void openReplyLink(target => window.doan.openLink(target), url, text => props.onNotice?.(text))}
         onCopy={text => Promise.resolve(copyText(text))}

@@ -36,6 +36,8 @@ export function settleBuddy(pick: BuddyPick, seq: number, picked: BuddyId, reply
 export interface BuddySelection {
   shown: BuddyId;
   failure: BuddyFailure | null;
+  // A pick's save is out: a failure notice's Retry shows busy meanwhile (DESIGN 'Busy action').
+  saving: boolean;
   // When the buddy lock of the saved change time ends (it may already have); null with no change time.
   lockedUntil: number | null;
   // Resolves true when this pick saved; a later pick's reply decides what shows. changedAt: a Settings > General
@@ -52,6 +54,7 @@ export interface BuddySelection {
 // save is App's savePreferences, which also takes the reply's snapshot as App's own.
 export function useBuddySelection(preferences: PreferencesSnapshot | null, save: (patch: PreferencesPatch) => Promise<PreferencesWriteReply | null>, firstPaint: BuddyId): BuddySelection {
   const [pick, setPick] = useState(INITIAL_PICK);
+  const [saving, setSaving] = useState(false);
   // Mirrors the state synchronously, so a reply compares against the latest pick, not the one its render saw.
   const current = useRef(INITIAL_PICK);
   const snapshot = useRef(preferences);
@@ -78,8 +81,10 @@ export function useBuddySelection(preferences: PreferencesSnapshot | null, save:
     const next = changedAt === undefined ? picked : { ...picked, shown: current.current.shown };
     update(next);
     running.current++;
+    setSaving(true);
     const saved = save(changedAt === undefined ? { buddy: id } : { buddy: id, buddyChangedAt: changedAt }).catch(() => null).then(reply => {
       running.current--;
+      setSaving(running.current > 0);
       update(settleBuddy(current.current, next.seq, id, reply, snapshot.current, changedAt !== undefined));
       return !failedSave(reply);
     });
@@ -89,6 +94,7 @@ export function useBuddySelection(preferences: PreferencesSnapshot | null, save:
   return {
     shown: shownBuddy(pick, preferences, firstPaint),
     failure: pick.failure,
+    saving,
     lockedUntil,
     select,
     settled: () => running.current > 0 ? latest.current : Promise.resolve(true),
