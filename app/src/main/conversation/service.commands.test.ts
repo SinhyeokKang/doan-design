@@ -1,14 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConversationStore } from "./store";
 import { ConversationService, type OpenRunner, type Prepare, type Prepared, type Runner } from "./service";
 import type { Provider } from "../agentAuth/types";
-import type { BoundarySignal, EventPayload } from "./types";
+import type { BoundarySignal } from "./types";
 
 const paths: string[] = []; afterEach(() => { paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
-const temp = (prefix: string) => { const dir = mkdtempSync(join(tmpdir(), prefix)); paths.push(dir); return dir; };
+// Canonical, as a profile directory always is (macOS tmpdir goes through the /var link).
+const temp = (prefix: string) => { const dir = realpathSync(mkdtempSync(join(tmpdir(), prefix))); paths.push(dir); return dir; };
 const VERSION: Record<Provider, string> = { claude: "2.1.326", codex: "0.167.1", cursor: "2026.10.22", copilot: "1.0.105", antigravity: "1.3.0" };
 function fixture(provider: Provider = "codex") {
   const dir = temp("doan-commands-"), profile = temp("doan-commands-profile-");
@@ -69,7 +70,7 @@ describe("sending a command", () => {
 describe("titles", () => {
   it("leaves a conversation started by a command untitled until its first message", async () => {
     const h = fixture();
-    const id = await h.start("/init");
+    const id = await h.start("/review");
     expect(h.store.list()[0]!.title).toBe("");
     h.service.receive(id, { type: "turn.done" });
     await h.service.send(id, "/compact", []); h.service.receive(id, { type: "turn.done" });
@@ -160,9 +161,14 @@ describe("Claude /clear", () => {
     const before = h.store.list()[0]!.session.sessionId;
     await h.service.send(id, "/clear", []);
     transcript(h.profile, NEXT);
-    h.inputs[1]!.sessionChanged!(NEXT); h.runners[1]!.sessionId = NEXT;
+    h.inputs[1]!.boundary!("cleared"); h.inputs[1]!.sessionChanged!(NEXT); h.runners[1]!.sessionId = NEXT;
+    // The clear is drawn once the conversation followed it, not on the provider's reset alone.
+    expect(h.signals).toEqual([]);
     h.service.receive(id, { type: "turn.done" });
     expect(h.store.list()[0]!.session).toMatchObject({ sessionId: NEXT, configDir: h.profile, cwd: "/repo" });
+    const turnId = h.store.read(id).at(-1)!.turnId;
+    expect(h.signals).toEqual([{ conversationId: id, turnId, kind: "cleared" }]);
+    expect(h.service.read(id).commands.boundaries).toEqual([{ turnId, kind: "cleared" }]);
     expect(h.store.read(id).at(-1)).toMatchObject({ type: "turn.done" });
     h.exits[1]!();
     await h.service.send(id, "next", []);
@@ -174,10 +180,11 @@ describe("Claude /clear", () => {
     const h = fixture("claude");
     const id = await h.start("/clear");
     const before = h.store.list()[0]!.session.sessionId;
-    h.inputs[0]!.sessionChanged!(NEXT);
+    h.inputs[0]!.boundary!("cleared"); h.inputs[0]!.sessionChanged!(NEXT);
     h.service.receive(id, { type: "turn.done" });
     expect(h.store.list()[0]!.session.sessionId).toBe(before);
     expect(h.store.read(id).at(-1)).toMatchObject({ type: "turn.failed", code: "session_unavailable" });
+    expect(h.signals).toEqual([]); expect(h.service.read(id).commands.boundaries).toEqual([]);
   });
   it("never follows a session change on a turn that is not /clear", async () => {
     const h = fixture("claude");

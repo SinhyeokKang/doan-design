@@ -743,37 +743,40 @@ function steerClaude(root: string): string {
 const fs = require('node:fs'); const readline = require('node:readline');
 const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
 const mode = process.env.FAKE_STEER; let users = 0, first = '00000000-0000-4000-8000-00000000000f', echoed = false;
-const sys = (subtype, uuids) => send({type:'system',subtype,user_message_uuids:uuids,session_id:'s'});
+// The session the run asked for, as the real CLI answers under it (a frame under another id fails the turn).
+let sid = 's';
+const sys = (subtype, uuids) => send({type:'system',subtype,user_message_uuids:uuids,session_id:sid});
 const say = (id, text) => send({type:'assistant',parent_tool_use_id:null,message:{id,role:'assistant',content:[{type:'text',text}]}});
-const result = (uuids, extra) => send({type:'result',subtype:'success',is_error:false,result:'ok',user_message_uuids:uuids,queued_turn_count:0,session_id:'s',...extra});
+const result = (uuids, extra) => send({type:'result',subtype:'success',is_error:false,result:'ok',user_message_uuids:uuids,queued_turn_count:0,session_id:sid,...extra});
 const input = readline.createInterface({input:process.stdin});
 input.on('line', line => {
  fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, line + '\\n');
  const r = JSON.parse(line);
  if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:{commands:[],models:[],account:{}}}});
  if(r.type!=='user') return;
+ if(r.type==='user' && typeof r.session_id==='string') sid = r.session_id;
  if(++users === 1) {
   if(r.uuid) first = r.uuid;
   sys('init',[first]); sys('status',[first]);
   if(mode==='fold' || mode==='hidden') send({type:'assistant',parent_tool_use_id:null,message:{id:'a1',role:'assistant',content:[{type:'tool_use',id:'toolu_1',name:'Bash',input:{command:'sleep 12'}}]}});
   if(mode==='continued' || mode==='hold' || mode==='late') say('a1','40 facts');
   if(mode==='single') { say('a1','hello'); result([first]); }
-  if(mode==='failed') send({type:'result',subtype:'error_during_execution',is_error:true,errors:['Unrecognized provider failure'],session_id:'s'});
-  if(mode==='aborted') send({type:'result',subtype:'error_during_execution',is_error:true,terminal_reason:'aborted_tools',errors:[],session_id:'s'});
+  if(mode==='failed') send({type:'result',subtype:'error_during_execution',is_error:true,errors:['Unrecognized provider failure'],session_id:sid});
+  if(mode==='aborted') send({type:'result',subtype:'error_during_execution',is_error:true,terminal_reason:'aborted_tools',errors:[],session_id:sid});
   return;
  }
  if(mode==='fold') { sys('status',[first, r.uuid]); say('a2','BANANA'); result([first, r.uuid]); }
  if(mode==='continued') { result([first]); sys('init',[r.uuid]); sys('status',[r.uuid]); say('a2','BANANA'); result([r.uuid]); }
  if(mode==='late') {
   result([first]); fs.writeFileSync(${JSON.stringify(join(root, "resulted"))}, '');
-  if(process.env.FAKE_SUGGEST) setInterval(() => send({type:'prompt_suggestion',suggestion:'Steered away',uuid:'00000000-0000-4000-8000-0000000000a2',session_id:'s'}), 50);
+  if(process.env.FAKE_SUGGEST) setInterval(() => send({type:'prompt_suggestion',suggestion:'Steered away',uuid:'00000000-0000-4000-8000-0000000000a2',session_id:sid}), 50);
   const poll = setInterval(() => {
    if(!fs.existsSync(${JSON.stringify(join(root, "go"))})) return;
    clearInterval(poll); echoed = true; sys('init',[r.uuid]); sys('status',[r.uuid]); say('a2','BANANA'); result([r.uuid]);
   }, 20);
  }
  if(mode==='hidden') {
-  send({type:'result',subtype:'error_during_execution',is_error:true,errors:['Unrecognized provider failure'],session_id:'s'});
+  send({type:'result',subtype:'error_during_execution',is_error:true,errors:['Unrecognized provider failure'],session_id:sid});
   setTimeout(() => { sys('init',[r.uuid]); say('a2','hidden edit'); }, 50);
   setInterval(() => say('a3','still working'), 100); setTimeout(() => { result([r.uuid]); process.exit(0); }, 10000);
  }

@@ -8,7 +8,8 @@ function claude(frames: unknown[]) {
   for (const frame of frames) { const next = normalizeClaude(state, frame, "/repo"); state = next.state; events.push(...next.events); }
   return events;
 }
-const success = (result: string) => ({ type: "result", subtype: "success", is_error: false, result, uuid: "r1", session_id: "s" });
+// num_turns 0: no model turn ran, as /compact's result reported (PoC, Claude Code 2.1.326).
+const success = (result: string, turns = 0) => ({ type: "result", subtype: "success", is_error: false, result, num_turns: turns, uuid: "r1", session_id: "s" });
 
 // A built-in that answers without the model (/context, /usage) is a text result, shown as the agent's answer
 // (SDK 0.3.312 SDKLocalCommandOutputMessage: "Displayed as assistant-style text in the transcript").
@@ -21,8 +22,11 @@ describe("Claude command output", () => {
     expect(claude([{ type: "system", subtype: "local_command_output", content: "<local-command-stdout>| Model | Tokens |</local-command-stdout>", uuid: "o1", session_id: "s" }, success("")]))
       .toEqual([{ type: "message.done", messageId: "o1", text: "| Model | Tokens |" }, { type: "turn.done" }]);
   });
-  it("shows a result's text when the turn showed no message and ran no tool", () => {
+  it("shows a result's text when no model turn ran and the turn showed no message", () => {
     expect(claude([success("| Model | Tokens |")])).toEqual([{ type: "message.done", messageId: "r1", text: "| Model | Tokens |" }, { type: "turn.done" }]);
+  });
+  it("never shows a model turn's result text, which its messages already carried", () => {
+    expect(claude([success("hello", 1)])).toEqual([{ type: "turn.done" }]);
   });
   it("never repeats a result's text the turn already showed as a message", () => {
     expect(claude([{ type: "assistant", parent_tool_use_id: null, message: { id: "m", role: "assistant", content: [{ type: "text", text: "hello" }] } }, success("hello")]))
