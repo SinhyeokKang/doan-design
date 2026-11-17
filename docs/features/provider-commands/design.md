@@ -13,8 +13,8 @@
 ## 순수 함수로 뗄 부분 (`/tdd` 대상)
 - `parseClaudeCommands(commands)`: `builtin: true` 항목 중 허용 목록에 있는 것만 고른다.
 - `parseAcpCommands(update)`: `available_commands_update`에서 허용 목록에 있는 명령만 고른다.
-- 허용 목록: 프로바이더별로 PoC에서 확인한 명령과 확인 CLI 버전을 담는 고정 표다. `minimumVersions.ts`처럼 버전을 함께 적는다. 실제 목록은 이 표와 CLI가 알려 준 목록의 교집합이다.
-- `commandRequest(provider, text)`: 보낼 텍스트를 프로바이더 요청으로 바꾼다. Claude와 ACP는 텍스트를 그대로 보낸다. Codex는 `/compact` → `thread/compact/start`, `/review` → `review/start`로 바꾼다.
+- 허용 목록: 프로바이더별로 PoC에서 확인한 명령과 확인 CLI 버전을 담는 고정 표다(아래 '허용 목록'). `minimumVersions.ts`처럼 버전을 함께 적는다. Claude와 Codex는 확인 버전 이상이면 표 그대로 쓴다(결정 9). ACP는 이 표와 서버가 알려 준 목록의 교집합을 쓴다.
+- `commandRequest(provider, text)`: 보낼 텍스트를 프로바이더 요청으로 바꾼다. Claude와 ACP는 텍스트를 그대로 보낸다. Codex는 `/compact` → `thread/compact/start`, `/review` → `review/start`로 바꾼다. `/review` 뒤 텍스트가 없으면 target은 `uncommittedChanges`, 있으면 그 텍스트를 `custom`으로 보낸다(결정 11).
 - `classifyFirstWord(text, lists)`: 첫 단어를 다음 넷 중 하나로 판정한다.
   - 허용 명령
   - 목록 밖 내장 명령(카드 대상)
@@ -23,7 +23,8 @@
   - 한글이 붙은 경우(`/compact해줘`)는 스킬 하이라이트 규칙과 같게 끊는다.
 - 보내기 조립: 첫 단어가 명령이면 프리셋·스킬 고정 줄을 붙이지 않는다. 명령 뒤의 텍스트는 인자로 보낸다.
 - 큐 규칙: 명령은 다른 메시지와 합치지 않는 별도 큐 행이 되고, Send now 대상이 아니다.
-- 경계 뷰: 프로바이더 세션 기록 이벤트를 경계 행으로 바꾼다. Claude는 `compact_boundary`(`fixtures/claude-context.json:97`)를 쓰고, Codex는 `thread/compacted`를 쓴다.
+- 경계 뷰: 프로바이더 세션 기록 이벤트를 경계 행으로 바꾼다. Claude 압축은 `system` `compact_boundary`(`fixtures/claude-context.json:97`), Claude 지움은 새 세션 기록 첫머리의 `/clear` 명령 줄, Codex 압축은 `contextCompaction` 아이템 하나뿐인 턴을 쓴다(PoC: `thread/compacted`는 오지 않는다). Copilot 압축은 결과 텍스트로 이번 실행에서만 경계를 만든다.
+- 숨길 기록: Claude `/compact` 뒤의 요약 `user` 메시지와 `<local-command-stdout>` 줄, Codex `/review`의 `interrupted` 자식 턴(`rootTurnId`가 리뷰 턴)은 스레드에 보이지 않는다.
 - 카드 뷰: 명령 이름과 프로바이더에서 문구와 행동을 정한다.
 
 ## 형식 변경
@@ -34,8 +35,28 @@
   - 세션 연결: 형식 변경이 필요 없다. `/clear`가 동작하는 프로바이더는 Claude뿐이다. 새 id는 `system/init`의 `session_id`로 받아 기존 필드에 다시 쓴다.
   - 대화 기록: Copilot `/compact`의 경계는 이번 실행에서만 보인다(결정 4의 예외). `session/load` 재생에 압축 기록이 없고, Copilot 내부 파일 `session-state/<id>/events.jsonl`에만 남기 때문이다. 대화 기록 형식은 바꾸지 않는다.
 
+## 허용 목록 (PoC 2026-11-17)
+
+| 프로바이더 | 확인 버전 | 목록에 두는 명령 | 결과 표시 |
+|---|---|---|---|
+| Claude Code | CLI 2.1.326, SDK 0.3.312 | `/compact`, `/clear`, `/init`, `/review`, `/context`, `/usage` | compact·clear는 경계, 나머지는 일반 답변 |
+| Codex | 0.167.1 | `/compact`, `/review` | compact는 경계(요청 매핑), review는 일반 답변(요청 매핑) |
+| Cursor | 2026.10.22 | `/copy-request-id` | 일반 답변 |
+| GitHub Copilot | 1.0.105 | `/compact`, `/init`, `/review`, `/context`, `/usage`, `/session`, `/rename` | compact는 이번 실행에서만 경계. `/context`는 고정폭 텍스트 |
+| Antigravity | 1.3.0 | 없음 | — |
+
+- Claude `/cost`는 목록에 `/usage`로 있으므로 `/usage`를 쓴다.
+- Claude `builtin: true` 목록의 번들 스킬(`deep-research`, `design`, `code-review`, `simplify` 등)은 이번 범위가 아니다. 표에 없는 명령은 목록에 나오지 않는다.
+- 카드 대상(결정 2, 동작 안 함으로 확인된 명령):
+  - Claude `/model`
+  - Copilot `/model`
+  - Antigravity `/logout`(보내면 Doan 연결 인증을 지운다), `/plan`(결정 12)
+  - 모든 프로바이더의 비목표 명령(`/model`, `/config`, `/login`, `/logout`, `/permissions`, `/theme`)
+  - Codex·Cursor·Antigravity의 `/clear`, `/compact` 등 표에 없는 후보 명령. 이 프로바이더들은 목록 밖 명령을 모델에 보내면, 실제로 하지 않은 일을 했다고 답한다(PoC).
+- ACP 서버가 알려 주지만 PoC로 확인하지 않은 명령은 목록에도 카드에도 두지 않는다. 사람이 직접 치면 그대로 보낸다(결정 10).
+
 ## ACP 명령 목록의 수명
-- ACP 서버는 세션이 열린 뒤 `available_commands_update`를 보낸다. 지금 runner는 prompting 중인 `session/update`만 처리한다.
+- ACP 서버는 `available_commands_update`를 보낸다. 시점은 서버마다 다르다(PoC): Cursor는 `session/new` 응답 뒤 한 번, Copilot은 응답 전과 직후, 그리고 프롬프트마다, Antigravity는 응답 직후다. `session/load` 때도 온다. 그래서 응답 전에 온 update도 받아야 한다. 지금 runner는 prompting 중인 `session/update`만 처리한다.
 - 세션이 열려 있으면 마지막 update를 대화별로 보관해 목록으로 쓴다. 세션이 없으면(첫 메시지 전) 명령 행을 보이지 않는다. 이것은 스킬 목록의 "읽기 전에는 행 없음" 규칙과 같다.
 - 연결이 바뀌면 그 연결로 받은 목록만 쓴다. 다음 postmortem 항목과 같은 이유다: 2026-11 "The Codex model list stayed the previous account's…"(`skills.ts:56` 주석이 가리키는 항목).
 
@@ -132,7 +153,7 @@
    - 내장 명령 이름을 아는 경로: Claude는 SDK의 `builtin` 목록, Codex는 PoC로 만든 고정 이름 표, ACP는 `available_commands_update`다.
 3. **명령은 혼자서만 보낸다.** 명령을 고르면 프리셋 칩이 빠지고 "Presets don’t apply to commands"로 알린다. 명령 단어를 지우면 칩을 복원한다. 명령 메시지에는 고정 줄을 붙이지 않는다.
 4. **경계만 재시작 뒤에 남는다.** 경계는 프로바이더 세션 기록 이벤트에서 다시 만든다. 카드는 이번 실행에서만 보인다. 예외: Copilot의 압축 경계는 이번 실행에서만 보인다. Copilot은 압축 기록을 세션 복원(session/load)에 내주지 않고, Doan은 비공개 파일(events.jsonl)을 읽지 않으며 기록 형식도 바꾸지 않는다(PoC).
-5. **`/clear`로 세션 id가 바뀌면 새 id를 따라간다.** 사람이 고른 `/clear`에 한해 대화의 세션 연결을 새 id로 다시 쓴다. 다시 쓸 때도 profile·cwd 검증(PRODUCT 'Session identity')을 거친다.
+5. **`/clear`로 세션 id가 바뀌면 새 id를 따라간다.** 사람이 고른 `/clear`에 한해 대화의 세션 연결을 새 id로 다시 쓴다. 다시 쓸 때도 profile·cwd 검증(PRODUCT 'Session identity')을 거친다. `/clear`가 동작하는 프로바이더는 Claude뿐이다(PoC). 새 id는 `conversation_reset` 다음 `system/init`의 `session_id`에서 읽는다. `conversation_reset.new_conversation_id`는 세션 id가 아니므로 쓰지 않는다.
 6. **실행 중인 턴에 보낸 명령은 별도 큐 행이 된다.** 다른 메시지와 합치지 않고 턴이 끝난 뒤 혼자 간다. 명령 행에서 Send now는 비활성이다.
 7. **명령 턴은 기존 턴 표시를 쓴다.**
    - 실행 중: 기존 진행 표시를 쓰고, 라벨은 명령별로 둔다. 예: "Compacting…"
@@ -148,6 +169,11 @@
    - 질의가 명령 이름과 같으면 Enter는 보낸다.
    - 목록 읽기 중, 실패, 명령 없는 프로바이더는 스킬 목록 규칙을 그대로 따른다. 실패하면 행이 없고 마지막 목록을 유지한다.
    - 카드의 행동 버튼을 누르면 해당 picker로 포커스가 간다. 카드는 status로 알린다.
+
+9. **Claude·Codex는 고정 허용 목록을 쓴다.** CLI 목록과 교집합을 내지 않는다. Claude `/review`·`/cost`처럼 동작하지만 SDK 목록에 없는 명령이 있기 때문이다(PoC). 확인 버전보다 낮은 CLI에서는 명령 행을 보이지 않는다. ACP는 서버 목록과의 교집합을 쓴다.
+10. **확인하지 않은 ACP 명령은 텍스트로 보낸다.** 서버가 알려 주지만 PoC로 확인하지 않은 명령은 목록에 두지 않는다. 사람이 직접 치면 카드 없이 그대로 보낸다. 서버가 처리한다.
+11. **Codex `/review`의 target.** 뒤 텍스트가 없으면 `uncommittedChanges`, 있으면 그 텍스트를 `custom`으로 보낸다. 브랜치나 커밋 지정은 텍스트로 쓴다.
+12. **Antigravity `/plan`은 이번 범위에서 뺀다.** 계획을 만든 뒤 'Proceed' 승인을 기다리는데, Doan에는 그 승인 UI가 없다. 카드 본문: "Use Plan mode in the permission picker." 승인 흐름은 BACKLOG에 남긴다.
 
 ## 디자인 프리셋
 - 아직 읽지 않았다. `/design-draft` 전에 clarify와 harden을 읽는다.
