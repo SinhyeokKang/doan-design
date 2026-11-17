@@ -17,7 +17,7 @@
 | 툴바 버튼 클릭 뒤 Space | 툴바 버튼을 포인터로 누르면 포커스를 가져가지 않는다. 포커스가 캔버스 영역에 남아 Space가 패닝이 된다. 키보드로 온 포커스는 그대로다. 앱 툴바와 export 뷰어 툴바 모두 같다. |
 | 프로토타입 창 프레임의 우클릭 | 프레임 안의 편집 가능한 필드에서 우클릭하면 앱과 같은 텍스트 편집 메뉴를 연다. 필드가 아닌 곳에서는 지금처럼 아무것도 열지 않는다. |
 | Codex 권한 요약 | `reason`이 없으면 권한 종류마다 읽을 수 있는 한 줄(쓸 경로, 접속할 호스트 등)로 보인다. 모르는 모양만 짧게 자른 JSON으로 두고, 요약 전체를 다른 권한 요약과 같은 길이로 자른다. |
-| Overview의 “<title> moved to <canvas>.” 줄 | 사람이 Overview에서 그 줄을 본 뒤에만 지운다. |
+| Overview의 “<title> moved to <canvas>.” 줄 | Overview를 떠나도 지우지 않는다. PRODUCT §5 item 3 'Promotion'대로 다음 보내기나 대화 선택 때까지 남는다. |
 
 ## 3. 배치
 
@@ -47,7 +47,7 @@ B1과 B2는 고치는 파일이 겹치지 않아 동시에 돌린다. 두 툴바
 3. **Codex 권한 요약** (BACKLOG "Codex `item/permissions/requestApproval` without `reason`…")
    - 수정: 2절 결정대로 요약을 만든다. 실제 `params.permissions` 모양은 Codex app-server 스키마와 기존 fixture에서 확인한다.
 4. **moved 줄** (BACKLOG "The Overview's “<title> moved to <canvas>.” line can go before the person sees it…")
-   - 수정: Overview를 떠날 때 줄을 지우지 않고, Overview에 그 줄이 보인 뒤에만 지운다.
+   - 수정: Overview를 떠날 때 줄을 지우지 않는다. 다음 보내기나 대화 선택 때까지 남긴다(PRODUCT §5 item 3 'Promotion').
 
 ### B2 export 뷰어 (`fix/viewer-toolbar-focus`)
 
