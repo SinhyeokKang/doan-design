@@ -2,7 +2,10 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, test } from "vitest";
-import { createLocalSeen, judge, plan, type RootMemory, type SeenReads, type SeenRow, type Verdict } from "./canvasSeen";
+import {
+  absorbFirst, createLocalSeen, judge, judgeLocal, localSeenText, markShown, mergeRoots, migrateRoot, parseLocalSeen, plan,
+  type RootMemory, type RootRecord, type SeenReads, type SeenRow, type Verdict,
+} from "./canvasSeen";
 import { MARKER, readSeen, recordName, recordText, SEEN_DIR, writeSeen, type RecordRead } from "./seenRecords";
 
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), "doan-canvas-seen-")));
@@ -262,5 +265,205 @@ describe("plan", () => {
     expect(files(root)).toEqual({ [MARKER]: recordText(null) });
     expect(plan(undefined, reads("corrupt"), ROWS)).toBeNull();
     expect(plan(READY, reads("present"), ROWS)).toBeNull();
+  });
+});
+
+// ---- device-local records (canvas-seen.json v3) ---------------------------------------------------------------------
+
+const roots = (text: string) => {
+  const read = parseLocalSeen(text);
+  return read.kind === "ok" ? Object.fromEntries(read.roots) : read.kind;
+};
+
+describe("parseLocalSeen / localSeenText", () => {
+  test("v3 keeps each root's canvases and migration flag, and writes them back as the same bytes", () => {
+    const text = `{"v":3,"roots":{"/r":{"migrated":true,"canvases":{"a":{"html":"${H("a")}"},"b":{"unseen":"new"},"c":{"unseen":"migrated"}}}}}\n`;
+    expect(roots(text)).toEqual({ "/r": { migrated: true, canvases: { a: { html: H("a") }, b: { unseen: "new" }, c: { unseen: "migrated" } } } });
+    const read = parseLocalSeen(text);
+    expect(read.kind === "ok" && localSeenText(read.roots)).toBe(text);
+  });
+
+  test("an older Doan's v1 mtimes and v2 memory become roots still to migrate, carried through v3", () => {
+    const v1 = roots(JSON.stringify({ v: 1, roots: { "/r": { "a.html": 10, "b.html": "x" }, "/s": "bad" } }));
+    expect(v1).toEqual({ "/r": { canvases: {}, v2: { legacy: { "a.html": 10 }, known: {} } } });
+    const v2 = parseLocalSeen(JSON.stringify({ v: 2, roots: {
+      "/r": { baseline: { a: H("a"), b: "sha256:x" }, known: { a: "seen", b: "new" }, legacy: 3 }, "/s": [],
+    } }));
+    expect(v2.kind === "ok" && Object.fromEntries(v2.roots)).toEqual({ "/r": { canvases: {}, v2: { baseline: { a: H("a") }, known: { a: "seen" } } } });
+    if (v2.kind !== "ok") return;
+    const text = localSeenText(v2.roots);
+    expect(JSON.parse(text)).toEqual({ v: 3, roots: { "/r": { canvases: {}, v2: { baseline: { a: H("a") }, known: { a: "seen" } } } } });
+    expect(roots(text)).toEqual(Object.fromEntries(v2.roots));
+  });
+
+  test("wrong-typed roots, fields and canvas entries are dropped on their own", () => {
+    expect(roots(JSON.stringify({ v: 3, roots: {
+      "/r": { migrated: "yes", canvases: { a: { html: "sha256:x" }, b: { unseen: "seen" }, c: { html: H("c"), unseen: "new" }, d: { unseen: "new" }, E: { html: H("e") } } },
+      "/s": [], "/t": { migrated: true, canvases: 3 },
+    } }))).toEqual({ "/r": { canvases: { d: { unseen: "new" } } }, "/t": { migrated: true, canvases: {} } });
+  });
+
+  test("broken JSON or a file without a version or roots is corrupt; a version above 3 is a later Doan's", () => {
+    for (const text of ["{", "[]", "null", JSON.stringify({ roots: {} }), JSON.stringify({ v: "3", roots: {} }), JSON.stringify({ v: 0, roots: {} }), JSON.stringify({ v: 2.5, roots: {} }), JSON.stringify({ v: 3 }), JSON.stringify({ v: 3, roots: [] })]) {
+      expect(parseLocalSeen(text).kind, text).toBe("corrupt");
+    }
+    expect(parseLocalSeen(JSON.stringify({ v: 4, roots: {} })).kind).toBe("newer");
+    expect(parseLocalSeen(JSON.stringify({ v: 4 })).kind).toBe("newer");
+    expect(roots(JSON.stringify({ v: 3, roots: {} }))).toEqual({});
+  });
+});
+
+const LOCAL = (canvases: RootRecord["canvases"]): RootRecord => ({ migrated: true, canvases });
+const local = (record: RootRecord, rows: SeenRow[], last: (row: SeenRow) => Verdict | undefined = none) => Object.fromEntries(judgeLocal(record, rows, last));
+// The dot a verdict shows: seen and no verdict both show none.
+const dot = (verdict: Verdict | undefined) => verdict === "seen" ? undefined : verdict;
+const dots = (result: Record<string, Verdict | undefined>) => Object.fromEntries(Object.entries(result).map(([path, verdict]) => [path, dot(verdict)]));
+// Every row shows the same dot after the conversion as the v2 verdict showed before it.
+const sameDots = (memory: RootMemory, r: SeenReads, rows: SeenRow[], last: (row: SeenRow) => Verdict | undefined = none) =>
+  expect(dots(local(migrateRoot(memory, r, rows, last), rows, last))).toEqual(dots(verdicts(memory, r, rows, last).verdicts));
+
+describe("migrateRoot", () => {
+  test("valid shared records under a present marker are copied as they are", () => {
+    const rows = [row("a.html", "a", H("a")), row("b.html", "b", H("b")), row("c.html", "c", H("c"))];
+    const r = reads("present", { a: { kind: "seen", html: H("a") }, b: { kind: "seen", html: H("x") }, c: { kind: "migrated" } });
+    const expected = LOCAL({ a: { html: H("a") }, b: { html: H("x") }, c: { unseen: "migrated" } });
+    expect(migrateRoot(READY, r, rows, none)).toEqual(expected);
+    // Another device's records that came with the project are copied the same on this device's first registration.
+    expect(migrateRoot(undefined, r, rows, none)).toEqual(expected);
+    sameDots(READY, r, rows);
+  });
+
+  test("damaged, conflicted, unreadable and later-version records carry this device's last verdict, else the baseline", () => {
+    const rows = [row("a.html", "a", H("a")), row("b.html", "b", H("b")), row("c.html", "c", H("c")), row("d.html", "d", H("d"))];
+    const r = reads("present", { a: { kind: "corrupt" }, b: { kind: "conflict" }, c: { kind: "unreadable" }, d: { kind: "unsupported" } });
+    const memory: RootMemory = { known: { a: "changed", b: "seen" } };
+    const last = (item: SeenRow) => item.id === undefined ? undefined : memory.known[item.id];
+    expect(migrateRoot(memory, r, rows, last)).toEqual(LOCAL({ a: { unseen: "migrated" }, b: { html: H("b") }, c: { html: H("c") }, d: { html: H("d") } }));
+    sameDots(memory, r, rows, last);
+  });
+
+  test("a missing, damaged or later-version marker, or a refused folder, carries the last verdict even over a valid record", () => {
+    const rows = [row("a.html", "a", H("a")), row("b.html", "b", H("b"))];
+    const records = { a: { kind: "seen", html: H("a") }, b: { kind: "seen", html: H("x") } } as const;
+    const memory: RootMemory = { known: { a: "changed", b: "seen" } };
+    const last = (item: SeenRow) => item.id === undefined ? undefined : memory.known[item.id];
+    for (const r of [reads("absent", records), reads("corrupt", records), reads("conflict", records), reads("unsupported", records), reads("unreadable", {}, "refused"), reads("absent", {}, "absent")]) {
+      expect(migrateRoot(memory, r, rows, last)).toEqual(LOCAL({ a: { unseen: "migrated" }, b: { html: H("b") } }));
+      sameDots(memory, r, rows, last);
+    }
+  });
+
+  test("a canvas this device judged new, without a shared record, stays new", () => {
+    const rows = [row("a.html", "a", H("a")), row("b.html", "b", H("b"))];
+    const r = reads("present", { a: { kind: "seen", html: H("a") } });
+    expect(migrateRoot(READY, r, rows, none)).toEqual(LOCAL({ a: { html: H("a") }, b: { unseen: "new" } }));
+    sameDots(READY, r, rows);
+    // A baseline still being written: a canvas added since it was frozen was new.
+    const baseline: RootMemory = { baseline: { a: H("a"), b: H("b") }, known: {} };
+    const later = [row("a.html", "a", H("a")), row("b.html", "b", H("b2")), row("c.html", "c", H("c"))];
+    expect(migrateRoot(baseline, reads("absent"), later, none)).toEqual(LOCAL({ a: { html: H("a") }, b: { unseen: "migrated" }, c: { unseen: "new" } }));
+    sameDots(baseline, reads("absent"), later);
+  });
+
+  test("an older Doan's mtimes convert as before: unchanged is seen, anything else is migrated-unseen", () => {
+    expect(migrateRoot(LEGACY, reads("absent", {}, "absent"), ROWS, none)).toEqual(LOCAL({ a: { html: H("a") }, b: { unseen: "migrated" }, c: { unseen: "migrated" } }));
+    // A valid shared record under a marker still wins; an unreadable unchanged canvas has nothing to record.
+    const rows = [row("a.html", "a", null, 10), row("b.html", "b", H("b"), 11)];
+    expect(migrateRoot(LEGACY, reads("present", { b: { kind: "seen", html: H("b") } }), rows, none)).toEqual(LOCAL({ b: { html: H("b") } }));
+  });
+
+  test("a first registration starts every canvas seen, whatever records it finds besides valid ones", () => {
+    const rows = [row("a.html", "a", H("a")), row("b.html", "b", H("b")), row("c.html", "c", null)];
+    expect(migrateRoot(undefined, reads("absent", {}, "absent"), rows, none)).toEqual(LOCAL({ a: { html: H("a") }, b: { html: H("b") } }));
+    expect(migrateRoot(undefined, reads("present", { b: { kind: "corrupt" } }), rows, none)).toEqual(LOCAL({ a: { html: H("a") }, b: { html: H("b") } }));
+    expect(migrateRoot(undefined, reads("corrupt"), rows, none)).toEqual(LOCAL({ a: { html: H("a") }, b: { html: H("b") } }));
+  });
+
+  test("a missing or duplicated canvas ID gets no record", () => {
+    const rows = [row("a.html", undefined, H("a")), row("b.html", "dup", H("b")), row("c.html", "dup", H("c")), row("d.html", "Bad", H("d"))];
+    expect(migrateRoot(READY, reads("present", { dup: { kind: "seen", html: H("b") } }), rows, none)).toEqual(LOCAL({}));
+  });
+});
+
+describe("absorbFirst", () => {
+  test("the first listing records every unrecorded unique ID as seen and keeps every record already there", () => {
+    const record = LOCAL({ a: { html: H("x") }, b: { unseen: "new" }, c: { unseen: "migrated" }, gone: { html: H("g") } });
+    const rows = [
+      row("a.html", "a", H("a")), row("b.html", "b", H("b")), row("c.html", "c", H("c")), row("d.html", "d", H("d")),
+      row("e.html", "e", null), row("f.html", undefined, H("f")), row("g.html", "dup", H("g")), row("h.html", "dup", H("h")),
+    ];
+    const absorbed = absorbFirst(record, rows);
+    expect(absorbed).toEqual(LOCAL({ a: { html: H("x") }, b: { unseen: "new" }, c: { unseen: "migrated" }, gone: { html: H("g") }, d: { html: H("d") } }));
+    expect(record.canvases.d).toBeUndefined();
+    expect(local(absorbed, rows)).toMatchObject({ "a.html": "changed", "b.html": "new", "c.html": "changed", "d.html": "seen" });
+  });
+
+  test("a root registered again keeps its records, so a canvas changed meanwhile is changed", () => {
+    const record = LOCAL({ a: { html: H("a") } });
+    const rows = [row("a.html", "a", H("a2")), row("n.html", "n", H("n"))];
+    expect(local(absorbFirst(record, rows), rows)).toEqual({ "a.html": "changed", "n.html": "seen" });
+  });
+
+  test("nothing to add returns the same record", () => {
+    const record = LOCAL({ a: { html: H("a") } });
+    expect(absorbFirst(record, [row("a.html", "a", H("b")), row("x.html", "x", null)])).toBe(record);
+  });
+});
+
+describe("judgeLocal", () => {
+  test("the same HTML is seen, other content changed, new and migrated-unseen records lit, no record shows nothing", () => {
+    const record = LOCAL({ a: { html: H("a") }, b: { html: H("x") }, c: { unseen: "new" }, d: { unseen: "migrated" } });
+    const rows = [row("moved/a.html", "a", H("a")), row("b.html", "b", H("b")), row("c.html", "c", H("c")), row("d.html", "d", H("d")), row("e.html", "e", H("e"))];
+    expect(local(record, rows, () => "changed")).toEqual({ "moved/a.html": "seen", "b.html": "changed", "c.html": "new", "d.html": "changed", "e.html": undefined });
+  });
+
+  test("an unreadable HTML file keeps the last verdict instead of comparing", () => {
+    expect(local(LOCAL({ a: { html: H("a") } }), [row("a.html", "a", null)], () => "changed")).toEqual({ "a.html": "changed" });
+  });
+
+  test("a missing or duplicated ID keeps the last verdict; once the duplicate is resolved the kept record compares again", () => {
+    const record = LOCAL({ dup: { html: H("b") } });
+    const rows = [row("a.html", undefined, H("a")), row("b.html", "dup", H("b")), row("c.html", "dup", H("c")), row("d.html", "Bad", H("d"))];
+    const last = (item: SeenRow): Verdict | undefined => item.path === "b.html" ? "changed" : undefined;
+    expect(local(record, rows, last)).toEqual({ "a.html": undefined, "b.html": "changed", "c.html": undefined, "d.html": undefined });
+    expect(markShown(record, rows[1]!, H("z"), rows)).toBe(record);
+    expect(absorbFirst(record, rows)).toBe(record);
+    expect(local(record, [row("c.html", "dup", H("c"))])).toEqual({ "c.html": "changed" });
+  });
+});
+
+describe("markShown", () => {
+  test("records the shown hash for a unique ID, replacing a new, migrated or older record, and pending IDs too", () => {
+    const record = LOCAL({ a: { unseen: "new" }, b: { unseen: "migrated" }, c: { html: H("x") } });
+    const rows = [row("a.html", "a", H("a")), row("b.html", "b", H("b")), row("c.html", "c", H("c")), row("d.html", "d", H("d"))];
+    let next = record;
+    for (const item of rows) next = markShown(next, item, item.fingerprint!, rows);
+    expect(next).toEqual(LOCAL({ a: { html: H("a") }, b: { html: H("b") }, c: { html: H("c") }, d: { html: H("d") } }));
+    expect(record.canvases.a).toEqual({ unseen: "new" });
+    expect(local(next, rows)).toEqual({ "a.html": "seen", "b.html": "seen", "c.html": "seen", "d.html": "seen" });
+  });
+
+  test("the same hash again, or a row without a unique ID, returns the same record", () => {
+    const record = LOCAL({ a: { html: H("a") } });
+    const rows = [row("a.html", "a", H("a")), row("n.html", undefined, H("n")), row("x.html", "Bad", H("x"))];
+    expect(markShown(record, rows[0]!, H("a"), rows)).toBe(record);
+    expect(markShown(record, rows[1]!, H("n"), rows)).toBe(record);
+    expect(markShown(record, rows[2]!, H("x"), rows)).toBe(record);
+  });
+});
+
+describe("mergeRoots", () => {
+  test("the real path's record wins per canvas and the alias fills what it lacks; migrated if either is", () => {
+    const real = LOCAL({ a: { html: H("a") } });
+    const alias: RootRecord = { canvases: { a: { unseen: "new" }, b: { unseen: "migrated" } }, v2: { known: { a: "seen" } } };
+    expect(mergeRoots(real, alias)).toEqual(LOCAL({ a: { html: H("a") }, b: { unseen: "migrated" } }));
+    expect(mergeRoots({ canvases: {}, v2: { known: {} } }, LOCAL({ c: { unseen: "new" } }))).toEqual(LOCAL({ c: { unseen: "new" } }));
+    expect(mergeRoots(undefined, alias)).toEqual(alias);
+  });
+
+  test("two roots still to migrate merge their older memory field by field, the real path's first", () => {
+    const real: RootRecord = { canvases: {}, v2: { legacy: { "a.html": 9 }, known: { a: "seen" } } };
+    const alias: RootRecord = { canvases: {}, v2: { legacy: { "a.html": 1, "b.html": 2 }, baseline: { c: H("c") }, known: { a: "changed", c: "seen" } } };
+    expect(mergeRoots(real, alias)).toEqual({ canvases: {}, v2: { legacy: { "a.html": 9, "b.html": 2 }, baseline: { c: H("c") }, known: { a: "seen", c: "seen" } } });
   });
 });
