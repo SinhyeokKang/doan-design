@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from "vitest";
+import { AlertIcon } from "../AlertIcon";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import type { ConversationSummary } from "../../main/conversation/summary";
 import type { PrototypeView } from "../../main/prototype/ipc";
@@ -352,6 +353,8 @@ describe("the head's conversation menu", () => {
     expect(root(tree).props.open).toBe(true);
     expect(trigger(tree).props["aria-disabled"]).toBeUndefined();
     const line = find(tree, element => element.props.className === "conv-error")!;
+    // DESIGN 'No coloured edge stripes': the failure line leads with the alert icon.
+    expect(all(line).some(element => element.type === AlertIcon)).toBe(true);
     const retry = all(line).find(element => element.type === DropdownMenu.Item)!;
     const reads = (calls.listConversations as ReturnType<typeof vi.fn>).mock.calls.length;
     (retry.props.onSelect as (event: { preventDefault(): void }) => void)({ preventDefault: () => {} });
