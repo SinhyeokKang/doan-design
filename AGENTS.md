@@ -70,8 +70,8 @@ These apply to conversation replies and reports to the user, and to feature docu
 - `node app/scripts/doanyGolden.mjs [--check]` — regenerate the Home buddy motion golden from its draft `.doan/assets/buddies/motion-preview.js`; `--check` fails when they differ. Run it after changing the draft.
 - `node app/scripts/dockedBuddyGolden.mjs [--check]` — regenerate the docked buddy golden from its draft core `.doan/assets/buddies/docked-poc.js`; `--check` fails when they differ. Run it after changing the draft.
 - `npx shadcn@4.22.1 add <component>` from `app/` — add a shadcn component. `app/.npmrc` has `save-exact=true`; install new packages with `npm --prefix app install --save-exact <pkg@version>`. Check PRODUCT.md and ARCHITECTURE.md for dependency constraints.
-- `npm --prefix app run typecheck` — TypeScript checks (`tsc --noEmit`).
-- `npm --prefix app run lint` — type-aware oxlint + oxlint-tsgolint on `app/src` and `app/runtime`, excluding tests; rules in `app/.oxlintrc.json`. exhaustive-deps warns under the `--max-warnings` cap (the ratchet in the verify skill); the other enabled rules error.
+- `npm --prefix app run typecheck` — TypeScript checks: `tsc --noEmit` for the app, then `tsc -p ../eval` (`eval/tsconfig.json`) for `eval/`, tests included.
+- `npm --prefix app run lint` — type-aware oxlint + oxlint-tsgolint on `app/src` and `app/runtime`, then `lint:eval` with the same rules on `eval/` and no warnings allowed, excluding tests in both; rules in `app/.oxlintrc.json`. exhaustive-deps warns under the app's `--max-warnings` cap (the ratchet in the verify skill); the other enabled rules error.
 - App setup: `npm --prefix app ci`, then `node -e "require('electron')"` from `app/` once to download the Electron binary (Electron 45 has no postinstall).
 - `npm --prefix app run build` — build the app into `app/out/` (`electron-vite build`).
 - `npm --prefix app run package` — build the versioned arm64 Go CLI and an unsigned local `app/dist/mac-arm64/Doan.app` with electron-builder.
