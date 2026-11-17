@@ -399,7 +399,7 @@ test("the Project step's lost focus goes to the error, else the progress notice,
 });
 
 // A notice's 16px icon is centred on a 20px first line (ds/surfaces.css .doan-alert-icon). A body without a title, such
-// as "Your Codex connection expired. Sign in again.", must start on that line: a top margin there put the icon 4px
+// as "Your Codex sign-in expired. Sign in again.", must start on that line: a top margin there put the icon 4px
 // above the text in Settings and first run (measured in the built app).
 test("a notice body takes its top margin only under a title, so a body alone stays centred on its icon", async () => {
   const { readFileSync } = await import("node:fs");

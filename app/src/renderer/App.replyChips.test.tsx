@@ -210,7 +210,7 @@ test("a canvas that cannot load after the chip opened it says so as Quick Open d
   await onDrafts();
   void panelChip({ canvas: "checkout", kind: "element", id: "pay" });
   lastOpen()[3].unavailable(listA());
-  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(unavailableCanvasMessage(listA(), C));
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(unavailableCanvasMessage(listA(), C, "a"));
 });
 
 // the Overview covers the canvas it came from, so a chip into that canvas opens it again instead of
@@ -270,11 +270,11 @@ test("a chip's canvas the project does not have, or has twice, or whose list is 
   await toasts({ canvas: "dup", kind: "element", id: "a" }, `Couldn’t open dup. More than one canvas in ${name} uses this ID. Run doan check in a terminal to find them.`);
   // The Overview stays while its project is read again or turns into a problem.
   folders([{ path: "/w/a", kind: "loading" }]);
-  await toasts({ canvas: "drafts", kind: "frame", id: "editor" }, "Project is still being read. Try again shortly.");
+  await toasts({ canvas: "drafts", kind: "frame", id: "editor" }, `${name} is still being read. Try again shortly.`);
   folders([{ path: "/w/a", kind: "notFound" }]);
-  await toasts({ canvas: "drafts", kind: "frame", id: "editor" }, "Project is unavailable. Fix it from its menu in the sidebar, then try again.");
-  // Quick Open keeps its own copy for a list still being read.
-  expect(unavailableCanvasMessage({ path: "/w/a", kind: "loading" }, D)).toBe("Project is still being read. Try again shortly.");
+  await toasts({ canvas: "drafts", kind: "frame", id: "editor" }, `${name} isn’t available. Fix it from its menu in the sidebar.`);
+  // Quick Open words a list still being read the same way.
+  expect(unavailableCanvasMessage({ path: "/w/a", kind: "loading" }, D, name)).toBe(`${name} is still being read. Try again shortly.`);
   for (const name of ["openCanvas", "locate", "showOverview", "openWorkspace"]) expect(harness.controller![name], name).not.toHaveBeenCalled();
 });
 

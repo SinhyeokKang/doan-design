@@ -15,6 +15,7 @@ import { canvasLabel } from "./canvasTree";
 import { groupProjects } from "./homeCards";
 import { anotherConversation } from "./homeConversations";
 import { displayPath } from "./projectDisplay";
+import { projectReadingLine, projectUnavailableLine } from "./problemView";
 
 // Pure parts of the Home composer. Copy follows the confirmed draft
 // `.doan/canvases/doan-home.html`.
@@ -86,8 +87,8 @@ export function sendAvailability(input: SendInput): { enabled: boolean; reason: 
   if (input.sending) return off(null);
   if (input.projects === 0 || !input.root) return off({ kind: "noProject", text: "Add a project to send." });
   // A project still being read has nothing to fix in its sidebar menu, so the line sends nobody there.
-  if (input.root.kind === "loading") return off({ kind: "projectUnavailable", text: `${input.projectName} is still being read.` });
-  if (input.root.kind !== "list") return off({ kind: "projectUnavailable", text: unavailableProject(input.projectName) });
+  if (input.root.kind === "loading") return off({ kind: "projectUnavailable", text: projectReadingLine(input.projectName) });
+  if (input.root.kind !== "list") return off({ kind: "projectUnavailable", text: projectUnavailableLine(input.projectName) });
   const agent = agentProblem(input.auth, input.provider);
   if (agent) return off(agent);
   // An empty composer shows no line, running or not: Home keeps its suggestions until something is typed.
@@ -135,8 +136,6 @@ function typedPieces(draft: string | readonly FieldSegment[]): string[] {
   return pieces;
 }
 
-function unavailableProject(project: string): string { return `${project} isn’t available. Fix it from its menu in the sidebar.`; }
-
 const START_ERRORS: Record<string, { text: (p: string, project: string) => string; retry: boolean }> = {
   not_logged_in: { text: p => `Couldn’t start with ${p}: its sign-in has expired. Choose another agent.`, retry: false },
   cli_missing: { text: p => `Couldn’t start with ${p}: it isn’t installed on this Mac. Choose another agent.`, retry: false },
@@ -148,7 +147,7 @@ const START_ERRORS: Record<string, { text: (p: string, project: string) => strin
   process_exited: { text: p => `${p} stopped before it could start. Try again.`, retry: true },
   session_unavailable: { text: p => `Couldn’t start with ${p} right now. Try again, or choose another agent.`, retry: true },
   session_in_use: { text: p => `${p} is busy with another session. Try again in a moment.`, retry: true },
-  project_not_open: { text: (_p, project) => unavailableProject(project), retry: false },
+  project_not_open: { text: (_p, project) => projectUnavailableLine(project), retry: false },
   no_agent: { text: () => "No agent is ready to run.", retry: false },
 };
 

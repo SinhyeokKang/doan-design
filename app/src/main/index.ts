@@ -510,7 +510,7 @@ function setMenu(): void {
         label: "File",
         submenu: [
           { label: "New Conversation", accelerator: "CmdOrCtrl+N", enabled: enabled.newConversation, click: command("newConversation") },
-          { label: "Add Project…", accelerator: "CmdOrCtrl+O", enabled: enabled.addProject, click: openAddProjects },
+          { label: "Add Projects…", accelerator: "CmdOrCtrl+O", enabled: enabled.addProject, click: openAddProjects },
           { type: "separator" },
           // The focused window: from the prototype window it closes only that window.
           { label: "Close Window", accelerator: "CmdOrCtrl+W", click: (_item, focused) => {
@@ -790,7 +790,7 @@ async function chooseFolder(purpose: unknown): Promise<string | null> {
   return picked.canceled || path === undefined ? null : path;
 }
 
-// File > Add Project…: the Add Projects page, which the renderer opens (its Choose folder, when the page already shows
+// File > Add Projects…: the Add Projects page, which the renderer opens (its Choose folder, when the page already shows
 // its choose phase). A hidden window is shown first, as for every other way of reaching the window.
 function openAddProjects(): void {
   const window = win;

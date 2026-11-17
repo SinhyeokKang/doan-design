@@ -81,7 +81,7 @@ test("the page body reads its session, focuses the heading on entry, and reports
   expect(page.onState).toHaveBeenLastCalledWith({ locked: true, choose: false });
 });
 
-test("File > Add Project… on the page runs Choose folder, also when pressed before the session was read", async () => {
+test("File > Add Projects… on the page runs Choose folder, also when pressed before the session was read", async () => {
   const early = props();
   render(early);
   // ⌘O before readAddPage answered.
