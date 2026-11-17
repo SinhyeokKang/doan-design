@@ -102,3 +102,17 @@ export function commandBoundary(provider: Provider, name: string): BoundaryKind 
   if (name === "compact") return "compacted";
   return provider === "claude" && name === "clear" ? "cleared" : null;
 }
+
+// An ACP server's reported commands Doan sends as the person wrote them: not in the table (no live check confirmed
+// them) and not a card. They show no row and no card; the server handles them. Claude's and Codex's built-ins are only
+// the table's.
+export function passthroughCommands(provider: Provider, reported: readonly string[]): string[] {
+  if (provider === "claude" || provider === "codex") return [];
+  const known = new Set([...COMMAND_ALLOWLIST[provider].commands.map(c => c.name), ...UNSUPPORTED_COMMANDS[provider]]);
+  return [...new Set(reported)].filter(name => !known.has(name));
+}
+// A whole message "/<name>" or "/<name> <argument>" whose name is one of those, as send assembly writes it.
+export function passthroughName(text: string, passthrough: readonly string[]): string | null {
+  const name = /^\/(\S+)(?:\s[\s\S]*)?$/.exec(text)?.[1];
+  return name !== undefined && passthrough.includes(name) ? name : null;
+}

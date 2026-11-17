@@ -75,6 +75,12 @@ export function parseAcpCommands(provider: Provider, update: unknown, installed:
   const rows = update.availableCommands.filter(record).filter(c => name(c.name));
   return allowedCommands(provider, installed, new Map(rows.map(c => [c.name as string, typeof c.description === "string" ? firstLine(c.description) : ""])));
 }
+// Every command name an available_commands_update reports, the ones Doan does not list included; null for one it cannot
+// read, as parseAcpCommands refuses it.
+export function acpReportedNames(update: unknown): string[] | null {
+  if (!record(update) || update.sessionUpdate !== "available_commands_update" || !Array.isArray(update.availableCommands)) return null;
+  return [...new Set(update.availableCommands.filter(record).map(c => c.name).filter(name))].slice(0, ROWS);
+}
 // The commands an ACP conversation's connection last reported. Servers push updates at their own times (Copilot even
 // before session/new answers), so the runner keeps the last one. One it cannot read keeps the list, as a failed skill
 // read does; a list belongs to the connection that sent it, so another connection never shows it (POSTMORTEM

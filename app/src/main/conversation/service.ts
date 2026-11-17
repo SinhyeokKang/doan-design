@@ -24,10 +24,10 @@ import type { LiveTurn } from "../conversationWork";
 import type { AfterTurnCleanup } from "./process";
 import type { BoundaryKind } from "./commandRecords";
 import { claudeTranscript, readInTranscript, readTranscriptFrom, transcriptSize } from "./io";
-import { commandBoundary, commandName, unsupportedCommand } from "./providerCommands";
+import { commandBoundary, commandName, passthroughCommands, passthroughName, unsupportedCommand } from "./providerCommands";
 import { copilotCompacted } from "./commandRecords";
 import { commandTurns } from "./commandTurns";
-import { acpCommandsAfter, type AcpCommandList } from "./skills";
+import { acpCommandsAfter, acpReportedNames, type AcpCommandList } from "./skills";
 import { autoSchedule, claudeResetFromDetail, limitResetFromUsage, limitState, sendAt, sendDecision, SEND_DELAY_MS, turnHadActivity, type LimitEntry } from "./usageLimit";
 import type { UsageWindow } from "../agentAuth/usageTypes";
 // External (legacy) runs are claude or codex only; doan-account runs may use any app provider.
@@ -212,6 +212,9 @@ interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runn
   cancelled?: true;
   // The accepted turn's provider command (providerCommands.ts commandName), absent for a message.
   command?: string;
+  // The permission mode a Codex turn of a Doan connection stated on its thread (turn/start), absent for a command turn,
+  // which states none (noteMode).
+  statedMode?: PermissionModeId;
   // The session a Claude run moved to during this turn (Prepared.sessionChanged), with the run's profile and cwd; judged
   // at the turn's done end (followSession).
   movedTo?: { sessionId: string; configDir: string; cwd: string } }
@@ -311,8 +314,13 @@ export class ConversationService {
   // This run's command turns by conversation and turn, with the boundary their provider reported (null while none came);
   // memory only, as the boundary's evidence is (commandTurns.ts).
   private commandRuns = new Map<string, Map<string, BoundaryKind | null>>();
-  // Each ACP conversation's last command list, as its connection pushed it (Prepared.acpCommands); memory only.
-  private acpLists = new Map<string, AcpCommandList & { provider: Provider }>();
+  // Each ACP conversation's last command list, as its connection pushed it (Prepared.acpCommands), with every name the
+  // server reported; memory only.
+  private acpLists = new Map<string, AcpCommandList & { provider: Provider; reported: string[] }>();
+  // The permission mode each Doan Codex conversation's thread was last told on a turn that ended done in this run. Codex
+  // keeps a turn's mode for later turns and across thread/resume, and review/start states none, so a /review runs in this
+  // mode (checkReview). Memory only: the record does not say which mode a turn stated, so after a restart it is unknown.
+  private statedModes = new Map<string, PermissionModeId>();
   // A queued message that is a failed turn's own message sent again, by itemId, until it leaves the queue (forget).
   private repeats = new Map<string, { owner: string; turnId: string }>();
   // listChanged: a root whose conversation list (conversation:list) changed, sent after the write it reports.
@@ -360,7 +368,8 @@ export class ConversationService {
         throw Object.assign(new Error("rate_limited"), { resetsAt: new Date(limit.resetsAt).toISOString() });
     }
     if (project) this.checkProject(project);
-    if (request.runtime && !handoff) checkCommand(request.runtime, request.text, request.anchors, request.attachments?.length || attached ? 1 : 0);
+    // A new conversation's thread was told no mode yet, so its /review is refused before anything opens.
+    if (request.runtime && !handoff) { checkCommand(request.runtime, request.text, request.anchors, request.attachments?.length || attached ? 1 : 0, !!commandName(request.runtime, request.text)); checkReview(request.runtime, request.text, true, undefined, undefined); }
     const id = randomUUID(); this.reserve(id);
     const live: Live = { turnId: randomUUID(), busy: true, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: this.stops, ...(project ? { project } : {}) }; this.live.set(id, live);
     let opening = false, input: Prepared | undefined;
@@ -368,8 +377,8 @@ export class ConversationService {
     try {
       const prepared = await this.prepare(request);
       input = { ...prepared, ...choice(request), ...(request.model && !request.effort && request.defaultEffort ? { effort: request.defaultEffort } : {}), ...this.runFast(request.fast === true, request.root, prepared, request.model), ...mode(request.permissionMode), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text), stage: stage => this.stage(id, live, stage), backgroundChanged: running => this.backgroundChanged(id, live, turnId, running), ...this.commandHooks(id, live, turnId, prepared) };
-      if (!handoff) checkCommand(input.runtime, request.text, request.anchors, request.attachments?.length || attached ? 1 : 0);
       const command = handoff ? null : commandName(input.runtime, request.text);
+      if (!handoff) { checkCommand(input.runtime, request.text, request.anchors, request.attachments?.length || attached ? 1 : 0, !!command); checkReview(input.runtime, request.text, !!input.owner, undefined, undefined); }
       if (input.owner) live.provider = input.owner.provider;
       if (input.quiet) live.quiet = input.quiet;
       if (this.quitting) throw new Error("busy");
@@ -417,6 +426,7 @@ export class ConversationService {
       attached?.sent();
       const saved = this.store.acceptStart([...entries, metadata], id, writes);
       live.accepted = true; live.turnOf = turnOf(metadata); this.noteTranscript(live, input, runner.sessionId); this.noteCommand(id, live, command);
+      this.noteMode(live, input.runtime, !!input.owner, command, input.permissionMode ?? "default");
       if (project) this.evidence.set(id, { root: project, turnId: live.turnId, snapshot: base.canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
       if (metadata.owner.kind === "doan") this.handoffTurns.set(id, { root: request.root, turnId: live.turnId, snapshot: this.snapshot(request.root), requests: [], guided, edits: new Set(), waiters: [], ...(handoff ? { startedBy: "handoff" as const } : {}) });
       this.watchDrawn(id, live.turnId, request.root);
@@ -455,8 +465,11 @@ export class ConversationService {
     let metadata = this.metadata(id); if (this.quitting) throw new Error("busy");
     metadata = this.refreshCanvas(metadata);
     const runtime = metadata.session.runtime;
-    checkCommand(runtime, text, anchors, extras.attachments?.length || attached ? 1 : 0);
-    const command = commandName(runtime, text);
+    // command: one of the provider's table, which the thread draws; asIs: also an ACP server's unconfirmed one. Either
+    // goes out as its own text.
+    const command = commandName(runtime, text), asIs = !!command || !!passthroughName(text, this.passthroughOf(id, runtime));
+    checkCommand(runtime, text, anchors, extras.attachments?.length || attached ? 1 : 0, asIs);
+    checkReview(runtime, text, metadata.owner.kind === "doan", this.statedModes.get(id), (extras.permissionMode !== undefined ? extras.permissionMode : metadata.permissionMode) ?? "default");
     // A history that stopped taking writes is left behind once its process is gone (releaseFailed): the send starts a
     // new turn on a new entry, and is refused like any first write when the history still takes none.
     const existing = this.live.get(id); if (existing?.busy || (existing?.failedPersistence && !existing.exited)) throw new Error("busy");
@@ -498,7 +511,7 @@ export class ConversationService {
       const attachments = attached ? attached.recheck() : extras.attachments ?? [];
       // Home's paragraph only while the conversation has no canvas: a promoted one works on its canvas.
       const guided = handoffGuidanceFor(metadata, chosen);
-      const prompt = command ? text : turnPrompt(anchors, text, metadata, { home: metadata.fromHome === true && !metadata.canvas, attachments, handoff: guided }); if (prompt === null) throw new Error("bad_request");
+      const prompt = asIs ? text : turnPrompt(anchors, text, metadata, { home: metadata.fromHome === true && !metadata.canvas, attachments, handoff: guided }); if (prompt === null) throw new Error("bad_request");
       // The choice and snapshot are written before the turn's events: a failed append then leaves only a saved choice.
       // An entry without seenSeq has had all of its history seen; from now on its ends count.
       const projectTurn = project !== undefined && !metadata.canvas;
@@ -509,7 +522,7 @@ export class ConversationService {
       const stored = metadata.permissionMode !== admittedMode ? mode(metadata.permissionMode) : mode(chosen.permissionMode);
       const fast = fastOf(extras.fast !== undefined ? extras : metadata);
       // A conversation a command started is named by its first message that is not one.
-      const title = !command && !metadata.title ? messageLine(requestTitleText(text), anchors) : metadata.title;
+      const title = !asIs && !metadata.title ? messageLine(requestTitleText(text), anchors) : metadata.title;
       const updated: ConversationMetadata = { ...rest, title, ...choice(chosen), ...fast, ...stored, ...(canvasesAtStart ? { canvasesAtStart } : {}), seenSeq };
       const message: EventPayload = { type: "user.message", text, anchors, ...(attachments.length ? { attachments } : {}) };
       attached?.sent();
@@ -519,6 +532,7 @@ export class ConversationService {
       // message, which would read as a turn that runs. A short write is not rolled back (no journal here).
       for (const event of this.store.appendAll(id, live.turnId, [message, { type: "turn.started" }])) this.deliver(event);
       this.changedOf(id); live.accepted = true; live.turnOf = turnOf(updated); this.suggestions.delete(id); this.noteTranscript(live, input, live.runner.sessionId); this.noteCommand(id, live, command);
+      this.noteMode(live, runtime, metadata.owner.kind === "doan", command, chosen.permissionMode ?? "default");
       if (projectTurn) this.evidence.set(id, { root: metadata.root, turnId: live.turnId, snapshot: canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
       // The previous turn's handoff was resolved before this send went on (handoffWait).
       if (metadata.owner.kind === "doan") this.handoffTurns.set(id, { root: metadata.root, turnId: live.turnId, snapshot: this.snapshot(metadata.root), requests: [], guided, edits: new Set(), waiters: [] });
@@ -668,7 +682,7 @@ export class ConversationService {
       // While an end is held, a later one (a Stop's) adds nothing: the turn is over and the held end is written.
       if (live.held && (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted")) return;
       if (event.type === "turn.done" && live.movedTo) event = this.followSession(id, live, live.movedTo);
-      if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") delete live.movedTo;
+      if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { delete live.movedTo; this.settleMode(id, live, event.type === "turn.done"); }
       // Copilot's /compact says so only in its answer's text, the one sign over ACP (PoC, 1.0.105).
       if (event.type === "message.done" && live.command === "compact" && live.turnOf?.provider === "copilot" && copilotCompacted(event.text)) this.boundary(id, "compacted");
       if ((event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") && this.holdsEnd(id, live)) {
@@ -951,7 +965,7 @@ export class ConversationService {
   // The queue goes out in the mode stored when it is flushed (setPermissionMode), not one of its messages'.
   queue(id: string, item: { text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; ids?: string[] }): { itemId: string } {
     const m = this.metadata(id);
-    checkCommand(m.session.runtime, item.text, item.anchors, item.attachments?.length ?? 0);
+    checkCommand(m.session.runtime, item.text, item.anchors, item.attachments?.length ?? 0, this.asIs(id, m.session.runtime, item.text));
     if (this.quitting) throw new Error("busy");
     if (!this.working(id)) throw new Error("not_running");
     const itemId = randomUUID();
@@ -984,7 +998,7 @@ export class ConversationService {
     const m = this.metadata(id), live = this.live.get(id);
     // A command goes out alone in its own turn, never into a running one.
     const queued = this.drafts.queued(id).find(entry => entry.itemId === itemId);
-    if (queued && commandName(m.session.runtime, queued.text)) throw new Error("bad_request");
+    if (queued && this.asIs(id, m.session.runtime, queued.text)) throw new Error("bad_request");
     if (!live || !this.steerable(id, live)) throw new Error("not_running");
     const runner = live.runner!, item = this.drafts.queued(id).find(entry => entry.itemId === itemId);
     // A pasted image the turn's fence did not open would be unreadable to the agent: the message waits for the next turn.
@@ -1042,7 +1056,8 @@ export class ConversationService {
   // The message waits in drafts.json as a queued one (a restart hands it back as a draft); only its send time is in
   // memory. ids: the attachment ids main holds for it, as for queue. busy: it is not a send that waits (scheduling).
   schedule(id: string, item: { text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; ids?: string[] }): { itemId: string; at: string } {
-    checkCommand(this.metadata(id).session.runtime, item.text, item.anchors, item.attachments?.length ?? 0);
+    const runtime = this.metadata(id).session.runtime;
+    checkCommand(runtime, item.text, item.anchors, item.attachments?.length ?? 0, this.asIs(id, runtime, item.text));
     const m = this.metadata(id);
     if (!this.scheduling(id) || m.owner.kind !== "doan") throw new Error("busy");
     const owner = m.owner, connectionId = this.connectionOf(owner), limit = this.limitOf(m);
@@ -1253,7 +1268,7 @@ export class ConversationService {
     this.store.delete(id);
     // Its live entry stays for the exit callback, but the conversation no longer has a turn.
     const live = this.live.get(id); if (live) delete live.turnOf;
-    this.disarm(id); this.resent.delete(id); this.commandRuns.delete(id); this.acpLists.delete(id);
+    this.disarm(id); this.resent.delete(id); this.commandRuns.delete(id); this.acpLists.delete(id); this.statedModes.delete(id);
     this.drafts.discard(id);
     const held = this.returnedHeld.get(id); this.returnedHeld.delete(id);
     if (held?.length) this.queueOptions.files?.release?.(held.map(h => h.id));
@@ -1525,7 +1540,7 @@ export class ConversationService {
     const hold = live.holding, provider = live.provider, since = this.stops;
     // A command goes out alone: the queue sends the messages before the next command, or that command (queue.ts).
     const runtime = this.store.list().find(e => e.conversationId === id)?.session.runtime;
-    const items = this.drafts.markSending(id, queued => runtime ? nextQueued(queued, item => commandName(runtime, item.text) !== null) : queued);
+    const items = this.drafts.markSending(id, queued => runtime ? nextQueued(queued, item => this.asIs(id, runtime, item.text)) : queued);
     const ids = items.flatMap(item => this.queuedExtras.get(item.itemId)?.ids ?? []);
     const combined = combineQueued(items);
     if (!items.length || !combined.ok) {
@@ -1956,8 +1971,34 @@ export class ConversationService {
   private acpPushed(id: string, prepared: Prepared, update: unknown): void {
     const connectionId = prepared.owner?.connectionId ?? "", provider = prepared.runtime;
     if (this.connections.has(provider) && this.connections.get(provider) !== connectionId) return;
-    const next = acpCommandsAfter(this.acpLists.get(id) ?? null, connectionId, provider, update, prepared.installed);
-    if (next) this.acpLists.set(id, { ...next, provider }); else this.acpLists.delete(id);
+    const previous = this.acpLists.get(id), next = acpCommandsAfter(previous ?? null, connectionId, provider, update, prepared.installed);
+    const reported = acpReportedNames(update) ?? (previous?.connectionId === connectionId ? previous.reported : []);
+    if (next) this.acpLists.set(id, { ...next, provider, reported }); else this.acpLists.delete(id);
+  }
+  // The ACP conversation's server-reported commands sent as written (providerCommands.ts passthroughCommands), with the
+  // same scope as acpCommands.
+  acpPassthrough(id: string, root: string, provider: Provider): string[] {
+    const m = this.store.list().find(e => e.conversationId === id), list = this.acpLists.get(id);
+    return m && list && m.root === root && m.session.runtime === provider && list.provider === provider ? passthroughCommands(provider, list.reported) : [];
+  }
+  private passthroughOf(id: string, provider: Provider): string[] {
+    const list = this.acpLists.get(id);
+    return list?.provider === provider ? passthroughCommands(provider, list.reported) : [];
+  }
+  // Whether a text goes out as its own text: a command of the provider's table or the conversation's unconfirmed ACP one.
+  private asIs(id: string, provider: Provider, text: string): boolean {
+    return !!commandName(provider, text) || !!passthroughName(text, this.passthroughOf(id, provider));
+  }
+  // A Doan Codex turn that is not a command states its mode on the thread; the mode is known once that turn ended done.
+  private noteMode(live: Live, provider: Provider, doan: boolean, command: string | null, stated: PermissionModeId): void {
+    if (provider === "codex" && doan && !command) live.statedMode = stated; else delete live.statedMode;
+  }
+  // A turn that ended otherwise may or may not have reached the thread, so a mode it differed in is no longer known.
+  private settleMode(id: string, live: Live, done: boolean): void {
+    const stated = live.statedMode; delete live.statedMode;
+    if (stated === undefined) return;
+    if (done) this.statedModes.set(id, stated);
+    else if (this.statedModes.get(id) !== stated) this.statedModes.delete(id);
   }
   private sendTurn(id: string, live: Live, runner: Runner, prompt: string, attachments?: readonly AttachmentRecord[], turnChoice?: TurnChoice): void {
     const turn = live.turnId;
@@ -1970,8 +2011,15 @@ export class ConversationService {
 
 // A command message carries nothing but its text (its argument included): no anchors, and no attachments, which stay in
 // the composer. A built-in Doan never runs is refused, as the composer's card refuses it (providerCommands.ts).
-function checkCommand(provider: Provider, text: string, anchors: readonly Anchor[], attachments: number): void {
-  if (unsupportedCommand(provider, text) || (commandName(provider, text) && (anchors.length || attachments))) throw new Error("bad_request");
+function checkCommand(provider: Provider, text: string, anchors: readonly Anchor[], attachments: number, asIs: boolean): void {
+  if (unsupportedCommand(provider, text) || (asIs && (anchors.length || attachments))) throw new Error("bad_request");
+}
+// Codex's review/start takes no permission mode, so the review runs in the mode the thread was last told. A Doan
+// conversation's /review goes out only while that is the picker's mode now and known (statedModes); otherwise it is
+// refused with command_mode_stale and the composer keeps the text. A terminal session's thread runs on the person's own
+// settings, which Doan states nothing about. /compact runs no tools and goes out whatever the mode.
+function checkReview(provider: Provider, text: string, doan: boolean, stated: PermissionModeId | undefined, picked: PermissionModeId | undefined): void {
+  if (provider === "codex" && doan && commandName(provider, text) === "review" && (stated === undefined || stated !== picked)) throw new Error("command_mode_stale");
 }
 // The fence names userData resolved, and a recorded path may still go through a link (/var for /private/var).
 function resolved(path: string): string { try { return realpathSync.native(path); } catch { return path; } }
