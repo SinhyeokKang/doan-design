@@ -1,0 +1,181 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="ux-audit-261117-2-b1"><meta name="doan:width" content="1680"><title>ux-audit-261117-2-b1 — B1 Retry and confirm busy</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><style>
+@font-face{font-family:Geist;src:url('../../app/src/renderer/public/fonts/geist/Geist.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
+/* ── Base: app/src/renderer/styles.css lines 27-36 (body, buttons) and the Tailwind preflight subset the shared components rely on ── */
+:root{--radix-popper-available-height:384px;--radix-tooltip-content-transform-origin:center}
+@layer base{*,::before,::after{box-sizing:border-box;border:0 solid;margin:0;padding:0}h1,h2,h3{font-size:inherit;font-weight:inherit}img,svg{display:block;vertical-align:middle}button,input{font:inherit;letter-spacing:inherit;color:inherit;background-color:transparent;border-radius:0}ul,ol{list-style:none}}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root { color-scheme: light; }
+body { background: var(--bg-app); color: var(--text-standard); font-family: var(--type-family); font-size: 13px; line-height: normal; }
+button { cursor: pointer; font: inherit; color: inherit; }
+button:disabled { color: var(--text-disabled); cursor: default; }
+button { outline: none; }
+button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+code, kbd { font-family: var(--type-family); }
+.right { background: var(--surface-panel); border-left: 1px solid var(--border-standard); }
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}
+/* ds/surfaces.css caps a compact dialog with 100dvh; on a canvas that resolves against the whole board. */
+/* ── app/src/renderer/styles.css: the rules these frames draw with, as shipped (lines 1082-1133, 1840) ── */
+.settings-page { max-width: 48rem; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-6); }
+.settings-header, .settings-section-header { display: flex; align-items: start; gap: var(--space-3); padding-inline: calc(var(--space-4) + 1px); }
+.settings-section-header { margin-bottom: var(--space-3); }
+.settings-header-copy { flex: 1; min-width: 0; }
+.settings-section-title { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
+.settings-sections { display: grid; gap: var(--space-section-gap); }
+.doan-preference-row-extra { grid-column: 1 / -1; margin-top: var(--space-3); }
+.settings-msg { display: flex; align-items: flex-start; gap: var(--space-1h); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); overflow-wrap: anywhere; }
+.settings-msg.error { color: var(--text-danger); }
+.settings-msg-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); }
+.settings-page code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.update-msg-actions { display: flex; flex: none; gap: var(--space-2); }
+.doan-dialog-actions .doan-button > .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; }
+/* ── Draft board (not app UI) ── */
+html,body{height:auto;overflow:visible}
+body{width:1680px;padding:var(--space-8);background:var(--surface-inset);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);user-select:text}
+:where(svg){width:var(--size-icon);height:var(--size-icon);flex:none}
+.item{width:1616px;display:flex;flex-direction:column;gap:var(--space-6)}
+.item+.item{margin-top:var(--space-16)}
+.item-head{display:flex;align-items:center;gap:var(--space-3)}
+.item-head h2{font-size:var(--type-heading-size);line-height:var(--type-heading-line-height);letter-spacing:var(--type-heading-letter-spacing);font-weight:var(--type-weight-medium)}
+.item-head p{color:var(--text-subtle)}
+.cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-8);align-items:start}
+.col{display:flex;flex-direction:column;gap:var(--space-4);min-width:0}
+.col>h3{display:flex;align-items:center;gap:var(--space-2);font-size:var(--type-label-size);line-height:var(--type-label-line-height);font-weight:var(--type-weight-medium)}
+.tiles{display:flex;flex-wrap:wrap;gap:var(--space-6);align-items:flex-start}
+.tile{display:flex;flex-direction:column;gap:var(--space-2);min-width:0}
+.tile>h4{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);font-weight:var(--type-weight-regular);max-width:360px}
+.note{display:grid;grid-template-columns:160px minmax(0,1fr);gap:var(--space-2) var(--space-4);padding:var(--space-4) var(--space-5);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.note dt{color:var(--text-metadata)}
+.note dd{color:var(--text-standard);overflow-wrap:anywhere}
+.note ol{list-style:decimal;padding-left:var(--space-5);display:flex;flex-direction:column;gap:var(--space-1)}
+.proposed{color:var(--text-accent)}
+/* Panel crop: the canvas conversation panel at 360 wide, header left out. */
+/* Window stage: a crop of the window behind a modal dialog; the app centres the dialog in the window. */
+.window-stage{position:relative;width:560px;height:520px;border-radius:var(--radius-container);box-shadow:var(--shadow-panel);overflow:clip;background:var(--bg-app)}
+.window-stage>.scrim{position:absolute;inset:0;background:var(--bg-scrim)}
+.window-stage>.doan-dialog{position:absolute}
+/* Toast stage: the window's lower-right corner, where the shared toast shows. */
+/* Settings tile: the Settings column on the white page panel. */
+.state-panel{position:relative;width:720px;padding:var(--space-6);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.state-panel>.settings-page{padding:0}
+/* Static stand-ins: hover and focus drawn where the step says they are. */
+.conversation-thread .md-code[data-shown] .doan-icon-button{opacity:1}
+[data-focus="ring"]{outline:2px solid var(--border-focus);outline-offset:2px}
+.index{display:flex;flex-direction:column;gap:var(--space-4);padding:var(--space-6);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.index h1{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.index h2{margin-top:var(--space-4);font-size:var(--type-label-size);line-height:var(--type-label-line-height);font-weight:var(--type-weight-medium)}
+.index p{color:var(--text-subtle)}
+.index table{border-collapse:collapse;width:100%}
+.index th,.index td{padding:var(--space-2) var(--space-3);border-bottom:1px solid var(--border-standard);text-align:left;vertical-align:top}
+.index th{color:var(--text-metadata);font-weight:var(--type-weight-regular)}
+.index td:first-child{white-space:nowrap;font-weight:var(--type-weight-medium)}
+.index>.doan-chip{align-self:flex-start;max-width:none;white-space:nowrap}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<!-- source: lucide-react (app/node_modules/lucide-react/dist/esm/icons/circle-alert.mjs), copied from .doan/canvases/ux-audit-261117-b1.html -->
+<symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol>
+</svg>
+<!-- ═══════════ Index ═══════════ -->
+<section class="item" data-doan-frame="index" data-doan-title="Index · B1 Retry and confirm busy">
+<div class="index">
+<span class="doan-chip" data-ui-variant="translucent">ux-audit-261117-2 · batch B1 · fix/ux-retry-busy</span>
+<h1>B1 · Retry and confirmations stay busy</h1>
+<p><b>To be is not in code yet.</b> Every To be column is the change drawn for the conductor to implement; sentences in a tile marked “Proposed copy” are new wording the conductor may still adjust. As is matches the code at the audit's HEAD. Source: <code>docs/features/ux-audit-261117-2/report.md</code> (findings F1, F4, F11; decision D1; section “B1 Retry·확인 창 처리 중”). Frames use the app's own classes from <code>styles.css</code> and <code>ds/*.css</code> with <code>tokens.css</code>, at real size, as small crops. The D1 frame is <b>proposed — awaiting user decision D1</b>.</p>
+<h2>Items with a visual change (one frame each)</h2>
+<table data-doan-id="index-visual">
+<thead><tr><th>ID</th><th>Change</th><th>Screens</th><th>Frame</th></tr></thead>
+<tbody>
+<tr><td>F1</td><td>A settings save or read Retry stays in place with its notice while the request is out: spinner before “Retry”, <code>aria-busy</code>, <code>aria-disabled</code>, focus kept (the <code>ListRetryButton</code> model)</td><td>Settings › About, Notifications, Agents, General; first run Buddy; thread notice; Home and docked composer notices</td><td><code>f1-settings-retry-busy</code></td></tr>
+<tr><td>F4</td><td>Move to Trash shows busy while the plan is read, and a reason line when the plan can't be read</td><td>Canvas row menu › Move to Trash</td><td><code>f4-trash-plan-busy</code></td></tr>
+<tr><td>D1</td><td>Move to Trash and MCP Remove stay open, busy, until the reply; a failure shows inside the dialog and the confirm retries. <span class="proposed">Proposed — awaiting user decision D1</span></td><td>Canvas row menu; Settings › MCP Connectors</td><td><code>d1-confirm-stays-busy</code></td></tr>
+</tbody></table>
+<h2>Items with no visual change (behaviour to test)</h2>
+<table data-doan-id="index-behaviour">
+<thead><tr><th>ID</th><th>Behaviour to test</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td>F11</td><td>Every Retry's accessible name is “Retry” (the visible label). What it retries is linked by <code>aria-describedby</code> to its message line, as <code>BuddyPicker.tsx:166</code> does. VoiceOver on About's automatic-check Retry reads “Retry, button, Couldn’t save your automatic-check choice…”, not “Save the automatic-check choice again”. Check every Retry the F1 helper draws.</td><td><code>SettingsAbout.tsx:194</code> (aria-label), <code>:157,203</code> (no description); DESIGN.md 'Adopted rules' (name starts with the visible label)</td></tr>
+</tbody></table>
+<p>The batch ends by rewriting DESIGN (and PRODUCT if D1 is decided) to the new state and runs <code>/verify</code> and <code>/runtime-test</code>.</p>
+</div>
+</section>
+
+<!-- ═══════════ F1 ═══════════ -->
+<section class="item" data-doan-frame="f1-settings-retry-busy" data-doan-title="F1 · Settings Retry stays and shows busy" data-doan-implements="app/src/renderer/ListRetryButton.tsx">
+<div class="item-head"><span class="doan-chip">F1</span><h2>Settings Retry stays and shows busy</h2></div>
+<div class="cols">
+<div class="col"><h3>As is</h3><div class="tiles">
+<div class="tile"><h4>About · 1 · Versions couldn't be read</h4><div class="state-panel"><div class="settings-page"><div class="settings-sections"><div class="settings-msg-row"><p class="settings-msg error selectable" role="alert" id="about-read-msg"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>Couldn’t read the versions.</span></p><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Retry</button></div><section class="settings-section"><div class="settings-section-header"><div class="settings-header-copy"><h2 class="settings-section-title">Doan</h2></div></div></section></div></div></div></div>
+<div class="tile"><h4>About · 2 · Retry pressed: the line and the button vanish, focus drops to the page</h4><div class="state-panel"><div class="settings-page"><div class="settings-sections"><section class="settings-section"><div class="settings-section-header"><div class="settings-header-copy"><h2 class="settings-section-title">Doan</h2></div></div></section></div></div></div></div>
+<div class="tile"><h4>Notifications · 1 · A switch save failed</h4><div class="state-panel"><div class="settings-page"><div class="settings-sections"><section class="settings-section"><div class="settings-section-header"><div class="settings-header-copy"><h2 class="settings-section-title">Delivery</h2></div></div><div class="doan-settings-group" data-layout="rows"><div class="doan-preference-row"><div class="doan-preference-row-content"><span class="doan-preference-row-label">Desktop notifications</span><span class="doan-preference-row-description">Only while Doan isn’t the active window. Clicking one opens the conversation.</span></div><div class="doan-preference-row-trailing"><button type="button" class="doan-switch" role="switch" aria-checked="true" aria-label="Desktop notifications"></button></div><div class="doan-preference-row-extra settings-msg-row"><p class="settings-msg error selectable" role="alert" id="notif-save-msg"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>Couldn’t save your notification choices. Your last saved choices still apply.</span></p><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Retry</button></div></div></div></section></div></div></div></div>
+<div class="tile"><h4>Notifications · 2 · Retry pressed: the notice and Retry vanish until the reply</h4><div class="state-panel"><div class="settings-page"><div class="settings-sections"><section class="settings-section"><div class="settings-section-header"><div class="settings-header-copy"><h2 class="settings-section-title">Delivery</h2></div></div><div class="doan-settings-group" data-layout="rows"><div class="doan-preference-row"><div class="doan-preference-row-content"><span class="doan-preference-row-label">Desktop notifications</span><span class="doan-preference-row-description">Only while Doan isn’t the active window. Clicking one opens the conversation.</span></div><div class="doan-preference-row-trailing"><button type="button" class="doan-switch" role="switch" aria-checked="true" aria-label="Desktop notifications"></button></div></div></div></section></div></div></div></div>
+</div></div>
+<div class="col"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3><div class="tiles">
+<div class="tile"><h4>About · 2 · Retry pressed: line stays, Retry busy with focus (state 1 unchanged)</h4><div class="state-panel"><div class="settings-page"><div class="settings-sections"><div class="settings-msg-row"><p class="settings-msg error selectable" role="alert" id="about-read-msg"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>Couldn’t read the versions.</span></p><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-busy="true" aria-disabled="true" data-focus="ring" data-doan-id="f1-about-retry-busy" aria-describedby="about-read-msg"><span class="doan-spinner" aria-hidden="true"></span>Retry</button></div><section class="settings-section"><div class="settings-section-header"><div class="settings-header-copy"><h2 class="settings-section-title">Doan</h2></div></div></section></div></div></div></div>
+<div class="tile"><h4>Notifications · 2 · Retry pressed: notice stays, Retry busy with focus</h4><div class="state-panel"><div class="settings-page"><div class="settings-sections"><section class="settings-section"><div class="settings-section-header"><div class="settings-header-copy"><h2 class="settings-section-title">Delivery</h2></div></div><div class="doan-settings-group" data-layout="rows"><div class="doan-preference-row"><div class="doan-preference-row-content"><span class="doan-preference-row-label">Desktop notifications</span><span class="doan-preference-row-description">Only while Doan isn’t the active window. Clicking one opens the conversation.</span></div><div class="doan-preference-row-trailing"><button type="button" class="doan-switch" role="switch" aria-checked="true" aria-label="Desktop notifications"></button></div><div class="doan-preference-row-extra settings-msg-row"><p class="settings-msg error selectable" role="alert" id="notif-save-msg"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>Couldn’t save your notification choices. Your last saved choices still apply.</span></p><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-busy="true" aria-disabled="true" data-focus="ring" data-doan-id="f1-notif-retry-busy" aria-describedby="notif-save-msg"><span class="doan-spinner" aria-hidden="true"></span>Retry</button></div></div></div></section></div></div></div></div>
+<div class="tile"><h4>Notifications · 3 · Retry failed again: same notice, Retry idle, focus still on it</h4><div class="state-panel"><div class="settings-page"><div class="settings-sections"><section class="settings-section"><div class="settings-section-header"><div class="settings-header-copy"><h2 class="settings-section-title">Delivery</h2></div></div><div class="doan-settings-group" data-layout="rows"><div class="doan-preference-row"><div class="doan-preference-row-content"><span class="doan-preference-row-label">Desktop notifications</span><span class="doan-preference-row-description">Only while Doan isn’t the active window. Clicking one opens the conversation.</span></div><div class="doan-preference-row-trailing"><button type="button" class="doan-switch" role="switch" aria-checked="true" aria-label="Desktop notifications"></button></div><div class="doan-preference-row-extra settings-msg-row"><p class="settings-msg error selectable" role="alert" id="notif-save-msg"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>Couldn’t save your notification choices. Your last saved choices still apply.</span></p><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-focus="ring">Retry</button></div></div></div></section></div></div></div></div>
+</div></div>
+</div>
+<dl class="note">
+<dt>Evidence</dt><dd>As is: <code>SettingsAbout.tsx:107</code> (<code>load(true)</code> sets <code>failed</code> false before the read), <code>:202-203</code>; <code>SettingsNotifications.tsx:41</code> (<code>retry</code> clears <code>failed</code> before the save), <code>:45-47</code>. Also <code>SettingsAgents.tsx:196-198,262-263,285</code>, <code>SettingsGeneral.tsx:84-92</code>, <code>Onboarding.tsx:725</code>, <code>ConversationThread.tsx:834-838</code>, <code>HomeComposerView.tsx:604</code>, <code>DockedComposer.tsx:536</code>. Model: <code>ListRetryButton.tsx:10-14</code>; DESIGN 'Busy action'; postmortem 2026-10 'UX S'.</dd>
+<dt>What changes</dt><dd>One shared helper on the <code>listRetryButton</code> model: while the request is out the notice line and its Retry stay mounted; Retry keeps its <code>subtle</code> fill and label “Retry”, shows <code>.doan-spinner</code> before the label (14 px in the button's ink, <code>ds/controls.css</code>), and takes <code>aria-busy</code> and <code>aria-disabled</code>; a press does nothing. The line clears only on success. About's version rows stay hidden while the retry runs (no “Checking” row flash under the line). F11: Retry has no <code>aria-label</code>; <code>aria-describedby</code> points at its line.</dd>
+<dt>States to test</dt><dd><ol>
+<li>Make <code>readAbout</code> fail, press Retry from the keyboard: focus stays on Retry, it reads busy; on success the line goes and focus moves to the page's first control (not body).</li>
+<li>Retry fails again: the line stays, Retry is idle and focused, the line is announced again.</li>
+<li>Notifications: fail a switch save, Retry from the keyboard; repeat for About's automatic-check row, Agents, General's buddy, first run Buddy.</li>
+<li>Thread, Home and docked composer Retry: the notice stays during the retry.</li>
+</ol></dd>
+</dl>
+</section>
+
+<!-- ═══════════ F4 ═══════════ -->
+<section class="item" data-doan-frame="f4-trash-plan-busy" data-doan-title="F4 · Move to Trash busy while the plan is read" data-doan-implements="app/src/renderer/CanvasTrashDialog.tsx">
+<div class="item-head"><span class="doan-chip">F4</span><h2>Move to Trash busy while the plan is read</h2></div>
+<div class="cols">
+<div class="col"><h3>As is</h3><div class="tiles">
+<div class="tile"><h4>Plan not answered yet: Move to Trash unavailable, no reason, no busy</h4><div class="window-stage"><div class="scrim"></div><dialog open class="doan-dialog" data-ui-size="compact" role="alertdialog" aria-label="Move “hero” to Trash?" data-doan-id="f4-asis"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Move “hero” to Trash?</h3><p class="doan-dialog-description selectable">This removes .doan/canvases/hero.html from the repository. You can restore it from the Trash. Doan doesn’t commit this change.</p></div></div><div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-focus="ring">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" aria-disabled="true" data-disabled="">Move to Trash</button></div></dialog></div></div>
+<div class="tile"><h4>Plan read failed: the dialog closes and a toast says “Couldn’t move “hero” to Trash. Try again, or move the file in Finder.”</h4></div>
+</div></div>
+<div class="col"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3><div class="tiles">
+<div class="tile"><h4>Plan not answered yet: Move to Trash busy (fill, spinner, aria-busy)</h4><div class="window-stage"><div class="scrim"></div><dialog open class="doan-dialog" data-ui-size="compact" role="alertdialog" aria-label="Move “hero” to Trash?" data-doan-id="f4-busy"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Move “hero” to Trash?</h3><p class="doan-dialog-description selectable">This removes .doan/canvases/hero.html from the repository. You can restore it from the Trash. Doan doesn’t commit this change.</p></div></div><div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-focus="ring">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" aria-disabled="true" aria-busy="true" data-doan-id="f4-confirm-busy"><span class="doan-spinner" aria-hidden="true"></span>Move to Trash</button></div></dialog></div></div>
+<div class="tile"><h4>Plan read failed: reason line, Move to Trash unavailable <span class="doan-chip" data-ui-variant="translucent">Proposed copy</span></h4><div class="window-stage"><div class="scrim"></div><dialog open class="doan-dialog" data-ui-size="compact" role="alertdialog" aria-label="Move “hero” to Trash?" data-doan-id="f4-failed"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Move “hero” to Trash?</h3><p class="doan-dialog-description selectable">This removes .doan/canvases/hero.html from the repository. You can restore it from the Trash. Doan doesn’t commit this change.</p></div></div><p class="doan-notice" id="f4-reason" data-doan-id="f4-reason"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span class="selectable">Doan couldn’t check this canvas. Close and try again, or move the file in Finder.</span></p><div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-focus="ring">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" aria-disabled="true" data-disabled="" aria-describedby="f4-reason">Move to Trash</button></div></dialog></div></div>
+</div></div>
+</div>
+<dl class="note">
+<dt>Evidence</dt><dd><code>CanvasTrashDialog.tsx:10-17,30-31</code>: <code>confirmable</code> is false while <code>plan</code> is null, with no reason, spinner or <code>aria-busy</code>. <code>App.tsx:1421-1430</code>: a non-busy refusal (the rejected read becomes <code>failed</code>) closes the dialog with <code>trashToast</code> (<code>canvasRowMessages.ts:7-15</code>). Model: <code>ConversationDeleteDialog.tsx:54-68</code>; DESIGN 'Unavailable but focusable', 'Busy action'.</dd>
+<dt>What changes</dt><dd>While <code>plan</code> is null: Move to Trash keeps its <code>prominent</code> fill, spinner before the label, <code>aria-busy</code> and <code>aria-disabled</code> (no <code>data-disabled</code>); Cancel stays available. A plan read that fails (<code>reason: "failed"</code>) keeps the dialog open with the existing <code>.doan-notice</code> reason slot and the confirm unavailable, described by the line. Open detail for the conductor: <code>notListed</code> and <code>notFile</code> keep today's close-and-toast unless the reviewer asks otherwise.</dd>
+<dt>States to test</dt><dd><ol>
+<li>Delay <code>planCanvasTrash</code>: the confirm reads busy; Tab reaches it; Enter does nothing.</li>
+<li>Plan ready: the spinner goes, the confirm is available, focus stays on Cancel.</li>
+<li>Reject the plan: the reason line appears, the confirm reads it by <code>aria-describedby</code>; Esc closes and focus returns to the row's menu button.</li>
+<li>An agent starts on the canvas: today's working reason still wins.</li>
+</ol></dd>
+</dl>
+</section>
+
+<!-- ═══════════ D1 ═══════════ -->
+<section class="item" data-doan-frame="d1-confirm-stays-busy" data-doan-title="D1 · Trash and MCP Remove stay open until the reply (proposed)" data-doan-implements="app/src/renderer/SettingsMcpConnectors.tsx">
+<div class="item-head"><span class="doan-chip">D1</span><h2>Trash and MCP Remove stay open until the reply</h2><p class="proposed">Proposed — awaiting user decision D1</p></div>
+<div class="cols">
+<div class="col"><h3>As is</h3><div class="tiles">
+<div class="tile"><h4>Move to Trash pressed: the dialog closes at once; the result comes as a toast</h4><div class="window-stage"><div class="scrim"></div><dialog open class="doan-dialog" data-ui-size="compact" role="alertdialog" aria-label="Move “hero” to Trash?" data-doan-id="d1-trash-asis"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Move “hero” to Trash?</h3><p class="doan-dialog-description selectable">This removes .doan/canvases/hero.html from the repository. You can restore it from the Trash. Doan doesn’t commit this change.</p></div></div><div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" >Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" data-focus="ring">Move to Trash</button></div></dialog></div></div>
+<div class="tile"><h4>Remove pressed: the alert closes at once; a failure shows later on the row, “Couldn’t remove mcp.example.com from Doan’s agents. Try again.”</h4><div class="window-stage"><div class="scrim"></div><dialog open class="doan-dialog" data-ui-size="compact" role="alertdialog" aria-label="Remove mcp.example.com from Doan’s agents?" data-doan-id="d1-mcp-asis"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Remove mcp.example.com from Doan’s agents?</h3><p class="doan-dialog-description selectable">Claude Code and Codex disconnect from it. Your terminal setup is not changed.</p></div></div><div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" >Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" data-consent="" data-focus="ring">Remove</button></div></dialog></div></div>
+</div></div>
+<div class="col"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span> <span class="doan-chip" data-ui-variant="translucent">Proposed — D1</span></h3><div class="tiles">
+<div class="tile"><h4>Trash · request out: confirm busy, Cancel refused</h4><div class="window-stage"><div class="scrim"></div><dialog open class="doan-dialog" data-ui-size="compact" role="alertdialog" aria-label="Move “hero” to Trash?" data-doan-id="d1-trash-busy"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Move “hero” to Trash?</h3><p class="doan-dialog-description selectable">This removes .doan/canvases/hero.html from the repository. You can restore it from the Trash. Doan doesn’t commit this change.</p></div></div><div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" aria-disabled="true" data-disabled="">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" aria-disabled="true" aria-busy="true" data-focus="ring" data-doan-id="d1-trash-confirm-busy"><span class="doan-spinner" aria-hidden="true"></span>Move to Trash</button></div></dialog></div></div>
+<div class="tile"><h4>Trash · failed: error notice in the dialog, confirm is the retry <span class="doan-chip" data-ui-variant="translucent">Proposed copy</span></h4><div class="window-stage"><div class="scrim"></div><dialog open class="doan-dialog" data-ui-size="compact" role="alertdialog" aria-label="Move “hero” to Trash?" data-doan-id="d1-trash-failed"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Move “hero” to Trash?</h3><p class="doan-dialog-description selectable">This removes .doan/canvases/hero.html from the repository. You can restore it from the Trash. Doan doesn’t commit this change.</p></div></div><p class="doan-notice error" role="alert" id="d1-trash-error" data-doan-id="d1-trash-error"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span class="selectable">Couldn’t move “hero” to Trash. Try again, or move the file in Finder.</span></p><div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" >Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" data-focus="ring" aria-describedby="d1-trash-error">Move to Trash</button></div></dialog></div></div>
+<div class="tile"><h4>MCP Remove · request out: confirm busy, Cancel refused</h4><div class="window-stage"><div class="scrim"></div><dialog open class="doan-dialog" data-ui-size="compact" role="alertdialog" aria-label="Remove mcp.example.com from Doan’s agents?" data-doan-id="d1-mcp-busy"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Remove mcp.example.com from Doan’s agents?</h3><p class="doan-dialog-description selectable">Claude Code and Codex disconnect from it. Your terminal setup is not changed.</p></div></div><div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" aria-disabled="true" data-disabled="">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" data-consent="" aria-disabled="true" aria-busy="true" data-focus="ring" data-doan-id="d1-mcp-confirm-busy"><span class="doan-spinner" aria-hidden="true"></span>Remove</button></div></dialog></div></div>
+<div class="tile"><h4>MCP Remove · failed: the row's sentence inside the alert, confirm is the retry</h4><div class="window-stage"><div class="scrim"></div><dialog open class="doan-dialog" data-ui-size="compact" role="alertdialog" aria-label="Remove mcp.example.com from Doan’s agents?" data-doan-id="d1-mcp-failed"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Remove mcp.example.com from Doan’s agents?</h3><p class="doan-dialog-description selectable">Claude Code and Codex disconnect from it. Your terminal setup is not changed.</p></div></div><p class="doan-notice error" role="alert" id="d1-mcp-error" data-doan-id="d1-mcp-error"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span class="selectable">Couldn’t remove mcp.example.com from Doan’s agents. Try again.</span></p><div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" >Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" data-consent="" data-focus="ring" aria-describedby="d1-mcp-error">Remove</button></div></dialog></div></div>
+</div></div>
+</div>
+<dl class="note">
+<dt>Decision</dt><dd>Not decided. Report D1 recommends that a confirmation that can fail stays open and busy until the reply, as conversation Delete (<code>App.tsx:1466-1470</code>), buddy switch and MCP Add already do. Draw only; implement after the user decides, and then state the rule in PRODUCT/DESIGN.</dd>
+<dt>Evidence</dt><dd>As is: <code>App.tsx:1435-1445</code> <code>confirmTrash</code> calls <code>closeTrash()</code> before <code>trashCanvas</code>; <code>SettingsMcpConnectors.tsx:145-158</code> <code>confirmRemove</code> calls <code>setDialog(null)</code> before <code>startRemove</code>; failure copy <code>mcpConnectorsView.ts:120</code>, toast copy <code>canvasRowMessages.ts:7-15</code>. Busy model: <code>ConversationDeleteDialog.tsx:54-68</code>.</dd>
+<dt>What changes</dt><dd>Confirm: spinner, <code>aria-busy</code>, <code>aria-disabled</code>, fill kept. Cancel and Esc refused while out (<code>aria-disabled</code> + <code>data-disabled</code>). Success closes the dialog with today's toast (Trash) or live-region line (MCP) and today's focus target. Failure keeps the dialog, shows <code>.doan-notice.error</code> above the actions, and the confirm is available again as the retry; Cancel is available. The Trash failure sentence reuses the toast's sentence; MCP reuses the row's.</dd>
+<dt>States to test</dt><dd><ol>
+<li>Delay <code>trashCanvas</code> / <code>removeMcpServer</code>: the dialog stays with the confirm busy and focused; Esc does nothing.</li>
+<li>Success: the dialog closes, today's toast or announcement, focus as today.</li>
+<li>Failure: the error line appears and is announced; pressing the confirm again retries; Cancel closes and focus returns to the trigger.</li>
+<li>MCP: the row's own Remove-failed alert is not shown twice while the dialog shows it.</li>
+</ol></dd>
+</dl>
+</section>
+</body></html>

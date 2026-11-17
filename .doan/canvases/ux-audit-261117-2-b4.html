@@ -1,0 +1,143 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="ux-audit-261117-2-b4"><meta name="doan:width" content="1680"><title>ux-audit-261117-2-b4 — B4 late results and blank window</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><style>
+@font-face{font-family:Geist;src:url('../../app/src/renderer/public/fonts/geist/Geist.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
+/* ── Base: app/src/renderer/styles.css lines 27-36 and the Tailwind preflight subset the shared components rely on ── */
+@layer base{*,::before,::after{box-sizing:border-box;border:0 solid;margin:0;padding:0}h1,h2,h3{font-size:inherit;font-weight:inherit}img,svg{display:block;vertical-align:middle}button{font:inherit;letter-spacing:inherit;color:inherit;background-color:transparent;border-radius:0}ul,ol{list-style:none}}
+:root{--radix-popper-available-height:384px;--radix-tooltip-content-transform-origin:center}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root { color-scheme: light; }
+body { background: var(--bg-app); color: var(--text-standard); font-family: var(--type-family); font-size: 13px; line-height: normal; }
+button { cursor: pointer; font: inherit; color: inherit; }
+button:disabled { color: var(--text-disabled); cursor: default; }
+code { font-family: var(--type-family); }
+/* ── app/src/renderer/styles.css: the rules these frames draw with, as shipped (lines 42-44, 562-571, 1947-1964, 1973-2006) ── */
+.top { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 0 12px; background: var(--surface-panel); border-bottom: 1px solid var(--border-standard); }
+.traffic-space { width: 52px; flex: none; }
+.shell-top.top { position: relative; padding: 0 8px; gap: 0; border: 0; background: transparent; }
+.shell-top .traffic-space { width: 72px; }
+.shell-history { display: flex; gap: 4px; }
+.shell-history .doan-icon-button { width: 32px; height: 32px; border-radius: 10px; }
+.shell-top svg { width: 16px; height: 16px; }
+.problem-overlay > :is(.problem-scene, .problem-reading) { margin: auto; }
+.problem-scene { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 560px; padding: 0 var(--space-6); text-align: center; }
+.problem-scene .problem-icon { flex: none; width: 32px; height: 32px; stroke-width: 1.5; margin-bottom: var(--space-4); color: var(--text-subtle); }
+.problem-heading { margin-bottom: var(--space-6); }
+.problem-heading h2 { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); }
+.problem-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
+.pw { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) 0px; grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); }
+.pw-top { align-items: flex-start; }
+.pw-top > .shell-history { height: var(--size-chrome); align-items: center; }
+.pw-right { position: absolute; top: 0; right: var(--space-2); display: flex; align-items: center; gap: var(--space-1); height: var(--size-chrome); }
+.pw-panel { position: relative; min-width: 0; min-height: 0; border-radius: var(--radius-container); background: var(--surface-panel); isolation: isolate; }
+.pw > .pw-top { grid-column: 1; }
+.pw > .pw-panel { grid-column: 1; grid-row: 2; }
+.pw-panel > .problem-overlay { position: absolute; inset: 0; z-index: 5; display: flex; border-radius: inherit; overflow-y: auto; padding-block: var(--space-6); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); background: var(--surface-panel); }
+.pw-panel .problem-heading p { color: var(--text-standard); }
+/* ── Draft board (not app UI) ── */
+html,body{height:auto;overflow:visible}
+body{width:1680px;padding:var(--space-8);background:var(--surface-inset);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height)}
+:where(svg){width:var(--size-icon);height:var(--size-icon);flex:none}
+.item{width:1616px;display:flex;flex-direction:column;gap:var(--space-6)}
+.item+.item{margin-top:var(--space-16)}
+.item-head{display:flex;align-items:center;gap:var(--space-3)}
+.item-head h2{font-size:var(--type-heading-size);line-height:var(--type-heading-line-height);letter-spacing:var(--type-heading-letter-spacing);font-weight:var(--type-weight-medium)}
+.cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-8);align-items:start}
+.col{display:flex;flex-direction:column;gap:var(--space-4);min-width:0}
+.col>h3{display:flex;align-items:center;gap:var(--space-2);font-size:var(--type-label-size);line-height:var(--type-label-line-height);font-weight:var(--type-weight-medium)}
+.tile{display:flex;flex-direction:column;gap:var(--space-2);min-width:0}
+.tile>h4{display:flex;align-items:center;gap:var(--space-2);color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);font-weight:var(--type-weight-regular)}
+.note{display:grid;grid-template-columns:160px minmax(0,1fr);gap:var(--space-2) var(--space-4);padding:var(--space-4) var(--space-5);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.note dt{color:var(--text-metadata)}
+.note dd{overflow-wrap:anywhere}
+.note ol{list-style:decimal;padding-left:var(--space-5);display:flex;flex-direction:column;gap:var(--space-1)}
+.note code,.index code{padding:0 var(--space-1);border-radius:var(--space-1);background:var(--surface-inset);color:var(--text-standard);font-size:var(--type-caption-size)}
+.proposed{color:var(--text-accent)}
+/* Window stage: the prototype window at 720 × 440, the macOS traffic lights left out (their 72 px space stays). */
+.window-stage{position:relative;width:720px;height:440px;border-radius:var(--radius-container);box-shadow:var(--shadow-panel);overflow:clip;background:var(--bg-app)}
+.index{display:flex;flex-direction:column;gap:var(--space-4);padding:var(--space-6);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.index h1{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.index h2{margin-top:var(--space-4);font-size:var(--type-label-size);line-height:var(--type-label-line-height);font-weight:var(--type-weight-medium)}
+.index p{color:var(--text-subtle)}
+.index table{border-collapse:collapse;width:100%}
+.index th,.index td{padding:var(--space-2) var(--space-3);border-bottom:1px solid var(--border-standard);text-align:left;vertical-align:top}
+.index th{color:var(--text-metadata);font-weight:var(--type-weight-regular)}
+.index td:first-child{white-space:nowrap;font-weight:var(--type-weight-medium)}
+.index>.doan-chip{align-self:flex-start;max-width:none;white-space:nowrap}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<!-- source: lucide-react (app/node_modules/lucide-react/dist/esm/icons/*.mjs), the icons PrototypeWindow.tsx:3 imports -->
+<symbol id="i-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></symbol>
+<symbol id="i-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+<symbol id="i-reload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></symbol>
+<symbol id="i-fit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M12 9v11"/><path d="M2 9h13a2 2 0 0 1 2 2v9"/></symbol>
+<symbol id="i-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 15 6 6"/><path d="m15 9 6-6"/><path d="M21 16v5h-5"/><path d="M21 8V3h-5"/><path d="M3 16v5h5"/><path d="m3 21 6-6"/><path d="M3 8V3h5"/><path d="M9 9 3 3"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></symbol>
+<symbol id="i-conv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/></symbol>
+<symbol id="i-file-warning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+</svg>
+
+<!-- ═══════════ Index ═══════════ -->
+<section class="item" data-doan-frame="index" data-doan-title="Index · B4 late results and blank window">
+<div class="index">
+<span class="doan-chip" data-ui-variant="translucent">ux-audit-261117-2 · batch B4 · fix/ux-late-state</span>
+<h1>B4 · Late results and a blank window</h1>
+<p><b>To be is not in code yet.</b> The To be column is the decision drawn for the conductor to implement; text marked “Proposed copy” is new wording the conductor may still adjust. As is matches the code at the audit's HEAD. Source: <code>docs/features/ux-audit-261117-2/report.md</code> (F2, F5, F10 and '### B4'). The item frame uses the app's own classes and tokens at real size, as a crop of the prototype window.</p>
+<h2>Items with a visual change (one frame each)</h2>
+<table data-doan-id="index-visual">
+<thead><tr><th>ID</th><th>Change</th><th>Screens</th><th>Frame</th></tr></thead>
+<tbody>
+<tr><td>F2</td><td>A failed first read of the prototype window's state shows the window's failure scene with Retry instead of a blank content panel with every header control disabled</td><td>Prototype window</td><td><code>f2-prototype-first-read-failed</code></td></tr>
+</tbody></table>
+<h2>Items with no visual change (behaviour to test)</h2>
+<table data-doan-id="index-behaviour">
+<thead><tr><th>ID</th><th>Behaviour to test</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td>F5</td><td>Each notification switch save carries a request number; a reply that is not the latest is dropped. Test: make the first save fail slowly and the second succeed fast (toggle two switches, or one twice, quickly). No failure line appears under any switch, and the switches show the second save's state. A single failing save still shows its failure line and Retry under its own switch.</td><td><code>SettingsNotifications.tsx:36-40</code> (no request number); pattern: <code>SettingsAbout.tsx:105-110</code>, <code>Onboarding.tsx:248-249</code>; postmortem 2026-10</td></tr>
+<tr><td>F10</td><td>The “Replace your draft?” dialog gets <code>role="alertdialog"</code> and <code>aria-describedby</code> pointing at its description, as the other confirmations do. Test: open it from Home (Edit and resend over a different draft); the accessibility tree shows an alertdialog named by the title and described by the body; Esc and focus behave as before. Check whether the focus guard from postmortem 2026-10-30 now finds it.</td><td><code>ReplaceDraftDialog.tsx:6</code>, <code>HomeComposerView.tsx:611</code>; compare <code>CanvasTrashDialog.tsx:24</code>, <code>ConversationDeleteDialog.tsx:56</code>; rules <code>docs/design/canvas.md:237</code>, <code>canvas-conversation.md:109</code></td></tr>
+</tbody></table>
+<p>The batch ends by rewriting DESIGN (<code>docs/design/prototype.md</code>) to the new state and runs <code>/verify</code>; F2 and F5 go through the batch's <code>/runtime-test</code>.</p>
+</div>
+</section>
+
+<!-- ═══════════ F2 ═══════════ -->
+<section class="item" data-doan-frame="f2-prototype-first-read-failed" data-doan-title="F2 · Prototype window first read failure" data-doan-implements="app/src/renderer/prototype/PrototypeWindow.tsx">
+<div class="item-head"><span class="doan-chip">F2</span><h2>Prototype window: the first read fails</h2></div>
+<div class="cols">
+<div class="col"><h3>As is</h3>
+<div class="tile"><h4>api.read() rejected, no onChanged yet: blank panel, Reload, Fit, Responsive and Export disabled, no frame name</h4>
+<div class="window-stage"><div class="pw">
+<header class="top shell-top pw-top"><span class="traffic-space" aria-hidden="true"></span>
+<div class="shell-history"><button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Back" aria-disabled="true"><svg aria-hidden="true"><use href="#i-left"/></svg></button><button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" aria-disabled="true"><svg aria-hidden="true"><use href="#i-right"/></svg></button><button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Reload prototype" disabled><svg aria-hidden="true"><use href="#i-reload"/></svg></button></div>
+<div class="pw-right"><div class="doan-toggle-group" role="group" aria-label="Viewport"><button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Fit" aria-pressed="false" disabled><svg aria-hidden="true"><use href="#i-fit"/></svg></button><button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Responsive" aria-pressed="false" disabled><svg aria-hidden="true"><use href="#i-expand"/></svg></button></div><button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Export prototype" disabled><svg aria-hidden="true"><use href="#i-download"/></svg></button><button type="button" class="doan-icon-button pw-conv" data-ui-placement="chrome" aria-label="Show conversation"><svg aria-hidden="true"><use href="#i-conv"/></svg></button></div>
+</header>
+<div class="pw-panel" data-doan-id="f2-blank-asis"></div>
+</div></div></div>
+</div>
+<div class="col"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+<div class="tile"><h4>Same header; the content panel shows the failure scene with Retry <span class="doan-chip" data-ui-variant="translucent">Proposed copy</span></h4>
+<div class="window-stage"><div class="pw">
+<header class="top shell-top pw-top"><span class="traffic-space" aria-hidden="true"></span>
+<div class="shell-history"><button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Back" aria-disabled="true"><svg aria-hidden="true"><use href="#i-left"/></svg></button><button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" aria-disabled="true"><svg aria-hidden="true"><use href="#i-right"/></svg></button><button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Reload prototype" disabled><svg aria-hidden="true"><use href="#i-reload"/></svg></button></div>
+<div class="pw-right"><div class="doan-toggle-group" role="group" aria-label="Viewport"><button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Fit" aria-pressed="false" disabled><svg aria-hidden="true"><use href="#i-fit"/></svg></button><button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Responsive" aria-pressed="false" disabled><svg aria-hidden="true"><use href="#i-expand"/></svg></button></div><button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Export prototype" disabled><svg aria-hidden="true"><use href="#i-download"/></svg></button><button type="button" class="doan-icon-button pw-conv" data-ui-placement="chrome" aria-label="Show conversation"><svg aria-hidden="true"><use href="#i-conv"/></svg></button></div>
+</header>
+<div class="pw-panel"><div class="problem-overlay doan-scroll"><div class="problem-scene" role="group" aria-labelledby="f2-h" data-doan-id="f2-scene">
+<svg class="problem-icon" aria-hidden="true"><use href="#i-file-warning"/></svg>
+<div class="problem-heading"><h2 id="f2-h" tabindex="-1">Couldn’t open this prototype</h2><p class="selectable"><span class="proposed">Doan couldn’t load this window. Try again.</span></p></div>
+<div class="problem-actions"><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-doan-id="f2-retry">Retry</button></div>
+</div></div></div>
+</div></div></div>
+</div>
+</div>
+<dl class="note">
+<dt>Evidence</dt><dd><code>prototype/PrototypeWindow.tsx:119</code> swallows the <code>api.read()</code> rejection with <code>() =&gt; {}</code>, so <code>view</code> stays null; <code>:270</code> renders no scene for a null view; <code>:474</code> <code>stateScene</code> only for a view; <code>:500-515</code> Reload, the mode buttons and Export are <code>disabled={view === null}</code>. The window recovers only if an <code>onChanged</code> arrives. Contrast: canvas load failure <code>App.tsx:2605</code> (AlertIcon, “Couldn’t load the canvas”, a button) and thread read failure <code>ConversationThread.tsx:834-836</code> (error notice + Retry).</dd>
+<dt>Pattern chosen</dt><dd>The window's own failure scene (<code>.problem-overlay</code> › <code>.problem-scene</code>, styles.css 1947-1964 and the <code>.pw-panel &gt; .problem-overlay</code> rule), which <code>stateScene</code> already uses for <code>read-failed</code> with heading “Couldn’t open this prototype” and Retry (<code>prototype/view.ts:35</code>), not a new strip: it is the same structure as the main window's canvas failure block (icon, heading, line, one action) and keeps the header usable, as <code>docs/design/prototype.md</code> describes the overlay. The conductor may instead use the main window's <code>.canvas-status-block</code>; the drawn one adds no CSS.</dd>
+<dt>What changes</dt><dd>A <code>first-read failed</code> state in the renderer (no new phase from main). Heading reuses the existing string; the line <span class="proposed">“Doan couldn’t load this window. Try again.”</span> is proposed (no Details: there is no detail to show). Retry calls <code>api.read()</code> again and shows the reading state while it runs. Header controls stay as As is (no view yet), and the heading takes focus as the other scenes do. An <code>onChanged</code> that arrives first replaces the scene with the view.</dd>
+<dt>States to test</dt><dd><ol>
+<li>Make <code>prototype:read</code> reject once: the scene appears, not a blank panel.</li>
+<li>Retry while the read still fails: the scene stays, Retry is pressable again.</li>
+<li>Retry after the read succeeds: the frame plays, Reload, Fit, Responsive and Export become available.</li>
+<li>Read fails, then an <code>onChanged</code> arrives: the view replaces the scene with no Retry.</li>
+<li>A screen reader hears the heading and the line; Tab reaches Retry after the header controls.</li>
+</ol></dd>
+</dl>
+</section>
+</body></html>
