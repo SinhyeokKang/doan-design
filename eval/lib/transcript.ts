@@ -370,8 +370,9 @@ const NAMES_DOAN_BODY = "\u0004";
 const PYTHON_CALLS = "\u0005";
 // A single-line Python string with nothing to decode and nothing the shell expands in an unquoted heredoc.
 const PY_STRING = String.raw`(?:'[^'\\\n$` + "`" + String.raw`]*'|"[^"\\\n$` + "`" + String.raw`]*")`;
-// A subprocess call whose first argument is a list of string literals, with the text before it on its line.
-const PY_ARGV_CALL = new RegExp(String.raw`^([^\n]*?)\bsubprocess\.(?:run|call|check_call|check_output|Popen)\(\s*\[\s*(${PY_STRING}(?:\s*,\s*${PY_STRING})*)\s*,?\s*\]`, "gm");
+// A subprocess call whose whole first argument is a list of string literals (not one it extends or slices), with the
+// text before it on its line.
+const PY_ARGV_CALL = new RegExp(String.raw`^([^\n]*?)\bsubprocess\.(?:run|call|check_call|check_output|Popen)\(\s*\[\s*(${PY_STRING}(?:\s*,\s*${PY_STRING})*)\s*,?\s*\](?=\s*[,)])`, "gm");
 
 // The doan commands a Python script runs, when each doan it names is the program of a subprocess call whose argv is a
 // list of string literals; undefined when any doan is anything else (a list built at run time, a string command, a

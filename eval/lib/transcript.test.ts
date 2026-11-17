@@ -712,6 +712,9 @@ test("a Python heredoc's literal doan argv lists are read, and anything dynamic 
     "python3 - <<EOF\nimport subprocess\nsubprocess.run(['doan', 'design-skill', '$P', '--json'])\nEOF",
     // A list held in a variable, a shell, a wrapper running doan, a string command, a comment, a string.
     "python3 - <<'EOF'\nimport subprocess\ncmd = ['doan', 'design-skill', 'document']\nsubprocess.run(cmd)\nEOF",
+    // A literal list the call extends or slices is not its argv.
+    "python3 - <<'EOF'\nimport subprocess\nname = 'audit'\nsubprocess.run(['doan', 'design-skill'] + [name])\nEOF",
+    "python3 - <<'EOF'\nimport subprocess\nsubprocess.run(['doan', 'design-skill', 'audit', 'x'][:3], check=True)\nEOF",
     "python3 - <<'EOF'\nimport subprocess\nsubprocess.run(['doan', 'active'], shell=True)\nEOF",
     "python3 - <<'EOF'\nimport subprocess\nsubprocess.run(['env', 'doan', 'design-skill', 'audit'])\nEOF",
     "python3 - <<'EOF'\nimport os, subprocess\nsubprocess.run(['doan', 'active'])\nos.system('doan design-skill audit')\nEOF",
