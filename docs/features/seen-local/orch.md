@@ -34,3 +34,9 @@
 ## 결정 로그 (진행 중)
 
 - `canvas-seen.json` 손상·더 새 버전 토스트: IPC kind는 그대로 쓴다(더 새 버전 → `unsupported`, 손상 → `records`). 앱 전체에서 한 번, 처음 들어간 프로젝트에서 띄운다. `canvasNotice.ts`의 두 문구만 로컬 파일에 맞게 바꾼다. 렌더러 변경은 문구뿐이다. — 사용자 결정(배치 C 질문).
+- 리뷰 1(🔴0 🟡3 🟢6, `.scratch/orch/review-1.md`)에 대한 결정:
+  - 공유 기록은 이 기기에 그 root의 v2 기억이 있을 때만 복사한다. 새 worktree·다른 머신·손상 복구·더 새 파일 실행은 첫 등록 규칙을 따른다. — 사용자 결정. design '전환'보다 spec 비목표를 따른다.
+  - git 디렉터리는 root에서 위로 가장 가까운 `.git`을 찾는다(Go `gitLocation`과 같고, HOME에서 멈춘다). — 사용자 결정.
+  - 더 새 파일 토스트는 한 번만 뜬다. 문구에서 'then retry'를 빼고 "Update Doan to keep it."으로 바꾼다. — 사용자 결정.
+  - 쓰이지 않게 된 `ReadStateProblem` `baseline` kind와 `readOnly` 필드를 지운다. — 지휘자 판단, 근거: AGENTS '자기 변경이 만든 고아는 지운다'.
+- 게이트: df502118에서 verify.mjs PASS(`.scratch/orch/verify-2.log`). 첫 실행은 이 checkout에 Electron 바이너리가 없어 실패했고, 코드 결함은 아니었다.
