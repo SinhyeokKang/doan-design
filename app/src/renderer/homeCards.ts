@@ -31,6 +31,15 @@ export function groupProjects(entries: readonly FolderEntry[], lastCommon: Reado
   return [...cards.values()];
 }
 
+// What a project's Remove from Doan takes: every registered root of the group `paths` (its shown rows) belong to, an
+// auto-registered worktree hidden from those rows included, in saved order. `all` is main's whole list, grouped as
+// `doan remove` groups it (main/cliRemove.ts), so the menu and the CLI remove the same roots.
+export function groupRoots(all: readonly FolderEntry[], paths: readonly string[]): string[] {
+  const card = groupProjects(all, new Map(all.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])))
+    .find(card => card.rows.some(row => paths.includes(row.path)));
+  return card ? card.rows.map(row => row.path) : [...paths];
+}
+
 export type RowAction = "setUp" | "locate" | "remove" | "showInFinder" | "retry" | "details";
 // One label per recovery action for the workspace status line, the sidebar's project menu, the Overview's recovery
 // menu and the Project Settings page: no trailing ellipsis, since each acts or opens its own surface at once.

@@ -99,6 +99,8 @@ export interface CanvasTrashDeps {
   busy(target: TrashTarget): boolean;
   // Electron's shell.trashItem.
   trashItem(path: string): Promise<void>;
+  // The canvas went: what it leaves behind goes with it (its starts a quit stopped, drafts.ts discardCanvasStarts).
+  trashed(root: string, canvas: Canvas): void;
 }
 
 export interface CanvasTrash {
@@ -145,6 +147,10 @@ export function createCanvasTrash(deps: CanvasTrashDeps): CanvasTrash {
         } catch {
           return refused("failed");
         }
+        // A start matches its canvas by id, so a shared id would also take the twin's starts: that canvas goes by path.
+        const listed = deps.entries().find(entry => entry.path === target.root);
+        const shared = target.id !== undefined && listed?.kind === "list" && listed.canvases.some(row => row.id === target.id && row.path !== target.path);
+        deps.trashed(target.root, { path: target.path, ...(target.id !== undefined && !shared ? { id: target.id } : {}) });
         return { kind: "trashed" };
       } finally {
         moving.delete(key);

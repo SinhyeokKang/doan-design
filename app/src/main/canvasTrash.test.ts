@@ -154,7 +154,8 @@ describe("createCanvasTrash", () => {
     const entries = vi.fn(() => [list(root, rows)]);
     const busy = vi.fn<(target: TrashTarget) => boolean>(() => false);
     const trashItem = vi.fn(async (_path: string) => {});
-    return { entries, busy, trashItem, trash: createCanvasTrash({ entries, busy, trashItem }) };
+    const trashed = vi.fn<(root: string, canvas: { path: string; id?: string }) => void>();
+    return { entries, busy, trashItem, trashed, trash: createCanvasTrash({ entries, busy, trashItem, trashed }) };
   }
   const canvas = ".doan/canvases/a.html";
 
@@ -222,6 +223,34 @@ describe("createCanvasTrash", () => {
     const h = harness(shared, [row(canvas, { id: "a" }), row(".doan/canvases/twin.html", { id: "a" })]);
     expect(await h.trash.trash({ root: shared, path: canvas })).toEqual({ kind: "trashed" });
     expect(h.trashItem).toHaveBeenCalledExactlyOnceWith(join(shared, canvas));
+  });
+
+  // What the canvas leaves behind goes with it (its starts a quit stopped, drafts.ts): told once the move went, with the
+  // canvas as a composer of it would match; a shared id would also match its twin, so that canvas is named by path alone.
+  test("tells what was moved only after the move went, naming a shared-id canvas by its path alone", async () => {
+    const root = repo();
+    const h = harness(root);
+    expect(h.trashed).not.toHaveBeenCalled();
+    await h.trash.trash({ root, path: canvas });
+    expect(h.trashed).toHaveBeenCalledExactlyOnceWith(root, { path: canvas, id: "a" });
+    const noId = repo();
+    const bare = harness(noId, [row(canvas)]);
+    await bare.trash.trash({ root: noId, path: canvas });
+    expect(bare.trashed).toHaveBeenCalledExactlyOnceWith(noId, { path: canvas });
+    const shared = repo();
+    const twin = harness(shared, [row(canvas, { id: "a" }), row(".doan/canvases/twin.html", { id: "a" })]);
+    await twin.trash.trash({ root: shared, path: canvas });
+    expect(twin.trashed).toHaveBeenCalledExactlyOnceWith(shared, { path: canvas });
+  });
+
+  test("tells nothing for a refused or failed move", async () => {
+    const root = repo();
+    const h = harness(root);
+    h.busy.mockReturnValueOnce(true);
+    expect(await h.trash.trash({ root, path: canvas })).toEqual({ kind: "refused", reason: "busy" });
+    h.trashItem.mockRejectedValueOnce(new Error("trash failed"));
+    expect(await h.trash.trash({ root, path: canvas })).toEqual({ kind: "refused", reason: "failed" });
+    expect(h.trashed).not.toHaveBeenCalled();
   });
 
   test("refuses a second request for a row still being moved, and takes it again once settled", async () => {
