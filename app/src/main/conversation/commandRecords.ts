@@ -9,13 +9,6 @@ export type BoundaryKind = "compacted" | "cleared";
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-// A Claude user message's text: a string, or its text blocks.
-function userText(message: unknown): string {
-  if (!record(message)) return "";
-  if (typeof message.content === "string") return message.content;
-  return Array.isArray(message.content) ? message.content.filter(record).filter(c => c.type === "text" && typeof c.text === "string").map(c => c.text as string).join("") : "";
-}
-const STDOUT = "<local-command-stdout>";
 // Doan sends an alias as /clear, but a session the person cleared by an alias in a terminal may name the alias.
 const CLEAR_NAMES = ["clear", ...Object.entries(COMMAND_ALIASES.claude).filter(([, name]) => name === "clear").map(([alias]) => alias)];
 
@@ -28,25 +21,6 @@ export function claudeBoundary(value: unknown): BoundaryKind | null {
   if (value.type === "conversation_reset" && value.trigger === "clear") return "cleared";
   if (value.type === "system" && value.subtype === "local_command" && typeof value.content === "string" && CLEAR_NAMES.some(name => (value.content as string).includes(`<command-name>/${name}</command-name>`))) return "cleared";
   return null;
-}
-// /compact leaves a summary user message (isCompactSummary) and a "Compacted" output line, as a user message in the
-// stream or a local_command line in the file; neither is the person's or the agent's text.
-export function claudeHidden(value: unknown): boolean {
-  if (!record(value)) return false;
-  if (value.type === "user") return value.isCompactSummary === true || userText(value.message).startsWith(STDOUT);
-  return value.type === "system" && value.subtype === "local_command" && typeof value.content === "string" && value.content.startsWith(STDOUT);
-}
-
-// thread/compact/start opens a turn of its own whose only item is contextCompaction; thread/compacted never came.
-export function codexBoundary(turn: unknown): BoundaryKind | null {
-  return record(turn) && Array.isArray(turn.items) && turn.items.length === 1 && record(turn.items[0]) && turn.items[0].type === "contextCompaction" ? "compacted" : null;
-}
-// review/start leaves, in thread/read after a restart, an interrupted child turn whose rootTurnId is the review turn
-// (the one with enteredReviewMode). Only such a turn is hidden: the person's own stopped turns stay.
-export function codexHiddenTurns(turns: readonly unknown[]): Set<string> {
-  const rows = turns.filter(record);
-  const reviews = new Set(rows.filter(t => typeof t.id === "string" && Array.isArray(t.items) && t.items.some(i => record(i) && i.type === "enteredReviewMode")).map(t => t.id as string));
-  return new Set(rows.filter(t => t.status === "interrupted" && typeof t.id === "string" && typeof t.rootTurnId === "string" && t.rootTurnId !== t.id && reviews.has(t.rootTurnId)).map(t => t.id as string));
 }
 
 // Copilot's /compact answers with this text and no model call; it is the only sign of the compaction over ACP.
