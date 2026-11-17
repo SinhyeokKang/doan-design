@@ -701,7 +701,7 @@ test("while a start is pending, Send, the submit key and the notice's Retry neit
   call(sendButton(tree), "onClick", {});
   call(field(tree), "onKeyDown", key("Enter"));
   // DESIGN 'Busy action': the notice's Retry shows the send that is out.
-  const retry = find(tree, props => props["aria-busy"] === true && typeof props.onClick === "function");
+  const retry = find(tree, props => props["aria-busy"] === true && String(props["aria-describedby"] ?? "").endsWith("-notice"));
   expect(retry["aria-disabled"]).toBe(true);
   call(retry, "onClick", {});
   await Promise.resolve();
@@ -929,7 +929,7 @@ test("the notice's Retry keeps the notice while its send is out, busy and descri
   await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(1));
   tree = render();
   expect(box.current.notice).toMatchObject({ text });
-  expect(find(tree, props => props["aria-busy"] === true && typeof props.onClick === "function")["aria-disabled"]).toBe(true);
+  expect(find(tree, props => props["aria-busy"] === true && String(props["aria-describedby"] ?? "").endsWith("-notice"))["aria-disabled"]).toBe(true);
   answer({ ok: true });
   await vi.waitFor(() => expect(box.current.sending).toBeNull());
   expect(box.current.notice).toBeNull();

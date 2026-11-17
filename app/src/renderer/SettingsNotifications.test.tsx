@@ -168,7 +168,7 @@ test("Retry keeps the failure line while its save is out, busy and named Retry; 
   toggle("Finished");
   await flush(); render();
   let answer!: (value: Awaited<ReturnType<typeof props.save>>) => void;
-  props.save = vi.fn(() => new Promise(resolve => { answer = resolve; }));
+  props.save = vi.fn(() => new Promise<Awaited<ReturnType<typeof props.save>>>(resolve => { answer = resolve; }));
   render();
   const lineText = () => words(all(tree).find(element => element.props.className === "settings-msg error selectable")?.props.children);
   const first = lineText();

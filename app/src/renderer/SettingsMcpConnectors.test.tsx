@@ -322,7 +322,8 @@ test("Remove asks first and locks the page; Cancel returns to the … button, Re
   render();
   expect(alert()).toBeDefined();
   feed(snap({}, SERVERS.filter(server => server.name !== "doan-mcp-example-com")));
-  render();
+  // The snapshot's effect closes the alert; the next render draws that.
+  render(); render();
   expect(all(tree).some(element => element.props.role === "alertdialog")).toBe(false);
   expect(props.onLock).toHaveBeenLastCalledWith(false);
   expect(nodes.get('[data-mcp-row="codex:doan-mcp-two-com"]')?.focus).toHaveBeenCalled();
@@ -348,7 +349,8 @@ test("while Remove is out the alert is busy and refuses Cancel and Escape; a fai
   expect(alert()).toBeDefined();
   expect(api.removeMcpServer).toHaveBeenCalledOnce();
   feed(snap({}, SERVERS.map(server => server.name === "doan-mcp-example-com" ? { ...server, removeFailed: true } : server)));
-  render();
+  // The snapshot's effect marks the alert failed; the next render draws that.
+  render(); render();
   expect(alert()).toBeDefined();
   const error = all(tree).find(element => element.props.id === "mcp-remove-error")!;
   expect(error.props).toMatchObject({ className: "doan-notice error", role: "alert" });
@@ -356,7 +358,7 @@ test("while Remove is out the alert is busy and refuses Cancel and Escape; a fai
   expect(confirm().props["aria-busy"]).toBeUndefined();
   expect(confirm().props["aria-describedby"]).toBe("mcp-remove-error");
   // Not twice: the row's own failure notice is behind the alert that already says it.
-  expect(all(tree).filter(element => words(element.props.children) === "Couldn’t remove mcp.example.com from Doan’s agents. Try again.")).toHaveLength(1);
+  expect(all(tree).filter(element => element.props.children === "Couldn’t remove mcp.example.com from Doan’s agents. Try again.")).toHaveLength(1);
   click(confirm());
   render();
   expect(api.removeMcpServer).toHaveBeenCalledTimes(2);
@@ -366,10 +368,10 @@ test("while Remove is out the alert is busy and refuses Cancel and Escape; a fai
   await settle();
   expect(confirm().props["aria-busy"]).toBe(true);
   feed(snap({}, SERVERS.map(server => server.name === "doan-mcp-example-com" ? { ...server, removeFailed: true } : server)));
-  render();
+  render(); render();
   expect(confirm().props["aria-busy"]).toBeUndefined();
   // A refusal main answers at once is a failure too.
-  api.removeMcpServer.mockResolvedValueOnce({ ok: false, reason: "busy" });
+  api.removeMcpServer!.mockResolvedValueOnce({ ok: false, reason: "busy" });
   feed(snap({}, SERVERS));
   render();
   click(confirm());

@@ -1206,7 +1206,7 @@ test("the notice's Retry is busy while its send is out and described by the noti
   expect(find(render(), item => item.id === retry["aria-describedby"]).children).toBe("Couldn’t start with Codex: it is rate limited.");
   send.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
   (retry.onClick as () => void)();
-  const busy = find(render(), item => item["aria-busy"] === true && typeof item.onClick === "function");
+  const busy = find(render(), item => item["aria-busy"] === true && String(item["aria-describedby"] ?? "").endsWith("-notice"));
   expect(busy["aria-disabled"]).toBe(true);
   expect(has(render(), "Couldn’t start with Codex: it is rate limited.")).toBe(true);
   answer({ error: "rate_limited" });

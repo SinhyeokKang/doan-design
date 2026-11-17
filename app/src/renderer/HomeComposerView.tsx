@@ -11,6 +11,7 @@ import { localClock, resetTimeText } from "./limitReset";
 import { useProjectSkills, type SkillsCalls } from "./useProjectSkills";
 import { fieldSkillRuns } from "./skillWords";
 import { AlertIcon } from "./AlertIcon";
+import { retryButton } from "./ListRetryButton";
 import {
   AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, PermissionPicker, PresetsButton, SendButton, SlashPresets, SuggestionButton, useComposerDrop, usePresetListOutside,
   type ComposerFieldHandle,
@@ -428,8 +429,9 @@ export function HeroComposer(props: HeroComposerProps) {
     addFiles(files, true);
   };
 
-  // Send
-  const send = async () => {
+  // Send. The notice's Retry keeps its notice while the send it started is out (DESIGN 'Busy action'); the reply
+  // decides what stays.
+  const send = async (retry = false) => {
     if (!availability.enabled || !root || !provider) return;
     // A send that starts hops; one that cannot start does nothing.
     doany.current?.hop();
@@ -440,7 +442,7 @@ export function HeroComposer(props: HeroComposerProps) {
     };
     const last: LastRequest = { root, text, preset, attachments, provider, model, effort };
     const mine = { generation: memory.current.generation + 1, text, preset: preset?.id ?? null, keys: attachments.map(a => a.key) };
-    update({ sending: mine, generation: mine.generation, notice: null });
+    update({ sending: mine, generation: mine.generation, notice: retry ? memory.current.notice : null });
     const outcome = await props.start(request, last).catch((): StartOutcome => ({ error: "unknown" }));
     // The reply may come after the person left and came back to Home; it settles only its own send.
     if (memory.current.sending?.generation !== mine.generation) return;
@@ -458,15 +460,15 @@ export function HeroComposer(props: HeroComposerProps) {
         const released = (current.lastIds[root] ?? []).filter(id => !usedIds.has(id));
         if (released.length) void window.doan.releaseAttachments(released).catch(console.error);
         // The next input starts from the defaults again: the fixed one, or with Last used the run App just recorded.
-        return { sending: null, thumbnails, lastKeys, lastIds, root, provider: null, models: {}, restoredModels: {}, efforts: {}, restoredEfforts: {}, permissions: {}, fast: {}, ...(same ? { text: "", preset: null, attachments: [] } : {}) };
+        return { sending: null, notice: null, thumbnails, lastKeys, lastIds, root, provider: null, models: {}, restoredModels: {}, efforts: {}, restoredEfforts: {}, permissions: {}, fast: {}, ...(same ? { text: "", preset: null, attachments: [] } : {}) };
       });
       return;
     }
     if (outcome.error === "attachment_missing") {
       const { missing = [], replaced } = outcome;
-      update(current => ({ sending: null, attachments: markRefused(current.attachments, missing, replaced) }));
+      update(current => ({ sending: null, notice: null, attachments: markRefused(current.attachments, missing, replaced) }));
     // A late project_busy is shown by the reason line, which the run's list now carries.
-    } else if (outcome.error === "project_busy") update({ sending: null });
+    } else if (outcome.error === "project_busy") update({ sending: null, notice: null });
     else update({ sending: null, notice: startErrorView(outcome.error, provider, project, outcome.resetsAt ? resetTimeText(outcome.resetsAt, Date.now(), localClock()) : null) });
     queueMicrotask(() => field.current?.focus());
   };
@@ -601,7 +603,7 @@ export function HeroComposer(props: HeroComposerProps) {
       </div>
       {prompts.length > 0 && <div className="home-suggestions" role="group" aria-label="Suggested prompts" inert={started}>{prompts.map(prompt =>
         <SuggestionButton key={prompt.label} prompt={prompt} onPick={() => { edit({ preset: prompt.preset, text: prompt.text }); queueMicrotask(focusEnd); }} />)}</div>}
-      {notice && <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text selectable">{notice.text}</span>{notice.retry && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => void send()}>Retry</button>}</div>}
+      {notice && <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text selectable" id={`${listId}-notice`}>{notice.text}</span>{notice.retry && retryButton({ running: sending, variant: "subtle", describedBy: `${listId}-notice`, onRetry: () => void send(true) })}</div>}
       {!notice && reason && reason.kind !== "noAgent" && (reason.kind === "attachmentMissing"
         ? <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text selectable">{reason.text}</span></div>
         : <div className="composer-reason" role="status"><span>{reason.text}</span>{reason.kind === "running" && reason.open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation" onClick={() => props.openConversation(reason.open)}>Open</button>}</div>)}

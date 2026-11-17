@@ -727,7 +727,7 @@ export function BuddyScene({ selection, preferences, heading, footer }: {
     <div className="ob-heading"><h2 tabIndex={-1} id="ob-buddy-title" ref={heading}>Choose your buddy</h2><p>It keeps you company in Doan and sets the app’s accent color. You can change it later in Settings.</p></div>
     {preferencesNotice(preferences?.notice, "doan-panel buddy-step-notice buddy-step-notice-top")}
     <BuddyFlow name="ob-buddy" labelledBy="ob-buddy-title" selected={selection.shown} disabled={buddyChoiceOff(preferences)} select={id => void selection.select(id)} />
-    {failure && <BuddyFailureNotice failure={failure} id="ob-buddy-error" className="buddy-step-notice" panel retry={() => retry(failure.picked)} />}
+    {failure && <BuddyFailureNotice failure={failure} id="ob-buddy-error" className="buddy-step-notice" panel running={selection.saving} retry={() => retry(failure.picked)} />}
     <p className="ob-live" role="status">{failure ? buddyFailureText(failure) : ""}</p>
     {footer}
   </>;
