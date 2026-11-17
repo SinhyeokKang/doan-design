@@ -38,7 +38,7 @@ button { cursor: pointer; font: inherit; color: inherit; }
 .tobe .shell-canvas-error { display: flex; align-items: flex-start; gap: var(--space-1h); }
 .tobe .shell-canvas-error .doan-alert-icon { width: var(--size-icon-sm); height: var(--size-icon-sm); margin-block: calc((var(--type-caption-line-height) - var(--size-icon-sm)) / 2); }
 /* F7: hover/press also exclude [data-disabled], so the disabled fill (ds/controls.css:121) stays. Shown as the To be tiles. */
-/* F12: Inspector tab type on --type-* tokens (awaiting decision). */
+
 .tobe .phead { font: var(--type-weight-semibold) var(--type-label-sm-size) / var(--type-label-sm-line-height) var(--type-family); letter-spacing: var(--type-label-sm-letter-spacing); }
 .tobe .pempty { font: var(--type-body-sm-size) / var(--type-body-sm-line-height) var(--type-family); letter-spacing: var(--type-body-sm-letter-spacing); }
 .tobe .ihead, .tobe .kv, .tobe .selector, .tobe .use-hint, .tobe .canvas-notice { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
@@ -99,7 +99,6 @@ body{width:2160px;padding:var(--space-8);background:var(--surface-inset);font-si
     <tbody>
       <tr><td>F6</td><td>List read failure: AlertIcon + danger text in <code>.shell-canvas-error</code>, <code>.rp-error</code>, <code>.conv-error</code>, keeping row density (awaiting user decision)</td><td>Sidebar canvas list, right panel, Overview and canvas panel title menus</td><td><code>f6-list-error</code></td></tr>
       <tr><td>F7</td><td><code>data-disabled</code> prominent / subtle / panel buttons keep the disabled fill on hover and press</td><td>Canvas Trash, Conversation Delete, Project Setup dialogs; toast Retry</td><td><code>f7-disabled-hover</code></td></tr>
-      <tr><td>F12</td><td>Inspector tab type on <code>--type-*</code> tokens (awaiting user decision)</td><td>Canvas right panel, Inspector and Canvas tabs</td><td><code>f12-inspector-type</code></td></tr>
     </tbody>
   </table>
   <table class="idx" data-doan-id="index-behaviour">
@@ -108,6 +107,7 @@ body{width:2160px;padding:var(--space-8);background:var(--surface-inset);font-si
     <tbody>
       <tr><td>F7</td><td>Remove the screen patches <code>styles.css:442</code>, <code>:637-638</code>, <code>:1342</code> after the shared fix</td><td>Toast Retry, locked canvas row More, Overview title trigger keep no hover/press fill while disabled</td></tr>
       <tr><td>F12</td><td><code>ProjectSetupDialog.tsx:65,105,106</code> drop the <code>btn</code> / <code>btn primary</code> classes (no CSS rule)</td><td>Dialog buttons render unchanged (<code>doan-button</code> only)</td></tr>
+      <tr><td>F12</td><td>Delete the unused <code>RightPanel</code> and <code>Inspector</code> components (<code>RightPanel.tsx:12,48</code>; only <code>CanvasConversations</code> is imported) and their rules (<code>styles.css:134-157</code>: <code>.phead</code>, <code>.isec</code>, <code>.kv</code>, <code>.inspect-head</code>…). PRODUCT §5 item 4 shows no Inspector; selection collection stays</td><td>Typecheck, lint and tests pass; no screen changes</td></tr>
       <tr><td>F12</td><td>Delete dead <code>.row</code> / <code>.err</code> base rules (<code>styles.css:49-53</code>)</td><td>Computed styles of sidebar rows and errors unchanged</td></tr>
     </tbody>
   </table>
@@ -188,16 +188,6 @@ body{width:2160px;padding:var(--space-8);background:var(--surface-inset);font-si
 </section>
 
 <!-- ════════ F12 ════════ -->
-<section data-doan-frame="f12-inspector-type" data-doan-title="F12 · Inspector tab type sizes" data-doan-implements="app/src/renderer/styles.css">
-  <div class="f-head"><h2>F12 · Inspector tab type <span class="doan-chip" data-ui-variant="translucent">Awaiting user decision</span></h2><p>The right panel's Inspector with a selected element (280 wide). As is uses 10.5–12.5px literals; To be maps each to the nearest role token. No Inspector section exists in docs/design, so the user decides.</p></div>
-  <div class="cols">
-    <div class="col">
-      <h3>As is</h3>
-      <div class="crop right" data-doan-id="f12-asis">
-        <h2 class="phead">Inspector</h2>
-        <div class="inspect-head"><h3>Checkout button</h3><span class="selector">main &gt; form &gt; button.primary</span><p class="use-hint">Your agent can read this selection — say “fix this”.</p></div>
-        <p class="canvas-notice" role="status">Reading styles</p>
-        <section class="isec"><h3 class="ihead">Frame</h3><dl class="kv"><dt>Title</dt><dd>Checkout · empty cart</dd><dt>Implements</dt><dd>app/src/Checkout.tsx</dd></dl></section>
       </div>
       <h4>12 / 12.5 / 11.5 / 11 / 10.5 px literals.</h4>
     </div>

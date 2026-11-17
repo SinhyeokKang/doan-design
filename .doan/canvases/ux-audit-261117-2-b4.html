@@ -50,7 +50,7 @@ body{width:1680px;padding:var(--space-8);background:var(--surface-inset);font-si
 .note dd{overflow-wrap:anywhere}
 .note ol{list-style:decimal;padding-left:var(--space-5);display:flex;flex-direction:column;gap:var(--space-1)}
 .note code,.index code{padding:0 var(--space-1);border-radius:var(--space-1);background:var(--surface-inset);color:var(--text-standard);font-size:var(--type-caption-size)}
-.proposed{color:var(--text-accent)}
+.proposed{color:inherit}
 /* Window stage: the prototype window at 720 × 440, the macOS traffic lights left out (their 72 px space stays). */
 .window-stage{position:relative;width:720px;height:440px;border-radius:var(--radius-container);box-shadow:var(--shadow-panel);overflow:clip;background:var(--bg-app)}
 .index{display:flex;flex-direction:column;gap:var(--space-4);padding:var(--space-6);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
@@ -121,7 +121,7 @@ body{width:1680px;padding:var(--space-8);background:var(--surface-inset);font-si
 </header>
 <div class="pw-panel"><div class="problem-overlay doan-scroll"><div class="problem-scene" role="group" aria-labelledby="f2-h" data-doan-id="f2-scene">
 <svg class="problem-icon" aria-hidden="true"><use href="#i-file-warning"/></svg>
-<div class="problem-heading"><h2 id="f2-h" tabindex="-1">Couldn’t open this prototype</h2><p class="selectable"><span class="proposed">Doan couldn’t load this window. Try again.</span></p></div>
+<div class="problem-heading"><h2 id="f2-h" tabindex="-1">Couldn’t open this prototype</h2><p class="selectable"><span class="proposed">Doan couldn’t start this window. Retry, or close it and play the frame again from the canvas.</span></p></div>
 <div class="problem-actions"><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-doan-id="f2-retry">Retry</button></div>
 </div></div></div>
 </div></div></div>
@@ -130,7 +130,7 @@ body{width:1680px;padding:var(--space-8);background:var(--surface-inset);font-si
 <dl class="note">
 <dt>Evidence</dt><dd><code>prototype/PrototypeWindow.tsx:119</code> swallows the <code>api.read()</code> rejection with <code>() =&gt; {}</code>, so <code>view</code> stays null; <code>:270</code> renders no scene for a null view; <code>:474</code> <code>stateScene</code> only for a view; <code>:500-515</code> Reload, the mode buttons and Export are <code>disabled={view === null}</code>. The window recovers only if an <code>onChanged</code> arrives. Contrast: canvas load failure <code>App.tsx:2605</code> (AlertIcon, “Couldn’t load the canvas”, a button) and thread read failure <code>ConversationThread.tsx:834-836</code> (error notice + Retry).</dd>
 <dt>Pattern chosen</dt><dd>The window's own failure scene (<code>.problem-overlay</code> › <code>.problem-scene</code>, styles.css 1947-1964 and the <code>.pw-panel &gt; .problem-overlay</code> rule), which <code>stateScene</code> already uses for <code>read-failed</code> with heading “Couldn’t open this prototype” and Retry (<code>prototype/view.ts:35</code>), not a new strip: it is the same structure as the main window's canvas failure block (icon, heading, line, one action) and keeps the header usable, as <code>docs/design/prototype.md</code> describes the overlay. The conductor may instead use the main window's <code>.canvas-status-block</code>; the drawn one adds no CSS.</dd>
-<dt>What changes</dt><dd>A <code>first-read failed</code> state in the renderer (no new phase from main). Heading reuses the existing string; the line <span class="proposed">“Doan couldn’t load this window. Try again.”</span> is proposed (no Details: there is no detail to show). Retry calls <code>api.read()</code> again and shows the reading state while it runs. Header controls stay as As is (no view yet), and the heading takes focus as the other scenes do. An <code>onChanged</code> that arrives first replaces the scene with the view.</dd>
+<dt>What changes</dt><dd>A <code>first-read failed</code> state in the renderer (no new phase from main). Heading reuses the existing string; the line <span class="proposed">“Doan couldn’t start this window. Retry, or close it and play the frame again from the canvas.”</span> is proposed (no Details: there is no detail to show). Retry calls <code>api.read()</code> again and shows the reading state while it runs. Header controls stay as As is (no view yet), and the heading takes focus as the other scenes do. An <code>onChanged</code> that arrives first replaces the scene with the view.</dd>
 <dt>States to test</dt><dd><ol>
 <li>Make <code>prototype:read</code> reject once: the scene appears, not a blank panel.</li>
 <li>Retry while the read still fails: the scene stays, Retry is pressable again.</li>
