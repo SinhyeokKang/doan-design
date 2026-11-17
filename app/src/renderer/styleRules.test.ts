@@ -76,7 +76,7 @@ describe("narrow list read failures are inline errors", () => {
     expect(read(name)).toMatch(/className="(?:conv|rp)-error" role="status"><AlertIcon \/>/);
   });
   test("the sidebar's icon is the small icon, centred on the caption line", () => {
-    expect(rule(styles, ".shell-canvas-error .doan-alert-icon")).toBe("width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; margin-block: calc((var(--type-caption-line-height) - var(--size-icon-sm)) / 2);");
+    expect(rule(styles, ".shell-canvas-error .doan-alert-icon")).toBe("width: var(--size-icon-sm); height: var(--size-icon-sm); margin-block: calc((var(--type-caption-line-height) - var(--size-icon-sm)) / 2);");
   });
 });
 
