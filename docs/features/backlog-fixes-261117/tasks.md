@@ -42,6 +42,7 @@ BACKLOG에 "Fix (decided)"로 적었다. 구현이 끝나면 각 배치가 PRODU
 | B7 eval transcript reader | `fix/eval-heredoc-doan` | 7-1 Python heredoc 안의 `doan` 호출 읽기 | `eval/lib/transcript.ts`, `eval/scenarios/D1/presets.ts` |
 | B8 lint `no-unnecessary-condition` | `refactor/lint-unnecessary-condition` | 8-1 규칙 켜기와 지적 정리 | `app/.oxlintrc.json`, `app/src`·`app/runtime`의 비테스트 파일 약 37개 |
 | B9 `eval/` 타입체크와 lint | `refactor/eval-typecheck` | 9-1 타입체크 켜기, 9-2 lint 켜기 | `eval/` 전체, 타입체크·lint 설정, verify 게이트 |
+| B10 renderer 결함 | `fix/renderer-backlog` | 10-1 판정 대기 중 보내는 중 행, 10-2 size bubble과 notice 열, 10-3 `doan open` 뒤 포커스, 10-4 `conversationByCanvas` 남은 항목, 10-5 숨은 이어가기의 이유 | renderer 위주 |
 
 **순서와 겹침.**
 - B1, B2, B3, B5, B6은 바로 동시에 돌려도 된다. 서로 고치는 파일이 겹치지 않는다.
@@ -172,6 +173,23 @@ BACKLOG "Lint for `eval/` needs type checking first…" 항목이다.
 - 겹침: B8이 `app/.oxlintrc.json`을 고친다. lint 설정을 함께 건드리면 나중에 머지하는 쪽이 develop을 받아 맞춘다.
 - 고칠 문서: BACKLOG 항목을 지우고, AGENTS.md 'Commands'의 lint·typecheck 설명과 verify 스킬의 단계 설명을 지금 게이트에 맞춘다.
 
+### B10 renderer 결함 (`fix/renderer-backlog`, 2026-11-17 추가)
+
+B1–B9가 모두 머지된 뒤 BACKLOG 'Known defects'에서 결정 없이 고칠 수 있는 것으로 고른 다섯 항목이다. 이 문서를 쓸 때 코드는 확인하지 않았다. 컨덕터가 먼저 재현하거나 실패하는 테스트로 고정한다. 고쳐 보니 제품 결정이 필요하면 그 항목은 빼고 사용자에게 묻는다.
+
+1. **판정을 기다리는 send** (BACKLOG "A project-conversation send that waits for the ended turn's promotion judgement shows nothing in the thread…")
+   - 수정: 앞 턴의 승격 판정을 기다리는 동안(최대 10초) 기존의 보내는 중 행을 보인다.
+2. **위로 뒤집힌 size bubble** (BACKLOG "A size bubble flipped above its selection can sit under the agent notice column…")
+   - 수정: bubble이 들어갈 공간을 계산할 때 agent notice 열을 뺀다. 그래야 Play prototype을 누를 수 있다.
+3. **`doan open` 뒤 포커스** (BACKLOG "After `doan open` of another canvas while keyboard focus is on a conversation row…")
+   - 수정: 창을 활성화한 뒤에도 포커스가 캔버스 행에 남게 한다. 지금은 header의 Hide sidebar 버튼으로 간다.
+4. **`conversationByCanvas` 남은 항목** (BACKLOG "ui-state's `conversationByCanvas`… keeps entries for a conversation deleted in the prototype window and for a canvas deleted outside Doan…")
+   - 수정: 목록에 없는 대화나 캔버스의 항목을 ui-state 저장 때 버린다. 읽지 못한 목록을 '없음'으로 보지 않게 한다. 다 고치면 BACKLOG 항목을 지운다.
+5. **이유 없이 숨는 이어가기** (BACKLOG "A Claude profile whose registry still judges `unknown`… hides the terminal session continue without saying why…")
+   - 수정: 이어가기를 숨길 때 이유를 보이고, 그 방문에서 같은 연결을 다시 묻지 않는다. 문구를 쓰기 전에 Doan의 `clarify` 프리셋을 읽는다.
+
+- 확인: 항목마다 단위 테스트를 둔다. 앱 동작이 바뀌므로 바뀐 동작만 `/runtime-test`로 짧게 본다.
+
 ## 5. 리드 인수인계
 
 **지금 상태 (2026-11-17)**
@@ -191,4 +209,4 @@ BACKLOG "Lint for `eval/` needs type checking first…" 항목이다.
    - 고친 항목을 BACKLOG에서 지웠는지, 2절 결정을 PRODUCT·ARCHITECTURE에 적었는지
    - `/runtime-test`로 확인하지 못한 것을 PR에 적었는지
    - B2는 `clarify` 프리셋을 읽었는지, B5는 `/agent-eval` 판단을 적었는지
-4. 마지막 배치가 머지되면 이 디렉터리(`docs/features/backlog-fixes-261117/`)를 지운다.
+4. B10이 머지되면 이 디렉터리(`docs/features/backlog-fixes-261117/`)를 지운다.
