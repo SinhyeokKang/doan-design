@@ -781,8 +781,9 @@ body:has(.shell-top) { background: transparent; }
 .preset-chip > svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: currentColor; }
 /* Popovers: shared floating material and menu rows (ds/surfaces.css); the preset popover has search and tabs, so it is wider than a menu. */
 .preset-popover { width: 600px; max-width: calc(100vw - var(--space-4)); }
-/* The / list keeps focus in the field, so it is drawn in place rather than as a focus-taking popover. */
-.slash-popover { position: absolute; z-index: 2; bottom: calc(100% + var(--space-2)); left: var(--space-8); }
+/* The / list keeps focus in the field, so it is drawn in place rather than as a focus-taking popover. In a conversation
+   panel narrower than its 600px it ends at the composer's right edge instead of running past the panel. */
+.slash-popover { position: absolute; z-index: 2; bottom: calc(100% + var(--space-2)); left: var(--space-8); max-width: calc(100% - var(--space-8)); }
 /* The / list opens above the whole composer, not the tool row, so it never covers the field (provider-commands draft
    frame slash-list): the tool row stops being its containing block. On Home it may cover the project button above. */
 .composer-tools:has(> .slash-popover) { position: static; }

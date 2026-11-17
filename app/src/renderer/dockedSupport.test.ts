@@ -96,3 +96,23 @@ test("a failed models read is read again; a list that arrived is not", async () 
   support.readModels("/r", "codex");
   expect(list).toHaveBeenCalledTimes(3);
 });
+
+// DESIGN 'Busy action': Retry reads the presets again keeping the failed reply (its notice and Retry) until the new
+// answer, and says whether it succeeded, so the Retry knows whether its line goes.
+test("a presets Retry keeps the failed reply until the answer and resolves whether it succeeded", async () => {
+  const listed = { v: 1, ok: true, result: { version: "1", presets: [] } };
+  let answer!: (reply: unknown) => void;
+  const list = vi.fn().mockRejectedValueOnce(new Error("cli")).mockReturnValueOnce(new Promise(resolve => { answer = resolve; }));
+  vi.stubGlobal("window", { doan: { designSkills: { list } } });
+  const support = new DockedSupport(() => {}, window.doan);
+  support.readPresets();
+  expect(support.presets).toBeUndefined();
+  await flush();
+  expect(support.presets).toMatchObject({ ok: false });
+  const shown = support.presets;
+  const again = support.retryPresets();
+  expect(support.presets).toBe(shown);
+  answer(listed);
+  expect(await again).toBe(true);
+  expect(support.presets).toBe(listed);
+});

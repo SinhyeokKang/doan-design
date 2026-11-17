@@ -66,14 +66,23 @@ func TestListUnreadableCanvas(t *testing.T) {
 		{"path":".doan/canvases/b.html","id":"bee","width":800,"title":"Example","frames":[{"id":"main","title":"Main"}]}]`)
 	expectWholeFailures(t, root, checkCommand)
 }
-func TestListEnumerationFailuresStayWhole(t *testing.T) {
+
+// A folder ls cannot read is a row with its own error, in path order among the canvases; check still needs the
+// whole set, so it fails as a whole without naming the config.
+func TestListUnreadableFolder(t *testing.T) {
 	root := initialized(t)
 	putFile(t, root, ".doan/canvases/a.html", validCanvas)
 	putFile(t, root, ".doan/canvases/sub/x.html", validCanvas)
+	bee := strings.Replace(validCanvas, `content="foo"`, `content="bee"`, 1)
+	putFile(t, root, ".doan/canvases/z.html", bee)
 	unreadable(t, root, ".doan/canvases/sub")
-	failure(t, root, "internal_error", "ls")
-	// The config file is not at fault, so the failure names none.
-	expectNoConfig(t, runJSON(t, root, 1, "ls"))
+	got := result(t, root, 0, "ls")
+	expectJSON(t, "canvases", got["canvases"], `[
+		{"path":".doan/canvases/a.html","id":"foo","width":800,"title":"Example","frames":[{"id":"main","title":"Main"}]},
+		{"path":".doan/canvases/sub","frames":[],"error":{"code":"unreadable_folder","message":"Cannot read .doan/canvases/sub: permission denied"}},
+		{"path":".doan/canvases/z.html","id":"bee","width":800,"title":"Example","frames":[{"id":"main","title":"Main"}]}]`)
+	expectWholeFailures(t, root, checkCommand)
+	expectNoConfig(t, runJSON(t, root, 1, "check"))
 }
 
 // An id doan check rejects is not listed: agents would build chips and --frame targets from it.
