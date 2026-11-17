@@ -552,6 +552,23 @@ test("a promotion moves the draft into the new conversation, shows the notice an
   expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
 });
 
+// PRODUCT §5 item 3 'Promotion': the line stays until the next send or choice, not until the Overview is left.
+test("the moved line stays when the Overview is left and reopened, also after a promotion made while it was hidden", async () => {
+  const shown = promotedSetup(true);
+  await flush();
+  shown.answer(ROOT, [summary(A, { canvas: CANVAS, title: "Checkout copy" })]);
+  shown.run.show(null);
+  shown.run.show(ROOT);
+  expect(shown.run.view(ROOT)).toEqual({ kind: "new", moved: { conversationId: A, title: "Checkout copy", canvas: CANVAS } });
+
+  const hidden = promotedSetup(true);
+  await flush();
+  hidden.run.show(null);
+  hidden.answer(ROOT, [summary(A, { canvas: CANVAS, title: "Checkout copy" })]);
+  hidden.run.show(ROOT);
+  expect(hidden.run.view(ROOT)).toEqual({ kind: "new", moved: { conversationId: A, title: "Checkout copy", canvas: CANVAS } });
+});
+
 test("a seen turn end is marked through the promotion marker when the list notice comes first", async () => {
   const h = promotedSetup(true);
   await flush();
