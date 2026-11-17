@@ -97,6 +97,7 @@ export class ConversationStore {
   private bounds = new Map<string, Map<string, BoundaryKind>>();
   // The card of a built-in Doan does not run, by draft key: this run only, shared by every screen showing the draft.
   private cards = new Map<string, CommandCard>();
+  private pendingSends = new Map<string, { message: SendingMessage; after: number }[]>();
 
   constructor(private host: ConversationStoreHost, private calls: StoreCalls) {}
 
@@ -111,10 +112,26 @@ export class ConversationStore {
   queue(conversationId: string): readonly QueuedMessage[] {
     return (this.queues.get(conversationId)?.items ?? []).flatMap(({ pressed, ...item }) => pressed === undefined ? [item] : []);
   }
-  // Messages Send now has in flight, in press order, for the end of the thread.
+  // Messages Send now has in flight, in press order, for the end of the thread, then sends main has not answered.
   sending(conversationId: string): readonly SendingMessage[] {
-    return (this.queues.get(conversationId)?.items ?? []).filter(item => item.pressed !== undefined).sort((a, b) => a.pressed! - b.pressed!)
-      .map(item => ({ id: item.id, ...item.message ?? { text: item.text, anchors: [], attachments: [] } }));
+    const events = this.threads.get(conversationId)?.events ?? [];
+    const pending = (this.pendingSends.get(conversationId) ?? []).filter(send => !events.some(event => event.seq > send.after && event.type === "user.message")).map(send => send.message);
+    return [...(this.queues.get(conversationId)?.items ?? []).filter(item => item.pressed !== undefined).sort((a, b) => a.pressed! - b.pressed!)
+      .map(item => ({ id: item.id, ...item.message ?? { text: item.text, anchors: [], attachments: [] } })), ...pending];
+  }
+  // A send main has not answered yet: it may wait for the previous turn's promotion judgement (at most 10 s) or process
+  // before its turn starts, and the thread would show nothing meanwhile. It shows as sending until its turn's own message
+  // arrives (`after`: the last event seen at the press) or the returned settle runs on main's answer.
+  sendPending(conversationId: string, message: SendingMessage): () => void {
+    const after = Math.max(0, ...(this.threads.get(conversationId)?.events ?? []).map(event => event.seq));
+    const send = { message, after };
+    this.pendingSends.set(conversationId, [...this.pendingSends.get(conversationId) ?? [], send]);
+    this.host.changed();
+    return () => {
+      const left = (this.pendingSends.get(conversationId) ?? []).filter(item => item !== send);
+      if (left.length) this.pendingSends.set(conversationId, left); else this.pendingSends.delete(conversationId);
+      this.host.changed();
+    };
   }
   queued(root: string, conversationId: string, item: QueuedMessage): void {
     const queue = this.queues.get(conversationId);
@@ -400,9 +417,11 @@ export class ConversationStore {
         this.host.changed();
         return;
       }
+      // Declared required, but the reply crosses IPC and a partial one is tolerated.
+      const tolerated: { lastSeq?: number; commands?: typeof reply.commands } = reply;
       const events = mergeEvents(reply.events, thread.events, conversationId);
-      this.threads.set(conversationId, { events, read: "ready", liveAfter: reply.lastSeq ?? events.at(-1)?.seq ?? 0 });
-      if (reply.commands) this.addBoundaries(conversationId, reply.commands.boundaries);
+      this.threads.set(conversationId, { events, read: "ready", liveAfter: tolerated.lastSeq ?? events.at(-1)?.seq ?? 0 });
+      if (tolerated.commands) this.addBoundaries(conversationId, tolerated.commands.boundaries);
       // After the set: stage() reads the current turn from the merged history.
       if (reply.stage) this.stage(reply.stage);
       this.tell(conversationId, "read");

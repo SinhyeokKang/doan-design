@@ -166,7 +166,7 @@ const TRANSCRIPTS: TranscriptReader = { size: transcriptSize, read: readTranscri
 const MAX_TIMER_MS = 2 ** 31 - 1;
 const CLOCK: ScheduleClock = {
   now: () => Date.now(),
-  setTimer: (run, ms) => { const timer = setTimeout(run, Math.min(ms, MAX_TIMER_MS)); timer.unref?.(); return timer; },
+  setTimer: (run, ms) => { const timer = setTimeout(run, Math.min(ms, MAX_TIMER_MS)); timer.unref(); return timer; },
   clearTimer: timer => clearTimeout(timer as ReturnType<typeof setTimeout>),
 };
 // A scheduled conversation's send (usage limit): its queued messages go out together at `at`, after reset (the time the
@@ -390,6 +390,7 @@ export class ConversationService {
       if (!handoff) { checkCommand(input.runtime, request.text, request.anchors, request.attachments?.length || attached ? 1 : 0, !!command); checkReview(input.runtime, request.text, !!input.owner, undefined, undefined); }
       if (input.owner) live.provider = input.owner.provider;
       if (input.quiet) live.quiet = input.quiet;
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the runner opens
       if (this.quitting) throw new Error("busy");
       if (request.mode === "resume") this.checkSessionFree(input.runtime, input.configDir, input.sessionId);
       // A handoff cancelled while this was prepared opens no runner and holds no lease (POSTMORTEM 2026-10-27).
@@ -402,6 +403,7 @@ export class ConversationService {
       input.recheck?.();
       if (!input.sessionId) this.promote(id, input, runner.sessionId);
       if (input.sessionId && input.sessionId !== runner.sessionId) throw new Error("session_unavailable");
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the runner opens
       if (this.quitting) throw new Error("busy");
       const currentCanvas = this.admit(request.root, request.canvas);
       if (currentCanvas) request = { ...request, canvas: currentCanvas };
@@ -453,6 +455,7 @@ export class ConversationService {
       // message; one refused by the quit is kept for the next start, since no composer outlives the quit.
       // Not running any more, though its process may take a while to go: Restart to Update need not wait for it.
       delete live.project; live.busy = false;
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the turn runs
       if (!this.quitting) this.drafts.release(id);
       this.changed(request.root);
       if (!opening) { this.reservations = releaseReservation(this.reservations, id, "not_spawned"); this.live.delete(id); freeLease(input); }
@@ -515,8 +518,10 @@ export class ConversationService {
       if (input.owner) live.provider = input.owner.provider;
       if (input.quiet) live.quiet = input.quiet; else delete live.quiet;
       this.checkSend(id, live);
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- a runner exit can set this while the send awaits
       if (live.exited) throw new Error("process_exited");
       if (!live.runner) { opening = true; leased = true; live.mcpGeneration = input.mcp?.generation(); live.runner = await this.openRunner(id, live, input); }
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- a runner exit can set this while the runner opens
       if (live.exited) throw new Error("process_exited");
       if (live.runner.sessionId !== metadata.session.sessionId) throw new Error("session_unavailable");
       this.checkSend(id, live);
@@ -566,6 +571,7 @@ export class ConversationService {
       const reloadMcp = !opening && generation !== undefined && generation !== live.mcpGeneration;
       if (reloadMcp) live.mcpGeneration = generation;
       const turnChoice: TurnChoice = { ...chosen, permissionMode: chosen.permissionMode ?? "default", ...(!chosen.effort && extras.defaultEffort ? { effort: extras.defaultEffort } : {}), ...(extras.fastTurn ? { fast: true as const } : {}), ...(reloadMcp ? { reloadMcp: true as const } : {}) };
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- a runner event can end the turn while the send awaits
       if (!live.terminal) this.sendTurn(id, live, live.runner, prompt, attachments.length ? attachments : undefined, turnChoice);
     } catch (error) {
       live.busy = false;
@@ -573,6 +579,7 @@ export class ConversationService {
       if (!leased) freeLease(input);
       // Messages queued behind a send that never ran have nothing left to follow; a queue's own send hands them back.
       // A send the person stopped hands them back as stopped.
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the send awaits
       if (!this.working(id)) this.giveBack(id, live.cancelled ? "interrupted" : reason(error));
       this.changedOf(id);
       if (opening) void live.runner?.close(); throw error;
@@ -671,6 +678,7 @@ export class ConversationService {
     const release = () => { freeLease(input); if (key) this.handoffKeys.delete(key); };
     try {
       return await this.open({ ...input, env: { ...input.env, DOAN_CONVERSATION_ID: id, ...(key ? { DOAN_HANDOFF: key } : {}) } }, event => { if (this.live.get(id) === live) this.receive(id, event); }, () => { release(); if (this.live.get(id) === live) this.exited(id); }, stop => { spawned = true; live.cleanup = stop; if (this.quitting || this.stopped(live)) void stop(); });
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the spawn callback sets this while the runner opens
     } catch (error) { if (!spawned) release(); throw error; }
   }
   // A `doan handoff` request after the socket's own checks: null when it was taken and written
@@ -693,7 +701,6 @@ export class ConversationService {
   receive(id: string, event: EventPayload): void {
     const live = this.live.get(id); if (!live || live.failedPersistence || live.terminal) return;
     if (!live.accepted) { live.events.push(event); return; }
-    if (live.terminal) return;
     try {
       // A turned-off Fast is saved before its event: a failed index write then takes this persistence-failure path with
       // no notice saying Fast went off, and a failed append leaves Fast off without one.
@@ -707,7 +714,7 @@ export class ConversationService {
       // Copilot's /compact says so only in its answer's text, the one sign over ACP (PoC, 1.0.105).
       if (event.type === "message.done" && live.command === "compact" && live.turnOf?.provider === "copilot" && copilotCompacted(event.text)) this.boundary(id, "compacted");
       if ((event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") && this.holdsEnd(id, live)) {
-        live.held = { event, timer: setTimeout(() => this.writeHeld(id, live, false), HELD_END_MS) }; live.held.timer.unref?.();
+        live.held = { event, timer: setTimeout(() => this.writeHeld(id, live, false), HELD_END_MS) }; live.held.timer.unref();
         return;
       }
       const saved = this.append(id, live.turnId, event);
@@ -847,6 +854,7 @@ export class ConversationService {
       current.background = { ...background, stopping: true }; this.changedOf(id);
       await current.runner?.stop();
       // Still there once the stop's own wait is over: the line's Stop comes back with its failure.
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- the runner can clear this while the stop awaits
       if (this.live.get(id) === current && current.background && !current.exited) { current.background = background; this.changedOf(id); throw new Error("busy"); }
       return;
     }
@@ -865,6 +873,7 @@ export class ConversationService {
     // A history that stopped taking writes takes no interrupted event: the Stop ends the closed run's group, and the
     // turn ends once it is gone (releaseFailed).
     if (!live.failedPersistence) { live.stopping = true; this.changedOf(id); }
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the runner's stop() can flip this synchronously
     const stop = live.failedPersistence ? live.runner?.close() : live.runner?.stop(); if (live.busy) this.receive(id, { type: "interrupted", reason: "user" }); await stop;
   }
   // The preparation of a list read (models, project skills); a quit or a stop of the provider during it refuses the read and frees its lease.
@@ -873,6 +882,7 @@ export class ConversationService {
     const listing: Listing = { provider: runtime, since: this.stops }; this.listings.add(listing);
     let input: Prepared;
     try { input = await this.prepare({ root, mode: "new", runtime, text: "", anchors: [] }, undefined, "listing"); } catch (error) { this.listings.delete(listing); throw error; }
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the listing prepares
     if (this.quitting || this.stopped(listing)) { this.listings.delete(listing); freeLease(input); throw new Error("busy"); }
     const release = input.release;
     const prepared: Prepared = { ...input, release: async () => { this.listings.delete(listing); await release?.(); } };
@@ -890,6 +900,7 @@ export class ConversationService {
         spawned = true; listing.cleanup = stop;
         if (this.quitting || this.stopped(listing)) void stop();
       });
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the spawn callback sets this while the runner opens
     } catch (error) { if (!spawned) freeLease(input); throw error; }
   }
   // A sign-out or account replacement the user chose to stop runs for. The provider's doan-account runs end as a user
@@ -1400,6 +1411,7 @@ export class ConversationService {
       if (decision.kind === "refused") this.resolveHandoff(id, turn, request, { outcome: "refused", reason: decision.reason });
       else if (decision.kind === "cancelled") this.resolveHandoff(id, turn, request, { outcome: "cancelled" });
     }
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- resolveHandoff() can move the turn out of starting
     if (turn.state === "starting") void this.startHandoffs(id, turn, m);
   }
   // The decided starts, one at a time in request order. A cancel meanwhile (a stop, a sign-out) resolved the
@@ -1632,6 +1644,7 @@ export class ConversationService {
     steer.attached?.sent();
     this.receive(id, steer.message);
     // A history that stopped taking writes left the message out; receive took it back into the queue (dropSteers).
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- receive() can fail persistence while it records the steer
     if (live.failedPersistence) return;
     this.forget(id, [steer.itemId]); this.drafts.sent(id, [steer.itemId]);
     if (steer.ids.length) this.queueOptions.files?.consume(steer.ids);
@@ -1815,12 +1828,12 @@ export class ConversationService {
   private armJudge(id: string, evidence: Evidence): void {
     clearTimeout(evidence.timer);
     evidence.timer = setTimeout(() => this.judge(id), Math.max(0, this.deadline(evidence.endedAt!, evidence.exitedAt) - Date.now()));
-    evidence.timer.unref?.();
+    evidence.timer.unref();
   }
   private armHandoff(id: string, turn: HandoffTurn): void {
     clearTimeout(turn.timer);
     turn.timer = setTimeout(() => this.judgeHandoff(id, true), Math.max(0, this.deadline(turn.endedAt!, turn.exitedAt) - Date.now()));
-    turn.timer.unref?.();
+    turn.timer.unref();
   }
   // A guided turn ended done: its missed lines are judged once, at the same deadline as its handoffs, when the canvases
   // it wrote are listed.
@@ -1832,7 +1845,7 @@ export class ConversationService {
   private armMissed(turnId: string, wait: MissedWait): void {
     clearTimeout(wait.timer);
     wait.timer = setTimeout(() => this.writeMissed(turnId), Math.max(0, this.deadline(wait.endedAt, wait.exitedAt) - Date.now()));
-    wait.timer.unref?.();
+    wait.timer.unref();
   }
   // Checked again right before the write: a deletion meanwhile drops the wait, and store.append would recreate a deleted
   // history. A history that stopped taking writes takes none. A new canvas that has conversations of its own still
@@ -1864,7 +1877,7 @@ export class ConversationService {
   private armDrawn(turnId: string, watch: DrawWatch): void {
     clearTimeout(watch.timer);
     watch.timer = setTimeout(() => { this.judgeDrawn(turnId); this.dropDrawnTurn(turnId); }, Math.max(0, this.deadline(watch.endedAt!, watch.exitedAt) - Date.now()));
-    watch.timer.unref?.();
+    watch.timer.unref();
   }
   // Reached from receive, outside its persistence handling: a failed write here drops only this watch and is logged; the
   // turn and its runner go on. Each write is checked again right before it, after the listing was read (POSTMORTEM
@@ -1938,7 +1951,7 @@ export class ConversationService {
     const steers = this.steering(id).map(([messageId, steer]) => ({ messageId, itemId: steer.itemId }));
     if (!live.transcript || live.exited || !steers.length) return false;
     clearTimeout(live.lookup?.timer);
-    live.lookup = { steers, giveBack, timer: setTimeout(() => this.endLookup(id, live, false), HELD_END_MS) }; live.lookup.timer.unref?.();
+    live.lookup = { steers, giveBack, timer: setTimeout(() => this.endLookup(id, live, false), HELD_END_MS) }; live.lookup.timer.unref();
     return true;
   }
   private endLookup(id: string, live: Live, read: boolean): void {

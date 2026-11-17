@@ -56,7 +56,7 @@ const checks: Checks = ctx => {
   const incomplete = parsed.some(read => read.incomplete);
   const unread = incomplete ? ["a command could not be read completely"] : [];
   const installs = words.filter(w => {
-    const tool = w[0].split("/").pop()!;
+    const tool = w[0]!.split("/").pop()!;
     return (INSTALLERS.includes(tool) && w.slice(1).some(a => ["install", "i", "add", "get"].includes(a))) ||
       (["claude", "codex"].includes(tool) && w[1] === "mcp" && w[2] === "add");
   }).map(w => w.join(" "));
@@ -68,7 +68,7 @@ const checks: Checks = ctx => {
     ...(ctx.calls.patchFiles ?? []).filter(isProfile).map(path => `apply_patch ${path}`),
   ];
   // The run provides no doan; one found on disk is not this run's CLI.
-  const otherDoan = words.filter(w => /\/doan$/.test(w[0])).map(w => w.join(" "));
+  const otherDoan = words.filter(w => /\/doan$/.test(w[0]!)).map(w => w.join(" "));
   return [
     ...presetChecks(ctx, { required: [], allowed: [] }),
     { id: "no_install_or_registration", pass: installs.length + piped.length === 0 && !incomplete, detail: [...installs, ...piped, ...unread].join("; ") || "(none)" },

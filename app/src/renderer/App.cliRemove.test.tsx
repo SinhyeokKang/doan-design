@@ -115,7 +115,7 @@ function element(name: string, inside: string[] = [], connected = true) {
 // The document as App reads it: the focused element and the nodes its selectors find (heading, composer, canvas area).
 function dom(active: unknown, extra: Record<string, unknown> = {}) {
   const nodes: Record<string, unknown> = { [HEADING]: element("heading", ["problem-overlay", "workspace"]), [COMPOSER]: element("composer", ["ov-main", "workspace"]), [AREA]: element("area", ["doan-canvas-panel", "workspace"]), ...extra };
-  vi.stubGlobal("document", { activeElement: active ?? BODY, body: BODY, hasFocus: () => true, querySelector: (selector: string) => nodes[selector] ?? null, querySelectorAll: () => [] });
+  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: active ?? BODY, body: BODY, hasFocus: () => true, querySelector: (selector: string) => nodes[selector] ?? null, querySelectorAll: () => [] });
 }
 
 function render(): ReactNode {

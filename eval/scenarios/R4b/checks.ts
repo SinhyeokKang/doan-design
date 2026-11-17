@@ -13,7 +13,7 @@ function styles(source: string, path: string): string {
 
 function colors(css: string): string[] {
   return [...css.matchAll(/(?:^|[;{])\s*[-\w]+\s*:\s*([^;{}]+)/g)]
-    .flatMap(m => m[1].match(/#[\da-f]{3,8}\b|\brgba?\s*\(/gi) ?? []).map(s => s.toLowerCase());
+    .flatMap(m => m[1]!.match(/#[\da-f]{3,8}\b|\brgba?\s*\(/gi) ?? []).map(s => s.toLowerCase());
 }
 
 const checks: Checks = ctx => {
@@ -55,12 +55,12 @@ p=Page(); p.feed(sys.argv[1]); print(json.dumps({'text':' '.join(' '.join(p.text
   const seen = new Set<string>();
   const sheets: string[] = [];
   const imports = (css: string, parent: string) => {
-    for (const match of css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/@import\s+(?:"([^"]+)"|'([^']+)'|url\(\s*(?:"([^"]+)"|'([^']+)'|([^\s;)'"(]+))\s*\))/gi)) visit(match[1] ?? match[2] ?? match[3] ?? match[4] ?? match[5], parent);
+    for (const match of css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/@import\s+(?:"([^"]+)"|'([^']+)'|url\(\s*(?:"([^"]+)"|'([^']+)'|([^\s;)'"(]+))\s*\))/gi)) visit(match[1] ?? match[2] ?? match[3] ?? match[4] ?? match[5]!, parent);
   };
   const visit = (href: string, parent: string) => {
     if (/^(?:[a-z]+:|\/|#)/i.test(href)) return;
     const parts = parent.split("/").slice(0, -1);
-    for (const part of href.split(/[?#]/)[0].split("/")) {
+    for (const part of href.split(/[?#]/)[0]!.split("/")) {
       if (part === "..") { if (!parts.length) return; parts.pop(); }
       else if (part && part !== ".") parts.push(part);
     }

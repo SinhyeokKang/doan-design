@@ -108,7 +108,7 @@ function reset() {
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), onFoldersSaveFailed: vi.fn(() => () => {}), openSettings: vi.fn(async () => true), markConversationSeen: vi.fn(async () => {}),
   };
   vi.stubGlobal("window", { doan, addEventListener: vi.fn(), removeEventListener: vi.fn() });
-  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: (selector: string) => FIELDS[selector] ?? null, querySelectorAll: () => [], hasFocus: () => true });
+  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector: (selector: string) => FIELDS[selector] ?? null, querySelectorAll: () => [], hasFocus: () => true });
   vi.stubGlobal("getComputedStyle", () => ({ visibility: "visible" }));
   vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
   vi.stubGlobal("HTMLElement", class {});
@@ -238,6 +238,25 @@ test("deleting the shown Overview conversation: mark, main, every run's cleanup,
   expect(dialog()).toBeUndefined();
   expect(harness.toast.show).not.toHaveBeenCalled();
   expect(focused.calls).toEqual([FIELDS[".workspace .ov-main .composer-input"]]);
+});
+
+// ui-state's conversationByCanvas forgets a deleted conversation on every canvas that remembers it.
+test("a deleted conversation leaves the canvas conversation memory; a refused deletion keeps it", async () => {
+  doan.listConversations!.mockResolvedValue([summary("c1"), summary("c2")]);
+  render();
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, conversationByRoot: { "/w/a": "c1" }, conversationByCanvas: { "/w/a": { a: "c1", b: "c2" } } }); await flushAll();
+  listeners.folders!([{ ...listed("/w/a"), canvases: [rowA, { path: ".doan/canvases/b.html", id: "b", url: "u-b" }] }] as never); render();
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  await flushAll();
+  const memories = () => doan.saveUiState!.mock.calls.map(([state]) => (state as { conversationByCanvas?: unknown }).conversationByCanvas);
+  const saved = () => memories().at(-1);
+  doan.deleteConversation = vi.fn(async () => ({ error: "busy" }));
+  ask(target("c2")); dialog()!.confirm(); await flushAll();
+  expect(memories().length).toBeGreaterThan(0);
+  expect(memories().every(memory => JSON.stringify(memory) === JSON.stringify({ "/w/a": { a: "c1", b: "c2" } }))).toBe(true);
+  doan.deleteConversation = vi.fn(async () => undefined);
+  ask(target("c2")); dialog()!.confirm(); await flushAll();
+  expect(saved()).toEqual({ "/w/a": { a: "c1" } });
 });
 
 test("deleting a conversation that was not shown leaves the screen and returns focus to the trigger", async () => {

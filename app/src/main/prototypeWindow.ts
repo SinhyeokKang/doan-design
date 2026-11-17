@@ -9,9 +9,10 @@ import { app, BrowserWindow, Menu, screen, session, webFrameMain, type BaseWindo
 import { fileURLToPath } from "node:url";
 import type { BuddyId } from "../renderer/buddies";
 import { childOfTopFrame, fromAppFrame } from "./canvasFrame";
+import { clockArgument } from "./clockHourCycle";
 import { editMenuInput, editMenuTemplate } from "./editMenu";
 import { createPrototypeController, type PrototypeController, type PrototypeHost } from "./prototype/controller";
-import { fitPrototypeWindow, openPanelResize, prototypeCaptureRect, prototypePanelFit, PROTOTYPE_PANEL_MIN_WIDTH, PROTOTYPE_WINDOW_MIN_WIDTH, type Rect } from "./prototype/fit";
+import { fitPrototypeWindow, openPanelResize, prototypeCaptureRect, prototypePanelFit, PROTOTYPE_PANEL_MIN_WIDTH, PROTOTYPE_WINDOW_MIN_HEIGHT, PROTOTYPE_WINDOW_MIN_WIDTH, type Rect } from "./prototype/fit";
 import { PROTOTYPE_CHANNELS } from "./prototype/ipc";
 import { prototypeFrameNavigationAllowed } from "./prototypeFrame";
 import { prototypeScriptSource } from "./prototypeScript";
@@ -41,6 +42,8 @@ export interface PrototypeWindowDeps {
   appHidden?(): boolean;
   // The saved buddy, in the page's query as the main window's, so the panel's first paint has its accent.
   buddy(): BuddyId;
+  // macOS's 12/24-hour setting, passed to the page as the main window's is, for the panel's times.
+  clockHour12(): boolean;
   // A new view went to the window: its target may have changed (a moved row's path).
   viewSent?(): void;
   // The playing canvas changed, before any view of it.
@@ -137,9 +140,9 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
   // follows the bounds, a falling one goes first so narrower bounds are not held at the old one.
   function resize(target: BrowserWindow, bounds: Rect, minimum: number): void {
     const [current = 0] = target.getMinimumSize();
-    if (minimum < current) target.setMinimumSize(minimum, 0);
+    if (minimum < current) target.setMinimumSize(minimum, PROTOTYPE_WINDOW_MIN_HEIGHT);
     target.setContentBounds(bounds);
-    if (minimum >= current) target.setMinimumSize(minimum, 0);
+    if (minimum >= current) target.setMinimumSize(minimum, PROTOTYPE_WINDOW_MIN_HEIGHT);
   }
 
   function create(size: { width: number; height: number }, panel: number | null): number | null {
@@ -151,8 +154,9 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       show: false,
       ...bounds,
       useContentSize: true,
-      // A content-size constraint under useContentSize.
+      // Content-size constraints under useContentSize.
       minWidth: fit.min,
+      minHeight: PROTOTYPE_WINDOW_MIN_HEIGHT,
       // The main window's shell: the traffic lights centred on the 56px header, over the sidebar glass.
       titleBarStyle: "hiddenInset",
       trafficLightPosition: { x: 16, y: 21 },
@@ -167,6 +171,7 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
         sandbox: true,
         partition: prototypeSession(),
         preload: fileURLToPath(new URL("../preload/prototype.cjs", import.meta.url)),
+        additionalArguments: [clockArgument(deps.clockHour12())],
       },
     });
     window = created;
@@ -193,10 +198,10 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       if (isMainFrame || code < 400 || run === null || !sameUrl(url, run.url) || !directChild(processId, routingId)) return;
       controller.readFailed(run.gen, status ? `HTTP ${code} ${status}` : `HTTP ${code}`);
     });
-    // The main window's text edit menu, for the conversation panel's composer and text. editMenuInput takes only the
-    // window's top frame, so the canvas iframe keeps having no menu. Nothing in the page handles DOM `contextmenu`.
+    // The main window's text edit menu, for the conversation panel's composer and text, and for an editable field in
+    // the frame content. Nothing in the page handles DOM `contextmenu`.
     contents.on("context-menu", (_event, params) => {
-      const template = editMenuTemplate(editMenuInput(params), contents);
+      const template = editMenuTemplate(editMenuInput(params), contents, { frameFields: true });
       if (template.length > 0) Menu.buildFromTemplate(template).popup({ window: created });
     });
     // A dead host renderer cannot show or report anything; the window goes by the normal closed path.
@@ -267,7 +272,7 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       return open.panel;
     },
     closePanel() {
-      live()?.setMinimumSize(PROTOTYPE_WINDOW_MIN_WIDTH, 0);
+      live()?.setMinimumSize(PROTOTYPE_WINDOW_MIN_WIDTH, PROTOTYPE_WINDOW_MIN_HEIGHT);
     },
     contentWidth() {
       return live()?.getContentBounds().width ?? 0;

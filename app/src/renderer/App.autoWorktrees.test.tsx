@@ -101,7 +101,7 @@ function reset() {
     onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => { calls.push("openLinksReady"); }), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}),
   };
   vi.stubGlobal("window", { doan, addEventListener: vi.fn(), removeEventListener: vi.fn() });
-  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
+  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
   vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
   vi.stubGlobal("HTMLElement", class {});
 }
@@ -262,6 +262,27 @@ test("an auto-registered worktree that is not a list is absent from the group's 
   // Read again as a list, it shows at the end of the group.
   folders([main(), other(), wt()]);
   expect(sidebar().cards.map(card => card.rows.map(row => row.path))).toEqual([[MAIN, OTHER, W]]);
+});
+
+// `doan remove` takes the hidden worktree with the rest (cliRemove.ts); every menu's Remove from Doan does the same.
+const confirmRemove = async () => {
+  const button = all(tree).find(element => element.type === "button" && element.props["data-ui-variant"] === "prominent" && element.props.children === "Remove from Doan");
+  (button!.props.onClick as () => void)(); await flush(); render();
+};
+test.each([
+  ["the sidebar's project menu", () => { (sidebar() as unknown as { remove(roots: string[]): void }).remove([MAIN, OTHER]); }],
+  ["the Project Settings page", () => { sidebar().projectSettings(MAIN); render(); (all(tree).find(element => element.type === ProjectSettingsPage)!.props as { onRemove(): void }).onRemove(); }],
+  ["the problem overlay", () => {
+    enter(MAIN);
+    folders([{ path: MAIN, kind: "notFound", lastCommon: KEY }, other(), hiddenW()]);
+    (all(tree).find(element => element.type === ProblemOverlay)!.props as { onAction(name: string): void }).onAction("remove");
+  }],
+])("Remove from Doan from %s takes the group's hidden auto-registered worktree too", async (_name, press) => {
+  await start([main(), other(), hiddenW()]);
+  doan.removeProjects = vi.fn(async () => ({ kind: "removed" }));
+  press(); render();
+  await confirmRemove();
+  expect(doan.removeProjects).toHaveBeenCalledWith([MAIN, OTHER, W]);
 });
 
 test("a launch restore on an auto-registered worktree waits while it is read, though the row is hidden meanwhile", async () => {

@@ -123,13 +123,13 @@ function start(state: PrototypeState, target: PrototypeTarget, resolved: Present
   const mark = fit?.size ?? (state.open && state.run !== null ? { width: state.run.markWidth, height: state.run.markHeight } : { width: 0, height: 0 });
   // doan ls first (newest), then the frame list kept from this canvas's last run; the target's own last title stands
   // only when neither lists the frame.
-  const listedTitle = [titleIn(resolved.frames, target.frame), keepFrames && state.open ? titleIn(state.frames, target.frame) : undefined]
+  const listedTitle = [titleIn(resolved.frames, target.frame), keepFrames ? titleIn(state.frames, target.frame) : undefined]
     .find(listed => listed !== undefined);
   const base = {
     open: true as const, gen, history, mode: state.mode, panel: state.panel, target, source: resolved.source, url: resolved.url, label: resolved.label, path: resolved.path,
-    title: listedTitle !== undefined ? listedTitle : sameFrame && state.open ? state.title : null,
+    title: listedTitle !== undefined ? listedTitle : sameFrame ? state.title : null,
     previousStopped: killed.length > 0 || (state.open && state.previousStopped),
-    frames: keepFrames && state.open ? state.frames : [], gotos: keepFrames && state.open ? state.gotos : [], reports: state.open ? state.reports : {}, fitHint: fit?.size ?? null,
+    frames: keepFrames ? state.frames : [], gotos: keepFrames ? state.gotos : [], reports: state.open ? state.reports : {}, fitHint: fit?.size ?? null,
   };
   if (resolved.error) {
     return { state: { ...base, phase: "read-failed", listed: "error", run: state.open ? state.run : null }, effects };

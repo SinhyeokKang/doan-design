@@ -11,7 +11,7 @@ const checks: Checks = ctx => {
   const received = ctx.prototype();
   const final = contentHash(ctx.read(path));
   const played = final !== null && received.some(e => e.request.root === ctx.repo && e.request.path === path && e.request.frame === frame
-    && e.response.ok && e.response.played && e.hashes[path] === final);
+    && e.response.ok && e.hashes[path] === final);
   const changed = ctx.changedFiles();
   return [
     { id: "prototype_open_command", pass: asked, detail: JSON.stringify(calls) },

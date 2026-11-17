@@ -103,7 +103,7 @@ function reset() {
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), onFoldersSaveFailed: vi.fn(() => () => {}), openSettings: vi.fn(async () => true),
   };
   vi.stubGlobal("window", { doan, addEventListener: (name: string, listener: (event: never) => void) => { windowListeners[name] = listener; }, removeEventListener: vi.fn() });
-  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [], hasFocus: () => true });
+  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [], hasFocus: () => true });
   vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
   vi.stubGlobal("HTMLElement", class {});
 }
@@ -390,7 +390,7 @@ const agent = () => (pane() as unknown as { agent: Agent } | undefined)?.agent;
 function focusable() {
   const focus = vi.fn();
   const querySelector = vi.fn((selector: string) => selector === ".doan-conv-panel :is(.rp-head, .doan-conv-title .ov-title)" ? { focus } : null);
-  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector, querySelectorAll: () => [], hasFocus: () => true });
+  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector, querySelectorAll: () => [], hasFocus: () => true });
   return { focus, querySelector };
 }
 
@@ -583,7 +583,8 @@ test("the panel opens on the conversation last seen on the canvas, and what is s
   await openCanvas({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, conversationByCanvas: { "/w/a": { a: "c2", other: "c9" } } });
   expect(shownId()).toBe("c2");
   selectShown("c1");
-  expect((saved() as { conversationByCanvas?: unknown }).conversationByCanvas).toEqual({ "/w/a": { a: "c1", other: "c9" } });
+  // `other` names a canvas and a conversation the read lists do not have: the save drops it.
+  expect((saved() as { conversationByCanvas?: unknown }).conversationByCanvas).toEqual({ "/w/a": { a: "c1" } });
 });
 
 // POSTMORTEM 2026-11-01: a conversation seen before the startup ui-state read sends no save; the first save after the
@@ -603,7 +604,7 @@ test("a conversation seen before the ui-state read sends no save, and the first 
   readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, conversationByCanvas: { "/w/a": { a: "c1", other: "c9" }, "/w/b": { x: "c8" } } });
   await Promise.resolve(); await Promise.resolve(); render();
   expect(doan.saveUiState).toHaveBeenCalled();
-  expect((doan.saveUiState!.mock.calls[0]![0] as { conversationByCanvas?: unknown }).conversationByCanvas).toEqual({ "/w/a": { a: "c2", other: "c9" }, "/w/b": { x: "c8" } });
+  expect((doan.saveUiState!.mock.calls[0]![0] as { conversationByCanvas?: unknown }).conversationByCanvas).toEqual({ "/w/a": { a: "c2" }, "/w/b": { x: "c8" } });
 });
 
 test("a canvas whose ID another canvas shares neither reads nor writes the memory", async () => {

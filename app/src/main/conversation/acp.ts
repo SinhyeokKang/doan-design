@@ -36,6 +36,7 @@ export class AcpConnection {
     this.buffer += text;
     if (this.buffer.length > ACP_LINE_LIMIT) { this.close(); this.onFailure("ACP message too large"); return; }
     let end: number;
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- line() can close the connection from inside the loop
     while (!this.closed && (end = this.buffer.indexOf("\n")) >= 0) {
       const line = this.buffer.slice(0, end).trim(); this.buffer = this.buffer.slice(end + 1);
       if (line) this.line(line);

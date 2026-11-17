@@ -554,3 +554,28 @@ describe("takeStartDraft", () => {
     expect(h.store.drafts.size).toBe(0);
   });
 });
+
+// A project-conversation send waits for the ended turn's promotion judgement (at most 10 s) before main starts its turn
+// and answers. Meanwhile the message shows at the thread's end as sending, as Send now's does.
+test("a send main has not answered shows as sending until its turn's own message arrives or the send settles", async () => {
+  const h = harness();
+  h.store.track(A);
+  await flush();
+  const message = { id: "send-1", text: "Make it blue", anchors: [CTA], attachments: [] };
+  const settle = h.store.sendPending(A, message);
+  expect(h.store.sending(A)).toEqual([message]);
+  expect(h.host.changed).toHaveBeenCalled();
+  // An earlier turn's event does not stand for it.
+  h.store.event(event({ type: "turn.done" }));
+  expect(h.store.sending(A)).toEqual([message]);
+  // Its turn's own message took its place.
+  h.store.event(event({ type: "user.message", text: "Make it blue", anchors: [CTA], turnId: "t2" }));
+  expect(h.store.sending(A)).toEqual([]);
+  settle();
+  expect(h.store.sending(A)).toEqual([]);
+  // A refused send leaves at its answer.
+  const refused = h.store.sendPending(A, { ...message, id: "send-2" });
+  expect(h.store.sending(A).map(item => item.id)).toEqual(["send-2"]);
+  refused();
+  expect(h.store.sending(A)).toEqual([]);
+});

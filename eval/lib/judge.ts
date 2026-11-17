@@ -115,9 +115,9 @@ export function buildJudgePrompt(input: JudgeInput, limits = JUDGE_LIMITS): stri
   const outputs = [...new Set((calls.outputs ?? []).map(output => output.callId))].map(callId => {
     const group = calls.outputs!.filter(output => output.callId === callId);
     return {
-      callId, scope: group[0].scope,
+      callId, scope: group[0]!.scope,
       calls: summaryCommands(group.map(output => output.command ?? output.name)),
-      excerpt: group[0].excerpt.slice(0, 300),
+      excerpt: group[0]!.excerpt.slice(0, 300),
     };
   });
   const commands = summaryCommands(calls.commands);

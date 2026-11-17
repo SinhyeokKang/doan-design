@@ -159,7 +159,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const saved = mode.kind === "new" ? (chosen ? props.prefs?.models?.[chosen] : undefined) : summary?.model ? { model: summary.model, ...(summary.effort ? { effort: summary.effort } : {}) } : undefined;
   const model = chosen ? modelOption(listState, pick.model ?? null)?.id ?? defaultModel(listState, saved, fixed) : null;
   const option = modelOption(listState, model);
-  const effort = pick.effort !== undefined ? defaultEffort(option, pick.effort) : defaultEffort(option, saved?.model === model ? saved?.effort : undefined, fixed);
+  const effort = pick.effort !== undefined ? defaultEffort(option, pick.effort) : defaultEffort(option, saved?.model === model ? saved.effort : undefined, fixed);
   // Fast, as effort: a new conversation's from its provider's Last used, an existing one's its own stored choice.
   const fast = pick.fast ?? (mode.kind === "new" ? defaultFast(props.prefs, chosen) : summary?.fast === true);
   const picker = modelPickerView(auth, lists, { provider: chosen, model, effort, fast });
@@ -301,10 +301,12 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     const revision = run.revision(root);
     // A message that waits for the usage limit's reset carries no picker change; the picks stay for the next send.
     const waits = waitsForReset(summary);
+    // A message that waits for the reset becomes a queued row instead.
+    const settle = waits ? null : run.store.sendPending(mode.conversationId, { id: crypto.randomUUID(), text: request.text, anchors: request.anchors, attachments: request.files ?? [] });
     const reply = await props.onSendConversation(mode.provider, {
       conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
       ...(waits ? {} : { ...(changedModel && model ? { model, ...(effort ? { effort } : {}) } : {}), ...changedFast, ...(sentMode ? { permissionMode: sentMode } : {}) }), ...(request.attachments.length ? { attachments: request.attachments } : {}),
-    }).catch(() => ({ error: "unknown" }));
+    }).catch(() => ({ error: "unknown" })).finally(() => settle?.());
     if (reply && "error" in reply) return reply;
     if (reply && "scheduled" in reply) {
       run.queued(root, mode.conversationId, { id: reply.scheduled.itemId, text: stripRequestLines(request.text), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });
@@ -476,7 +478,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         permission={permission} onPickPermission={value => support.pickPermission(key, mode.kind === "new" ? null : mode.conversationId, value, summary ? stored : undefined)}
         onSettings={props.onSettings}
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
-        onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
+        onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.retryPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => dropAttachment(window.doan, attachment)}
         turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { SIZE_BUBBLE, sizeBubblePlace } from "./sizeBubble";
+import { canvasBubbleRoom, SIZE_BUBBLE, sizeBubblePlace } from "./sizeBubble";
 
 // The selection line lies 1.5px outside the selection's rect, and the bubble hangs 5px from that line's outer edge.
 const LINE = 1.5;
@@ -45,5 +45,22 @@ describe("sizeBubblePlace", () => {
 
   test("an area too short for the bubble keeps it below", () => {
     expect(sizeBubblePlace({ y: 0, height: 100 }, bubble, { top: 0, bottom: 20 })).toEqual({ kind: "below" });
+  });
+});
+
+// The agent notice column at the area's top covers a bubble flipped above a selection, and its Play cannot be clicked
+// there: the room starts 8px under the column while it shows any notice, as it ends 8px over the floating tools.
+describe("canvasBubbleRoom", () => {
+  test("the room runs from the notice column's bottom to the floating tools' top, each 8px clear", () => {
+    expect(canvasBubbleRoom({ height: 800 }, { bottom: 68 }, { top: 740 })).toEqual({ top: 76, bottom: 732 });
+  });
+  test("without notices or tools the room is the whole area", () => {
+    expect(canvasBubbleRoom({ height: 800 }, null, null)).toEqual({ top: 0, bottom: 800 });
+  });
+  test("a selection whose bubble would flip under the notice column keeps it clear of the column", () => {
+    const room = canvasBubbleRoom({ height: 800 }, { bottom: 68 }, { top: 740 });
+    // Selection from y 90 to 760: no room below it, and above it the bubble would end at 83.5, under the column.
+    const place = sizeBubblePlace({ y: 90, height: 670 }, SIZE_BUBBLE, room);
+    expect(place.kind).toBe("inside");
   });
 });

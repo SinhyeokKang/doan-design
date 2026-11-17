@@ -98,6 +98,15 @@ describe("newConversationMode", () => {
     expect(newConversationMode({ error: "project_not_open" }, { choice: "resume" })).toEqual({ mode: "new", offer: null, pending: false });
   });
 
+  test("a terminal session Doan could not check is not offered, and the line says why", () => {
+    expect(newConversationMode({ available: false, reason: "session_unverified", runtime: "claude" }, {})).toEqual({
+      mode: "new", offer: null, pending: false,
+      reason: "Can’t continue the Claude Code session from your terminal: Doan couldn’t check whether it’s still in use. Sending starts a new conversation.",
+    });
+    // Other refusals stay silent: a reason only when the session may still be in use.
+    expect(newConversationMode({ available: false, reason: "session_unavailable" }, {})).toEqual({ mode: "new", offer: null, pending: false });
+  });
+
   test("before the resume target answers, a new conversation shows and Send waits", () => {
     expect(newConversationMode(undefined, {})).toEqual({ mode: "new", offer: null, pending: true });
   });
@@ -129,7 +138,7 @@ describe("canvasConversationError", () => {
   });
 
   test("a send refused while a terminal holds the session says so", () => {
-    expect(canvasConversationError("session_in_use", EXISTING, "claude", "acme-web")).toEqual({ kind: "notice", text: "Claude Code is using this session elsewhere. Try again when it finishes there.", retry: false, startNew: false });
+    expect(canvasConversationError("session_in_use", EXISTING, "claude", "acme-web")).toEqual({ kind: "notice", text: "Claude Code is still using this session. Try again when it finishes.", retry: false, startNew: false });
   });
 
   test("a send to a conversation of another account or an earlier sign-in offers a new conversation, not Retry", () => {
@@ -172,7 +181,7 @@ describe("canvasConversationError", () => {
   });
 
   test.each([
-    ["session_in_use", "Couldn’t continue the terminal session: it’s open elsewhere."],
+    ["session_in_use", "Couldn’t continue the terminal session: Codex is still using it."],
     ["no_session", "Couldn’t continue the terminal session: it’s no longer available."],
     ["session_unavailable", "Couldn’t continue the terminal session: it isn’t available right now."],
     ["not_logged_in", "Couldn’t continue the terminal session: sign in to Codex in Settings > Agents, then send again."],

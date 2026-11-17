@@ -118,6 +118,7 @@ export class AgentSignIn {
     this.starting++;
     const result = await this.settle(this.deps.api.signInAgent(provider, stop ? { stop: true } : {}));
     this.starting--;
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- dispose() can clear live while the sign-in call awaits
     if (!this.live) return;
     if (result.ok && "attemptId" in result) { this.ownedIds.push(result.attemptId); this.ownedBy.set(provider, result.attemptId); this.deps.remember?.(this.ownedIds); }
     const held = this.held;
@@ -129,6 +130,7 @@ export class AgentSignIn {
     if (!this.live) return;
     this.context(provider, { reply: null });
     const result = await this.settle(this.deps.api.signOutAgent(provider, stop ? { stop: true } : {}));
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- dispose() can clear live while the sign-out call awaits
     if (this.live && !result.ok) this.refuse(provider, result.reason, "signOut");
   }
   cancel(provider: Provider): void {

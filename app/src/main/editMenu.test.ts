@@ -93,6 +93,15 @@ describe("editMenuItems", () => {
     expect(editMenuItems(input({ mainFrame: false, selection: "a", misspelled: "teh", suggestions: ["the"] }))).toEqual([]);
     expect(editMenuItems(input({ mainFrame: false, editable: false, selection: "a" }))).toEqual([]);
   });
+
+  // The prototype window's frame content is a subframe whose fields people type into while playing.
+  test("with frame fields, a subframe's editable field opens the same menu and anything else in it opens none", () => {
+    const field = { mainFrame: false, selection: "teh", misspelled: "teh", suggestions: ["the"] };
+    expect(editMenuItems(input(field), { frameFields: true })).toEqual(editMenuItems(input({ ...field, mainFrame: true })));
+    expect(editMenuItems(input({ mainFrame: false, editable: false, selection: "a" }), { frameFields: true })).toEqual([]);
+    expect(editMenuItems(input({ mainFrame: false, editable: false }), { frameFields: true })).toEqual([]);
+    expect(shape(editMenuItems(input({ editable: false, selection: "a" }), { frameFields: true }))).toEqual(["Look Up “a”", "-", "copy"]);
+  });
 });
 
 describe("lookUpLabel", () => {

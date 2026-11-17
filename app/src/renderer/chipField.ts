@@ -458,7 +458,7 @@ export class ChipField {
     for (const [index, node] of nodes.entries()) {
       if (node.nodeType === Node.TEXT_NODE) { at += this.textOf(node).length; continue; }
       if (node instanceof HTMLElement && node.className === "skill-word" && Array.from(node.childNodes).every(child => child.nodeType === Node.TEXT_NODE)) {
-        const end = at + (node.textContent?.length ?? 0);
+        const end = at + node.textContent.length;
         spans.push({ start: at, end }); at = end; continue;
       }
       if (this.chips.has(node)) {

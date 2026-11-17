@@ -15,7 +15,7 @@ const exchange = (action: "start" | "done", hashes: Record<string, string | null
   response: { v: 3, ok: true }, hashes, at: new Date().toISOString(),
 });
 function failed(log: WorkExchange[], changed = [path], seed: string | null = "seed") {
-  const ctx = { work: () => log, changedFiles: () => changed, seed: () => seed, read: () => "final" } as CheckContext;
+  const ctx = { work: () => log, changedFiles: () => changed, seed: () => seed, read: () => "final" } as unknown as CheckContext;
   return workChecks(ctx).filter(c => !c.pass).map(c => c.id);
 }
 test("work checks accept a start before editing and a done after the final edit", () => {
@@ -62,10 +62,10 @@ test("fake app records arrival hashes, missing paths, auth failures and token-fr
     assert.equal((await request({ action: "start", path, token: "wrong" }) as { error: { code: string } }).error.code, "bad_token");
     const raw = readFileSync(app.workLog, "utf8");
     const log: WorkExchange[] = raw.trim().split("\n").map(line => JSON.parse(line));
-    assert.equal(log[0].hashes[path], null);
-    assert.equal(log[1].hashes[path], hash("final"));
+    assert.equal(log[0]!.hashes[path], null);
+    assert.equal(log[1]!.hashes[path], hash("final"));
     assert.ok(!raw.includes(runtime.token));
-    assert.ok(Number.isFinite(Date.parse(log[0].at)));
+    assert.ok(Number.isFinite(Date.parse(log[0]!.at)));
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -89,8 +89,8 @@ test("an unreadable snapshot records null and leaves the fake app serving work r
     writeFileSync(join(root, path), "readable again");
     assert.deepEqual(await request("done"), { v: 3, ok: true });
     const log: WorkExchange[] = readFileSync(app.workLog, "utf8").trim().split("\n").map(line => JSON.parse(line));
-    assert.equal(log[0].hashes[path], null);
-    assert.equal(log[1].hashes[path], hash("readable again"));
+    assert.equal(log[0]!.hashes[path], null);
+    assert.equal(log[1]!.hashes[path], hash("readable again"));
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -120,7 +120,7 @@ test("fake app keeps the canvas text an accepted update arrived at, and only for
     assert.equal((await request({ action: "update", path, frame: "" }) as { error: { code: string } }).error.code, "bad_request");
     const log: WorkExchange[] = readFileSync(app.workLog, "utf8").trim().split("\n").map(line => JSON.parse(line));
     assert.deepEqual(log.map(entry => entry.canvas), [undefined, "seed", "edited", undefined]);
-    assert.equal(log[1].request.note, "Drawing a");
+    assert.equal(log[1]!.request.note, "Drawing a");
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 

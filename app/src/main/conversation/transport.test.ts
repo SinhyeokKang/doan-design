@@ -280,6 +280,37 @@ it("forwards Codex additional-permission profiles without adding auto-review pol
   expect(permissionAnswer(request, "deny")?.response).toEqual({ id: 7, result: { permissions: {}, scope: "turn" } });
   expect(permissionAnswer(request, "always")?.response).toEqual({ id: 7, result: { permissions, scope: "session" } });
 });
+// Without a reason, the summary names each permission kind in a readable line (Codex app-server 0.169.0's
+// RequestPermissionProfile), capped like the other permission summaries.
+describe("Codex permission profile summary", () => {
+  const summaryOf = (permissions: unknown, reason: string | null = null) => {
+    const request = codexPermission({ id: 7, method: "item/permissions/requestApproval", params: { threadId: "session-1", turnId: "turn-1", itemId: "p", cwd: "/repo", reason, permissions } });
+    if (!request || request.event.type !== "permission.request") throw new Error("missing profile approval");
+    return request.event.summary;
+  };
+  it("keeps Codex's reason when it has one", () => {
+    expect(summaryOf({ network: { enabled: true }, fileSystem: null }, "Needs to download fonts")).toBe("Needs to download fonts");
+  });
+  it("names network access, paths to read and paths to write, relative to the working folder", () => {
+    expect(summaryOf({ network: { enabled: true }, fileSystem: { read: ["/repo/data"], write: ["/repo/out", "/repo/tmp", "/elsewhere"] } }))
+      .toBe("Use the network; Read data; Write out and 2 more");
+    expect(summaryOf({ network: { enabled: false }, fileSystem: { read: null, write: ["/repo/out"] } })).toBe("Write out");
+  });
+  it("reads file system entries by access, with glob patterns and special paths", () => {
+    expect(summaryOf({ network: null, fileSystem: { read: null, write: null, entries: [
+      { path: { type: "path", path: "/repo/src" }, access: "write" },
+      { path: { type: "glob_pattern", pattern: "**/*.png" }, access: "read" },
+      { path: { type: "special", value: { kind: "tmpdir" } }, access: "write" },
+      { path: { type: "path", path: "/repo/.env" }, access: "deny" },
+    ] } })).toBe("Read **/*.png; Write src and 1 more; No access to .env");
+  });
+  it("leaves an unknown shape as short JSON and caps the whole summary", () => {
+    const unknown = summaryOf({ network: null, fileSystem: null, browser: { origins: ["https://example.com/".repeat(40)] } });
+    expect(unknown.startsWith('{"browser":')).toBe(true);
+    expect(unknown.length).toBeLessThanOrEqual(121);
+    expect(summaryOf({ network: { enabled: true }, fileSystem: { read: [`/elsewhere/${"x".repeat(600)}`], write: null } }).length).toBe(512);
+  });
+});
 // Claude reports the mode it switched to after a plan approval in a status message.
 it("reads the mode a Claude status message reports, and nothing from other messages", () => {
   expect(claudeReportedMode({ type: "system", subtype: "status", status: null, permissionMode: "default" })).toBe("default");

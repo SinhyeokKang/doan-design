@@ -180,6 +180,7 @@ function armWorkTimer(): void {
   workTimer = setTimeout(() => {
     workTimer = undefined;
     updateWork(expireWork(workState, Date.now(), workLastChange));
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- updateWork can re-arm the timer
     if (workTimer === undefined) armWorkTimer();
   }, Math.max(0, deadline - Date.now()));
   workTimer.unref();
@@ -286,6 +287,9 @@ let prototypeFocused = false;
 let prototypeResume: { canvas: string; held: ResumeSession } | null = null;
 let prototypeWorkSent = "[]";
 let prototypeEntrySent: string | null = null;
+// Set once the draft store exists. A removal or a Move to Trash can reach main before then (the runtime socket and the
+// IPC handlers start earlier in `start`), so they reach the store through this rather than its later const.
+let conversationDraftStore: DraftStore | undefined;
 // Set once the attachment store exists: forget the draft attachments the closed prototype window still holds.
 let prototypeAttachmentsClosed: (owner: AttachmentOwner) => void = () => {};
 const FULLSCREEN_EXIT_WAIT_MS = 2000;
@@ -369,6 +373,7 @@ const prototype = createPrototypeWindow({
     prototypeRelay.changed();
   },
   buddy: () => prototypeBuddy(),
+  clockHour12: systemClockHour12,
   viewSent: () => prototypeRelay.changed(),
   canvasChanged: () => prototypeRelay.changed(),
   denyPermissions,
@@ -610,6 +615,13 @@ function denyPermissions(target: Session = session.defaultSession): void {
   target.on("will-download", (event) => event.preventDefault());
 }
 
+function systemClockHour12(): boolean {
+  return clockHour12({
+    force24: systemPreferences.getUserDefault("AppleICUForce24HourTime", "boolean") === true,
+    force12: systemPreferences.getUserDefault("AppleICUForce12HourTime", "boolean") === true,
+  }, app.getSystemLocale());
+}
+
 // buddy: the saved buddy, passed in the renderer's query for the first paint.
 function createWindow(buddy: BuddyId): BrowserWindow {
   // Launched by `onboarding start` behind the app in use: create hidden and wait, unless Doan became active during
@@ -639,10 +651,7 @@ function createWindow(buddy: BuddyId): BrowserWindow {
       sandbox: true,
       // CJS: a sandboxed preload cannot load ESM, and package.json is "type": "module".
       preload: fileURLToPath(new URL("../preload/index.cjs", import.meta.url)),
-      additionalArguments: [clockArgument(clockHour12({
-        force24: systemPreferences.getUserDefault("AppleICUForce24HourTime", "boolean") === true,
-        force12: systemPreferences.getUserDefault("AppleICUForce12HourTime", "boolean") === true,
-      }, app.getSystemLocale()))],
+      additionalArguments: [clockArgument(systemClockHour12())],
     },
   });
   const devUrl = process.env.ELECTRON_RENDERER_URL;
@@ -957,6 +966,7 @@ async function start(): Promise<void> {
     entries: () => ready.entries(),
     busy: target => trashBusy(target, conversations?.list(target.root) ?? [], conversations?.projectEvidence(target.root) ?? [], workItems(workState)),
     trashItem: path => electronShell.trashItem(path),
+    trashed: (root, canvas) => conversationDraftStore?.discardCanvasStarts(root, canvas),
   });
   handle("canvas:trashPlan", TRASH_REFUSED, (_event, value: unknown) => canvasTrash.plan(value));
   handle("canvas:trash", TRASH_REFUSED, (_event, value: unknown) => canvasTrash.trash(value));
@@ -1229,6 +1239,7 @@ async function start(): Promise<void> {
   const conversationStore = new ConversationStore(userData);
   // After the store, which made and checked the conversations directory.
   const conversationDrafts = new DraftStore(join(userData, "conversations"));
+  conversationDraftStore = conversationDrafts;
   const preferences = createPreferencesStore(join(userData, "preferences.json"));
   const notify = createNotifyService({
     preferences: () => preferences.current().notifications,
@@ -1433,6 +1444,8 @@ async function start(): Promise<void> {
     if (removed.paths.length === 0) return { kind: "unavailable" };
     // Background work a done turn left in a removed project stops without asking, as on sign-out.
     conversations?.stopBackground(removed.paths);
+    prototype.controller.rootsRemoved(removed.paths);
+    conversationDraftStore?.discardRootStarts(removed.paths);
     void thumbs.removed(removed.paths, before);
     return { kind: "removed", paths: removed.paths };
   }

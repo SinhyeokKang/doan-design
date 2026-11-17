@@ -154,6 +154,50 @@ function commandText(input: Record<string, unknown>): string {
   const [only] = actions;
   return (actions.length === 1 && only && text(only.command)) || text(input.command);
 }
+// Codex app-server's RequestPermissionProfile (checked against 0.169.0's generated schema): `network.enabled`, and
+// `fileSystem` paths by access, as the legacy `read`/`write` lists and as `entries`. Each kind reads as one line; a piece
+// of another shape stays as short JSON, so a new kind is still shown.
+const ACCESS_LINES = { read: "Read", write: "Write", deny: "No access to" } as const;
+const SPECIAL_PATHS: Readonly<Record<string, string>> = { root: "/", slash_tmp: "/tmp", tmpdir: "the temporary folder", minimal: "system folders", project_roots: "the project" };
+const shortJson = (value: unknown) => { const json = JSON.stringify(value); return json.length > 120 ? `${json.slice(0, 120)}…` : json; };
+type Access = keyof typeof ACCESS_LINES;
+const isAccess = (value: unknown): value is Access => typeof value === "string" && Object.hasOwn(ACCESS_LINES, value);
+function profilePath(path: unknown): string | null {
+  if (!object(path)) return null;
+  if (path.type === "path") return text(path.path) || null;
+  if (path.type === "glob_pattern") return text(path.pattern) || null;
+  if (path.type !== "special" || !object(path.value)) return null;
+  const { kind, subpath } = path.value;
+  if (text(subpath)) return text(subpath);
+  if (kind === "unknown") return text(path.value.path) || null;
+  return typeof kind === "string" ? SPECIAL_PATHS[kind] ?? null : null;
+}
+function codexPermissionSummary(permissions: Record<string, unknown>, root: string): string {
+  const paths: Record<Access, string[]> = { read: [], write: [], deny: [] };
+  const unknown: unknown[] = [];
+  let network = false;
+  for (const [key, value] of Object.entries(permissions)) {
+    if (value === null || value === undefined) continue;
+    if (key === "network" && object(value) && Object.keys(value).every(name => name === "enabled")) { network = value.enabled === true; continue; }
+    if (key !== "fileSystem" || !object(value)) { unknown.push({ [key]: value }); continue; }
+    for (const [name, part] of Object.entries(value)) {
+      if (part === null || part === undefined || name === "globScanMaxDepth") continue;
+      if ((name === "read" || name === "write") && Array.isArray(part) && part.every(path => typeof path === "string")) paths[name].push(...part);
+      else if (name === "entries" && Array.isArray(part)) {
+        for (const entry of part) {
+          const path = object(entry) ? profilePath(entry.path) : null;
+          if (path !== null && object(entry) && isAccess(entry.access)) paths[entry.access].push(path); else unknown.push(entry);
+        }
+      } else unknown.push({ fileSystem: { [name]: part } });
+    }
+  }
+  const lines = [
+    ...(network ? ["Use the network"] : []),
+    ...(["read", "write", "deny"] as const).filter(access => paths[access].length).map(access => `${ACCESS_LINES[access]} ${filesSummary(paths[access], root)}`),
+    ...unknown.map(shortJson),
+  ];
+  return (lines.length ? lines.join("; ") : shortJson(permissions)).slice(0, 512);
+}
 function filesSummary(paths: string[], root: string): string {
   const [first] = paths;
   if (!first) return "";
@@ -508,7 +552,7 @@ export function codexPermission(raw: unknown, fileSummaries: Readonly<Record<str
       choice("deny", "Deny", "deny", response({}, "turn")),
       choice("always", "Allow for this session", "allowAlways", response(params.permissions, "session")),
     ];
-    return { event: { type: "permission.request", requestId: `${typeof raw.id}:${raw.id}`, tool: "permissions", summary: text(params.reason) || JSON.stringify(params.permissions), options: choices.map(c => c.option) }, choices };
+    return { event: { type: "permission.request", requestId: `${typeof raw.id}:${raw.id}`, tool: "permissions", summary: text(params.reason).slice(0, 512) || codexPermissionSummary(params.permissions, text(params.cwd)), options: choices.map(c => c.option) }, choices };
   }
   if (raw.method !== "item/fileChange/requestApproval" && raw.method !== "item/commandExecution/requestApproval") return null;
   const response = (decision: unknown) => ({ id: raw.id, result: { decision } });

@@ -18,15 +18,15 @@ test("a known condition excludes only its expected check failures", () => {
   const text = summary("round", meta, [record, { ...record, agent: "claude" }]);
   assert.match(text, /expected fail: stand-in condition; recorded result: fail/);
   assert.match(text, /X1: codex fail, claude fail/);
-  assert.doesNotMatch(text.split("## Issue candidates")[1], /\*\*X1 \/ codex/);
-  assert.match(text.split("## Issue candidates")[1], /\*\*X1 \/ claude/);
+  assert.doesNotMatch(text.split("## Issue candidates")[1]!, /\*\*X1 \/ codex/);
+  assert.match(text.split("## Issue candidates")[1]!, /\*\*X1 \/ claude/);
   for (const unexpected of [
     { ...record, checks: [...checks, { id: "agent_cli_provenance", pass: false, detail: "wrong CLI" }] },
     { ...record, checks: [] },
     { ...record, timedOut: true },
     { ...record, result: "judge_error" as const },
   ]) {
-    assert.match(summary("round", meta, [unexpected]).split("## Issue candidates")[1], /\*\*X1 \/ codex/);
+    assert.match(summary("round", meta, [unexpected]).split("## Issue candidates")[1]!, /\*\*X1 \/ codex/);
   }
 });
 
@@ -47,7 +47,7 @@ test("R2, O1 and O2 Codex failures are issue candidates", () => {
   for (const [scenario, ids] of Object.entries(formerlyExpected)) {
     const checks = ids.map(id => ({ id, pass: false, detail: "app socket unreachable" }));
     const text = summary("round", meta, [{ ...run(scenario, "codex", 1, "fail"), checks }]);
-    assert.match(text.split("## Issue candidates")[1], new RegExp(`\\*\\*${scenario} / codex`));
+    assert.match(text.split("## Issue candidates")[1]!, new RegExp(`\\*\\*${scenario} / codex`));
     assert.doesNotMatch(text, /expected fail:|\| known \|/);
   }
 });
@@ -66,8 +66,8 @@ test("judge-only partials keep their evidence outside issue candidates without r
   assert.match(partials, /\*\*H3 \/ codex #1\*\* \(partial\).*`H3-codex`/);
   assert.match(partials, /judge \(none\): Failed install omitted from final report/);
   assert.match(partials, /stall: Install retry/);
-  assert.doesNotMatch(text.split("## Issue candidates")[1], /\*\*H3 \/ codex/);
-  assert.match(text.split("## Issue candidates")[1], /None\./);
+  assert.doesNotMatch(text.split("## Issue candidates")[1]!, /\*\*H3 \/ codex/);
+  assert.match(text.split("## Issue candidates")[1]!, /None\./);
   assert.match(text, /H3: codex partial/);
   assert.match(text, /\| H3 \| codex \| 1 \| partial \|  \| partial \| none \|/);
   assert.equal(JSON.stringify(record), before);
@@ -81,14 +81,14 @@ test("judge-only partials keep their evidence outside issue candidates without r
     { ...record, judge: "skipped" as const },
   ]) {
     const output = summary("round", meta, [unexpected]);
-    assert.match(output.split("## Issue candidates")[1], /\*\*H3 \/ codex/);
+    assert.match(output.split("## Issue candidates")[1]!, /\*\*H3 \/ codex/);
     assert.doesNotMatch(output.split("## Judge-only partials")[1]?.split("## ")[0] ?? "", /\*\*H3 \/ codex/);
   }
 });
 
 test("known-condition table matches replace only the displayed layer", () => {
   const meta = { date: "2026-10-24", versions: {}, guideSha256: "", cliVersion: "" };
-  for (const [scenario, checkId] of [["X1", "first_check"]]) {
+  for (const [scenario, checkId] of [["X1", "first_check"]] as const) {
     for (const judge of [
       { verdict: "fail", layer: "product", reasons: ["Known limitation"], stalls: [] },
       { verdict: "fail", layer: "none", reasons: [], stalls: [] },

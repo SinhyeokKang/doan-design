@@ -398,7 +398,7 @@ export function LocalFolderCard({ busy, choose, newFolder, drop }: { busy: boole
     window.addEventListener("drop", clear);
     return () => { window.removeEventListener("blur", clear); window.removeEventListener("drop", clear); };
   }, []);
-  const files = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes("Files");
+  const files = (event: DragEvent) => Array.from(event.dataTransfer.types).includes("Files");
   const handlers = drop && {
     onDragEnter: (event: DragEvent) => {
       if (!files(event)) return;
@@ -420,8 +420,8 @@ export function LocalFolderCard({ busy, choose, newFolder, drop }: { busy: boole
       depth.current = 0; setDropping(false);
       if (!drop.allowed()) return;
       // String items can sit among the files; only file items line up with `files`.
-      const items = Array.from(event.dataTransfer.items ?? []).filter(item => item.kind === "file");
-      drop.dropped(Array.from(event.dataTransfer.files).map((file, i) => ({ isDirectory: !!items[i]?.webkitGetAsEntry?.()?.isDirectory, path: window.doan.droppedPath(file) ?? "" })));
+      const items: (DataTransferItem | undefined)[] = Array.from(event.dataTransfer.items).filter(item => item.kind === "file");
+      drop.dropped(Array.from(event.dataTransfer.files).map((file, i) => ({ isDirectory: !!items[i]?.webkitGetAsEntry()?.isDirectory, path: window.doan.droppedPath(file) ?? "" })));
     },
   };
   return <div className="doan-panel ob-local-option" {...handlers}>
@@ -724,7 +724,7 @@ export function BuddyScene({ selection, preferences, heading, footer }: {
   const failure = selection.failure;
   const retry = (picked: BuddyId) => { void selection.select(picked).then(saved => { if (saved) requestAnimationFrame(() => focusChecked(document.querySelector(".ob-overlay .buddy-flow"))); }); };
   return <>
-    <div className="ob-heading"><h2 tabIndex={-1} id="ob-buddy-title" ref={heading}>Choose your buddy</h2><p>It keeps you company in Doan and sets the app’s accent color. You can change it later in Settings.</p></div>
+    <div className="ob-heading"><h2 tabIndex={-1} id="ob-buddy-title" ref={heading}>Choose your buddy</h2><p>It keeps you company in Doan and sets the app’s accent color. You can change it later in Settings. After each change there, your buddy stays for 24 hours.</p></div>
     {preferencesNotice(preferences?.notice, "doan-panel buddy-step-notice buddy-step-notice-top")}
     <BuddyFlow name="ob-buddy" labelledBy="ob-buddy-title" selected={selection.shown} disabled={buddyChoiceOff(preferences)} select={id => void selection.select(id)} />
     {failure && <BuddyFailureNotice failure={failure} id="ob-buddy-error" className="buddy-step-notice" panel running={selection.saving} retry={() => retry(failure.picked)} />}

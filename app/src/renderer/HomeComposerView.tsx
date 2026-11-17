@@ -12,7 +12,7 @@ import { useProjectSkills, type SkillsCalls } from "./useProjectSkills";
 import { fieldSkillRuns } from "./skillWords";
 import { classifyFirstWord, commandCard, commandLists, planSend, PRESET_NOTICE, STALE_MODE_CARD, type CommandCard } from "./commandView";
 import { AlertIcon } from "./AlertIcon";
-import { retryButton } from "./ListRetryButton";
+import { retryButton, useRetry } from "./ListRetryButton";
 import {
   AgentPicker, AttachButton, CommandCardNotice, ComposerCard, ComposerChips, focusPicker, ComposerField, ComposerTools, EffortPicker, PermissionPicker, PresetsButton, SendButton, SlashPresets, SuggestionButton, useComposerDrop, usePresetListOutside,
   type ComposerFieldHandle,
@@ -281,11 +281,14 @@ export function HeroComposer(props: HeroComposerProps) {
   const generation = provider ? generationOf(auth, provider) : 0;
   useEffect(() => { if (root && healthy && provider && ready) readModels(root, provider); }, [root, healthy, provider, ready, generation]);
 
-  // Presets: read on entering Home and kept for the run; a failure is read again when the popover opens (§4.4).
-  const readPresets = () => {
-    update({ presets: undefined });
-    void window.doan.designSkills.list().catch(() => undefined).then(reply => update({ presets: reply ?? { v: 1, ok: false, error: { code: "cli_error", reason: "failed", message: "" } } as PresetListReply }));
-  };
+  // Presets: read on entering Home and kept for the run; a failure is read again when the popover opens (§4.4), from
+  // the loading state. Retry keeps the failed reply, its line and itself, until the answer; it resolves whether it read.
+  const loadPresets = () => window.doan.designSkills.list().catch(() => undefined).then(reply => {
+    update({ presets: reply ?? { v: 1, ok: false, error: { code: "cli_error", reason: "failed", message: "" } } as PresetListReply });
+    return reply?.ok === true;
+  });
+  const readPresets = () => { update({ presets: undefined }); void loadPresets(); };
+  const presetsRetry = useRetry();
   useEffect(() => { if (!memory.current.presets?.ok) readPresets(); }, []);
   const presets = m.presets?.ok ? m.presets.result.presets : [];
   const suggested = suggestedPresets(entry, presets);
@@ -363,7 +366,7 @@ export function HeroComposer(props: HeroComposerProps) {
         const at = next.findIndex(a => a.key === key);
         if (at === -1) { if (result?.ok) void window.doan.removeAttachment(result.attachment.id); return; }
         if (!result || !result.ok) {
-          const name = result && !result.ok ? result.name : next[at]!.name;
+          const name = result ? result.name : next[at]!.name;
           next = next.filter(a => a.key !== key);
           notices.push(attachRefusal(result?.ok === false ? result.error : "unreadable", name));
           return;
@@ -561,7 +564,7 @@ export function HeroComposer(props: HeroComposerProps) {
   const keyDown = (event: KeyboardEvent<HTMLDivElement>): boolean => {
     const composing = event.nativeEvent.isComposing || event.keyCode === 229;
     if (slashOpen) {
-      const action = slashKey(event.key, highlight, slashRows.length, composing, { query: slash ?? "", row: slashRows[highlight] });
+      const action = slashKey(event.key, highlight, slashRows.length, composing, { query: slash, row: slashRows[highlight] });
       if (action?.kind === "move") { event.preventDefault(); setHighlight(action.highlight); return true; }
       if (action?.kind === "pick") { event.preventDefault(); const row = slashRows[highlight]; if (row) chooseRow(row.id, row.kind, true); return true; }
       if (action?.kind === "close") { if (event.key === "Escape") event.preventDefault(); setDismissed(action.dismiss); return true; }
@@ -620,14 +623,14 @@ export function HeroComposer(props: HeroComposerProps) {
           <ComposerTools>
             <AttachButton disabled={sending} onClick={choose} />
             <PresetsButton skills={skills} reply={m.presets} project={project} suggested={suggested} listId={listId} disabled={sending}
-              onOpen={() => { projectSkills.read(); if (memory.current.presets && !memory.current.presets.ok) readPresets(); }} onChoose={(id, kind) => chooseRow(id, kind, false)} onRetry={readPresets} onPicked={focusEnd} />
-            {slashOpen && slashView && <SlashPresets skills={skills} view={slashView} query={slash} listId={listId} highlight={highlight} listRef={slashList} onHighlight={setHighlight} onChoose={(id, kind) => chooseRow(id, kind, true)} onRetry={readPresets} />}
+              onOpen={() => { projectSkills.read(); if (memory.current.presets && !memory.current.presets.ok) readPresets(); }} onChoose={(id, kind) => chooseRow(id, kind, false)} retry={presetsRetry} onRetry={loadPresets} onPicked={focusEnd} />
+            {slashOpen && slashView && <SlashPresets skills={skills} view={slashView} query={slash} listId={listId} highlight={highlight} listRef={slashList} onHighlight={setHighlight} onChoose={(id, kind) => chooseRow(id, kind, true)} retry={presetsRetry} onRetry={loadPresets} />}
             <span className="grow" />
             <AgentPicker picker={picker} auth={auth} disabled={sending} onOpen={() => { if (root && healthy) for (const group of picker.groups) if (group.read) readModels(root, group.provider); }}
               onPick={(pickedProvider, value) => edit({ provider: pickedProvider, ...(value === null ? {} : { models: { ...memory.current.models, [pickedProvider]: value }, restoredModels: { ...memory.current.restoredModels, [pickedProvider]: undefined } }) })} onSettings={openSettings} />
             {picker.effort && provider && model && <EffortPicker view={picker.effort} effort={effort} disabled={sending} onPick={value => edit({ efforts: { ...memory.current.efforts, [effortKey(provider, model)]: value }, restoredEfforts: { ...memory.current.restoredEfforts, [effortKey(provider, model)]: undefined } })} onPickFast={on => { edit({ fast: { ...memory.current.fast, [provider]: on } }); props.onRemember?.({ provider, model, effort, ...modelPicked, fast: on }); }} />}
             {permission && provider && <PermissionPicker view={permission} disabled={sending} onPick={mode => edit({ permissions: { ...memory.current.permissions, [provider]: mode } })} />}
-            <SendButton enabled={availability.enabled} sending={sending} onSend={() => void send()} hint={reason?.kind === "noAgent" ? reason.text : undefined} />
+            <SendButton enabled={availability.enabled} sending={sending} onSend={() => void send()} hint={reason?.text} />
           </ComposerTools>
         </ComposerCard>
         {hasProjects && entry && <div className="composer-tray">

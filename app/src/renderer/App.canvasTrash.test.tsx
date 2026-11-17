@@ -79,7 +79,7 @@ function reset() {
     onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => { calls.push("openLinksReady"); }), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}),
   };
   vi.stubGlobal("window", { doan, addEventListener: vi.fn(), removeEventListener: vi.fn() });
-  vi.stubGlobal("document", { activeElement: null, body: {}, hasFocus: () => true, querySelector: () => null, querySelectorAll: () => [],
+  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, hasFocus: () => true, querySelector: () => null, querySelectorAll: () => [],
     createElement: () => Object.assign(new EventTarget(), { className: "", hidden: false, textContent: "", contentWindow: { postMessage: vi.fn() }, style: {}, children: [], append: vi.fn(), setAttribute: vi.fn(), remove: vi.fn(), replaceWith: vi.fn() }) });
   vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
   vi.stubGlobal("HTMLElement", class {});
@@ -156,6 +156,25 @@ test.each([
   expect(harness.toast.show).toHaveBeenCalledWith("Moved “a” to Trash.");
   // The Overview came from the closed canvas, not a navigation: no visit is committed.
   expect(visits()).toEqual(before);
+});
+
+// ui-state's conversationByCanvas forgets a canvas moved to the Trash, so the memory shrinks with the canvases.
+test("a canvas moved to the Trash leaves the canvas conversation memory; a refused move keeps it", async () => {
+  // Both remembered conversations are listed: a save drops what the read list does not name.
+  const listedSummary = (conversationId: string) => ({ conversationId, title: "", owner: "doan", provider: "codex", fromHome: false, phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-06T00:00:00Z", preview: "", working: false });
+  doan.listConversations = vi.fn(async () => [listedSummary("c1"), listedSummary("c2")]);
+  await start({ ...workspace, conversationByCanvas: { "/w/a": { [A]: "c1", [B]: "c2" } } });
+  const saved = () => (doan.saveUiState!.mock.calls.at(-1)?.[0] as { conversationByCanvas?: unknown } | undefined)?.conversationByCanvas;
+  const move = async (row: CanvasRow, reply: unknown) => {
+    doan.planCanvasTrash = vi.fn(async () => ({ kind: "ready" }));
+    doan.trashCanvas = vi.fn(async () => reply);
+    sidebar().canvasMenu.trash("/w/a", row, null); await flush(); render();
+    dialog()!.confirm(); await flush(); render();
+  };
+  await move(rows()[1]!, { kind: "refused", reason: "busy" });
+  expect(saved()).toEqual({ "/w/a": { [A]: "c1", [B]: "c2" } });
+  await move(rows()[1]!, { kind: "trashed" });
+  expect(saved()).toEqual({ "/w/a": { [A]: "c1" } });
 });
 
 test("a canvas that leaves the list without a Move to Trash keeps the removed-canvas toast", async () => {

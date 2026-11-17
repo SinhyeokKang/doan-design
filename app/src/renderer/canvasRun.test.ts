@@ -410,6 +410,22 @@ test("the terminal session is asked once per visit, holds Send until it answers,
   expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: false, offer: null, mode: "new" } });
 });
 
+// A session Doan could not check stays unchecked for the visit: a list change does not ask the same link again.
+test("a terminal session Doan could not check shows its reason and is not asked again in that visit", async () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([]);
+  resume[0]!.resolve({ available: false, reason: "session_unverified", runtime: "claude" });
+  await flush();
+  expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: false, offer: null, mode: "new", reason: expect.stringContaining("Claude Code") } });
+  h.answer([summary(B, { canvas: CART })]);
+  expect(doan.conversationResumeTarget).toHaveBeenCalledTimes(1);
+  // The next visit asks again (cart shows its conversation B, so only checkout asks).
+  h.run.show(cart);
+  h.run.show(checkout);
+  expect(doan.conversationResumeTarget).toHaveBeenCalledTimes(2);
+});
+
 test("a terminal session answer that lands after the person left the canvas is dropped", async () => {
   const h = harness();
   h.run.show(checkout);

@@ -284,7 +284,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const saved = mode.kind === "new" ? (chosen ? props.prefs?.models?.[chosen] : undefined) : summary?.model ? { model: summary.model, ...(summary.effort ? { effort: summary.effort } : {}) } : undefined;
   const model = chosen && !fixed ? modelOption(listState, pick.model ?? null)?.id ?? defaultModel(listState, saved, preference) : null;
   const option = modelOption(listState, model);
-  const effort = fixed ? null : pick.effort !== undefined ? defaultEffort(option, pick.effort) : defaultEffort(option, saved?.model === model ? saved?.effort : undefined, preference);
+  const effort = fixed ? null : pick.effort !== undefined ? defaultEffort(option, pick.effort) : defaultEffort(option, saved?.model === model ? saved.effort : undefined, preference);
   // Fast, as effort: a new conversation's from its provider's Last used, an existing one's its own stored choice.
   const fast = pick.fast ?? (mode.kind === "new" ? defaultFast(props.prefs, chosen) : summary?.fast === true);
   const picker = modelPickerView(auth, lists, { provider: chosen, model, effort, fast });
@@ -452,7 +452,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
       return { ok: true, ...(follows ? { conversationId: reply.conversationId } : {}) };
     }
     // A message that waits for the usage limit's reset carries no picker change; the picks stay for the next send.
-    const waits = mode.kind === "existing" && waitsForReset(summary);
+    const waits = waitsForReset(summary);
     const reply = await calls.sendConversation({
       conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
       ...(waits ? {} : { ...(changedModel && model && !fixed ? { model, ...(effort ? { effort } : {}) } : {}), ...changedFast, ...(sentMode ? { permissionMode: sentMode } : {}) }), ...(request.attachments.length ? { attachments: request.attachments } : {}),
@@ -529,6 +529,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
           {newView?.listError && listFailedNotice(run.listRetry(), () => run.retryList())}
           {card && <CommandCardNotice card={card} onAction={cardAction} onDismiss={dismissCard} />}
           {resume && <ResumeChoice offer={offer!} reply={resume.resume} now={props.now} mode={held ? "new" : resume.start.mode} held={held} onChoose={choice => { run.choose(choice); focusField(); }} />}
+          {/* In place of the choice: a terminal session Doan could not check is not offered, and this says why. */}
+          {!resume && newView?.start.reason && <div className="doan-notice thread-notice" role="status"><Info className="doan-alert-icon" aria-hidden="true" /><span className="strip-text selectable"><span>{newView.start.reason}</span></span></div>}
           {prompts.length > 0 && !started && !resume && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
             <SuggestionButton key={prompt.label} prompt={prompt} onPick={() => { store.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }} />)}</div>}
         </>}
@@ -550,7 +552,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         permission={permission} onPickPermission={value => support.pickPermission(key, mode.kind === "existing" ? mode.conversationId : null, value, summary ? stored : undefined)}
         onSettings={props.onSettings}
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
-        onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
+        onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.retryPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => dropAttachment(calls, attachment)}
         turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={null} canvasGone={false} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}

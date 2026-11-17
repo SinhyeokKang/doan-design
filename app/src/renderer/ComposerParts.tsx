@@ -13,6 +13,8 @@ import { ChipField, type ChipInsert } from "./chipField";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import type { ComposerAction } from "./composerRules";
 import { outsidePresetList } from "./presetOutside";
+import { retryButton, type useRetry } from "./ListRetryButton";
+import { announcedAgain, type ListRetry } from "./listRetry";
 import type { SettingsTarget } from "./settingsSections";
 import {
   attachmentChipView, foldRows, groupIcon, heldScrollTop, lockedOlderSide, isSubmitKey, steerKey, modelPickerView, NO_OLDER, olderLabel, olderOpened, olderOrder, olderToggled,
@@ -71,7 +73,7 @@ export function ComposerCard({ readonly, children }: { readonly: boolean; childr
 export function useComposerDrop(options: { blocked: () => boolean; onFiles(files: File[]): void; onNotice(text: string | null): void }) {
   const [dropping, setDropping] = useState(false);
   const depth = useRef(0);
-  const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes("Files");
+  const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer.types).includes("Files");
   const handlers = {
     onDragEnter: (event: DragEvent) => { if (!hasFiles(event)) return; event.preventDefault(); event.stopPropagation(); depth.current++; setDropping(true); },
     onDragOver: (event: DragEvent) => { if (!hasFiles(event)) return; event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = options.blocked() ? "none" : "copy"; },
@@ -261,7 +263,7 @@ export function tabKey(keys: readonly string[], current: string, key: string): s
 }
 
 type PresetView = ReturnType<typeof presetListView>;
-interface PresetBodyOptions { listId: string; highlight: number; onHighlight?(index: number): void; onChoose(id: string, kind: PresetRow["kind"]): void; onRetry(): void; onTab?(key: string): void }
+interface PresetBodyOptions { listId: string; highlight: number; onHighlight?(index: number): void; onChoose(id: string, kind: PresetRow["kind"]): void; retry: ListRetry; onRetry(pressed: HTMLElement | null): void; onTab?(key: string): void }
 // Once focus is on a row of the list (arrow keys), the pointer carries it along as in the frame list. With focus elsewhere
 // (the popover opens in the search box) a row only fills on hover (ds/surfaces.css), so typing and Space keep their target.
 // focusVisible: false keeps a pointer-moved focus from drawing the keyboard ring.
@@ -290,7 +292,13 @@ export function presetBody(view: PresetView, slash: boolean, options: PresetBody
   if (view.kind === "empty") return <div className="popover-state" role="status">{view.text}</div>;
   // The popover is 90% glass over Home's gradient, not plain opaque white, so its notices take the panel surface.
   if (view.kind === "olderCli") return <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text selectable">{view.text}</span></div>;
-  if (view.kind === "error") return <><div className="doan-notice error doan-panel" role="alert"><AlertIcon /><span className="grow-text selectable">{view.text}</span></div>{view.retry && <div className="popover-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={options.onRetry}>Retry</button></div>}</>;
+  // The line and its Retry stay while the read Retry started is out (DESIGN 'Busy action'). In the / list a press on
+  // Retry keeps focus in the field, as a press on a row does.
+  if (view.kind === "error") {
+    const noticeId = `${options.listId}-${slash ? "slash" : "presets"}-notice`;
+    return <><div className="doan-notice error doan-panel" role="alert"><AlertIcon /><span className="grow-text selectable" id={noticeId}>{announcedAgain(view.text, options.retry.failures)}</span></div>
+      {view.retry && <div className="popover-actions" onMouseDown={slash ? event => event.preventDefault() : undefined}>{retryButton({ running: options.retry.running, variant: "subtle", describedBy: noticeId, onRetry: options.onRetry })}</div>}</>;
+  }
   const rows = view.sections.reduce((n, section) => n + section.rows.length, 0);
   let index = 0;
   return <>
@@ -322,13 +330,16 @@ function SearchField({ value, slash, listId, onChange, label = "Search presets" 
 // message instead, and the canvas page hands it to the preset lists: subscribe with a listener, get the unsubscribe.
 export type CanvasPress = (listener: () => void) => () => void;
 
+// The design presets read's Retry, owned by the composer: the popover and the / list show the one read it started.
+export type PresetsRetry = ReturnType<typeof useRetry>;
+
 // The Presets button and its popover. Picking a preset closes the popover and hands focus to
 // the field through `onPicked`; a list that failed is read again when the popover opens. A press outside it in the
 // app's document closes it by Radix's own rule; a press in the canvas closes it through `canvasPress`.
 export function PresetsButton(props: {
   skills?: readonly SkillSummary[];
   reply: PresetListReply | undefined; project: string; suggested: readonly PresetSummary[]; listId: string; disabled: boolean;
-  onOpen(): void; onChoose(id: string, kind: PresetRow["kind"]): void; onRetry(): void; onPicked(): void; canvasPress?: CanvasPress | undefined;
+  retry: PresetsRetry; onOpen(): void; onChoose(id: string, kind: PresetRow["kind"]): void; onRetry(): Promise<boolean>; onPicked(): void; canvasPress?: CanvasPress | undefined;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -358,6 +369,12 @@ export function PresetsButton(props: {
     }
   }, [open, tab, query, selected]);
   const choose = (id: string, kind: PresetRow["kind"]) => { picked.current = true; setOpen(false); props.onChoose(id, kind); };
+  // A read that answers with the list takes the line and its Retry away; focus that was on the Retry goes to the search
+  // box, the popover's first control, instead of falling to <body>.
+  const readAgain = (pressed: HTMLElement | null) => props.retry.run(() => props.onRetry().then(ok => {
+    if (ok) requestAnimationFrame(() => { if (pressed && !pressed.isConnected && document.activeElement === document.body) content.current?.querySelector<HTMLElement>("input")?.focus(); });
+    return ok;
+  }), pressed);
   return <Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) { pressed.current = false; setQuery(""); props.onOpen(); } }}>
     <IconTip label="Design presets"><Popover.Trigger asChild><button type="button" className="doan-icon-button composer-presets" aria-label="Design presets" disabled={props.disabled}><PencilSparkles aria-hidden="true" /></button></Popover.Trigger></IconTip>
     <TooltipEscape value={() => setOpen(false)}><Popover.Portal><Popover.Content ref={content} onFocusCapture={event => { const target = event.target as HTMLElement; lastFocused.current = target.closest('[role="tab"], [role="listbox"]') ? target : null; }} className={`doan-floating preset-popover${(props.skills ?? []).some(r => r.kind !== "command") ? " has-skills" : ""}${(props.skills ?? []).some(r => r.kind === "command") ? " has-commands" : ""}`} aria-label="Design presets" side="top" align="start" sideOffset={8} collisionPadding={8}
@@ -366,17 +383,17 @@ export function PresetsButton(props: {
         else if (pressed.current) { pressed.current = false; event.preventDefault(); }
       }}>
       <SearchField label={drawerSearchLabel(props.skills ?? [])} value={query} slash={false} listId={props.listId} onChange={setQuery} />
-      {presetBody(view, false, { listId: props.listId, highlight: 0, onChoose: choose, onRetry: props.onRetry, onTab: setTab })}
+      {presetBody(view, false, { listId: props.listId, highlight: 0, onChoose: choose, retry: props.retry, onRetry: readAgain, onTab: setTab })}
     </Popover.Content></Popover.Portal></TooltipEscape>
   </Popover.Root>;
 }
 
 // The `/` list keeps focus in the field, so it is drawn in place rather than as a focus-taking popover.
 // The pointer moves the one highlight the arrow keys move, as in a Radix menu.
-export function SlashPresets(props: { skills?: readonly SkillSummary[]; view: PresetView; query: string; listId: string; highlight: number; listRef?: RefObject<HTMLDivElement | null>; onHighlight(index: number): void; onChoose(id: string, kind: PresetRow["kind"]): void; onRetry(): void }) {
+export function SlashPresets(props: { skills?: readonly SkillSummary[]; view: PresetView; query: string; listId: string; highlight: number; listRef?: RefObject<HTMLDivElement | null>; onHighlight(index: number): void; onChoose(id: string, kind: PresetRow["kind"]): void; retry: PresetsRetry; onRetry(): Promise<boolean> }) {
   return <div className="doan-floating preset-popover slash-popover" role="presentation" ref={props.listRef}>
     <SearchField label={drawerSearchLabel(props.skills ?? [])} value={props.query} slash listId={props.listId} />
-    {presetBody(props.view, true, { listId: props.listId, highlight: props.highlight, onHighlight: props.onHighlight, onChoose: props.onChoose, onRetry: props.onRetry })}
+    {presetBody(props.view, true, { listId: props.listId, highlight: props.highlight, onHighlight: props.onHighlight, onChoose: props.onChoose, retry: props.retry, onRetry: pressed => props.retry.run(props.onRetry, pressed) })}
   </div>;
 }
 

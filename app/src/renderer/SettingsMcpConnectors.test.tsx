@@ -90,7 +90,7 @@ beforeEach(() => {
   nodes = new Map();
   const node = (selector: string) => {
     if (!nodes.has(selector)) {
-      const created = { focus: vi.fn(() => { doc.activeElement = created; }), scrollIntoView: vi.fn(), isConnected: true, matches: () => false };
+      const created = { focus: vi.fn(() => { doc.activeElement = created; }), scrollIntoView: vi.fn(), isConnected: true, matches: () => false, getAttribute: () => null };
       nodes.set(selector, created);
     }
     return nodes.get(selector)!;

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { conversationCanvasKey, parseUiState, UI_STATE_MAX_BYTES, withoutRoots } from "./uiState";
+import { conversationCanvasKey, parseUiState, UI_STATE_MAX_BYTES, withoutCanvas, withoutConversation, withoutRoots, withoutUnlisted } from "./uiState";
 
 const saved = ["/repo/a", "/repo/b"];
 const view = { scale: 1, x: 10, y: -20 };
@@ -350,6 +350,36 @@ test("conversationByCanvas never keeps a root outside the saved list", () => {
   expect(withoutRoots({ "/repo/a": { checkout: ID_A }, "/repo/b": { cart: ID_B } }, ["/repo/a"])).toEqual({ "/repo/b": { cart: ID_B } });
 });
 
+// A canvas moved to the Trash and a deleted conversation leave no memory, so the map shrinks as canvases and
+// conversations go instead of growing until ui-state passes its cap.
+test("withoutCanvas forgets one canvas of one root, by the key it was remembered under, and an emptied root", () => {
+  const memory = { "/repo/a": { checkout: ID_A, ".doan/canvases/cart.html": ID_B }, "/repo/b": { checkout: ID_B } };
+  expect(withoutCanvas(memory, "/repo/a", { path: ".doan/canvases/checkout.html", id: "checkout" })).toEqual({ "/repo/a": { ".doan/canvases/cart.html": ID_B }, "/repo/b": { checkout: ID_B } });
+  expect(withoutCanvas(memory, "/repo/a", { path: ".doan/canvases/cart.html" })).toEqual({ "/repo/a": { checkout: ID_A }, "/repo/b": { checkout: ID_B } });
+  expect(withoutCanvas(memory, "/repo/b", { path: ".doan/canvases/checkout.html", id: "checkout" })).toEqual({ "/repo/a": memory["/repo/a"] });
+  expect(withoutCanvas(memory, "/repo/c", { path: ".doan/canvases/x.html" })).toBe(memory);
+});
+
+test("withoutConversation forgets every canvas that remembers the conversation, and an emptied root", () => {
+  const memory = { "/repo/a": { checkout: ID_A, cart: ID_B }, "/repo/b": { checkout: ID_A } };
+  expect(withoutConversation(memory, ID_A)).toEqual({ "/repo/a": { cart: ID_B } });
+  expect(withoutConversation(memory, "11111111-1111-4111-8111-111111111111")).toBe(memory);
+});
+
+test("near the cap, trashed canvases and deleted conversations free the room the next save needs", () => {
+  const id = (n: number) => `${n.toString(16).padStart(8, "0")}-0000-4000-8000-000000000000`;
+  const canvases: Record<string, string> = {};
+  for (let n = 0; n < 1400; n++) canvases[`canvas-${n}`] = id(n);
+  const state = (memory: Record<string, Record<string, string>>) => JSON.stringify({ screen: "home", expanded: {}, lastByRoot: {}, conversationByCanvas: memory });
+  let memory: Record<string, Record<string, string>> = { "/repo/a": canvases };
+  expect(new TextEncoder().encode(state(memory)).length).toBeGreaterThan(UI_STATE_MAX_BYTES);
+  expect(parseUiState(state(memory), ["/repo/a"])).toBeNull();
+  for (let n = 0; n < 150; n++) memory = withoutCanvas(memory, "/repo/a", { path: `.doan/canvases/canvas-${n}.html`, id: `canvas-${n}` });
+  for (let n = 150; n < 300; n++) memory = withoutConversation(memory, id(n));
+  expect(Object.keys(memory["/repo/a"]!)).toHaveLength(1100);
+  expect(parseUiState(state(memory), ["/repo/a"])?.conversationByCanvas?.["/repo/a"]).toEqual(memory["/repo/a"]);
+});
+
 test("conversationByCanvas kept under an alias root moves to its real path; the real path's own canvases win", () => {
   const alias = "/alias/repo", real = "/real/repo";
   const text = JSON.stringify({ screen: "home", expanded: {}, lastByRoot: {}, conversationByCanvas: { [alias]: { checkout: ID_A }, [real]: { cart: ID_B } } });
@@ -508,4 +538,23 @@ test("a project kept under both spellings keeps the real path's entry and gains 
     shellProjects: { [alias]: { roots: [alias], expanded: false, groups: { canvases: false } }, [real]: { roots: [real], expanded: true } },
   });
   expect(parseUiState(text, [real], new Map([[alias, real]]))?.shellProjects).toEqual({ [real]: { roots: [real], expanded: true, groups: { canvases: false } } });
+});
+
+// A conversation deleted in the prototype window or a canvas deleted outside Doan leaves an entry nothing else forgets,
+// so a save drops what a read list no longer names. A list not read (still reading, failed) drops nothing.
+test("withoutUnlisted drops canvases and conversations a read list no longer names, and keeps what an unread list cannot vouch for", () => {
+  const memory = {
+    "/repo/a": { checkout: ID_A, ".doan/canvases/cart.html": ID_B, gone: ID_A },
+    "/repo/b": { checkout: ID_B },
+    "/repo/c": { checkout: ID_A },
+  };
+  const listed = (root: string) => root === "/repo/a"
+    ? { canvases: [{ path: ".doan/canvases/checkout.html", id: "checkout" }, { path: ".doan/canvases/cart.html" }], conversations: [ID_A] }
+    : root === "/repo/b" ? { canvases: [{ path: ".doan/canvases/checkout.html", id: "checkout" }], conversations: null }
+    : { canvases: null, conversations: null };
+  expect(withoutUnlisted(memory, listed)).toEqual({ "/repo/a": { checkout: ID_A }, "/repo/b": { checkout: ID_B }, "/repo/c": { checkout: ID_A } });
+  // An emptied root goes; nothing to drop answers the same map.
+  expect(withoutUnlisted({ "/repo/a": { gone: ID_A } }, listed)).toEqual({});
+  const kept = { "/repo/a": { checkout: ID_A } };
+  expect(withoutUnlisted(kept, listed)).toBe(kept);
 });

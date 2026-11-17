@@ -1,7 +1,7 @@
 // Claude's result is the final answer, not its tool results. Codex stdout
 // precedes its stderr banner in CheckContext.transcript (readAgentTranscript).
 export function finalAnswer(transcript: string): string {
-  const stdout = transcript.split(/^OpenAI Codex v[^\n]*$/m)[0].trim();
+  const stdout = transcript.split(/^OpenAI Codex v[^\n]*$/m)[0]!.trim();
   const prose = stdout.replace(/^\s*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\s*\1\s*$/gm, "").trim();
   let toolOutput = false;
   for (const line of prose.split(/\r?\n/).reverse()) {
