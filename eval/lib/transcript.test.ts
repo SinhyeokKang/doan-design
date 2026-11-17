@@ -658,7 +658,6 @@ test("an inline script that only names a path containing doan is read as it was"
 test("an interpreter running a script the reader cannot see, or find -exec into doan, makes the read incomplete", () => {
   const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
   for (const command of [
-    "python3 - <<'EOF'\nimport subprocess\nsubprocess.run(['doan', 'active'])\nEOF",
     "python3 -I - .doan/canvases/a.html <<'EOF'\nimport os\nos.system('doan check --json')\nEOF",
     "node <<EOF\nrequire('child_process').execSync('doan ls --json')\nEOF",
     "python3 <<< 'import os; os.system(\"doan active\")'",
@@ -692,6 +691,40 @@ test("an interpreter running a script the reader cannot see, or find -exec into 
   ]) read(command, [], true);
   // find -exec into a shell -c script runs that script, which is read like any sh -c script.
   read("find .agents -type f -exec sh -c 'echo \"== $1\"; cat \"$1\"' _ {} \\;", [["find", ".agents", "-type", "f", "-exec", "sh", "-c", 'echo "== $1"; cat "$1"', "_", "{}", ";"], ["echo", "== $1"], ["cat", "$1"]]);
+});
+
+// Codex reads presets from a Python heredoc (D10g, D10h): a subprocess call whose argv list is all string literals is
+// read as that doan command; a list built at run time, and a script file, may run any lookup.
+test("a Python heredoc's literal doan argv lists are read, and anything dynamic stays incomplete", () => {
+  const rollout = readFileSync(new URL("./fixtures/codex-python-heredoc.jsonl", import.meta.url), "utf8");
+  const [literal, dynamic, file] = shellCommands(rollout);
+  assert.deepEqual(parseCommand(literal!), { words: [["python3", "-"], ["doan", "design-skill", "context", "--json"], ["doan", "design-skill", "document", "--json"], ["tail", "-40"]], incomplete: false });
+  assert.deepEqual(parseCommand(dynamic!), { words: [], incomplete: true });
+  assert.deepEqual(parseCommand(file!), { words: [["cat"]], incomplete: true });
+
+  const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
+  read("python3 - <<'EOF'\nimport subprocess\nsubprocess.run(['doan', 'active'])\nEOF", [["python3", "-"], ["doan", "active"]]);
+  read("python3 -I <<EOF\nimport subprocess\nprint(subprocess.check_output(['/usr/local/bin/doan', 'ls', '--json'], text=True))\nEOF", [["python3", "-I"], ["/usr/local/bin/doan", "ls", "--json"]]);
+  // With an inline script the heredoc is only input data, so its calls do not run.
+  read("python3 -c 'import sys; print(sys.stdin.read())' <<'EOF'\nimport subprocess\nsubprocess.run(['doan', 'active'])\nEOF", [["python3", "-c", "import sys; print(sys.stdin.read())"]]);
+  for (const command of [
+    // The shell expands an unquoted body before Python reads it.
+    "python3 - <<EOF\nimport subprocess\nsubprocess.run(['doan', 'design-skill', '$P', '--json'])\nEOF",
+    // A list held in a variable, a shell, a wrapper running doan, a string command, a comment, a string.
+    "python3 - <<'EOF'\nimport subprocess\ncmd = ['doan', 'design-skill', 'document']\nsubprocess.run(cmd)\nEOF",
+    // A literal list the call extends or slices is not its argv.
+    "python3 - <<'EOF'\nimport subprocess\nname = 'audit'\nsubprocess.run(['doan', 'design-skill'] + [name])\nEOF",
+    "python3 - <<'EOF'\nimport subprocess\nsubprocess.run(['doan', 'design-skill', 'audit', 'x'][:3], check=True)\nEOF",
+    "python3 - <<'EOF'\nimport subprocess\nsubprocess.run(['doan', 'active'], shell=True)\nEOF",
+    "python3 - <<'EOF'\nimport subprocess\nsubprocess.run(['env', 'doan', 'design-skill', 'audit'])\nEOF",
+    "python3 - <<'EOF'\nimport os, subprocess\nsubprocess.run(['doan', 'active'])\nos.system('doan design-skill audit')\nEOF",
+    "python3 - <<'EOF'\nimport subprocess\n# subprocess.run(['doan', 'design-skill', 'audit'])\nsubprocess.run(['doan', 'active'])\nEOF",
+    "python3 - <<'EOF'\nimport subprocess\nprint(\"subprocess.run(['doan', 'design-skill', 'audit'])\")\nEOF",
+    "python3 - <<'EOF'\nimport subprocess\n'''\nsubprocess.run(['doan', 'design-skill', 'audit'])\n'''\nEOF",
+    "python3 - <<'EOF'\nimport subprocess\nsubprocess.run(['doan', f'design-skill', 'audit'])\nEOF",
+    // Only Python is read this way; another interpreter's heredoc stays incomplete.
+    "node <<'EOF'\nsubprocess.run(['doan', 'active'])\nEOF",
+  ]) read(command, [], true);
 });
 
 // Codex prints a multi-line command (a heredoc script, say) across several stderr lines; the header ends at the

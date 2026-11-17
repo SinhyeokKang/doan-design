@@ -1,5 +1,5 @@
 {"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"doan skill"}}]}}
 {"type":"assistant","message":{"content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"doan init --token-css styles/tokens.css --json"}}]}}
 {"type":"assistant","message":{"content":[{"type":"tool_use","id":"t3","name":"Bash","input":{"command":"doan design-skill context --json"}}]}}
-{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t4","name":"Bash","input":{"command":"doan design-skill document --json"}}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t4","name":"Bash","input":{"command":"python3 - <<'PY' 2>&1\nimport json, subprocess\nout = subprocess.run([\"doan\", \"design-skill\", \"document\", \"--json\"], capture_output=True, text=True, check=True)\nprint(json.loads(out.stdout)[\"result\"][\"body\"])\nPY"}}]}}
 {"type":"assistant","message":{"content":[{"type":"tool_use","id":"t5","name":"Bash","input":{"command":"doan check --json"}}]}}
