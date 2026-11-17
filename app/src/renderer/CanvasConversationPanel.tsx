@@ -22,7 +22,8 @@ import { canvasConversationError, canvasConversationMenu, noticeOpenName, resume
 import { sameCanvas } from "./canvasConversationRows";
 import type { CanvasRun, CanvasTarget, CanvasView, ResumeReply } from "./canvasRun";
 import { focusFieldEnd } from "./chipField";
-import { SuggestionButton, type CanvasPress } from "./ComposerParts";
+import { CommandCardNotice, focusPicker, SuggestionButton, type CanvasPress } from "./ComposerParts";
+import { commandTurnLabel, firstTitleMessage, threadCommands, type CommandCardTarget } from "./commandView";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
 import { announcedAgain } from "./listRetry";
 import { LIST_FAILED_TEXT, listFailedNotice, listRetryItem } from "./ListRetryButton";
@@ -46,7 +47,7 @@ import { PROVIDER_NAMES } from "./agentAuthView";
 import { scrollTarget } from "./overviewRun";
 import type { SettingsTarget } from "./settingsSections";
 import { threadItems, withSending } from "./threadItems";
-import { stopBackground, threadTurn } from "./turnStatus";
+import { stopBackground, threadTurn, turnOf } from "./turnStatus";
 import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 import type { PlayingFrameChip } from "./prototype/conversation";
@@ -222,9 +223,12 @@ export function canvasConversationTitle(run: CanvasRun, list: ListView): { title
   const view = run.view();
   if (view?.kind !== "conversation") return { title: "New conversation", current: null };
   const summary = Array.isArray(list) ? list.find(c => c.conversationId === view.conversationId) : undefined;
-  const first = run.store.thread(view.conversationId)?.events.find(event => event.type === "user.message");
-  // Before a list names it, the first message stands in as main's title does: chips by name (messageLine).
-  return { title: summary?.title || (first?.type === "user.message" ? messageLine(requestTitleText(first.text), first.anchors) : ""), current: view.conversationId };
+  const provider = summary?.provider ?? run.store.providerOf(view.conversationId);
+  const events = run.store.thread(view.conversationId)?.events ?? [];
+  // Before a list names it, the first message stands in as main's title does: chips by name (messageLine). A command
+  // names nothing (main leaves one a command started untitled until a message), so the lists' "Conversation" stands in.
+  const first = provider ? firstTitleMessage(provider, events) : undefined;
+  return { title: summary?.title || (first ? messageLine(requestTitleText(first.text), first.anchors) : "") || "Conversation", current: view.conversationId };
 }
 
 export function CanvasConversation(props: CanvasConversationProps) {
@@ -304,7 +308,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
   // A new connection of the provider has a list of its own to read.
   const generation = chosen ? generationOf(auth, chosen) : 0;
-  const projectSkills = useProjectSkills(calls, root, chosen, conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle", generation);
+  const projectSkills = useProjectSkills(calls, root, chosen, conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle", generation, conversationId);
   useEffect(() => { if (healthy && chosen && ready && !fixed) support.readModels(root, chosen); }, [root, healthy, chosen, ready, fixed, generation]);
 
   const presets = support.presets?.ok ? support.presets.result.presets : [];
@@ -313,7 +317,17 @@ export function CanvasConversation(props: CanvasConversationProps) {
 
   // The thread, and an entry's scroll to its pending permission request.
   const handle = useRef<ConversationThreadHandle | null>(null);
-  const items = thread?.read === "ready" ? withSending(threadItems(thread.events, root, live), conversationId ? store.sending(conversationId) : []) : thread?.read === "error" || thread?.read === "retrying" ? "error" as const : null;
+  const commands = conversationId && provider && thread ? threadCommands(provider, thread.events, store.boundaries(conversationId)) : null;
+  const items = thread?.read === "ready" ? withSending(threadItems(thread.events, root, live, commands ?? undefined), conversationId ? store.sending(conversationId) : []) : thread?.read === "error" || thread?.read === "retrying" ? "error" as const : null;
+  // A command turn takes no message into it (main refuses Send now), so its rows wait for it to end.
+  const lastTurn = thread ? turnOf(thread.events, live) : null;
+  const commandRuns = !!lastTurn && !lastTurn.ended && !!commands?.turns.has(lastTurn.turnId);
+  const card = store.card(key);
+  const cardAction = (target: CommandCardTarget) => {
+    if (target === "agentsSettings") props.onSettings({ section: "agents", ...(chosen ? { provider: chosen } : {}) });
+    else focusPicker(body.current, target);
+  };
+  const dismissCard = () => { store.showCard(key, null); focusField(); };
   const scroll = conversationId ? run.scrollRequest(conversationId) : null;
   const asking = summary?.phase === "waiting";
   useEffect(() => {
@@ -485,7 +499,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
   return <div className="doan-conv-content" ref={body}>
     <div className={`cp-scroll${conversationId ? "" : " end"}`}>
       {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project}
-        liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} turn={thread && Array.isArray(items) ? threadTurn(thread.events, items, live, store.stageOf(conversationId), root, summary?.stopping === true) : null}
+        liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} turn={thread && Array.isArray(items) ? threadTurn(thread.events, items, live, store.stageOf(conversationId), root, summary?.stopping === true, turnId => commands && commandTurnLabel(provider, commands, turnId)) : null}
+        card={card} onCardAction={cardAction} onCardDismiss={dismissCard}
         background={summary?.background ?? null} onStopBackground={turnId => stopBackground({ conversationId, turnId }, request => calls.interruptConversation(request)).then(failed => { if (failed) props.onNotice(failed); return failed === null; })} canvasListed={canvas => props.entry.kind === "list" && props.entry.canvases.some(row => sameCanvas(canvas, row))}
         onAnswer={(requestId, optionId) => calls.answerConversationPermission({ conversationId, requestId, optionId })}
         onAnswerQuestion={(requestId, answer) => calls.answerConversationQuestion({ conversationId, requestId, ...answer })}
@@ -506,6 +521,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
         : view.kind === "wait" || conversationId ? <Waiting /> : <>
           {newView?.listError && listFailedNotice(run.listRetry(), () => run.retryList())}
+          {card && <CommandCardNotice card={card} onAction={cardAction} onDismiss={dismissCard} />}
           {resume && <ResumeChoice offer={offer!} reply={resume.resume} now={props.now} mode={held ? "new" : resume.start.mode} held={held} onChoose={choice => { run.choose(choice); focusField(); }} />}
           {prompts.length > 0 && !started && !resume && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
             <SuggestionButton key={prompt.label} prompt={prompt} onPick={() => { store.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }} />)}</div>}
@@ -516,7 +532,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
           onClick={() => notice.kind === "drawing" ? props.onOpenProjectConversation(notice.open) : (props.onOpenPromoted ?? openConversation)(notice.open)}>Open</button></span></div>}
     </div>
     <div className="cp-foot">
-      <DockedComposer skills={projectSkills.skills} onSkillsWanted={projectSkills.read} mode={mode} project={project} homeDirectory={null} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined} chipScope={canvasScope(target)}
+      <DockedComposer skills={projectSkills.skills} passthrough={projectSkills.passthrough} onSkillsWanted={projectSkills.read} onCard={next => store.showCard(key, next)} mode={mode} project={project} homeDirectory={null} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined} chipScope={canvasScope(target)}
         {...(props.pick ? { pick: props.pick } : {})} {...(props.composerLink ? { link: props.composerLink } : {})} onLocate={props.onLocate} canvasPress={props.canvasPress}
         drafts={store.drafts} onDrafts={update => store.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
@@ -531,14 +547,14 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => dropAttachment(calls, attachment)}
-        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={null} canvasGone={false} context={thread ? contextRing(thread.events) : null} usage={ringUsage}
+        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={null} canvasGone={false} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}
         unavailable={props.blocked} locked={props.blocked !== null} playing={props.playing ?? null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
         stepAside={{ waiting: asking, notice: !conversationId && view.kind !== "wait" && !!resume }}
         refuse={refuse} onStartNew={startNewAfterRefusal}
         queued={conversationId ? store.queue(conversationId) : []}
         // Rows waiting for the usage limit's reset have no Send now: nothing runs to take them.
         limitResetsAt={summary?.limitResetsAt ?? null} scheduledFor={summary?.scheduledAt ?? null}
-        sendNow={!!conversationId && !!provider && !summary?.scheduledAt && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
+        sendNow={!!conversationId && !!provider && !summary?.scheduledAt && !commandRuns && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
         onSendQueuedNow={itemId => conversationId ? store.sendQueuedNow(conversationId, itemId) : Promise.resolve({ error: "not_running" })}
         onSend={send} onQueue={queue}
         onStop={() => { if (conversationId) void calls.interruptConversation({ conversationId }).catch(console.error); }}

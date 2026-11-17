@@ -1,10 +1,11 @@
 import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
-import { Clock, Crosshair, Folder, Frame, Gauge, MessageSquareDashed, Plus, Shield, X } from "lucide-react";
+import { Clock, Crosshair, Folder, Frame, Gauge, Info, MessageSquareDashed, Plus, Shield, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { Anchor, SkillSummary } from "../main/conversation/types";
 import { fieldSkillRuns } from "./skillWords";
+import { classifyFirstWord, commandCard, commandLists, planSend, PRESET_NOTICE, queuedCommand, STALE_MODE_CARD, type CommandCard, type CommandLists } from "./commandView";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
 import { retryButton } from "./ListRetryButton";
@@ -85,6 +86,11 @@ export interface DockedComposerProps {
   permission?: PermissionPickerView | null; onPickPermission?(mode: PermissionModeId): void;
   onSettings(target: SettingsTarget): void;
   skills: readonly SkillSummary[]; onSkillsWanted(): void;
+  // The ACP conversation's commands sent as written but listed nowhere (useProjectSkills passthrough).
+  passthrough?: readonly string[];
+  // A built-in Doan does not run, or main's refusal of a Codex /review: the card the host shows for this draft key, and
+  // null once a send went out.
+  onCard?(card: CommandCard | null): void;
   presets: PresetListReply | undefined; suggested: readonly PresetSummary[];
   onPresetsOpen(): void; onPresetsRetry(): void;
   thumbnails: Readonly<Record<string, string>>;
@@ -161,6 +167,15 @@ export function playingMessage(draft: DockedDraft, skills: readonly string[], fr
   return message && { text: composeRequest(message.text, draft.preset, skills, draft.attachments.length), anchors: message.anchors };
 }
 
+const NO_NAMES: ReadonlySet<string> = new Set();
+// The draft is a command the person sends alone: typed text only (a chip makes it a message), whose first word is a
+// command, an unconfirmed ACP command or a built-in Doan answers with a card.
+function isCommand(draft: DockedDraft, lists: CommandLists | null): boolean {
+  if (!lists || draft.segments.some(segment => segment.kind !== "text")) return false;
+  const kind = classifyFirstWord(plainText(draft.segments), lists).kind;
+  return kind !== "text" && kind !== "skill";
+}
+
 const sameDraft = (a: DockedDraft, b: DockedDraft) => sameSegments(a.segments, b.segments) && (a.preset?.id ?? null) === (b.preset?.id ?? null)
   && a.attachments.map(item => item.key).join("\n") === b.attachments.map(item => item.key).join("\n");
 
@@ -227,8 +242,14 @@ export function DockedComposer(props: DockedComposerProps) {
   const locked = !!props.locked && !!props.unavailable;
   // A blocked refusal holds Send with its reason until the person changes the draft.
   const blocked = refusal?.kind === "blocked" ? refusal : null;
-  const skillNames = new Set(props.skills.map(skill => skill.name));
+  const skillNames = new Set(props.skills.filter(skill => skill.kind !== "command").map(skill => skill.name));
   const matched = fieldSkillRuns(draft.segments, skillNames).map(run => run.name);
+  const commandProvider = mode.kind === "new" ? props.provider : mode.provider;
+  const lists = commandProvider ? commandLists(commandProvider, props.skills, props.passthrough ?? []) : null;
+  const commandNames = lists ? new Set([...lists.commands, ...lists.aliases.keys(), ...lists.unsupported]) : NO_NAMES;
+  const commandFirst = isCommand(draft, lists);
+  // The preset stays in the draft but goes with no command: its chip leaves the row for the notice until the word goes.
+  const presetHeld = commandFirst && draft.preset !== null;
   const limitResetsAt = props.limitResetsAt ?? null, scheduledFor = props.scheduledFor ?? null;
   const limited = limitResetsAt !== null || scheduledFor !== null;
   const now = Date.now(), clock = localClock();
@@ -257,7 +278,7 @@ export function DockedComposer(props: DockedComposerProps) {
   const fixedProvider = mode.kind === "new" ? props.provider : mode.provider;
   const presets = props.presets?.ok ? props.presets.result.presets : [];
   // The `/` list reads a field of typed text only; a chip anywhere means the field holds a message, not a search.
-  const slash = slashQuery(text === typedText(draft.segments) ? text : "", dismissed, skillNames);
+  const slash = slashQuery(text === typedText(draft.segments) ? text : "", dismissed, new Set([...skillNames, ...commandNames]));
   const slashView = slash !== null ? presetListView(props.presets, { project: props.project, suggested: props.suggested, query: slash, tab: null, slash: true, skills: props.skills }) : null;
   const slashRows = slashView?.kind === "list" ? slashView.sections.flatMap(section => section.rows) : [];
   const slashOpen = slash !== null && !isSending;
@@ -277,6 +298,8 @@ export function DockedComposer(props: DockedComposerProps) {
       const shape = composerShape(current.shape, { empty: nextText === "", chips: chipCount(next, pinned), overflows: wrapped || nextText.includes("\n") });
       return new Map(drafts).set(at, { ...next, shape });
     });
+    // Said once as the notice takes the chip's place.
+    if (patch.segments && at === key && !presetHeld && draft.preset && isCommand({ ...draft, ...patch }, lists)) setAnnouncement(PRESET_NOTICE);
     if (!shapeOnly) clearRefusal(at);
     setLimitAt(current => current === at ? null : current);
   };
@@ -384,10 +407,16 @@ export function DockedComposer(props: DockedComposerProps) {
   }, [noteShown, missingAt]);
   const send = async (): Promise<DockedOutcome | undefined> => {
     if (action === "stop" || !availability.enabled) return;
+    const plan = commandFirst && lists ? planSend(text, draft.preset, matched, draft.attachments.length, lists) : null;
+    // Nothing goes to the provider: the card says where Doan has it, and the text stays for the person to change.
+    if (plan?.kind === "unsupported" && commandProvider) { showCard(commandCard(commandProvider, plan.name)); return; }
+    const command = plan !== null && plan.kind !== "message";
     const at = key, sent = draft, mine = ++generation.current;
     const files = draft.attachments.flatMap((a): SentFile[] => !a.id || a.path === undefined ? []
       : a.kind === "directory" ? [{ name: a.name, kind: a.kind, path: a.path }] : [{ name: a.name, size: a.size ?? 0, kind: a.kind, path: a.path }]);
-    const request: DockedRequest = { text: message.text, anchors: message.anchors, attachments: draft.attachments.flatMap(a => a.id ? [{ id: a.id }] : []), ...(files.length ? { files } : {}) };
+    // A command goes out alone: no preset or skill line, chip or playing frame, and no attachments, which stay here.
+    const request: DockedRequest = plan && plan.kind !== "message" && plan.kind !== "unsupported" ? { text: plan.text, anchors: [], attachments: [] }
+      : { text: message.text, anchors: message.anchors, attachments: draft.attachments.flatMap(a => a.id ? [{ id: a.id }] : []), ...(files.length ? { files } : {}) };
     setSending(current => new Map(current).set(at, mine));
     // Queue with no turn running is the usage limit's: main's send queues the message for the reset.
     const queues = action === "queue" && props.turn !== "idle";
@@ -397,8 +426,12 @@ export function DockedComposer(props: DockedComposerProps) {
     setSending(current => { if (current.get(at) !== mine) return current; const next = new Map(current); next.delete(at); return next; });
     if ("ok" in outcome) {
       clearRefusal(at);
-      // The field empties and returns to a capsule only when the person did not change the draft while it was sent.
-      props.onDrafts(drafts => sameDraft(drafts.get(at) ?? EMPTY_DRAFT, sent) ? new Map(drafts).set(at, EMPTY_DRAFT) : drafts);
+      props.onCard?.(null);
+      // The field empties and returns to a capsule only when the person did not change the draft while it was sent. A
+      // command leaves the preset and attachments it did not take.
+      const left = command ? { ...EMPTY_DRAFT, preset: sent.preset, attachments: sent.attachments } : EMPTY_DRAFT;
+      const settled = { ...left, shape: composerShape("capsule", { empty: true, chips: chipCount(left, pinned), overflows: false }) };
+      props.onDrafts(drafts => sameDraft(drafts.get(at) ?? EMPTY_DRAFT, sent) ? new Map(drafts).set(at, settled) : drafts);
       if (at === shown.current) focus({ kind: "sent" });
       return outcome;
     }
@@ -408,6 +441,8 @@ export function DockedComposer(props: DockedComposerProps) {
         const current = drafts.get(at);
         return current ? new Map(drafts).set(at, { ...current, attachments: markRefused(current.attachments, missing, replaced) }) : drafts;
       });
+    } else if (outcome.error === "command_mode_stale") {
+      showCard(STALE_MODE_CARD);
     } else {
       const provider = mode.kind === "new" ? props.provider : mode.provider;
       const resets = outcome.resetsAt ? resetTimeText(outcome.resetsAt, Date.now(), localClock()) : null;
@@ -417,6 +452,10 @@ export function DockedComposer(props: DockedComposerProps) {
     }
     if (at === shown.current) focus({ kind: "sent" });
     return outcome;
+  };
+  const showCard = (card: CommandCard) => {
+    props.onCard?.(card);
+    setAnnouncement(`${card.title}. ${card.body}`);
   };
   const steerAll = async () => {
     const plan = steerAllPlan({ sendNow: canSendNow, rows: props.queued.length, draft: own.text.trim() !== "" });
@@ -481,7 +520,7 @@ export function DockedComposer(props: DockedComposerProps) {
   const playingShown = playing !== null && !locked;
   const describedBy = [reason && !reason.noAgent ? reasonId : null, placeholder.suggestion !== null ? hintId : null, playingShown ? playingId : null].filter(Boolean).join(" ") || undefined;
   return <div className="docked" data-shape={shape} ref={root} {...drop.handlers}>
-    <QueueRows key={key} handle={queueRows} items={props.queued} homeDirectory={props.homeDirectory} sendNow={canSendNow} onSendNow={id => props.onSendQueuedNow?.(id) ?? Promise.resolve({ error: "not_running" })}
+    <QueueRows key={key} handle={queueRows} items={commandProvider ? props.queued.map(item => queuedCommand(commandProvider, item.text, props.passthrough ?? []) ? { ...item, command: true } : item) : props.queued} homeDirectory={props.homeDirectory} sendNow={canSendNow} onSendNow={id => props.onSendQueuedNow?.(id) ?? Promise.resolve({ error: "not_running" })}
       onRemove={props.onRemoveQueued} focusInput={() => field.current?.focus()}
       // The same refusal again changes the region's text by a no-break space, so it is read again.
       announce={text => setAnnouncement(current => current === text ? `${text}\u00a0` : text)} />
@@ -492,11 +531,12 @@ export function DockedComposer(props: DockedComposerProps) {
       <div className="docked-buddy-slot" ref={dockedBuddy.dockSlot} aria-hidden="true" data-accepts={locked ? "false" : undefined}
         data-queue={props.queued.length > 0 ? "" : undefined}
         data-waiting={props.stepAside?.waiting ? "" : undefined} data-notice={props.stepAside?.notice ? "" : undefined} data-popover={slashOpen ? "" : undefined} />
+      {presetHeld && <div className="composer-chips command-notice"><Info aria-hidden="true" /><span>{PRESET_NOTICE}</span></div>}
       <ComposerChips lead={playing && <Tooltip><TooltipTrigger asChild><span className="anchor-chip pw-playing" data-kind="frame"><span className="sr-only">Frame </span><Frame aria-hidden="true" /><span>{playing.name}</span></span></TooltipTrigger>
         <TooltipContent>{PLAYING_TITLE}</TooltipContent></Tooltip>}
-        attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
+        attachments={draft.attachments} preset={presetHeld ? null : draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
-      <ComposerField skillNames={skillNames} key="field" ref={field} draftKey={key} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending || locked}
+      <ComposerField skillNames={skillNames} commandNames={commandNames} key="field" ref={field} draftKey={key} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending || locked}
         placeholder={placeholder.text} describedBy={describedBy} chipScope={props.chipScope ?? null} {...(reserved ? { reserved } : {})} onAnnounce={setAnnouncement} onChipClick={props.onLocate ? locate : undefined}
         combobox={slashOpen ? { listId: `${listId}-slash`, activeId: slashRows[highlight] ? `${listId}-s-${highlight}` : undefined } : null}
         onKey={keyDown} onSteerKey={() => void steerAll()} sendNow={canSendNow} onSubmit={() => void send()} onPaste={paste} />
@@ -563,7 +603,8 @@ export interface QueueRowsHandle {
   sendNow(id: string): Promise<void>;
 }
 
-export interface QueuedRow { id: string; text: string; message?: { attachments: readonly SentFile[] } }
+// command: main sends it alone and takes no Send now for it (a provider command is never steered into a turn).
+export interface QueuedRow { id: string; text: string; message?: { attachments: readonly SentFile[] }; command?: boolean }
 export interface QueueRowsProps {
   handle?: MutableRefObject<QueueRowsHandle | null>;
   items: readonly QueuedRow[];
@@ -616,7 +657,7 @@ export function QueueRows(props: QueueRowsProps) {
     if (active && active !== document.body && ![`sendNow:${id}`, `remove:${id}`].some(name => buttons.current.get(name) === active)) return;
     const now = latest.current;
     const list = now.items.some(item => item.id === id) ? now.items : asked;
-    const rows = list.map(item => ({ itemId: item.id, sendNow: now.sendNow }));
+    const rows = list.map(item => ({ itemId: item.id, sendNow: now.sendNow && !item.command }));
     pending.current = { leaving: id, target: queueFocusAfter(rows, list.findIndex(item => item.id === id)) };
   };
   // The row leaves at the press (the message moves into the thread), so focus is placed for it now.
@@ -638,7 +679,8 @@ export function QueueRows(props: QueueRowsProps) {
     props.announce(SEND_NOW_REFUSED_TEXT);
   };
   useImperativeHandle(props.handle, () => ({
-    sendAll: () => { for (const item of props.items) void sendNow(item.id); },
+    // A command row has no Send now; it waits for the turn to end.
+    sendAll: () => { for (const item of props.items) if (!item.command) void sendNow(item.id); },
     sendNow,
   }));
   const remove = async (id: string) => {
@@ -663,7 +705,7 @@ export function QueueRows(props: QueueRowsProps) {
           <span className="queue-attachment" role="group" id={summaryId} aria-label={summary.label}><Folder aria-hidden="true" /><span className="name">{summary.name}</span>{summary.more && <span className="count">{summary.more}</span>}</span>
         </TooltipTrigger><TooltipContent className="queue-full-list">{summary.items.map((entry, i) => <span key={i} className="queue-tip-item"><b>{entry.name}</b><span>{entry.path}</span></span>)}</TooltipContent></Tooltip>}
         <span className="queue-text" id={textId}>{item.text}</span>
-        {props.sendNow && <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
+        {props.sendNow && !item.command && <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
           <Tooltip><TooltipTrigger asChild>
             <button type="button" ref={node => { life(node); keep("sendNow", item.id)(node); }} className="doan-button queue-send" data-ui-size="xs" data-ui-variant="subtle"
               aria-describedby={describedBy} onClick={() => void sendNow(item.id)}>Send now</button>

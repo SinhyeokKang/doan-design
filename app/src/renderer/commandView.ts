@@ -1,7 +1,7 @@
 import type { Provider } from "../main/agentAuth/types";
 import type { BoundaryKind } from "../main/conversation/commandRecords";
-import { COMMAND_ALIASES, passthroughCommands, UNSUPPORTED_COMMANDS } from "../main/conversation/providerCommands";
-import type { SkillSummary } from "../main/conversation/types";
+import { COMMAND_ALIASES, commandName, passthroughCommands, passthroughName, UNSUPPORTED_COMMANDS } from "../main/conversation/providerCommands";
+import type { ConversationEvent, SkillSummary } from "../main/conversation/types";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { composeRequest, type PresetRef } from "./homeComposer";
 import { skillWords } from "./skillWords";
@@ -87,4 +87,45 @@ export const STALE_MODE_CARD: CommandCard = { title: "/review can’t use the ne
 
 export function boundaryLabel(kind: BoundaryKind): string {
   return kind === "compacted" ? "Context compacted — the agent keeps a summary of messages above" : "Context cleared — the agent won’t see messages above";
+}
+
+// The chips row's line while the field starts with a command: the preset chip stays in the draft but leaves the row,
+// and comes back once the command word is gone.
+export const PRESET_NOTICE = "Presets don’t apply to commands";
+
+// The thread's command turns: each command turn's name, from its own first message as main names it (commandTurns.ts),
+// and the boundaries the read and this run's conversation:boundary signals gave. usageStale: the last boundary is a clear
+// and no later turn reported a context value, so the record's last value is the previous session's.
+export interface ThreadCommands { turns: ReadonlyMap<string, string>; boundaries: ReadonlyMap<string, BoundaryKind>; usageStale: boolean }
+export function threadCommands(provider: Provider, events: readonly ConversationEvent[], boundaries: ReadonlyMap<string, BoundaryKind>): ThreadCommands {
+  const turns = new Map<string, string>(), order: string[] = [], measured = new Set<string>();
+  for (const event of events) {
+    // A message steered into a turn later is not the turn's command.
+    if (event.type === "user.message" && !order.includes(event.turnId)) {
+      order.push(event.turnId);
+      const name = commandName(provider, event.text);
+      if (name) turns.set(event.turnId, name);
+    }
+    if (event.type === "context.usage") measured.add(event.turnId);
+  }
+  const cleared = order.filter(turnId => boundaries.get(turnId) === "cleared").at(-1);
+  const after = cleared === undefined ? -1 : order.indexOf(cleared);
+  return { turns, boundaries, usageStale: after !== -1 && !order.slice(after + 1).some(turnId => measured.has(turnId)) };
+}
+
+// A running command turn's indicator label; null keeps the shipped words.
+export function commandTurnLabel(provider: Provider, commands: ThreadCommands, turnId: string): string | null {
+  const name = commands.turns.get(turnId);
+  return name ? commandRunningLabel(provider, name) : null;
+}
+
+// The message a conversation's title falls back to before main's list names it: the first one that is no command (main
+// leaves a conversation started by a command untitled until such a message).
+export function firstTitleMessage(provider: Provider, events: readonly ConversationEvent[]): Extract<ConversationEvent, { type: "user.message" }> | undefined {
+  return events.find((event): event is Extract<ConversationEvent, { type: "user.message" }> => event.type === "user.message" && commandName(provider, event.text) === null);
+}
+
+// A queued row's text is a command main sends alone: one the provider runs, or an unconfirmed ACP command.
+export function queuedCommand(provider: Provider, text: string, passthrough: readonly string[]): boolean {
+  return commandName(provider, text) !== null || passthroughName(text, passthrough) !== null;
 }
