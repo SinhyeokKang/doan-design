@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConversationStore } from "./store";
 import { ConversationService, type OpenRunner, type Prepare, type Prepared, type Runner } from "./service";
+import { DraftStore } from "./drafts";
 import type { Provider } from "../agentAuth/types";
 import type { BoundarySignal } from "./types";
 
@@ -23,10 +24,12 @@ function fixture(provider: Provider = "codex") {
   });
   const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: provider, configDir: profile, cwd, command: "/fake", env: {}, owner: owner(), installed: VERSION[provider], ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
   const signals: BoundarySignal[] = [];
-  const service = new ConversationService(store, prepare, open, () => {}, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, signal => signals.push(signal));
+  // drafts.json on disk, so a restart (a new service on the same files) reads what a quit left.
+  const make = () => new ConversationService(store, prepare, open, () => {}, undefined, undefined, undefined, undefined, { drafts: new DraftStore(join(dir, "conversations")) }, undefined, undefined, undefined, undefined, signal => signals.push(signal));
+  const service = make();
   const start = async (text: string, extra: Record<string, unknown> = {}) => (await service.start({ root: "/repo", mode: "new", runtime: provider, canvas: { path: ".doan/canvases/a.html" }, text, anchors: [], ...extra })).conversationId;
   const prompts = () => runners.flatMap(r => r.send.mock.calls.map(call => call[0] as string));
-  return { service, store, profile, cwd, runners, inputs, exits, open, prepare, signals, start, prompts, reconnect: (id: string) => { connectionId = id; } };
+  return { service, store, profile, cwd, restart: make, runners, inputs, exits, open, prepare, signals, start, prompts, reconnect: (id: string) => { connectionId = id; } };
 }
 
 // A command message is the whole text, sent as is: the provider runs it only as the first and only thing it reads.
@@ -188,6 +191,8 @@ describe("Claude /clear", () => {
     expect(h.service.read(id).commands.boundaries).toEqual([{ turnId, kind: "cleared" }]);
     // The context value the record holds is the previous session's until the next turn measures the new one.
     expect(h.service.read(id).commands.usageStale).toBe(true);
+    // The /clear was held only until its acceptance: the swap leaves no draft behind.
+    expect(h.restart().takeDraft(id)).toBeNull();
     expect(h.store.read(id).at(-1)).toMatchObject({ type: "turn.done" });
     h.exits[1]!();
     await h.service.send(id, "next", []);
@@ -355,5 +360,28 @@ describe("unconfirmed ACP commands", () => {
     h.service.receive(id, { type: "turn.done" }); h.exits[0]!();
     await h.service.send(id, "/fleet", []);
     expect(h.prompts().at(-1)).toMatch(/^The JSON below/);
+  });
+});
+
+// A command is a send like any other until main accepts it: drafts.json holds it, so a quit before acceptance returns it
+// as the conversation's draft, and an accepted or refused one leaves nothing behind.
+describe("commands held until acceptance", () => {
+  it("returns a command a quit stopped before acceptance as the conversation's draft", async () => {
+    const h = fixture();
+    const id = await h.start("hello"); h.service.receive(id, { type: "turn.done" });
+    let release = () => {};
+    h.prepare.mockImplementationOnce(async (_request, stored) => { await new Promise<void>(resolve => { release = resolve; }); return { runtime: "codex", configDir: h.profile, cwd: h.cwd, command: "/fake", env: {}, sessionId: stored!.session.sessionId }; });
+    const pending = h.service.send(id, "/compact", []);
+    await vi.waitFor(() => expect(h.prepare).toHaveBeenCalledTimes(2));
+    await h.service.quit(); release(); await expect(pending).rejects.toThrow("busy");
+    expect(h.restart().takeDraft(id)).toMatchObject({ text: "/compact", reason: "restarted" });
+  });
+  it("leaves nothing for a command main refused, whose composer keeps it", async () => {
+    const h = fixture();
+    const id = await h.start("hello"); h.service.receive(id, { type: "turn.done" });
+    h.service.setPermissionMode(id, "plan");
+    await expect(h.service.send(id, "/review", [])).rejects.toThrow("command_mode_stale");
+    await expect(h.service.send(id, "/clear", [])).rejects.toThrow("bad_request");
+    expect(h.restart().takeDraft(id)).toBeNull();
   });
 });
