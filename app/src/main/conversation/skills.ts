@@ -30,7 +30,7 @@ export function parseClaudeSkills(commands: unknown): SkillSummary[] {
   if (!Array.isArray(commands)) throw new Error("session_unavailable");
   return limited(commands.filter(record).filter(c => c.builtin !== true && name(c.name) && c.name !== "doan" &&
     typeof c.description === "string" && c.description.endsWith(PROJECT))
-    .map(c => ({ name: c.name as string, description: firstLine((c.description as string).slice(0, -PROJECT.length)) })));
+    .map(c => ({ kind: "skill" as const, name: c.name as string, description: firstLine((c.description as string).slice(0, -PROJECT.length)) })));
 }
 // Codex app-server skills/list (0.158.0, 0.166.0): {data: [{cwd, skills: [{name, description, path, scope, enabled,
 // pluginId, ...}], errors}]}. Only the repository's own skills: scope "user" includes the person's real ~/.agents/skills
@@ -42,7 +42,7 @@ export function parseCodexSkills(result: unknown): SkillSummary[] {
   if (!result.data.every(folder => record(folder) && Array.isArray(folder.skills))) throw new Error("session_unavailable");
   return limited((result.data as Record<string, unknown[]>[]).flatMap(folder => folder.skills!.filter(record))
     .filter(s => s.scope === "repo" && s.enabled !== false && s.pluginId == null && name(s.name))
-    .map(s => ({ name: s.name as string, description: typeof s.description === "string" ? firstLine(s.description) : "" })));
+    .map(s => ({ kind: "skill" as const, name: s.name as string, description: typeof s.description === "string" ? firstLine(s.description) : "" })));
 }
 
 function free(input: Prepared): void {

@@ -36,9 +36,10 @@ export interface HandoffOrigin { kind: "handoff"; conversationId: string; canvas
 // reason: a judgement's reason (handoff.ts HandoffReason) or the refused start's code. target sits in its own object
 // because the event's envelope already has a conversationId, the history's own.
 export type HandoffResolution = { outcome: "started"; target: { conversationId: string; canvas: Canvas } } | { outcome: "refused"; reason: string } | { outcome: "cancelled" };
-// A project skill the conversation's provider loads for a folder (conversation "skills" method). Type-only here, since
-// the renderer imports it: the parsers live in skills.ts.
-export interface SkillSummary { name: string; description: string }
+// A row of the conversation "skills" method: a project skill the conversation's provider loads for a folder, or one of
+// the provider's built-in commands Doan runs (providerCommands.ts). Type-only here, since the renderer imports it: the
+// parsers live in skills.ts.
+export interface SkillSummary { kind: "skill" | "command"; name: string; description: string }
 export type FastUnusedReason = "plan" | "extra_usage" | "model" | "policy" | "cooldown";
 export type EventPayload =
   | { type: "user.message"; text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; origin?: HandoffOrigin }

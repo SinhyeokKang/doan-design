@@ -11,12 +11,12 @@ import codex166 from "./fixtures/skills-codex-0.166.0.json";
 import codex158 from "./fixtures/skills-codex-0.158.0.json";
 
 const LONG = `long-${"x".repeat(59)}`;
-const probe = (name: string, kind = "skill") => ({ name, description: `Probe ${kind} ${name} for the Doan PoC.` });
+const probe = (name: string, kind = "skill") => ({ kind: "skill" as const, name, description: `Probe ${kind} ${name} for the Doan PoC.` });
 
 describe("parseClaudeSkills", () => {
   it("keeps only the project rows of a recorded answer, at the current and the minimum version, without the source tail", () => {
     const expected = [probe("a"), probe("d"), probe("ends-bang!"), probe(LONG), probe("manual"), probe("Upper-Case"), probe("한글스킬"),
-      probe("b", "command"), { name: "sub:x", description: "Probe nested command x for the Doan PoC." }];
+      probe("b", "command"), { kind: "skill", name: "sub:x", description: "Probe nested command x for the Doan PoC." }];
     expect(parseClaudeSkills(claude318.commands)).toEqual(expected);
     expect(parseClaudeSkills(claude284.commands)).toEqual(expected);
   });
@@ -29,7 +29,7 @@ describe("parseClaudeSkills", () => {
       { name: "probe:probe-prompt", description: "A prompt. (MCP)", argumentHint: "" },
       { name: "plain", description: "No source tail", argumentHint: "" },
       { name: "kept", description: "Kept. (project)", argumentHint: "" },
-    ])).toEqual([{ name: "kept", description: "Kept." }]);
+    ])).toEqual([{ kind: "skill", name: "kept", description: "Kept." }]);
   });
   // A project skill named doan is hidden too: the name alone tells the stub apart, and hiding such a skill is accepted.
   it("leaves out a project row named doan", () => {
@@ -49,13 +49,13 @@ describe("parseClaudeSkills", () => {
       { name: 7, description: "Number. (project)" },
       { description: "No name. (project)" },
       "row", null,
-    ])).toEqual([{ name: LONG, description: "64 code units." }]);
+    ])).toEqual([{ kind: "skill", name: LONG, description: "64 code units." }]);
   });
   it("keeps the first row of a name", () => {
     expect(parseClaudeSkills([
       { name: "deploy", description: "First. (project)" },
       { name: "deploy", description: "Second. (project)" },
-    ])).toEqual([{ name: "deploy", description: "First." }]);
+    ])).toEqual([{ kind: "skill", name: "deploy", description: "First." }]);
   });
   it("keeps only the description's first line, up to 200 code units, and allows an empty one", () => {
     const long = "y".repeat(250);
@@ -67,19 +67,19 @@ describe("parseClaudeSkills", () => {
       { name: "bare", description: " (project)" },
       { name: "tail-only", description: "(project)" },
     ])).toEqual([
-      { name: "multi", description: "First line" },
-      { name: "crlf", description: "First line" },
-      { name: "long", description: "y".repeat(200) },
+      { kind: "skill", name: "multi", description: "First line" },
+      { kind: "skill", name: "crlf", description: "First line" },
+      { kind: "skill", name: "long", description: "y".repeat(200) },
       // A cut that would split a surrogate pair drops the whole character.
-      { name: "pair", description: "z".repeat(199) },
-      { name: "bare", description: "" },
+      { kind: "skill", name: "pair", description: "z".repeat(199) },
+      { kind: "skill", name: "bare", description: "" },
     ]);
   });
   it("keeps at most 200 rows", () => {
     const rows = Array.from({ length: 250 }, (_, i) => ({ name: `s${i}`, description: `Skill ${i}. (project)` }));
     const parsed = parseClaudeSkills(rows);
     expect(parsed).toHaveLength(200);
-    expect(parsed.at(-1)).toEqual({ name: "s199", description: "Skill 199." });
+    expect(parsed.at(-1)).toEqual({ kind: "skill", name: "s199", description: "Skill 199." });
   });
   it("refuses an answer that is not a list", () => {
     for (const answer of [undefined, null, {}, "commands"]) expect(() => parseClaudeSkills(answer)).toThrow("session_unavailable");
@@ -100,14 +100,14 @@ describe("parseCodexSkills", () => {
         row("off", { enabled: false }), row("plugin", { pluginId: "market/plugin" }),
         row("no-flag", { enabled: undefined, pluginId: undefined }), row("kept", {}),
       ], errors: [{ path: "/r/.agents/skills/broken/SKILL.md", message: "missing YAML frontmatter delimited by ---" }] },
-    ] })).toEqual([{ name: "no-flag", description: "no-flag." }, { name: "kept", description: "kept." }]);
+    ] })).toEqual([{ kind: "skill", name: "no-flag", description: "no-flag." }, { kind: "skill", name: "kept", description: "kept." }]);
   });
   it("unwraps every folder's list, keeps the first row of a name and skips invalid skill rows", () => {
     expect(parseCodexSkills({ data: [
       { cwd: "/r", skills: [{ name: "a", description: "A first.", scope: "repo" }, { name: "two words", description: "x", scope: "repo" }, "row"] },
       { cwd: "/r/sub", skills: [] },
       { cwd: "/r/other", skills: [{ name: "a", description: "A again.", scope: "repo" }, { name: "b", scope: "repo" }] },
-    ] })).toEqual([{ name: "a", description: "A first." }, { name: "b", description: "" }]);
+    ] })).toEqual([{ kind: "skill", name: "a", description: "A first." }, { kind: "skill", name: "b", description: "" }]);
     expect(parseCodexSkills({ data: [{ cwd: "/r", skills: [], errors: [] }] })).toEqual([]);
   });
   // A folder without its skills list is a broken answer, not an empty folder: an empty success would replace the list
@@ -121,7 +121,7 @@ describe("parseCodexSkills", () => {
     const skills = Array.from({ length: 250 }, (_, i) => ({ name: `s${i}`, description: `${"d".repeat(300)}\nmore`, scope: "repo", enabled: true }));
     const parsed = parseCodexSkills({ data: [{ cwd: "/r", skills, errors: [] }] });
     expect(parsed).toHaveLength(200);
-    expect(parsed[0]).toEqual({ name: "s0", description: "d".repeat(200) });
+    expect(parsed[0]).toEqual({ kind: "skill", name: "s0", description: "d".repeat(200) });
   });
   it("refuses an answer without a data list", () => {
     for (const answer of [undefined, null, [], { data: {} }, { skills: [] }]) expect(() => parseCodexSkills(answer)).toThrow("session_unavailable");
@@ -129,7 +129,7 @@ describe("parseCodexSkills", () => {
 });
 
 describe("SkillCatalog", () => {
-  const DEPLOY: SkillSummary[] = [{ name: "deploy", description: "Ship." }];
+  const DEPLOY: SkillSummary[] = [{ kind: "skill", name: "deploy", description: "Ship." }];
   function catalog(read: (input: Prepared) => Promise<SkillSummary[]> = async () => DEPLOY) {
     let clock = 1_000_000;
     let connectionId = "conn-a", installed = "1.0.0";
@@ -155,10 +155,10 @@ describe("SkillCatalog", () => {
     expect(h.list).toHaveBeenCalledTimes(2);
   });
   it("keeps folders and providers apart", async () => {
-    const h = catalog(async input => [{ name: `${input.runtime}-${input.cwd.slice(1)}`, description: "" }]);
-    expect(await h.catalog.skills("/a", "claude")).toEqual({ skills: [{ name: "claude-a", description: "" }] });
-    expect(await h.catalog.skills("/a", "codex")).toEqual({ skills: [{ name: "codex-a", description: "" }] });
-    expect(await h.catalog.skills("/b", "claude")).toEqual({ skills: [{ name: "claude-b", description: "" }] });
+    const h = catalog(async input => [{ kind: "skill" as const, name: `${input.runtime}-${input.cwd.slice(1)}`, description: "" }]);
+    expect(await h.catalog.skills("/a", "claude")).toEqual({ skills: [{ kind: "skill", name: "claude-a", description: "" }] });
+    expect(await h.catalog.skills("/a", "codex")).toEqual({ skills: [{ kind: "skill", name: "codex-a", description: "" }] });
+    expect(await h.catalog.skills("/b", "claude")).toEqual({ skills: [{ kind: "skill", name: "claude-b", description: "" }] });
     expect(h.list).toHaveBeenCalledTimes(3);
   });
   it("opens the provider once for requests of the same folder and provider that arrive together", async () => {
@@ -199,8 +199,8 @@ describe("SkillCatalog", () => {
     h.prepare.mockRejectedValueOnce(new Error("not_logged_in"));
     await expect(h.catalog.skills("/repo", "claude")).rejects.toThrow("not_logged_in");
     h.connect("conn-b");
-    h.list.mockResolvedValueOnce([{ name: "other", description: "" }]);
-    expect(await h.catalog.skills("/repo", "claude")).toEqual({ skills: [{ name: "other", description: "" }] });
+    h.list.mockResolvedValueOnce([{ kind: "skill", name: "other", description: "" }]);
+    expect(await h.catalog.skills("/repo", "claude")).toEqual({ skills: [{ kind: "skill", name: "other", description: "" }] });
     expect(h.list).toHaveBeenCalledTimes(2);
   });
   it("reads again when the installed version changed", async () => {
@@ -218,7 +218,7 @@ describe("SkillCatalog", () => {
     h.connect("conn-b");
     const current = h.catalog.skills("/repo", "claude");
     await vi.waitFor(() => expect(finish["conn-b"]).toBeDefined());
-    const OLD = [{ name: "old", description: "" }], NEW = [{ name: "new", description: "" }];
+    const OLD: SkillSummary[] = [{ kind: "skill", name: "old", description: "" }], NEW: SkillSummary[] = [{ kind: "skill", name: "new", description: "" }];
     if (order === "old first") { finish["conn-a"]!(OLD); finish["conn-b"]!(NEW); } else { finish["conn-b"]!(NEW); finish["conn-a"]!(OLD); }
     expect(await old).toEqual({ skills: OLD });
     expect(await current).toEqual({ skills: NEW });

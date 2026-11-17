@@ -1087,7 +1087,7 @@ test("a suggestion that starts with / goes in as text and leaves the preset list
 
 test("a skill ending at an anchor chip sends the same names as its field highlight", async () => {
   const segments: FieldSegment[] = [{ kind: "text", text: "/deploy" }, { kind: "chip", anchor: { frame: { id: "f" } } }];
-  const { render, send } = setup({ skills: [{ name: "deploy", description: "Deploy" }] }, [["conversation:a", { ...EMPTY_DRAFT, segments }]]);
+  const { render, send } = setup({ skills: [{ kind: "skill", name: "deploy", description: "Deploy" }] }, [["conversation:a", { ...EMPTY_DRAFT, segments }]]);
   const tree = render();
   expect(input(tree).skillNames).toEqual(new Set(["deploy"]));
   (button(tree, "Send").onClick as () => void)(); await flush();

@@ -118,7 +118,7 @@ it("answers conversation:skills for an open project and refuses other windows, f
   try {
     const prepare = vi.fn<Prepare>(async request => ({ runtime: request.runtime ?? "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} }));
     const service = new ConversationService(new ConversationStore(dir), prepare, vi.fn(), () => {});
-    const list = vi.fn(async () => [{ name: "deploy", description: "Ship." }]);
+    const list = vi.fn(async () => [{ kind: "skill" as const, name: "deploy", description: "Ship." }]);
     const skills = new SkillCatalog((root, provider) => prepare({ root, mode: "new", runtime: provider, text: "", anchors: [] }), list);
     const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { skills });
     expect(conversationMethods).toContain("skills");
@@ -127,7 +127,7 @@ it("answers conversation:skills for an open project and refuses other windows, f
     for (const bad of [{ root: "/repo", provider: "gemini" }, { root: "/repo" }, { root: "/repo", runtime: "claude" }, { root: 1, provider: "claude" }, { root: "x".repeat(4097), provider: "claude" }])
       expect(await handle(true, "skills", bad)).toEqual({ error: "bad_request" });
     expect(prepare).not.toHaveBeenCalled();
-    expect(await handle(true, "skills", { root: "/repo", provider: "claude" })).toEqual({ skills: [{ name: "deploy", description: "Ship." }] });
+    expect(await handle(true, "skills", { root: "/repo", provider: "claude" })).toEqual({ skills: [{ kind: "skill", name: "deploy", description: "Ship." }] });
     expect(await handle(true, "skills", { root: "/repo", provider: "cursor" })).toEqual({ skills: [] });
     expect(list).toHaveBeenCalledOnce();
   } finally { rmSync(dir, { recursive: true, force: true }); }
