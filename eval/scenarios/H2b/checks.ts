@@ -8,8 +8,8 @@ const checks: Checks = ctx => {
   const after = inspect(ctx, ctx.read(target) ?? "");
   const changed = ctx.changedFiles();
   const frame = (doc: typeof after, index: number): string | undefined => {
-    for (let i = index; i >= 0; i = doc.nodes[i].parent) {
-      if (doc.nodes[i].attrs["data-doan-frame"]) return doc.nodes[i].attrs["data-doan-frame"];
+    for (let i = index; i >= 0; i = doc.nodes[i]!.parent) {
+      if (doc.nodes[i]!.attrs["data-doan-frame"]) return doc.nodes[i]!.attrs["data-doan-frame"];
     }
   };
   const ids = (doc: typeof after, attr: string) => doc.nodes.flatMap(n => n.attrs[attr] ? [n.attrs[attr]] : []);
@@ -20,7 +20,7 @@ const checks: Checks = ctx => {
     anchors.every(id => {
       const old = before.nodes.findIndex(n => n.attrs["data-doan-id"] === id);
       const matches = after.nodes.flatMap((n, i) => n.attrs["data-doan-id"] === id ? [i] : []);
-      return matches.length === 1 && frame(after, matches[0]) === frame(before, old);
+      return matches.length === 1 && frame(after, matches[0]!) === frame(before, old);
     });
   const check = ctx.doan(["check"]);
   // Only the final answer is what the user is asked; a question the agent raised mid-run and went past is not one,

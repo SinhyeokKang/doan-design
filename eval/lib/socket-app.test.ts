@@ -47,7 +47,7 @@ test("the fake's provider status follows agent-auth's authStatus for every state
   let compared = 0;
   for (const provider of ["claude", "copilot"])
     for (const cli of [undefined, "missing"] as const)
-      for (const [connected, verified] of [[false, false], [true, false], [true, true]])
+      for (const [connected, verified] of [[false, false], [true, false], [true, true]] as const)
         for (const error of [null, "check_failed"] as const)
           for (const attempt of [null, { kind: "check", cancelled: false }, { kind: "signIn", cancelled: false }, { kind: "signIn", cancelled: true }] as const) {
             if (!connected && (error || attempt?.kind === "check")) continue; // the fake checks only connections

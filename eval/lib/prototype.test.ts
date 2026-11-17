@@ -53,8 +53,8 @@ test("the fake app accepts v6, refuses invalid requests in order, and preserves 
     const ctx = createContext({ repo: root, agent: "fixture", transcript: "", cli: "unused", env: {}, seedCommit: "HEAD", prototypeLog: app.prototypeLog });
     const log = ctx.prototype();
     assert.equal(log.length, 6);
-    assert.equal(log[0].hashes[path], contentHash(readFileSync(join(root, path))));
-    assert.deepEqual(log[2].hashes, {});
+    assert.equal(log[0]!.hashes[path], contentHash(readFileSync(join(root, path))));
+    assert.deepEqual(log[2]!.hashes, {});
     const out = join(dir, "out");
     mkdirSync(out);
     keepOnboardingLog(app, out);

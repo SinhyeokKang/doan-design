@@ -7,7 +7,7 @@ const checks: Checks = ctx => {
   const log: Exchange[] = ctx.onboarding();
   const signIns = requests(log, "sign_in");
   const claude = log.findIndex(e => e.request.op === "sign_in" && e.request.provider === "claude" && e.response.ok);
-  const claudeId = claude === -1 ? null : log[claude].response.result.operation.operationId;
+  const claudeId = claude === -1 ? null : log[claude]!.response.result.operation.operationId;
   const sawWaiting = claudeId !== null && log.some((e, i) => i > claude && e.request.op === "status" && lastState(log, i + 1, claudeId) === "awaiting_user");
   const others = signIns.filter(e => e.request.provider !== "claude");
   const completes = requests(log, "complete");

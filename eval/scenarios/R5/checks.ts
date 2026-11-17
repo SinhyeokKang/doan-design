@@ -3,7 +3,7 @@ import type { Checks } from "../../lib/types.ts";
 const checks: Checks = ctx => {
   const lines = (ctx.read("answers.md") ?? "").trim().split(/\r?\n/);
   const changed = ctx.changedFiles();
-  const expected = [
+  const expected: [string, string][] = [
     ["billing_frame_count", "Billing frames: 11"],
     ["overdue_balance_token", "Overdue balance token: --color-warning"],
     ["receipt_implementation", "Receipt detail implementation: web/billing/view-c.html"],

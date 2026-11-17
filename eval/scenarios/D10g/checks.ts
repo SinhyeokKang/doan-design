@@ -17,8 +17,8 @@ const checks: Checks = ctx => {
   const documents = listed.filter(c => c.path.startsWith(".doan/ds/")).map(c => ctx.read(c.path) ?? "");
   const canvas = documents.join("\n");
   const missing = (text: string) => documented.filter(name => !new RegExp(`${name}(?![a-z0-9-])`).test(text));
-  const local = canvas.match(/--[a-z0-9-]+(?=\s*:)/g) ?? [];
-  const invented = [...new Set([...canvas.matchAll(VAR)].map(m => m[1]))].filter(name => !defined.includes(name) && !local.includes(name));
+  const local: string[] = canvas.match(/--[a-z0-9-]+(?=\s*:)/g) ?? [];
+  const invented = [...new Set([...canvas.matchAll(VAR)].map(m => m[1]!))].filter(name => !defined.includes(name) && !local.includes(name));
   return [
     ...presetChecks(ctx, { required: ["context", "document"], allowed: ["context", "document"] }),
     { id: "doan_initialized", pass: config?.tokenCss === "styles/tokens.css" && config?.serve === undefined, detail: JSON.stringify(config) },

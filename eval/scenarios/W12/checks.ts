@@ -51,12 +51,12 @@ print(json.dumps(out))
 function reached(ctx: Parameters<Checks>[0], doc: Doc): string[] {
   const seen = new Map<string, string>();
   const imports = (css: string, parent: string) => {
-    for (const match of uncomment(css).matchAll(/@import\s+(?:url\(\s*)?(?:"([^"]+)"|'([^']+)'|([^\s;)]+))/gi)) visit(match[1] ?? match[2] ?? match[3], parent);
+    for (const match of uncomment(css).matchAll(/@import\s+(?:url\(\s*)?(?:"([^"]+)"|'([^']+)'|([^\s;)]+))/gi)) visit(match[1] ?? match[2] ?? match[3]!, parent);
   };
   const visit = (href: string, parent: string) => {
     if (/^(?:[a-z]+:|\/|#)/i.test(href)) return;
     const parts = parent.split("/").slice(0, -1);
-    for (const part of decodeURIComponent(href.split(/[?#]/)[0]).split("/")) {
+    for (const part of decodeURIComponent(href.split(/[?#]/)[0]!).split("/")) {
       if (part === "..") { if (!parts.length) return; parts.pop(); }
       else if (part && part !== ".") parts.push(part);
     }
@@ -86,7 +86,7 @@ function desktopHeight(prototype: string | null): number | null {
 function heightFallbacks(css: string): number[] {
   const out: number[] = [];
   for (const declaration of uncomment(css).matchAll(/(?:^|[{;\s])height\s*:([^;{}]*)/gi))
-    for (const use of declaration[1].matchAll(/var\(\s*--doan-viewport-height\s*,\s*(\d+(?:\.\d+)?)px\s*\)/gi)) out.push(Number(use[1]));
+    for (const use of declaration[1]!.matchAll(/var\(\s*--doan-viewport-height\s*,\s*(\d+(?:\.\d+)?)px\s*\)/gi)) out.push(Number(use[1]));
   return out;
 }
 

@@ -22,7 +22,7 @@ const NAMES: Record<Agent, string> = { claude: "Claude Code", codex: "Codex" };
 
 // One row for the month's results table in docs/usability-eval/rounds-<YYYY-MM>.md; Notes is left for the person recording it.
 export function roundRow(meta: RoundMeta, runs: RunRecord[]): string {
-  const agents = Object.entries(meta.versions).map(([agent, version]) => `${NAMES[agent as Agent]} ${version?.match(/\d+\.\d+\.\d+\S*/)?.[0] ?? version}`).join(", ");
+  const agents = Object.entries(meta.versions).map(([agent, version]) => `${NAMES[agent as Agent]} ${version.match(/\d+\.\d+\.\d+\S*/)?.[0] ?? version}`).join(", ");
   const scenarios = [...new Set(runs.map(run => run.scenario))];
   const results = scenarios.map(scenario => {
     const mine = runs.filter(run => run.scenario === scenario);

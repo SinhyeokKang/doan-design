@@ -23,8 +23,8 @@ test("pass fixture command failures include both phases and exit codes; fail fix
     const pass = await fixtureRun(setup, scenario, "pass");
     assert.equal(pass.record.result, "pass");
     assert.equal(pass.problems.length, 2);
-    assert.match(pass.problems[0], /pass\.before\.commands\.json.*exit 7.*fixture command failed/);
-    assert.match(pass.problems[1], /pass\.commands\.json.*exit 7.*fixture command failed/);
+    assert.match(pass.problems[0]!, /pass\.before\.commands\.json.*exit 7.*fixture command failed/);
+    assert.match(pass.problems[1]!, /pass\.commands\.json.*exit 7.*fixture command failed/);
     const fail = await fixtureRun(setup, scenario, "fail");
     assert.equal(fail.record.result, "fail");
     assert.deepEqual(fail.problems, []);

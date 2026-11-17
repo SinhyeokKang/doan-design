@@ -74,7 +74,7 @@ for (const id of ["R2", "H2b", "W1", "W2b", "R4b"]) {
     } else {
       const { default: checks } = await import(`./${id}/checks.ts`);
       const checkId = { W1: "project_tokens_linked", W2b: "element_ids_preserved", R4b: "canvas_copy" }[id];
-      assert.equal(checks(ctx).find(c => c.id === checkId)?.pass, true);
+      assert.equal(checks(ctx).find((c: { id: string; pass: boolean }) => c.id === checkId)?.pass, true);
     }
     assert.equal(existsSync(marker), false);
   });
