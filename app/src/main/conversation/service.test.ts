@@ -1587,12 +1587,13 @@ describe("cancelled waits and their queues", () => {
     await expect(waiting).rejects.toThrow("busy");
     expect(h.service.takeDraft(id)).toMatchObject({ text: "behind it", reason: "interrupted" });
   });
-  it("keeps the queue on disk for the next start when the app quits during such a wait", async () => {
+  // The waiting send's own message comes back too, ahead of the queue that waited behind it.
+  it("keeps the waiting send and its queue on disk for the next start when the app quits during such a wait", async () => {
     const h = homeFixture(); const { id, waiting } = await judgementWait(h);
     await h.service.quit();
     await expect(waiting).rejects.toThrow("busy");
     expect(h.service.takeDraft(id)).toBeNull();
-    expect(new DraftStore(join(h.dir, "conversations")).returned(id)).toMatchObject({ text: "behind it", reason: "restarted" });
+    expect(new DraftStore(join(h.dir, "conversations")).returned(id)).toMatchObject({ text: "next\n\nbehind it", reason: "restarted" });
   });
 });
 

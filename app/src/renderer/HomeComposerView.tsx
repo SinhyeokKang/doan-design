@@ -18,7 +18,8 @@ import {
 } from "./ComposerParts";
 import type { BuddyId } from "./buddies";
 import { Buddy, type BuddyHandle } from "./Doany";
-import { textSegments, typedText } from "./anchorField";
+import { plainText, textSegments, typedText } from "./anchorField";
+import { draftFrom } from "./conversationStore";
 import { cardRow, chipClass, groupProjects } from "./homeCards";
 import { generationOf, modelsKey } from "./dockedSupport";
 import {
@@ -75,9 +76,11 @@ export interface ComposerMemory {
   greeting: string | null;
   // The last `select` and `restore` requests already applied, so a later visit does not apply them again.
   seen: { select: number; restore: number };
+  // Roots whose start message a quit stopped main was asked for (main hands one over once, so once a run is enough).
+  startsAsked: string[];
 }
 export function emptyComposer(): ComposerMemory {
-  return { text: "", preset: null, attachments: [], root: null, provider: null, models: {}, efforts: {}, permissions: {}, fast: {}, lists: {}, presets: undefined, auth: undefined, thumbnails: {}, lastKeys: {}, lastIds: {}, sending: null, generation: 0, notice: null, greeting: null, seen: { select: 0, restore: 0 } };
+  return { text: "", preset: null, attachments: [], root: null, provider: null, models: {}, efforts: {}, permissions: {}, fast: {}, lists: {}, presets: undefined, auth: undefined, thumbnails: {}, lastKeys: {}, lastIds: {}, sending: null, generation: 0, notice: null, greeting: null, seen: { select: 0, restore: 0 }, startsAsked: [] };
 }
 
 const mountsByMemory = new WeakMap<object, Set<() => void>>();
@@ -473,6 +476,19 @@ export function HeroComposer(props: HeroComposerProps) {
     queueMicrotask(() => field.current?.focus());
   };
 
+  // A first message a quit stopped before main accepted it, in an earlier run, comes back once after what is typed here,
+  // when its project is the picked one; the project's Overview may take it first. Home starts carry no anchors.
+  useEffect(() => {
+    if (!root || memory.current.startsAsked.includes(root)) return;
+    update(current => ({ startsAsked: [...current.startsAsked, root] }));
+    void window.doan.takeStartDraft({ root }).catch(() => null).then(async reply => {
+      if (!reply || "error" in reply) return;
+      const returned = await draftFrom(window.doan, reply.text, reply.anchors, reply.attachments);
+      const body = plainText(returned.segments);
+      update(current => ({ text: current.text && body ? `${current.text}\n\n${body}` : current.text || body, preset: current.preset ?? returned.preset, attachments: [...current.attachments, ...returned.attachments] }));
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only a newly picked root asks; startsAsked lives in memory, which update writes.
+  }, [root]);
   // Edit on Home: a different draft is never replaced without asking.
   useEffect(() => {
     if (!props.restore || props.restore.seq === memory.current.seen.restore) return;
