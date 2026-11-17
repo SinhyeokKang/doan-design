@@ -325,7 +325,11 @@ export class ConversationService {
     this.reservations = result.reservations;
   }
   async start(request: StartRequest, attached?: StartAttachments, handoff?: HandoffStart): Promise<{ conversationId: string }> {
-    if (this.quitting) throw new Error("busy");
+    // No composer outlives the quit, so the message is kept for the next start as one held below would be.
+    if (this.quitting) {
+      if (!handoff) this.drafts.hold(randomUUID(), { root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), text: request.text, anchors: request.anchors, attachments: request.attachments ?? [] });
+      throw new Error("busy");
+    }
     const admitted = this.admit(request.root, request.canvas);
     if (admitted) request = { ...request, canvas: admitted };
     const project = request.mode === "newDesign" ? request.root : undefined;
@@ -408,7 +412,8 @@ export class ConversationService {
     } catch (error) {
       // A refused start no longer holds the project, though its process may take a while to go. Its composer keeps the
       // message; one refused by the quit is kept for the next start, since no composer outlives the quit.
-      delete live.project;
+      // Not running any more, though its process may take a while to go: Restart to Update need not wait for it.
+      delete live.project; live.busy = false;
       if (!this.quitting) this.drafts.release(id);
       this.changed(request.root);
       if (!opening) { this.reservations = releaseReservation(this.reservations, id, "not_spawned"); this.live.delete(id); freeLease(input); }
@@ -422,7 +427,7 @@ export class ConversationService {
   // A conversation whose queue is about to go out takes no other send first: the queued messages keep their place.
   send(id: string, text: string, anchors: Anchor[], extras: SendExtras = {}, attached?: StartAttachments): Promise<void> {
     if (this.live.get(id)?.holding) return Promise.reject(new Error("busy"));
-    // As a start's (start): held from here, through the waits before the turn, until accepted or refused.
+    // Held from here, through the waits before the turn, until accepted or refused, as a start's message is (start).
     const held = randomUUID();
     this.drafts.hold(held, { conversationId: id, text, anchors, attachments: extras.attachments ?? [] });
     return this.submit(id, text, anchors, extras, attached, held).catch((error: unknown) => {
@@ -715,6 +720,8 @@ export class ConversationService {
       if (!this.quitting && live.busy) liveTurns++;
       pendingAnswers += live.asking?.size ?? 0;
     }
+    // A send waiting for its previous turn's judgement or process is in flight as well.
+    if (!this.quitting) liveTurns += this.waits.size + this.judging.size;
     return { liveTurns, pendingAnswers };
   }
   private endWork(id: string): void {

@@ -44,6 +44,16 @@ describe("Restart to Update before acceptance", () => {
     h.release(); await pending;
     expect(h.service.restartHolds().liveTurns).toBe(1);
   });
+  // Its process may take a while to go after the refusal; the restart need not wait for that.
+  it("lets the restart go as soon as a start is refused after its runner opened", async () => {
+    const h = fixture(); h.hold();
+    const pending = h.service.start(homeStart);
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledOnce());
+    // Refused after its runner opened: the acceptance's write fails.
+    vi.spyOn(h.store, "acceptStart").mockImplementationOnce(() => { throw new Error("EIO"); });
+    h.release(); await expect(pending).rejects.toThrow("EIO");
+    expect(h.service.restartHolds().liveTurns).toBe(0);
+  });
   it("lets the restart go when a start is refused before acceptance, and announces it", async () => {
     const h = fixture();
     h.prepare.mockRejectedValueOnce(new Error("not_logged_in"));
@@ -65,6 +75,12 @@ describe("Restart to Update before acceptance", () => {
 });
 
 describe("a quit before acceptance keeps the message", () => {
+  it("keeps a start pressed while the app is already quitting", async () => {
+    const h = fixture();
+    void h.service.quit();
+    await expect(h.service.start(homeStart)).rejects.toThrow("busy");
+    expect(h.restart().takeStartDraft("/repo")).toMatchObject({ text: "Make a pricing page" });
+  });
   it("returns a Home start's first message as its root's draft after the restart, once", async () => {
     const h = fixture(); h.hold();
     const pending = h.service.start({ ...homeStart, attachments: [{ kind: "file", name: "brief.md", path: "/repo/brief.md", size: 3 }] });

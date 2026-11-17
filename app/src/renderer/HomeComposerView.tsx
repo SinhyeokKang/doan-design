@@ -477,7 +477,8 @@ export function HeroComposer(props: HeroComposerProps) {
   };
 
   // A first message a quit stopped before main accepted it, in an earlier run, comes back once after what is typed here,
-  // when its project is the picked one; the project's Overview may take it first. Home starts carry no anchors.
+  // when its project is the picked one; the project's Overview may take it first. Home starts carry no anchors. main
+  // hands it over only once, so a reply that comes after another pick picks its project again rather than send it there.
   useEffect(() => {
     if (!root || memory.current.startsAsked.includes(root)) return;
     update(current => ({ startsAsked: [...current.startsAsked, root] }));
@@ -485,7 +486,7 @@ export function HeroComposer(props: HeroComposerProps) {
       if (!reply || "error" in reply) return;
       const returned = await draftFrom(window.doan, reply.text, reply.anchors, reply.attachments);
       const body = plainText(returned.segments);
-      update(current => ({ text: current.text && body ? `${current.text}\n\n${body}` : current.text || body, preset: current.preset ?? returned.preset, attachments: [...current.attachments, ...returned.attachments] }));
+      update(current => ({ root, text: current.text && body ? `${current.text}\n\n${body}` : current.text || body, preset: current.preset ?? returned.preset, attachments: [...current.attachments, ...returned.attachments] }));
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps -- only a newly picked root asks; startsAsked lives in memory, which update writes.
   }, [root]);
