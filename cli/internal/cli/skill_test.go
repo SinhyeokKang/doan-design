@@ -179,7 +179,7 @@ func TestSkillReportsUnservedCSSInFinalAnswer(t *testing.T) {
 }
 
 func TestSkillGuideListErrors(t *testing.T) {
-	if !strings.Contains(skillBody, "- `doan ls --json`: list canvases and frames. A row has `error` for an unreadable canvas.") {
+	if !strings.Contains(skillBody, "- `doan ls --json`: list canvases and frames. A row has `error` for an unreadable canvas or folder (`unreadable_folder`, not a canvas).") {
 		t.Error("missing ls guidance")
 	}
 }
