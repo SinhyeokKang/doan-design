@@ -34,5 +34,14 @@ test("runtime launches inherit only an allowlist, never provider credentials or 
   for (const name of names) process.env[name] = "external";
   const env = await isolatedEnv(join(dir, "data"), join(dir, "doan"));
   for (const name of names) assert.equal(env[name], undefined, name);
-  assert.equal(env.PATH, process.env.PATH);
+});
+
+test("runtime launches get the system PATH, not the caller's, so no agent CLI on it can reach the real HOME", async t => {
+  const dir = await mkdtemp(join(tmpdir(), "doan-runtime-env-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const saved = process.env.PATH;
+  t.after(() => { process.env.PATH = saved; });
+  process.env.PATH = `${join(dir, "agent-bin")}:/usr/bin:/bin`;
+  const env = await isolatedEnv(join(dir, "data"), join(dir, "doan"));
+  assert.equal(env.PATH, "/usr/bin:/bin:/usr/sbin:/sbin");
 });

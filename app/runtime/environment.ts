@@ -3,11 +3,15 @@ import { dirname, join } from "node:path";
 
 // An allowlist: provider API keys, GH/Copilot tokens and config-dir overrides in the developer's shell
 // would otherwise sign the probed app in as the developer.
-const INHERITED = new Set(["PATH", "USER", "LOGNAME", "LANG", "TERM", "TZ", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS", "__CF_USER_TEXT_ENCODING",
+const INHERITED = new Set(["USER", "LOGNAME", "LANG", "TERM", "TZ", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS", "__CF_USER_TEXT_ENCODING",
   "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy"]);
 function inheritable(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return Object.fromEntries(Object.entries(env).filter(([name]) => INHERITED.has(name) || name.startsWith("LC_")));
 }
+
+// launchd's PATH, not the caller's: an agent CLI there that ignores HOME (Antigravity's `agy` writes
+// ~/.gemini/antigravity-cli) would reach the real user's state. A probe that needs another tool sets PATH itself.
+const SYSTEM_PATH = "/usr/bin:/bin:/usr/sbin:/sbin";
 
 // userData alone does not isolate login-shell discovery or agent setup writes.
 export async function isolatedEnv(userData: string, cli: string): Promise<NodeJS.ProcessEnv> {
@@ -20,7 +24,7 @@ export async function isolatedEnv(userData: string, cli: string): Promise<NodeJS
   // projectRoot back, so any absolute directory of this environment will do.
   await writeFile(join(userData, "onboarding.json"), `${JSON.stringify({ v: 1, completed: true, projectRoot: home })}\n`);
   return {
-    ...inheritable(process.env), HOME: home, TMPDIR: dirname(userData), SHELL: shell,
+    ...inheritable(process.env), PATH: SYSTEM_PATH, HOME: home, TMPDIR: dirname(userData), SHELL: shell,
     CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"),
     DOAN_CLI: cli, DOAN_RUNTIME: join(userData, "runtime.json"),
   };

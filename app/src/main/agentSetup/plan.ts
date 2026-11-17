@@ -59,6 +59,10 @@ function underNamespace(value: string, home: string): boolean {
 export function codexRuleText(): string {
   return '# Written by Doan so Codex runs `doan` outside its sandbox without asking. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan"], decision="allow")\n';
 }
+// Every text an earlier release wrote as doan.rules, matched exactly like the current one. Without them a release that
+// changes the text would leave each machine's earlier file as someone else's and never update it. Empty until the
+// text first changes; plan.test.ts pins the current text so a change fails until its old text is added here.
+export const EARLIER_CODEX_RULES: readonly string[] = [];
 
 // Claude Code Bash rules (Claude Code docs 'Configure permissions', 'Wildcard patterns'): a trailing ` *` matches any
 // arguments and the bare command, and `&&`, `;`, `|` split a command so each part needs its own rule. Only the three
@@ -158,8 +162,11 @@ export function classifyTarget(target: SetupTarget, home: string, observation: P
   if (kind === "missing") return "missing";
   // The person's settings: Doan only merges into a regular file there, never through a link.
   if (target === "claude-allow") return kind === "file" ? "ours" : "foreign";
-  // Ownership of the rule is its exact content; when the text changes, the old text joins this check.
-  if (target === "codex-rule") return kind === "file" && observation.content === codexRuleText() ? "ours" : "foreign";
+  // Ownership of the rule is its exact content: an earlier release's text is replaced, an edited file is never touched.
+  if (target === "codex-rule") {
+    if (kind !== "file" || observation.content == null) return "foreign";
+    return observation.content === codexRuleText() ? "ours" : EARLIER_CODEX_RULES.includes(observation.content) ? "legacy-ours" : "foreign";
+  }
   if (kind !== "symlink" || value == null) return "foreign";
   // Doan never placed another form in /usr/local/bin, so only the exact link is ours there and nothing is replaced as root.
   if (target === "system-cli") return value === `${home}/.local/share/doan/current/bin/doan` ? "ours" : "foreign";
@@ -227,8 +234,8 @@ export function decide(target: PlannedTarget, observation: Observation, home: st
       const found = observation.kind === "symlink" ? "link" : observation.kind === "directory" ? "folder" : "file";
       return { ...base, action: "skip", item: { target: target.target, path: target.path, providers: [...target.providers], reason: "foreign", found } };
     }
-    // An owned file is ours only when its content is exactly `want`.
-    default: return { ...base, action: target.file || observation.value === target.want ? "keep" : "replace" };
+    // An owned file is "ours" only when its content is exactly `want`; a "legacy-ours" file holds an earlier text.
+    default: return { ...base, action: (target.file ? ownership === "ours" : observation.value === target.want) ? "keep" : "replace" };
   }
 }
 
