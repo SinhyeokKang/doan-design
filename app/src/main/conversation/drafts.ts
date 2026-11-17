@@ -6,8 +6,8 @@ import { canonicalDirectory, openRegular, readRegular } from "./io";
 import { combineQueued } from "./queue";
 import { LIMITS, validAnchor } from "./prompt";
 import { absolutePath, object } from "./sessions";
-import { validId } from "./store";
-import type { Anchor, AttachmentRecord } from "./types";
+import { validCanvas, validId } from "./store";
+import type { Anchor, AttachmentRecord, Canvas } from "./types";
 // A message sent while its conversation worked, waiting to go out with the others after the turn. sending: its send has
 // started and is not accepted yet; it stays on disk until then, so a crash returns it as a draft instead of losing it.
 export interface QueuedItem { itemId: string; text: string; anchors: Anchor[]; attachments: AttachmentRecord[]; sending?: true }
@@ -15,7 +15,13 @@ export interface QueuedItem { itemId: string; text: string; anchors: Anchor[]; a
 // into one draft for the person to edit. reason: "turn_failed", "interrupted", "restarted" or the refused send's code.
 export interface ReturnedDraft { text: string; anchors: Anchor[]; attachments: AttachmentRecord[]; reason: string }
 export type DraftParts = Omit<ReturnedDraft, "reason">;
-interface DraftsFile { queued: Record<string, QueuedItem[]>; returned: Record<string, ReturnedDraft> }
+// A message a send or start carries from when main takes it until main accepts or refuses it: the composer that sent it
+// has let it go, and the history has nothing yet, so a quit in between would lose it. A send's names its conversation, a
+// start's the root (and canvas) it starts in, since its conversation does not exist yet.
+export type HeldMessage = DraftParts & ({ conversationId: string } | { root: string; canvas?: Canvas });
+// A start's message the app ended before acceptance, waiting for a composer of its root (and canvas) to take it.
+export interface ReturnedStart extends DraftParts { root: string; canvas?: Canvas }
+interface DraftsFile { queued: Record<string, QueuedItem[]>; returned: Record<string, ReturnedDraft>; sending: Record<string, HeldMessage>; starts: Record<string, ReturnedStart> }
 // The whole file, which the reader reads only up to this size; the writer refuses a queued message that would pass it.
 export const DRAFTS_FILE_BYTES = 16 * 1024 * 1024;
 
@@ -52,11 +58,32 @@ function queuedItems(value: unknown): value is QueuedItem[] {
 function returnedDraft(value: unknown): value is ReturnedDraft {
   return object(value) && typeof value.reason === "string" && /^[a-z_]{1,64}$/.test(value.reason) && parts(value);
 }
+function root(value: unknown): value is { root: string; canvas?: Canvas } {
+  return object(value) && typeof value.root === "string" && absolutePath(value.root) && (value.canvas === undefined || validCanvas(value.canvas));
+}
+function returnedStart(value: unknown): value is ReturnedStart { return root(value) && parts(value) && fits(value); }
+function heldMessage(value: unknown): value is HeldMessage {
+  if (!object(value)) return false;
+  const conversationId = value.conversationId;
+  return parts(value) && fits(value) && (typeof conversationId === "string" ? validId(conversationId) : root(value));
+}
+// Held and returned starts are read entry by entry; an older file has neither. Unreadable entries are dropped: each is
+// one message nothing else refers to, unlike a conversation's queue and draft, which are kept for diagnosis.
+function entries<T>(value: unknown, valid: (entry: unknown) => entry is T, kind: string): Record<string, T> {
+  if (value === undefined) return {};
+  const read: Record<string, T> = {};
+  if (!object(value)) { console.error(`doan: conversation drafts' ${kind} unreadable; dropped`); return read; }
+  for (const [key, entry] of Object.entries(value)) {
+    if (validId(key) && valid(entry)) read[key] = entry;
+    else console.error(`doan: conversation drafts' ${kind} entry unreadable; dropped`);
+  }
+  return read;
+}
 // Each conversation is read on its own: one that cannot be read (a bad entry, or a queue and draft past one message) is
 // kept on disk as it is and left out, and the others are read. null: the file itself is not a v1 drafts file.
 function parse(raw: unknown): { file: DraftsFile; unread: { queued: Record<string, unknown>; returned: Record<string, unknown> } } | null {
   if (!object(raw) || raw.v !== 1 || !object(raw.queued) || !object(raw.returned)) return null;
-  const file: DraftsFile = { queued: {}, returned: {} }, unread = { queued: {} as Record<string, unknown>, returned: {} as Record<string, unknown> };
+  const file: DraftsFile = { queued: {}, returned: {}, sending: entries(raw.sending, heldMessage, "sending"), starts: entries(raw.starts, returnedStart, "starts") }, unread = { queued: {} as Record<string, unknown>, returned: {} as Record<string, unknown> };
   for (const id of new Set([...Object.keys(raw.queued), ...Object.keys(raw.returned)])) {
     const items = raw.queued[id], draft = raw.returned[id];
     const ok = validId(id) && (items === undefined || queuedItems(items)) && (draft === undefined || returnedDraft(draft)) &&
@@ -80,7 +107,7 @@ export function joined(items: readonly DraftParts[]): DraftParts {
 // by themselves. A file that is not a drafts file is kept for diagnosis: nothing more is queued, and returned drafts
 // stay in memory only. directory null: memory only (tests and callers without a store). fileBytes: the file limit.
 export class DraftStore {
-  private file: DraftsFile = { queued: {}, returned: {} };
+  private file: DraftsFile = { queued: {}, returned: {}, sending: {}, starts: {} };
   private unread: { queued: Record<string, unknown>; returned: Record<string, unknown> } = { queued: {}, returned: {} };
   private readonly directory: string | null;
   private readonly path: string | null;
@@ -105,8 +132,19 @@ export class DraftStore {
     try { read = parse(JSON.parse(raw)); } catch { read = null; }
     if (!read) { this.broken = true; console.error("doan: conversation drafts damaged; kept as they are"); return; }
     this.file = read.file; this.unread = read.unread;
-    const left = Object.entries(read.file.queued).filter(([, items]) => items.length > 0);
-    if (!left.length) return;
+    const left = Object.entries(read.file.queued).filter(([, items]) => items.length > 0), held = Object.entries(read.file.sending);
+    if (!left.length && !held.length) return;
+    // A send's message goes behind what its conversation already had returned and ahead of its queue, which waited
+    // behind that send; a start's waits for its composer.
+    for (const [key, { text, anchors, attachments, ...where }] of held) {
+      if ("conversationId" in where) {
+        // A conversation whose drafts could not be read keeps them as they are; its message is lost rather than mixed in.
+        if (where.conversationId in this.unread.queued || where.conversationId in this.unread.returned) console.error("doan: a held message's conversation drafts unreadable; dropped");
+        else if (!fits(joined([...this.file.returned[where.conversationId] ? [this.file.returned[where.conversationId]!] : [], { text, anchors, attachments }]))) console.error("doan: a held message does not fit its conversation's draft; dropped");
+        else this.merge(where.conversationId, { text, anchors, attachments }, "restarted");
+      } else this.file.starts[key] = { ...where, text, anchors, attachments };
+    }
+    this.file.sending = {};
     for (const [id, items] of left) this.merge(id, joined(items), "restarted");
     this.file.queued = {};
     this.save();
@@ -196,6 +234,27 @@ export class DraftStore {
     try { this.write(); } catch (error) { this.file.returned[id] = draft; throw error; }
     return draft;
   }
+  // Never throws: a message that cannot be held still goes out; only a quit before its acceptance would then lose it.
+  hold(key: string, message: HeldMessage): void {
+    if (this.broken) return;
+    this.file.sending[key] = message;
+    if (this.bytes() > this.fileBytes) { delete this.file.sending[key]; console.error("doan: a sent message could not be held; drafts file full"); return; }
+    this.save();
+  }
+  // Its send or start was accepted or refused: the history or the composer has it now.
+  release(key: string): void { if (!(key in this.file.sending)) return; delete this.file.sending[key]; this.save(); }
+  // The starts of root (on canvas, or on none) a previous run ended before acceptance, joined into one draft, once. A
+  // canvas matches by its id when both have one, else by its path. Throws when the hand-over cannot be saved, and keeps them.
+  takeStart(rootPath: string, canvas?: Canvas): ReturnedDraft | null {
+    const same = (start: ReturnedStart) => start.root === rootPath && (!start.canvas || !canvas ? !start.canvas && !canvas
+      : start.canvas.id !== undefined && canvas.id !== undefined ? start.canvas.id === canvas.id : start.canvas.path === canvas.path);
+    const keys = Object.keys(this.file.starts).filter(key => same(this.file.starts[key]!));
+    if (!keys.length) return null;
+    const before = { ...this.file.starts };
+    for (const key of keys) delete this.file.starts[key];
+    try { this.write(); } catch (error) { this.file.starts = before; throw error; }
+    return { ...joined(keys.map(key => before[key]!)), reason: "restarted" };
+  }
   // A deleted conversation's queue and returned draft go with it, unread entries and items on their way out included
   // (a deletion waits for the turn to end, so none should be left). Never throws: the deletion is already committed.
   discard(id: string): void {
@@ -213,7 +272,9 @@ export class DraftStore {
   // The file as written, unreadable conversations kept as they were.
   private serialized(file: DraftsFile): string {
     const queued = Object.fromEntries(Object.entries(file.queued).filter(([, items]) => items.length > 0));
-    return JSON.stringify({ v: 1, queued: { ...this.unread.queued, ...queued }, returned: { ...this.unread.returned, ...file.returned } });
+    // Held and returned starts only when there are any, so a file without them reads as before in older builds.
+    const sending = Object.keys(file.sending).length ? { sending: file.sending } : {}, starts = Object.keys(file.starts).length ? { starts: file.starts } : {};
+    return JSON.stringify({ v: 1, queued: { ...this.unread.queued, ...queued }, returned: { ...this.unread.returned, ...file.returned }, ...sending, ...starts });
   }
   // The most the file can take for what is accepted now, whatever happens to it later: each conversation as its queue
   // with every item marked sending beside its returned draft, or as one returned draft holding all of it (a restart, a
@@ -222,7 +283,8 @@ export class DraftStore {
   private bytes(): number {
     const size = (value: unknown) => Buffer.byteLength(JSON.stringify(value));
     const reason = "x".repeat(64);
-    let total = size({ v: 1, queued: this.unread.queued, returned: this.unread.returned });
+    // A held message is written once more at the next start, as a draft of the same size or smaller.
+    let total = size({ v: 1, queued: this.unread.queued, returned: this.unread.returned, sending: this.file.sending, starts: this.file.starts });
     for (const id of new Set([...Object.keys(this.file.queued), ...Object.keys(this.file.returned)])) {
       const items = this.file.queued[id] ?? [], earlier = this.file.returned[id];
       // A queue emptied by removals or sends is not written (serialized) and reserves nothing.

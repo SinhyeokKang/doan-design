@@ -14,13 +14,17 @@
 6. `/logout`·`/login` 카드(사용자): 모든 프로바이더에서 Antigravity `/logout`과 같은 Settings > Agents 문구와 버튼을 쓴다.
 7. 명령과 첨부(사용자): 명령만 보내고 첨부는 컴포저에 남긴다.
 8. B1 열린 질문 중 지휘자 판단: Copilot `/clear`·`/cost`는 서버 목록에 없으므로 결정 2·10에 따라 텍스트로 보낸다(카드 없음). Codex `/compact <텍스트>`는 텍스트를 버리고 압축한다(R1이 막자고 했으나 사용자가 버리기로 정했다). `/permissions` 카드는 모든 프로바이더에서 permission picker로 보낸다(결정 2의 '같은 기능이 있으면 그쪽으로'). Claude 명령 설명은 SDK가 placeholder를 주면 표 문구를 쓴다. PoC 로그가 없어 확인 버전의 실제 문구는 확인하지 못했다.
+9. 재시작 뒤 경계(사용자, design 결정 4를 바꾼다): 실행 중에는 프로바이더 이벤트로 경계를 낸다. 재시작 뒤에는 Doan 기록에서 다시 만든다. 그 프로바이더의 `/compact`·`/clear`(Claude 별칭 포함)를 보내고 turn.done으로 끝난 명령 턴이 근거다. 기록 형식은 바꾸지 않고 프로바이더 프로세스나 파일을 읽지 않는다. 그래서 `/clear` 이전 경계도 남고, Copilot 압축 경계도 재시작 뒤 남는다(예외가 없어진다).
+10. 확인하지 않은 ACP 명령(사용자, spec 문구보다 design 결정 10을 따른다): 첫 단어가 서버 목록에는 있고 허용 목록에는 없는 명령이면 프리셋·고정 줄 없이 텍스트 그대로 보낸다. 목록과 카드에는 두지 않는다.
+11. Codex `/review`의 권한 모드(사용자): app-server 요청에 권한 모드를 실을 수 없어 직전 턴의 모드로 돈다. 이 스레드에 모드를 밝힌 턴이 없거나 picker 모드가 그 턴과 다르면 보내지 않고 카드로 알린다. 텍스트는 컴포저로 돌아온다. `/compact`는 도구를 쓰지 않으므로 그대로 보낸다.
+12. Claude 계획 승인의 clear context(`plan_mode_exit`)로 세션 id가 바뀌면 `session_unavailable`이다(지휘자 판단, PRODUCT 'Resume and permissions'). BACKLOG에 적는다.
 
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| B1 | task 3, 4 | `app/src/main/conversation/types.ts`(`SkillSummary`), 새 순수 함수 모듈과 테스트(main `conversation/`, renderer 보내기 조립·하이라이트 helper) | 없음 | Opus high: 허용 목록·첫 단어 판정·경계 근거·숨길 기록 규칙이 PoC 표 해석에 달려 있고, 틀리면 B2·B3가 모두 따라 틀린다 | `npm --prefix app run typecheck`, `npm --prefix app test` | R1(Codex astra medium): 🔴0 🟡3 💬3. 수정 라운드 1 진행 중 |
-| B2 | task 5, 6, 7 | `app/src/main/conversation/`(skills·runners·acpRunner·acp·queue·service·store·sessions 등), `app/src/preload/` | B1 | Opus high: 세션 id 고정 검사 예외, ACP 연결 수명, Codex 요청 매핑. 틀리면 세션을 몰래 바꾸거나 다른 연결의 목록을 보인다 | `npm --prefix app test`, typecheck | 대기 |
+| B1 | task 3, 4 | `app/src/main/conversation/types.ts`(`SkillSummary`), 새 순수 함수 모듈과 테스트(main `conversation/`, renderer 보내기 조립·하이라이트 helper) | 없음 | Opus high: 허용 목록·첫 단어 판정·경계 근거·숨길 기록 규칙이 PoC 표 해석에 달려 있고, 틀리면 B2·B3가 모두 따라 틀린다 | `npm --prefix app run typecheck`, `npm --prefix app test` | 통합 끝(b971f3dec..5141c71af). R1(Codex astra medium) 🔴0 🟡3 💬3, 수정 1라운드. verify PASS(5141c71af). worktree 정리함 |
+| B2 | task 5, 6, 7 | `app/src/main/conversation/`(skills·runners·acpRunner·acp·queue·service·store·sessions 등), `app/src/preload/` | B1 | Opus high: 세션 id 고정 검사 예외, ACP 연결 수명, Codex 요청 매핑. 틀리면 세션을 몰래 바꾸거나 다른 연결의 목록을 보인다 | `npm --prefix app test`, typecheck | 구현 끝(e10090bf1). 열린 질문 3건 답변 뒤 수정 1라운드와 R2 리뷰(Codex astra medium) 동시 진행 |
 | B3 | task 8(+`/runtime-test`, `/design-sync`) | `app/src/renderer/`, `docs/design/conversation.md`·`docs/DESIGN.md` 측정값 | B2 | Opus high: 네 컴포저 공통 규칙, `/` 목록 위치 변경, 실제 앱 측정 | `npm --prefix app test`, `/runtime-test` 네 항목, `/design-sync` | 대기 |
 | 지휘자 | task 9, 10 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/features/provider-commands/` 삭제 | B3 | — | `verify.mjs` 종료 0, `/doc-check` 대상 문단 대조 | 대기 |
 

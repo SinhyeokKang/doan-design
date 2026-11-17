@@ -156,6 +156,9 @@ const api = {
   // item is gone or already on its way out; attachment_missing: one of its files went away (it stays queued).
   sendQueuedNow: (request: { conversationId: string; itemId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:sendQueuedNow", request),
   takeConversationDraft: (request: { conversationId: string }): Promise<TakenDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeDraft", request),
+  // The first message of a new conversation in root (on canvas, or on none) that a quit stopped before main accepted it,
+  // in an earlier run, handed over once (attachments as recorded paths); null when there is none.
+  takeStartDraft: (request: { root: string; canvas?: Canvas }): Promise<TakenDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeStartDraft", request),
   // Deletes Doan's record of the conversation on this device (index entry, history, queue and returned draft); the
   // agent's own session files stay. busy while it works or the app quits; not_found when it is already gone; unknown
   // when the index cannot be read, and then nothing is deleted. A success is announced with onConversationListChanged.

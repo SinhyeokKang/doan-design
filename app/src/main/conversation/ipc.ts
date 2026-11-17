@@ -10,7 +10,7 @@ import type { SkillCatalog } from "./skills";
 import type { AttachmentStore } from "../attachments";
 import { QUESTION_LIMITS, type QuestionAnswerInput } from "./question";
 import type { Anchor, AttachmentRecord, Canvas } from "./types";
-export const conversationMethods = ["resumeTarget", "start", "send", "interrupt", "answerPermission", "answerQuestion", "read", "models", "skills", "list", "markSeen", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "setPermissionMode", "delete", "scheduled"] as const;
+export const conversationMethods = ["resumeTarget", "start", "send", "interrupt", "answerPermission", "answerQuestion", "read", "models", "skills", "list", "markSeen", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "takeStartDraft", "setPermissionMode", "delete", "scheduled"] as const;
 export type ConversationMethod = typeof conversationMethods[number];
 // attachment_missing names the attachments that were moved, deleted or forgotten since they were added; replaced, the
 // ones among them that are folders now leading to another folder. resetsAt (ISO): with rate_limited, when the usage
@@ -148,6 +148,12 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
         const listed = await home.skills.skills(raw.root, raw.provider);
         // passthrough: the server's unconfirmed commands, sent as written but shown in no row.
         return raw.conversationId === undefined ? listed : { skills: [...listed.skills, ...service.acpCommands(raw.conversationId, raw.root, raw.provider)], passthrough: service.acpPassthrough(raw.conversationId, raw.root, raw.provider) };
+      }
+      // A new conversation's composer of root (on canvas) takes the first message a quit stopped in an earlier run.
+      if (method === "takeStartDraft") {
+        if (typeof raw.root !== "string" || raw.root.length > LIMITS.path || (raw.canvas !== undefined && !validCanvas(raw.canvas))) throw new Error("bad_request");
+        if (!projects().some(p => p.path === raw.root)) throw new Error("project_not_open");
+        return service.takeStartDraft(raw.root, raw.canvas);
       }
       if (["start", "resumeTarget"].includes(method)) {
         if (typeof raw.root !== "string" || raw.root.length > LIMITS.path) throw new Error("bad_request");

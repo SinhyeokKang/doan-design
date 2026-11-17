@@ -250,6 +250,8 @@ export class OverviewRun {
       if (root === this.visible) this.toastWaiting(root, s, list);
       const shown = s.current?.conversationId;
       if (shown && this.store.thread(shown)?.read === "ready") this.store.takeDraft(root, shown);
+      // A first message a quit stopped waits in the root's new conversation draft (once a run; main hands it over once).
+      if (root === this.visible) this.store.takeStartDraft(root);
       // Only the shown root's, as the canvas panel; the store forgets a schedule the list moved past on every read.
       if (shown && root === this.visible) this.store.readScheduled(root, shown);
     }

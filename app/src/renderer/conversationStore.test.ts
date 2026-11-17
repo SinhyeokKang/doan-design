@@ -521,3 +521,36 @@ describe("scheduled rows: request identity and retries", () => {
     });
 });
 
+
+// A first message a quit stopped before main accepted it, in an earlier run, comes into its new conversation draft.
+describe("takeStartDraft", () => {
+  const CANVAS = { path: ".doan/canvases/a.html", id: "a" };
+  test("puts a canvas start's message, chips included, after what the canvas's new draft holds, asking main once", async () => {
+    const h = harness();
+    doan.takeStartDraft = vi.fn(async () => ({ text: "Fix {{1}}", anchors: [CTA], attachments: [], reason: "restarted" }));
+    const key = `canvas:${JSON.stringify([ROOT, "id", "a"])}`;
+    h.store.setDrafts(drafts => new Map(drafts).set(key, { segments: [{ kind: "text", text: "Typed" }], preset: null, attachments: [], shape: "capsule" }));
+    h.store.takeStartDraft(ROOT, CANVAS);
+    h.store.takeStartDraft(ROOT, CANVAS);
+    await vi.waitFor(() => expect(h.store.drafts.get(key)?.segments.length).toBeGreaterThan(1));
+    expect(doan.takeStartDraft).toHaveBeenCalledOnce();
+    expect(doan.takeStartDraft).toHaveBeenCalledWith({ root: ROOT, canvas: CANVAS });
+    const segments = h.store.drafts.get(key)!.segments;
+    expect(segments[0]).toEqual({ kind: "text", text: "Typed\n\nFix " });
+    expect(segments.some(segment => segment.kind !== "text")).toBe(true);
+  });
+  test("puts a root start's message in the root's new draft, and leaves drafts alone when main has none", async () => {
+    const h = harness();
+    doan.takeStartDraft = vi.fn(async () => null);
+    h.store.takeStartDraft(ROOT); await flush();
+    expect(h.store.drafts.size).toBe(0);
+    doan.takeStartDraft = vi.fn(async () => ({ text: "Draw it", anchors: [], attachments: [], reason: "restarted" }));
+    h.store.takeStartDraft("/code/other");
+    await vi.waitFor(() => expect(h.store.drafts.get("root:/code/other")?.segments).toEqual([{ kind: "text", text: "Draw it" }]));
+  });
+  test("does nothing in a window without the call (the prototype window)", () => {
+    const h = harness();
+    expect(() => h.store.takeStartDraft(ROOT)).not.toThrow();
+    expect(h.store.drafts.size).toBe(0);
+  });
+});

@@ -357,7 +357,11 @@ export class ConversationService {
     this.reservations = result.reservations;
   }
   async start(request: StartRequest, attached?: StartAttachments, handoff?: HandoffStart): Promise<{ conversationId: string }> {
-    if (this.quitting) throw new Error("busy");
+    // No composer outlives the quit, so the message is kept for the next start as one held below would be.
+    if (this.quitting) {
+      if (!handoff) this.drafts.hold(randomUUID(), { root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), text: request.text, anchors: request.anchors, attachments: request.attachments ?? [] });
+      throw new Error("busy");
+    }
     const admitted = this.admit(request.root, request.canvas);
     if (admitted) request = { ...request, canvas: admitted };
     const project = request.mode === "newDesign" ? request.root : undefined;
@@ -372,6 +376,11 @@ export class ConversationService {
     if (request.runtime && !handoff) { checkCommand(request.runtime, request.text, request.anchors, request.attachments?.length || attached ? 1 : 0, !!commandName(request.runtime, request.text)); checkReview(request.runtime, request.text, true, undefined, undefined); }
     const id = randomUUID(); this.reserve(id);
     const live: Live = { turnId: randomUUID(), busy: true, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: this.stops, ...(project ? { project } : {}) }; this.live.set(id, live);
+    // The composer let the message go: until acceptance only drafts.json has it, so a quit returns it after the restart.
+    // A handoff's message is the agent's, which a refused handoff reports instead.
+    if (!handoff) this.drafts.hold(id, { root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), text: request.text, anchors: request.anchors, attachments: request.attachments ?? [] });
+    // Restart to Update is asked again on a list change, and this start now holds it (restartHolds).
+    this.changed(request.root);
     let opening = false, input: Prepared | undefined;
     const turnId = live.turnId;
     try {
@@ -425,6 +434,7 @@ export class ConversationService {
       const writes: JournalWrite[] = [{ id, turn: live.turnId, body: { type: "user.message", text: request.text, anchors: request.anchors, ...(attachments.length ? { attachments } : {}), ...(handoff ? { origin: handoff.origin } : {}) } }, { id, turn: live.turnId, body: { type: "turn.started" } }];
       attached?.sent();
       const saved = this.store.acceptStart([...entries, metadata], id, writes);
+      this.drafts.release(id);
       live.accepted = true; live.turnOf = turnOf(metadata); this.noteTranscript(live, input, runner.sessionId); this.noteCommand(id, live, command);
       this.noteMode(live, input.runtime, !!input.owner, command, input.permissionMode ?? "default");
       if (project) this.evidence.set(id, { root: project, turnId: live.turnId, snapshot: base.canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
@@ -439,8 +449,12 @@ export class ConversationService {
       if (!live.terminal) this.sendTurn(id, live, runner, prompt, attachments.length ? attachments : undefined);
       return { conversationId: id };
     } catch (error) {
-      // A refused start no longer holds the project, though its process may take a while to go.
-      delete live.project;
+      // A refused start no longer holds the project, though its process may take a while to go. Its composer keeps the
+      // message; one refused by the quit is kept for the next start, since no composer outlives the quit.
+      // Not running any more, though its process may take a while to go: Restart to Update need not wait for it.
+      delete live.project; live.busy = false;
+      if (!this.quitting) this.drafts.release(id);
+      this.changed(request.root);
       if (!opening) { this.reservations = releaseReservation(this.reservations, id, "not_spawned"); this.live.delete(id); freeLease(input); }
       else { void live.runner?.close(); }
       throw error instanceof Error && error.message === "outside_root" ? new Error("session_unavailable") : error;
@@ -452,9 +466,15 @@ export class ConversationService {
   // A conversation whose queue is about to go out takes no other send first: the queued messages keep their place.
   send(id: string, text: string, anchors: Anchor[], extras: SendExtras = {}, attached?: StartAttachments): Promise<void> {
     if (this.live.get(id)?.holding) return Promise.reject(new Error("busy"));
-    return this.submit(id, text, anchors, extras, attached);
+    // Held from here, through the waits before the turn, until accepted or refused, as a start's message is (start).
+    const held = randomUUID();
+    this.drafts.hold(held, { conversationId: id, text, anchors, attachments: extras.attachments ?? [] });
+    return this.submit(id, text, anchors, extras, attached, held).catch((error: unknown) => {
+      if (!this.quitting) this.drafts.release(held);
+      throw error;
+    });
   }
-  private async submit(id: string, text: string, anchors: Anchor[], extras: SendExtras, attached?: StartAttachments): Promise<void> {
+  private async submit(id: string, text: string, anchors: Anchor[], extras: SendExtras, attached?: StartAttachments, held?: string): Promise<void> {
     // Only a send that waits yields here; any other runs up to its reservation in the caller's tick, as before.
     // The finished turn's process is ended first: its suggestion or background work would otherwise hold the group, and
     // the judgement with it, up to its bound.
@@ -531,6 +551,7 @@ export class ConversationService {
       // One write: a turn.started refused by validation, the size limit or a failed open or read must not leave the
       // message, which would read as a turn that runs. A short write is not rolled back (no journal here).
       for (const event of this.store.appendAll(id, live.turnId, [message, { type: "turn.started" }])) this.deliver(event);
+      if (held) this.drafts.release(held);
       this.changedOf(id); live.accepted = true; live.turnOf = turnOf(updated); this.suggestions.delete(id); this.noteTranscript(live, input, live.runner.sessionId); this.noteCommand(id, live, command, asIsName);
       this.noteMode(live, runtime, metadata.owner.kind === "doan", command, chosen.permissionMode ?? "default");
       if (projectTurn) this.evidence.set(id, { root: metadata.root, turnId: live.turnId, snapshot: canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
@@ -747,9 +768,12 @@ export class ConversationService {
     let liveTurns = 0, pendingAnswers = 0;
     for (const live of this.live.values()) {
       if (live.terminal || live.closed || live.failedPersistence) continue;
-      if (!this.quitting && live.accepted && live.busy) liveTurns++;
+      // A send or start before acceptance counts too: the composer shows it running, and a quit stops it.
+      if (!this.quitting && live.busy) liveTurns++;
       pendingAnswers += live.asking?.size ?? 0;
     }
+    // A send waiting for its previous turn's judgement or process is in flight as well.
+    if (!this.quitting) liveTurns += this.waits.size + this.judging.size;
     return { liveTurns, pendingAnswers };
   }
   private endWork(id: string): void {
@@ -1031,6 +1055,9 @@ export class ConversationService {
       }, () => { if (this.steers.get(messageId) === steer) this.refuse(steer); });
     });
   }
+  // The first message of a start in root (on canvas) that a quit stopped before acceptance in an earlier run, handed over
+  // once, as an earlier run's queue is (its attachments have no ids).
+  takeStartDraft(root: string, canvas?: Canvas): TakenDraft | null { return this.drafts.takeStart(root, canvas); }
   // The draft queued messages came back as, handed over once. ids: per attachment, the id it was queued with in this
   // run, or null for one only its path can issue again (an earlier run's queue).
   takeDraft(id: string): TakenDraft | null {

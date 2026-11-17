@@ -1,13 +1,13 @@
 import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
-import type { Anchor, AttachmentRecord, ConversationEvent, StageSignal } from "../main/conversation/types";
+import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, StageSignal } from "../main/conversation/types";
 import { fromMessage, normalize, plainText, type FieldSegment } from "./anchorField";
 import { ATTACHMENT_LIMIT_TEXT } from "./canvasConversation";
 import type { SteerPhase } from "../main/conversation/steerSupport";
 import { asksPerson, stripState } from "./conversationStrip";
 import { mergeEvents } from "../main/conversation/state";
-import { EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
+import { draftKey, EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
 import { EMPTY_QUESTION_DRAFT, questionDraft, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
 import { attachRefusal, issuedAttachment, readyAttachment, recordedAttachment, splitRequest, type AttachmentDraft } from "./homeComposer";
 import type { SendingMessage, SentFile } from "./threadItems";
@@ -38,7 +38,9 @@ type Held = QueuedMessage & { pressed?: number };
 // The store's calls to main: `window.doan` in the main window, the same members of `window.doanPrototype` in the
 // prototype window, which has no `window.doan`.
 export type StoreCalls = Pick<DoanApi, "readConversation" | "takeConversationDraft" | "sendQueuedNow" | "scheduledMessages" |
-  "removeAttachment" | "releaseAttachments" | "recheckAttachments" | "attachmentsFromPaths">;
+  "removeAttachment" | "releaseAttachments" | "recheckAttachments" | "attachmentsFromPaths"> &
+  // Only the main window takes a start's message a quit stopped; the prototype window has no such call.
+  Partial<Pick<DoanApi, "takeStartDraft">>;
 
 export interface ConversationStoreHost {
   list(root: string): ListView;
@@ -65,6 +67,8 @@ export class ConversationStore {
   private taking = new Set<string>();
   // A returned draft taken, by the reads started then: the list still says so until a later read.
   private taken = new Map<string, number>();
+  // New conversation drafts whose start message main was asked for: it hands one over once, so once a run is enough.
+  private startsAsked = new Set<string>();
   // Providers of conversations started here, before a list names them.
   private providers = new Map<string, Provider>();
   // Each screen's run hears a thread change for its own seen and promotion rules: "read" once its history was read,
@@ -400,17 +404,31 @@ export class ConversationStore {
         for (const attachment of returned.attachments) dropAttachment(this.calls, attachment);
         return;
       }
-      const key = `conversation:${conversationId}`;
-      this.setDrafts(drafts => {
-        const current = drafts.get(key) ?? EMPTY_DRAFT;
-        // What the person typed meanwhile stays first; the returned text follows it. Chips stay segments, so the
-        // returned draft's markers are not numbered against the current draft's.
-        const between: FieldSegment[] = current.segments.length && returned.segments.length ? [{ kind: "text", text: "\n\n" }] : [];
-        const segments = normalize([...current.segments, ...between, ...returned.segments]);
-        return new Map(drafts).set(key, { ...current, segments, preset: current.preset ?? returned.preset, attachments: [...current.attachments, ...returned.attachments], shape: plainText(segments).includes("\n") || returned.attachments.length ? "box" : current.shape });
-      });
+      this.addReturned(`conversation:${conversationId}`, returned);
       // main never refuses a send with attachment_limit; it only comes back as the reason a queue was returned.
       if (reply.reason === "attachment_limit") this.host.notice(ATTACHMENT_LIMIT_TEXT);
+    });
+  }
+  // A new conversation's first message that a quit stopped before main accepted it, in an earlier run, comes into the
+  // new conversation's draft of its root (on canvas) once, when that draft shows.
+  takeStartDraft(root: string, canvas?: Canvas): void {
+    const key = draftKey({ kind: "new", root, ...(canvas ? { canvas } : {}) });
+    const take = this.calls.takeStartDraft;
+    if (!take || this.startsAsked.has(key)) return;
+    this.startsAsked.add(key);
+    void take({ root, ...(canvas ? { canvas } : {}) }).catch(() => null).then(async reply => {
+      if (!reply || "error" in reply) return;
+      this.addReturned(key, await draftFrom(this.calls, reply.text, reply.anchors, reply.attachments));
+    });
+  }
+  private addReturned(key: string, returned: DockedDraft): void {
+    this.setDrafts(drafts => {
+      const current = drafts.get(key) ?? EMPTY_DRAFT;
+      // What the person typed meanwhile stays first; the returned text follows it. Chips stay segments, so the
+      // returned draft's markers are not numbered against the current draft's.
+      const between: FieldSegment[] = current.segments.length && returned.segments.length ? [{ kind: "text", text: "\n\n" }] : [];
+      const segments = normalize([...current.segments, ...between, ...returned.segments]);
+      return new Map(drafts).set(key, { ...current, segments, preset: current.preset ?? returned.preset, attachments: [...current.attachments, ...returned.attachments], shape: plainText(segments).includes("\n") || returned.attachments.length ? "box" : current.shape });
     });
   }
 }
