@@ -12,7 +12,7 @@ const paths: string[] = []; afterEach(() => { paths.splice(0).forEach(p => rmSyn
 const temp = (prefix: string) => { const dir = realpathSync(mkdtempSync(join(tmpdir(), prefix))); paths.push(dir); return dir; };
 const VERSION: Record<Provider, string> = { claude: "2.1.326", codex: "0.167.1", cursor: "2026.10.22", copilot: "1.0.105", antigravity: "1.3.0" };
 function fixture(provider: Provider = "codex") {
-  const dir = temp("doan-commands-"), profile = temp("doan-commands-profile-");
+  const dir = temp("doan-commands-"), profile = temp("doan-commands-profile-"), cwd = temp("doan-commands-work-");
   const store = new ConversationStore(dir); const runners: (Runner & { send: ReturnType<typeof vi.fn> })[] = []; const inputs: Prepared[] = []; const exits: (() => void)[] = [];
   let connectionId = "conn-1";
   const owner = () => ({ kind: "doan" as const, provider, connectionId, accountId: "acct", workspaceId: "org", profile: "p" });
@@ -21,12 +21,12 @@ function fixture(provider: Provider = "codex") {
     const runner = { sessionId: input.sessionId ?? "11111111-1111-4111-8111-111111111111", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}), steer: vi.fn(async () => {}) };
     runners.push(runner); return runner;
   });
-  const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: provider, configDir: profile, cwd: "/repo", command: "/fake", env: {}, owner: owner(), installed: VERSION[provider], ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
+  const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: provider, configDir: profile, cwd, command: "/fake", env: {}, owner: owner(), installed: VERSION[provider], ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
   const signals: BoundarySignal[] = [];
   const service = new ConversationService(store, prepare, open, () => {}, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, signal => signals.push(signal));
   const start = async (text: string, extra: Record<string, unknown> = {}) => (await service.start({ root: "/repo", mode: "new", runtime: provider, canvas: { path: ".doan/canvases/a.html" }, text, anchors: [], ...extra })).conversationId;
   const prompts = () => runners.flatMap(r => r.send.mock.calls.map(call => call[0] as string));
-  return { service, store, profile, runners, inputs, exits, open, prepare, signals, start, prompts, reconnect: (id: string) => { connectionId = id; } };
+  return { service, store, profile, cwd, runners, inputs, exits, open, prepare, signals, start, prompts, reconnect: (id: string) => { connectionId = id; } };
 }
 
 // A command message is the whole text, sent as is: the provider runs it only as the first and only thing it reads.
@@ -124,7 +124,7 @@ describe("boundaries", () => {
     const h = fixture();
     const id = await h.start("/compact");
     const turnId = h.store.read(id)[0]!.turnId;
-    expect(h.service.read(id).commands).toEqual({ turns: { [turnId]: "compact" }, boundaries: [] });
+    expect(h.service.read(id).commands).toEqual({ turns: { [turnId]: "compact" }, boundaries: [], usageStale: false });
     h.inputs[0]!.boundary!("compacted");
     expect(h.signals).toEqual([{ conversationId: id, turnId, kind: "compacted" }]);
     h.service.receive(id, { type: "turn.done" });
@@ -142,7 +142,7 @@ describe("boundaries", () => {
   it("ignores a boundary reported during a turn that is not a command (an automatic compaction)", async () => {
     const h = fixture();
     const id = await h.start("hello"); h.inputs[0]!.boundary!("compacted");
-    expect(h.signals).toEqual([]); expect(h.service.read(id).commands).toEqual({ turns: {}, boundaries: [] });
+    expect(h.signals).toEqual([]); expect(h.service.read(id).commands).toEqual({ turns: {}, boundaries: [], usageStale: false });
   });
   it("draws Copilot's compaction from its result text, as the only sign over ACP", async () => {
     const h = fixture("copilot");
@@ -154,47 +154,105 @@ describe("boundaries", () => {
 
 // Only the person's /clear moves a conversation to another session; the new id must be a session of the same profile.
 describe("Claude /clear", () => {
-  const NEXT = "bda22031-0000-4000-8000-000000000002";
-  const transcript = (profile: string, id: string) => { mkdirSync(join(profile, "projects", "-repo"), { recursive: true }); writeFileSync(join(profile, "projects", "-repo", `${id}.jsonl`), "{}\n"); };
+  const OLD = "11111111-1111-4111-8111-111111111111", NEXT = "bda22031-0000-4000-8000-000000000002";
+  // A session's transcript in a project folder of the profile: lines that carry the session id and its cwd, as Claude
+  // Code writes them; a new session's file starts with the /clear line.
+  const transcript = (profile: string, id: string, lines: Record<string, unknown>[], folder = "-proj") => {
+    mkdirSync(join(profile, "projects", folder), { recursive: true });
+    writeFileSync(join(profile, "projects", folder, `${id}.jsonl`), lines.map(line => JSON.stringify(line)).join("\n") + "\n");
+  };
+  const clearLine = (cwd: string) => ({ type: "system", subtype: "local_command", content: "<command-name>/clear</command-name>", sessionId: NEXT, cwd });
+  async function cleared(h: ReturnType<typeof fixture>) {
+    const id = await h.start("hello"); transcript(h.profile, OLD, [{ type: "user", sessionId: OLD, cwd: h.cwd }]);
+    h.service.receive(id, { type: "turn.done" }); h.exits[0]!();
+    await h.service.send(id, "/clear", []);
+    return id;
+  }
+  const move = (h: ReturnType<typeof fixture>) => { h.inputs[1]!.boundary!("cleared"); h.inputs[1]!.sessionChanged!(NEXT); h.runners[1]!.sessionId = NEXT; };
+  const refused = (h: ReturnType<typeof fixture>, id: string) => {
+    expect(h.store.list().find(m => m.conversationId === id)!.session.sessionId).toBe(OLD);
+    expect(h.store.read(id).at(-1)).toMatchObject({ type: "turn.failed" });
+    expect(h.signals).toEqual([]); expect(h.service.read(id).commands.boundaries).toEqual([]);
+  };
   it("rebinds the conversation to the session /clear moved to, and resumes it next", async () => {
     const h = fixture("claude");
-    const id = await h.start("hello"); h.service.receive(id, { type: "turn.done" }); h.exits[0]!();
-    const before = h.store.list()[0]!.session.sessionId;
-    await h.service.send(id, "/clear", []);
-    transcript(h.profile, NEXT);
-    h.inputs[1]!.boundary!("cleared"); h.inputs[1]!.sessionChanged!(NEXT); h.runners[1]!.sessionId = NEXT;
+    const id = await cleared(h);
+    transcript(h.profile, NEXT, [clearLine(h.cwd)]);
+    move(h);
     // The clear is drawn once the conversation followed it, not on the provider's reset alone.
     expect(h.signals).toEqual([]);
     h.service.receive(id, { type: "turn.done" });
-    expect(h.store.list()[0]!.session).toMatchObject({ sessionId: NEXT, configDir: h.profile, cwd: "/repo" });
+    expect(h.store.list()[0]!.session).toMatchObject({ sessionId: NEXT, configDir: h.profile, cwd: h.cwd });
     const turnId = h.store.read(id).at(-1)!.turnId;
     expect(h.signals).toEqual([{ conversationId: id, turnId, kind: "cleared" }]);
     expect(h.service.read(id).commands.boundaries).toEqual([{ turnId, kind: "cleared" }]);
+    // The context value the record holds is the previous session's until the next turn measures the new one.
+    expect(h.service.read(id).commands.usageStale).toBe(true);
     expect(h.store.read(id).at(-1)).toMatchObject({ type: "turn.done" });
     h.exits[1]!();
     await h.service.send(id, "next", []);
     expect(h.inputs[2]!.sessionId).toBe(NEXT);
     // The previous session is no longer held by this conversation.
-    expect(h.service.sessionHeld("claude", h.profile, before)).toBe(false);
+    expect(h.service.sessionHeld("claude", h.profile, OLD)).toBe(false);
   });
   it("fails the turn and keeps the binding when the new session is not in the profile", async () => {
     const h = fixture("claude");
-    const id = await h.start("/clear");
-    const before = h.store.list()[0]!.session.sessionId;
-    h.inputs[0]!.boundary!("cleared"); h.inputs[0]!.sessionChanged!(NEXT);
+    const id = await cleared(h); move(h);
     h.service.receive(id, { type: "turn.done" });
-    expect(h.store.list()[0]!.session.sessionId).toBe(before);
+    refused(h, id);
     expect(h.store.read(id).at(-1)).toMatchObject({ type: "turn.failed", code: "session_unavailable" });
-    expect(h.signals).toEqual([]); expect(h.service.read(id).commands.boundaries).toEqual([]);
+  });
+  it("refuses a new session that is another project folder's", async () => {
+    const h = fixture("claude");
+    const id = await cleared(h);
+    transcript(h.profile, NEXT, [clearLine(h.cwd)], "-elsewhere");
+    move(h); h.service.receive(id, { type: "turn.done" });
+    refused(h, id);
+  });
+  it.each([["names no cwd", (cwd: string) => [{ type: "system", subtype: "local_command", sessionId: NEXT }, { type: "user", cwd, sessionId: "other" }]],
+    ["names another cwd", () => [clearLine(tmpdir())]],
+    ["names the cwd in one line and another in the next", (cwd: string) => [clearLine(cwd), clearLine(tmpdir())]]])("refuses a new session whose transcript %s", async (_label, lines) => {
+    const h = fixture("claude");
+    const id = await cleared(h);
+    transcript(h.profile, NEXT, lines(h.cwd));
+    move(h); h.service.receive(id, { type: "turn.done" });
+    refused(h, id);
+  });
+  it("refuses a session another conversation holds, even one that ended", async () => {
+    const h = fixture("claude");
+    h.prepare.mockImplementationOnce(async () => ({ runtime: "claude", configDir: h.profile, cwd: h.cwd, command: "/fake", env: {}, sessionId: NEXT, owner: { kind: "doan", provider: "claude", connectionId: "conn-1", accountId: "acct", workspaceId: "org", profile: "p" }, installed: "2.1.326" }));
+    const other = await h.start("other", { mode: "resume", canvas: { path: ".doan/canvases/b.html" } });
+    h.service.receive(other, { type: "turn.done" }); h.exits[0]!();
+    h.inputs.shift(); h.runners.shift(); h.exits.shift();
+    const id = await cleared(h);
+    transcript(h.profile, NEXT, [clearLine(h.cwd)]);
+    move(h); h.service.receive(id, { type: "turn.done" });
+    refused(h, id);
+    expect(h.store.list().find(m => m.conversationId === other)!.session.sessionId).toBe(NEXT);
   });
   it("never follows a session change on a turn that is not /clear", async () => {
     const h = fixture("claude");
     const id = await h.start("hello");
     const before = h.store.list()[0]!.session.sessionId;
-    transcript(h.profile, NEXT); h.inputs[0]!.sessionChanged!(NEXT);
+    transcript(h.profile, OLD, [{ type: "user", sessionId: OLD, cwd: h.cwd }]); transcript(h.profile, NEXT, [clearLine(h.cwd)]);
+    h.inputs[0]!.sessionChanged!(NEXT);
     h.service.receive(id, { type: "turn.done" });
     expect(h.store.list()[0]!.session.sessionId).toBe(before);
     expect(h.store.read(id).at(-1)).toMatchObject({ type: "turn.failed", code: "session_unavailable" });
+  });
+});
+
+// A command turn takes no other message: Send now of an ordinary queued message waits for the next turn instead.
+describe("Send now during a command turn", () => {
+  it("refuses Send now of an ordinary message while a command runs, and sends it after the command's turn", async () => {
+    const h = fixture();
+    const id = await h.start("hello"); h.service.receive(id, { type: "turn.done" });
+    await h.service.send(id, "/compact", []);
+    const { itemId } = h.service.queue(id, { text: "after the compaction", anchors: [] });
+    await expect(h.service.sendNow(id, itemId)).rejects.toThrow("not_running");
+    expect(h.runners[0]!.steer).not.toHaveBeenCalled();
+    h.service.receive(id, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.store.read(id).filter(e => e.type === "user.message").map(e => (e as { text: string }).text)).toEqual(["hello", "/compact", "after the compaction"]));
   });
 });
 

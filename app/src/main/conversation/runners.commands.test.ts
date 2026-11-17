@@ -27,6 +27,10 @@ readline.createInterface({input:process.stdin}).on('line', line => {
  send({type:'system',subtype:'init',session_id:old,user_message_uuids:[r.uuid]});
  if(mode==='clear') { send({type:'conversation_reset',trigger:'clear',new_conversation_id:'94d0fd20-0000-4000-8000-000000000003',uuid:'u1',session_id:old}); send({type:'system',subtype:'init',session_id:next}); result(next); }
  else if(mode==='drift') { send({type:'system',subtype:'init',session_id:next}); result(next); }
+ else if(mode==='result-only') { send({type:'conversation_reset',trigger:'clear',new_conversation_id:'94d0fd20-0000-4000-8000-000000000003',uuid:'u1',session_id:old}); result(next); }
+ else if(mode==='local-only') { send({type:'system',subtype:'local_command',content:'<command-name>/clear</command-name>',session_id:old}); send({type:'system',subtype:'init',session_id:next}); result(next); }
+ else if(mode==='twice') { send({type:'conversation_reset',trigger:'clear',new_conversation_id:'94d0fd20-0000-4000-8000-000000000003',uuid:'u1',session_id:old}); send({type:'system',subtype:'init',session_id:next}); send({type:'system',subtype:'init',session_id:'cccccccc-0000-4000-8000-000000000004'}); result(next); }
+ else if(mode==='plan-exit') { send({type:'conversation_reset',trigger:'plan_mode_exit',new_conversation_id:'94d0fd20-0000-4000-8000-000000000003',uuid:'u1',session_id:old}); send({type:'system',subtype:'init',session_id:next}); result(next); }
  else if(mode==='compact') { send({type:'system',subtype:'compact_boundary',compact_metadata:{trigger:'manual',pre_tokens:100,post_tokens:40},session_id:old}); result(old); }
  else result(old);
  process.stdin.pause(); setTimeout(()=>process.exit(0),20);
@@ -69,6 +73,20 @@ describe("Claude /clear", () => {
   it("fails a /clear whose session id changes without the clear's reset", async () => {
     await claudeRun("drift", "/clear", RESUMED, ({ events, changed }) => {
       expect(changed).toEqual([]);
+      expect(events.filter(e => e.type === "turn.failed" || e.type === "turn.done")).toEqual([{ type: "turn.failed", code: "session_unavailable" }]);
+    });
+  }, 15000);
+  // The new id is read only from system/init after the clear's own reset: a result alone, the file's /clear line, a
+  // second change and another kind of reset (a plan's clear-context exit) are not the person's /clear.
+  it.each(["result-only", "local-only", "plan-exit"])("fails a /clear whose session moves without its reset and a new system/init (%s)", async mode => {
+    await claudeRun(mode, "/clear", RESUMED, ({ events, changed }) => {
+      expect(changed).toEqual([]);
+      expect(events.filter(e => e.type === "turn.failed" || e.type === "turn.done")).toEqual([{ type: "turn.failed", code: "session_unavailable" }]);
+    });
+  }, 15000);
+  it("fails a /clear whose session moves a second time", async () => {
+    await claudeRun("twice", "/clear", RESUMED, ({ events, changed }) => {
+      expect(changed).toEqual([NEXT]);
       expect(events.filter(e => e.type === "turn.failed" || e.type === "turn.done")).toEqual([{ type: "turn.failed", code: "session_unavailable" }]);
     });
   }, 15000);
@@ -160,6 +178,10 @@ readline.createInterface({input:process.stdin}).on('line', line => {
  }
  if(r.method==='review/start') {
   send({id:r.id,result:{turn:{id:'review-turn',status:'inProgress',items:[]},reviewThreadId:'session'}});
+  // The review's own child turn, which thread/read later shows as interrupted (PoC, 0.167.1).
+  send({method:'turn/started',params:{threadId:'session',turn:{id:'review-child',status:'inProgress'}}});
+  note('review-child','item/completed',{item:{type:'agentMessage',id:'child-a',text:'child text'}});
+  send({method:'turn/completed',params:{threadId:'session',turn:{id:'review-child',status:'interrupted',rootTurnId:'review-turn'}}});
   note('review-turn','item/completed',{item:{type:'agentMessage',id:'a1',text:'No issues found.'}});
   send({method:'turn/completed',params:{threadId:'session',turn:{id:'review-turn',status:'completed'}}});
  }
@@ -192,6 +214,8 @@ describe("Codex commands", () => {
       await vi.waitFor(() => expect(events.at(-1)).toEqual({ type: "turn.done" }));
       expect(requests().filter(r => r.method === "review/start").map(r => r.params)).toEqual([{ threadId: "session", target }]);
       expect(events).toContainEqual({ type: "message.done", messageId: "a1", text: "No issues found." });
+      // The review's interrupted child turn is not this turn's: neither its text nor its end reach the thread.
+      expect(events.some(e => e.type === "interrupted" || (e.type === "message.done" && e.messageId === "child-a"))).toBe(false);
     });
   }, 15000);
   it("a Stop while /compact waits for its turn interrupts that turn once it starts", async () => {
