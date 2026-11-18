@@ -783,16 +783,19 @@ describe("selection", () => {
       h.select(1);
       h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
       h.changed.mockClear();
+      // With a selection, ⌥ measures to the hover target: the stale release must not end that measurement.
+      const measuring = () => h.markOf("hover")?.hidden === false && h.markOf("hover")?.className.split(" ").includes("measuring");
       h.key("Alt");
       expect(h.current().contentWindow.postMessage).toHaveBeenLastCalledWith({ type: "hover-alt", alt: true, seq: 1 }, "*");
       h.receive({ type: "key", key: "Alt", alt: false, seq: 0 });
       h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
-      expect(h.markOf("hover")?.hidden).toBe(true);
+      expect(measuring()).toBe(true);
       h.receive({ type: "hover", seq: 1, rect: { x: 0, y: 0, width: 4, height: 4 } });
-      expect(h.markOf("hover")?.hidden).toBe(true);
+      expect(measuring()).toBe(true);
       h.receive({ type: "key", key: "Alt", alt: false, seq: 1 });
       h.receive({ type: "hover", seq: 1, rect: { x: 0, y: 0, width: 4, height: 4 } });
       expect(h.markOf("hover")?.hidden).toBe(false);
+      expect(measuring()).toBe(false);
       h.layout({ seq: 1, selected: { x: 20, y: 30, width: 60, height: 18 } });
       expect(h.markOf("selected")?.style.left).toBe("120px");
       expect(h.send).toHaveBeenCalledTimes(1);
@@ -835,6 +838,230 @@ describe("selection", () => {
       h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
       h.controller.wheel({ dx: 0, dy: 5, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 });
       expect(h.markOf("hover")?.hidden).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+});
+
+// PRODUCT §5 item 4: with a selection, holding Option (⌥) measures from the selection to what the next click would
+// select. The lines are screen px on the overlay; the numbers are canvas px. Which lines a pair of rects gives is
+// measure.test.ts; these pin when the controller draws them and that measuring never touches the selection.
+describe("Option-hover measurement", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+  type H = ReturnType<typeof selectionHarness>;
+  // 30 canvas px right of the harness's selection (10, 20, 60 × 18), on the same rows.
+  const TARGET = { x: 100, y: 20, width: 40, height: 18 };
+  const harness = () => { const h = selectionHarness(); h.layout({ document: "doc" }); return h; };
+  const posted = (h: H) => h.current().contentWindow.postMessage.mock.calls.map(call => call[0] as Record<string, unknown>);
+  // The canvas answers a hover command at that command's seq; a hover at the newest one is current.
+  const hoverSeq = (h: H) => Math.max(0, ...posted(h).filter(m => typeof m.type === "string" && m.type.startsWith("hover-")).map(m => m.seq as number));
+  const hover = (h: H, rect: Record<string, number> | null = TARGET) => h.receive({ type: "hover", seq: hoverSeq(h), rect });
+  const container = (h: H) => h.marks.find(mark => mark.className.split(" ").includes("measure"));
+  const lines = (h: H) => { const shown = container(h); return shown === undefined || shown.hidden ? [] : shown.children.filter(line => !line.hidden); };
+  const labels = (h: H) => lines(h).filter(line => !line.className.split(" ").includes("dashed")).map(line => line.children[0]?.textContent).sort();
+  const measuring = (h: H) => labels(h).length > 0;
+  const outlined = (h: H, kind: "hover" | "selected") => h.markOf(kind)?.className.split(" ").includes("measuring") ?? false;
+  const altUp = (h: H) => h.host.dispatchEvent(Object.assign(new Event("keyup"), { key: "Alt" }));
+  const start = (h: H) => { h.select(1); h.key("Alt"); hover(h); expect(labels(h)).toEqual(["30"]); };
+
+  it("measures from the selection to the hovered target while Option is held, without touching the selection", () => {
+    const h = harness();
+    try {
+      start(h);
+      const commands = posted(h).length;
+      // The selection's right edge (70) to the target's left edge (100), on the selection's centre row (29); the
+      // board sits at (100, 80) at 100 %.
+      expect(lines(h)).toHaveLength(1);
+      expect(lines(h)[0]!.style).toMatchObject({ left: "170px", top: "109px", width: "30px" });
+      expect(h.markOf("hover")?.hidden).toBe(false);
+      expect(outlined(h, "hover")).toBe(true);
+      expect(outlined(h, "selected")).toBe(true);
+      expect(h.markOf("dims")?.children[0]?.textContent).toBe("60 × 18");
+      expect(h.state().selection).toMatchObject({ tag: "span" });
+      expect(h.send).toHaveBeenCalledTimes(1);
+      hover(h, { x: 10, y: 60, width: 60, height: 10 });
+      expect(labels(h)).toEqual(["22"]);
+      expect(posted(h).slice(commands).filter(m => !String(m.type).startsWith("hover-"))).toEqual([]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("draws the measurement above the size bubble", () => {
+    const h = harness();
+    try {
+      start(h);
+      const appended = h.overlay.append.mock.calls.flat();
+      expect(appended.indexOf(container(h))).toBeGreaterThan(appended.indexOf(h.markOf("selected")));
+    } finally { h.controller.dispose(); }
+  });
+
+  it("measures as soon as Option goes down over a resting pointer, and stops on Option's release in the app", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      hover(h);
+      expect(measuring(h)).toBe(false);
+      h.key("Alt");
+      expect(labels(h)).toEqual(["30"]);
+      altUp(h);
+      expect(measuring(h)).toBe(false);
+      expect(h.markOf("hover")?.hidden).toBe(false);
+      expect(outlined(h, "hover")).toBe(false);
+      expect(outlined(h, "selected")).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("stops on Option's release in the canvas, and not on a release sent before the app's press", () => {
+    const h = harness();
+    try {
+      start(h);
+      h.receive({ type: "key", key: "Alt", alt: false, seq: hoverSeq(h) - 1 });
+      expect(measuring(h)).toBe(true);
+      h.receive({ type: "key", key: "Alt", alt: false, seq: hoverSeq(h) });
+      expect(measuring(h)).toBe(false);
+      expect(h.markOf("hover")?.hidden).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  // ⌘Tab to another app: the release happens there and never comes back as a keyup.
+  it("stops when the app loses focus, and tells the canvas Option is up", () => {
+    const h = harness();
+    try {
+      start(h);
+      (h.doc as { hasFocus: () => boolean }).hasFocus = () => false;
+      h.host.dispatchEvent(new Event("blur"));
+      expect(measuring(h)).toBe(false);
+      expect(posted(h).at(-1)).toEqual({ type: "hover-alt", alt: false, seq: hoverSeq(h) });
+      hover(h);
+      expect(measuring(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it.each<[string, (h: H) => void]>([
+    ["Esc steps out of the selection", h => { h.key("Escape"); stepAnswer(h); }],
+    ["another canvas opens", h => h.controller.openCanvas("/repo", h.other)],
+  ])("stops when the selection goes while Option is held: %s", (_name, act) => {
+    const h = harness();
+    try {
+      start(h);
+      act(h);
+      expect(h.state().selection).toBeNull();
+      expect(measuring(h)).toBe(false);
+      hover(h);
+      expect(measuring(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("draws nothing while a reload looks for the selection again, nor after it fails to find it", () => {
+    const h = harness();
+    try {
+      start(h);
+      h.controller.command("reload");
+      expect(measuring(h)).toBe(false);
+      h.layout({ document: "doc2" });
+      h.key("Alt");
+      hover(h);
+      expect(measuring(h)).toBe(false);
+      h.receive({ type: "select", seq: 1, answer: "select-anchor", target: null });
+      expect(h.state().selection).toBeNull();
+      hover(h);
+      expect(measuring(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("comes back once a reload finds the selection again", () => {
+    const h = harness();
+    try {
+      start(h);
+      h.controller.command("reload");
+      h.layout({ document: "doc2" });
+      h.select(1, { answer: "select-anchor" });
+      hover(h);
+      expect(labels(h)).toEqual(["30"]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it.each<[string, (h: H) => void]>([
+    ["the canvas reports no target", h => hover(h, null)],
+    ["the pointer leaves the canvas for the app", h => h.host.dispatchEvent(Object.assign(new Event("pointermove"), { altKey: true }))],
+    ["the pointer moves on the app without Option", h => h.host.dispatchEvent(Object.assign(new Event("pointermove"), { altKey: false }))],
+  ])("stops when the target goes: %s", (_name, act) => {
+    const h = harness();
+    try {
+      start(h);
+      act(h);
+      expect(measuring(h)).toBe(false);
+      expect(h.state().selection).toMatchObject({ tag: "span" });
+    } finally { h.controller.dispose(); }
+  });
+
+  // Spec 3: wherever the hover mark cannot show, no measurement shows either; one coming back needs the hover again.
+  const press = (h: H, code: string) => h.host.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { code, key: code === "Space" ? " " : code.slice(3).toLowerCase() }));
+  it.each<[string, (h: H) => unknown]>([
+    ["picking", h => h.controller.pick()],
+    ["the Hand tool", h => h.controller.setTool("hand")],
+    ["Capture area", h => h.controller.startCapture()],
+    ["a held Space", h => press(h, "Space")],
+    ["a text drag", h => h.receive({ type: "text-range", document: "doc", epoch: 0, dragging: true, rects: [{ x: 10, y: 20, width: 50, height: 18 }] })],
+    ["a problem overlay over the canvas", h => h.controller.setCovered(true)],
+    ["a menu or dialog over the canvas", h => { (h.doc as { querySelector: () => unknown }).querySelector = () => ({}); }],
+  ])("draws nothing during %s", async (_name, act) => {
+    const h = harness();
+    try {
+      start(h);
+      act(h);
+      for (let i = 0; i < 6; i++) await Promise.resolve();
+      if (!h.markOf("selected")?.hidden) h.key("Alt");
+      hover(h);
+      expect(measuring(h)).toBe(false);
+      expect(outlined(h, "selected")).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  // Spec 4: without a measurement, Option keeps hiding the hover, as an ⌥-click selects nothing.
+  it("with nothing selected, Option hides the hover and measures nothing", () => {
+    const h = harness();
+    try {
+      hover(h);
+      h.key("Alt");
+      hover(h);
+      expect(h.markOf("hover")?.hidden).toBe(true);
+      expect(measuring(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  // Case 10: Figma measures nothing here; Doan's hover target is the next click's step into the frame, so it measures.
+  it("with a frame selected, measures to the element inside it that the next click would select", () => {
+    const h = harness();
+    try {
+      h.select(1, { target: { ...h.target, rect: { x: 400, y: 440, width: 220, height: 180 } } });
+      h.key("Alt");
+      hover(h, { x: 440.5, y: 490, width: 80, height: 60 });
+      expect(labels(h)).toEqual(["40.5", "50", "70", "99.5"]);
+    } finally { h.controller.dispose(); }
+  });
+
+  // POSTMORTEM 2026-10-23 'Hover commands discarded pending selection replies'.
+  it("Option pressed while a selection reply is pending moves no selection seq", () => {
+    const h = harness();
+    try {
+      h.controller.selectFrame(1, "hero");
+      h.key("Alt");
+      expect(posted(h).filter(m => m.type === "pick-frame" || m.type === "select-anchor" || m.type === "select-parent" || m.type === "clear").map(m => m.seq)).toEqual([1]);
+      h.select(1, { target: { ...h.target, element: undefined } });
+      expect(h.state().selection).toMatchObject({ frame: { id: "hero" } });
+      hover(h);
+      expect(labels(h)).toEqual(["30"]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("redraws the lines with the board on a zoom, keeping canvas px numbers", () => {
+    const h = harness();
+    try {
+      start(h);
+      const before = { ...lines(h)[0]!.style };
+      h.controller.zoomTo(2);
+      expect(labels(h)).toEqual(["30"]);
+      expect(lines(h)[0]!.style.width).toBe("60px");
+      expect(lines(h)[0]!.style.left).not.toBe(before.left);
     } finally { h.controller.dispose(); }
   });
 });

@@ -104,6 +104,10 @@ export function anchorRequest(view: SelectionView): AnchorRequest {
   return request;
 }
 
+export function canvasPx(_value: number): string {
+  return "";
+}
+
 export function sizeLabel(rect: CanvasRect): string {
   const px = (value: number) => String(Math.round(value * 100) / 100);
   return `${px(rect.width)} × ${px(rect.height)}`;

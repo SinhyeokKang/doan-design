@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { HoverMessage, LayoutMessage, SelectMessage, SelectTarget } from "./canvasMessage";
-import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, noticeToast, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type SelectionView } from "./selection";
+import { acceptSelectionMessage, anchorRequest, canvasPx, editableTarget, mainSelection, noticeToast, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type SelectionView } from "./selection";
 
 const HREF = "http://127.0.0.1:4000/t/tok/key/.doan/canvases/a.html";
 const rect = { x: 1, y: 2, width: 3, height: 4 };
@@ -152,6 +152,13 @@ describe("sizeLabel", () => {
   test("shows canvas px, rounded to two decimals", () => {
     expect(sizeLabel({ x: 0, y: 0, width: 252, height: 32 })).toBe("252 × 32");
     expect(sizeLabel({ x: 0, y: 0, width: 60.5, height: 18.333333 })).toBe("60.5 × 18.33");
+  });
+});
+
+// The measurement labels round as the size label does.
+describe("canvasPx", () => {
+  test("gives the size label's numbers for the size label's inputs", () => {
+    expect([252, 32, 60.5, 18.333333].map(canvasPx)).toEqual(["252", "32", "60.5", "18.33"]);
   });
 });
 

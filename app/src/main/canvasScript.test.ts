@@ -1383,13 +1383,14 @@ describe("canvasScript hover", () => {
     expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 1, rect: { x: 10, y: 20, width: 60.5, height: 18 } });
   });
 
+  // The app measures from the selection to the hover target while ⌥ is held, so ⌥ keeps the target's rect coming.
   test("reports Alt release in the canvas at the app's modifier sequence without losing selection", () => {
     const { canvas, span, button } = heroCanvas();
     click(canvas, button);
     move(canvas, span);
     canvas.runFrame();
     canvas.fromParent({ type: "hover-alt", alt: true, seq: 2 });
-    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 2, rect: null });
+    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 2, rect: { x: 10, y: 20, width: 60.5, height: 18 } });
     canvas.fireWindow("keyup", input({ target: canvas.body, key: "Alt" }));
     expect(ofType(canvas, "key").at(-1)).toMatchObject({ key: "Alt", alt: false, seq: 2 });
     expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 2, rect: { x: 10, y: 20, width: 60.5, height: 18 } });
@@ -1397,7 +1398,7 @@ describe("canvasScript hover", () => {
     expect(ofType(canvas, "layout").at(-1)).toMatchObject({ seq: 1, selected: { x: 1, y: 2, width: 30, height: 40 } });
   });
 
-  test("hides when the pointer leaves, ⌥ is held, the wheel turns or over body", () => {
+  test("hides when the pointer leaves, the wheel turns or over body, and not while ⌥ is held", () => {
     const { canvas, span } = heroCanvas();
     const rects = () => ofType(canvas, "hover").map((m) => m.rect === null ? null : "rect");
     move(canvas, span);
@@ -1407,6 +1408,7 @@ describe("canvasScript hover", () => {
     canvas.runFrame();
     move(canvas, span, { altKey: true });
     canvas.runFrame();
+    expect(ofType(canvas, "hover").at(-1)?.rect).not.toBeNull();
     move(canvas, span);
     canvas.runFrame();
     canvas.fireWindow("wheel", Object.assign(wheelEvent({ target: span, deltaY: 5 }), { target: span }));
@@ -1414,15 +1416,28 @@ describe("canvasScript hover", () => {
     canvas.runFrame();
     move(canvas, canvas.body);
     canvas.runFrame();
-    expect(rects()).toEqual(["rect", null, "rect", null, "rect", null, "rect", null]);
+    expect(rects()).toEqual(["rect", null, "rect", null, "rect", null]);
   });
 
-  test("an Alt keydown hides the hover until the next move without ⌥", () => {
+  test("an Alt keydown reports ⌥ and keeps the hover's rect", () => {
     const { canvas, span } = heroCanvas();
     move(canvas, span);
     canvas.runFrame();
     canvas.fireWindow("keydown", input({ target: canvas.body, key: "Alt", altKey: true }));
-    expect(ofType(canvas, "hover").at(-1)?.rect).toBeNull();
+    expect(ofType(canvas, "key").at(-1)).toMatchObject({ key: "Alt", alt: true, seq: 0 });
+    expect(ofType(canvas, "hover").at(-1)?.rect).toEqual({ x: 10, y: 20, width: 60.5, height: 18 });
+  });
+
+  // ⌥ released while focus was elsewhere (an ⌥-click moved focus in here, then ⌘Tab) never comes back as a keyup.
+  test("the canvas losing focus releases ⌥ at the app's modifier sequence", () => {
+    const { canvas, span } = heroCanvas();
+    move(canvas, span);
+    canvas.runFrame();
+    canvas.fromParent({ type: "hover-alt", alt: true, seq: 3 });
+    canvas.fireWindow("keydown", input({ target: canvas.body, key: "Alt", altKey: true }));
+    canvas.fireWindow("blur", input({ target: canvas.body }));
+    expect(ofType(canvas, "key").at(-1)).toMatchObject({ key: "Alt", alt: false, seq: 3 });
+    expect(ofType(canvas, "select")).toEqual([]);
   });
 
   test("shows nothing over the selected element without advancing the hover channel", () => {
@@ -1455,7 +1470,7 @@ describe("canvasScript independent command channels", () => {
     expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 10, rect: null });
     canvas.fireWindow("pointermove", input({ target: span, altKey: true }));
     canvas.runFrame();
-    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 10, rect: null });
+    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 10, rect: { x: 10, y: 20, width: 60.5, height: 18 } });
     canvas.fromParent({ type: "clear", seq: 2 });
     canvas.fromParent({ type: "select-anchor", seq: 1, doanId: "cta" });
     expect(ofType(canvas, "select")).toHaveLength(1);
