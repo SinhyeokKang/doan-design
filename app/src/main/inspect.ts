@@ -11,8 +11,15 @@
 // left-to-right, and `:not(:hover)` counted as a hover state. An author
 // declaration through a property not mapped here is unknown, never default.
 
-export type InspectGroup = "box" | "typography" | "colors" | "effects";
+export type InspectGroup = "layout" | "box" | "typography" | "colors" | "radius" | "shadow";
 export type InspectState = "token" | "hardcoded" | "unknown" | "default";
+
+// One side or corner of a split row (padding, margin, radius).
+export interface InspectSide {
+  side: string;
+  value: string;
+  token?: string;
+}
 
 export interface InspectRow {
   group: InspectGroup;
@@ -25,6 +32,8 @@ export interface InspectRow {
   chain?: string[];
   inheritedFrom?: string;
   hoverState?: boolean;
+  // The renderer shows a token chip on a split row only when every side has the same token, so it needs each side's own value and token.
+  sides?: InspectSide[];
 }
 
 export type InspectResult = { ok: true; rows: InspectRow[] } | { ok: false; reason: string };
@@ -539,8 +548,8 @@ const ROWS: { group: InspectGroup; label: string; props: string[]; color?: boole
   { group: "colors", label: "Text", props: ["color"], color: true },
   { group: "colors", label: "Background", props: ["background-color"], color: true },
   { group: "colors", label: "Border", props: SIDES.map((s) => `border-${s}-color`), color: true },
-  { group: "effects", label: "Radius", props: CORNERS.map((c) => `border-${c}-radius`) },
-  { group: "effects", label: "Shadow", props: ["box-shadow"] },
+  { group: "radius", label: "Radius", props: CORNERS.map((c) => `border-${c}-radius`) },
+  { group: "shadow", label: "Shadow", props: ["box-shadow"] },
 ];
 
 function combine(values: string[]): string {

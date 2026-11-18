@@ -231,7 +231,7 @@ test("rows follow the draft's groups and labels", () => {
     ["box", "Width"], ["box", "Height"], ["box", "Padding"], ["box", "Margin"], ["box", "Gap"],
     ["typography", "Family"], ["typography", "Size"], ["typography", "Line height"], ["typography", "Weight"],
     ["colors", "Text"], ["colors", "Background"], ["colors", "Border"],
-    ["effects", "Radius"], ["effects", "Shadow"],
+    ["radius", "Radius"], ["shadow", "Shadow"],
   ]);
   expect(row(rows, "Padding")).toMatchObject({ value: "8px 16px", state: "token", token: "--space-2 --space-4" });
   // Mixed token and literal sides: the worst side decides.
