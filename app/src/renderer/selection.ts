@@ -104,13 +104,13 @@ export function anchorRequest(view: SelectionView): AnchorRequest {
   return request;
 }
 
-export function canvasPx(_value: number): string {
-  return "";
+// Canvas px as the size label and the measurement labels show them: up to two decimals, trailing zeros dropped.
+export function canvasPx(value: number): string {
+  return String(Math.round(value * 100) / 100);
 }
 
 export function sizeLabel(rect: CanvasRect): string {
-  const px = (value: number) => String(Math.round(value * 100) / 100);
-  return `${px(rect.width)} × ${px(rect.height)}`;
+  return `${canvasPx(rect.width)} × ${canvasPx(rect.height)}`;
 }
 
 // Esc in a text field belongs to the field.
