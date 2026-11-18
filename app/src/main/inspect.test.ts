@@ -493,3 +493,19 @@ test("a border row with some zero-width sides takes its state from the visible s
   // The visible bottom side has no token, so the row names none.
   expect(border.token).toBeUndefined();
 });
+
+test("layout values set through flex-flow or place-items are unknown, a documented gap", () => {
+  // Neither shorthand is mapped, so the longhand it sets cannot be traced to a token; never a wrong token or default.
+  const flow = rule(".a", [{ name: "display", value: "flex" }, { name: "flex-flow", value: "var(--flow)" }]);
+  const flowDecl = flow.rule.style.cssProperties[1];
+  if (flowDecl) Object.assign(flowDecl, { longhandProperties: [{ name: "flex-direction", value: "" }, { name: "flex-wrap", value: "" }] });
+  const flex = inspectRows(input([flow], { ...LAYOUT, display: "flex", "--flow": "column wrap", "flex-direction": "column", "flex-wrap": "wrap" }));
+  expect(row(flex, "Direction")).toMatchObject({ value: "column", state: "unknown" });
+  expect(row(flex, "Wrap")).toMatchObject({ value: "wrap", state: "unknown" });
+  // CDP may instead list the expanded longhands after the authored shorthand, without text.
+  const place = rule(".a", [{ name: "display", value: "grid" }, { name: "place-items", value: "var(--center)" }]);
+  place.rule.style.cssProperties.push({ name: "align-items", value: "" }, { name: "justify-items", value: "" });
+  const grid = inspectRows(input([place], { ...LAYOUT, display: "grid", "--center": "center", "align-items": "center" }));
+  expect(row(grid, "Align")).toMatchObject({ value: "center", state: "unknown" });
+  expect(row(grid, "Align").token).toBeUndefined();
+});
