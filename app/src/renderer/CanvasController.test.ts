@@ -1101,6 +1101,46 @@ describe("Option-hover measurement", () => {
       } finally { h.controller.dispose(); }
     });
 
+    // An agent's write reloads the canvas every few seconds while the person rests the pointer on it: the hover the app
+    // asked for is not the person moving, or the follow rest and the docked buddy's rest would never end.
+    it("does not count the re-found hover as the person moving, but the next one", async () => {
+      vi.useFakeTimers();
+      const h = harness();
+      try {
+        overCanvas(h);
+        vi.setSystemTime(1_000_000);
+        h.controller.command("reload");
+        h.layout({ document: "doc2" });
+        await flush();
+        expect(hoverAts(h)).toHaveLength(1);
+        const before = h.controller.personMovedAt();
+        vi.setSystemTime(1_010_000);
+        hover(h);
+        expect(h.markOf("hover")?.hidden).toBe(false);
+        expect(h.controller.personMovedAt()).toBe(before);
+        vi.setSystemTime(1_020_000);
+        hover(h, { x: 10, y: 60, width: 60, height: 10 });
+        expect(h.controller.personMovedAt()).toBe(1_020_000);
+      } finally { h.controller.dispose(); }
+    });
+
+    // The cursor is in window px; the board area starts at (50, 40) and the board is at 200 %.
+    it("names the canvas point under the cursor through the area's origin and the board's scale", async () => {
+      const h = harness();
+      try {
+        overCanvas(h);
+        h.viewport.getBoundingClientRect = () => ({ left: 50, top: 40, right: 850, bottom: 640, x: 50, y: 40, width: 800, height: 600 }) as DOMRect;
+        h.controller.zoomTo(2);
+        const view = h.controller.currentView();
+        h.cursor.at = { x: 450, y: 340 };
+        h.controller.command("reload");
+        h.layout({ document: "doc2" });
+        await flush();
+        expect(view.scale).toBe(2);
+        expect(hoverAts(h)).toEqual([{ type: "hover-at", x: (450 - 50 - view.x) / 2, y: (340 - 40 - view.y) / 2, seq: hoverSeq(h) }]);
+      } finally { h.controller.dispose(); }
+    });
+
     it("asks nothing while a hover is still shown", async () => {
       const h = harness();
       try {

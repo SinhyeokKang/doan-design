@@ -861,6 +861,7 @@ export class CanvasController {
     this.seq = 0;
     this.pickFrameCommand = null;
     this.hoverSeq = 0;
+    this.refindSeq = null;
     this.hoverRect = null;
     this.drawMarks();
     this.state.unlisted = false;
@@ -971,7 +972,14 @@ export class CanvasController {
       }
       return;
     }
-    if (message.type === "hover") { this.hoverSeq = message.seq; this.hoverRect = message.rect; this.drawMarks(); this.personActive(false); return; }
+    if (message.type === "hover") {
+      // The answer to the app's own hover-at is not the person moving (refindHover); later hovers at that seq are.
+      const asked = message.seq === this.refindSeq;
+      this.refindSeq = null;
+      this.hoverSeq = message.seq; this.hoverRect = message.rect; this.drawMarks();
+      if (!asked) this.personActive(false);
+      return;
+    }
     // A click's selection, not a command's answer: the person's, which stops following in a work turn.
     if (!this.commandReply(message)) { this.focusOnClick(); this.personActive(true); }
     this.seq = message.seq;
@@ -1416,6 +1424,8 @@ export class CanvasController {
   // point is main's OS cursor point: the app hears no pointer move over the canvas iframe, so it has none of its own
   // there. Only when the canvas itself is what lies under the pointer.
   private refindOnLoad = false;
+  // The hover seq of the last hover-at, until its answer arrives.
+  private refindSeq: number | null = null;
   private refindHover(): void {
     if (this.hoverRect !== null || this.loading || this.frame === null) return;
     const frame = this.frame;
@@ -1427,6 +1437,7 @@ export class CanvasController {
       if (document.elementFromPoint(point.x, point.y) !== frame) return;
       const at = screenToBoard(this.view, { x: point.x - area.left, y: point.y - area.top });
       this.sendHoverCommand({ type: "hover-at", x: at.x, y: at.y });
+      this.refindSeq = this.hoverSeq;
     }, (error: unknown) => { console.error("pointer:get failed", error); });
   }
 
@@ -1634,6 +1645,7 @@ export class CanvasController {
       this.seq = 0;
       this.pickFrameCommand = null;
       this.hoverSeq = 0;
+      this.refindSeq = null;
       this.hoverRect = null;
       this.applySelectionEffect({ kind: "otherCanvas" });
       // A link or the canvas's own script left for another page: another canvas, so the pick and capture mode end.
