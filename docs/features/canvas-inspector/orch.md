@@ -47,4 +47,6 @@ tasks 체크 항목 대응: 0·1 완료, 2a→B0, 2b·3→B1·B2·B3(함수별),
 - B0: 원본 대비 diff를 지휘자가 확인하고 먼저 통합했다(`3bfb41dcc`, `6e2101bf7`). 독립 리뷰는 B1과 함께 받는다.
 - B2: 리뷰 🔴0 🟡0 🟢4. 🟢 두 건과 사용자 결정(박스 없는 요소 빼기)을 고쳤다. 통합 `e70f26bb7`, `dddeccdf3`, `aabce53bc`. 워커 해제, worktree 삭제, 브랜치 `SinhyeokKang/ci-b2` 유지.
 - B3: 리뷰 🔴0 🟡1(`not-shown` 무한 재요청). 수정 라운드 1을 지휘자가 diff로 확인했다. 통합 `ae1fa59a6`, `f4d16203b`, `896cf30a8`. 워커 해제, worktree 삭제, 브랜치 유지.
-- B0+B1: 리뷰 🔴0 🟡3 ⚪3. 수정 라운드 1 진행 중.
+- B0+B1: 리뷰 🔴0 🟡3 ⚪3 → 수정 라운드 1 → 재리뷰 🔴0 🟡0 ⚪2(`sessionCommits`가 세션 수명 동안 늘어남, 전환 중 짧은 겹침에서 `not-shown`). 통합 `a8cda6348`..`451ba53e0`. 워커 해제, worktree 삭제, 브랜치 유지.
+- 통합 HEAD `451ba53e0`에서 `verify.mjs` PASS.
+- B4: 시작(Opus high).
