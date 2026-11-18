@@ -293,10 +293,11 @@ describe("compareFuses", () => {
 });
 
 describe("committed electron-builder fuses", () => {
-  it("turn off running as Node and the inspector, and load only the integrity-checked asar", () => {
+  it("turn off running as Node, NODE_OPTIONS and the inspector, and load only the integrity-checked asar", () => {
     const { build } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
     expect(build.electronFuses).toMatchObject({
       runAsNode: false,
+      enableNodeOptionsEnvironmentVariable: false,
       enableNodeCliInspectArguments: false,
       enableEmbeddedAsarIntegrityValidation: true,
       onlyLoadAppFromAsar: true,

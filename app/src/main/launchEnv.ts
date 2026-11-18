@@ -18,3 +18,14 @@ export function launchEnv(inherited: Record<string, string | undefined>): Record
   for (const [name, value] of Object.entries(inherited)) if (kept(name) && value !== undefined) env[name] = value;
   return { ...env, PATH: LAUNCHD_PATH };
 }
+
+// The enableNodeOptionsEnvironmentVariable fuse is off, so Electron removes NODE_EXTRA_CA_CERTS before Node reads it:
+// the app's own TLS never trusts a CA from its environment. Agents behind a corporate CA still need it, so the value
+// `launchctl setenv` gave GUI apps is read back from launchd and put where launchEnv finds it. A launching terminal's
+// value is replaced too (an unfused dev Electron keeps it), so every launch passes on the same CA.
+export function restoreLaunchdCaCerts(env: Record<string, string | undefined>, getenv: (name: string) => string): void {
+  let value = "";
+  try { value = getenv("NODE_EXTRA_CA_CERTS").replace(/\n$/, ""); } catch { /* launchd unreadable: pass no CA rather than a terminal's */ }
+  if (value) env.NODE_EXTRA_CA_CERTS = value;
+  else delete env.NODE_EXTRA_CA_CERTS;
+}

@@ -34,7 +34,9 @@ import { readGitRemotes } from "./onboarding/gitConfig";
 import { canonicalFolder, cloneDestination, cloneProject, confirmProject, inspectPath, leftoverPresent, inspectUrl, newFolderTarget, selectProject, type NewFolderTarget, type ProjectDeps } from "./onboarding/projects";
 import { groupRoots, projectKeepsLocal } from "./storage";
 import { DocumentBindings } from "./document/bindings";
+import { restoreLaunchdCaCerts } from "./launchEnv";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, powerMonitor, screen, session, shell as electronShell, systemPreferences, webContents, webFrameMain, type BaseWindow, type IpcMainInvokeEvent, type MenuItemConstructorOptions, type Session } from "electron";
+import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { accessSync, constants as fsConstants, lstatSync, readlinkSync, realpathSync, statSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
@@ -1768,6 +1770,7 @@ async function start(): Promise<void> {
 // overwrite each other's runtime.json.
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
+  restoreLaunchdCaCerts(process.env, name => execFileSync("/bin/launchctl", ["getenv", name], { encoding: "utf8", timeout: 2000, maxBuffer: 64 * 1024 }));
   app.whenReady().then(start).catch((error: unknown) => {
     console.error("doan: failed to start", error);
     app.exit(1);
