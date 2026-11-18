@@ -176,6 +176,8 @@ func TestConfigRemoveMissingServeThroughOtherRootSpelling(t *testing.T) {
 		}
 	}
 	failure(t, root, "usage_error", "config", "--remove-serve", filepath.Join(filepath.Dir(upper), "other", "dist"))
+	// Unjoined, so the ".." segments reach the command as typed.
+	failure(t, root, "usage_error", "config", "--remove-serve", upper+"/dist/../..")
 }
 
 func TestConfigRemoveExistingAliasAndOutside(t *testing.T) {
