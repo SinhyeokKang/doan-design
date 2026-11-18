@@ -1,3 +1,5 @@
+import { getCACertificates, setDefaultCACertificates } from "node:tls";
+
 // What a Dock (LaunchServices) launch gives the app, measured with a throwaway bundle opened through `/usr/bin/open`
 // from an empty caller environment. `open`, the executable and `npm run dev` pass the launching terminal's whole
 // environment on instead (Orca's per-terminal CLAUDE_CONFIG_DIR/CODEX_HOME, the launching agent's session ID and
@@ -29,4 +31,14 @@ export function restoreLaunchdCaCerts(env: Record<string, string | undefined>, g
   try { value = getenv("NODE_EXTRA_CA_CERTS").replace(/\n$/, ""); } catch (error) { console.warn("doan: could not read NODE_EXTRA_CA_CERTS from launchd", error); }
   if (value) env.NODE_EXTRA_CA_CERTS = value;
   else delete env.NODE_EXTRA_CA_CERTS;
+}
+
+// The same fuse also stops Node from loading NODE_EXTRA_CA_CERTS for main's own requests (provider sign-in, usage
+// reads, downloads), so main adds launchd's file to its default CAs itself, before any TLS connection is made.
+// tls.setDefaultCACertificates (Node 24.5+) takes a PEM bundle as one entry. A file that cannot be read or parsed
+// leaves the defaults as they are, as Node does for NODE_EXTRA_CA_CERTS.
+export function trustExtraCaCerts(file: string | undefined, read: (path: string) => string): void {
+  if (!file) return;
+  try { setDefaultCACertificates([...getCACertificates("default"), read(file)]); }
+  catch (error) { console.warn("doan: could not trust the CA certificates in NODE_EXTRA_CA_CERTS", error); }
 }
