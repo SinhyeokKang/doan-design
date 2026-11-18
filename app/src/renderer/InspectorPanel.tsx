@@ -182,7 +182,9 @@ export function ElementMenu({ view, nodes, tree, shown, onEscape }: { view: Sele
   const kind = view.element === undefined ? "frame" : "element";
   return <span className="ov-title-wrap doan-conv-title doan-insp-pick">
     <Popover.Root open={open && shown} onOpenChange={next => { setOpen(next); setActive(null); if (next) tree.request(); }}>
-      <NameTip text={named} onEscape={onEscape}><Popover.Trigger asChild><button type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="tree"
+      {/* While the menu is open a cut name's tooltip over the trigger can be the top layer; its Escape then closes the
+          menu, as the menu's own would, and never steps the selection back. */}
+      <NameTip text={named} onEscape={open ? () => setOpen(false) : onEscape}><Popover.Trigger asChild><button type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="tree"
         aria-label={`${named}, ${kind}. Elements in this frame`}><span>{named}</span><ChevronDown className="chev" aria-hidden="true" /></button></Popover.Trigger></NameTip>
       <Popover.Portal><Popover.Content role={undefined} className="doan-floating doan-menu doan-insp-menu" data-ui-variant="tree" side="bottom" align="start" sideOffset={4} collisionPadding={8}
         onOpenAutoFocus={event => { event.preventDefault(); focusRow(current); }}>

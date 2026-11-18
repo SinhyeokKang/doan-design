@@ -288,6 +288,25 @@ describe("Esc over an open tooltip in the inspector", () => {
   });
 });
 
+// Completion condition: with the element menu open, Esc closes only the menu. A cut name's tooltip opened over the
+// trigger meanwhile is the top layer, so it must not hand the Escape to the canvas page then.
+test("the cut name's tooltip keeps its Escape to itself while the menu is open", () => {
+  const onEscape = vi.fn();
+  const VIEW: SelectionView = { tag: "button", element: { selector: "#pay", html: "<button>" }, path: [] };
+  const tree = { request: vi.fn(() => true), subscribe: vi.fn(() => () => {}), preview: vi.fn(), select: vi.fn() };
+  const props = { view: VIEW, nodes: null, tree, shown: true, onEscape };
+  let rendered = run(ElementMenu, props);
+  (rendered.find(element => element.type === Popover.Root)!.props.onOpenChange as (open: boolean) => void)(true);
+  rendered = run(ElementMenu, props);
+  const tips = expanded(rendered, "NameTip").filter(element => element.type === TooltipContent);
+  expect(tips).toHaveLength(1);
+  // Its Escape closes the menu, as the menu's own would, and is not handed to the canvas page.
+  (tips[0]!.props.onEscapeKeyDown as (event: unknown) => void)({ key: "Escape" });
+  expect(onEscape).not.toHaveBeenCalled();
+  rendered = run(ElementMenu, props);
+  expect(rendered.find(element => element.type === Popover.Root)!.props.open).toBe(false);
+});
+
 describe("the element menu leaves no trace", () => {
   const VIEW: SelectionView = { tag: "button", element: { selector: "#pay", html: "<button>" }, path: [] };
   const NODES: ElementTreeNode[] = [
