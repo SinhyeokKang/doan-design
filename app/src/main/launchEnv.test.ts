@@ -1,5 +1,12 @@
-import { describe, expect, test } from "vitest";
-import { LAUNCHD_PATH, launchEnv, restoreLaunchdCaCerts } from "./launchEnv";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer, type Server } from "node:https";
+import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { getCACertificates, setDefaultCACertificates } from "node:tls";
+import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "vitest";
+import { LAUNCHD_PATH, launchEnv, restoreLaunchdCaCerts, trustExtraCaCerts } from "./launchEnv";
 import { DOCK, NETWORK_LOCALE, TERMINAL } from "./launchEnv.fixture";
 
 test("a terminal-launched app keeps exactly what a Dock launch gives it", () => {
@@ -35,5 +42,43 @@ describe("NODE_EXTRA_CA_CERTS from launchd", () => {
     const env: Record<string, string | undefined> = { ...TERMINAL, ...NETWORK_LOCALE };
     restoreLaunchdCaCerts(env, () => "/etc/corp-ca.pem\n");
     expect(env).toEqual({ ...TERMINAL, ...NETWORK_LOCALE, NODE_EXTRA_CA_CERTS: "/etc/corp-ca.pem" });
+  });
+});
+
+// The fuse also stops Node from loading NODE_EXTRA_CA_CERTS for main's own requests, so main adds the file itself.
+describe("main's own TLS trusts the NODE_EXTRA_CA_CERTS file", () => {
+  const defaults = getCACertificates("default");
+  let dir = "", ca = "", server: Server, url = "";
+  beforeAll(async () => {
+    dir = mkdtempSync(join(tmpdir(), "doan-ca-"));
+    for (const name of ["corp", "other"]) {
+      execFileSync("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256", "-nodes", "-days", "1", "-subj", "/CN=localhost",
+        "-addext", "subjectAltName=IP:127.0.0.1", "-keyout", join(dir, `${name}.key`), "-out", join(dir, `${name}.pem`)], { stdio: "ignore" });
+    }
+    ca = join(dir, "bundle.pem");
+    writeFileSync(ca, readFileSync(join(dir, "other.pem"), "utf8") + readFileSync(join(dir, "corp.pem"), "utf8"));
+    server = createServer({ key: readFileSync(join(dir, "corp.key")), cert: readFileSync(join(dir, "corp.pem")) }, (_request, response) => response.end("ok"));
+    await new Promise<void>(done => server.listen(0, "127.0.0.1", done));
+    url = `https://127.0.0.1:${(server.address() as AddressInfo).port}/`;
+  });
+  afterEach(() => { setDefaultCACertificates(defaults); vi.restoreAllMocks(); });
+  afterAll(async () => { await new Promise(done => server.close(done)); rmSync(dir, { recursive: true, force: true }); });
+
+  test("adds every certificate in the file to the defaults, so a request to a server it signed succeeds", async () => {
+    await expect(fetch(url)).rejects.toThrow();
+    trustExtraCaCerts(ca, path => readFileSync(path, "utf8"));
+    expect(getCACertificates("default")).toEqual(expect.arrayContaining(defaults));
+    expect(getCACertificates("default")).toHaveLength(defaults.length + 2);
+    expect(await (await fetch(url)).text()).toBe("ok");
+  });
+  test("keeps the defaults when there is no file, or it cannot be read or parsed", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    trustExtraCaCerts(undefined, () => { throw new Error("not read"); });
+    expect(warn).not.toHaveBeenCalled();
+    for (const read of [() => { throw new Error("ENOENT"); }, () => "-----BEGIN CERTIFICATE-----\nnot base64\n-----END CERTIFICATE-----\n"]) {
+      trustExtraCaCerts("/etc/corp-ca.pem", read);
+      expect(getCACertificates("default")).toEqual(defaults);
+    }
+    expect(warn).toHaveBeenCalledTimes(2);
   });
 });
