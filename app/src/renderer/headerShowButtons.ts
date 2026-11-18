@@ -1,6 +1,6 @@
 // The canvas header's Show buttons for folded right panels, after Reload. Pure; CanvasHeader draws them.
 
-export const NO_ROOM_FOR_INSPECTOR = "No room for the inspector. Widen the window or hide the conversation.";
+export const NO_ROOM_FOR_INSPECTOR = "No room for the inspector. Widen the window, or narrow or hide the conversation.";
 
 export interface HeaderShowButton {
   target: "inspector" | "conversation";

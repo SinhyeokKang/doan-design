@@ -15,7 +15,7 @@ test("both folded: one divider, Show inspector before Show conversation", () => 
 });
 
 test("a window too narrow for the inspector shows Show inspector unavailable, whether its saved flag is open or not", () => {
-  expect(NO_ROOM_FOR_INSPECTOR).toBe("No room for the inspector. Widen the window or hide the conversation.");
+  expect(NO_ROOM_FOR_INSPECTOR).toBe("No room for the inspector. Widen the window, or narrow or hide the conversation.");
   const disabled = { target: "inspector", disabled: NO_ROOM_FOR_INSPECTOR };
   expect(headerShowButtons({ inspectorOpen: true, conversationOpen: true, inspectorFits: false })).toEqual({ separator: true, buttons: [disabled] });
   expect(headerShowButtons({ inspectorOpen: false, conversationOpen: true, inspectorFits: false })).toEqual({ separator: true, buttons: [disabled] });

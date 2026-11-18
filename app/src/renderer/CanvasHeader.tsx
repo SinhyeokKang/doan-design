@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactElement } from "react";
+import { Fragment, useEffect, useId, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactElement } from "react";
 import { DropdownMenu, Popover } from "radix-ui";
-import { ChevronDown, Minus, MessageCircle, PanelRightOpen, PanelsTopLeft, Plus, RotateCw } from "lucide-react";
+import { ChevronDown, Minus, MessageSquare, PanelsTopLeft, Plus, RotateCw, SlidersHorizontal } from "lucide-react";
 import type { ViewCommand } from "../main/index";
 import type { CanvasState, CanvasViewStore } from "./CanvasController";
 import { canvasLabel } from "./canvasTree";
@@ -13,23 +13,31 @@ import { zoomControlView, type ZoomControlView } from "./zoomControl";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import { CONVERSATION_PANEL_ID } from "./ConversationPanel";
 import type { CanvasSignal } from "./rightPanelOpen";
+import { headerShowButtons } from "./headerShowButtons";
+import { INSPECTOR_PANEL_ID } from "./InspectorPanel";
 
 // The canvas page's header above the board: canvas / frame drawer on the left,
 // the zoom controller and Reload on the right. It reuses the Overview header box (.ov-head), so the two headers line up.
 // `canvasKey` names the open canvas: an open menu closes when it changes. `fallbackFocus` takes focus a closing menu
 // cannot hand back to its trigger (the canvas region). `panel`: the conversation panel, whose open button sits last in
 // the header only while it is folded, with a dot and a longer name while this canvas's
-// conversation needs an answer or has an unseen ending.
+// conversation needs an answer or has an unseen ending. `inspector`: the inspector column, whose open button comes
+// before it while folded, or while it yields to a narrow window (then unavailable, saying why). Each Show button names
+// its panel in `data-panel-target`, which App's focus return reads.
 // `view`: the zoom and current frame, which change without an App render; `state` may hold older ones.
-export function CanvasHeader({ state, view, canvasKey = null, command, zoomTo, selectFrame, fallbackFocus = () => {}, panel }: {
+export function CanvasHeader({ state, view, canvasKey = null, command, zoomTo, selectFrame, fallbackFocus = () => {}, panel, inspector }: {
   state: CanvasState; view: CanvasViewStore; canvasKey?: string | null; command(name: ViewCommand): void; zoomTo(scale: number): void; selectFrame(index: number, id: string): void;
   fallbackFocus?: () => void; panel?: { open: boolean; show(): void; badge?: Pick<CanvasSignal, "kind" | "label"> | null };
+  inspector?: { open: boolean; fits: boolean; show(): void };
 }) {
+  const reasonId = useId();
   const shown = useSyncExternalStore(view.subscribe, view.get, view.get);
   const board = { layout: state.layout, currentFrame: shown.currentFrame, status: state.status, unlisted: state.unlisted };
   // An unlisted page or a canvas that left the list names no canvas; only the disabled drawer stays.
   const canvas = state.open && !state.unlisted ? state.open.row : null;
   const name = canvas ? canvasLabel(canvas) : null;
+  // Without a panel prop that panel has no button here (open, as far as the header knows).
+  const shows = headerShowButtons({ inspectorOpen: inspector?.open ?? true, conversationOpen: panel?.open ?? true, inspectorFits: inspector?.fits ?? true });
   return <header className="ov-head doan-canvas-head">
     {/* The path is information only the tooltip carries, so it shows whether or not the name is cut. */}
     {canvas && <><Tooltip><TooltipTrigger asChild><span className="doan-canvas-name"><PanelsTopLeft aria-hidden="true" /><span>{name}</span></span></TooltipTrigger>
@@ -38,11 +46,17 @@ export function CanvasHeader({ state, view, canvasKey = null, command, zoomTo, s
     <div className="doan-canvas-head-tools"><ZoomControl view={zoomControlView({ ...board, scale: shown.scale })} canvasKey={canvasKey} fallbackFocus={fallbackFocus} command={command} zoomTo={zoomTo} />
       {/* Like ⌘R, Reload stays available whenever a canvas is open, including while it loads or after it failed. */}
       <IconTip label="Reload canvas" shortcut="⌘R"><button type="button" className="doan-icon-button" aria-label="Reload canvas" disabled={!state.open} onClick={() => command("reload")}><RotateCw aria-hidden="true" /></button></IconTip>
-      {panel && !panel.open && <><span className="doan-canvas-head-sep" aria-hidden="true" />
-        <IconTip label="Show conversation"><button type="button" className="doan-icon-button doan-panel-show" aria-label={panel.badge?.label ?? "Show conversation"} aria-expanded={false} aria-controls={CONVERSATION_PANEL_ID}
-          data-badge={panel.badge ? (panel.badge.kind === "permission" ? "true" : panel.badge.kind) : undefined} onClick={panel.show}><PanelRightOpen aria-hidden="true" />{panel.badge?.kind === "unseen" && <span className="badge-bubble" aria-hidden="true"><MessageCircle /></span>}
+      {shows.separator && <span className="doan-canvas-head-sep" aria-hidden="true" />}
+      {shows.buttons.map(({ target, disabled }) => target === "inspector"
+        // Unavailable rather than gone: the saved open flag stays, and the reason is its tooltip and description.
+        ? <Fragment key={target}><IconTip label={disabled ?? "Show inspector"}><button type="button" className="doan-icon-button doan-panel-show" data-panel-target="inspector" aria-label="Show inspector" aria-expanded={false} aria-controls={INSPECTOR_PANEL_ID}
+            {...(disabled === undefined ? {} : { "aria-disabled": true, "aria-describedby": reasonId })} onClick={() => { if (disabled === undefined) inspector?.show(); }}><SlidersHorizontal aria-hidden="true" /></button></IconTip>
+          {disabled !== undefined && <span className="sr-only" id={reasonId}>{disabled}</span>}</Fragment>
+        // The badged name is the tooltip too, so a pointer reads the dot's meaning as a screen reader does.
+        : panel && <IconTip key={target} label={panel.badge?.label ?? "Show conversation"}><button type="button" className="doan-icon-button doan-panel-show" data-panel-target="conversation" aria-label={panel.badge?.label ?? "Show conversation"} aria-expanded={false} aria-controls={CONVERSATION_PANEL_ID}
+          data-badge={panel.badge ? (panel.badge.kind === "permission" ? "true" : panel.badge.kind) : undefined} onClick={panel.show}><MessageSquare aria-hidden="true" />
           {/* The prototype window's working spinner, reused (draft canvas-concurrent-conversations frame badge). */}
-          {panel.badge?.kind === "working" && <span className="badge-working" aria-hidden="true"><span className="doan-spinner" /></span>}</button></IconTip></>}
+          {panel.badge?.kind === "working" && <span className="badge-working" aria-hidden="true"><span className="doan-spinner" /></span>}</button></IconTip>)}
     </div>
   </header>;
 }

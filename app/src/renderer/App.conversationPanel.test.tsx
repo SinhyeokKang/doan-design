@@ -1,5 +1,5 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 
@@ -52,7 +52,7 @@ vi.mock("./CanvasController", async original => ({
     constructor(_viewport: unknown, _board: unknown, _overlay: unknown, setState: (state: unknown) => void) {
       harness.setState = setState;
       const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
-      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "onPicked", "pick", "cancelPick", "onCapture", "startCapture", "cancelCapture", "locate", "dropPendingLocate", "settleFit", "bubblePlayButton"]) self[name] = vi.fn();
+      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "onPicked", "onElementTree", "requestElementTree", "previewElement", "selectElement", "pick", "cancelPick", "onCapture", "startCapture", "cancelCapture", "locate", "dropPendingLocate", "settleFit", "bubblePlayButton"]) self[name] = vi.fn();
       self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
       self.showOverview = vi.fn((done: () => void) => done());
       self.destination = vi.fn((root: string) => ({ root }));
@@ -68,6 +68,7 @@ vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
 const { ConversationPanel, ResizeHandle } = await import("./ConversationPanel");
+const { InspectorColumn } = await import("./InspectorPanel");
 const { ProjectOverview } = await import("./ProjectOverview");
 const { SettingsPage } = await import("./SettingsPage");
 const { CAPTURE_LIMIT, CAPTURE_TERMINAL, CAPTURE_UNAVAILABLE } = await import("./canvasCapture");
@@ -1104,4 +1105,87 @@ test("a late answer after the panel switched conversation or the canvas page lef
     expect(saved()?.rightPanel).toMatchObject({ open: false });
     if (leave === "conversation") { expect(panel()?.open).toBe(false); expect(conversation()?.arrival).toBeNull(); }
   }
+});
+
+// The inspector column (PRODUCT §5 item 4): closed until the person opens it, open state and width kept per device,
+// sized after the conversation and taken away, with its saved open flag kept, from a window too narrow for it.
+describe("the inspector column", () => {
+  type Column = { shown: boolean; width: number; bounds: { min: number; max: number }; onHide(): void; onResize(width: number | undefined): void };
+  type InspectorPane = { inspector: { open: boolean; fits: boolean; show(): void } };
+  const column = () => find<Column>(InspectorColumn)[0]?.props;
+  const inspectorPane = () => (pane() as unknown as InspectorPane | undefined)?.inspector;
+  const savedInspector = () => (doan.saveUiState!.mock.lastCall?.[0] as { inspector?: unknown } | undefined)?.inspector;
+  // The window and the shell column App measures: the canvas panel starts 236px in, and the shell ends 8px before the
+  // window's right edge.
+  function measure(width: number) {
+    (window as unknown as { innerWidth: number }).innerWidth = width;
+    vi.stubGlobal("getComputedStyle", () => ({ paddingRight: "8px" }));
+    const main = all(tree).find(element => element.type === "main")!.props.ref as { current: unknown };
+    main.current = { clientWidth: width, getBoundingClientRect: () => ({ left: 0 }), querySelector: () => ({ getBoundingClientRect: () => ({ left: 236 }) }), style: { setProperty: vi.fn() } };
+    windowListeners.resize!(undefined as never); render();
+  }
+  const focusing = () => {
+    const asked: string[] = [];
+    const focus = vi.fn();
+    (document as unknown as { querySelector(selector: string): unknown }).querySelector = (selector: string) => { asked.push(selector); return { focus }; };
+    return { asked, focus };
+  };
+
+  test("a read without its state leaves it closed, and Show inspector opens it and hands focus to Hide inspector", async () => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {} });
+    measure(1470);
+    expect(column()?.shown).toBe(false);
+    expect(inspectorPane()).toMatchObject({ open: false, fits: true });
+    expect(savedInspector()).toBeUndefined();
+    const { asked, focus } = focusing();
+    inspectorPane()!.show(); render();
+    expect(column()).toMatchObject({ shown: true, width: 280, bounds: { min: 280, max: 1226 - 412 - 360 } });
+    expect(savedInspector()).toEqual({ open: true });
+    expect(asked).toContain(".doan-insp-panel .doan-panel-hide");
+    expect(focus).toHaveBeenCalled();
+  });
+
+  test("Hide inspector folds it, keeps its width and hands focus to its own Show button", async () => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true, width: 320 } });
+    measure(1470);
+    expect(column()).toMatchObject({ shown: true, width: 320 });
+    const { asked } = focusing();
+    column()!.onHide(); render();
+    expect(column()?.shown).toBe(false);
+    expect(savedInspector()).toEqual({ open: false, width: 320 });
+    expect(asked).toContain('.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]');
+    column()!.onResize(360); render();
+    expect(savedInspector()).toEqual({ open: false, width: 360 });
+  });
+
+  test("the conversation's fold hands focus to its own Show button, not the inspector's", async () => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {} });
+    const { asked } = focusing();
+    panel()!.onHide(); render();
+    expect(asked).toContain('.doan-canvas-head .doan-panel-show[data-panel-target="conversation"]');
+  });
+
+  test("a window too narrow for it takes the column away and keeps the saved open flag; widening brings it back", async () => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true, width: 320 } });
+    measure(1100);
+    expect(column()?.shown).toBe(false);
+    expect(inspectorPane()).toMatchObject({ open: true, fits: false });
+    expect(savedInspector()).toEqual({ open: true, width: 320 });
+    // The conversation keeps its width: it is sized first.
+    expect(panel()?.width).toBe(320);
+    measure(1470);
+    expect(column()).toMatchObject({ shown: true, width: 320 });
+  });
+
+  test("with the inspector shown the conversation's drag stops where the board keeps 360", async () => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true, width: 320 } });
+    measure(1470);
+    expect(find<{ bounds: { max: number } }>(ConversationPanel)[0]?.props.bounds.max).toBe(1226 - 320 - 360);
+  });
+
+  test("the Overview has no inspector column", () => {
+    render(); folders([listed("/w/a")]);
+    find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+    expect(find(InspectorColumn)).toHaveLength(0);
+  });
 });

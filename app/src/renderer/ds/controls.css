@@ -263,6 +263,27 @@
   letter-spacing: var(--type-body-sm-letter-spacing);
   overflow-wrap: anywhere;
 }
+/* An inline code chip in the sans face, one line cut with an ellipsis (its text in a span). An optional swatch leads
+   it at the extra-small icon size. */
+.doan-code {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-inline);
+  background: var(--surface-inset);
+  color: var(--text-standard);
+  font-family: inherit;
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line-height);
+  letter-spacing: var(--type-body-sm-letter-spacing);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.doan-code > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.doan-code > i { flex: none; width: var(--size-icon-xs); height: var(--size-icon-xs); }
 /* On a dark material (the picking hint, a tooltip): a fill of the parent's ink at 16 %, the fill the agent notice's Stop
    uses there, and the parent's ink for the key, no ring. sm is the in-button key's size, so a tooltip stays 24 high. */
 .doan-kbd[data-ui-variant="on-prominent"] {

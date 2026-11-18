@@ -8,6 +8,7 @@ import { CanvasHeader } from "./CanvasHeader";
 import { CanvasViewStore, canvasViewFields, initialCanvasState, type CanvasState, type CanvasViewFields } from "./CanvasController";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { CONVERSATION_PANEL_ID } from "./ConversationPanel";
+import { INSPECTOR_PANEL_ID } from "./InspectorPanel";
 
 // PRODUCT §5 item 2 'Canvas header', 'Zoom controller' and item 3 'Frame drawer'.
 const row: CanvasRow = { path: ".doan/canvases/checkout.html", url: "doan://checkout", width: 1280 };
@@ -15,7 +16,8 @@ const frames = ["Cart", "Shipping", "Payment"].map((title, index) => ({ id: titl
 const layout = (over: Partial<LayoutMessage> = {}): LayoutMessage => ({ type: "layout", href: row.url, height: 2700, viewport: 2700, frames, truncated: false, gotos: [], ...over });
 const opened = (over: Partial<CanvasState> = {}): CanvasState => ({ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, message: "", hasFrame: true, layout: layout(), currentFrame: 2, zoom: 64, scale: 0.64, ...over });
 
-const html = (state: CanvasState, panel?: { open: boolean; show(): void; badge?: Pick<CanvasSignal, "kind" | "label"> | null }, view: CanvasViewFields = canvasViewFields(state)) => renderToStaticMarkup(<TooltipProvider>{<CanvasHeader state={state} view={new CanvasViewStore(view)} command={vi.fn()} zoomTo={vi.fn()} selectFrame={vi.fn()} {...(panel ? { panel } : {})} /> as ReactElement}</TooltipProvider>);
+type Inspector = { open: boolean; fits: boolean; show(): void };
+const html = (state: CanvasState, panel?: { open: boolean; show(): void; badge?: Pick<CanvasSignal, "kind" | "label"> | null }, view: CanvasViewFields = canvasViewFields(state), inspector?: Inspector) => renderToStaticMarkup(<TooltipProvider>{<CanvasHeader state={state} view={new CanvasViewStore(view)} command={vi.fn()} zoomTo={vi.fn()} selectFrame={vi.fn()} {...(panel ? { panel } : {})} {...(inspector ? { inspector } : {})} /> as ReactElement}</TooltipProvider>);
 const button = (markup: string, label: string) => markup.match(new RegExp(`<button[^>]*aria-label="${label}"[^>]*>`))?.[0] ?? "";
 
 describe("CanvasHeader", () => {
@@ -154,14 +156,13 @@ describe("CanvasHeader", () => {
   });
 
   // The folded panel's open button carries the dot and says why.
-  it("puts the news dot and its longer name on the folded panel's open button", () => {
+  it("puts the news dot and its longer name on the folded panel's open button, its tooltip saying the same", () => {
     const waiting = button(html(opened(), { open: false, show: vi.fn(), badge: { kind: "permission", label: "Show conversation, needs your answer" } }), "Show conversation, needs your answer");
     expect(waiting).toContain('data-badge="true"');
     const unseen = button(html(opened(), { open: false, show: vi.fn(), badge: { kind: "unseen", label: "Show conversation, conversation finished unread" } }), "Show conversation, conversation finished unread");
-    // A finished conversation is a speech bubble, not the dot.
+    // A finished conversation takes the same accent dot (drawn by CSS for data-badge="unseen"), no speech bubble.
     expect(unseen).toContain('data-badge="unseen"');
-    const markup = html(opened(), { open: false, show: vi.fn(), badge: { kind: "unseen", label: "x" } });
-    expect(markup).toMatch(/<span class="badge-bubble"[^>]*><svg[^>]*lucide-message-circle/);
+    expect(html(opened(), { open: false, show: vi.fn(), badge: { kind: "unseen", label: "x" } })).not.toContain("badge-bubble");
     expect(html(opened(), { open: false, show: vi.fn(), badge: { kind: "permission", label: "x" } })).not.toContain("badge-bubble");
     expect(button(html(opened(), { open: false, show: vi.fn(), badge: null }), "Show conversation")).not.toContain("data-badge");
   });
@@ -173,5 +174,59 @@ describe("CanvasHeader", () => {
     expect(working).toContain('data-badge="working"');
     expect(markup).toMatch(/aria-label="Show conversation, agent is working"[^>]*>(?:(?!<\/button>).)*<span class="badge-working" aria-hidden="true"><span class="doan-spinner"><\/span><\/span><\/button>/);
     expect(markup).not.toContain("badge-bubble");
+  });
+
+  // canvas-inspector-panel draft header-buttons: one divider after Reload, then only the folded panels' Show buttons,
+  // Show inspector (sliders-horizontal) before Show conversation (message-square), each naming its panel for focus.
+  describe("the Show buttons of folded panels", () => {
+    const show = (open: { inspector: boolean; conversation: boolean }, fits = true) =>
+      html(opened(), { open: open.conversation, show: vi.fn() }, undefined, { open: open.inspector, fits, show: vi.fn() });
+    const seps = (markup: string) => markup.split("doan-canvas-head-sep").length - 1;
+
+    it("draws no divider and no button while both panels are open", () => {
+      const markup = show({ inspector: true, conversation: true });
+      expect(seps(markup)).toBe(0);
+      expect(markup).not.toContain("doan-panel-show");
+    });
+
+    it("shows only the folded panel's button after one divider", () => {
+      const inspector = show({ inspector: false, conversation: true });
+      expect(seps(inspector)).toBe(1);
+      const button = inspector.match(/<button[^>]*data-panel-target="inspector"[^>]*>/)?.[0] ?? "";
+      expect(button).toContain('aria-label="Show inspector"');
+      expect(button).toContain('aria-expanded="false"');
+      expect(button).toContain(`aria-controls="${INSPECTOR_PANEL_ID}"`);
+      expect(button).not.toContain("aria-disabled");
+      expect(inspector).toMatch(/data-panel-target="inspector"[^>]*><svg[^>]*lucide-sliders-horizontal/);
+      expect(inspector).not.toContain('data-panel-target="conversation"');
+      const conversation = show({ inspector: true, conversation: false });
+      expect(seps(conversation)).toBe(1);
+      expect(conversation).toMatch(/data-panel-target="conversation"[^>]*><svg[^>]*lucide-message-square/);
+      expect(conversation).not.toContain("lucide-panel-right-open");
+      expect(conversation).not.toContain('data-panel-target="inspector"');
+    });
+
+    it("puts Show inspector before Show conversation when both are folded", () => {
+      const markup = show({ inspector: false, conversation: false });
+      expect(seps(markup)).toBe(1);
+      const order = ["Reload canvas", "Show inspector", "Show conversation"].map(label => markup.indexOf(`aria-label="${label}"`));
+      expect(order.every(index => index > 0)).toBe(true);
+      expect([...order].sort((a, b) => a - b)).toEqual(order);
+      expect(markup.indexOf("doan-canvas-head-sep")).toBeGreaterThan(markup.indexOf('aria-label="Reload canvas"'));
+      expect(markup.indexOf("doan-canvas-head-sep")).toBeLessThan(markup.indexOf('aria-label="Show inspector"'));
+    });
+
+    // A window too narrow for the inspector keeps the button, unavailable, with the reason read and shown.
+    it("keeps Show inspector unavailable in a narrow window, its reason as its description, even while saved open", () => {
+      for (const open of [true, false]) {
+        const markup = show({ inspector: open, conversation: true }, false);
+        const button = markup.match(/<button[^>]*data-panel-target="inspector"[^>]*>/)?.[0] ?? "";
+        expect(button).toContain('aria-disabled="true"');
+        expect(button).not.toMatch(/ disabled=""/);
+        const id = button.match(/aria-describedby="([^"]+)"/)?.[1];
+        expect(id).toBeDefined();
+        expect(markup).toContain(`<span class="sr-only" id="${id}">No room for the inspector. Widen the window, or narrow or hide the conversation.</span>`);
+      }
+    });
   });
 });

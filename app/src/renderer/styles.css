@@ -527,11 +527,15 @@ body:has(.shell-top) { background: transparent; }
 /* The right column's width: the Overview's 280px, or the canvas page's conversation panel, which App sets on the
    workspace element (0 while folded). */
 :root { --doan-right-width: 280px; }
+/* The canvas page's inspector column: App writes its shown width on the shell, 0 while folded and on the Overview. */
+:root { --doan-inspector-width: 0px; }
 /* The buddy slot's hop, 0 on the floor to 1 at the apex; the rig writes it on the slot each frame (doany.css floor shadow). */
 :root { --hop-lift: 0; }
 /* The sidebar's width: App sets the remembered one on the root element, so every shell follows it (sidebarSize.ts). */
 :root { --doan-sidebar-width: 220px; }
-.workspace.app-shell { grid-template-columns: var(--doan-sidebar-width) minmax(0, 1fr) var(--doan-right-width); grid-template-rows: var(--size-chrome) minmax(0, 1fr); gap: 0; padding: 0 8px 8px; background: transparent; }
+/* The canvas page's columns: sidebar, board, inspector, conversation. App sets the two panel widths (0 while folded);
+   the Overview has no inspector. */
+.workspace.app-shell { grid-template-columns: var(--doan-sidebar-width) minmax(0, 1fr) var(--doan-inspector-width) var(--doan-right-width); grid-template-rows: var(--size-chrome) minmax(0, 1fr); gap: 0; padding: 0 8px 8px; background: transparent; }
 .shell-top.top { position: relative; padding: 0 8px; gap: 0; border: 0; background: transparent; }
 .shell-top .traffic-space { width: 72px; }
 /* Fullscreen has no traffic lights: the first header button lines up with the panels' left edge (x8). The header
@@ -1493,19 +1497,28 @@ body:has(.shell-top) { background: transparent; }
 .doan-canvas-tools > .doan-icon-button.doan-canvas-tool[aria-disabled="true"] { color: var(--text-disabled); }
 /* The divider before Export takes the canvas header's divider values (.doan-canvas-head-sep). */
 .doan-canvas-tools-sep { flex: none; width: 1px; height: var(--space-5); margin-inline: var(--space-1); background: var(--border-standard); }
-/* The conversation panel's open button closes the header row after a divider, only while the panel is folded. */
+/* The folded panels' open buttons close the header row after one divider: Show inspector, then Show conversation. */
 .doan-canvas-head-sep { flex: none; width: 1px; height: var(--space-5); margin-inline: var(--space-1); background: var(--border-standard); }
+/* Show inspector while the window has no room for it: still focusable, with the reason as its tooltip. */
+.doan-canvas-head .doan-panel-show[aria-disabled="true"] { color: var(--text-disabled); }
+.doan-canvas-head-tools .doan-panel-show.doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
 
 /* doan-canvas: the canvas page's right column, the canvas conversation panel shell (.doan/canvases/doan-canvas.html
    'default', 'panel-collapsed', 'panel-resize'). Only folding and unfolding animate the column (data-panel-motion); a
    drag must not, or the handle trails the pointer (malmoi DESIGN '접기'). */
 .workspace.app-shell[data-panel-motion], .pw[data-panel-motion] { transition: grid-template-columns var(--time-panel-enter) var(--ease-settle), column-gap var(--time-panel-enter) var(--ease-settle); }
 .workspace > .doan-conv-column { position: relative; display: flex; min-width: 0; min-height: 0; }
-.workspace.with-strip > .doan-conv-column { grid-row: -3 / -1; }
+/* Placed by column, not by order: the inspector column sits between the board and the right column. */
+.workspace > :is(.doan-conv-column, .right-stack) { grid-column: 4; }
+.workspace > .doan-insp-column { grid-column: 3; grid-row: -2; position: relative; display: flex; min-width: 0; min-height: 0; }
+.workspace.with-strip > :is(.doan-conv-column, .doan-insp-column) { grid-row: -3 / -1; }
 /* Folded, the column keeps its node (the open button's aria-controls) but leaves the page; while it folds it stays
    visible until the column has closed. */
 .doan-conv-column[data-collapsed] { visibility: hidden; }
 .workspace[data-panel-motion] > .doan-conv-column[data-collapsed], .pw[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: visibility 0s linear var(--time-panel-enter); }
+/* The inspector column folds the same way. */
+.doan-insp-column[data-collapsed] { visibility: hidden; }
+.workspace[data-panel-motion] > .doan-insp-column[data-collapsed] { transition: visibility 0s linear var(--time-panel-enter); }
 .workspace[data-panel="collapsed"] > .doan-canvas-panel { border-top-right-radius: var(--radius-container); border-bottom-right-radius: var(--radius-container); }
 .workspace[data-panel="collapsed"] > .strip-slot { border-top-right-radius: var(--radius-container); }
 .right.doan-conv-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 0 var(--radius-container) var(--radius-container) 0; overflow: hidden; }
@@ -1514,6 +1527,40 @@ body:has(.shell-top) { background: transparent; }
 .doan-conv-head .doan-icon-button { color: var(--text-standard); }
 .doan-conv-body { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
 .doan-conv-empty { max-width: 240px; margin: 0; text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+/* canvas-inspector-panel: the inspector column's panel (.doan/canvases/canvas-inspector-panel.html panel-states). The
+   white panel's right corners belong to the last column shown: the conversation, else the inspector, else the board
+   (data-panel="collapsed"). */
+.right.doan-insp-panel { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 0; overflow: hidden; }
+.workspace[data-conv="collapsed"] .right.doan-insp-panel { border-radius: 0 var(--radius-container) var(--radius-container) 0; }
+/* The head matches the conversation's: 56 high, the title where the conversation's title-menu label starts (16); with a
+   selection the title is the conversation head's title-menu trigger in the same place. */
+.doan-insp-head { gap: var(--space-2); padding-left: var(--space-4); }
+.doan-insp-head:has(.doan-insp-pick) { padding-left: 0; }
+.doan-insp-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--type-weight-medium) var(--type-label-sm-size) / var(--type-label-sm-line-height) var(--type-family); letter-spacing: var(--type-label-sm-letter-spacing); }
+.doan-insp-body { flex: 1; min-height: 0; overflow: auto; padding: var(--space-2) var(--space-2) var(--space-6); }
+.doan-insp-groups { display: flex; flex-direction: column; gap: var(--space-3); }
+.doan-insp-group-title { margin: 0; padding: var(--space-3) var(--space-2) var(--space-1); color: var(--text-standard); font: var(--type-weight-medium) var(--type-label-sm-size) / var(--type-label-sm-line-height) var(--type-family); letter-spacing: var(--type-label-sm-letter-spacing); }
+/* A row is one button: a label column and a value column; pressing copies what the value column shows. The chip corner,
+   since the row corner would make a 32px row a capsule. */
+.doan-insp-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); column-gap: var(--space-3); align-items: center; width: 100%; min-height: var(--size-control-sm); padding: var(--space-1h) var(--space-2); border-radius: var(--radius-chip); background: transparent; color: var(--text-standard); text-align: left; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); cursor: default; }
+@media (hover: hover) { .doan-insp-row:hover { background: var(--affordance-subtle-hover); } }
+.doan-insp-row:active { background: var(--affordance-subtle-pressed); }
+.doan-insp-row:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.doan-insp-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-subtle); }
+.doan-insp-value { display: flex; align-items: center; gap: var(--space-1h); min-width: 0; }
+.doan-insp-text { flex: none; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.doan-insp-value .doan-code { font-variant-numeric: tabular-nums; }
+.doan-insp-none { margin: 0; padding: var(--space-4) var(--space-2); color: var(--text-subtle); }
+.doan-insp-swatch { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); border-radius: var(--radius-inline); box-shadow: inset 0 0 0 1px var(--border-prominent); }
+.doan-insp-swatch.transparent { background: repeating-conic-gradient(var(--surface-inset) 0 25%, var(--surface-panel) 0 50%) 0 0 / 8px 8px; }
+/* The row's tooltip: one line per fact. */
+.doan-insp-tip > span { display: block; }
+/* A new selection's read: the spinner line after the delay. */
+.doan-insp-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-8) var(--space-4); color: var(--text-subtle); }
+/* A failed read is the list-read error (.rp-error): the alert icon, the sentence taking the row, Retry at its end. */
+.doan-insp-failed { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); color: var(--text-danger); }
+.doan-insp-failed > span { flex: 1; min-width: 0; }
+.doan-insp-failed .doan-alert-icon { margin: 0; }
 /* doan-canvas-conversation: the panel's content (.doan/canvases/doan-canvas-conversation.html panel-*). The title is the
    conversation menu with the close button at its end; the thread scrolls under it and the composer stays at the bottom. */
 .doan-conv-title { flex: 1; min-width: 0; padding: var(--space-2) 0 var(--space-2) var(--space-2); }
@@ -1549,6 +1596,9 @@ body:has(.shell-top) { background: transparent; }
 .badge-bubble { position: absolute; top: var(--space-half); right: var(--space-half); width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-accent); background: var(--surface-panel); border-radius: var(--radius-inline); box-shadow: 0 0 0 var(--space-half) var(--surface-panel); pointer-events: none; }
 .badge-bubble svg { display: block; width: 100%; height: 100%; fill: var(--surface-panel); }
 .doan-icon-button[data-badge="true"]::after { content: ""; position: absolute; top: var(--space-1); right: var(--space-1); width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--text-accent); box-shadow: 0 0 0 2px var(--surface-panel); }
+/* The conversation's open buttons (the canvas header and the prototype window) mark an unread ending with the same dot;
+   their names tell the two apart. The sidebar's toggle keeps the speech bubble. */
+:is(.doan-canvas-head .doan-panel-show, .pw-conv).doan-icon-button[data-badge="unseen"]::after { content: ""; position: absolute; top: var(--space-1); right: var(--space-1); width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--text-accent); box-shadow: 0 0 0 2px var(--surface-panel); }
 /* A sent message's chips show their target on the canvas; inside the accent bubble they take the panel surface. */
 .bubble .anchor-chip { background: var(--surface-panel); }
 button.anchor-chip { cursor: pointer; }
@@ -1684,24 +1734,24 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-panel-handle.doan-sidebar-handle { grid-column: 1 / 2; grid-row: 2 / -1; left: 100%; }
 /* The Overview's handle is a shell grid child on the right column's start edge: .right-stack clips its rounded corner,
    so a handle inside it would lose its half over the Overview. */
-.doan-panel-handle.doan-overview-handle { grid-column: 3 / 4; grid-row: 2 / -1; }
+.doan-panel-handle.doan-overview-handle { grid-column: 4 / 5; grid-row: 2 / -1; }
 .doan-panel-handle:focus-visible { box-shadow: 0 0 0 2px var(--border-focus); }
 /* Over the whole window while dragging: the canvas iframe cannot take the pointer and the cursor stays col-resize. */
 .doan-resize-cover { position: fixed; inset: 0; z-index: 1000; cursor: col-resize; }
 /* A hidden sidebar leaves every shell with its handle and the 8px gap behind it, so the main panel
    starts at the shell's 8px inner margin. Only a toggle animates (data-sidebar-motion), as folding the conversation
    panel does; a drag or a window resize must not. */
-:root[data-sidebar="hidden"] .workspace.app-shell { grid-template-columns: 0px minmax(0, 1fr) var(--doan-right-width); }
-/* The page panels and the workspace's right column are auto-placed after the sidebar, so without it they would fall
-   into the empty first column. */
+:root[data-sidebar="hidden"] .workspace.app-shell { grid-template-columns: 0px minmax(0, 1fr) var(--doan-inspector-width) var(--doan-right-width); }
+/* The page panels are auto-placed after the sidebar, so without it they would fall into the empty first column. The
+   workspace's right columns are placed by number already. */
 :root[data-sidebar="hidden"] .home-shell { grid-template-columns: 0px minmax(0, 1fr); }
 :root[data-sidebar="hidden"] .home-shell > .home-panel { grid-column: 2; }
-:root[data-sidebar="hidden"] .workspace > :is(.doan-conv-column, .right-stack) { grid-column: 3; }
 :root[data-sidebar="hidden"] :is(.workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .workspace > .problem-overlay, .home-panel) { margin-left: 0; }
 :root[data-sidebar-motion] :is(.workspace.app-shell, .home-shell) { transition: grid-template-columns var(--time-panel-enter) var(--ease-settle); }
 :root[data-sidebar-motion] :is(.workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .workspace > .problem-overlay, .home-panel) { transition: margin-left var(--time-panel-enter) var(--ease-settle); }
 @media (prefers-reduced-motion: reduce) {
   .workspace.app-shell[data-panel-motion], .workspace[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: none; }
+  .workspace[data-panel-motion] > .doan-insp-column[data-collapsed] { transition: none; }
   .pw[data-panel-motion], .pw[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: none; }
   :root[data-sidebar-motion] :is(.workspace.app-shell, .home-shell, .workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .workspace > .problem-overlay, .home-panel) { transition: none; }
   .shell-disclosure svg, .shell-group-head svg { transition: none; }
@@ -1925,13 +1975,13 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    its recovery actions. It covers the main and right columns inside the content panel's corners; the header, the
    sidebar and its resize handle stay usable. Layer: above the panel handles (4), under the toast (6) and the portalled
    menus and tooltips (50); .workspace has no z-index, so these compare in the root stacking context. */
-.workspace > .problem-overlay { z-index: 5; grid-column: 2 / 4; grid-row: -2; min-height: 0; display: flex; overflow-y: auto; margin-left: var(--space-2); padding-block: var(--space-6); border-radius: var(--radius-container); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
+.workspace > .problem-overlay { z-index: 5; grid-column: 2 / 5; grid-row: -2; min-height: 0; display: flex; overflow-y: auto; margin-left: var(--space-2); padding-block: var(--space-6); border-radius: var(--radius-container); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
 @media (prefers-reduced-transparency: reduce) { .workspace > .problem-overlay { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 /* Reading: no blur and no scene, the opaque panel with its status line. */
 .workspace > .problem-overlay.reading { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; }
 /* The overlay takes the right column's cell, so the right column (the Overview's list or the canvas page's
    conversation column, placed by order alone) needs its own cell or it is pushed into a new row under the sidebar. */
-.workspace.overlaid > :is(.right-stack, .doan-conv-column) { grid-column: 3; }
+.workspace.overlaid > :is(.right-stack, .doan-conv-column) { grid-column: 4; }
 .workspace.overlaid:not(.with-strip) > :is(.right-stack, .doan-conv-column) { grid-row: -2; }
 /* With the conversation strip the overlay covers both content rows and the strip sits above it, still answerable. */
 .workspace.with-strip > .problem-overlay { grid-row: -3 / -1; }
