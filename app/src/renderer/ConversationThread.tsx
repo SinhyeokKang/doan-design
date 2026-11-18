@@ -25,6 +25,7 @@ import { handoffCardHead } from "./handoffView";
 import { providerLogo, sentFileView } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
 import { canSend, EMPTY_QUESTION_DRAFT, questionInput, sendBlockedText, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
+import { useActivationFocus } from "./activationFocus";
 import { pendingAsks, questionLines, sameItem, scrollFollow, threadScroll, waitsForPerson, type ActivityStep, type ThreadItem, type TurnEnd } from "./threadItems";
 import { activityRun, backgroundLine, drawingCards, elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
 
@@ -750,10 +751,13 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   // The line went while its Stop held focus (read as this render began): the button left the page, and focus goes to
   // the composer field instead of the page body. Stopping keeps the button, so focus stays on it.
   const lineFocused = focusedKey === BACKGROUND_KEY;
+  // These recoveries can run with the window in the background (a turn ended or stopped from a terminal), so they are
+  // made again when the window activates (POSTMORTEM 2026-11-17).
+  const handFocus = useActivationFocus();
   useLayoutEffect(() => {
     if (line || !lineFocused) return;
     if (document.activeElement && document.activeElement !== document.body) return;
-    props.onFocusComposer?.();
+    handFocus(() => props.onFocusComposer?.());
   });
 
   useEffect(() => {
@@ -788,8 +792,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     folding.current = null;
     if (document.activeElement && document.activeElement !== document.body) return;
     const target = focusAfter(fold.action, { pending: asks.map(ask => ask.requestId) });
-    if (target.kind === "option") focusIn(asks.find(ask => ask.requestId === target.requestId)!.key);
-    else props.onFocusComposer?.();
+    const key = target.kind === "option" ? asks.find(ask => ask.requestId === target.requestId)!.key : null;
+    handFocus(() => { if (key !== null) focusIn(key); else props.onFocusComposer?.(); });
   }, [items]);
   // A turn's cards sit above a request still waiting and below it once it folds, so React moves the card stack past
   // the request; moving a focused control's ancestor drops its focus to the page. Focus goes back to the same card's
@@ -797,7 +801,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const cardFocused = focusedKey !== null && Array.isArray(items) && items.some(item => item.kind === "canvasCard" && item.key === focusedKey) ? focusedKey : null;
   useLayoutEffect(() => {
     if (cardFocused === null || (document.activeElement && document.activeElement !== document.body)) return;
-    scroller.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(cardFocused)}"] .cc-open`)?.focus({ preventScroll: true });
+    handFocus(() => scroller.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(cardFocused)}"] .cc-open`)?.focus({ preventScroll: true }));
   });
   useLayoutEffect(() => {
     shown.current = Array.isArray(items) ? pendingAsks(items).map(ask => ({ ...ask, unsent: Object.values(draftOf(ask.requestId).choices).some(choice => choice.text.trim() !== "") })) : [];

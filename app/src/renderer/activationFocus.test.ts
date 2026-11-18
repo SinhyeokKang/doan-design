@@ -1,5 +1,5 @@
-import { expect, test, vi } from "vitest";
-import { refocusOnActivation } from "./activationFocus";
+import { describe, expect, test, vi } from "vitest";
+import { focusThroughActivation, refocusOnActivation } from "./activationFocus";
 
 // The sidebar hands a vanished row's focus to its canvas row while the window is in the background (`doan open` from a
 // terminal); activating the window then lets the platform restore focus to the first header control, because the row it
@@ -50,4 +50,61 @@ test("cancelled before the window gains focus, nothing is put back", () => {
   win.dispatchEvent(new Event("focus"));
   deferred.forEach(run => run());
   expect(refocus).not.toHaveBeenCalled();
+});
+
+// Every focus recovery that can run while the window is in the background (POSTMORTEM 2026-11-17) goes through
+// focusThroughActivation: it focuses at once, and while the window lacks focus once more on activation.
+describe("focusThroughActivation", () => {
+  function page(hasFocus: boolean) {
+    const win = new EventTarget();
+    const dialogs: object[] = [];
+    const doc = { hasFocus: () => hasFocus, querySelectorAll: () => dialogs };
+    const deferred: (() => void)[] = [];
+    return { win, doc, dialogs, deferred, defer: (run: () => void) => { deferred.push(run); } };
+  }
+
+  test("focuses at once, and with the window in front arms nothing", () => {
+    const { win, doc, deferred, defer } = page(true);
+    const focus = vi.fn();
+    focusThroughActivation(focus, win, doc, defer);
+    expect(focus).toHaveBeenCalledTimes(1);
+    win.dispatchEvent(new Event("focus"));
+    deferred.forEach(run => run());
+    expect(focus).toHaveBeenCalledTimes(1);
+  });
+
+  test("in the background, focuses again on activation and after the platform's restore", () => {
+    const { win, doc, deferred, defer } = page(false);
+    const focus = vi.fn();
+    focusThroughActivation(focus, win, doc, defer);
+    expect(focus).toHaveBeenCalledTimes(1);
+    win.dispatchEvent(new Event("focus"));
+    deferred.forEach(run => run());
+    expect(focus).toHaveBeenCalledTimes(3);
+  });
+
+  test("a dialog that opened meanwhile keeps its focus; one open already does not stop it", () => {
+    const opened = page(false);
+    opened.dialogs.push({ settings: true });
+    const focus = vi.fn();
+    focusThroughActivation(focus, opened.win, opened.doc, opened.defer);
+    opened.win.dispatchEvent(new Event("focus"));
+    expect(focus).toHaveBeenCalledTimes(2);
+    const later = page(false);
+    const other = vi.fn();
+    focusThroughActivation(other, later.win, later.doc, later.defer);
+    later.dialogs.push({ alert: true });
+    later.win.dispatchEvent(new Event("focus"));
+    later.deferred.forEach(run => run());
+    expect(other).toHaveBeenCalledTimes(1);
+  });
+
+  test("the returned cancel drops the activation focus", () => {
+    const { win, doc, deferred, defer } = page(false);
+    const focus = vi.fn();
+    focusThroughActivation(focus, win, doc, defer)();
+    win.dispatchEvent(new Event("focus"));
+    deferred.forEach(run => run());
+    expect(focus).toHaveBeenCalledTimes(1);
+  });
 });

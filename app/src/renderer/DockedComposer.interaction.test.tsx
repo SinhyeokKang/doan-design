@@ -194,7 +194,7 @@ test("focus on Stop moves to the field when Stop becomes a disabled Send; focus 
     const slot = { tagName: "BUTTON" }, other = { tagName: "BUTTON" }, focus = vi.fn();
     hooks.refs[2]!.current = { focus, element: () => null, composing: () => false };
     hooks.refs[5]!.current = { querySelector: (selector: string) => selector === ".composer-send" ? slot : null };
-    vi.stubGlobal("document", { activeElement: focused === "stop" ? slot : other });
+    vi.stubGlobal("document", { activeElement: focused === "stop" ? slot : other, hasFocus: () => true });
     props.turn = "holding";
     render();
     for (const effect of hooks.effects) effect();
@@ -713,7 +713,7 @@ function pressControl(tree: Record<string, unknown>[], event = controlEnter()) {
 }
 function shortcutSetup(patch: Partial<DockedComposerProps> = {}, text = "") {
   const activeElement = { name: "input" };
-  vi.stubGlobal("document", { body: {}, activeElement });
+  vi.stubGlobal("document", { body: {}, activeElement, hasFocus: () => true });
   const result = setup({ turn: "running", sendNow: true, queued, onSendQueuedNow: vi.fn(async () => {}), ...patch }, [["conversation:a", draft(text)]]);
   return { ...result, render: () => result.render(true), activeElement };
 }
@@ -727,7 +727,7 @@ test.each(["input", "body"])("Control+Enter sends rows once in order and preserv
   for (const row of tree.filter(item => (item["aria-label"] === undefined && item.children === "Send now") || item["aria-label"] === "Remove queued message")) {
     (row.ref as (node: unknown) => void)({ focus: focusRow });
   }
-  if (active === "body") vi.stubGlobal("document", { body: document.body, activeElement: document.body });
+  if (active === "body") vi.stubGlobal("document", { body: document.body, activeElement: document.body, hasFocus: () => true });
   const event = pressControl(tree);
   expect(event.preventDefault).toHaveBeenCalledOnce();
   expect(onSendQueuedNow.mock.calls).toEqual([["q1"], ["q2"], ["q3"]]);
