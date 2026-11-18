@@ -943,6 +943,8 @@ export class CanvasController {
     if (message.type === "press") { this.pressed(); return; }
     if (message.type === "activity") { this.personActive(false); return; }
     if (message.type === "text-range") { this.onTextRange(message); return; }
+    // The inspector's element menu reads element-tree answers; the controller has no request out yet, so none is its.
+    if (message.type === "element-tree") return;
     this.onSelectionMessage(message);
   };
 
