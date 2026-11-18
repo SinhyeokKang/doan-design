@@ -17,8 +17,9 @@
 - **좁은 창**: 인스펙터와 대화를 둘 다 열면 보드가 360보다 좁아지는 창에서는 인스펙터가 양보한다. 인스펙터 열을 보이지 않고, 저장된 '열림'은 그대로 둔다. 창을 넓히면 다시 보인다. 그동안 Show inspector는 사용할 수 없고 툴팁으로 이유를 말한다.
 - **빈 상태**: 열려 있는데 선택이 없으면 빈 상태를 보인다.
 - **값 출처와 보기**: CDP로 매칭된 규칙을 읽어 값마다 출처를 판정한다(지운 리졸버 복원). 보기는 하나다(토큰/값 전환은 두지 않는다). 캔버스가 정한 값만 보이고, 토큰이면 토큰 칩, 아니면 값을 그대로 보인다. 출처 캡션(Hardcoded·Default 같은 말)은 붙이지 않고, 브라우저 기본값(캔버스가 정하지 않은 값)은 보이지 않는다. 토큰에 호버하거나 행에 포커스하면 툴팁 첫 줄에 computed 값이 나온다. 상속된 값은 토큰이 있든 없든 행 툴팁에 "Inherited from …"으로만 알린다. 쓰는 사람은 스타일을 뜯어보려는 것이 아니라, 에이전트에게 요청하기 전에 "폰트 크기가 몇이지, 이 gap이 몇이지"를 빠르게 확인하려는 것이다.
-- **속성 그룹**: Layout, Box, Typography, Colors, Radius, Shadow. `data-doan-*` 속성은 보이지 않는다(Doan과 에이전트가 쓰는 식별자라, 값을 확인하려는 사람에게는 쓸모가 없다).
+- **속성 그룹과 순서**: Box, Typography, Colors, Radius, Shadow, Layout 순서다. 그룹 안은 사람이 먼저 묻는 순서다: Box는 Padding → Gap → Margin → Width → Height, Typography는 Size → Weight → Line height → Family. `data-doan-*` 속성은 보이지 않는다(Doan과 에이전트가 쓰는 식별자라, 값을 확인하려는 사람에게는 쓸모가 없다).
 - **면이 나뉜 값**: padding·margin·radius처럼 면이 나뉜 행은 모든 면이 같은 토큰일 때만 토큰 칩으로 보인다. 일부 면만 토큰이면 값을 보인다(칩이 값 전체를 대표하는 것처럼 보이면 "padding이 몇이지"에 틀린 답을 준다).
+- **면 이름 표기**: 면이 나뉜 값에서 한 면에만 값이 있으면 그 면 이름으로 보인다("Top 8px"). 그 밖의 축약형은 그대로 두고, 행 툴팁에 면마다 값을 적는다.
 - **요소 메뉴**: 인스펙터 제목 자리에 선택의 이름이 트리거로 온다. 누르면 선택이 들어 있는 가장 안쪽 프레임의 요소 트리(종류 아이콘, 들여쓰기 선)가 열리고, 행을 고르면 그 요소가 선택된다. 선택이 없으면 제목은 "Inspector"다.
 - **행 동작**: 읽기 전용. 행을 누르면 보이는 값을 복사하고 공유 토스트로 알린다. 토큰이 있으면 토큰 이름(`--space-4`), 없으면 값. 행은 텍스트 선택 대상이 아니라 누르기로 복사한다(PRODUCT §5 item 0 'Text edit menu'의 "no extra Copy buttons"는 텍스트 옆의 복사 버튼 이야기라 이 행과 다르다. 승격 때 그 문단에 인스펙터 행을 적는다).
 - **헤더 아이콘**: 패널이 접혔을 때 캔버스 헤더 끝 구분선 뒤에 Show inspector(lucide `sliders-horizontal`), Show conversation(lucide `message-square`) 순서로 나온다. 프로토타입 창의 대화 버튼도 `message-square`로 바꾼다(PRODUCT §5 item 2 'Prototype window'의 "the main window's icon" 규칙 유지). 각 패널 head의 Hide는 `panel-right-close` 그대로다.
@@ -46,3 +47,4 @@
 - 프로토타입 창, export viewer, Overview의 인스펙터.
 - 인스펙터 메뉴 항목과 단축키. 대화 패널도 메뉴 항목이 없어서 같은 방식으로 버튼만 둔다(판단 근거: 대화 패널과 같은 규칙).
 - `doan active`나 CLI가 스타일 값을 돌려주는 것.
+- 부모의 gap을 자식 요소 패널에 보이는 "Parent gap" 행, 그룹 제목 없애기(페르소나 리뷰 제안, BACKLOG로 보낸다).

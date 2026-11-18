@@ -5,7 +5,7 @@
 0. **레이아웃 초안.** (2026-11-18 완료: `.doan/canvases/canvas-inspector-layout.html`, `b781e5681`, 사용자 확정)
 
 1. **`/design-draft` — 패널 내부.** (2026-11-18 완료: `canvas-inspector-panel.html`, 레이아웃 캔버스의 `inspector-selected` 프레임, `--size-icon-xs` 토큰. 사용자가 앱에서 확인하고 확정했다) 새 캔버스 `.doan/canvases/canvas-inspector-panel.html`에 인스펙터 패널을 그린다. 레이아웃 초안의 창(`.doan/assets/canvas-page-snapshot.css`)을 그대로 쓰고, 패널 안과 헤더 버튼만 새로 그린다.
-   - 상태: 선택 없음, 읽는 중(새 선택), 같은 선택 재읽기(행 유지), 실패(Retry), 프레임 선택, 요소 선택, 긴 토큰 이름·긴 값, 상속된 값, 토큰 호버 툴팁(값·체인·상속), 행 포커스, 복사 토스트(성공·실패), 좁은 창의 비활성 Show inspector, 요소 서랍(열림, 호버, 고르기), 헤더 Show 버튼 두 개와 안 읽음 점, 프로토타입 창 대화 버튼.
+   - 상태: 선택 없음, 읽는 중(새 선택), 같은 선택 재읽기(행 유지), 실패(Retry), 프레임 선택, 요소 선택, 긴 토큰 이름·긴 값, 상속된 값, 토큰 호버 툴팁(값·체인·상속), 행 포커스, 복사 토스트(성공·실패), 좁은 창의 비활성 Show inspector, 요소 메뉴(열림, 호버, 고르기), 헤더 Show 버튼 두 개와 안 읽음 점, 프로토타입 창 대화 버튼.
    - 정한 것(초안 소개문 'Chosen here'): 타이포그래피, 종류 아이콘, 문구, 300ms 지연, `--size-icon-xs`.
    - 검증: `doan check --repo .`와 `doan ls --repo .`에 오류가 없다. 사용자가 앱에서 초안을 확인한다.
    - 커밋 경계: `docs(design): canvas-inspector panel draft`
@@ -18,13 +18,12 @@
    - `inspectRows`: 그룹 6개(`layout`·`box`·`typography`·`colors`·`radius`·`shadow`), Layout 행은 flex·grid일 때만, `grid-template-columns` 출처.
    - `panelBounds`(reserved)·`canvasPanelsLayout`: 960(사이드바 보임·숨김)·1140·1280·1470·1512 창, 대화 접힘, 인스펙터 접힘, 대화 먼저 계산, `inspectorFits`, 저장 폭이 최대보다 큰 경우, 넓은 창에서 저장한 뒤 창을 줄인 경우.
    - `parseInspectorState`: 빠짐 → 닫힘, `open`이 boolean이 아님, 음수·NaN·상한 초과 폭.
-   - `rowDisplay`·`rowCopyText`·`rowKey`: 토큰 있음(`--name` 복사, 칩), 토큰 없음(값 복사, 캡션·툴팁 없음), Default 행 제외와 전부 Default일 때 빈 문구, 토큰 툴팁은 computed 값 먼저, 상속(툴팁에만), 체인, 색 토큰의 견본은 칩 안, 견본 가드(hex·transparent만).
+   - `rowDisplay`·`rowCopyText`·`rowKey`: 토큰 있음(`--name` 복사, 칩), 토큰 없음(값 복사, 캡션 없음), Default 행 제외와 전부 Default일 때 빈 문구, 색 토큰의 견본은 칩 안, 견본 가드(hex·transparent만), 면마다 토큰이 다를 때 값으로 보이고 툴팁에 면별 토큰, 한 면만 값이면 면 이름("Top 8px", "Top left 8px"), 툴팁 줄 순서(잘림 → 값 → 체인 → 면별 값 → 상속), 토큰 없는 상속 행의 툴팁, 그룹·행 순서.
    - `inspectRequestFor`: 인스펙터 닫힘·좁은 창·선택 없음이면 요청 안 함, 받아들이지 않은 선택으로는 요청 안 함, 보이게 될 때 한 번, 같은 선택 재요청(reload, Retry) 구분, 읽는 중 Hide는 응답 버림.
    - `acceptInspect`: 늦은 seq·다른 선택 키·다른 캔버스 거부, `not-found`는 빈 상태, `not-shown`은 실패 없이 재요청, `unavailable`은 실패+Retry, 같은 선택 재요청은 이전 행 유지.
    - `headerShowButtons`: 둘 다 열림(버튼·구분선 없음), 하나만 접힘, 둘 다 접힘(순서), 좁은 창(Show inspector 비활성).
    - `parseInspectRequest`: 새 `{selector, canvas, seq}` 형태, 셀렉터 캡, 잘못된 캔버스.
    - `elementTree`·`nodeKind`·`nodeLabel`: 중첩 프레임에서 가장 안쪽 프레임, 깊이, 200행 상한을 넘을 때 경로·형제·자식만, 태그·display별 종류(label은 text), 이름 규칙(프레임 제목 → data-doan-id → 태그+텍스트 24자).
-   - `rowDisplay`: 면마다 토큰이 다를 때 값으로 보이고 툴팁에 면별 토큰, 잘린 값의 전체 텍스트 툴팁, 토큰 없는 상속 행의 툴팁.
    - 검증: `npm --prefix app test`에서 새 테스트는 단언 실패로 red, 2a의 테스트는 green이다.
    - 커밋 경계: `test(app): pin the canvas inspector's rows, widths and stale responses`
 
@@ -39,19 +38,24 @@
    - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
    - 커밋 경계: `feat(app): read inspector values through the window debugger`
 
+4b. **주입 스크립트: `element-tree`.** `app/src/main/canvasScript.ts`에 `element-tree` 요청과 답을 더한다(자기 seq 채널, 선택·hover seq와 따로, 선택 상태 불변, 200행 상한). 순수 도우미 `elementTree`·`nodeKind`·`nodeLabel`은 주입 스크립트가 인자로 받는 방식(ARCHITECTURE §3 'Injection')을 따른다. 메시지 모양과 파싱은 `app/src/renderer/canvasMessage.ts`(`parseCanvasMessage`)에 더한다.
+   - 테스트: `canvasScript.test.ts`(중첩 프레임, 상한, 선택 seq가 오르지 않음, 문서 교체 뒤 오래된 답 거부), `canvasMessage` 파싱(잘못된 필드, 캡). 4와 파일이 겹치지 않아 함께 돌릴 수 있다.
+   - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
+   - 커밋 경계: `feat(app): answer the inspector's element tree from the canvas script`
+
 5. **renderer: 셸, 패널, 헤더.**
    - 네 번째 그리드 열과 보조 규칙(design.md '그리드'), 인스펙터 열과 핸들, 좁은 창 처리, 대화 폭 규칙 갱신.
    - 공유 프리미티브 `.doan-code`(ds/controls.css)와 `.doan-menu[data-ui-variant="tree"]`(ds/surfaces.css)를 더하고 DESIGN.md에 한 줄씩. 인스펙터의 head 트리거와 요소 메뉴(Radix Popover, `element-tree` 요청, `select-anchor`로 고르기, hover 표시).
    - 헤더 Show 버튼 두 개(`data-panel-target`, 아이콘), 패널별 포커스 복귀, 안 읽음 점 배지(캔버스 헤더와 프로토타입 창), 프로토타입 창 대화 버튼 아이콘.
    - 패널 상태(빈·읽는 중·재읽기·실패·값), 행 목록 키보드(roving, Enter·Space·⌘C), 복사 토스트(공유 Toast), Esc가 선택을 한 단계 뒤로, ui-state 저장.
-   - 테스트: CanvasHeader(버튼·순서·배지·포커스 셀렉터), 패널 상태 전이, CanvasController와 인스펙터 요청(늦은 응답은 실제 컨트롤러 콜백이 끝난 것을 확인한 뒤 단언, postmortem 2026-10-25 UX C), ui-state 왕복, 프로토타입 창 대화 버튼.
+   - 테스트: 요소 메뉴(트리 렌더, 키보드, `select-anchor`로 고르기, hover 표시, Esc는 메뉴만), CanvasHeader(버튼·순서·배지·포커스 셀렉터), 패널 상태 전이, CanvasController와 인스펙터 요청(늦은 응답은 실제 컨트롤러 콜백이 끝난 것을 확인한 뒤 단언, postmortem 2026-10-25 UX C), ui-state 왕복, 프로토타입 창 대화 버튼.
    - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
    - 커밋 경계: `feat(app): show the canvas inspector beside the conversation`
 
-6. **`/design-sync`와 `/runtime-test`.** 실제 앱에서 두 초안(`canvas-inspector-layout` 셸, `canvas-inspector-panel` 패널)과 computed style을 맞춘다. 다음을 확인한다.
+6. **`/design-sync`와 `/runtime-test`.** 실제 앱에서 두 초안과 computed style을 맞춘다: `canvas-inspector-layout`의 `inspector-column`·`inspector-selected`(셸), `canvas-inspector-panel`의 `panel-states`·`header-buttons`(패널, 요소 메뉴, 헤더). 다음을 확인한다.
    - 960·1140·1280·1470 창에서 여닫기·리사이즈·좁은 창 양보, 넓은 창에서 폭을 저장한 뒤 창을 줄였을 때, 앱 재시작과 캔버스 전환 뒤 열림·폭 유지.
    - 토큰을 쓰는 요소, 하드코딩된 요소, 토큰 CSS가 없는 프로젝트(값만 보임), CSP가 있는 캔버스, 프레임 선택과 요소 선택, 긴 토큰 이름·긴 값의 말줄임, 복사.
-   - reload 중 행 유지, 선택 소실 뒤 빈 상태, 캔버스 전환.
+   - reload 중 행 유지, 선택 소실 뒤 빈 상태, 캔버스 전환, 요소 메뉴에서 고르기와 hover 표시, 큰 프레임(200행 넘음)의 메뉴.
    - 인스펙터가 닫혀 있거나 좁은 창일 때 `inspect:get`이 오지 않는지.
    - 늦은 응답이 덮지 않는 것은 실앱에서 결정적으로 만들 수 없으므로 2b·5의 단위 테스트를 근거로 삼고, 실앱에서는 빠르게 선택을 바꾸며 관찰만 한다.
    - 검증: 측정값이 `docs/design/canvas.md`('Panel width' 960 값 포함)와 `docs/DESIGN.md` 색인에 기록된다. `node .agents/skills/verify/scripts/verify.mjs`가 통과한다.
@@ -59,7 +63,9 @@
 
 7. **문서 승격과 정리.** 문서마다 따로 커밋한다.
    - PRODUCT: §3 In scope 1, §5 item 4(인스펙터 규칙), §5 item 2 'Canvas header'·'Conversation panel'(폭, 좁은 창)·'Prototype window'(아이콘, 안 읽음 점), §5 item 0 'Text edit menu'(인스펙터 행 복사).
-   - ARCHITECTURE: §3 'Selection'(수집기, `inspect:get`, 늦은 응답), 'Window debugger'(`sessionOf`), 'Resolver limits'·'CDP collector', 주입 스크립트 문단.
+   - ARCHITECTURE: §3 'Selection'(수집기, `inspect:get`, 늦은 응답), 'Window debugger'(`sessionOf`), 'Resolver limits'·'CDP collector', 주입 스크립트 문단(`element-tree`).
+   - DESIGN.md·`docs/design/canvas.md`: 공유 프리미티브 두 개의 줄(5에서 더함)과 측정값(6)이 들어 있는지 확인.
+   - BACKLOG에 페르소나 리뷰에서 미룬 두 건: 자식 요소 패널의 "Parent gap" 행, 그룹 제목 없애기.
    - BACKLOG에 별도 리팩터 두 건: styles.css의 인라인 코드 칩 6곳을 `.doan-code`로, 12px 리터럴을 `--size-icon-xs`로 바꾸기, 패널 head·빈 상태 클래스(`.doan-conv-head`·`.doan-conv-empty`)를 공유 이름으로 옮기기.
    - README features 표에 인스펙터를 더할지 판단해 필요하면 `.doan/canvases/readme-features.html`에서 이미지를 다시 뽑는다.
    - `docs/features/canvas-inspector/`를 지운다.

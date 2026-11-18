@@ -8,7 +8,7 @@
 
 ## 레이아웃 (확정 초안)
 
-초안: `.doan/canvases/canvas-inspector-layout.html`, 프레임 `inspector-column`(`b781e5681`). 출시된 캔버스 화면 DOM과 CSS를 그대로 뜬 위에 인스펙터 열만 더했다. 구현은 이 초안의 셸 부분을 따른다.
+초안: `.doan/canvases/canvas-inspector-layout.html`, 프레임 `inspector-column`(선택 없음)과 `inspector-selected`(요소 선택). 출시된 캔버스 화면 DOM과 CSS(`.doan/assets/canvas-page-snapshot.css`)를 그대로 뜬 위에 인스펙터 열을 더했고, 패널 안은 패널 초안과 같은 렌더러다. 구현은 이 초안의 셸 부분을 따른다.
 
 - **그리드**: `.workspace.app-shell`에 네 번째 열을 더한다. `var(--doan-sidebar-width) minmax(0, 1fr) var(--doan-inspector-width) var(--doan-right-width)`. 열이 넷이 되면서 같이 고칠 규칙(`app/src/renderer/styles.css`):
   - 인스펙터 열 `grid-column: 3`, 대화 열(`.doan-conv-column`)과 Overview의 `.right-stack`은 `grid-column: 4`로 고정한다. 지금은 자동 배치이고, 사이드바 숨김 규칙(:1680)만 3으로 옮긴다.
@@ -25,7 +25,7 @@
 - **핸들**: `.doan-panel-handle`을 인스펙터 열 시작 가장자리에 둔다. 라벨 "Resize inspector", `aria-valuemin`·`aria-valuemax`·`aria-valuenow`, ←/→로 16씩(`NUDGE`), hover·drag·focus 표시는 출시된 핸들과 같다.
 - **헤더 버튼**: 인스펙터나 대화가 접혀 있으면 Reload 뒤에 구분선(`.doan-canvas-head-sep`) 하나를 두고, 접힌 것만 Show inspector, Show conversation 순서로 나온다.
   - 버튼마다 `data-panel-target="inspector" | "conversation"`을 단다. 접고 펼 때 포커스를 돌려주는 셀렉터(`App.tsx:2309`의 `.doan-canvas-head .doan-panel-show`)를 이 속성으로 나누고, `panelFocus`를 패널마다 둔다. 접으면 그 패널의 Show 버튼으로, 펴면 그 패널의 Hide 버튼으로 포커스가 간다.
-  - Show inspector: lucide `sliders-horizontal`, `aria-controls`는 인스펙터 패널. 좁은 창이라 보일 수 없으면 `aria-disabled`이고 툴팁이 이유를 말한다(문구는 초안에서).
+  - Show inspector: lucide `sliders-horizontal`, `aria-controls`는 인스펙터 패널. 좁은 창이라 보일 수 없으면 `aria-disabled`이고, 툴팁과 `aria-describedby`가 "No room for the inspector. Widen the window or hide the conversation."을 말한다.
   - Show conversation: lucide `message-square`(`CanvasHeader.tsx`의 `PanelRightOpen`을 바꾼다).
 - **안 읽음 배지**: 캔버스 헤더의 Show conversation과 프로토타입 창의 대화 버튼(`.pw-conv`) 둘 다 `data-badge="unseen"`이 말풍선(`.badge-bubble`) 대신 답 대기와 같은 8px 액센트 점을 그린다. 툴팁이 지금 고정 "Show conversation"이므로(`CanvasHeader.tsx:42` `IconTip`) 배지 상태의 aria-label을 툴팁 문구로도 쓴다. 프로토타입 창 아이콘도 `message-square`로 바꾼다. 사이드바 슬롯과 Show sidebar는 바꾸지 않는다.
 
@@ -44,7 +44,7 @@
   - 선택 없음: 빈 상태 문구("Select a frame or element on the canvas to see its styles.", 대화 패널의 `.doan-conv-empty` 모양). 보드가 없을 때(캔버스 로드 중, 첫 레이아웃 실패, 목록에 없거나 ID가 겹치는 캔버스)도 선택이 없으므로 같은 빈 상태다.
   - 읽는 중: 선택이 바뀌었으면 이전 행을 지우고 로딩 표시를 보인다. 짧은 읽기에서 깜빡이지 않도록 300ms 뒤에 보인다("Reading styles"). 같은 선택을 다시 읽으면(reload 뒤 다시 찾음, 같은 캔버스 ID로 이동, Retry) 이전 행을 둔 채 응답이 오면 그 자리에서 바꾸고, 스크롤과 포커스를 유지한다.
   - 실패: 출시된 목록 읽기 오류(`.rp-error`) 모양 한 줄 "Couldn’t read the styles."와 그 끝의 Retry. CDP가 붙지 않았거나 시간을 넘긴 경우에만 Retry를 둔다. Retry 중에는 `aria-busy`·`aria-disabled`와 스피너.
-  - 값: 그룹 머리글(Layout, Box, Typography, Colors, Radius, Shadow)과 행.
+  - 값: 그룹 머리글(Box, Typography, Colors, Radius, Shadow, Layout)과 행.
 - **상태** (보드 쪽 사건):
   - reload가 선택을 다시 찾는 중: 이전 행을 유지한다.
   - 선택이 사라짐(PRODUCT §5 item 4의 토스트 "The selection is no longer in the canvas."): 빈 상태로 바뀐다. 인스펙터는 토스트를 따로 띄우지 않는다.
@@ -53,8 +53,9 @@
   - 읽는 중에 Hide: 응답을 버린다. 다시 열면 새로 요청한다.
 - **행**:
   - 행마다 안정된 키 `group:property`(예: `box:padding`)를 둔다. 포커스·스크롤 유지와 늦은 응답 비교에 쓰고, 테스트로 고정한다.
-  - `state`가 `default`인 행은 보이지 않는다(캔버스가 정한 값만). 토큰이 있으면 토큰 칩(공유 `.doan-code`)만 보이고, 없으면 값을 그대로 보인다. 면이 나뉜 행(padding, margin, radius)은 모든 면이 같은 토큰일 때만 토큰 행이다. 일부 면만 토큰이면 값을 보이고, 그 행의 툴팁에 면마다 토큰을 적는다(복원할 리졸버는 가장 나쁜 상태를 행 상태로 삼으므로, 표시 단계에서 면마다 토큰을 비교한다). 출처 캡션은 없다. 토큰에 호버하거나 그 행에 포커스하면 툴팁 첫 줄에 computed 값, 별칭이 있으면 다음 줄에 체인(`--a → --b`), 상속된 행이면 토큰이 없어도 "Inherited from <이름>"이 붙는다(사용자 결정: 토큰만 보이고 값은 호버로; 값과 칩을 함께 두면 280 폭에서 잘려 쓸 수 없었다). 이름이나 값이 잘리면 툴팁 첫 줄에 전체 텍스트가 온다(앱의 NameTip 규칙). 툴팁은 행 하나에만 단다. 모든 행이 기본값이면 "The canvas sets no styles here." 문구를 보인다(초안).
-  - 값: 표시용으로 가공한 computed 값(색은 hex, 상하좌우가 같으면 하나로 접음, 긴 값은 자름). 색은 14px 견본을 함께 보인다. 토큰이 있는 색은 견본이 토큰 칩 안에 들어간다(새 토큰 `--size-icon-xs` 12px). 견본 테두리는 1px `--border-prominent`. 견본 색은 예전 `swatchColor`처럼 hex·transparent만 받는다.
+  - `state`가 `default`인 행은 보이지 않는다(캔버스가 정한 값만). 토큰이 있으면 토큰 칩(공유 `.doan-code`)만 보이고, 없으면 값을 그대로 보인다. 면이 나뉜 행(padding, margin, radius)은 모든 면이 같은 토큰일 때만 토큰 행이다. 일부 면만 토큰이면 값을 보이고, 그 행의 툴팁에 면마다 토큰을 적는다(복원할 리졸버는 가장 나쁜 상태를 행 상태로 삼으므로, 표시 단계에서 면마다 토큰을 비교한다). 출처 캡션은 없다. 툴팁은 위에서부터: 이름이나 값이 잘렸으면 전체 텍스트(앱의 NameTip 규칙), 토큰 행이면 computed 값, 별칭이 있으면 체인(`--a → --b`), 면이 나뉜 값이면 면마다 값, 상속된 행이면 토큰이 없어도 "Inherited from <이름>"(사용자 결정: 토큰만 보이고 값은 호버로; 값과 칩을 함께 두면 280 폭에서 잘려 쓸 수 없었다). 툴팁은 행 하나에만 단다. 모든 행이 기본값이면 "The canvas sets no styles here." 문구를 보인다(초안).
+  - 값: 표시용으로 가공한 computed 값(색은 hex, 상하좌우가 같으면 하나로 접음, 긴 값은 자름). 면이 나뉜 값에서 한 면에만 0이 아닌 값이 있으면 그 면 이름을 붙인다("Top 8px", 모서리는 "Top left 8px"). 그 밖의 축약형은 그대로 둔다.
+  - 순서: 그룹은 Box, Typography, Colors, Radius, Shadow, Layout. Box 안은 Padding → Gap → Margin → Width → Height, Typography 안은 Size → Weight → Line height → Family, Layout 안은 Display → Direction → Columns → Wrap → Justify → Align. 색은 14px 견본을 함께 보인다. 토큰이 있는 색은 견본이 토큰 칩 안에 들어간다(새 토큰 `--size-icon-xs` 12px). 견본 테두리는 1px `--border-prominent`. 견본 색은 예전 `swatchColor`처럼 hex·transparent만 받는다.
   - 복사: 토큰이 있으면 `--name`, 없으면 값. 복사는 `app/src/renderer/copyText.ts`로 한다(main이 권한을 거부해 async Clipboard API를 쓸 수 없다, ARCHITECTURE §7). 복사 결과는 공유 토스트로 알린다(사용자 결정: 행 안에서 값이 가려지면 당황스럽다). 창 오른쪽 아래 16px, 8초, 새 토스트가 이전 것을 바꾸고, `role="status"`로 읽힌다. 문구는 "Copied <토큰 이름 또는 값>", 실패하면 "Couldn’t copy the value. Try again.". 행은 값을 그대로 보이고 포커스만 유지한다. 행 이름은 보이는 것을 읽고("Padding, 24px, token --space-6"), "Press to copy"는 `aria-describedby`로 단다.
 - **키보드**:
   - Tab 순서: 보드 영역 → 인스펙터(제목 트리거, Hide inspector, 행 목록) → 대화.
@@ -66,7 +67,7 @@
 - **수집기 복원**: 지운 `app/src/main/inspect.ts`(순수 리졸버, 이름 `inspectRows`)와 `inspect.test.ts`·`inspect.fixture.json`을 `67c222f71~1`에서 되살린다. `inspector.ts`의 CDP 부분(직렬 큐, 2초 예산, fail closed, `inheritedFrom`, 재attach)을 되살리되, 세션은 `windowDebugger.ts`의 새 API로 고른다. 예전 `canvasSession()`(토큰 경로에 있는 가장 최근 iframe 세션 휴리스틱)과 세션 추적 테스트는 되살리지 않는다(세션 소유권 테스트는 이미 `windowDebugger.test.ts`에 있다). 타임아웃이 CDP 명령을 취소하지 않는다는 예전 한계는 그대로 남고, ARCHITECTURE에 다시 적는다.
 - **`windowDebugger.ts` API 추가**: `sessionOf(frameId): string | null` — `frameOwners`에서 그 프레임의 현재 소유 세션을 돌려주고, 소유자가 바뀌었거나 분리된 세션이면 null이다. 수집기는 보이는 캔버스의 프레임을 read-state와 같은 근거(`app/src/main/seenProof.ts` `shownDocument`)로 찾고, 그 프레임의 `sessionOf`로만 명령을 보낸다. 그래서 "보이는 문서가 요청한 캔버스인가"와 "어느 세션에 보내나"가 visible proof와 한 근거로 정해진다.
 - **그룹**: `InspectGroup`을 `"layout" | "box" | "typography" | "colors" | "radius" | "shadow"`로 바꾼다. 예전 `effects`의 Radius·Shadow 행이 각 그룹으로 간다.
-- **Layout 행**: `display`, `flex-direction`, `flex-wrap`, `justify-content`, `align-items`, `gap`은 Box에 그대로 둔다. Layout 행은 `display`가 flex·inline-flex·grid·inline-grid일 때만 방향·wrap·정렬 행을 낸다(`display: block`에서 `flex-direction: row` 같은 무의미한 행을 내지 않는다). `grid-template-columns`도 출처를 판정한다(다른 행과 같은 리졸버 경로).
+- **Layout 행**: Layout 그룹은 Display, Direction(`flex-direction`), Columns(`grid-template-columns`), Wrap(`flex-wrap`), Justify(`justify-content`), Align(`align-items`)이다. `gap`은 Box에 둔다. `display`가 flex·inline-flex·grid·inline-grid일 때만 Layout 행을 낸다(`display: block`에서 `flex-direction: row` 같은 무의미한 행을 내지 않는다). Columns는 grid일 때만, Direction·Wrap은 flex일 때만 낸다. 모든 행이 같은 리졸버 경로로 출처를 판정한다.
 - **비는 그룹**: `inspectRows`는 그룹마다 행을 항상 내지만, 기본값 행을 빼면 그룹이 빌 수 있다. 빈 그룹은 보이지 않는다.
 - **IPC**: `inspect:get`(main 창 전용, `senderAllowed.ts`에 다시 넣는다). 요청은 `{selector, canvas: {root, path}, seq}`. 보이는 문서가 그 캔버스가 아니면 main은 `{ok: false, reason: "not-shown"}`으로 답한다. 실패 이유는 `not-shown`(전환 경쟁), `not-found`(노드 없음), `unavailable`(CDP 미연결·시간 초과) 셋이다.
 - **요청 시점**: 인스펙터가 보이고(열림 + 좁은 창 아님) 선택이 있을 때만 요청한다. 선택 기준은 렌더러가 받아들인 선택(main이 보낸 선택 갱신을 CanvasController가 적용한 것)이고, 보냈지만 아직 받아들이지 않은 선택이 아니다(postmortem 2026-10-23 comments-ui Recurrence). 선택이 바뀔 때, reload 뒤 다시 찾았을 때, 인스펙터가 보이게 될 때, Retry 때 한 번씩 요청한다.
@@ -83,7 +84,7 @@
 | `inspectRows` | `app/src/main/inspect.ts`(복원) | 기존 테스트 + 그룹 6개, Layout 조건, `grid-template-columns` |
 | `panelBounds`(확장), `canvasPanelsLayout` | `app/src/renderer/rightPanelSize.ts` | `reserved` 인자, 대화 먼저 → 인스펙터 순서, `inspectorFits`, 960·1280·1470·1512 창, 사이드바 숨김, 저장 폭이 최대보다 큰 경우 |
 | `parseInspectorState` | `app/src/restore/uiState.ts` | 빠짐, open 기본 false, 잘못된 open 타입, 음수·NaN·상한 초과 폭 |
-| `rowDisplay`, `rowCopyText`, `rowKey` | `app/src/renderer/inspectorRows.ts`(예전 `renderer/inspector.ts`의 `sourceNotes`·`tokenTitle`·`swatchColor`를 흡수) | 표시·툴팁(토큰은 computed 값 먼저, 상속, 잘림 전체 텍스트)·복사 텍스트, Default 행 제외, 면마다 토큰이 다를 때 값으로, 견본 가드, 키 |
+| `rowDisplay`, `rowCopyText`, `rowKey` | `app/src/renderer/inspectorRows.ts`(예전 `renderer/inspector.ts`의 `sourceNotes`·`tokenTitle`·`swatchColor`를 흡수) | 표시·툴팁(잘림 전체 텍스트 → computed 값 → 체인 → 면별 값 → 상속)·복사 텍스트, Default 행 제외, 면마다 토큰이 다를 때 값으로, 한 면만 값이면 면 이름, 그룹·행 순서, 견본 가드, 키 |
 | `inspectRequestFor` | 같은 파일 | 보임·선택·이전 요청을 받아 요청할지와 같은 선택 재요청인지 |
 | `acceptInspect` | 같은 파일 | seq·선택 키·캔버스로 늦은 응답 거부, 실패 이유별 다음 상태 |
 | `elementTree`, `nodeKind`, `nodeLabel` | `app/src/main/canvasScript.ts`(주입 스크립트의 순수 도우미, 인자로 넘긴다) | 가장 안쪽 프레임 아래 트리, 깊이, 200행 상한과 줄이기, 종류 판정(태그·display), 이름 규칙 |
@@ -111,7 +112,7 @@
   - 예전 'Resolver limits'와 'CDP collector'(직렬 큐, 2초 예산, 타임아웃이 명령을 취소하지 않음)를 되살린다.
   - §3 rendering의 주입 스크립트 문단에 "inspector style rows는 보내지 않는다"를 다시 적는다.
 - **`docs/design/canvas.md` 'Panel width'**: 960 측정값과 인스펙터 폭을 새로 잰다(tasks 6).
-- **샌드박스·서빙 범위**: 바뀌지 않는다. CDP는 main의 창 디버거로 읽고, 캔버스 iframe에는 아무것도 더 주입하지 않는다.
+- **샌드박스·서빙 범위**: 바뀌지 않는다. 스타일 값은 CDP로 main의 창 디버거가 읽는다. 주입 스크립트에는 `element-tree` 요청 하나만 더한다(읽기 전용, 선택 상태 불변).
 - **PoC 의존**: 없다. CDP 수집은 예전 PoC와 출시 코드로 확인됐고, 세션 소유권은 지금의 `windowDebugger.ts`가 지킨다. 복원한 수집기가 `sessionOf`와 맞물리는지는 실제 앱에서 확인한다(tasks 6).
 
 ## 관련 postmortem
@@ -122,4 +123,4 @@
 
 ## 디자인 프리셋
 
-`doan design-skill --json`으로 목록을 보고 `/design-draft` 때 `harden`(빈·실패 상태)과 `clarify`(문구)를 읽는다.
+초안을 그리며 `critique`, `harden`, `clarify`, `typeset`을 읽었다(`doan design-skill <id> --json`). `/design-sync`는 두 초안의 `panel-states`·`header-buttons`·`inspector-column`·`inspector-selected` 프레임과 비교한다.
