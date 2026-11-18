@@ -25,19 +25,34 @@ test("a clean close removes the temporary folder", async () => {
   assert.equal(await exists(dir), false);
 });
 
-test("a close that fails kills the process, waits for its exit, removes the folder and still fails", async () => {
+// A slow quit on a loaded machine is not a defect of the scripts under test: once the kill is confirmed and the folder
+// is gone nothing is left behind, so the close only warns.
+test("a close that fails kills the process, waits for its exit, removes the folder and only warns", async t => {
+  const warn = t.mock.method(console, "warn", () => {});
   const dir = await tempDir();
   const child = await quitting();
-  await assert.rejects(dom.closeElectron({ process: () => child, close: async () => { throw new Error("close refused"); } }, dir, 2_000), /close refused/);
+  await dom.closeElectron({ process: () => child, close: async () => { throw new Error("close refused"); } }, dir, 2_000);
   assert.equal(child.signalCode, "SIGKILL");
   assert.equal(await exists(dir), false);
+  assert.match(String(warn.mock.calls[0]?.arguments.join(" ")), /close refused/);
 });
 
-test("a close that hangs is bounded, then the process is killed and the folder removed", async () => {
+test("a close that hangs is bounded, then the process is killed, the folder removed and the close only warns", async t => {
+  const warn = t.mock.method(console, "warn", () => {});
   const dir = await tempDir();
   const child = await quitting();
-  await assert.rejects(dom.closeElectron({ process: () => child, close: () => new Promise(() => {}) }, dir, 200), /timed out/);
+  await dom.closeElectron({ process: () => child, close: () => new Promise(() => {}) }, dir, 200);
   assert.equal(child.signalCode, "SIGKILL");
+  assert.equal(await exists(dir), false);
+  assert.match(String(warn.mock.calls[0]?.arguments.join(" ")), /timed out/);
+});
+
+test("an exit the close did not force, such as a crash on quit, still fails", async () => {
+  const dir = await tempDir();
+  const child = spawn(process.execPath, ["-e", "process.on('SIGTERM', () => process.exit(3)); console.log('ready'); setInterval(() => {}, 1000)"]);
+  await once(child.stdout!, "data");
+  await assert.rejects(dom.closeElectron({ process: () => child, close: async () => { child.kill("SIGTERM"); } }, dir, 2_000), /exit cleanly/);
+  assert.equal(child.exitCode, 3);
   assert.equal(await exists(dir), false);
 });
 
