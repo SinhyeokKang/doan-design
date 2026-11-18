@@ -17,9 +17,10 @@ function world(provider: Provider) {
   const userData = join(base, "userData"), profile = join(userData, "agent-auth", "profiles", provider);
   for (const dir of [profile, join(userData, "attachments"), join(userData, "conversations")]) mkdirSync(dir, { recursive: true });
   writeFileSync(join(userData, "conversation-runtime.json"), "{}");
-  // The agent's own folder exists before any fenced process: Doan writes the doan skill stub into it first.
-  const folder = { claude: "", codex: "", copilot: ".copilot", cursor: ".cursor", antigravity: ".gemini" }[provider];
-  if (folder) mkdirSync(join(profile, folder));
+  // The agent's own folder exists before any fenced process: Doan writes the doan skill stub into it first (for
+  // Antigravity under .gemini/config/), and Antigravity's token into .gemini/antigravity-acp/ (the vault's working copy).
+  const folders = { claude: [], codex: [], copilot: [".copilot"], cursor: [".cursor"], antigravity: [".gemini/config", ".gemini/antigravity-acp"] }[provider];
+  for (const folder of folders) mkdirSync(join(profile, folder), { recursive: true });
   return { userData, profile };
 }
 // Each path is created with its parents by a shell inside the fence; the answer is the paths that were written.
@@ -50,10 +51,11 @@ describe.runIf(usable)("the outer fence's writes in the agent's folder", () => {
     ]);
   });
   // codex-cli 0.169.0 in Full access (isolated CODEX_HOME): its stores and caches, the arg0 aliases under tmp/ that it
-  // puts on PATH, and the SQLite databases at the root, whatever their version suffix.
+  // puts on PATH, the temporary files it renames onto root files, and the SQLite databases at the root, whatever their
+  // version suffix.
   it("lets Codex write its stores and caches and none of its instruction or settings files", () => {
     expectWrites("codex", [
-      "sessions/2026/11/19/rollout-a.jsonl", "archived_sessions/a.jsonl", "shell_snapshots/a.sh", "memories/a.md", "tmp/arg0/codex-arg0Ab/apply_patch", ".tmp/plugins.sync.lock",
+      "sessions/2026/11/19/rollout-a.jsonl", "archived_sessions/a.jsonl", "shell_snapshots/a.sh", "memories/a.md", "tmp/arg0/codex-arg0Ab/apply_patch", ".tmp/plugins.sync.lock", ".tmpAb12Cd",
       "cache/codex_apps_tools", "log/codex-tui.log", "thread-writer-locks/.coordination.lock", "installation_id", ".sandbox_migration", "models_cache.json", "auth.json", "auth.json.lock", "auth.lock",
       "state_5.sqlite", "state_5.sqlite-wal", "thread_history_1.sqlite-shm", "goals_2.sqlite", ".sqlite-maintenance.lock",
     ], [

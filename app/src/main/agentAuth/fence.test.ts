@@ -23,7 +23,7 @@ const agent = (dirs: number, files: number, pattern = "") => `(deny file-write* 
 (allow file-write*${Array.from({ length: dirs }, (_, i) => ` (subpath (param "AGENT_DIR_${i + 1}"))`).join("")}${Array.from({ length: files }, (_, i) => ` (prefix (param "AGENT_FILE_${i + 1}"))`).join("")})
 ${pattern ? `(allow file-write* (require-all (subpath (param "AGENT_FOLDER")) (regex #"${pattern}")))
 ` : ""}`;
-const CLAUDE = agent(15, 6), CODEX = agent(9, 5, "\\.sqlite[^/]*$"), COPILOT = agent(3, 3), CURSOR = agent(2, 4), GEMINI = agent(3, 2, "/config/[0-9a-f-]{36}\\.(db|meta)[^/]*$");
+const CLAUDE = agent(15, 6), CODEX = agent(8, 6, "\\.sqlite[^/]*$"), COPILOT = agent(3, 3), CURSOR = agent(2, 4), GEMINI = agent(3, 2, "/config/[0-9a-f-]+\\.(db|meta)[^/]*$");
 
 const U = "/Users/ada/Library/Application Support/doan";
 const P = `${U}/agent-auth/profiles/claude`;

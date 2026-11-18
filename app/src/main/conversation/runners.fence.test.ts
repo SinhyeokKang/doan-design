@@ -40,7 +40,8 @@ it("starts a fenced ACP server under sandbox-exec with the policy, its parameter
   const args = execArgs(root)!;
   // The recorded policy spans lines; the parameters and the command follow it.
   expect(args.join("\n")).toContain(`-p\n${fencePolicy("cursor")}\n-D\nUSERDATA=/u\n`);
-  expect(args.slice(-5)).toEqual(["-D", "ATTACHMENTS=/u/agent-auth/profiles/cursor", process.execPath, SERVER, join(__dirname, "fixtures", "acp-cursor.json")]);
+  expect(args).toContain("ATTACHMENTS=/u/agent-auth/profiles/cursor");
+  expect(args.slice(-5)).toEqual(["-D", "AGENT_FILE_4=/u/agent-auth/profiles/cursor/.cursor/auth.json", process.execPath, SERVER, join(__dirname, "fixtures", "acp-cursor.json")]);
   await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
 });
 it("starts an unfenced ACP server (a list read) as before", async () => {

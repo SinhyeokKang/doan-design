@@ -53,9 +53,12 @@ export function claudeFastSettings(fast: boolean | undefined): { settings?: { fa
   return fast ? { settings: { fastMode: true } } : {};
 }
 // The run's flag-tier settings: Fast, and for a fenced run Claude's own sandbox off, whatever a user, project or local
-// source says: it cannot start inside the outer fence (exit 71).
-function claudeRunSettings(fast: boolean | undefined, fence: Prepared["fence"]): { settings?: { fastMode?: true; sandbox?: { enabled: false } } } {
-  const settings = { ...claudeFastSettings(fast).settings, ...fence ? { sandbox: { enabled: false as const } } : {} };
+// source says: it cannot start inside the outer fence (exit 71). A fenced run also has auto memory off: its files sit
+// under projects/, which the fence leaves writable for the CLI's transcripts, and a turn's tools write with the CLI's
+// rights, so a memory one turn wrote would be read by every later turn in the profile (Claude Code 2.1.327: off, a
+// planted MEMORY.md was not loaded).
+function claudeRunSettings(fast: boolean | undefined, fence: Prepared["fence"]): { settings?: { fastMode?: true; sandbox?: { enabled: false }; autoMemoryEnabled?: false } } {
+  const settings = { ...claudeFastSettings(fast).settings, ...fence ? { sandbox: { enabled: false as const }, autoMemoryEnabled: false as const } : {} };
   return Object.keys(settings).length ? { settings } : {};
 }
 // Fast for a Codex turn: a doan turn always names its tier, standard included, so a model whose catalog default is Fast
