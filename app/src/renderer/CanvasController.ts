@@ -627,6 +627,7 @@ export class CanvasController {
     if (!shown) { this.releaseInput(); this.cancelCapture(); this.clearText(true); }
     // An Option measurement hides under a modal and comes back when it closes, with the pointer still on its target.
     if (changed) this.drawMarks();
+    if (changed && shown) this.refindHover();
   }
 
   private onCanvasPage(): boolean { return this.workspaceActive && this.canvasPage; }
@@ -637,8 +638,10 @@ export class CanvasController {
   setCovered(covered: boolean): void {
     if (covered === this.covered) return;
     this.covered = covered;
-    // As for a modal: the Option measurement hides under the overlay and comes back after it.
+    // As for a modal: the Option measurement hides under the overlay and comes back after it. The overlay took the
+    // hover away (the app heard the pointer over it), so it is asked for again at the resting pointer.
     this.drawMarks();
+    if (!covered) this.refindHover();
   }
 
   // The toolbar's Select and Hand. While picking they cancel the pick first; V and H
@@ -817,6 +820,7 @@ export class CanvasController {
     this.textEpoch = 0;
     this.resetText();
     this.applySelectionEffect({ kind: fresh ? "otherCanvas" : "reload" });
+    this.refindOnLoad = !fresh;
     if (row.width === undefined) {
       this.pendingFrame?.found?.(false);
       this.dropFrame();
@@ -1407,6 +1411,25 @@ export class CanvasController {
     }
   };
 
+  // The canvas sends a hover only on a pointer move, so where the hover could show again with the pointer resting on the
+  // canvas, the app names the resting point and the canvas finds what is under it (hover-at, on the hover channel). The
+  // point is main's OS cursor point: the app hears no pointer move over the canvas iframe, so it has none of its own
+  // there. Only when the canvas itself is what lies under the pointer.
+  private refindOnLoad = false;
+  private refindHover(): void {
+    if (this.hoverRect !== null || this.loading || this.frame === null) return;
+    const frame = this.frame;
+    this.pointer().then(point => {
+      if (point === null || frame !== this.frame || this.hoverRect !== null || this.loading || !this.onCanvasPage() || this.covered) return;
+      if (this.layerShown || this.captureShown || this.textDragging || this.overlayOpen()) return;
+      const area = this.viewport.getBoundingClientRect();
+      if (point.x < area.left || point.x >= area.right || point.y < area.top || point.y >= area.bottom) return;
+      if (document.elementFromPoint(point.x, point.y) !== frame) return;
+      const at = screenToBoard(this.view, { x: point.x - area.left, y: point.y - area.top });
+      this.sendHoverCommand({ type: "hover-at", x: at.x, y: at.y });
+    }, (error: unknown) => { console.error("pointer:get failed", error); });
+  }
+
   // A menu or popover (overlayOpen) takes focus when it opens and gives it back when it closes, which is the only sign of
   // it here; an Option measurement hides and comes back with it while the pointer rests on its target.
   private focusMoved = (): void => {
@@ -1626,6 +1649,8 @@ export class CanvasController {
       this.state.status = null;
       if (this.reanchor !== null) this.sendCommand({ type: "select-anchor", ...this.reanchor });
     }
+    // A reloaded document hears no pointer move until the pointer moves; its hover is asked for at the resting pointer.
+    if (first && this.refindOnLoad) { this.refindOnLoad = false; this.refindHover(); }
     this.state.layout = message;
     const linked = this.markShown(message.href);
     if (linked && this.state.open) this.linkedCanvas?.(this.state.open.folder);

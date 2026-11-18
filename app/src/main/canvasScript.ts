@@ -683,7 +683,7 @@ export function canvasScript(lib: CanvasLib): void {
   const command = (data: Record<string, unknown>) => {
     const next = data.seq;
     if (typeof next !== "number" || !Number.isInteger(next)) return;
-    const { type, frame, doanId, selector, index, id } = data;
+    const { type, frame, doanId, selector, index, id, x, y } = data;
     if (type === "pick-start" || type === "pick-cancel") {
       if (data.document !== documentToken || next <= pickSeq) return;
       pickSeq = next;
@@ -702,8 +702,10 @@ export function canvasScript(lib: CanvasLib): void {
       if (typeof data.meta !== "boolean") return;
     } else if (type === "hover-hand") {
       if (typeof data.hand !== "boolean") return;
+    } else if (type === "hover-at") {
+      if (typeof x !== "number" || typeof y !== "number" || !Number.isFinite(x) || !Number.isFinite(y)) return;
     } else if (type !== "clear" && type !== "hover-leave" && type !== "select-parent") return;
-    if (type === "hover-alt" || type === "hover-meta" || type === "hover-hand" || type === "hover-leave") {
+    if (type === "hover-alt" || type === "hover-meta" || type === "hover-hand" || type === "hover-leave" || type === "hover-at") {
       if (next <= hoverSeq) return;
       hoverSeq = next;
     } else {
@@ -722,6 +724,12 @@ export function canvasScript(lib: CanvasLib): void {
     } else if (type === "hover-leave") {
       hoverEl = null;
       lastHover = "";
+    } else if (type === "hover-at" && typeof x === "number" && typeof y === "number") {
+      // The pointer rests where the app names (this document's client px) and no move will come to say what is under
+      // it; the dedupe value is emptied as after a leave, so the same rect is sent again.
+      hoverEl = document.elementFromPoint(x, y);
+      lastHover = "";
+      postHover();
     } else if (type === "clear") {
       drop();
       postHover();

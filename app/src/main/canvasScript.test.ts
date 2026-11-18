@@ -1472,6 +1472,47 @@ describe("canvasScript hover", () => {
   });
 });
 
+// After a reload, a modal or a problem's overlay the pointer may rest over the canvas without moving, and the canvas
+// sends a hover only on a move; the app then names the resting point and the canvas finds what is under it.
+describe("canvasScript hover-at", () => {
+  const at = (canvas: ReturnType<typeof fakeCanvas>, el: unknown) => { (canvas.document as Record<string, unknown>).elementFromPoint = () => el; };
+  const move = (canvas: ReturnType<typeof fakeCanvas>, target: unknown) => canvas.fireWindow("pointermove", input({ target }));
+
+  test("finds the next click's target under the named point and posts it at that hover seq", () => {
+    const { canvas, span } = heroCanvas();
+    const points: number[][] = [];
+    (canvas.document as Record<string, unknown>).elementFromPoint = (x: number, y: number) => { points.push([x, y]); return span; };
+    canvas.fromParent({ type: "hover-at", x: 15, y: 25.5, seq: 1 });
+    expect(points).toEqual([[15, 25.5]]);
+    expect(ofType(canvas, "hover")).toEqual([{ type: "hover", href: HREF, seq: 1, viewport: 150, rect: { x: 1, y: 2, width: 30, height: 40 } }]);
+  });
+
+  test("sends the same rect again after a leave, and nothing under the point is no target", () => {
+    const { canvas, span } = heroCanvas();
+    at(canvas, span);
+    move(canvas, span); canvas.runFrame();
+    canvas.fromParent({ type: "hover-leave", seq: 1 });
+    canvas.fromParent({ type: "hover-at", x: 15, y: 25, seq: 2 });
+    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 2, rect: { x: 1, y: 2, width: 30, height: 40 } });
+    at(canvas, null);
+    canvas.fromParent({ type: "hover-at", x: 9999, y: 9999, seq: 3 });
+    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 3, rect: null });
+  });
+
+  test("rides the hover channel only: stale or malformed commands do nothing and the selection seq stays", () => {
+    const { canvas, span, button } = heroCanvas();
+    at(canvas, span);
+    canvas.fromParent({ type: "hover-at", x: "1", y: 2, seq: 5 });
+    canvas.fromParent({ type: "hover-at", x: Number.NaN, y: 2, seq: 5 });
+    expect(ofType(canvas, "hover")).toEqual([]);
+    canvas.fromParent({ type: "hover-at", x: 1, y: 2, seq: 5 });
+    canvas.fromParent({ type: "hover-at", x: 1, y: 2, seq: 4 });
+    expect(ofType(canvas, "hover").map(m => m.seq)).toEqual([5]);
+    click(canvas, button, { metaKey: true });
+    expect(ofType(canvas, "select").at(-1)).toMatchObject({ seq: 1 });
+  });
+});
+
 describe("canvasScript independent command channels", () => {
   test("hover commands cannot supersede selection commands, and stale commands stay rejected in each channel", () => {
     const { canvas, span, button } = heroCanvas();

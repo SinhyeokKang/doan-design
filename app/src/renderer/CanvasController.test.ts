@@ -178,6 +178,8 @@ function selectionHarness() {
     hasFocus: () => true,
     // No menu or dialog over the canvas page (the follow check reads it).
     querySelector: () => null,
+    // Nothing of the app under main's cursor point, so no test asks for a hover under a resting pointer unless it says so.
+    elementFromPoint: (): unknown => null,
     // The app's document: an event dispatched on it bubbles to the window, as in the browser.
     dispatchEvent: (event: Event) => { if (event.bubbles) host.dispatchEvent(event); return !event.defaultPrevented; },
     documentElement: { setAttribute: (name: string, value: string) => { rootAttributes.set(name, value); }, removeAttribute: (name: string) => { rootAttributes.delete(name); }, hasAttribute: (name: string) => rootAttributes.has(name) },
@@ -1034,6 +1036,83 @@ describe("Option-hover measurement", () => {
       act(h, false);
       expect(labels(h)).toEqual(["30"]);
     } finally { h.controller.dispose(); }
+  });
+
+  // The canvas reports a hover only on a pointer move. Where the hover could show again with the pointer resting on the
+  // canvas, the app asks for the target under main's cursor point, in canvas px, on the hover channel.
+  describe("hover under a resting pointer", () => {
+    const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
+    const hoverAts = (h: H) => posted(h).filter(m => m.type === "hover-at");
+    // The cursor (400, 300) over the iframe; the board sits at (100, 80) at 100 %, so the canvas point is (300, 220).
+    const overCanvas = (h: H) => { (h.doc as { elementFromPoint?: () => unknown }).elementFromPoint = () => h.current(); };
+
+    it("asks once a reload has a new document, and measures again when the selection is found", async () => {
+      const h = harness();
+      try {
+        overCanvas(h);
+        start(h);
+        h.controller.command("reload");
+        h.layout({ document: "doc2" });
+        await flush();
+        expect(hoverAts(h)).toEqual([{ type: "hover-at", x: 300, y: 220, seq: hoverSeq(h) }]);
+        expect(posted(h).filter(m => m.type === "select-anchor").map(m => m.seq)).toEqual([1]);
+        h.key("Alt");
+        h.select(1, { answer: "select-anchor" });
+        hover(h);
+        expect(labels(h)).toEqual(["30"]);
+      } finally { h.controller.dispose(); }
+    });
+
+    it.each<[string, (h: H, off: boolean) => void]>([
+      ["a problem's overlay goes", (h, off) => h.controller.setCovered(!off)],
+      ["the canvas page comes back after a modal", (h, off) => h.controller.setCanvasPage(off)],
+    ])("asks when %s", async (_name, act) => {
+      const h = harness();
+      try {
+        overCanvas(h);
+        h.controller.setCanvasPage(true);
+        start(h);
+        act(h, false);
+        // Under it the app's own pointer move took the hover away.
+        h.host.dispatchEvent(Object.assign(new Event("pointermove"), { altKey: true }));
+        await flush();
+        expect(hoverAts(h)).toEqual([]);
+        act(h, true);
+        await flush();
+        expect(hoverAts(h)).toEqual([{ type: "hover-at", x: 300, y: 220, seq: hoverSeq(h) }]);
+        hover(h);
+        expect(labels(h)).toEqual(["30"]);
+      } finally { h.controller.dispose(); }
+    });
+
+    it.each<[string, (h: H) => void]>([
+      ["the pointer is over app chrome above the canvas", h => { (h.doc as { elementFromPoint?: () => unknown }).elementFromPoint = () => ({}); }],
+      ["the pointer is outside the board area", h => { h.cursor.at = { x: 900, y: 300 }; }],
+      ["main has no cursor point", h => { h.cursor.at = null; }],
+    ])("asks nothing when %s", async (_name, arrange) => {
+      const h = harness();
+      try {
+        overCanvas(h);
+        arrange(h);
+        h.controller.command("reload");
+        h.layout({ document: "doc2" });
+        await flush();
+        expect(hoverAts(h)).toEqual([]);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("asks nothing while a hover is still shown", async () => {
+      const h = harness();
+      try {
+        overCanvas(h);
+        h.controller.setCanvasPage(true);
+        start(h);
+        h.controller.setCovered(true);
+        h.controller.setCovered(false);
+        await flush();
+        expect(hoverAts(h)).toEqual([]);
+      } finally { h.controller.dispose(); }
+    });
   });
 
   // Without a measurement, Option keeps hiding the hover: an ⌥-click selects nothing, so a hover would mislead.
@@ -3855,7 +3934,8 @@ describe("hand tool", () => {
       h.select(1, { answer: "select-anchor" });
       await flush();
       expect(h.state().selection?.element?.doanId).toBe("cta");
-      expect(h.pointer).not.toHaveBeenCalled();
+      // Main is asked once, by the reload's own hover re-find under a resting pointer, never as a click's focus check.
+      expect(h.pointer).toHaveBeenCalledOnce();
       expect(h.viewport.focus).not.toHaveBeenCalled();
     } finally { h.controller.dispose(); }
   });
