@@ -328,6 +328,8 @@
   /* Home composer: small icons inside chips and triggers, large marks in the strip and pickers,
      and the extra-small control (a chip's remove button). */
   --size-icon-sm: 14px;
+  /* The smallest mark: a colour swatch inside a token chip, the size of a menu check. */
+  --size-icon-xs: 12px;
   --size-icon-lg: 20px;
   --size-control-xs: 24px;
 
