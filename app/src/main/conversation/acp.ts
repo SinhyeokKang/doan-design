@@ -90,7 +90,12 @@ export function acpPermission(params: Record<string, unknown>, requestId: string
   const allow = pick("allow_once"), always = pick("allow_always"), deny = pick("reject_once", "reject_always");
   const choices: AcpChoice[] = [];
   if (allow) choices.push({ optionId: allow, option: { id: "allow", label: "Allow", kind: "allow" } });
-  if (always) choices.push({ optionId: always, option: { id: "always", label: "Always allow", kind: "allowAlways" } });
+  // The agent keeps this choice itself, and the protocol does not say what it covers, so the card says only that.
+  if (always) {
+    const name = str(options.find(o => o.optionId === always)?.name).trim();
+    const detail = name ? `The agent saves this choice as “${name}” and decides what it covers.` : "The agent saves this choice and decides what it covers.";
+    choices.push({ optionId: always, option: { id: "always", label: "Always allow", kind: "allowAlways", detail: clip(detail, PERMISSION_SUMMARY_MAX) } });
+  }
   if (deny) choices.push({ optionId: deny, option: { id: "deny", label: "Deny", kind: "deny" } });
   if (!allow && !always) return null;
   const tool = object(params.toolCall) ? params.toolCall : {};

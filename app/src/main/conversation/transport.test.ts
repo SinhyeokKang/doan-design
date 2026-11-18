@@ -357,12 +357,13 @@ describe("readable activity and permission summaries", () => {
     expect(collect("claude", [other]).events).toMatchObject([{ type: "activity", path: "/repo/a.html" }]);
   });
   it("names other MCP servers' tools and lookalike names by server and tool, never by the agent's description", () => {
-    expect(claudePermissionSummary("mcp__claude_ai_Figma__get_screenshot", { description: "Take a screenshot" }, "/repo")).toBe("Run get_screenshot on claude_ai_Figma");
-    expect(claudePermissionSummary("mcp__notion__notion-fetch", { description: "Fetch" }, "/repo")).toBe("Run notion-fetch on notion");
-    expect(claudePermission("r", "mcp__notion__notion-fetch", { description: "Fetch" }, [], "/repo").event).toMatchObject({ summary: "Run notion-fetch on notion", reason: "Fetch" });
-    expect(claudePermissionSummary("mcp__doan-__x", { description: "Fetch" }, "/repo")).toBe("Run x on doan-");
+    // The tool and server lead; the arguments, a description among them, follow as they were sent.
+    expect(claudePermissionSummary("mcp__claude_ai_Figma__get_screenshot", { description: "Take a screenshot" }, "/repo")).toBe("Run get_screenshot on claude_ai_Figma\n{\"description\":\"Take a screenshot\"}");
+    expect(claudePermissionSummary("mcp__notion__notion-fetch", { description: "Fetch" }, "/repo")).toBe("Run notion-fetch on notion\n{\"description\":\"Fetch\"}");
+    expect(claudePermission("r", "mcp__notion__notion-fetch", { description: "Fetch" }, [], "/repo").event).toMatchObject({ summary: "Run notion-fetch on notion\n{\"description\":\"Fetch\"}", reason: "Fetch" });
+    expect(claudePermissionSummary("mcp__doan-__x", {}, "/repo")).toBe("Run x on doan-");
     expect(claudePermissionSummary("mcp__doan-notion__", { description: "Fetch" }, "/repo")).toBe("Using a tool");
-    expect(claudePermissionSummary("mcp__doan-Notion__x", { description: "Fetch" }, "/repo")).toBe("Run x on doan-Notion");
+    expect(claudePermissionSummary("mcp__doan-Notion__x", {}, "/repo")).toBe("Run x on doan-Notion");
   });
 });
 it("fails closed for an unsupported request rather than silently waiting forever", () => {
