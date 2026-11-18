@@ -71,3 +71,8 @@ test("anything that is not an elicitation request with an id is not this functio
   expect(codexMcpApproval({ ...request, params: null }, LABELS)).toBeNull();
   expect(codexMcpApproval(null, LABELS)).toBeNull();
 });
+
+test("shows bidi controls and invisible characters in the tool and server names as visible escapes", () => {
+  const read = codexMcpApproval(withParams({ serverName: "files​", message: "Allow the files MCP server to run tool \"open‮item\"?" }), LABELS);
+  expect(read?.kind === "permission" && read.permission.event.summary).toBe("Run open<U+202E>item on files<U+200B>");
+});

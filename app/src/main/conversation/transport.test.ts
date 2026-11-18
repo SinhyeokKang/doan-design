@@ -174,6 +174,52 @@ describe("approval card content", () => {
     expect(detail([{ type: "future", value: 1 }])).toBe('{"type":"future","value":1}');
     expect(claudePermission("r", "Bash", { command: "npm test" }, [], "/repo").event.options.every(o => !("detail" in o))).toBe(true);
   });
+  const codexCommand = (params: Record<string, unknown>) => codexPermission({ id: 5, method: "item/commandExecution/requestApproval", params: { threadId: "s", turnId: "t", itemId: "i", ...params } })?.event;
+  // Codex 0.169.0 parses `cat notes.txt | tee copy.txt` into one read action whose command is only `cat notes.txt`;
+  // Allow answers for the whole line.
+  it("shows the whole Codex command even when Codex parsed it into one action", () => {
+    expect(codexCommand({ command: "/bin/zsh -lc 'cat notes.txt | tee copy.txt'", commandActions: [{ type: "read", command: "cat notes.txt", name: "notes.txt", path: "/repo/notes.txt" }] })?.summary)
+      .toBe("cat notes.txt | tee copy.txt");
+    expect(codexCommand({ command: "/bin/zsh -lc 'cd sub && ls'", commandActions: [{ type: "listFiles", command: "ls", path: "sub" }] })?.summary).toBe("cd sub && ls");
+  });
+  it("takes off only Codex's own login-shell wrapper, decoding its quoting, and shows any other command as sent", () => {
+    // Codex quotes the script as one word, switching to single quotes around $, ` and ! (as recorded from 0.169.0).
+    expect(codexCommand({ command: `/bin/zsh -lc "echo \\"it's\\" "'$HOME \`id\` "a'"\\\\b\\" "'! > a.txt'` })?.summary).toBe("echo \"it's\" $HOME `id` \"a\\b\" ! > a.txt");
+    expect(codexCommand({ command: "/bin/bash -c 'ls\nwc -l a.txt'" })?.summary).toBe("ls\nwc -l a.txt");
+    expect(codexCommand({ command: "/bin/zsh -lc ls" })?.summary).toBe("ls");
+    // Another shell, a second word or quoting that does not close is not Codex's wrapper.
+    expect(codexCommand({ command: "./zsh -lc 'ls'" })?.summary).toBe("./zsh -lc 'ls'");
+    expect(codexCommand({ command: "/bin/zsh -lc 'ls' 'pwd'" })?.summary).toBe("/bin/zsh -lc 'ls' 'pwd'");
+    expect(codexCommand({ command: "/bin/zsh -lc 'ls" })?.summary).toBe("/bin/zsh -lc 'ls");
+    expect(codexCommand({ command: "/bin/zsh -lc \"echo $HOME\"" })?.summary).toBe("/bin/zsh -lc \"echo $HOME\"");
+  });
+  it("leads an MCP tool's card with the tool and its server, then its arguments", () => {
+    expect(claudePermission("r", "mcp__files__open_item", { path: "/repo/a.txt", url: "https://example.invalid/a" }, [], "/repo").event.summary)
+      .toBe("Run open_item on files\n{\"path\":\"/repo/a.txt\",\"url\":\"https://example.invalid/a\"}");
+    expect(claudePermissionSummary("mcp__files__run", { command: "ls" }, "/repo")).toBe("Run run on files\n{\"command\":\"ls\"}");
+    expect(claudePermissionSummary("mcp__files__list", {}, "/repo")).toBe("Run list on files");
+    expect(claudePermissionSummary("mcp__files__list", { q: "x".repeat(9000) }, "/repo")).toHaveLength(8192);
+  });
+  it("shows bidi controls and invisible characters as visible escapes", () => {
+    const event = claudePermission("r", "Bash", { command: "echo ‮a​b⁦c\u{E0041}\rㅤd\n\te", description: "Look‮" }, [{ type: "addRules", rules: [{ toolName: "Bash", ruleContent: "echo⁧:*" }], behavior: "allow", destination: "session" }], "/repo").event;
+    expect(event.summary).toBe("echo <U+202E>a<U+200B>b<U+2066>c<U+E0041><U+000D><U+3164>d\n\te");
+    expect(event.reason).toBe("Look<U+202E>");
+    expect(event.options.find(o => o.id === "always")?.detail).toBe("Adds the allow rule Bash(echo<U+2067>:*) in this session.");
+    expect(codexCommand({ command: "/bin/zsh -lc 'ls ‮x'", reason: "‏why" })).toMatchObject({ summary: "ls <U+202E>x", reason: "<U+200F>why" });
+    // An escaped text still keeps within the bound and marks the cut.
+    expect(claudePermissionSummary("Bash", { command: "‮".repeat(3000) }, "/repo")).toHaveLength(8192);
+    expect(claudePermissionSummary("Bash", { command: "‮".repeat(3000) }, "/repo").endsWith("…")).toBe(true);
+  });
+  it("names what a Codex network rule choice saves", () => {
+    const options = codexCommand({ command: "curl https://example.invalid", proposedNetworkPolicyAmendments: [{ host: "example.invalid", action: "allow" }, { host: "ads.invalid", action: "deny" }] })?.options ?? [];
+    expect(options.find(o => o.id === "network-0")).toEqual({ id: "network-0", label: "Allow example.invalid", kind: "allowAlways", detail: "Adds a rule that allows network access to “example.invalid” without asking." });
+    expect(options.find(o => o.id === "network-1")).toEqual({ id: "network-1", label: "Deny ads.invalid", kind: "deny", detail: "Adds a rule that blocks network access to “ads.invalid”." });
+  });
+  it("names the folder a Codex file approval's session choice also asks for", () => {
+    const ask = (params: Record<string, unknown>) => codexPermission({ id: 6, method: "item/fileChange/requestApproval", params: { threadId: "s", turnId: "t", itemId: "f", ...params } })?.event.options ?? [];
+    expect(ask({ grantRoot: "/elsewhere" }).find(o => o.id === "acceptForSession")?.detail).toBe("Codex also asks to allow writes anywhere under “/elsewhere” for the rest of this session.");
+    expect(ask({ grantRoot: null }).every(o => !("detail" in o))).toBe(true);
+  });
 });
 
 it("keeps multiple Claude text blocks distinct while connecting each delta to its done", () => {
