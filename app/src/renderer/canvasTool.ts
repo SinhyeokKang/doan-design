@@ -21,10 +21,11 @@ function interactiveTarget(target: unknown): boolean {
   return typeof role === "string" && CONTROL_ROLES.has(role);
 }
 
-// Every app menu's content carries `doan-menu`, and every app list (a frame drawer, the design presets) is a listbox.
-// They exist only while open, so a key from inside one was pressed in an open menu or list. Radix's typeahead prevents
-// nothing, so `defaultPrevented` alone does not catch them; preventing for it would skip that typeahead.
-const OPEN_LIST = '.doan-menu, [role="listbox"]';
+// Every app menu's content carries `doan-menu`, every app list (a frame drawer, the `/` list) is a listbox, and the
+// design presets popover holds its list beside group tabs and a Retry. They exist only while open, so a key from inside
+// one was pressed in an open menu or list. Radix's typeahead prevents nothing, so `defaultPrevented` alone does not
+// catch them; preventing for it would skip that typeahead.
+const OPEN_LIST = '.doan-menu, [role="listbox"], .preset-popover';
 
 function inOpenList(target: unknown): boolean {
   if (typeof target !== "object" || target === null || !("closest" in target) || typeof target.closest !== "function") return false;
