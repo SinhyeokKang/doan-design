@@ -64,7 +64,7 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 function render() {
   hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = [];
   tree = AgentStep({ session: session as unknown as Step["session"], heading: () => {}, back: () => {}, next: () => {} });
-  (all(tree).find(element => element.type === "h2")!.ref as unknown as (node: unknown) => void)(heading());
+  (all(tree).find(element => element.type === "h2")!.props.ref as (node: unknown) => void)(heading());
   (all(tree).find(element => element.type === AgentFooter)!.props.continueRef as (node: unknown) => void)(continueButton());
   for (const run of hooks.pending) run();
 }
