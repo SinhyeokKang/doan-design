@@ -1,6 +1,7 @@
 import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
+import { toSee } from "../main/conversation/seenEvents";
 import type { Canvas, ConversationEvent } from "../main/conversation/types";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { ConversationStore, type ListView, type QueuedMessage, type StoreCalls, type Thread } from "./conversationStore";
@@ -55,19 +56,16 @@ interface RootState {
   moved: Moved | null;
 }
 
-// canvas.drawn may be written after the turn's end (up to main's promotion deadline), so it never counts as something
-// new to see, as in main's summary.ts lastTurnSeq.
-const isMarker = (event: ConversationEvent) => event.type.startsWith("conversation.") || event.type === "canvas.drawn";
-// main's own measure of what is to be seen (summary.ts lastTurnSeq): markers of binding, archiving and restoring are not.
+// main's own measure of what is to be seen (summary.ts lastTurnSeq).
 export function lastTurnSeq(events: readonly ConversationEvent[]): number | null {
-  for (let i = events.length - 1; i >= 0; i--) if (!isMarker(events[i]!)) return events[i]!.seq;
+  for (let i = events.length - 1; i >= 0; i--) if (toSee(events[i]!)) return events[i]!.seq;
   return null;
 }
 // The seq through which an ended turn can be seen: its end event is the last one. null while a turn runs or a new
 // request waits for its turn; a turn nothing is live for anymore was cut by a quit or crash, and main counts it ended.
 const TERMINAL: ReadonlySet<ConversationEvent["type"]> = new Set(["turn.done", "turn.failed", "interrupted"]);
 export function endSeq(events: readonly ConversationEvent[], live: boolean): number | null {
-  const last = [...events].reverse().find(event => !isMarker(event));
+  const last = [...events].reverse().find(toSee);
   if (!last) return null;
   return TERMINAL.has(last.type) || !live ? last.seq : null;
 }
