@@ -14,7 +14,7 @@ import { AlertIcon } from "./AlertIcon";
 import { retryButton } from "./ListRetryButton";
 import { announcedAgain, LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
 import { canvasCardText, middleCut, newCanvasesText, trailingCards } from "./canvasCardText";
-import { canvasLabel } from "./canvasTree";
+import { canvasLabel, canvasStem } from "./canvasTree";
 import { SKIP_FAILED_TEXT } from "./conversationStrip";
 import { focusAfter, type FocusAction } from "./composerRules";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
@@ -897,7 +897,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         const live = entry.seq > props.liveAfter;
         return <div className="doan-notice thread-notice" role={live ? "alert" : undefined}>
           <span className="strip-agent doan-alert-icon"><img className="logo" src={providerLogo(provider)} alt="" /></span>
-          <span className="strip-text selectable"><b>{`${p} needs your answer`}</b><span>{entry.summary}</span></span>
+          {/* What will run leads; the agent's words about it and what a saving choice adds follow (ARCHITECTURE §7). */}
+          <span className="strip-text selectable"><b>{`${p} needs your answer`}</b><span className="ask-command">{entry.summary}</span>
+            {entry.reason && <span className="ask-reason">{entry.reason}</span>}
+            {entry.options.flatMap(option => option.detail ? [<span key={option.id} className="ask-saves">{`${option.label}: ${option.detail}`}</span>] : [])}</span>
           <span className="strip-actions">
             {entry.options.map(option => <button key={option.id} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={option.kind === "allow" ? "prominent" : "panel"}
               data-request={entry.requestId} onClick={() => answer(entry.requestId, option.id)}>{option.label}</button>)}
@@ -929,7 +932,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       case "handoffCard": return <HandoffCard entry={entry} headId={`${base}-${entry.key}-head`} project={props.project} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
       case "boundary": return <div className="context-boundary" role="separator" aria-label={entry.label}><span>{entry.label}</span></div>;
       case "marker": {
-        const canvas = entry.canvas, listed = props.canvasListed(canvas), name = canvas.path.split("/").at(-1) ?? canvas.path;
+        const canvas = entry.canvas, listed = props.canvasListed(canvas), name = canvasStem(canvas.path);
         // On the panel of the canvas it moved to, "Moved to" and Open would point at the screen already shown.
         if (openCanvasId !== null && canvas.id === openCanvasId) return <div className="marker"><span><ArrowUpRight aria-hidden="true" />{`Moved here from ${props.project} Overview`}</span></div>;
         return <div className="marker"><span><ArrowUpRight aria-hidden="true" />{listed ? `Moved to ${name}` : `Moved to ${name} · No longer in ${props.project}`}</span>

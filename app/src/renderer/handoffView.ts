@@ -8,7 +8,8 @@ import { sameCanvas } from "./canvasConversationRows";
 // main's BIND_GRACE_MS: how long a move waits for the renderer's list to name the target before it turns into the toast.
 export const HANDOFF_WAIT_MS = 10_000;
 
-// Canvases are named by file name, as the shipped "Moved to <file>" line does.
+// A handoff card names its canvases by file name, extension kept (PRODUCT §5 item 2 'Handoff'); the thread's
+// "Moved to" marker uses the file stem instead, as the rest of the app does.
 const fileName = (path: string) => path.split("/").at(-1) ?? path;
 
 // The screen when a handoff started. canvas: the canvas page on screen, null for Home, the Overview and pages.

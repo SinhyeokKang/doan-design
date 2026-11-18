@@ -55,14 +55,20 @@ function underNamespace(value: string, home: string): boolean {
 }
 
 // Codex runs a command an `allow` rule matches outside the sandbox without asking (Codex docs 'Rules'); the app socket
-// needs that. Doan's own file, not default.rules, where the Codex TUI saves the person's approvals.
+// needs that. The strictest matching rule wins (forbidden > prompt > allow), so export, config, onboarding and remove,
+// which write files anywhere, change a repository's settings, clone or change Doan's project list, still ask. Doan's
+// own file, not default.rules, where the Codex TUI saves the person's approvals.
 export function codexRuleText(): string {
-  return '# Written by Doan so Codex runs `doan` outside its sandbox without asking. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan"], decision="allow")\n';
+  return '# Written by Doan so Codex runs `doan` outside its sandbox without asking, and asks first for `doan export`, `config`, `onboarding` and `remove`. If you edit this file, Doan leaves it alone.\n' +
+    'prefix_rule(pattern=["doan"], decision="allow")\n' +
+    ["export", "config", "onboarding", "remove"].map(command => `prefix_rule(pattern=["doan", "${command}"], decision="prompt")\n`).join("");
 }
 // Every text an earlier release wrote as doan.rules, matched exactly like the current one. Without them a release that
-// changes the text would leave each machine's earlier file as someone else's and never update it. Empty until the
-// text first changes; plan.test.ts pins the current text so a change fails until its old text is added here.
-export const EARLIER_CODEX_RULES: readonly string[] = [];
+// changes the text would leave each machine's earlier file as someone else's and never update it; plan.test.ts pins
+// the current text so a change fails until its old text is added here.
+export const EARLIER_CODEX_RULES: readonly string[] = [
+  '# Written by Doan so Codex runs `doan` outside its sandbox without asking. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan"], decision="allow")\n',
+];
 
 // Claude Code Bash rules (Claude Code docs 'Configure permissions', 'Wildcard patterns'): a trailing ` *` matches any
 // arguments and the bare command, and `&&`, `;`, `|` split a command so each part needs its own rule. Only the three

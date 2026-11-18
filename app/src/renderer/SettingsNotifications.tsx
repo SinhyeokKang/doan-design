@@ -6,7 +6,7 @@ import { announcedAgain } from "./listRetry";
 
 type EventKey = "approval" | "finished" | "failed";
 const EVENTS: readonly { key: EventKey; label: string; description: string }[] = [
-  { key: "approval", label: "Approval requests", description: "An agent is waiting for you to allow or deny an action." },
+  { key: "approval", label: "Approval requests", description: "An agent is waiting for you to allow or deny an action, or to answer a question." },
   { key: "finished", label: "Finished", description: "An agent finished its turn." },
   { key: "failed", label: "Couldn’t finish", description: "An agent stopped because of an error. Stops you make aren’t announced." },
 ];

@@ -76,7 +76,7 @@ import { folderState, realHome } from "./folderState";
 import { revealTarget, type FolderEntry } from "./view";
 import { createWindowDebugger, type WindowDebugger } from "./windowDebugger";
 import { createInspector, parseInspectRequest, type InspectRefused, type InspectReply, type Inspector } from "./inspector";
-import { startRuntime, type Runtime } from "./runtime";
+import { CONVERSATION_RUNTIME, startRuntime, type Runtime } from "./runtime";
 import { menuState, updateMenu, type Screen } from "./menuState";
 import { electronUpdater, hasFeedConfig, releaseNotesUrl, UpdateService } from "./update/service";
 import { updateEligibility } from "./update/eligibility";
@@ -1075,7 +1075,7 @@ async function start(): Promise<void> {
   });
 
   removeStaleLinkDirs();
-  const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, "runtime.json"), fence: { userData }, locate: shellLocator(process.env, PROVIDER_AUTH, { antigravity: signal => antigravityServer(join(userData, "agent-runtimes", "antigravity-acp"), signal ? { signal } : {}) }),
+  const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, CONVERSATION_RUNTIME), fence: { userData }, locate: shellLocator(process.env, PROVIDER_AUTH, { antigravity: signal => antigravityServer(join(userData, "agent-runtimes", "antigravity-acp"), signal ? { signal } : {}) }),
     // The onboarding tap comes after AuthIpc stored the link, so the link it opens is this prompt's.
     onChange: () => authIpc?.changed(), onPrompt: prompt => { authIpc?.prompted(prompt); onboarding?.prompted(prompt); },
     // A sign-out or replacement also stops the provider's usage read, whose lease it waits for like a run's.
@@ -1264,7 +1264,7 @@ async function start(): Promise<void> {
   // Runs read the MCP connectors' generation and names when they ask.
   const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc, connectorFacts(() => mcp), { userData, socket: () => runtime?.socket });
   // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
-  const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),
+  const prepareConversation = routePrepare(createPrepare(userData, join(userData, CONVERSATION_RUNTIME), process.env),
     wireAccountPrepare(accountPrepare, () => !!agentAuth, prepared => usage ? withTurnUsage(prepared, usage) : prepared));
   const conversationStore = new ConversationStore(userData);
   // After the store, which made and checked the conversations directory.

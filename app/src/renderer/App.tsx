@@ -29,6 +29,9 @@ import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
 import type { ConversationHandoffNotice, HandoffNotice } from "../main/conversation/handoff";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { useControlFocusRecovery } from "./canvasControlFocus";
+import { CANVAS_RETRY_IDLE, canvasFailedShown, canvasRetryPressed, canvasRetrySettled } from "./canvasRetry";
+import { retryButton } from "./ListRetryButton";
+import { announcedAgain } from "./listRetry";
 import { useVisibleClock } from "./visibleClock";
 import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, routeCanvasPublish, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
@@ -783,7 +786,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     // or a canvas deleted outside Doan, and the map would grow toward UI_STATE_MAX_BYTES.
     conversationByCanvas.current = withoutUnlisted(conversationByCanvas.current, root => {
       const entry = entriesRef.current.find(item => item.path === root), list = homeRun.current.listState(root);
-      return { canvases: entry?.kind === "list" ? entry.canvases : null, conversations: Array.isArray(list) ? list.map(c => c.conversationId) : null };
+      return { canvases: entry?.kind === "list" ? entry.canvases : null, conversations: Array.isArray(list) ? list : null };
     });
     const state = savedUiState({ ...persisted.current, view: instance.currentView(), memory: instance.memory(), conversationByRoot: conversationByRoot.current, conversationByCanvas: conversationByCanvas.current });
     if (state) void window.doan.saveUiState(state).then(saved => { if (!saved) console.error("doan: UI state was not saved"); }).catch(console.error);
@@ -2725,6 +2728,9 @@ export function CanvasLoading() {
   return slow ? <p><span className="doan-spinner" aria-hidden="true" />Loading</p> : null;
 }
 
+// The window draws one canvas pane, so the failure line's id is fixed.
+const CANVAS_FAILED_ID = "doan-canvas-failed";
+
 function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, inspector, agent, picking, capturing, tool, onTool, picker, capture, player, exporter }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   // covered: the Overview or a problem's overlay is over the pane. overlaid: the overlay, which names the problem itself.
@@ -2735,6 +2741,9 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
   const panel = useRef<HTMLDivElement>(null);
   useControlFocusRecovery(panel, viewport, covered, view);
   const canvasKey = state.open ? JSON.stringify([state.open.folder, state.open.canvas]) : null;
+  const [pressedRetry, setRetry] = useState(CANVAS_RETRY_IDLE);
+  const retry = canvasRetrySettled(pressedRetry, canvasKey, state.status);
+  if (retry !== pressedRetry) setRetry(retry);
   // Stays laid out under the Overview: opening a canvas fits it to this size at once.
   return <div className="doan-canvas-panel" ref={panel} inert={covered}>
     <CanvasHeader state={state} view={view} canvasKey={canvasKey} command={command} zoomTo={zoomTo} selectFrame={selectFrame} fallbackFocus={() => viewport.current?.focus()} panel={conversation} inspector={inspector} />
@@ -2750,9 +2759,11 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
     </CanvasAgent>
     {/* A canvas closed for a missing or not set up root leaves no message: the overlay names the problem. */}
     {state.status && (state.status !== "missing" || state.message) && <div className="canvas-status" role="status">
-      {state.status === "loading" ? <CanvasLoading />
-        : state.status === "failed" ? <div className="canvas-status-block"><AlertIcon size={20} /><h2>Couldn’t load the canvas</h2><p>Run doan check in a terminal.</p>
-          <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => command("reload")}>Retry</button></div>
+      {/* Through a reload its Retry started, the failure and the busy Retry stay; once the line goes, focus that was
+          on the Retry goes to the canvas region (useControlFocusRecovery). */}
+      {canvasFailedShown(retry, canvasKey, state.status) ? <div className="canvas-status-block"><AlertIcon size={20} /><h2 id={CANVAS_FAILED_ID}>{announcedAgain("Couldn’t load the canvas", retry.failures)}</h2><p>Run doan check in a terminal.</p>
+          {retryButton({ running: retry.running, variant: "subtle", describedBy: CANVAS_FAILED_ID, onRetry: () => { setRetry(current => canvasRetryPressed(current, canvasKey)); command("reload"); } })}</div>
+        : state.status === "loading" ? <CanvasLoading />
         : state.status === "noWidth" ? <p className="selectable"><b>Couldn’t read a valid board width.</b>{state.message.slice("Couldn’t read a valid board width.".length)}</p>
         : <p className="selectable">{state.message}</p>}
     </div>}

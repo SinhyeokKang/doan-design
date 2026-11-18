@@ -19,7 +19,7 @@ function world(provider: Provider, profileName: string = provider) {
   const base = mkdtempSync(join(tmpdir(), "doan-fence-")); roots.push(realpathSync(base));
   const userData = join(base, "user Data"), profile = join(userData, "agent-auth", "profiles", profileName), project = join(base, "project");
   for (const dir of [profile, join(userData, "agent-auth", "profiles", "cursor"), join(userData, "conversations"), join(userData, "attachments", "0f4e"), join(userData, "attachments", "77aa"), project]) mkdirSync(dir, { recursive: true });
-  writeFileSync(join(userData, "runtime.json"), "{}"); writeFileSync(join(userData, "attachments", "0f4e", "pasted.png"), "x");
+  writeFileSync(join(userData, "runtime.json"), "{}"); writeFileSync(join(userData, "conversation-runtime.json"), "{}"); writeFileSync(join(userData, "attachments", "0f4e", "pasted.png"), "x");
   const socketDir = join(base, "sock"); mkdirSync(socketDir);
   return { base, userData, real: realpathSync.native(userData), profile, project: realpathSync.native(project), socket: join(socketDir, "app.sock") };
 }
@@ -170,8 +170,9 @@ it("gives a Codex run the whole attachment directory, creating it first", async 
   rmSync(join(w.userData, "attachments"), { recursive: true });
   const ready = await prepare("codex", w).run({ root: w.project, mode: "new", runtime: "codex", text: "hi", anchors: [] });
   expect(ready.fence?.paths.attachments).toEqual([join(w.real, "attachments")]);
-  // Listed for Doan's Codex permission profile: the other provider's profile and Doan's own files, never userData itself.
-  expect(ready.fence?.denied?.map(entry => entry.path).sort()).toEqual([`${w.real}/agent-auth/profiles/cursor`, `${w.real}/conversations`]);
+  // Listed for Doan's Codex permission profile: the other provider's profile and Doan's own files (the terminal's
+  // runtime.json among them), never userData itself or the conversation runtime file.
+  expect(ready.fence?.denied?.map(entry => entry.path).sort()).toEqual([`${w.real}/agent-auth/profiles/cursor`, `${w.real}/conversations`, `${w.real}/runtime.json`]);
   expect(statSync(join(w.userData, "attachments")).mode & 0o777).toBe(0o700);
 });
 it("refuses a run whose fence cannot be built as unknown, before anything starts, and frees the lease", async () => {
