@@ -178,6 +178,17 @@ describe("command turns in the thread", () => {
     expect(contextRing(list, measured.usageStale)).toMatchObject({ used: 5000 });
   });
 
+  // A handoff's first message is the agent's text, sent as written and never as a command (ARCHITECTURE §7 'Handoff').
+  test("a handoff's first message is no command turn, and names the title", () => {
+    seq = 0;
+    const origin = { kind: "handoff", conversationId: "source", canvas: { path: ".doan/canvases/a.html", id: "a" } };
+    const list = [ev("t1", { type: "user.message", text: "/compact the layout into one column", anchors: [], origin }), ev("t1", { type: "turn.started" }), done("t1")];
+    const commands = threadCommands("claude", list, new Map());
+    expect([...commands.turns]).toEqual([]);
+    expect(commandTurnLabel("claude", commands, "t1")).toBeNull();
+    expect(firstTitleMessage("claude", list)).toMatchObject({ text: "/compact the layout into one column" });
+  });
+
   test("a compact refreshes the ring from its own value", () => {
     const list = events();
     const commands = threadCommands("claude", list, new Map([["t2", "compacted" as const]]));

@@ -152,6 +152,9 @@ export type Prepare = (request: StartRequest, stored?: ConversationMetadata, use
 // disappearance as OpenRunner does; it never releases the lease itself.
 export type ReadListing<T> = (input: Prepared, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<T>;
 export type ReadModels = ReadListing<ModelList>;
+// A start's composer: Home's for its root, or a canvas's (by path, which a start pressed during the quit names before
+// any listing resolves its id).
+function startComposer(request: { root: string; canvas?: Canvas }): string { return `start\0${request.root}\0${request.canvas?.path ?? ""}`; }
 function freeLease(input: Prepared | undefined): void {
   void input?.release?.().catch(error => console.error("doan: account lease release failed", error));
 }
@@ -269,6 +272,10 @@ export class ConversationService {
   private reservations: Reservation[] = [];
   private live = new Map<string, Live>();
   private quitting = false;
+  // After a quit that aborted, the service stays quitting while the composers stay open, and the busy refusal invites
+  // another press: each composer holds one message, its last, under one key (a start's root and canvas, a send's
+  // conversation), rather than one copy per press for the next launch to return.
+  private quitHolds = new Map<string, string>();
   // appQuit interruptions a quit still has to write (conversation id → turn id, and whether a quit already failed it):
   // a failure a retry could fix cancels that quit and is written again by the next, since the conversation already
   // counts as ended. A refusal no retry fixes, or a second failure, is a known refusal like a failedPersistence
@@ -343,6 +350,11 @@ export class ConversationService {
     // The deletions an earlier run recorded finish here, their drafts included (store.ts finishDeletions).
     store.finishDeletions(id => this.drafts.discard(id));
   }
+  private quitHold(composer: string): string {
+    const key = this.quitHolds.get(composer) ?? randomUUID();
+    this.quitHolds.set(composer, key);
+    return key;
+  }
   private reserve(id: string, input?: Prepared, reuse = false): void {
     const key = input?.sessionId ? { runtime: input.runtime, configDir: input.configDir, sessionId: input.sessionId } : null;
     const result = reserveSession(this.reservations, id, key, reuse);
@@ -361,7 +373,7 @@ export class ConversationService {
   async start(request: StartRequest, attached?: StartAttachments, handoff?: HandoffStart): Promise<{ conversationId: string }> {
     // No composer outlives the quit, so the message is kept for the next start as one held below would be.
     if (this.quitting) {
-      if (!handoff) this.drafts.hold(randomUUID(), { root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), text: request.text, anchors: request.anchors, attachments: request.attachments ?? [] });
+      if (!handoff) this.drafts.hold(this.quitHold(startComposer(request)), { root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), text: request.text, anchors: request.anchors, attachments: request.attachments ?? [] });
       throw new Error("busy");
     }
     const admitted = this.admit(request.root, request.canvas);
@@ -460,6 +472,7 @@ export class ConversationService {
       delete live.project; live.busy = false;
       // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the turn runs
       if (!this.quitting) this.drafts.release(id);
+      else if (!handoff && !this.quitHolds.has(startComposer(request))) this.quitHolds.set(startComposer(request), id);
       this.changed(request.root);
       if (!opening) { this.reservations = releaseReservation(this.reservations, id, "not_spawned"); this.live.delete(id); freeLease(input); }
       else { void live.runner?.close(); }
@@ -473,10 +486,11 @@ export class ConversationService {
   send(id: string, text: string, anchors: Anchor[], extras: SendExtras = {}, attached?: StartAttachments): Promise<void> {
     if (this.live.get(id)?.holding) return Promise.reject(new Error("busy"));
     // Held from here, through the waits before the turn, until accepted or refused, as a start's message is (start).
-    const held = randomUUID();
+    const held = this.quitting ? this.quitHold(`send\0${id}`) : randomUUID();
     this.drafts.hold(held, { conversationId: id, text, anchors, attachments: extras.attachments ?? [] });
     return this.submit(id, text, anchors, extras, attached, held).catch((error: unknown) => {
       if (!this.quitting) this.drafts.release(held);
+      else if (!this.quitHolds.has(`send\0${id}`)) this.quitHolds.set(`send\0${id}`, held);
       throw error;
     });
   }
@@ -818,7 +832,7 @@ export class ConversationService {
     const pendingPermission = [...events].reverse().find(e => e.type === "permission.request" && state.permissions[e.requestId] === "pending");
     // The running turn's last stage, so a renderer that reads again need not wait for the next one; absent otherwise.
     const live = this.live.get(id), stage = live && this.staging(id, live) ? live.stage : undefined;
-    // commands: the command turns and their boundaries, which the record alone does not draw (commandTurns.ts).
+    // commands: the command boundaries, which the record alone does not draw (commandTurns.ts).
     const commands = commandTurns(this.metadata(id).session.runtime, events, this.commandRuns.get(id));
     return { events, lastSeq: state.lastSeq, turn: state.turn, commands, ...(pendingPermission ? { pendingPermission } : {}), ...(stage ? { stage } : {}) };
   }
@@ -1403,7 +1417,10 @@ export class ConversationService {
       if (left) for (const other of others) if (!other.snapshot.some(old => sameCanvas(old, left))) other.taken.push(left);
     } catch (error) { console.error("doan: conversation promotion failed", error); }
     const live = this.live.get(id);
-    if (live?.holding) this.flush(id, live);
+    // A turn the usage limit stopped keeps its queue for the reset, as queueAfterEnd does: the usage read still running
+    // (limitEnded) or the schedule armed for the reset (sendDue) takes it.
+    if (live?.holding && (live.limitLookup || this.schedules.has(id))) this.release(id, live, live.holding);
+    else if (live?.holding) this.flush(id, live);
     else if (live && !live.busy) delete live.project;
     for (const wake of evidence.waiters.splice(0)) wake();
     this.changedOf(id);
