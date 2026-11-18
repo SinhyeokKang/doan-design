@@ -32,6 +32,8 @@ const { ElementMenu, RowList, InspectorPanel, COPY_FAILED } = await import("./In
 const { TooltipContent } = await import("./components/ui/tooltip");
 const { rowDisplay } = await import("./inspectorRows");
 const { Popover } = await import("radix-ui");
+const { toolShortcut } = await import("./canvasTool");
+const { drawn, keydownOn } = await import("./drawnTarget.test-support");
 const { Columns3, Frame, RectangleHorizontal, Type } = await import("lucide-react");
 
 type El = ReactElement<Record<string, unknown>>;
@@ -95,6 +97,14 @@ describe("the element menu", () => {
     expect(content.props).toMatchObject({ side: "bottom", align: "start", sideOffset: 4, "data-ui-variant": "tree" });
     // Radix's own Esc closes it, preventing the default so the selection is not stepped back.
     expect(content.props.onEscapeKeyDown).toBeUndefined();
+  });
+
+  // PRODUCT §5 item 2 'Canvas header': an open menu keeps every printable key, so V, H and Space from a row never
+  // reach the canvas tools.
+  test("V, H and Space pressed on an open menu's row never switch the canvas tool", () => {
+    const rendered = run(ElementMenu, { shown: true, onEscape: noop, view: VIEW, nodes: NODES, tree: source() });
+    const row = drawn([rendered.find(element => element.type === Popover.Content)!, rendered.find(element => element.props.role === "tree")!, items(rendered)[1]!].map(element => element.props));
+    for (const code of ["KeyV", "KeyH", "Space"]) expect(toolShortcut(keydownOn(code, row), { canvasPage: true }), code).toBeNull();
   });
 
   test("rows: depth, guides, kind icons, names, the selection pressed and the one Tab stop", () => {

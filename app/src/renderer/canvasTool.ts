@@ -21,15 +21,27 @@ function interactiveTarget(target: unknown): boolean {
   return typeof role === "string" && CONTROL_ROLES.has(role);
 }
 
+// Every app menu's content carries `doan-menu`, every app list (a frame drawer, the `/` list) is a listbox, and the
+// design presets popover holds its list beside group tabs and a Retry. They exist only while open, so a key from inside
+// one was pressed in an open menu or list. Radix's typeahead prevents nothing, so `defaultPrevented` alone does not
+// catch them; preventing for it would skip that typeahead.
+const OPEN_LIST = '.doan-menu, [role="listbox"], .preset-popover';
+
+function inOpenList(target: unknown): boolean {
+  if (typeof target !== "object" || target === null || !("closest" in target) || typeof target.closest !== "function") return false;
+  return (target as { closest(selector: string): unknown }).closest(OPEN_LIST) !== null;
+}
+
 // By key position (`code`), so a Korean layout's ㅍ and ㅗ still switch tools. A Space release always counts: one
-// pressed on the canvas may be released over the composer, and a held Space must not outlive the key.
+// pressed on the canvas may be released over the composer, and a held Space must not outlive the key. An open menu
+// or list keeps every printable key (PRODUCT §5 item 2 'Canvas header'); a sidebar row that only has focus does not.
 export function toolShortcut(event: ShortcutEvent, context: { canvasPage: boolean }): ToolShortcut | null {
   if (event.type === "keyup") return event.code === "Space" ? { kind: "space", down: false } : null;
   if (event.type !== "keydown") return null;
   const tool = TOOL_KEYS[event.code];
   if (tool === undefined && event.code !== "Space") return null;
   if (!context.canvasPage || event.repeat || event.isComposing || event.keyCode === 229 || event.defaultPrevented) return null;
-  if (event.metaKey || event.ctrlKey || event.altKey || editableTarget(event.target)) return null;
+  if (event.metaKey || event.ctrlKey || event.altKey || editableTarget(event.target) || inOpenList(event.target)) return null;
   if (tool !== undefined) return { kind: "tool", tool };
   return interactiveTarget(event.target) ? null : { kind: "space", down: true };
 }
