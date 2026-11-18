@@ -5,6 +5,8 @@ import { AlertIcon } from "./AlertIcon";
 import { answerRefusal } from "./ConversationThread";
 import { focusAfterStop, stripErrorText, stripSendFailed, type StripAction, type StripSendError, type StripState, type StripView } from "./conversationStrip";
 import { providerLogo } from "./homeComposer";
+import { NameTip } from "./NameTip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 
 interface Props {
   conversationId: string; provider: Provider; state: StripState; view: StripView;
@@ -71,8 +73,8 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
     <span className="strip-agent doan-alert-icon">{mark}</span>
     <span className="strip-main">
       <span key={view.alertKey ?? "status"} className="strip-text" role={view.live}><b>{view.title}</b>
-        {/* A permission request's one ellipsized line is what will run; its tooltip holds the whole of it. */}
-        {view.body && <span title={state.kind === "permission" ? view.body : undefined}>{view.body}</span>}</span>
+        {/* A permission request's one ellipsized line is what will run; the name tooltip shows the whole of it while it is cut. */}
+        {view.body && (state.kind === "permission" ? <NameTip text={view.body}><span>{view.body}</span></NameTip> : <span>{view.body}</span>)}</span>
       {errorText && <span className="strip-error" role="alert"><AlertIcon />{errorText}</span>}
     </span>
     <span className="strip-actions">{view.actions.map(action => {
@@ -80,12 +82,13 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
       // white, since the strip's inset fill is subtle's own grey.
       const variant = action.command === "answer" ? (action.kind === "allow" ? "prominent" : "panel") : action.command === "editOnHome" || action.command === "open" || action.command === "skip" ? "panel" : undefined;
       const key = action.command === "answer" ? `answer-${action.optionId}` : action.command;
-      // data-strip-stop: App focuses Stop after a Home send's move, never a permission answer. The strip has one line for
-      // the request, so what a saving choice adds rides on its button's tooltip (title).
-      return <button key={key} ref={action.command === "stop" ? stopRef : action.command === "dismiss" ? dismiss : undefined} data-strip-stop={action.command === "stop" ? "" : undefined} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={variant}
-        title={action.command === "answer" ? action.detail : undefined} onClick={() => run(action)}>
+      // data-strip-stop: App focuses Stop after a Home send's move, never a permission answer.
+      const button = <button key={key} ref={action.command === "stop" ? stopRef : action.command === "dismiss" ? dismiss : undefined} data-strip-stop={action.command === "stop" ? "" : undefined} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={variant} onClick={() => run(action)}>
         {action.command === "stop" && <CircleStop aria-hidden="true" />}{action.label}
       </button>;
+      // The strip has one line for the request, so what a saving choice adds is in its button's tooltip.
+      return action.command === "answer" && action.detail
+        ? <Tooltip key={key}><TooltipTrigger asChild>{button}</TooltipTrigger><TooltipContent>{action.detail}</TooltipContent></Tooltip> : button;
     })}</span>
   </div>;
 }
