@@ -310,7 +310,10 @@ function withoutHeredocsAndComments(command: string, calls: string[][][]): { tex
   const pending: { tag: string; indented: boolean; quoted: boolean; at: number }[] = [];
   for (let i = 0; i < command.length; i++) {
     const c = command[i]!;
-    if (quote) {
+    // The shell drops a backslash-newline outside single quotes before it splits words, so it joins the lines.
+    if (c === "\\" && command[i + 1] === "\n" && quote !== "'") {
+      i++;
+    } else if (quote) {
       out += c;
       if (c === "\\" && quote === '"') out += command[++i] ?? "";
       else if (c === quote) quote = null;
@@ -536,15 +539,17 @@ const REDIRECT_OPERATOR = /^\d*(?:&>>?|<<<|<<-?|<>|<&|>&|>>|>\||<|>)$/;
 
 // One raw token (quotes still on) to the words the shell makes of it. Single quotes and a backslash keep the next
 // character literal. A variable that is not known here, or a command substitution, is left as written and marks the
-// token unresolved: what the shell would pass there is unknown. A bare `$name` holding several words splits into them,
-// as an unquoted expansion does. The home directory is an unquoted leading `~` (before `/` or the end), `$HOME` outside
-// single quotes while the command line has not assigned HOME, or a variable assigned just one of those.
+// token unresolved: what the shell would pass there is unknown. A bare `$name` holding several words is unresolved too:
+// bash and sh split it into words and zsh, which agents run, passes it as one. The home directory is an unquoted
+// leading `~` (before `/` or the end), `$HOME` outside single quotes while the command line has not assigned HOME, or a
+// variable assigned just one of those.
 function expandToken(raw: string, env: ReadonlyMap<string, string>): Expanded {
   const whole = /^\$(?:(\w+)|\{(\w+)\})$/.exec(raw);
   const name = whole ? whole[1] ?? whole[2]! : undefined;
   const held = name !== undefined ? env.get(name) : undefined;
   if (held !== undefined) {
     const words = held.split(/\s+/).filter(Boolean);
+    if (words.length > 1) return { words: [raw], unresolved: true, homePath: undefined, onlyHome: undefined };
     const home = words.length === 1 ? env.get(HOME_OF + name) : undefined;
     return { words, unresolved: false, homePath: home, onlyHome: home };
   }
@@ -868,7 +873,7 @@ function parse(command: string, state: ReadState, vars = new Map<string, string>
   // An unquoted redirection operator is a token of its own (`2>&1` is not a background `&`), joined with the word
   // after it, its target; heredoc bodies are already gone, so a `<<` takes its tag.
   let operator: string | undefined;
-  // A backslash quotes the next character (`\>` is a word), except a newline, which it joins to the next line.
+  // A backslash quotes the next character (`\>` is a word); withoutHeredocsAndComments has already joined continued lines.
   for (const token of taken.text.matchAll(/\d*(?:&>>?|<<<|<<-?|<>|<&|>&|>>|>\||<|>)|[;&|\n]+|(?:"(?:\\.|[^"\\])*"|'[^']*'|\\[^\n]?|[^\s;&|"'<>\\])+/g)) {
     const value = token[0];
     const separator = /^[;&|\n]+$/.test(value);
