@@ -16,7 +16,7 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| A | task 3–6 | `app/src/renderer/measure.ts`(새 파일)·`measure.test.ts`, `selection.ts`·`selection.test.ts`, `app/src/main/canvasScript.ts`·`canvasScript.test.ts`, `app/src/renderer/CanvasController.ts`·`CanvasController.test.ts`, `styles.css` | 없음 | Opus high — Alt 상태의 단일 근거와 selection/hover seq 순서는 2026-10 postmortem 두 건이 걸린 동시성 영역이다 | task별 검증(tasks.md) + `node .agents/skills/verify/scripts/verify.mjs` | 대기 |
+| A | task 3–6 | `app/src/renderer/measure.ts`(새 파일)·`measure.test.ts`, `selection.ts`·`selection.test.ts`, `app/src/main/canvasScript.ts`·`canvasScript.test.ts`, `app/src/renderer/CanvasController.ts`·`CanvasController.test.ts`, `styles.css` | 없음 | Opus high — Alt 상태의 단일 근거와 selection/hover seq 순서는 2026-10 postmortem 두 건이 걸린 동시성 영역이다 | task별 검증(tasks.md) + `node .agents/skills/verify/scripts/verify.mjs` | 진행 중 (run `run_c6df40ac0eaf`, dispatch `ctx_7aa2de3628be`, worktree `canvas-measure-a`) |
 | A-7 | task 7 | A와 같다 + `.scratch/canvas-measure/`, `docs/design/canvas.md`, `docs/DESIGN.md` 색인 | A 통합 | Opus high — 실제 앱 computed style 비교와 입력 경로 재현 | task 7 검증 | 대기 |
 | 리뷰 | A 리뷰 | 보고만 | A 완료 | Opus high — 같은 동시성 영역 | `/code-review` 🔴 0 | 대기 |
 | C | task 8 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/design/canvas.md`, `docs/BACKLOG.md`, `docs/features/canvas-measure/` 삭제 | A-7 | conductor | task 8 검증 | 대기 |
