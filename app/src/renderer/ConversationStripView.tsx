@@ -70,7 +70,9 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
   return <div className={`convo-strip doan-notice${tone}`} role="region" aria-label="Conversation">
     <span className="strip-agent doan-alert-icon">{mark}</span>
     <span className="strip-main">
-      <span key={view.alertKey ?? "status"} className="strip-text" role={view.live}><b>{view.title}</b>{view.body && <span>{view.body}</span>}</span>
+      <span key={view.alertKey ?? "status"} className="strip-text" role={view.live}><b>{view.title}</b>
+        {/* A permission request's one ellipsized line is what will run; its tooltip holds the whole of it. */}
+        {view.body && <span title={state.kind === "permission" ? view.body : undefined}>{view.body}</span>}</span>
       {errorText && <span className="strip-error" role="alert"><AlertIcon />{errorText}</span>}
     </span>
     <span className="strip-actions">{view.actions.map(action => {

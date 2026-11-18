@@ -63,9 +63,15 @@ test("starting shows a spinner, failed an alert mark and done a check, as the st
 
 test("a permission request is an alert keyed to the request; Allow is drawn prominent but never autofocused", () => {
   const html = render(ASK);
-  expect(html).toContain('<span class="strip-text" role="alert"><b>Claude Code needs your answer</b><span>Edit .doan/canvases/design-system.html</span></span>');
+  // The strip shows the request on one cut line; the whole of it stays readable in the line's tooltip.
+  expect(html).toContain('<span class="strip-text" role="alert"><b>Claude Code needs your answer</b><span title="Edit .doan/canvases/design-system.html">Edit .doan/canvases/design-system.html</span></span>');
   expect(html).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Deny</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Always allow</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="prominent">Allow</button>');
   expect(html).not.toMatch(/autofocus/i);
+});
+
+test("a choice that saves a rule names it in its button's tooltip", () => {
+  const html = render({ ...ASK, options: [{ id: "aa", label: "Allow with suggested permissions", kind: "allowAlways", detail: "Adds the allow rule Edit in this session." }] });
+  expect(html).toContain('data-ui-variant="panel" title="Adds the allow rule Edit in this session.">Allow with suggested permissions</button>');
 });
 
 test("a choice button calls answerConversationPermission with the provider's option, then Stop takes focus", () => {
