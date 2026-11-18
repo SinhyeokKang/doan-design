@@ -43,7 +43,7 @@ const ev = (turnId: string, payload: Record<string, unknown>): ConversationEvent
 
 // What a host passes on every render: new callbacks and a new canvasListed each time, as App's inline arrows are.
 const props = (items: ThreadItem[], patch: Partial<ConversationThreadProps> = {}): ConversationThreadProps => ({
-  conversationId: "c1", items, provider: "claude", project: "acme", liveAfter: 0, canvasListed: canvas => canvas.path !== ".doan/canvases/gone.html",
+  conversationId: "c1", items, provider: "claude", project: "acme", liveAfter: 0, canvasListed: canvas => canvas.path !== ".doan/canvases/gone.html", visibility: { onWindowVisible: () => () => {} },
   onAnswer: () => {}, onStop: () => {}, onEditAndResend: () => {}, onSignIn: () => {}, onRetry: () => {}, onOpenCanvas: () => {}, onOpenLink: () => {},
   onCopy: async () => true, onLocate: async () => "shown", frames: [{ id: "f1", title: "Hero" }], homeDirectory: "/Users/ada", ...patch,
 });
