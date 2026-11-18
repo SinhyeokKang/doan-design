@@ -223,17 +223,17 @@ const row = (rows: InspectRow[], label: string) => {
   return found;
 };
 
-test("rows follow the draft's groups and labels", () => {
+test("rows follow the draft's groups, order and labels", () => {
   const input3 = cases["#c3"];
   if (!input3) throw new Error("no fixture");
   const rows = inspectRows(input3);
   expect(rows.map((r) => [r.group, r.label])).toEqual([
-    ["box", "Width"], ["box", "Height"], ["box", "Padding"], ["box", "Margin"], ["box", "Gap"],
-    ["typography", "Family"], ["typography", "Size"], ["typography", "Line height"], ["typography", "Weight"],
+    ["box", "Padding"], ["box", "Gap"], ["box", "Margin"], ["box", "Width"], ["box", "Height"],
+    ["typography", "Size"], ["typography", "Weight"], ["typography", "Line height"], ["typography", "Family"],
     ["colors", "Text"], ["colors", "Background"], ["colors", "Border"],
     ["radius", "Radius"], ["shadow", "Shadow"],
   ]);
-  expect(row(rows, "Padding")).toMatchObject({ value: "8px 16px", state: "token", token: "--space-2 --space-4" });
+  expect(row(rows, "Padding")).toMatchObject({ value: "8px 16px", state: "token" });
   // Mixed token and literal sides: the worst side decides.
   expect(row(rows, "Margin")).toMatchObject({ value: "8px 0px 12px", state: "hardcoded" });
   expect(row(rows, "Margin").token).toBeUndefined();
@@ -245,6 +245,85 @@ test("rows follow the draft's groups and labels", () => {
   expect(row(rows, "Background")).toMatchObject({ value: "transparent", state: "default" });
   expect(row(rows, "Shadow")).toMatchObject({ value: "none", state: "default" });
   expect(row(rows, "Gap")).toMatchObject({ value: "normal", state: "default" });
+});
+
+test("padding, margin and radius rows carry each side's value and token", () => {
+  const input3 = cases["#c3"];
+  if (!input3) throw new Error("no fixture");
+  const rows = inspectRows(input3);
+  expect(row(rows, "Padding").sides).toEqual([
+    { side: "top", value: "8px", token: "--space-2" },
+    { side: "right", value: "16px", token: "--space-4" },
+    { side: "bottom", value: "8px", token: "--space-2" },
+    { side: "left", value: "16px", token: "--space-4" },
+  ]);
+  expect(row(rows, "Margin").sides).toEqual([
+    { side: "top", value: "8px", token: "--space-2" },
+    { side: "right", value: "0px" },
+    { side: "bottom", value: "12px", token: "--space-3" },
+    { side: "left", value: "0px" },
+  ]);
+  expect(row(rows, "Radius").sides).toEqual([
+    { side: "top-left", value: "6px", token: "--radius" },
+    { side: "top-right", value: "0px" },
+    { side: "bottom-right", value: "6px", token: "--radius" },
+    { side: "bottom-left", value: "0px" },
+  ]);
+  // Other rows are not split.
+  for (const label of ["Gap", "Width", "Border", "Text"]) expect(row(rows, label).sides, label).toBeUndefined();
+});
+
+test("a row's token is one name, set only when every side uses that token", () => {
+  // Different tokens per side: no joined name the renderer could take for one token.
+  const input3 = cases["#c3"];
+  const gaps = cases["#c3b"];
+  if (!input3 || !gaps) throw new Error("no fixture");
+  expect(row(inspectRows(input3), "Padding").token).toBeUndefined();
+  expect(row(inspectRows(gaps), "Gap")).toMatchObject({ state: "token" });
+  expect(row(inspectRows(gaps), "Gap").token).toBeUndefined();
+  expect(row(inspectRows(gaps), "Gap").chain).toBeUndefined();
+  // One token on every side.
+  const computed: Record<string, string> = { "--a": "4px" };
+  for (const side of ["top", "right", "bottom", "left"]) computed[`padding-${side}`] = "4px";
+  const same = row(inspectRows(input([rule(".a", [{ name: "padding", value: "var(--a)" }])], computed)), "Padding");
+  expect(same).toMatchObject({ value: "4px", state: "token", token: "--a" });
+  expect(same.sides?.map((s) => s.token)).toEqual(["--a", "--a", "--a", "--a"]);
+});
+
+const layoutOf = (decls: Decl[], computed: Record<string, string>) =>
+  inspectRows(input([rule(".a", decls)], computed)).filter((r) => r.group === "layout");
+const LAYOUT = { "flex-direction": "row", "flex-wrap": "nowrap", "grid-template-columns": "none", "justify-content": "normal", "align-items": "normal" };
+
+test("layout rows appear only for flex and grid containers", () => {
+  for (const display of ["block", "inline", "inline-block", "contents", "none", "table", ""]) {
+    expect(layoutOf([{ name: "display", value: display }], { ...LAYOUT, display }), display).toEqual([]);
+  }
+  for (const display of ["flex", "inline-flex"]) {
+    expect(layoutOf([{ name: "display", value: display }], { ...LAYOUT, display }).map((r) => r.label), display).toEqual(["Display", "Direction", "Wrap", "Justify", "Align"]);
+  }
+  for (const display of ["grid", "inline-grid"]) {
+    expect(layoutOf([{ name: "display", value: display }], { ...LAYOUT, display }).map((r) => r.label), display).toEqual(["Display", "Columns", "Justify", "Align"]);
+  }
+});
+
+test("layout rows come last and resolve through the same sources", () => {
+  const computed = { ...LAYOUT, display: "grid", "--cols": "1fr 1fr", "--gap": "8px", "grid-template-columns": "120px 120px", "justify-content": "center", "row-gap": "8px", "column-gap": "8px" };
+  const rows = inspectRows(input([rule(".a", [
+    { name: "display", value: "grid" },
+    { name: "grid-template-columns", value: "var(--cols)" },
+    { name: "justify-content", value: "center" },
+    { name: "gap", value: "var(--gap)" },
+  ])], computed));
+  expect([...new Set(rows.map((r) => r.group))]).toEqual(["box", "typography", "colors", "radius", "shadow", "layout"]);
+  expect(row(rows, "Display")).toMatchObject({ group: "layout", value: "grid", state: "hardcoded" });
+  expect(row(rows, "Columns")).toMatchObject({ group: "layout", value: "120px 120px", state: "token", token: "--cols" });
+  expect(row(rows, "Justify")).toMatchObject({ value: "center", state: "hardcoded" });
+  expect(row(rows, "Align")).toMatchObject({ value: "normal", state: "default" });
+  // Gap stays in Box.
+  expect(row(rows, "Gap")).toMatchObject({ group: "box", value: "8px", state: "token", token: "--gap" });
+  const flex = inspectRows(input([rule(".a", [{ name: "display", value: "flex" }, { name: "flex-direction", value: "column" }, { name: "flex-wrap", value: "wrap" }])], { ...LAYOUT, display: "flex", "flex-direction": "column", "flex-wrap": "wrap" }));
+  expect(row(flex, "Direction")).toMatchObject({ value: "column", state: "hardcoded" });
+  expect(row(flex, "Wrap")).toMatchObject({ value: "wrap", state: "hardcoded" });
 });
 
 test("rows carry inheritance, hover state and chains", () => {
@@ -409,5 +488,8 @@ test("a border row with some zero-width sides takes its state from the visible s
     computed[`border-${side}-color`] = side === "top" ? "rgb(255, 0, 0)" : "rgb(0, 0, 255)";
     computed[`border-${side}-width`] = side === "top" || side === "bottom" ? "1px" : "0px";
   }
-  expect(row(inspectRows(input(rules, computed)), "Border")).toMatchObject({ value: "#ff0000 — #0000ff", state: "token", token: "--c" });
+  const border = row(inspectRows(input(rules, computed)), "Border");
+  expect(border).toMatchObject({ value: "#ff0000 — #0000ff", state: "token" });
+  // The visible bottom side has no token, so the row names none.
+  expect(border.token).toBeUndefined();
 });
