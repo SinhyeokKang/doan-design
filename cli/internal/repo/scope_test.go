@@ -239,3 +239,16 @@ func TestScopeWithholdsGitAndEnv(t *testing.T) {
 		t.Fatalf("scope: %#v", got)
 	}
 }
+
+// A serve entry withheld by its written name stays out even when it links to a
+// path that is not withheld, so the scope agrees with `serve_withheld`.
+func TestScopeDropsEntryWithheldByWrittenName(t *testing.T) {
+	root := real(t, t.TempDir())
+	put(t, root, "docs/public/a.css", "")
+	link(t, "docs/public", filepath.Join(root, ".env-docs"))
+	link(t, "docs/public", filepath.Join(root, "web/.git"))
+	config := Config{Serve: []string{".env-docs", "./.ENV-docs/", "web/.git"}}
+	if got := scopeOf(t, root, config); len(got) != 0 {
+		t.Fatalf("scope: %#v", got)
+	}
+}
