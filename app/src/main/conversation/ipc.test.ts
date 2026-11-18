@@ -21,6 +21,26 @@ it("rejects wrong senders, unsaved roots, unlisted canvases and sparse anchors b
     expect(prepare).not.toHaveBeenCalled();
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+// A removed root's start draft must never reach a composer: the registered-root check stands before the service.
+it("answers conversation:takeStartDraft only for a registered root and a well-formed canvas", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-")); const prepare = vi.fn();
+  try {
+    const service = new ConversationService(new ConversationStore(dir), prepare, vi.fn(), () => {});
+    const take = vi.spyOn(service, "takeStartDraft").mockReturnValue(null);
+    const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }]);
+    const canvas = { path: ".doan/canvases/a.html", id: "a" };
+    expect(await handle(false, "takeStartDraft", { root: "/repo" })).toEqual({ error: "bad_request" });
+    expect(await handle(true, "takeStartDraft", { root: 1 })).toEqual({ error: "bad_request" });
+    expect(await handle(true, "takeStartDraft", { root: `/${"r".repeat(5000)}` })).toEqual({ error: "bad_request" });
+    expect(await handle(true, "takeStartDraft", { root: "/repo", canvas: { path: 1 } })).toEqual({ error: "bad_request" });
+    expect(await handle(true, "takeStartDraft", { root: "/missing" })).toEqual({ error: "project_not_open" });
+    expect(await handle(true, "takeStartDraft", { root: "/missing", canvas })).toEqual({ error: "project_not_open" });
+    expect(take).not.toHaveBeenCalled();
+    expect(await handle(true, "takeStartDraft", { root: "/repo" })).toBeNull();
+    expect(await handle(true, "takeStartDraft", { root: "/repo", canvas })).toBeNull();
+    expect(take.mock.calls).toEqual([["/repo", undefined], ["/repo", canvas]]);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
 it("passes a provider runtime install failure through as its own code", async () => {
   const dir = mkdtempSync(join(tmpdir(), "doan-ipc-")); const prepare = vi.fn(async () => { throw new Error("cli_install_failed"); });
   try {

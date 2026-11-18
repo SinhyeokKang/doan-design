@@ -913,3 +913,35 @@ test("the new state a delete leaves follows only a conversation that appears aft
   h.answer([summary(A, { canvas: CART }), summary(D)]);
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: D });
 });
+
+// POSTMORTEM 2026-11-17 'Removing a project or trashing a canvas left state keyed by it behind': a project added again
+// in the same run starts its canvases fresh, as the Overview does (OverviewRun.forgetRoots).
+test("a removed root's canvases keep nothing: added again, a canvas shows its default rather than the earlier choice", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { lastActivityAt: at(1) })]);
+  h.run.select(B);
+  h.run.show(null);
+  h.run.forgetRoots(["/code/other"]);
+  h.run.show(checkout);
+  expect(h.run.view()).toEqual({ kind: "conversation", conversationId: B, notice: null });
+  h.run.show(null);
+  h.run.forgetRoots([ROOT]);
+  h.run.show(checkout);
+  expect(h.run.view()).toEqual({ kind: "conversation", conversationId: A, notice: null });
+});
+
+// Move to Trash reads it (canvasRowMenu trashBlock): main lists a canvas's first conversation only once it accepts it.
+test("a start from the panel is in flight for its canvas only, until main answers", () => {
+  const h = harness();
+  expect(h.run.startingOn(checkout)).toBe(false);
+  const first = h.run.startSending(checkout), second = h.run.startSending(checkout);
+  expect(h.run.startingOn(checkout)).toBe(true);
+  expect(h.run.startingOn({ root: ROOT, canvas: { path: ".doan/canvases/moved.html", id: "checkout" } })).toBe(true);
+  expect(h.run.startingOn(cart)).toBe(false);
+  expect(h.run.startingOn({ root: "/code/other", canvas: CHECKOUT })).toBe(false);
+  first();
+  expect(h.run.startingOn(checkout)).toBe(true);
+  second();
+  expect(h.run.startingOn(checkout)).toBe(false);
+});
