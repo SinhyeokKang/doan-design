@@ -8,7 +8,7 @@ import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGH
 import { switchTarget } from "./switchTarget";
 import { sizeBubblePlay } from "./prototypePlay";
 import { SIZE_BUBBLE, sizeBubblePlace, type BubbleRoom } from "./sizeBubble";
-import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
+import { acceptSelectionMessage, anchorRequest, canvasPx, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, screenToBoard, elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { scaleFactor } from "./zoomControl";
 import { currentFrame } from "./currentFrame";
@@ -18,6 +18,7 @@ import { textCopy } from "./canvasTextCopy";
 import { captureRect } from "./canvasCapture";
 import type { Rect } from "./canvasPicker";
 import { workFrameRect } from "./agentIndicator";
+import { measureLines } from "./measure";
 import { EMPTY_FOLLOW, followDecision, followedFrames, followStopped, markFollowed, type FollowMemory } from "./workFollow";
 
 export const MEASURE_ANSWER_MS = 1000;
@@ -195,6 +196,8 @@ export class CanvasController {
   private markHidden = false;
   private reanchor: AnchorRequest | null = null;
   private marks: { hover: HTMLElement; selected: HTMLElement; size: HTMLElement } | null = null;
+  // The Option-hover measurement's layer and its line elements (each with its label), reused across draws.
+  private measure: { layer: HTMLElement; lines: { line: HTMLElement; label: HTMLElement }[] } | null = null;
   private sentSelection = "null";
   private anchorDocument: string | null = null;
   private anchorGeneration = 0;
@@ -1385,6 +1388,12 @@ export class CanvasController {
     if (document.hasFocus()) return;
     this.releaseInput();
     if (this.metaHeld) this.setMeta(false);
+    // Option released in another app never comes back as a keyup either.
+    if (this.altHeld) {
+      this.altHeld = false;
+      this.sendHoverCommand({ type: "hover-alt", alt: false });
+      this.drawMarks();
+    }
   };
 
   private releaseInput(): void {
@@ -2055,7 +2064,8 @@ export class CanvasController {
   // scale, while the size label (a child of the selection mark, centered
   // under it by CSS) reads canvas px.
   private drawMarks(): void {
-    const hover = this.markHidden || this.altHeld || this.layerShown || this.captureShown || this.textDragging ? null : this.hoverRect;
+    const measured = this.measured();
+    const hover = measured === null && (this.markHidden || this.altHeld || this.layerShown || this.captureShown || this.textDragging) ? null : this.hoverRect;
     const selected = this.markHidden ? null : this.selectedRect;
     // Read before this draw writes any style, so it costs no forced layout.
     const room = selected === null ? null : this.sizeBubbleRoom();
@@ -2082,7 +2092,58 @@ export class CanvasController {
     };
     place(this.marks.hover, hover);
     place(this.marks.selected, selected);
+    this.marks.hover.className = measured === null ? "mark hover" : "mark hover measuring";
+    this.marks.selected.className = measured === null ? "mark selected" : "mark selected measuring";
     this.placeSize(this.marks.size, selected, room);
+    this.drawMeasure(measured);
+  }
+
+  // PRODUCT §5 item 4: Option with a selection measures to the hover target, wherever the hover mark could show
+  // (nothing measures over a pick, the drag or capture layer, a text drag, or anything covering the canvas). altHeld
+  // stays the one source of Option's state (POSTMORTEM 2026-10-23 'Hover stayed hidden across direct reentry and Alt
+  // focus transfer'). Returns the two rects, or null when nothing is measured.
+  private measured(): { selected: CanvasRect; target: CanvasRect } | null {
+    const selected = this.selectedRect;
+    const target = this.hoverRect;
+    if (!this.altHeld || this.markHidden || selected === null || target === null) return null;
+    if (this.layerShown || this.captureShown || this.textDragging || this.state.picking || this.covered || this.overlayOpen()) return null;
+    return { selected, target };
+  }
+
+  // Lines in screen px, so they stay 1px at any zoom; the labels read canvas px.
+  private drawMeasure(measured: { selected: CanvasRect; target: CanvasRect } | null): void {
+    if (measured === null) {
+      if (this.measure !== null) this.measure.layer.hidden = true;
+      return;
+    }
+    if (this.measure === null) {
+      const layer = document.createElement("div");
+      layer.className = "measure";
+      this.overlay.append(layer);
+      this.measure = { layer, lines: [] };
+    }
+    const { layer, lines } = this.measure;
+    layer.hidden = false;
+    const drawn = measureLines(measured.selected, measured.target);
+    drawn.forEach((line, index) => {
+      let element = lines[index];
+      if (element === undefined) {
+        element = { line: document.createElement("div"), label: document.createElement("span") };
+        element.label.className = "measure-label";
+        element.line.append(element.label);
+        layer.append(element.line);
+        lines.push(element);
+      }
+      const horizontal = line.axis === "x";
+      element.line.hidden = false;
+      element.line.className = `measure-line ${horizontal ? "h" : "v"}${line.dashed ? " dashed" : ""}`;
+      element.label.hidden = line.dashed;
+      element.label.textContent = line.dashed ? "" : canvasPx(line.to - line.from);
+      const start = boardToScreen(this.view, horizontal ? { x: line.from, y: line.at } : { x: line.at, y: line.from });
+      const length = `${(line.to - line.from) * this.view.scale}px`;
+      Object.assign(element.line.style, { left: `${start.x}px`, top: `${start.y}px`, width: horizontal ? length : "", height: horizontal ? "" : length });
+    });
+    for (const element of lines.slice(drawn.length)) element.line.hidden = true;
   }
 
   private sizeBubbleRoom(): BubbleRoom {
