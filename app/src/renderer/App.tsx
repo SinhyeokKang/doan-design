@@ -2370,6 +2370,16 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   }, [inspectorPanel.open]);
   // A window narrowed under the inspector's minimum takes the column away; focus inside it goes to Show inspector,
   // which now says why, rather than falling to the page.
+  // Whether the control that last took focus was in the inspector column: the column turns inert in the same commit that
+  // hides it, so by the time an effect runs focus has already fallen to the page, and only this says it was there. Read
+  // when focus arrives, since the control itself may have been redrawn since (a row list read again).
+  const focusInInspector = useRef(false);
+  useEffect(() => {
+    // focusin targets an element (focus on the page itself fires none).
+    const focusin = (event: FocusEvent) => { focusInInspector.current = (event.target as Element | null)?.closest(".doan-insp-column") != null; };
+    document.addEventListener("focusin", focusin);
+    return () => document.removeEventListener("focusin", focusin);
+  }, []);
   // Widening again removes Show inspector; if focus was on it, it goes on to Hide inspector, as unfolding does.
   const inspectorWasShown = useRef(inspectorShown);
   // The Show inspector button that last took focus (the header reports it).
@@ -2380,7 +2390,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (was === inspectorShown || inspectorFocus.current !== null) return;
     const active = document.activeElement;
     if (!inspectorShown) {
-      if (active instanceof HTMLElement && active.closest(".doan-insp-column")) document.querySelector<HTMLElement>('.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]')?.focus();
+      const fell = active === null || active === document.body || (active instanceof HTMLElement && active.closest(".doan-insp-column") !== null);
+      if (fell && focusInInspector.current) document.querySelector<HTMLElement>('.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]')?.focus();
       return;
     }
     const show = inspectorShowFocused.current;

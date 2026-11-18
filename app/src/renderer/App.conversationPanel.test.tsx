@@ -1177,6 +1177,26 @@ describe("the inspector column", () => {
     expect(column()).toMatchObject({ shown: true, width: 320 });
   });
 
+  // Found in the real app: the column turns inert in the same commit that hides it, so focus has already fallen to the
+  // page when App's effect runs; the last control focused inside the column is what says focus was there.
+  test("narrowing the window with focus in the inspector hands focus to Show inspector", async () => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true, width: 320 } });
+    measure(1470);
+    const focusin = (document.addEventListener as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(call => call[0] === "focusin").map(call => call[1] as (event: unknown) => void);
+    expect(focusin.length).toBeGreaterThan(0);
+    // The row is redrawn afterwards (the list read again), so the node that took focus is no longer in the column.
+    let attached = true;
+    const row = { closest: (selector: string) => attached && selector === ".doan-insp-column" ? {} : null };
+    for (const listener of focusin) listener({ target: row });
+    attached = false;
+    const { asked, focus } = focusing();
+    (document as unknown as { activeElement: unknown }).activeElement = (document as unknown as { body: unknown }).body;
+    measure(1100);
+    expect(column()?.shown).toBe(false);
+    expect(asked).toContain('.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]');
+    expect(focus).toHaveBeenCalled();
+  });
+
   // POSTMORTEM 2026-11-13: the narrow window's hand-off put focus on Show inspector; widening again removes that
   // button, so focus goes on to Hide inspector, as unfolding does.
   test("widening again after the narrow window's hand-off gives focus to Hide inspector", async () => {
