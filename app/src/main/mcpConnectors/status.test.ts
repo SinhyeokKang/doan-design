@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
-import { parseClaudeMcpGet, parseCodexMcpList } from "./status";
+import { claudeMcpGetUrl, parseClaudeMcpGet, parseCodexMcpList } from "./status";
 
 // Outputs from the 2026-11-04 PoC (Claude Code 2.1.318, Codex 0.166.0), with the server name set to doan-notion.
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
@@ -17,6 +17,14 @@ test("claude mcp get: Needs authentication, before a first sign-in or after a lo
 test("claude mcp get: Connected reads as registered and signed in", () => {
   expect(parseClaudeMcpGet("doan-notion", fixture("claude-get-connected.txt"), 0)).toEqual({ registered: true, authenticated: true });
   expect(parseClaudeMcpGet("doan-atlassian", fixture("claude-get-atlassian-connected.txt"), 0)).toEqual({ registered: true, authenticated: true });
+});
+
+test("claude mcp get: a registered server's URL is read whatever its status; another block or no URL line gives none", () => {
+  expect(claudeMcpGetUrl("doan-notion", fixture("claude-get-connected.txt"))).toBe("https://mcp.notion.com/mcp");
+  expect(claudeMcpGetUrl("doan-notion", fixture("claude-get-connected.txt").replace("✔ Connected", "✘ Failed to connect"))).toBe("https://mcp.notion.com/mcp");
+  expect(claudeMcpGetUrl("doan-figma", fixture("claude-get-connected.txt"))).toBeNull();
+  expect(claudeMcpGetUrl("doan-notion", fixture("claude-get-unregistered.txt"))).toBeNull();
+  expect(claudeMcpGetUrl("doan-notion", "doan-notion:\n  Type: stdio\n  Command: node\n")).toBeNull();
 });
 
 test("claude mcp get: another server's block, an unknown status, a failed exit or anything else is unreadable", () => {

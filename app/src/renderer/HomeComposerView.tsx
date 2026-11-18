@@ -88,6 +88,8 @@ export function emptyComposer(): ComposerMemory {
 }
 
 const mountsByMemory = new WeakMap<object, Set<() => void>>();
+// What waits for the start in flight to settle, by memory (takeStartDraft's reply below).
+const afterSendByMemory = new WeakMap<object, (() => void)[]>();
 function viewers(memory: { current: ComposerMemory }): Set<() => void> {
   let mounts = mountsByMemory.get(memory);
   if (!mounts) { mounts = new Set(); mountsByMemory.set(memory, mounts); }
@@ -194,6 +196,11 @@ export function HeroComposer(props: HeroComposerProps) {
     const current = memory.current;
     memory.current = { ...current, ...(typeof patch === "function" ? patch(current) : patch) };
     for (const draw of viewers(memory)) draw();
+    if (current.sending && !memory.current.sending) {
+      const waiting = afterSendByMemory.get(memory) ?? [];
+      afterSendByMemory.delete(memory);
+      for (const run of waiting) run();
+    }
   };
   const m = memory.current;
   const sending = m.sending !== null, notice = m.notice;
@@ -514,14 +521,19 @@ export function HeroComposer(props: HeroComposerProps) {
   // A first message a quit stopped before main accepted it, in an earlier run, comes back once after what is typed here,
   // when its project is the picked one; the project's Overview may take it first. Home starts carry no anchors. main
   // hands it over only once, so a reply that comes after another pick picks its project again rather than send it there.
+  // One that comes while a start is out waits for it to settle: that start's success clears only the draft it sent.
+  // A take main answered with an error kept the draft there (preload takeStartDraft): the next pick asks again.
   useEffect(() => {
     if (!root || memory.current.startsAsked.includes(root)) return;
     update(current => ({ startsAsked: [...current.startsAsked, root] }));
-    void window.doan.takeStartDraft({ root }).catch(() => null).then(async reply => {
+    void window.doan.takeStartDraft({ root }).catch(() => ({ error: "unknown" })).then(async reply => {
+      if (reply && "error" in reply) update(current => ({ startsAsked: current.startsAsked.filter(asked => asked !== root) }));
       if (!reply || "error" in reply) return;
       const returned = await draftFrom(window.doan, reply.text, reply.anchors, reply.attachments);
       const body = plainText(returned.segments);
-      update(current => ({ root, text: current.text && body ? `${current.text}\n\n${body}` : current.text || body, preset: current.preset ?? returned.preset, attachments: [...current.attachments, ...returned.attachments] }));
+      const land = () => update(current => ({ root, text: current.text && body ? `${current.text}\n\n${body}` : current.text || body, preset: current.preset ?? returned.preset, attachments: [...current.attachments, ...returned.attachments] }));
+      if (memory.current.sending) afterSendByMemory.set(memory, [...afterSendByMemory.get(memory) ?? [], land]);
+      else land();
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps -- only a newly picked root asks; startsAsked lives in memory, which update writes.
   }, [root]);
@@ -537,6 +549,16 @@ export function HeroComposer(props: HeroComposerProps) {
   const keepDraft = () => { setConfirm(null); queueMicrotask(focusEnd); };
   const apply = (request: LastRequest) => {
     setConfirm(null);
+    // The replaced draft's chips the request does not use go as a chip removed by hand does (removeChip).
+    const kept = new Set(request.attachments.flatMap(a => a.id ? [a.id] : [])), keptKeys = new Set(request.attachments.map(a => a.key));
+    for (const replaced of memory.current.attachments) {
+      const id = replaced.id;
+      if (id && !kept.has(id)) void window.doan.removeAttachment(id).then(() => {
+        if (!Object.values(memory.current.lastIds).some(ids => ids.includes(id))) return window.doan.releaseAttachments([id]);
+      }).catch(console.error);
+      const url = memory.current.thumbnails[replaced.key];
+      if (url && !keptKeys.has(replaced.key) && !Object.values(memory.current.lastKeys).some(keys => keys.includes(replaced.key))) URL.revokeObjectURL(url);
+    }
     // The files are checked again at once (2026-10-29 user): each chip shows checking, then ready or moved.
     const ids = request.attachments.flatMap(a => a.id ? [a.id] : []);
     if (ids.length) void window.doan.recheckAttachments(ids).catch(() => null).then(results => update(current => ({
