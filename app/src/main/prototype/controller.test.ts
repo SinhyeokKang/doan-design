@@ -232,6 +232,23 @@ describe("prototype controller", () => {
     expect(u.calls.filter(call => Array.isArray(call) && call[0] === "snapshot")).toEqual([["snapshot", 2, [1, 2], BOX]]);
   });
 
+  // POSTMORTEM 2026-10-25: an async completion from an earlier window must not publish into the next one.
+  test("a still the closed window took is never re-sent into the next window", async () => {
+    const t = opened();
+    let release: (still: { png: Uint8Array; box: Rect } | null) => void = () => {};
+    t.setCapture(() => new Promise(done => { release = done; }));
+    t.controller.request(PROTOTYPE_CHANNELS.choose, "prototype", { frame: "tablet" });
+    t.controller.request(PROTOTYPE_CHANNELS.close, "prototype", undefined);
+    t.controller.windowClosing();
+    t.controller.play("main", play);
+    release({ png: new Uint8Array([7]), box: BOX });
+    await vi.waitFor(() => expect(t.calls.at(-1)).toEqual(["view", 3, "loading"]));
+    // The new window's loading run is reloaded, which kills it: only a still of this window may stand for it.
+    t.controller.request(PROTOTYPE_CHANNELS.reload, "prototype", { gen: 3 });
+    await vi.waitFor(() => expect(t.calls.at(-1)).toEqual(["view", 4, "loading"]));
+    expect(t.calls.filter(call => Array.isArray(call) && call[0] === "snapshot")).toEqual([]);
+  });
+
   test("Retry of a row doan ls could not read asks the host to read the root again", () => {
     const t = setup();
     t.setEntries([{ path: "/r", kind: "list", canvases: [{ ...proto, error: { code: "read_failed", message: "boom" } }], servedRev: 0 }]);

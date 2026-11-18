@@ -151,8 +151,8 @@ func configPath(root, path string, token bool) (string, *Error) {
 			return "", usageError("Token CSS must be a regular file")
 		}
 	} else {
-		if relative == "." || repo.MetadataPath(relative) || relative == ".git" || strings.HasPrefix(relative, ".git/") {
-			return "", usageError("Serve paths must not be the repository root, .git or inside .git/ or .doan metadata")
+		if relative == "." || repo.MetadataPath(relative) || repo.Withheld(relative) {
+			return "", usageError("Serve paths must not be the repository root, .doan metadata, a .git directory or .env file, or inside one")
 		}
 		if !info.Mode().IsRegular() && !info.IsDir() {
 			return "", usageError("Serve paths must be regular files or directories")

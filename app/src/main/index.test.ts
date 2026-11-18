@@ -104,6 +104,7 @@ const mocks = await vi.hoisted(async () => {
     runtime: { socket: "/tmp/doan-x/app.sock", token: "t", file: "/tmp/doan-index-test/runtime.json", disposeSync: vi.fn() },
     startRuntime: vi.fn(),
     sessionOn: vi.fn(),
+    onBeforeRequest: vi.fn(),
     windowDebugger: { mainFrame: vi.fn(), sessionOf: vi.fn() },
     createWindowDebugger: vi.fn(),
     inspector: { inspect: vi.fn() },
@@ -138,7 +139,7 @@ vi.mock("electron", () => ({
   dialog: mocks.dialog,
   ipcMain: { handle: (channel: string, handler: (...args: unknown[]) => unknown) => mocks.ipc.set(channel, handler) },
   Menu: { buildFromTemplate: mocks.menu, setApplicationMenu: vi.fn() },
-  session: { defaultSession: { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(), setDevicePermissionHandler: vi.fn(), on: mocks.sessionOn } },
+  session: { defaultSession: { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(), setDevicePermissionHandler: vi.fn(), on: mocks.sessionOn, webRequest: { onBeforeRequest: mocks.onBeforeRequest } } },
   webFrameMain: { fromId: vi.fn() },
   webContents: { getFocusedWebContents: () => null },
   nativeTheme: mocks.nativeTheme,
@@ -146,6 +147,12 @@ vi.mock("electron", () => ({
   systemPreferences: { subscribeLocalNotification: (name: string, callback: () => void) => { mocks.notifications.set(name, callback); return mocks.notifications.size; }, getUserDefault: (key: string) => key === "AppleICUForce24HourTime" },
   powerMonitor: { on: vi.fn() },
 }));
+// Conversations' environment names their own runtime file, never the terminal's runtime.json.
+const preparedRuntime = vi.hoisted(() => ({ external: [] as unknown[] }));
+vi.mock("./conversation/prepare", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./conversation/prepare")>();
+  return { ...actual, createPrepare: (...args: Parameters<typeof actual.createPrepare>) => { preparedRuntime.external.push(args[1]); return actual.createPrepare(...args); } };
+});
 vi.mock("./conversation/store", async (importOriginal) => ({ ...await importOriginal<typeof import("./conversation/store")>(), ConversationStore: class { list() { return mocks.conversations; } finishDeletions() {} } }));
 // The fake store makes no conversations directory, so the queue's drafts stay in memory.
 vi.mock("./conversation/drafts", async (importOriginal) => {
@@ -176,7 +183,7 @@ vi.mock("electron-updater", () => ({ MacUpdater: mocks.Updater }));
 vi.mock("./update/service", async (importOriginal) => ({ ...await importOriginal<typeof import("./update/service")>(), hasFeedConfig: mocks.hasFeedConfig }));
 vi.mock("./cli", async (importOriginal) => ({ cliEnv: (await importOriginal<typeof import("./cli")>()).cliEnv, cliCommand: mocks.cliCommand, runConfig: mocks.runConfig, readFolder: mocks.readFolder, runDesignSkill: mocks.runDesignSkill, runExport: mocks.runExport }));
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
-vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
+vi.mock("./runtime", async (importOriginal) => ({ ...await importOriginal<typeof import("./runtime")>(), startRuntime: mocks.startRuntime }));
 vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<typeof import("./addProjects")>(), createAddFlow: mocks.createAddFlow }));
 vi.mock("./windowDebugger", () => ({ createWindowDebugger: mocks.createWindowDebugger }));
 vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
@@ -545,6 +552,11 @@ test("starts the runtime in userData with the open projects", () => {
   expect(runtimeState().selection()).toBeNull();
 });
 
+test("gives app conversations the conversation runtime file", () => {
+  expect(preparedRuntime.external.length).toBeGreaterThan(0);
+  expect(new Set(preparedRuntime.external)).toEqual(new Set(["/tmp/doan-index-test/conversation-runtime.json"]));
+});
+
 test("keeps the selection the window sets, after the schema check", async () => {
   mocks.shell.entries.mockReturnValue([{ path: ROOT }]);
   const contents = window().webContents;
@@ -633,6 +645,15 @@ test("cancels every download in the session", () => {
   const event = { preventDefault: vi.fn() };
   handler(event);
   expect(event.preventDefault).toHaveBeenCalledOnce();
+});
+
+test("keeps the session's requests off loopback listeners other than the canvas server", async () => {
+  const listener = mocks.onBeforeRequest.mock.calls.at(-1)?.[0] as ((details: { url: string }, callback: (response: { cancel: boolean }) => void) => void) | undefined;
+  if (!listener) throw new Error("no onBeforeRequest listener");
+  const request = (url: string) => new Promise<{ cancel: boolean }>((resolve) => listener({ url }, resolve));
+  expect(await request("http://127.0.0.1:1/t/tok/key/.doan/canvases/a.html")).toEqual({ cancel: false });
+  expect(await request("http://127.0.0.1:2/")).toEqual({ cancel: true });
+  expect(await request("http://localhost:1/")).toEqual({ cancel: true });
 });
 
 test("removes the runtime files synchronously on will-quit", () => {

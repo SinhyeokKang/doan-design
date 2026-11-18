@@ -48,13 +48,13 @@ export function stripState(events: readonly ConversationEvent[]): StripState {
   }
   const ask = pending[0];
   if (!terminal && ask) return ask.type === "question.request" ? { kind: "question", requestId: ask.requestId, question: ask.questions[0]?.question ?? "" }
-    : { kind: "permission", requestId: ask.requestId, summary: ask.summary, options: ask.options.map(o => ({ id: o.id, label: o.label, kind: o.kind })) };
+    : { kind: "permission", requestId: ask.requestId, summary: ask.summary, options: ask.options.map(o => ({ id: o.id, label: o.label, kind: o.kind, ...(o.detail ? { detail: o.detail } : {}) })) };
   return state;
 }
 
 export type StripAction =
   | { command: "stop" | "skip" | "editOnHome" | "dismiss" | "open"; label: string }
-  | { command: "answer"; label: string; optionId: string; kind: PermissionOption["kind"] };
+  | { command: "answer"; label: string; optionId: string; kind: PermissionOption["kind"]; detail?: string };
 export interface StripContext { provider: Provider; project: string; branch: string | null; canvas: string | null }
 // live: the strip's own region; a permission request is an alert announced once per alertKey.
 export interface StripView { title: string; body: string | null; live: "status" | "alert"; alertKey: string | null; actions: StripAction[] }
@@ -100,7 +100,7 @@ export function stripView(state: StripState, ctx: StripContext): StripView {
     case "starting": return view(`Starting ${p}`, ctx.branch ? `${ctx.project} · ${ctx.branch}` : ctx.project, [stop]);
     case "working": return view(`${p} is working`, state.activity, [stop]);
     // No option is the default: Allow gets no autofocus or prominence.
-    case "permission": return { title: `${p} needs your answer`, body: state.summary, live: "alert", alertKey: state.requestId, actions: [...state.options.map(o => ({ command: "answer" as const, label: o.label, optionId: o.id, kind: o.kind })), stop] };
+    case "permission": return { title: `${p} needs your answer`, body: state.summary, live: "alert", alertKey: state.requestId, actions: [...state.options.map(o => ({ command: "answer" as const, label: o.label, optionId: o.id, kind: o.kind, ...(o.detail ? { detail: o.detail } : {}) })), stop] };
     // No answer control: the strip only skips or stops.
     case "question": return { title: `${p} needs your answer`, body: state.question, live: "alert", alertKey: state.requestId, actions: [{ command: "skip", label: "Skip" }, stop] };
     case "failed": {

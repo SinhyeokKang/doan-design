@@ -30,7 +30,9 @@ export interface PrototypeWindowDeps {
   // The main window, for the display a new window opens on and to keep its renderer out of a kill.
   mainWindow(): BrowserWindow | undefined;
   // The prototype window closed for any reason; `contents` is its webContents id, which named it as a sender.
-  closed(contents: number): void;
+  // replaced: a Play between its `close` and `closed` already made the next window, so only what this window alone
+  // held (its drafts' attachments) goes; the shared state belongs to the new window.
+  closed(contents: number, replaced: boolean): void;
   // The same permission, device and download denials as the default session.
   denyPermissions(target: Session): void;
   // Read a root's canvas list again (Retry of a row `doan ls` could not read).
@@ -223,7 +225,7 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
     });
     created.on("closed", () => {
       // A Play between this window's `close` and `closed` already made the next window; that one keeps its run.
-      if (window !== created) return;
+      if (window !== created) { deps.closed(contentsId, true); return; }
       // A window that went without `close` (destroyed) still ends its state.
       controller.windowClosing();
       window = undefined;
@@ -231,7 +233,7 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       armed = null;
       runs.clear();
       deps.focusChanged?.(false);
-      deps.closed(contentsId);
+      deps.closed(contentsId, false);
       deps.shownChanged?.();
     });
     const devUrl = process.env.ELECTRON_RENDERER_URL;

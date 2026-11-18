@@ -723,3 +723,21 @@ func TestDoanViewportHeightVariable(t *testing.T) {
 		}
 	})
 }
+
+func TestServeWithheld(t *testing.T) {
+	in := base()
+	in.WithheldServe = []string{"web/.env", ".git"}
+	fs := codes(Run(in), "serve_withheld")
+	if len(fs) != 2 {
+		t.Fatalf("findings: %+v", fs)
+	}
+	for i, target := range []string{".git", "web/.env"} {
+		f := fs[i]
+		if f.Severity != "warning" || f.Path != ".doan/config.json" || f.Target != target || !strings.Contains(f.Message, ".git") || !strings.Contains(f.Message, ".env") {
+			t.Fatalf("finding %d: %+v", i, f)
+		}
+	}
+	if fs := codes(Run(base()), "serve_withheld"); len(fs) != 0 {
+		t.Fatalf("no entry: %+v", fs)
+	}
+}

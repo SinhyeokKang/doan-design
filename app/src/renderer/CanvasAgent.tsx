@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 import type { DotFieldMessage, DotFieldSize } from "./dotField";
 import { crossesBoundary, NoticeTyping, typesOn, type NoticeMoment, type TypedText } from "./noticeTyping";
 import { pickArtist, type BuddyId } from "./buddies";
+import { onDevicePixelRatio } from "./devicePixels";
 
 // The agent indicator on the board while one of this canvas's conversations works or waits (PRODUCT §5 item 2 'Agent indicator',
 // .doan/canvases/doan-canvas.html 'agent-working', 'agent-waiting'). The glow and the dot field take
@@ -215,11 +216,12 @@ export function DotField({ running, start = startDotWorker }: { running: boolean
     };
     const observer = new ResizeObserver(resize);
     observer.observe(node);
+    const ratio = onDevicePixelRatio(resize);
     const restart = () => field.post({ kind: "motion", reduced: motion.matches });
     motion.addEventListener("change", restart);
     scheme.addEventListener("change", recolor);
     return () => {
-      observer.disconnect(); motion.removeEventListener("change", restart); scheme.removeEventListener("change", recolor);
+      observer.disconnect(); ratio(); motion.removeEventListener("change", restart); scheme.removeEventListener("change", recolor);
       port.current = null;
       kept.set(node, { port: field, size, closing: setTimeout(() => { kept.delete(node); field.close(); }, 0) });
     };

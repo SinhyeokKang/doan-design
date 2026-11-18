@@ -35,6 +35,7 @@ func Resolve(root, base, p string) (State, string, error) {
 type Resolver struct {
 	root     string
 	realRoot string
+	rootInfo os.FileInfo
 	spelling spelling
 }
 
@@ -86,7 +87,14 @@ func (r *Resolver) Resolve(base, p string) (State, string, error) {
 		return "", "", err
 	}
 	if outside(rel) {
-		return Outside, "", nil
+		// EvalSymlinks keeps a link target's own spelling, which may name the root in another letter
+		// case or Unicode form (InsideRelative compares disk spellings for the same reason).
+		if rel, err = r.rootAlias(resolved); err != nil {
+			return "", "", err
+		}
+		if rel == "" {
+			return Outside, "", nil
+		}
 	}
 	rel, err = r.spelling.spell(r.realRoot, rel)
 	if err != nil {
@@ -96,6 +104,29 @@ func (r *Resolver) Resolve(base, p string) (State, string, error) {
 		return "", "", err
 	}
 	return Inside, filepath.ToSlash(rel), nil
+}
+
+// rootAlias is resolved relative to the root when its leading segments name the root's own directory
+// in another spelling, or "" otherwise. It compares file identity, not names, so it reads no directory
+// outside the repo and a case-sensitive sibling such as repo beside Repo stays outside.
+func (r *Resolver) rootAlias(resolved string) (string, error) {
+	if r.rootInfo == nil {
+		info, err := os.Stat(r.realRoot)
+		if err != nil {
+			return "", err
+		}
+		r.rootInfo = info
+	}
+	depth := len(strings.Split(r.realRoot, string(filepath.Separator)))
+	parts := strings.Split(resolved, string(filepath.Separator))
+	if len(parts) < depth {
+		return "", nil
+	}
+	info, err := os.Stat(strings.Join(parts[:depth], string(filepath.Separator)))
+	if err != nil || !os.SameFile(info, r.rootInfo) {
+		return "", nil
+	}
+	return filepath.Join(append([]string{"."}, parts[depth:]...)...), nil
 }
 
 // IsMissingPath identifies unusable input paths without hiding permission or I/O failures.

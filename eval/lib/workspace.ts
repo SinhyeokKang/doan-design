@@ -3,7 +3,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, readdirSync, 
 import { delimiter, join, resolve } from "node:path";
 import type { Agent } from "./args.ts";
 import { agentEnvironment, isolateUserInstructions } from "./agent.ts";
-import { CLAUDE_ALLOW_RULES, CODEX_RULE, codexRuleText } from "./codex-rule.ts";
+import { CLAUDE_ALLOW_RULES, CODEX_RULE, evalCodexRuleText } from "./codex-rule.ts";
 import { sh } from "./context.ts";
 import { assertOutsideCheckout } from "./isolate.ts";
 import type { LoadedScenario } from "./scenario.ts";
@@ -94,7 +94,7 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     // Codex runs `doan` outside its workspace-write sandbox only through this rule, as
     // agent setup arranges for users; the app socket is outside that sandbox.
     mkdirSync(join(repo, ".codex/rules"), { recursive: true });
-    writeFileSync(join(repo, CODEX_RULE), codexRuleText());
+    writeFileSync(join(repo, CODEX_RULE), evalCodexRuleText());
     // Project settings keep the terminal-work permissions inside this disposable run.
     writeFileSync(join(repo, ".claude/settings.json"), JSON.stringify({ permissions: { allow: CLAUDE_ALLOW_RULES } }, null, 2) + "\n");
     // -f: a seed .gitignore or the user's global excludes must not keep seed files out of the baseline.

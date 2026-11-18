@@ -81,8 +81,11 @@ func resolveAsset(resolver *repo.Resolver, root string, scope []string, base, hr
 }
 
 // served is the comparison `doan check` uses for css_not_served: equal to or
-// under a scope entry, by path segment.
+// under a scope entry, by path segment, and not held back (repo.Withheld).
 func served(p string, scope []string) bool {
+	if repo.Withheld(p) {
+		return false
+	}
 	for _, s := range scope {
 		if p == s || strings.HasPrefix(p, s+"/") {
 			return true

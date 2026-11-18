@@ -1,10 +1,10 @@
-import { afterEach, expect, it, vi } from "vitest";
-import { closeSync, mkdtempSync, mkdirSync, openSync, readFileSync, realpathSync, rmSync, writeFileSync, symlinkSync } from "node:fs";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { closeSync, ftruncateSync, mkdtempSync, mkdirSync, openSync, readFileSync, realpathSync, rmSync, writeFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 const mocks = vi.hoisted(() => ({ probe: vi.fn(), run: vi.fn() }));
 vi.mock("../onboarding/machine", () => ({ probeShell: mocks.probe, runProcess: mocks.run }));
-import { BUNDLED_CLAUDE_SDK, createAccountPrepare, createPrepare, judgmentCode, routePrepare, type AccountRuntime } from "./prepare";
+import { BUNDLED_CLAUDE_SDK, claudeSessionExists, createAccountPrepare, createPrepare, judgmentCode, routePrepare, type AccountRuntime } from "./prepare";
 import { openFolderStore } from "../folderStore";
 import { initialAuthState } from "../agentAuth/state";
 import type { Lease } from "../agentAuth/manager";
@@ -16,6 +16,7 @@ import { processStart } from "./io";
 import { ConversationService } from "./service";
 import { ConversationStore } from "./store";
 import { DOCK, TERMINAL } from "../launchEnv.fixture";
+import { PROMPT_MS, withFifo } from "../fifo.fixture";
 const paths: string[] = []; afterEach(() => { vi.clearAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 function temp() { const root = realpathSync(mkdtempSync(join(tmpdir(), "doan-prepare-"))); paths.push(root); return root; }
 it("fails closed with a missing installed CLI despite the SDK platform dependency", async () => {
@@ -284,4 +285,32 @@ it("tells a linked Claude session a live registry record cannot vouch for apart 
   const handler = conversationHandler(service, routed, () => [{ path: root, kind: "list", canvases: [canvas] }]);
   expect(await handler(true, "resumeTarget", { root, canvas })).toEqual({ available: false, reason: "session_unverified", runtime: "claude" });
   expect(await handler(true, "start", { root, canvas, mode: "resume", text: "hello" })).toEqual({ error: "session_unavailable" });
+});
+
+// The session's existence is an identity check on its transcript, as claudeTranscript makes it: Claude Code owns the
+// file and bounds nothing, so neither its size nor its bytes can turn an existing session into a missing one.
+describe("claudeSessionExists", () => {
+  const ID = "0f6c1a52-1b8e-4d2b-9a54-6c2d3f4e5a6b";
+  function profile() { const config = temp(), dir = join(config, "projects", "-repo"); mkdirSync(dir, { recursive: true }); return { config, dir }; }
+  it("finds a transcript larger than Doan's own history bound", () => {
+    const { config, dir } = profile();
+    const fd = openSync(join(dir, `${ID}.jsonl`), "w"); try { ftruncateSync(fd, 257 * 1024 * 1024); } finally { closeSync(fd); }
+    expect(claudeSessionExists(config, ID)).toBe(true);
+  });
+  it("finds a transcript with bytes that are not UTF-8", () => {
+    const { config, dir } = profile();
+    writeFileSync(join(dir, `${ID}.jsonl`), Buffer.from([0x7b, 0xff, 0xfe, 0x7d, 0x0a]));
+    expect(claudeSessionExists(config, ID)).toBe(true);
+  });
+  it("finds no session without its transcript, or behind a link, and never waits on a FIFO", async () => {
+    const { config, dir } = profile();
+    expect(claudeSessionExists(config, ID)).toBe(false);
+    const elsewhere = join(temp(), "t.jsonl"); writeFileSync(elsewhere, "{}\n");
+    symlinkSync(elsewhere, join(dir, `${ID}.jsonl`));
+    expect(claudeSessionExists(config, ID)).toBe(false);
+    rmSync(join(dir, `${ID}.jsonl`));
+    const read = await withFifo(join(dir, `${ID}.jsonl`), () => claudeSessionExists(config, ID));
+    expect(read.value).toBe(false);
+    expect(read.ms).toBeLessThan(PROMPT_MS);
+  });
 });
