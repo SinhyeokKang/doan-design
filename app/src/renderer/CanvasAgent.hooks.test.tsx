@@ -325,10 +325,20 @@ describe("DotField lifecycle", () => {
     } finally { media.motion.matches = false; ctx.arc.mockReset(); }
   });
 
+  // A move to a display of another scale changes devicePixelRatio without a CSS resize; the device-pixel box changes.
+  test("the canvas is watched by its device-pixel size, and a new ratio alone gives the Worker a new size", () => {
+    render(field(true), attach);
+    expect(observer.observe).toHaveBeenCalledWith(node, { box: "device-pixel-content-box" });
+    posted = [];
+    (window as unknown as { devicePixelRatio: number }).devicePixelRatio = 1;
+    resize!();
+    expect(posted).toContainEqual({ kind: "size", size: { width: 120, height: 60, ratio: 1 } });
+  });
+
   test("unmount ends the Worker and leaves no observer, media listener or visibility subscription", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     render(field(true), attach);
-    expect(observer.observe).toHaveBeenCalledWith(node);
+    expect(observer.observe).toHaveBeenCalledWith(node, { box: "device-pixel-content-box" });
     const motion = media.motion.addEventListener.mock.calls[0], scheme = media.scheme.addEventListener.mock.calls[0];
     expect(motion?.[0]).toBe("change");
     unmount();

@@ -61,7 +61,7 @@ const gl = {
 class FakeImage { static all: FakeImage[] = []; crossOrigin = ""; src = ""; onload = () => {}; onerror = () => {}; constructor() { FakeImage.all.push(this); } }
 
 let frames: Map<number, (now: number) => void>, nextFrame = 0, clock = 0;
-let resizeObservers: { callback: () => void; nodes: Set<unknown> }[], mutationObservers: { callback: () => void; nodes: unknown[] }[], intersection: (entries: { isIntersecting: boolean }[]) => void;
+let resizeObservers: { callback: () => void; nodes: Set<unknown>; boxes: Map<unknown, unknown> }[], mutationObservers: { callback: () => void; nodes: unknown[] }[], intersection: (entries: { isIntersecting: boolean }[]) => void;
 let page: FakeNode & { body: FakeNode; hidden: boolean; focused: boolean; floating: Rect[] };
 let win: Events & { doan: { onWindowVisible(listener: (visible: boolean) => void): () => void } }, media: Events & { matches: boolean };
 // The native window visibility listeners (closed with the app running, or the app hidden).
@@ -88,7 +88,7 @@ beforeEach(() => {
   vi.stubGlobal("matchMedia", () => media);
   vi.stubGlobal("requestAnimationFrame", (callback: (now: number) => void) => { frames.set(++nextFrame, callback); return nextFrame; });
   vi.stubGlobal("cancelAnimationFrame", (id: number) => { frames.delete(id); });
-  vi.stubGlobal("ResizeObserver", class { nodes = new Set<unknown>(); constructor(public callback: () => void) { resizeObservers.push(this); } observe(node: unknown) { this.nodes.add(node); } unobserve(node: unknown) { this.nodes.delete(node); } disconnect() { this.nodes.clear(); } });
+  vi.stubGlobal("ResizeObserver", class { nodes = new Set<unknown>(); boxes = new Map<unknown, unknown>(); constructor(public callback: () => void) { resizeObservers.push(this); } observe(node: unknown, options?: { box?: string }) { this.nodes.add(node); this.boxes.set(node, options?.box); } unobserve(node: unknown) { this.nodes.delete(node); } disconnect() { this.nodes.clear(); } });
   vi.stubGlobal("MutationObserver", class { nodes: unknown[] = []; constructor(public callback: () => void) { mutationObservers.push(this); } observe(node: unknown) { this.nodes.push(node); } disconnect() { this.nodes = []; } });
   vi.stubGlobal("IntersectionObserver", class { constructor(callback: typeof intersection) { intersection = callback; } observe() {} disconnect() {} });
   vi.spyOn(Date, "now").mockImplementation(() => clock);
@@ -184,6 +184,14 @@ test("StrictMode's double effect and double ref callback leave one context", asy
   expect(gl.made.length).toBe(2);
   // Only the second start's ground is in the page.
   expect(created.filter(node => node.className === "docked-buddy" && node.isConnected).length).toBe(1);
+});
+
+// A move to a display of another scale changes devicePixelRatio without a CSS resize; the device-pixel box changes.
+test("the host is watched by its device-pixel size, so the canvas follows a display of another scale", () => {
+  const env = setup();
+  env.start();
+  expect(resizeObservers.map(observer => observer.boxes.get(env.host())).filter(box => box !== undefined)).toEqual(["device-pixel-content-box"]);
+  env.shell.stop();
 });
 
 test("a 0-wide host (a detached slot) does not resize the canvas", async () => {
@@ -363,6 +371,23 @@ test("stop and a buddy change clear a pending retry, and a late restore event do
   changed.shell.setBuddy("puri");
   expect(vi.getTimerCount()).toBe(0);
   changed.shell.stop();
+});
+
+// An earlier unseen stretch must not leave a later loss free to rebuild at once, while the GPU may still be restarting.
+test("after the buddy was hidden and shown again, a context lost while seen still waits for the GPU", async () => {
+  const env = setup();
+  env.start(); env.frame(); await env.load(); env.run(2);
+  for (const listener of nativeVisible) listener(false);
+  env.run(1);
+  for (const listener of nativeVisible) listener(true);
+  env.run(3);
+  expect(gl.made.length).toBe(1);
+  env.canvas().dispatch("webglcontextlost");
+  env.run(3);
+  expect(gl.made.length).toBe(1);
+  expect(env.host().dataset.state).toBe("static");
+  vi.advanceTimersByTime(1000); env.frame();
+  expect(gl.made.length).toBe(2);
 });
 
 test("a context lost while unseen is rebuilt only once the buddy is seen again", async () => {

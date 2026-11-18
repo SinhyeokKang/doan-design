@@ -75,10 +75,14 @@ function environment(options: { noContext?: boolean; compileFails?: boolean; bud
   vi.stubGlobal("Image", FakeImage);
   vi.stubGlobal("document", page);
   vi.stubGlobal("devicePixelRatio", 1);
+  // Native visibility (a closed window or a hidden app keeps document.hidden false).
+  const native = new Set<(visible: boolean) => void>();
+  vi.stubGlobal("window", { doan: { onWindowVisible: (listener: (visible: boolean) => void) => { native.add(listener); return () => { native.delete(listener); }; } } });
   vi.stubGlobal("matchMedia", (query: string) => { expect(query).toBe("(prefers-reduced-motion: reduce)"); return media; });
   vi.stubGlobal("requestAnimationFrame", (callback: (now: number) => void) => { frames.set(++next, callback); return next; });
   vi.stubGlobal("cancelAnimationFrame", (id: number) => { if (frames.delete(id)) log.push("cancel frame"); });
-  vi.stubGlobal("ResizeObserver", class { constructor(callback: () => void) { resize = callback; } observe() {} disconnect() { log.push("resize disconnect"); } });
+  const observed: unknown[] = [];
+  vi.stubGlobal("ResizeObserver", class { constructor(callback: () => void) { resize = callback; } observe(_node: unknown, options?: unknown) { observed.push(options); } disconnect() { log.push("resize disconnect"); } });
   vi.stubGlobal("IntersectionObserver", class { constructor(callback: typeof intersect) { intersect = callback; } observe() {} disconnect() { log.push("intersect disconnect"); } });
   const makeCanvas = (name: string): FakeCanvas => {
     const listeners = events(log, `canvas`);
@@ -96,7 +100,7 @@ function environment(options: { noContext?: boolean; compileFails?: boolean; bud
   const still = { hidden: false, complete: false, naturalWidth: 0, ...events(log, "still") };
   const canvas = makeCanvas("canvas");
   return {
-    log, record, count, media, page, host, still, canvas, lift, live: () => canvases.at(-1)!,
+    log, record, count, media, page, host, still, canvas, lift, native, observed, live: () => canvases.at(-1)!,
     mount: () => mountBuddy(buddy(options.buddy ?? "doany"), host as unknown as HTMLButtonElement, still as unknown as HTMLImageElement, canvas as unknown as HTMLCanvasElement),
     keep: () => keepBuddy(buddy(options.buddy ?? "doany"), host as unknown as HTMLButtonElement, still as unknown as HTMLImageElement, canvas as unknown as HTMLCanvasElement),
     contexts: () => (record as unknown[][]).filter(call => call[0] === "getContext").length,
@@ -215,6 +219,31 @@ test("a reduced-motion change draws the still pose; hidden or off-screen Doany s
   expect(env.count.draws).toBe(before);
   env.page.hidden = false; env.frame(1100);
   expect(env.count.draws).toBe(before + 2); // two layers
+});
+
+// POSTMORTEM 2026-10-25: a window closed with the app running, or a hidden app, keeps document.hidden false while
+// Chromium still runs its frames; the buddy reads native visibility as every other clock does.
+test("a window that is not natively visible stops the buddy drawing; shown again it draws, and dispose unsubscribes", async () => {
+  const env = environment();
+  const mounted = env.mount();
+  await env.load(); env.frame(1000);
+  expect(env.native.size).toBe(1);
+  const before = env.count.draws;
+  for (const listener of env.native) listener(false);
+  env.frame(1020); env.frame(1040);
+  expect(env.count.draws).toBe(before);
+  for (const listener of env.native) listener(true);
+  env.frame(1060);
+  expect(env.count.draws).toBe(before + 2); // two layers
+  mounted.dispose();
+  expect(env.native.size).toBe(0);
+});
+
+// A move to a display of another scale changes devicePixelRatio without a CSS resize; the device-pixel box changes.
+test("the canvas is sized again when its device-pixel size changes, as on a display of another scale", () => {
+  const env = environment();
+  env.mount();
+  expect(env.observed).toEqual([{ box: "device-pixel-content-box" }]);
 });
 
 test("the pointer anywhere in the window turns the gaze", async () => {
