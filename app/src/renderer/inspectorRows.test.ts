@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
-import type { InspectRow } from "../main/inspect";
-import { acceptInspect, inspectRequestFor, NO_STYLES, rowCopyText, rowDisplay, rowKey, rowTooltip, type InspectFlight, type InspectPanel, type InspectReply, type InspectTarget, type RowView } from "./inspectorRows";
+import { inspectRows, type InspectInput, type InspectRow } from "../main/inspect";
+import fixture from "../main/inspect.fixture.json";
+import { acceptInspect, inspectRequestFor, NO_STYLES, rowCopyText, rowDisplay, rowKey, rowTooltip, SPLIT_ROWS, type InspectFlight, type InspectPanel, type InspectReply, type InspectTarget, type RowView } from "./inspectorRows";
 
 // Hand-made resolver rows: on Padding, Margin and Radius the resolver lists each side in `sides` and sets `token` only
 // when every side shares that one token.
@@ -20,6 +21,15 @@ test("each row has a stable group:property key", () => {
   expect(rowKey({ group: "colors", label: "Background" })).toBe("colors:background");
   expect(rowKey({ group: "layout", label: "Columns" })).toBe("layout:columns");
   expect(only([row({ group: "box", label: "Gap", value: "12px" })]).key).toBe("box:gap");
+});
+
+test("the split rows are the rows main's resolver splits by side or corner", () => {
+  // Real resolver output: a label renamed, or `sides` added to another row in main, fails here rather than dropping
+  // the side wording in the panel.
+  for (const [name, input] of Object.entries(fixture as unknown as Record<string, InspectInput>)) {
+    const split = inspectRows(input).filter(r => r.sides !== undefined).map(rowKey);
+    expect(new Set(split), name).toEqual(SPLIT_ROWS);
+  }
 });
 
 test("a token row shows its chip, copies the token and has the computed value first in its tooltip", () => {
