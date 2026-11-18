@@ -56,13 +56,16 @@ const AGENT_WRITES: Record<Provider, AgentWrites> = {
     files: [".claude.json", ".credentials.json", "history.jsonl", "stats-cache.json", "mcp-needs-auth-cache.json", ".last-cleanup"] },
   // codex-cli 0.169.0 (isolated CODEX_HOME): the Codex process itself writes these, and runs inside this fence only in
   // Full access; tmp/ holds the arg0 aliases it puts on PATH, and .tmp both a folder and the temporary files it renames
-  // onto a root file (.sandbox_migration). Its SQLite databases carry a version in their names.
+  // onto a root file (.sandbox_migration). Its SQLite databases carry a version in their names. Its login lives in the
+  // keyring (providers.ts), so only auth.json's locks are written.
   codex: { folder: "", dirs: ["sessions", "archived_sessions", "shell_snapshots", "memories", "tmp", "cache", "log", "thread-writer-locks"],
-    files: [".tmp", "installation_id", ".sandbox_migration", "models_cache.json", "auth.json", "auth.lock"], pattern: "\\.sqlite[^/]*$" },
+    files: [".tmp", "installation_id", ".sandbox_migration", "models_cache.json", "auth.json.lock", "auth.lock"], pattern: "\\.sqlite[^/]*$" },
   // Copilot 1.0.105 (dedicated HOME: version, status and an ACP session) and a signed-in profile's entries.
   copilot: { folder: ".copilot", dirs: ["session-state", "logs", "plugin-data"], files: ["config.json", "settings.json", "session-store.db"] },
-  // Cursor 2026.10.22 (dedicated HOME: version, status and an ACP session) and a signed-in profile's entries.
-  cursor: { folder: ".cursor", dirs: ["acp-sessions", "ai-tracking"], files: ["cli-config.json", "statsig-cache.json", "agent-cli-state.json", "auth.json"] },
+  // Cursor 2026.10.22 (dedicated HOME: version, status and an ACP session) and a signed-in profile's entries. Its
+  // cli-config.json stays closed: it holds the permission allow list a later conversation runs under, which Cursor's own
+  // sandbox protects as well, and Cursor runs without writing it (probe).
+  cursor: { folder: ".cursor", dirs: ["acp-sessions", "ai-tracking"], files: ["statsig-cache.json", "agent-cli-state.json", "auth.json"] },
   // The Antigravity ACP server 1.3.0, from a signed-in profile's entries and their times (no isolated probe: the server
   // runs only signed in). Its config/ holds per-conversation databases named by a UUID beside the memory, skills,
   // workflows and MCP and hook files.

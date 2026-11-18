@@ -56,10 +56,10 @@ describe.runIf(usable)("the outer fence's writes in the agent's folder", () => {
   it("lets Codex write its stores and caches and none of its instruction or settings files", () => {
     expectWrites("codex", [
       "sessions/2026/11/19/rollout-a.jsonl", "archived_sessions/a.jsonl", "shell_snapshots/a.sh", "memories/a.md", "tmp/arg0/codex-arg0Ab/apply_patch", ".tmp/plugins.sync.lock", ".tmpAb12Cd",
-      "cache/codex_apps_tools", "log/codex-tui.log", "thread-writer-locks/.coordination.lock", "installation_id", ".sandbox_migration", "models_cache.json", "auth.json", "auth.json.lock", "auth.lock",
+      "cache/codex_apps_tools", "log/codex-tui.log", "thread-writer-locks/.coordination.lock", "installation_id", ".sandbox_migration", "models_cache.json", "auth.json.lock", "auth.lock",
       "state_5.sqlite", "state_5.sqlite-wal", "thread_history_1.sqlite-shm", "goals_2.sqlite", ".sqlite-maintenance.lock",
     ], [
-      "AGENTS.md", "AGENTS.override.md", "config.toml", "hooks.json", "managed_config.toml", ".env", "rules/doan.rules", "prompts/a.md", "skills/a/SKILL.md", "plugins/a/plugin.json", "x",
+      "AGENTS.md", "AGENTS.override.md", "auth.json", "config.toml", "hooks.json", "managed_config.toml", ".env", "rules/doan.rules", "prompts/a.md", "skills/a/SKILL.md", "plugins/a/plugin.json", "x",
     ]);
   });
   // Copilot 1.0.105 (dedicated HOME, version, status and an ACP session): its session state and store, logs, the
@@ -73,13 +73,14 @@ describe.runIf(usable)("the outer fence's writes in the agent's folder", () => {
     ]);
   });
   // Cursor 2026.10.22 (dedicated HOME, version, status and an ACP session; a signed-in profile adds its sessions and
-  // tracking): its ACP sessions, state, caches and login.
+  // tracking): its ACP sessions, state, caches and login. cli-config.json holds its permission allow list, which Cursor's
+  // own sandbox protects too; Cursor starts and opens its ACP server without writing it (probe).
   it("lets Cursor write its sessions, state and login and none of its rules, skills, hooks or MCP files", () => {
     expectWrites("cursor", [
-      ".cursor/acp-sessions/1b9d.json", ".cursor/ai-tracking/a.db", ".cursor/cli-config.json", ".cursor/statsig-cache.json", ".cursor/agent-cli-state.json", ".cursor/auth.json",
+      ".cursor/acp-sessions/1b9d.json", ".cursor/ai-tracking/a.db", ".cursor/statsig-cache.json", ".cursor/agent-cli-state.json", ".cursor/auth.json",
       "Library/Caches/cursor-compile-cache/a",
     ], [
-      ".cursor/rules/a.mdc", ".cursor/mcp.json", ".cursor/hooks.json", ".cursor/skills/a/SKILL.md", ".cursor/skills-cursor/a/SKILL.md", ".cursor/agents/a.md", ".cursor/commands/a.md",
+      ".cursor/cli-config.json", ".cursor/rules/a.mdc", ".cursor/mcp.json", ".cursor/hooks.json", ".cursor/skills/a/SKILL.md", ".cursor/skills-cursor/a/SKILL.md", ".cursor/agents/a.md", ".cursor/commands/a.md",
       ".cursor/plugins/a/plugin.json", ".cursor/sandbox.json", ".cursor/x",
     ]);
   });
