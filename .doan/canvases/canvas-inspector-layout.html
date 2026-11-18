@@ -263,7 +263,10 @@ const ICON = {
   check: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>',
   alert: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert doan-alert-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg>',
 };
-const GROUPS = [["layout", "Layout"], ["box", "Box"], ["typography", "Typography"], ["colors", "Colors"], ["radius", "Radius"], ["shadow", "Shadow"]];
+// Ordered by what the person asks first: spacing, then type, colour, corners, shadow; layout last.
+const GROUPS = [["box", "Box"], ["typography", "Typography"], ["colors", "Colors"], ["radius", "Radius"], ["shadow", "Shadow"], ["layout", "Layout"]];
+const ROW_ORDER = ["Padding", "Gap", "Margin", "Width", "Height", "Size", "Weight", "Line height", "Family", "Text", "Background", "Border", "Radius", "Shadow", "Display", "Direction", "Columns", "Wrap", "Justify", "Align"];
+const rank = row => { const i = ROW_ORDER.indexOf(row.label); return i < 0 ? ROW_ORDER.length : i; };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 // T: token row; H: hardcoded; D: default.
 const r = (group, label, value, extra = {}) => ({ group, label, value, state: "token", ...extra });
@@ -294,21 +297,21 @@ const DATA = {
     D("radius", "Radius", "0"), D("shadow", "Shadow", "none"),
   ] },
   "Pay button": { kind: "Element · button", rows: [
-    D("box", "Width", "342px"), H("box", "Height", "52px"), D("box", "Padding", "0"), H("box", "Margin", "8px 0 0"), D("box", "Gap", "normal"),
+    D("box", "Width", "342px"), H("box", "Height", "52px"), D("box", "Padding", "0"), H("box", "Margin", "Top 8px", { sides: "Top 8px, right 0, bottom 0, left 0" }), D("box", "Gap", "normal"),
     T("typography", "Family", FAMILY, "--font-sans", { chain: ["--font-sans", "--font-inter"] }), T("typography", "Size", "16px", "--text-label"), H("typography", "Line height", "22px"), H("typography", "Weight", "600"),
     T("colors", "Text", "#ffffff", "--color-on-brand", { swatch: "--mock-brand-ink" }), T("colors", "Background", "#4f46e5", "--color-brand", { swatch: "--mock-brand" }), D("colors", "Border", "—"),
     T("radius", "Radius", "10px", "--radius-md"), D("shadow", "Shadow", "none")
   ] },
   "Header": { kind: "Element · header", rows: [
     H("layout", "Display", "flex"), D("layout", "Direction", "row"), D("layout", "Wrap", "nowrap"), D("layout", "Justify", "normal"), H("layout", "Align", "center"),
-    D("box", "Width", "342px"), D("box", "Height", "40px"), r("box", "Padding", "0 0 8px", { state: "unknown" }), D("box", "Margin", "0"), H("box", "Gap", "12px"),
+    D("box", "Width", "342px"), D("box", "Height", "40px"), H("box", "Padding", "Bottom 8px", { sides: "Top 0, right 0, bottom 8px, left 0" }), D("box", "Margin", "0"), H("box", "Gap", "12px"),
     T("typography", "Family", FAMILY, "--font-sans", { chain: ["--font-sans", "--font-inter"], inherited: "Payment" }), T("typography", "Size", "15px", "--text-body", { inherited: "Payment" }), T("typography", "Line height", "22px", "--leading-body", { inherited: "Payment" }), D("typography", "Weight", "400"),
     T("colors", "Text", "#111827", "--color-ink", { swatch: "--mock-ink", inherited: "Payment" }), D("colors", "Background", "transparent", { swatch: "transparent" }), D("colors", "Border", "—"),
     D("radius", "Radius", "0"), D("shadow", "Shadow", "none"),
   ] },
   // Long content for the states frame.
   "Promotional banner for the autumn checkout campaign": { kind: "Element · section", rows: [
-    H("box", "Padding", "20px 24px"), H("box", "Width", "302px"),
+    H("box", "Padding", "20px 24px", { sides: "Top and bottom 20px, left and right 24px" }), H("box", "Width", "302px"),
     T("typography", "Family", "“SF Pro Display”, Inter, -apple-system, BlinkMacSystemFont, “Segoe UI”, Roboto, “Helvetica Neue”, sans-serif", "--font-display", { chain: ["--font-display", "--font-brand-display", "--font-system-display"] }),
     T("colors", "Background", "#f3f4f6", "--color-surface-elevated-accent-subtle-hover", { swatch: "--mock-fill" }),
     H("shadow", "Shadow", "0 1px 2px #1118270f, 0 8px 24px #1118271f, 0 0 0 1px #11182714")
@@ -360,7 +363,7 @@ function rowsHTML(rows, view, opts) {
   let tab = 0;
   return GROUPS.map(([g, title]) => {
     // The list holds what the canvas sets; browser defaults are left out.
-    const list = rows.filter(row => row.group === g && row.state !== "default");
+    const list = rows.filter(row => row.group === g && row.state !== "default").sort((a, b) => rank(a) - rank(b));
     if (!list.length) return "";
     return `<section class="doan-insp-group" aria-label="${title}"><h3 class="doan-insp-group-title">${title}</h3>${list.map(row => {
       const k = key(row), focus = opts.focus ? opts.focus === k : tab++ === 0;
@@ -371,7 +374,7 @@ function rowsHTML(rows, view, opts) {
       // A token's tooltip answers "what is it?": the computed value first, then an alias chain if there is one.
       // One tooltip, on the row: a token's computed value first, then its alias chain; "Inherited from …" on any
       // inherited row. A cut name or value adds its full text first (fullTips, after drawing).
-      const tip = [row.token ? row.value : "", row.chain ? row.chain.join(" → ") : "", from].filter(Boolean).join("\n");
+      const tip = [row.token ? row.value : "", row.chain ? row.chain.join(" → ") : "", row.sides ?? "", from].filter(Boolean).join("\n");
       const spoken = [row.label, row.value, row.token ? `token ${row.token}` : ""].filter(Boolean).join(", ");
       return `<button type="button" class="doan-insp-row${opts.focus === k ? " focus" : ""}" data-key="${k}" data-copy="${esc(copyText(row))}" tabindex="${focus ? 0 : -1}" aria-label="${esc(spoken)}" aria-describedby="insp-copy-hint"${tip ? ` title="${esc(tip)}"` : ""}>${label}<span class="doan-insp-value">${valueHTML(row, view, opts)}</span></button>`;
     }).join("")}</section>`;
