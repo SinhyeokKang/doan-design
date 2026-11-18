@@ -107,8 +107,10 @@ test("sends the selection to main on its dedicated IPC channel", async () => {
   expect(mocks.invoke).toHaveBeenNthCalledWith(2, "selection:set", null);
 });
 
-test("exposes no inspector API, since the Inspector was removed", () => {
-  expect(Object.keys(api)).not.toContain("inspect");
+test("inspect sends the request to inspect:get as it is", async () => {
+  const request = { selector: "#a", canvas: { root: ROOT, path: ".doan/canvases/a.html" }, seq: 2 };
+  await api.inspect(request);
+  expect(mocks.invoke).toHaveBeenCalledWith("inspect:get", request);
 });
 
 test("project setup exposes choice IDs and forwards focus with folder state", async () => {

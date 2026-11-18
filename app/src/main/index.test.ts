@@ -104,8 +104,10 @@ const mocks = await vi.hoisted(async () => {
     runtime: { socket: "/tmp/doan-x/app.sock", token: "t", file: "/tmp/doan-index-test/runtime.json", disposeSync: vi.fn() },
     startRuntime: vi.fn(),
     sessionOn: vi.fn(),
-    windowDebugger: { mainFrame: vi.fn() },
+    windowDebugger: { mainFrame: vi.fn(), sessionOf: vi.fn() },
     createWindowDebugger: vi.fn(),
+    inspector: { inspect: vi.fn() },
+    createInspector: vi.fn(),
     mkdir: vi.fn(),
     readCompletion: vi.fn(), clipboard: { writeText: vi.fn() }, cursor: vi.fn(() => ({ x: 0, y: 0 })),
     menu: vi.fn<(template: MenuItemConstructorOptions[]) => unknown>(),
@@ -177,6 +179,7 @@ vi.mock("./shell", () => ({ startShell: mocks.startShell }));
 vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
 vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<typeof import("./addProjects")>(), createAddFlow: mocks.createAddFlow }));
 vi.mock("./windowDebugger", () => ({ createWindowDebugger: mocks.createWindowDebugger }));
+vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
 vi.mock("./uiState", () => ({ createUiStateStore: mocks.createUiStateStore }));
 // The first tool-facts probe and the usage service's triggers, observed where index.ts wires them.
 const usageProbe = vi.hoisted(() => ({ read: undefined as undefined | (() => Promise<unknown>), triggers: [] as unknown[] }));
@@ -253,6 +256,8 @@ beforeEach(async () => {
   mocks.startShell.mockResolvedValue(mocks.shell);
   mocks.startRuntime.mockResolvedValue(mocks.runtime);
   mocks.createWindowDebugger.mockReturnValue(mocks.windowDebugger);
+  mocks.createInspector.mockReturnValue(mocks.inspector);
+  mocks.inspector.inspect.mockResolvedValue({ ok: true, rows: [] });
   mocks.app.requestSingleInstanceLock.mockReturnValue(true);
   mocks.app.isActive.mockReturnValue(true);
   mocks.shell.entries.mockReturnValue([]);
@@ -677,8 +682,46 @@ test("creates one window debugger on the window's debugger, feeding the document
   expect(documents).toBeDefined();
 });
 
-test("inspect:get is no longer handled", () => {
-  expect(mocks.ipc.has(["inspect", "get"].join(":"))).toBe(false);
+test("creates one inspector on the window's debugger and window debugger, finding listed canvases' URLs", () => {
+  expect(mocks.createInspector).toHaveBeenCalledOnce();
+  const [deps] = mocks.createInspector.mock.calls[0] ?? [];
+  const { debugger: debuggerArg, window: windowArg, documents, canvasUrl } = deps as { debugger: unknown; window: unknown; documents: unknown; canvasUrl: (canvas: { root: string; path: string }) => string | null };
+  expect(debuggerArg).toBe(window().webContents.debugger);
+  expect(windowArg).toBe(mocks.windowDebugger);
+  // The same bindings that prove which canvas the page shows.
+  expect(documents).toBe(mocks.createWindowDebugger.mock.calls[0]?.[1]);
+  const url = "http://127.0.0.1:1/t/tok/k/.doan/canvases/a.html";
+  mocks.shell.entries.mockReturnValue([
+    { path: "/repo", kind: "list", canvases: [{ path: ".doan/canvases/a.html", url }], servedRev: 0 } as { path: string; kind?: string },
+    { path: "/other", kind: "uninitialized" },
+  ]);
+  expect(canvasUrl({ root: "/repo", path: ".doan/canvases/a.html" })).toBe(url);
+  expect(canvasUrl({ root: "/repo", path: ".doan/canvases/missing.html" })).toBeNull();
+  expect(canvasUrl({ root: "/other", path: ".doan/canvases/a.html" })).toBeNull();
+  expect(canvasUrl({ root: "/unlisted", path: ".doan/canvases/a.html" })).toBeNull();
+});
+
+const INSPECT = { selector: "#a", canvas: { root: "/repo", path: ".doan/canvases/a.html" }, seq: 4 };
+
+test("inspect:get answers the window with the inspector's result for the parsed request", async () => {
+  const rows = [{ group: "box", label: "Width", value: "10px", state: "hardcoded" }];
+  mocks.inspector.inspect.mockResolvedValueOnce({ ok: true, rows });
+  // The reply echoes the request it answers.
+  expect(await invoke("inspect:get", window().webContents, null, INSPECT)).toEqual({ ...INSPECT, ok: true, rows });
+  expect(mocks.inspector.inspect).toHaveBeenCalledExactlyOnceWith(INSPECT);
+  mocks.inspector.inspect.mockResolvedValueOnce({ ok: false, reason: "not-shown" });
+  expect(await invoke("inspect:get", window().webContents, null, INSPECT)).toEqual({ ...INSPECT, ok: false, reason: "not-shown" });
+});
+
+test("inspect:get refuses other senders and bad requests without inspecting", async () => {
+  const contents = window().webContents;
+  // A canvas iframe (a frame with a parent) and a sender that is not a registered window.
+  expect(await invoke("inspect:get", contents, {}, INSPECT)).toEqual({ ok: false, reason: "unavailable" });
+  expect(await invoke("inspect:get", {}, null, INSPECT)).toEqual({ ok: false, reason: "unavailable" });
+  for (const bad of [undefined, "#a", { selector: "#a" }, { ...INSPECT, selector: "" }, { ...INSPECT, selector: "a".repeat(1001) }, { ...INSPECT, more: 1 }, { ...INSPECT, canvas: { root: "/repo" } }, { ...INSPECT, seq: -1 }]) {
+    expect(await invoke("inspect:get", contents, null, bad)).toEqual({ ok: false, reason: "unavailable" });
+  }
+  expect(mocks.inspector.inspect).not.toHaveBeenCalled();
 });
 
 describe("design skills", () => {

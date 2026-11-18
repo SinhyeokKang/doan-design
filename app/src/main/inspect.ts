@@ -37,7 +37,11 @@ export interface InspectRow {
   sides?: InspectSide[];
 }
 
-export type InspectResult = { ok: true; rows: InspectRow[] } | { ok: false; reason: string };
+// not-shown: the window does not show the requested canvas document (a switch or reload raced the request).
+// not-found: the shown document has no node for the selector. unavailable: the debugger is not attached, a command
+// failed, or the read ran out of time.
+export type InspectFailure = "not-shown" | "not-found" | "unavailable";
+export type InspectResult = { ok: true; rows: InspectRow[] } | { ok: false; reason: InspectFailure };
 
 // The subset of CDP types read here.
 export interface CdpProperty {

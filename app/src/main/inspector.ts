@@ -1,3 +1,13 @@
+import type { DocumentBindings, LoadedDocument } from "./document/bindings";
+import { inspectRows, type InspectResult, type MatchedStyles } from "./inspect";
+import { shownDocument } from "./seenProof";
+import type { DebuggerLike, WindowDebugger } from "./windowDebugger";
+
+// Inspector values come from CDP on the main window's debugger, not from the canvas script: CDP also sees sheets a
+// canvas CSP or a CDN without CORS hides from the page. The document must be the one the window shows (the read-state
+// proof, seenProof.ts), and commands go only to the session that owns its frame now (WindowDebugger.sessionOf).
+
+const BUDGET_MS = 2000;
 // The cap is the selector cap of the canvas messages (UTF-16 units, as `String.length` counts).
 const SELECTOR_LIMIT = 1000;
 
@@ -24,4 +34,105 @@ export function parseInspectRequest(value: unknown): InspectRequest | null {
   if (!exactKeys(canvas, ["root", "path"]) || !text(canvas.root) || !text(canvas.path)) return null;
   if (typeof seq !== "number" || !Number.isSafeInteger(seq) || seq < 0) return null;
   return { selector, canvas: { root: canvas.root, path: canvas.path }, seq };
+}
+
+export interface InspectorDeps {
+  debugger: Pick<DebuggerLike, "sendCommand">;
+  // Its mainFrame() also attaches again after a detach or a failed attach.
+  window: Pick<WindowDebugger, "mainFrame" | "sessionOf">;
+  documents: Pick<DocumentBindings, "frames" | "current">;
+  // The listed canvas row's URL, or null when the canvas is not listed.
+  canvasUrl(canvas: { root: string; path: string }): string | null;
+}
+
+// The reply carries the request it answers, so the renderer can drop one that a newer request or selection overtook.
+export type InspectReply = InspectRequest & InspectResult;
+
+export interface Inspector {
+  inspect(request: InspectRequest): Promise<InspectResult>;
+}
+
+interface DomNode {
+  nodeId: number;
+  nodeType: number;
+  localName: string;
+  children?: DomNode[];
+}
+
+// Element tag names above `nodeId`, nearest first, matching CDP's `inherited[]`.
+function ancestorsOf(root: DomNode, nodeId: number): string[] {
+  const walk = (node: DomNode, above: string[]): string[] | null => {
+    if (node.nodeId === nodeId) return above;
+    const next = node.nodeType === 1 ? [node.localName, ...above] : above;
+    for (const child of node.children ?? []) {
+      const found = walk(child, next);
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(root, []) ?? [];
+}
+
+const failed = (reason: "not-shown" | "not-found" | "unavailable"): InspectResult => ({ ok: false, reason });
+
+export function createInspector(deps: InspectorDeps): Inspector {
+  // Requests run one at a time: each one turns DOM and CSS off when it ends, which would break another request still
+  // reading the same session.
+  let queue: Promise<unknown> = Promise.resolve();
+
+  const shownNow = (main: string, canvas: InspectRequest["canvas"]): LoadedDocument | null => {
+    const url = deps.canvasUrl(canvas);
+    if (url === null) return null;
+    return shownDocument(deps.documents.frames(), (frame, at) => deps.documents.current(frame, at), main, { url, ...canvas });
+  };
+
+  const run = async ({ selector, canvas }: InspectRequest): Promise<InspectResult> => {
+    const main = await deps.window.mainFrame();
+    if (main === null) return failed("unavailable");
+    const shown = shownNow(main, canvas);
+    if (shown === null) return failed("not-shown");
+    const session = deps.window.sessionOf(shown.frame);
+    if (session === null) return failed("unavailable");
+    // What was read belongs to the requested canvas only if the same document and session are still current.
+    const still = () => {
+      const now = shownNow(main, canvas);
+      return now !== null && now.frame === shown.frame && now.generation === shown.generation && deps.window.sessionOf(shown.frame) === session;
+    };
+    const send = (method: string, params: object = {}) => deps.debugger.sendCommand(method, params, session);
+    try {
+      await send("DOM.enable");
+      await send("CSS.enable");
+      const { root } = (await send("DOM.getDocument", { depth: -1 })) as { root: DomNode };
+      const { nodeId } = (await send("DOM.querySelector", { nodeId: root.nodeId, selector })) as { nodeId: number };
+      if (!nodeId) return failed(still() ? "not-found" : "not-shown");
+      const [matched, computed] = await Promise.all([
+        send("CSS.getMatchedStylesForNode", { nodeId }) as Promise<MatchedStyles>,
+        send("CSS.getComputedStyleForNode", { nodeId }) as Promise<{ computedStyle: { name: string; value: string }[] }>,
+      ]);
+      if (!still()) return failed("not-shown");
+      return { ok: true, rows: inspectRows({ matched, computed: computed.computedStyle, ancestors: ancestorsOf(root, nodeId) }) };
+    } catch {
+      return failed(still() ? "unavailable" : "not-shown");
+    } finally {
+      // Left on, the whole tree known from `getDocument` turns every later DOM mutation of the canvas into an event to
+      // main: about 6,300 a second on a canvas with a 60 fps counter and a rebuilt list.
+      await send("CSS.disable").catch(() => undefined);
+      await send("DOM.disable").catch(() => undefined);
+    }
+  };
+
+  return {
+    inspect(request) {
+      // The budget counts from the call, so time spent waiting in the queue counts too. A timeout does not cancel the
+      // CDP commands already sent; their late answers are dropped.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const late = new Promise<InspectResult>((resolve) => {
+        timer = setTimeout(() => resolve(failed("unavailable")), BUDGET_MS);
+      });
+      const result = Promise.race([queue.then(() => run(request)), late]).finally(() => clearTimeout(timer));
+      // A request that ran out of time releases the queue, so one stuck call cannot block later ones.
+      queue = result;
+      return result;
+    },
+  };
 }

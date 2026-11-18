@@ -17,6 +17,10 @@ export interface DebuggerLike {
 export interface WindowDebugger {
   // The CDP id of the window's main frame, the parent a shown canvas iframe must have; null while it cannot be read.
   mainFrame(): Promise<string | null>;
+  // The child session that committed this frame's current document and is still attached; null once that session
+  // detached, or while no session owns it. Commands for a canvas go only to this session: a former OOPIF session can
+  // outlive its replacement.
+  sessionOf(frameId: string): string | null;
 }
 
 export function createWindowDebugger(dbg: DebuggerLike, documents: DocumentBindings): WindowDebugger {
@@ -108,6 +112,10 @@ export function createWindowDebugger(dbg: DebuggerLike, documents: DocumentBindi
         return null;
       });
       return mainFrameId;
+    },
+    sessionOf(frameId) {
+      const owner = frameOwners.get(frameId);
+      return owner !== undefined && sessions.has(owner) ? owner : null;
     },
   };
 }

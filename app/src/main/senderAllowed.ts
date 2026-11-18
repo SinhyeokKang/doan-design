@@ -12,7 +12,7 @@ const mainOnly = new Set([
   "conversation-work:get",
   "project:choose-token-css", "project:init",
   "folders:remove", "folders:locate", "folders:reveal", "folders:open", "folders:reopen",
-  "selection:set", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save",
+  "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save",
   "onboarding:choose-folder", "folders:get",
   // The Retry of a failed project-list save.
   "folders:save-again",

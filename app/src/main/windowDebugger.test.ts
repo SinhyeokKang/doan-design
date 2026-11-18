@@ -195,3 +195,71 @@ test("mainFrame reads the window's main frame once, follows its commits and forg
   dbg.emit("detach");
   expect(await debuggerOf.mainFrame()).toBe("MAIN");
 });
+
+// The inspector sends its commands only to the session sessionOf names, so a former OOPIF session that outlives its
+// replacement is never asked.
+test("sessionOf names the frame's current owner, never a former or detached session", () => {
+  const dbg = new FakeDebugger();
+  const debuggerOf = createWindowDebugger(dbg, new DocumentBindings());
+  const emit = (method: string, params: object, session?: string) => dbg.emit("message", {}, method, params, session);
+  const commit = (session: string | undefined, loader: string) => emit("Page.frameNavigated", { frame: { id: "FRAME", parentId: "MAIN", loaderId: loader, url: CANVAS } }, session);
+  expect(debuggerOf.sessionOf("FRAME")).toBeNull();
+  dbg.target("OLD", "iframe");
+  // Attached is not owning: the frame has no commit from it yet.
+  expect(debuggerOf.sessionOf("FRAME")).toBeNull();
+  commit("OLD", "loader");
+  expect(debuggerOf.sessionOf("FRAME")).toBe("OLD");
+  expect(debuggerOf.sessionOf("OTHER")).toBeNull();
+  // A commit seen only in the window's own session gives no child session.
+  emit("Page.frameNavigated", { frame: { id: "SAME", parentId: "MAIN", loaderId: "l", url: CANVAS } });
+  expect(debuggerOf.sessionOf("SAME")).toBeNull();
+  // Process swap: the replacement commits, then the former session detaches late.
+  emit("Page.frameDetached", { frameId: "FRAME", reason: "swap" }, "OLD");
+  dbg.target("NEW", "iframe");
+  commit("NEW", "loader");
+  expect(debuggerOf.sessionOf("FRAME")).toBe("NEW");
+  emit("Target.detachedFromTarget", { sessionId: "OLD" });
+  expect(debuggerOf.sessionOf("FRAME")).toBe("NEW");
+  // A queued commit from the former session does not take the frame back.
+  commit("OLD", "stale");
+  expect(debuggerOf.sessionOf("FRAME")).toBe("NEW");
+});
+
+test("sessionOf is null after a swapped OOPIF's session detaches before its replacement commits", () => {
+  const dbg = new FakeDebugger();
+  const debuggerOf = createWindowDebugger(dbg, new DocumentBindings());
+  const emit = (method: string, params: object, session?: string) => dbg.emit("message", {}, method, params, session);
+  dbg.target("OLD", "iframe");
+  emit("Page.frameNavigated", { frame: { id: "FRAME", parentId: "MAIN", loaderId: "loader", url: CANVAS } }, "OLD");
+  emit("Page.frameDetached", { frameId: "FRAME", reason: "swap" }, "OLD");
+  dbg.target("NEW", "iframe");
+  emit("Target.detachedFromTarget", { sessionId: "OLD" });
+  expect(debuggerOf.sessionOf("FRAME")).toBeNull();
+  emit("Page.frameNavigated", { frame: { id: "FRAME", parentId: "MAIN", loaderId: "next", url: CANVAS } }, "NEW");
+  expect(debuggerOf.sessionOf("FRAME")).toBe("NEW");
+  // The current owner detaching leaves no owner.
+  emit("Target.detachedFromTarget", { sessionId: "NEW" });
+  expect(debuggerOf.sessionOf("FRAME")).toBeNull();
+});
+
+test("sessionOf forgets every owner on a debugger detach and follows the sessions of the next attach", async () => {
+  const dbg = new FakeDebugger();
+  const debuggerOf = createWindowDebugger(dbg, new DocumentBindings());
+  await vi.waitFor(() => expect(dbg.sent("Target.setAutoAttach")).toHaveLength(1));
+  dbg.target("S1", "iframe");
+  dbg.emit("message", {}, "Page.frameNavigated", { frame: { id: "FRAME", parentId: "MAIN", loaderId: "loader", url: CANVAS } }, "S1");
+  expect(debuggerOf.sessionOf("FRAME")).toBe("S1");
+  dbg.attached = false;
+  dbg.emit("detach", {}, "target closed");
+  expect(debuggerOf.sessionOf("FRAME")).toBeNull();
+  // A late event from the old session changes nothing.
+  dbg.emit("message", {}, "Page.frameNavigated", { frame: { id: "FRAME", parentId: "MAIN", loaderId: "late", url: CANVAS } }, "S1");
+  expect(debuggerOf.sessionOf("FRAME")).toBeNull();
+  // The next read attaches again; the frame's new session owns it once it commits.
+  expect(await debuggerOf.mainFrame()).toBe("MAIN");
+  expect(dbg.attached).toBe(true);
+  expect(dbg.sent("Target.setAutoAttach")).toHaveLength(2);
+  dbg.target("S2", "iframe");
+  dbg.emit("message", {}, "Page.frameNavigated", { frame: { id: "FRAME", parentId: "MAIN", loaderId: "again", url: CANVAS } }, "S2");
+  expect(debuggerOf.sessionOf("FRAME")).toBe("S2");
+});

@@ -34,6 +34,7 @@ import type { TestNotificationReply } from "../main/notifyService";
 import type { AboutRead } from "../main/about";
 import type { StarMoment } from "../main/starPrompt";
 import type { InstallGate, UpdateSnapshot } from "../main/update/types";
+import type { InspectReply, InspectRequest } from "../main/inspector";
 import type { FolderEntry, ReadStateProblem } from "../main/view";
 import type { TrashPlanReply, TrashReply } from "../main/canvasTrash";
 import type { ExportReply } from "../main/canvasExport";
@@ -396,6 +397,8 @@ const api = {
   reopenFolder: (path: string): Promise<void> => ipcRenderer.invoke("folders:reopen", path),
   // Main validates it again and keeps one selection for `doan active`.
   setSelection: (selection: Selection | null): Promise<void> => ipcRenderer.invoke("selection:set", selection),
+  // Main reads the shown canvas with CDP; values and token names are canvas text.
+  inspect: (request: InspectRequest): Promise<InspectReply> => ipcRenderer.invoke("inspect:get", request),
   onFolders(listener: (entries: FolderEntry[], focus?: FolderFocus) => void): () => void {
     let active = true;
     const receive = (_event: Electron.IpcRendererEvent, entries: FolderEntry[], focus?: FolderFocus) => listener(entries, focus);
