@@ -517,10 +517,11 @@ export function canvasScript(lib: CanvasLib): void {
   };
 
   // The hover shows what the next click would select: the pick target while picking, Select's step otherwise, and
-  // nothing where that click would select the selection again.
+  // nothing where that click would select the selection again. It keeps coming while ⌥ is held: the app measures from
+  // the selection to it, and hides it itself when there is nothing to measure.
   const postHover = () => {
     const over = hoverEl;
-    const el = !isElement(over) || isRoot(over) || alt || textDrag?.state === "drag" ? null : picking !== null ? over : selectTarget(over, meta);
+    const el = !isElement(over) || isRoot(over) || textDrag?.state === "drag" ? null : picking !== null ? over : selectTarget(over, meta);
     const rect = el !== null && el !== selected ? rectOf(el) : null;
     const key = JSON.stringify([hoverSeq, rect]);
     if (key === lastHover) return;
@@ -845,12 +846,17 @@ export function canvasScript(lib: CanvasLib): void {
   // A nested iframe has no script of ours; a click inside it only shows here
   // as focus moving into it.
   addEventListener("blur", () => {
-    // The ⌘ held on the way into a nested iframe, before the release below forgets it.
+    // The ⌘ and ⌥ held on the way into a nested iframe, before the release below forgets them.
     const direct = meta;
-    // ⌘ released while focus was elsewhere (⌘Tab) never comes back as a keyup.
+    const usesCanvas = alt;
+    // ⌘ and ⌥ released while focus was elsewhere (⌘Tab) never come back as a keyup.
     if (meta) {
       meta = false;
       postHover();
+    }
+    if (alt) {
+      alt = false;
+      postSelection("key", { key: "Alt", alt, seq: hoverSeq });
     }
     if (spaceHeld) {
       spaceHeld = false;
@@ -872,7 +878,7 @@ export function canvasScript(lib: CanvasLib): void {
         if (active.isConnected) pickAt(active, null);
         return;
       }
-      if (alt) return;
+      if (usesCanvas) return;
       if (!active.isConnected) return;
       choose(active, direct);
       // Focus goes back to this document, or the next press in the same nested frame moves no focus and goes unheard,

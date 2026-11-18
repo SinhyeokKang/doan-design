@@ -1425,7 +1425,7 @@ describe("canvasScript hover", () => {
     canvas.runFrame();
     canvas.fireWindow("keydown", input({ target: canvas.body, key: "Alt", altKey: true }));
     expect(ofType(canvas, "key").at(-1)).toMatchObject({ key: "Alt", alt: true, seq: 0 });
-    expect(ofType(canvas, "hover").at(-1)?.rect).toEqual({ x: 10, y: 20, width: 60.5, height: 18 });
+    expect(ofType(canvas, "hover").at(-1)?.rect).toEqual({ x: 1, y: 2, width: 30, height: 40 });
   });
 
   // ⌥ released while focus was elsewhere (an ⌥-click moved focus in here, then ⌘Tab) never comes back as a keyup.
