@@ -63,6 +63,9 @@ export interface UiState {
   // The canvas page's conversation panel, one per device. A missing `width` is the
   // window-relative default, which only the renderer can compute.
   rightPanel?: { open: boolean; width?: number };
+  // The canvas page's inspector, one per device like the conversation panel. Unlike it, a missing or unusable
+  // `open` is closed: only the person opens the inspector. A missing `width` is the inspector's default.
+  inspector?: { open: boolean; width?: number };
   // The Overview's canvas conversations panel, apart from the canvas panel's. Missing is
   // its default.
   overviewPanel?: { width: number };
@@ -236,6 +239,12 @@ function parseHome(value: Record<string, unknown>, saved: ReadonlySet<string>): 
     home.fast = Object.fromEntries(fast);
   }
   return home;
+}
+
+// Read like rightPanel, each field on its own, but anything not a boolean `open` is closed.
+export function parseInspectorState(value: unknown): NonNullable<UiState["inspector"]> {
+  void value;
+  return { open: true };
 }
 
 // Each field falls back on its own; a value with neither field usable is dropped so it reads as the default.

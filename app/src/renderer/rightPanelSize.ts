@@ -18,10 +18,35 @@ const CANVAS_MIN = 360;
 const NUDGE = 16;
 
 // `shellWidth` is the measured column that holds the canvas and the panel (sidebar and margins excluded), so
-// the canvas limit follows the real layout. In a window too narrow for both limits the maximum wins.
-export function panelBounds(windowWidth: number, shellWidth: number): PanelBounds {
+// the canvas limit follows the real layout. `reserved` is another panel's width beside the canvas (the canvas page's
+// inspector), which the canvas limit leaves out too. In a window too narrow for both limits the maximum wins.
+export function panelBounds(windowWidth: number, shellWidth: number, reserved = 0): PanelBounds {
+  void reserved;
   const max = Math.max(0, Math.floor(Math.min(windowWidth * WINDOW_SHARE_MAX, shellWidth - CANVAS_MIN)));
   return { min: Math.min(PANEL_MIN, max), max };
+}
+
+export interface CanvasPanelsInput {
+  windowWidth: number;
+  shellWidth: number;
+  // Each panel's saved open flag and width (a missing width is the panel's default).
+  conversation: { open: boolean; width?: number };
+  inspector: { open: boolean; width?: number };
+}
+
+export interface CanvasPanelsLayout {
+  // `bounds` is the drag range: with the inspector shown it leaves the inspector's width out as well.
+  conversation: { width: number; bounds: PanelBounds };
+  // `width` is 0 while the inspector is closed or does not fit; `bounds` is null when it does not fit.
+  inspector: { width: number; bounds: PanelBounds | null };
+  // Whether the inspector's minimum fits beside the conversation and the canvas's minimum; Show inspector is
+  // unavailable while it does not, and a saved open flag stays.
+  inspectorFits: boolean;
+}
+
+export function canvasPanelsLayout(input: CanvasPanelsInput): CanvasPanelsLayout {
+  void input;
+  return { conversation: { width: 0, bounds: { min: 0, max: 0 } }, inspector: { width: 0, bounds: null }, inspectorFits: false };
 }
 
 // The canvas conversation panel's default: wider than its minimum and growing with the window.
