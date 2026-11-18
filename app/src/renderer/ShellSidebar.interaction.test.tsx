@@ -6,6 +6,8 @@ import { RowSlotMark, ShellSidebar } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
 import type { SidebarSlot } from "./canvasNotice";
 import type { CanvasMenu } from "./ShellSidebar";
+import { toolShortcut } from "./canvasTool";
+import { drawn, keydownOn } from "./drawnTarget.test-support";
 const NO_CANVAS_MENU: CanvasMenu = { blocked: () => false, exporting: () => false, exportCanvas: () => {}, trash: () => {} };
 type Effect = { deps: unknown[] | undefined; cleanup?: () => void };
 // `stable`: refs keep their place across renders (a real render's), for the tests that run effects; the others rely on a
@@ -557,6 +559,25 @@ it("on close, focus returns to the button unless a dialog the menu opened or ano
     // Move to Trash opened its dialog: App returns focus to the button once it closes.
     expect(close(true)).toHaveBeenCalledOnce();
   } finally { vi.unstubAllGlobals(); }
+});
+
+// PRODUCT §5 item 2 'Canvas header': on the canvas page an open row menu keeps every printable key, while a row that
+// only has focus leaves V and H to the canvas tools.
+it("V, H and Space pressed in an open row menu never switch the canvas tool; a focused row with no menu open keeps them", () => {
+  const tree = canvasMenuFixture();
+  const press = (chain: Record<string, unknown>[], code: string) => toolShortcut(keydownOn(code, drawn(chain)), { canvasPage: true });
+  const treeRoot = tree.rendered().find(item => item.role === "tree")!;
+  expect(press([treeRoot, tree.canvasRow()], "KeyV")).toEqual({ kind: "tool", tool: "select" });
+  expect(press([treeRoot, tree.canvasRow()], "KeyH")).toEqual({ kind: "tool", tool: "hand" });
+  tree.open();
+  const canvasMenu = tree.rendered().find(item => String(item.className).includes("shell-canvas-menu"))!;
+  (tree.rendered().filter(item => typeof item.onOpenChange === "function")[0]!.onOpenChange as (open: boolean) => void)(true);
+  tree.render();
+  const projectMenu = tree.rendered().find(item => String(item.className).includes("shell-project-menu"))!;
+  // Radix draws role="menu" on the content and menuitem on each item.
+  for (const content of [canvasMenu, projectMenu]) {
+    for (const code of ["KeyV", "KeyH", "Space"]) expect(press([{ ...content, role: "menu" }, { role: "menuitem" }], code), `${String(content.className)} ${code}`).toBeNull();
+  }
 });
 
 // PRODUCT §5 item 1: a project row in a problem state has no groups to fold.

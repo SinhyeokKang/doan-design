@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { escapeStep, toolShortcut, type ShortcutEvent } from "./canvasTool";
+import { drawn } from "./drawnTarget.test-support";
 
 // V, H and Space by key position, filtered before the canvas takes them.
 const press = (code: string, over: Partial<ShortcutEvent> = {}): ShortcutEvent => ({ type: "keydown", code, key: "", repeat: false, isComposing: false, keyCode: 0, defaultPrevented: false, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, target: null, ...over });
@@ -57,6 +58,29 @@ describe("toolShortcut", () => {
     for (const target of [element("SECTION", { role: "region" }), element("BODY"), element("A"), null]) {
       expect(toolShortcut(press("Space", { target }), onPage)).toEqual({ kind: "space", down: true });
     }
+  });
+
+  // PRODUCT §5 item 2 'Canvas header': on the canvas page an open menu or list keeps every printable key. The chains
+  // are the markup each surface draws, outermost first.
+  test.each([
+    ["the inspector's element menu", [{ className: "doan-floating doan-menu doan-insp-menu" }, { role: "tree" }, { role: "treeitem" }]],
+    ["a sidebar canvas row menu", [{ className: "menu doan-floating doan-menu shell-canvas-menu shell-side-menu", role: "menu" }, { role: "menuitem" }]],
+    ["a sidebar project row menu", [{ className: "menu doan-floating doan-menu shell-project-menu shell-side-menu", role: "menu" }, { role: "menuitem" }]],
+    ["the zoom menu", [{ className: "doan-floating doan-menu doan-zoom-menu", role: "menu" }, { role: "menuitem" }]],
+    ["the frame drawer", [{ className: "doan-floating doan-menu doan-frame-list" }, { role: "listbox" }, { role: "option" }]],
+    ["the conversation menu", [{ className: "doan-floating doan-menu conv-menu", role: "menu" }, { role: "menuitem" }]],
+    ["the composer's agent, effort and permission menus", [{ className: "doan-floating doan-menu agent-popover", role: "menu" }, { role: "menuitem" }]],
+    ["the design presets list", [{ className: "doan-floating preset-popover" }, { role: "listbox" }, { role: "option" }]],
+    ["an open menu's own content", [{ className: "doan-floating doan-menu doan-zoom-menu", role: "menu" }]],
+  ])("ignores V, H and Space down from inside %s", (_, chain) => {
+    for (const code of ["KeyV", "KeyH", "Space"]) expect(toolShortcut(press(code, { target: drawn(chain) }), onPage), code).toBeNull();
+    expect(toolShortcut(release("Space", { target: drawn(chain) }), onPage)).toEqual({ kind: "space", down: false });
+  });
+
+  test("a sidebar row that only has focus, with no menu open, keeps V and H", () => {
+    const row = drawn([{ className: "shell-tree", role: "tree" }, { role: "treeitem" }]);
+    expect(toolShortcut(press("KeyV", { target: row }), onPage)).toEqual({ kind: "tool", tool: "select" });
+    expect(toolShortcut(press("KeyH", { target: row }), onPage)).toEqual({ kind: "tool", tool: "hand" });
   });
 
   test("releases Space on keyup whatever the target, modifiers or page", () => {
