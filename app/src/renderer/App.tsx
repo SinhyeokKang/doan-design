@@ -783,7 +783,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     // or a canvas deleted outside Doan, and the map would grow toward UI_STATE_MAX_BYTES.
     conversationByCanvas.current = withoutUnlisted(conversationByCanvas.current, root => {
       const entry = entriesRef.current.find(item => item.path === root), list = homeRun.current.listState(root);
-      return { canvases: entry?.kind === "list" ? entry.canvases : null, conversations: Array.isArray(list) ? list.map(c => c.conversationId) : null };
+      return { canvases: entry?.kind === "list" ? entry.canvases : null, conversations: Array.isArray(list) ? list : null };
     });
     const state = savedUiState({ ...persisted.current, view: instance.currentView(), memory: instance.memory(), conversationByRoot: conversationByRoot.current, conversationByCanvas: conversationByCanvas.current });
     if (state) void window.doan.saveUiState(state).then(saved => { if (!saved) console.error("doan: UI state was not saved"); }).catch(console.error);

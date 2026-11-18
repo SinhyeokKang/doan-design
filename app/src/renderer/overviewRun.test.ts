@@ -519,6 +519,19 @@ test("a canvas.drawn after the turn's end moves neither lastTurnSeq nor endSeq",
   expect(endSeq(running, true)).toBeNull();
 });
 
+// A handoff's resolution and a missed handoff's line come after the turn's end, often while the person moved on; like
+// main's summary.ts lastTurnSeq, they do not make a seen end unseen again, and the end stays markable.
+test("a handoff resolution or missed line after the turn's end moves neither lastTurnSeq nor endSeq", () => {
+  seq = 0;
+  const events = [...ended(A),
+    event(A, { type: "handoff.resolved", outcome: "started", target: { conversationId: "b", canvas: CANVAS } }),
+    event(A, { type: "handoff.missed", canvas: CANVAS })];
+  const end = events[3]!.seq;
+  expect(lastTurnSeq(events)).toBe(end);
+  expect(endSeq(events, true)).toBe(end);
+  expect(endSeq(events, false)).toBe(end);
+});
+
 test("the main conversation is seen only while it shows with the window focused, once per turn end", async () => {
   const h = harness();
   histories.set(A, ended(A));
