@@ -554,10 +554,10 @@ func TestDocumentPresetSkipsOnlyNonvisualWrappers(t *testing.T) {
 	}
 }
 
-// T8 rounds and their review: these pin short concepts the tuning depends on, not whole sentences, so
+// The document preset's first eval tuning rounds and their review: these pin short concepts the tuning depends on, not whole sentences, so
 // rewording a rule without changing it keeps them green. Behavior is judged by the real-agent scenarios;
 // the output budget is checked in cli/internal/cli (skillOutputBudget).
-func TestDocumentPresetKeepsT8Concepts(t *testing.T) {
+func TestDocumentPresetKeepsTuningConcepts(t *testing.T) {
 	body := strings.ToLower(documentPreset(t))
 	for concept, phrases := range map[string][]string{
 		// Round 1/4: a dialog mounted once but opened from several screens was skipped.
@@ -595,7 +595,7 @@ func documentPreset(t *testing.T) string {
 	return string(b)
 }
 
-// Eval rounds after T8 pin short concepts, like TestDocumentPresetKeepsT8Concepts.
+// Later eval rounds pin short concepts, like TestDocumentPresetKeepsTuningConcepts.
 func TestDocumentPresetKeepsEvalConcepts(t *testing.T) {
 	c, err := Load()
 	if err != nil {

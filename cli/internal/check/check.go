@@ -411,7 +411,8 @@ func ambiguousURLs(c canvas.Canvas, in Input, add func(Finding), cssSeen map[[3]
 	}
 	report := func(file string, shared bool, urls []canvas.CSSRef) {
 		for _, r := range urls {
-			key := [3]string{file, "ambiguous_custom_url", r.Value}
+			// Per property as well as url: each property holding the url needs its own fix.
+			key := [3]string{file, "ambiguous_custom_url", r.Custom + "\x00" + r.Value}
 			if cssSeen[key] || !users.Ambiguous(r.Custom, r.Value) {
 				continue
 			}

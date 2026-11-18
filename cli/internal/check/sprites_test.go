@@ -145,10 +145,11 @@ func TestAmbiguousCustomURL(t *testing.T) {
 			body: `<div style="--i:url(i.svg)"></div>`,
 		},
 		{
-			name:   "one finding per file and url, whatever property holds it",
+			// Each property needs its own fix, so the same url() in two properties is two findings.
+			name:   "one finding per file, property and url",
 			body:   `<style>.c{mask:var(--i) var(--j)}</style>`,
 			sheets: []customSheet{{".doan/ds/d.css", `:root{--i:url(i.svg);--j:url(i.svg)}.d{mask:var(--i) var(--j)}`}},
-			want:   []found{{".doan/ds/d.css", "", "--i", "i.svg"}},
+			want:   []found{{".doan/ds/d.css", "", "--i", "i.svg"}, {".doan/ds/d.css", "", "--j", "i.svg"}},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
