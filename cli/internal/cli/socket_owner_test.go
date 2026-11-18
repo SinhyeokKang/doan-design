@@ -10,9 +10,8 @@ import (
 	"testing"
 )
 
-// The app listens in a fresh 0700 directory of its own (ARCHITECTURE §4); a runtime file can outlive that directory, and
-// in a shared temp directory another local user could then create a socket at the same path. The CLI only dials a
-// socket that this user owns, in a directory this user owns that nobody else can write.
+// The runtime file can outlive the app's socket directory (ARCHITECTURE §4), so the CLI connects only to a socket this
+// user owns, in a directory owned by this user and writable by no one else.
 // listenAt answers every connection with an empty selection, so a refusal can only come from the CLI's own check.
 func listenAt(t *testing.T) (dir, socket string) {
 	t.Helper()

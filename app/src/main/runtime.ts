@@ -58,7 +58,7 @@ export interface RuntimeState extends ActiveState {
 
 // App conversations' runtime file, beside runtime.json: the same socket under a credential that answers only what a
 // conversation's agent needs, never onboarding (v2) or a project removal (v7). A conversation's environment and fence
-// name this file, so a sandboxed agent cannot clone into any folder or remove projects through the socket.
+// name this file, so conversations cannot use onboarding or remove projects.
 export const CONVERSATION_RUNTIME = "conversation-runtime.json";
 
 export interface Runtime {

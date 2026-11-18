@@ -7,11 +7,10 @@ import (
 	"syscall"
 )
 
-// ownSocket refuses a socket this user did not create. The app listens in a fresh 0700 directory of its own, but a
-// runtime file can outlive that directory (a crash, then a cleaned temp directory); in a temp directory other users
-// share, another user could then create a socket at the same path and answer the CLI. Checking the directory too keeps
-// the socket from being swapped between this check and the dial. A missing socket keeps its not-exist error, which
-// callers read as "no app listening".
+// ownSocket accepts only a socket this user owns, in a directory this user owns that no one else can write. The app
+// listens in a fresh 0700 directory of its own, but the runtime file can outlive that directory, so the file alone
+// does not show whose socket it names. The directory check also keeps the socket from changing between this check and
+// the dial. A missing socket keeps its not-exist error, which callers read as "no app listening".
 func ownSocket(socket string, uid int) error {
 	info, e := os.Lstat(socket)
 	if e != nil {
