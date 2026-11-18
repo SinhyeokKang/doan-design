@@ -201,6 +201,18 @@ export class CanvasRun {
       if (left > 0) this.starting.set(key, left); else this.starting.delete(key);
     };
   }
+  // Move to Trash reads it (canvasRowMenu trashBlock): main lists a canvas's first conversation only once it accepts it.
+  startingOn(target: CanvasTarget): boolean { return this.starting.has(canvasKey(target)); }
+  // A removed project keeps no memory in this run, as on the Overview (OverviewRun.forgetRoots): its canvases show
+  // afresh if it is added again. A start in flight keeps its count until main answers.
+  forgetRoots(roots: readonly string[]): void {
+    for (const [key, s] of this.canvases) {
+      if (!roots.includes(s.target.root)) continue;
+      this.canvases.delete(key);
+      if (this.visible === key) this.visible = null;
+    }
+    this.host.changed();
+  }
   // A start from the new conversation state shows at once, before any list has it, unless the person chose something
   // else while it was sent (`revision` is the panel's then).
   started(target: CanvasTarget, conversationId: string, provider: Provider, revision: number): void {

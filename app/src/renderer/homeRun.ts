@@ -492,6 +492,13 @@ export class HomeRun {
   private registered(root: string): boolean {
     return this.host.view().entries.some(entry => entry.path === root && entry.kind === "list");
   }
+  // A removed project keeps no memory in this run (OverviewRun.forgetRoots): added again, its list reads as new rather
+  // than as its last failure. The read counts stay, since stores compare reads against them.
+  forgetRoots(roots: readonly string[]): void {
+    for (const root of roots) { this.listErrors.delete(root); this.retrying.delete(root); this.retryFailures.delete(root); this.refused.delete(root); }
+    this.revision++;
+    this.host.changed();
+  }
   // Every registered root is read once; a root that left the list takes its list with it.
   private syncRoots(): void {
     const kept = new Map([...this.lists].filter(([root]) => this.registered(root)));

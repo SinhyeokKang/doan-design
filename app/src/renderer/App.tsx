@@ -931,6 +931,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     conversationByRoot.current = withoutRoots(conversationByRoot.current, roots);
     conversationByCanvas.current = withoutRoots(conversationByCanvas.current, roots); setMemoryTick(tick => tick + 1);
     overviewRun.current?.forgetRoots(roots);
+    canvasRun.current?.forgetRoots(roots);
+    homeRun.current.forgetRoots(roots);
   }
   const cards = groupProjects(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])));
   const card = cards.find(card => card.rows.some(row => row.path === loadedRoot));
@@ -1561,7 +1563,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // What keeps Move to Trash unavailable, for the menu and the open dialog alike (main judges again).
   function trashWorking(root: string, row: CanvasRow) {
     const list = homeRun.current.listState(root);
-    return trashBlock({ root, path: row.path, ...(row.id ? { id: row.id } : {}) }, Array.isArray(list) ? list : null, work, (at, canvas) => homeRun.current.drawing(at, canvas)) !== null;
+    return trashBlock({ root, path: row.path, ...(row.id ? { id: row.id } : {}) }, Array.isArray(list) ? list : null, work, (at, canvas) => homeRun.current.drawing(at, canvas),
+      (at, canvas) => canvasRun.current!.startingOn({ root: at, canvas })) !== null;
   }
   // ARCHITECTURE §7 'Canvas row menu IPC': main shows the save panel, runs the CLI and answers once; the item stays
   // unavailable from main's running event to the reply. A refusal of a second request leaves the first one's state.

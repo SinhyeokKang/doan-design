@@ -397,6 +397,50 @@ test("a start message that arrives after another project was picked brings its o
   expect(box.current.root).toBe("/code/doan-design");
 });
 
+// Main hands a stopped start over once; one that lands while a send to another project is out waits for that send, so
+// the send's settle neither keeps it under the other project nor sends it there next.
+test("a start message that arrives while a send to another project is out lands once that send settles, with its own project", async () => {
+  const reply = deferred<unknown>();
+  doan.takeStartDraft!.mockReturnValueOnce(reply.promise as never);
+  const { box, start, render } = setup({}, { entries: [ENTRY, B] });
+  render(); runEffects();
+  const projects = find(render(), props => typeof props.onValueChange === "function" && props.value === "/code/doan-design/.git");
+  (projects.onValueChange as (key: string) => void)("/code/acme/.git");
+  render(); runEffects();
+  box.current = { ...box.current, text: "Draw a dashboard." };
+  const sent = pending();
+  start.mockReturnValueOnce(sent.promise as never);
+  call(field(render()), "onKeyDown", key("Enter"));
+  await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+  reply.resolve({ text: "Draw a pricing page.", anchors: [], attachments: [], reason: "restarted" });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(box.current).toMatchObject({ text: "Draw a dashboard.", root: "/code/acme" });
+  sent.resolve({ ok: true });
+  await vi.waitFor(() => expect(box.current.text).toBe("Draw a pricing page."));
+  expect(box.current.root).toBe("/code/doan-design");
+  expect(box.current.sending).toBeNull();
+});
+
+// preload: taking a draft that cannot be saved answers an error and keeps it, so the next pick of that project asks again.
+test("a take of the picked project's start message that failed is asked again when that project is picked again", async () => {
+  for (const failure of [async () => ({ error: "unknown" }), async () => { throw new Error("gone"); }]) {
+    hooks.states = []; hooks.refs = [];
+    doan.takeStartDraft = vi.fn(async () => null);
+    doan.takeStartDraft.mockImplementationOnce(failure);
+    const { box, render } = setup({}, { entries: [ENTRY, B] });
+    render(); runEffects();
+    await vi.waitFor(() => expect(box.current.startsAsked).toEqual([]));
+    const pick = (from: string, to: string) => {
+      const projects = find(render(), props => typeof props.onValueChange === "function" && props.value === from);
+      (projects.onValueChange as (key: string) => void)(to);
+      render(); runEffects();
+    };
+    pick("/code/doan-design/.git", "/code/acme/.git");
+    pick("/code/acme/.git", "/code/doan-design/.git");
+    expect(doan.takeStartDraft.mock.calls.map(([request]) => (request as { root: string }).root)).toEqual(["/code/doan-design", "/code/acme", "/code/doan-design"]);
+  }
+});
+
 test("a pending start keeps Home locked on a later visit, and a late reply clears only the draft it sent", async () => {
   const first = setup({ text: "Draw a pricing page." });
   const reply = pending();
@@ -507,6 +551,27 @@ test("Edit on Home checks the restored attachments again at once: checking, then
   finish([{ id: "id-a.pdf", ok: true, attachment: { id: "id-a.pdf", name: "a.pdf", size: 12, kind: "file", path: "/u/a.pdf", pasted: false } }, { id: "id-b.pdf", ok: false, error: "not_found" }]);
   await vi.waitFor(() => expect(box.current.attachments.map(a => a.status)).toEqual(["ready", "missing"]));
   expect(box.current.attachments[0]?.size).toBe(12);
+});
+
+// ARCHITECTURE §7 Attachments: a pasted image removed before sending is deleted. Replace gives back what the
+// replaced draft held as a chip removed by hand does, keeping what the restored request uses.
+test("Edit on Home's Replace gives back the replaced draft's files and thumbnails the restored request does not use", async () => {
+  const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  doan.releaseAttachments = vi.fn(async () => true);
+  doan.recheckAttachments = vi.fn(() => new Promise(() => {}));
+  const kept = { key: "k-kept", id: "id-kept", name: "kept.pdf", kind: "file" as const, pasted: false, status: "ready" as const, size: 1, path: "/u/kept.pdf" };
+  const pasted = { key: "k-paste", id: "id-paste", name: "paste.png", kind: "image" as const, pasted: true, status: "ready" as const, size: 1, path: "/u/paste.png" };
+  const root = "/code/doan-design";
+  const last: LastRequest = { root, text: "Polish it.", preset: null, attachments: [kept], provider: "claude", model: null, effort: null };
+  const { box, render } = setup({ text: "Another idea", attachments: [pasted, kept], thumbnails: { "k-paste": "blob:paste", "k-kept": "blob:kept" }, lastKeys: { [root]: ["k-kept"] }, lastIds: { [root]: ["id-kept"] } }, { restore: { request: last, seq: 1 } });
+  render(); runEffects();
+  const replace = find(render(), props => props["data-ui-variant"] === "prominent" && props.children === "Replace");
+  call(replace, "onClick", {});
+  expect(box.current.text).toBe("Polish it.");
+  await vi.waitFor(() => expect(doan.releaseAttachments).toHaveBeenCalledWith(["id-paste"]));
+  expect(doan.removeAttachment).toHaveBeenCalledExactlyOnceWith("id-paste");
+  expect(revoke).toHaveBeenCalledExactlyOnceWith("blob:paste");
+  revoke.mockRestore();
 });
 
 test("a request rebuilt after a reload brings its image thumbnails into the composer's object URLs", () => {
