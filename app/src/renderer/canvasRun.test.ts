@@ -355,6 +355,8 @@ test("a send reply from another canvas leaves this canvas's promotion notice", (
   h.run.show(cart);
   h.answer([summary(A), summary(P, { canvas: null })]);
   expect(h.run.revision()).toBe(revision);
+  // The person's New on cart: a promotion there is announced rather than shown.
+  h.run.select(null);
   h.answer([summary(A), promoted({ canvas: CART })]);
   h.answer([summary(A), promoted({ canvas: CART })]);
   const notice = { kind: "promoted" as const, text: PROMOTED_TEXT, open: P };
@@ -718,6 +720,7 @@ test("a promotion notice for the deleted conversation goes, and the list compari
   const h = harness();
   h.run.show(checkout);
   h.answer([summary(P, { canvas: null })]);
+  h.run.select(null);
   h.answer([promoted()]);
   expect(h.run.view()).toMatchObject({ kind: "new", notice: { kind: "promoted", open: P } });
   confirmDelete(h, P);
@@ -755,8 +758,8 @@ test("a canvas that opens before the next list read does not pick the deleted co
 });
 
 // POSTMORTEM 2026-11-14 'The main window's panel never showed…': the default new state (nothing existed) gives way to
-// a conversation the person newly started (in this window or another), the person's New does not; a handoff's or a
-// promotion's conversation moves no screen and takes no draft. CanvasRun runs in the main window and in the
+// a conversation the person newly started (in this window or another) or one promoted to the canvas, the person's New
+// does not; a handoff's conversation moves no screen and takes no draft. CanvasRun runs in the main window and in the
 // prototype window, each from its own state.
 for (const prototype of [false, true]) {
   const where = prototype ? "the prototype window" : "the main window";
