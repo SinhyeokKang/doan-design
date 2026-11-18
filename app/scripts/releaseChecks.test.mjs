@@ -1,8 +1,10 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   checkLatestMacYml,
   checkReleaseVersion,
   compareEntitlements,
+  compareFuses,
   parseCodesignDetails,
   parseSpctl,
 } from "./releaseChecks.mjs";
@@ -230,6 +232,74 @@ releaseDate: '2026-11-08T00:00:00.000Z'
     expect(checkLatestMacYml(yml, { ...zip, version: "0.1.0" })).toMatchObject({
       ok: false,
       code: "yml_version_mismatch",
+    });
+  });
+});
+
+// The fuse wire as Electron embeds it in Electron Framework: a sentinel, the wire version, the
+// number of fuses, then one byte per fuse ("0" disabled, "1" enabled, "r" removed).
+const SENTINEL = "dL7pKGdnNz796PbbjQWNKmHXBZaB9tsX";
+function framework(states) {
+  return Buffer.concat([Buffer.from("leading bytes"), Buffer.from(SENTINEL), Buffer.from([1, states.length]), Buffer.from(states), Buffer.from("trailing")]);
+}
+// Electron 45's defaults: RunAsNode, NodeOptions, NodeCliInspect and GrantFileProtocolExtraPrivileges on.
+const DEFAULT_WIRE = "101100011";
+const HARDENED_WIRE = "001011011";
+const hardened = {
+  runAsNode: false,
+  enableNodeCliInspectArguments: false,
+  enableEmbeddedAsarIntegrityValidation: true,
+  onlyLoadAppFromAsar: true,
+  resetAdHocDarwinSignature: true,
+};
+
+describe("compareFuses", () => {
+  it("finds nothing when every configured fuse is in the wire", () => {
+    expect(compareFuses(hardened, framework(HARDENED_WIRE))).toEqual([]);
+  });
+
+  it("names each fuse an unflipped Electron leaves in its default state", () => {
+    expect(compareFuses(hardened, framework(DEFAULT_WIRE))).toEqual([
+      "runAsNode is enabled, expected disabled",
+      "enableNodeCliInspectArguments is enabled, expected disabled",
+      "enableEmbeddedAsarIntegrityValidation is disabled, expected enabled",
+      "onlyLoadAppFromAsar is disabled, expected enabled",
+    ]);
+  });
+
+  it("does not take a removed fuse for a disabled one", () => {
+    expect(compareFuses({ runAsNode: false }, framework("r01011011"))).toEqual(["runAsNode is removed, expected disabled"]);
+  });
+
+  it("fails a binary without the fuse wire", () => {
+    expect(compareFuses(hardened, Buffer.from("no wire here"))).toEqual(["no fuse wire found"]);
+  });
+
+  it("fails a fuse the wire is too short to hold", () => {
+    expect(compareFuses({ grantFileProtocolExtraPrivileges: false }, framework("0010"))).toEqual([
+      "grantFileProtocolExtraPrivileges is missing from the wire, expected disabled",
+    ]);
+  });
+
+  it("fails a configured key it does not know, so a misspelled fuse cannot pass unchecked", () => {
+    expect(compareFuses({ runAsNod: false }, framework(HARDENED_WIRE))).toEqual(["unknown fuse runAsNod"]);
+  });
+
+  it("fails an unknown wire version", () => {
+    const wire = framework(HARDENED_WIRE);
+    wire[wire.indexOf(SENTINEL) + SENTINEL.length] = 2;
+    expect(compareFuses(hardened, wire)).toEqual(["fuse wire version 2, expected 1"]);
+  });
+});
+
+describe("committed electron-builder fuses", () => {
+  it("turn off running as Node and the inspector, and load only the integrity-checked asar", () => {
+    const { build } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+    expect(build.electronFuses).toMatchObject({
+      runAsNode: false,
+      enableNodeCliInspectArguments: false,
+      enableEmbeddedAsarIntegrityValidation: true,
+      onlyLoadAppFromAsar: true,
     });
   });
 });
