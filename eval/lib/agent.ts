@@ -17,11 +17,13 @@ export function agentEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 
 // The user's own instruction files steer every run that loads them (pac-full D7b-codex waited for an approval phrase
 // from the user's $CODEX_HOME/AGENTS.md), so an agent or judge gets none, while it still signs in as the user and keeps
-// the user's model settings. Nothing in the user's homes is written, moved or copied.
+// the user's model settings. The runner writes, moves or copies nothing in the user's homes.
 // Codex 0.167 reads $CODEX_HOME/AGENTS.override.md or AGENTS.md with no setting to skip them (--ignore-user-config skips
-// only config.toml), so a Codex process gets its own CODEX_HOME at `dir` holding links to the user's auth.json, auth.lock
-// and config.toml. Links, not copies: Codex writes refreshed tokens through auth.json in place and takes auth.lock to
-// coordinate with the user's other Codex processes, so a copy could leave the user's sign-in on a spent refresh token.
+// only config.toml), so a Codex process gets its own CODEX_HOME at `dir` holding links to the user's auth.json, its lock
+// files and config.toml. Links, not copies: Codex writes refreshed tokens through auth.json in place and takes auth.lock
+// and auth.json.lock to coordinate with the user's other Codex processes, so a copy could leave the user's sign-in on a
+// spent refresh token. Codex creates the locks only at a sign-in or refresh (codex-cli 0.169.0), so they are linked
+// whenever auth.json is, dangling or not: a run then takes them at the user's path, as the user's own Codex would.
 // Everything else Codex keeps there (sessions, logs, skills, rules, hooks.json, .env) stays out of the run.
 // Claude Code 2.1.325 loads ~/.claude/CLAUDE.md (or $CLAUDE_CONFIG_DIR/CLAUDE.md) and user rules with user settings,
 // which also carry the model, so only CLAUDE_CODE_DISABLE_CLAUDE_MDS is set; it hides project memory files too, which no
@@ -30,8 +32,9 @@ export function isolateUserInstructions(agent: Agent, env: NodeJS.ProcessEnv, di
   if (agent === "claude") return { ...env, CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1" };
   const user = env.CODEX_HOME || join(env.HOME || homedir(), ".codex");
   mkdirSync(dir, { recursive: true });
-  for (const name of ["auth.json", "auth.lock", "config.toml"])
-    if (existsSync(join(user, name))) symlinkSync(join(user, name), join(dir, name));
+  const signedIn = existsSync(join(user, "auth.json"));
+  for (const name of ["auth.json", "auth.lock", "auth.json.lock", "config.toml"])
+    if (existsSync(join(user, name)) || (signedIn && name.endsWith(".lock"))) symlinkSync(join(user, name), join(dir, name));
   return { ...env, CODEX_HOME: dir };
 }
 

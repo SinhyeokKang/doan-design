@@ -127,7 +127,7 @@ describe("boundaries", () => {
     const h = fixture();
     const id = await h.start("/compact");
     const turnId = h.store.read(id)[0]!.turnId;
-    expect(h.service.read(id).commands).toEqual({ turns: { [turnId]: "compact" }, boundaries: [], usageStale: false });
+    expect(h.service.read(id).commands).toEqual({ boundaries: [] });
     h.inputs[0]!.boundary!("compacted");
     expect(h.signals).toEqual([{ conversationId: id, turnId, kind: "compacted" }]);
     h.service.receive(id, { type: "turn.done" });
@@ -145,7 +145,7 @@ describe("boundaries", () => {
   it("ignores a boundary reported during a turn that is not a command (an automatic compaction)", async () => {
     const h = fixture();
     const id = await h.start("hello"); h.inputs[0]!.boundary!("compacted");
-    expect(h.signals).toEqual([]); expect(h.service.read(id).commands).toEqual({ turns: {}, boundaries: [], usageStale: false });
+    expect(h.signals).toEqual([]); expect(h.service.read(id).commands).toEqual({ boundaries: [] });
   });
   it("draws Copilot's compaction from its result text, as the only sign over ACP", async () => {
     const h = fixture("copilot");
@@ -189,8 +189,6 @@ describe("Claude /clear", () => {
     const turnId = h.store.read(id).at(-1)!.turnId;
     expect(h.signals).toEqual([{ conversationId: id, turnId, kind: "cleared" }]);
     expect(h.service.read(id).commands.boundaries).toEqual([{ turnId, kind: "cleared" }]);
-    // The context value the record holds is the previous session's until the next turn measures the new one.
-    expect(h.service.read(id).commands.usageStale).toBe(true);
     // The /clear was held only until its acceptance: the swap leaves no draft behind.
     expect(h.restart().takeDraft(id)).toBeNull();
     expect(h.store.read(id).at(-1)).toMatchObject({ type: "turn.done" });

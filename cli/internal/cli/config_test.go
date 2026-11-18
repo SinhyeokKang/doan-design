@@ -263,8 +263,34 @@ func TestConfigRejectsGitServeWithoutWriting(t *testing.T) {
 				}
 			}
 			putFile(t, root, ".github/file", "")
-			putFile(t, root, "nested/.git/file", "")
-			result(t, root, 0, "config", "--add-serve", ".github", "--add-serve", "nested/.git")
+			result(t, root, 0, "config", "--add-serve", ".github")
 		})
 	}
+}
+
+// The server never serves a .git directory or .env files, so config refuses to list one anywhere in the repo.
+func TestConfigRejectsWithheldServeWithoutWriting(t *testing.T) {
+	root := initialized(t)
+	putFile(t, root, ".env", "SECRET=1")
+	putFile(t, root, ".env.local", "SECRET=1")
+	putFile(t, root, "web/.envrc", "")
+	putFile(t, root, "nested/.git/file", "")
+	putFile(t, root, "web/page.css", "")
+	if err := os.Symlink(".env", filepath.Join(root, "settings")); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{".env", ".env.local", "web/.envrc", "nested/.git", "nested/.git/file", "settings"} {
+		t.Run(path, func(t *testing.T) {
+			before := readFile(t, root, ".doan/config.json")
+			failure := runJSON(t, root, 2, "config", "--add-serve", "web", "--add-serve", path)["error"].(map[string]any)
+			message, _ := failure["message"].(string)
+			if failure["code"] != "usage_error" || !strings.Contains(message, ".git") || !strings.Contains(message, ".env") {
+				t.Fatal(failure)
+			}
+			if readFile(t, root, ".doan/config.json") != before {
+				t.Fatal("rejected addition changed config")
+			}
+		})
+	}
+	result(t, root, 0, "config", "--add-serve", "web")
 }

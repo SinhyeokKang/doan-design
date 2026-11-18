@@ -938,3 +938,24 @@ func TestLaunchCommandEnvIsMinimal(t *testing.T) {
 		}
 	}
 }
+
+// The CLI trusts only an app whose CFBundleIdentifier is bundleID, and electron-builder writes that
+// identifier from app/package.json build.appId: a change to one side alone would make the CLI refuse its
+// own app.
+func TestBundleIDIsTheAppID(t *testing.T) {
+	data, err := os.ReadFile("../../../app/package.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pkg struct {
+		Build struct {
+			AppID string `json:"appId"`
+		} `json:"build"`
+	}
+	if err := json.Unmarshal(data, &pkg); err != nil {
+		t.Fatal(err)
+	}
+	if pkg.Build.AppID != bundleID {
+		t.Fatalf("app/package.json build.appId %q, bundleID %q", pkg.Build.AppID, bundleID)
+	}
+}

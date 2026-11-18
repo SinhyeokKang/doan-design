@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { ConversationStrip, KeyedConversationStrip } from "./ConversationStripView";
 import { stripView, type StripContext, type StripState } from "./conversationStrip";
+import { TooltipProvider } from "./components/ui/tooltip";
 
 // With `mock`, hooks run outside React: refs are plain objects (kept across calls while `reuse` is set, so a second
 // call is the same strip redrawn) and effects are collected to be run by the test.
@@ -31,7 +32,7 @@ afterEach(() => { hooks.mock = false; vi.unstubAllGlobals(); });
 const CTX: StripContext = { provider: "claude", project: "doan-design", branch: "main", canvas: null };
 const ASK: StripState = { kind: "permission", requestId: "r1", summary: "Edit .doan/canvases/design-system.html", options: [{ id: "d", label: "Deny", kind: "deny" }, { id: "aa", label: "Always allow", kind: "allowAlways" }, { id: "a", label: "Allow", kind: "allow" }] };
 const noop = () => {};
-const render = (state: StripState, ctx = CTX) => renderToStaticMarkup(<ConversationStrip conversationId="c1" provider="claude" state={state} view={stripView(state, ctx)} onEditOnHome={noop} onDismiss={noop} onOpen={noop} />);
+const render = (state: StripState, ctx = CTX) => renderToStaticMarkup(<TooltipProvider><ConversationStrip conversationId="c1" provider="claude" state={state} view={stripView(state, ctx)} onEditOnHome={noop} onDismiss={noop} onOpen={noop} /></TooltipProvider>);
 
 function elements(node: ReactNode): Record<string, unknown>[] {
   return Children.toArray(node).flatMap(child => isValidElement<{ children?: ReactNode; [key: string]: unknown }>(child) ? [child.props, ...elements(child.props.children)] : []);
@@ -63,9 +64,24 @@ test("starting shows a spinner, failed an alert mark and done a check, as the st
 
 test("a permission request is an alert keyed to the request; Allow is drawn prominent but never autofocused", () => {
   const html = render(ASK);
-  expect(html).toContain('<span class="strip-text" role="alert"><b>Claude Code needs your answer</b><span>Edit .doan/canvases/design-system.html</span></span>');
+  expect(html).toContain('<span class="strip-text" role="alert"><b>Claude Code needs your answer</b><span data-state="closed" data-slot="tooltip-trigger">Edit .doan/canvases/design-system.html</span></span>');
   expect(html).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Deny</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Always allow</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="prominent">Allow</button>');
   expect(html).not.toMatch(/autofocus/i);
+});
+
+// The strip shows the request on one cut line; the whole of it stays readable in the shared tooltip (DESIGN 'Tooltip'),
+// and a choice that saves a rule names it in its button's tooltip. No native title.
+test("the request line keeps its whole text in a name tooltip, and a saving choice names its rule in the shared tooltip", () => {
+  const detail = "Adds the allow rule Edit in this session.";
+  const state: StripState = { ...ASK, options: [{ id: "aa", label: "Allow with suggested permissions", kind: "allowAlways", detail }] };
+  const html = render(state);
+  expect(html).not.toMatch(/\stitle=/);
+  expect(html).toContain('data-ui-variant="panel" data-state="closed" data-slot="tooltip-trigger">Allow with suggested permissions</button>');
+  hooks.mock = true;
+  const tree = ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, CTX), onEditOnHome: noop, onDismiss: noop, onOpen: noop });
+  const props = elements(tree);
+  expect(props.some(p => p.text === ASK.summary)).toBe(true);
+  expect(props.some(p => p.children === detail)).toBe(true);
 });
 
 test("a choice button calls answerConversationPermission with the provider's option, then Stop takes focus", () => {
@@ -192,7 +208,7 @@ test("a refused Skip or permission answer shows its error line until the next pr
   const flush = async () => { for (let i = 0; i < 4; i++) await Promise.resolve(); };
   const draw = (state: StripState) => { hooks.mock = true; hooks.at = 0; hooks.stateAt = 0; const tree = ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, CTX), onEditOnHome: noop, onDismiss: noop, onOpen: noop }); hooks.reuse = true; return tree; };
   const press = (state: StripState, label: string) => (elements(draw(state)).find(props => typeof props.onClick === "function" && text(props) === label)!.onClick as () => void)();
-  const line = (state: StripState) => /<span class="strip-error" role="alert"><svg[^>]*class="lucide[^"]*doan-alert-icon"[^>]*>.*?<\/svg>([^<]*)<\/span>/.exec(renderToStaticMarkup(draw(state)))?.[1] ?? null;
+  const line = (state: StripState) => /<span class="strip-error" role="alert"><svg[^>]*class="lucide[^"]*doan-alert-icon"[^>]*>.*?<\/svg>([^<]*)<\/span>/.exec(renderToStaticMarkup(<TooltipProvider>{draw(state)}</TooltipProvider>))?.[1] ?? null;
   const refused = async (): Promise<void | { error: string }> => ({ error: "unknown" });
   const answer = vi.fn(refused), skip = vi.fn(refused);
   vi.stubGlobal("window", { doan: { answerConversationPermission: answer, answerConversationQuestion: skip, interruptConversation: vi.fn(async () => {}) } });

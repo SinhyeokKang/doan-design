@@ -51,7 +51,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     const live = prompting && !state.terminal && params.sessionId === sessionId;
     // Only Antigravity asks this way; for Cursor and Copilot the same shape stays a permission request.
     const question = live && input.runtime === "antigravity" ? acpQuestion(params, requestId) : null;
-    const request = live && !question ? acpPermission(params, requestId) : null;
+    const request = live && !question ? acpPermission(params, requestId, input.cwd) : null;
     // Outside a running turn, or with no option doan can offer, the request is answered as cancelled (ACP's reply for a
     // turn that is no longer running) rather than left blocking the agent.
     if (question) {

@@ -75,7 +75,12 @@ function environment(options: { noContext?: boolean; compileFails?: boolean; bud
   vi.stubGlobal("Image", FakeImage);
   vi.stubGlobal("document", page);
   vi.stubGlobal("devicePixelRatio", 1);
-  vi.stubGlobal("matchMedia", (query: string) => { expect(query).toBe("(prefers-reduced-motion: reduce)"); return media; });
+  // Native visibility (a closed window or a hidden app keeps document.hidden false).
+  const native = new Set<(visible: boolean) => void>();
+  vi.stubGlobal("window", { doan: { onWindowVisible: (listener: (visible: boolean) => void) => { native.add(listener); return () => { native.delete(listener); }; } } });
+  // devicePixelRatio's own query is apart from reduced motion's.
+  const resolution = events(log, "resolution");
+  vi.stubGlobal("matchMedia", (query: string) => { if (query.startsWith("(resolution:")) return resolution; expect(query).toBe("(prefers-reduced-motion: reduce)"); return media; });
   vi.stubGlobal("requestAnimationFrame", (callback: (now: number) => void) => { frames.set(++next, callback); return next; });
   vi.stubGlobal("cancelAnimationFrame", (id: number) => { if (frames.delete(id)) log.push("cancel frame"); });
   vi.stubGlobal("ResizeObserver", class { constructor(callback: () => void) { resize = callback; } observe() {} disconnect() { log.push("resize disconnect"); } });
@@ -96,7 +101,7 @@ function environment(options: { noContext?: boolean; compileFails?: boolean; bud
   const still = { hidden: false, complete: false, naturalWidth: 0, ...events(log, "still") };
   const canvas = makeCanvas("canvas");
   return {
-    log, record, count, media, page, host, still, canvas, lift, live: () => canvases.at(-1)!,
+    log, record, count, media, page, host, still, canvas, lift, native, resolution, live: () => canvases.at(-1)!,
     mount: () => mountBuddy(buddy(options.buddy ?? "doany"), host as unknown as HTMLButtonElement, still as unknown as HTMLImageElement, canvas as unknown as HTMLCanvasElement),
     keep: () => keepBuddy(buddy(options.buddy ?? "doany"), host as unknown as HTMLButtonElement, still as unknown as HTMLImageElement, canvas as unknown as HTMLCanvasElement),
     contexts: () => (record as unknown[][]).filter(call => call[0] === "getContext").length,
@@ -177,7 +182,7 @@ test("dispose removes the lost listener, the frame and every listener before rel
   mounted.dispose();
   expect(env.log[0]).toBe("canvas off webglcontextlost");
   expect(env.log[1]).toBe("cancel frame");
-  expect(env.log.slice(2, -4).sort()).toEqual(["document off pointermove", "host off click", "host off keydown", "intersect disconnect", "media off change", "resize disconnect"]);
+  expect(env.log.slice(2, -4).sort()).toEqual(["document off pointermove", "host off click", "host off keydown", "intersect disconnect", "media off change", "resize disconnect", "resolution off change"]);
   expect(env.log.slice(-4)).toEqual(["loseContext", "canvas off webglcontextrestored", "still off error", "replace clone with canvas"]);
   expect(env.host.dataset.state).toBe("idle");
 });
@@ -215,6 +220,36 @@ test("a reduced-motion change draws the still pose; hidden or off-screen Doany s
   expect(env.count.draws).toBe(before);
   env.page.hidden = false; env.frame(1100);
   expect(env.count.draws).toBe(before + 2); // two layers
+});
+
+// POSTMORTEM 2026-10-25: a window closed with the app running, or a hidden app, keeps document.hidden false while
+// Chromium still runs its frames; the buddy reads native visibility as every other clock does.
+test("a window that is not natively visible stops the buddy drawing; shown again it draws, and dispose unsubscribes", async () => {
+  const env = environment();
+  const mounted = env.mount();
+  await env.load(); env.frame(1000);
+  expect(env.native.size).toBe(1);
+  const before = env.count.draws;
+  for (const listener of env.native) listener(false);
+  env.frame(1020); env.frame(1040);
+  expect(env.count.draws).toBe(before);
+  for (const listener of env.native) listener(true);
+  env.frame(1060);
+  expect(env.count.draws).toBe(before + 2); // two layers
+  mounted.dispose();
+  expect(env.native.size).toBe(0);
+});
+
+// A move to a display of another scale changes devicePixelRatio without a CSS resize, so no ResizeObserver fires.
+test("the canvas follows a change of devicePixelRatio, as on a display of another scale, and dispose stops listening", async () => {
+  const env = environment();
+  const mounted = env.mount();
+  await env.load();
+  expect(env.live().width).toBe(114);
+  vi.stubGlobal("devicePixelRatio", 2); env.resolution.dispatch("change");
+  expect(env.live().width).toBe(228);
+  mounted.dispose();
+  expect(env.log).toContain("resolution off change");
 });
 
 test("the pointer anywhere in the window turns the gaze", async () => {

@@ -9,6 +9,7 @@ import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
 import { EYE_TEXTURE, buddy as registry, type Buddy, type BuddyId, type BuddyRig } from "./buddies";
 import type { Pose } from "./doanyMotion";
 import { createDoanyRig, type DoanyRig, type DoanyTarget } from "./doanyRig";
+import { onDevicePixelRatio } from "./devicePixels";
 
 export interface BuddyHandle { hop(): void; typing(): void }
 
@@ -184,6 +185,8 @@ export function mountBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLIma
   }
   if (!parts) { setState("static"); watch.failed(false); return { rig: null, dispose: restore }; }
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+  // Shown until main says otherwise, as the docked buddy is.
+  let nativeShown = true;
   const rig = createDoanyRig({
     target: parts.target,
     textures: parts.textures,
@@ -191,8 +194,9 @@ export function mountBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLIma
       width: () => host.clientWidth,
       rect: () => host.getBoundingClientRect(),
       dpr: () => devicePixelRatio,
-      // Home behind the first-run overlay is visibility: hidden but still intersects the viewport.
-      shown: () => host.checkVisibility({ visibilityProperty: true }),
+      // Home behind the first-run overlay is visibility: hidden but still intersects the viewport. A window closed with
+      // the app running, or a hidden app, keeps document.hidden false while frames still run (POSTMORTEM 2026-10-25).
+      shown: () => nativeShown && host.checkVisibility({ visibilityProperty: true }),
       documentHidden: () => document.hidden,
       setState,
       setLift: lift => { host.style.setProperty("--hop-lift", String(lift)); },
@@ -213,7 +217,10 @@ export function mountBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLIma
       const change = () => rig.reducedChange();
       host.addEventListener("click", click); host.addEventListener("keydown", keydown);
       document.addEventListener("pointermove", move); reduced.addEventListener("change", change);
+      const native = window.doan.onWindowVisible(visible => { nativeShown = visible; });
+      const ratio = onDevicePixelRatio(() => rig.resize());
       return () => {
+        native(); ratio();
         resize.disconnect(); visible.disconnect();
         host.removeEventListener("click", click); host.removeEventListener("keydown", keydown);
         document.removeEventListener("pointermove", move); reduced.removeEventListener("change", change);

@@ -6,7 +6,7 @@ const SHARE = `${HOME}/.local/share/doan`;
 const RESOURCES = "/Applications/Doan.app/Contents/Resources";
 const link = (value: string): Observation => ({ kind: "symlink", value });
 const MISSING: Observation = { kind: "missing" };
-// The list is empty until a release changes the rule text; these tests stand in an earlier text for the run.
+// These tests stand in one more earlier text for the run.
 const EARLIER = '# An earlier Doan rule\nprefix_rule(pattern=["doan"], decision="allow")\n';
 function withEarlier(run: () => void): void {
   const list = EARLIER_CODEX_RULES as string[];
@@ -97,7 +97,12 @@ describe("the Codex rule's earlier texts", () => {
   // A failure here means the rule text changed: add the released text below to EARLIER_CODEX_RULES before updating
   // this pin, or every machine set up by an earlier version keeps that version's file as someone else's.
   it("pins the current rule text", () => {
-    expect(codexRuleText()).toBe('# Written by Doan so Codex runs `doan` outside its sandbox without asking. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan"], decision="allow")\n');
+    expect(codexRuleText()).toBe('# Written by Doan so Codex runs `doan` outside its sandbox without asking, and asks first for `doan export`, `config`, `onboarding` and `remove`. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan"], decision="allow")\nprefix_rule(pattern=["doan", "export"], decision="prompt")\nprefix_rule(pattern=["doan", "config"], decision="prompt")\nprefix_rule(pattern=["doan", "onboarding"], decision="prompt")\nprefix_rule(pattern=["doan", "remove"], decision="prompt")\n');
+  });
+
+  // The text agent setup wrote before the writing commands asked: installed copies must upgrade, not turn foreign.
+  it("lists the allow-everything text as an earlier one", () => {
+    expect(EARLIER_CODEX_RULES).toContain('# Written by Doan so Codex runs `doan` outside its sandbox without asking. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan"], decision="allow")\n');
   });
 
   it("never lists the current text", () => {
@@ -135,8 +140,13 @@ describe("plannedTargets", () => {
     ]);
   });
 
-  it("allows every doan command, as ego lite does for its CLI", () => {
+  // Codex applies the strictest matching rule (forbidden > prompt > allow, Codex docs 'Rules'), so these four ask while
+  // every other doan command runs outside the sandbox unasked.
+  it("allows doan commands but asks before export, config, onboarding and remove", () => {
     expect(codexRuleText()).toMatch(/^prefix_rule\(pattern=\["doan"\], decision="allow"\)$/m);
+    for (const command of ["export", "config", "onboarding", "remove"])
+      expect(codexRuleText()).toMatch(new RegExp(`^prefix_rule\\(pattern=\\["doan", "${command}"\\], decision="prompt"\\)$`, "m"));
+    expect(codexRuleText().match(/^prefix_rule/gm)).toHaveLength(5);
   });
 
   it("leaves out missing provider folders and the system link when PATH has ~/.local/bin", () => {

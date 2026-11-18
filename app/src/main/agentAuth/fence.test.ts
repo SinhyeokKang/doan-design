@@ -17,9 +17,9 @@ const HOOK = `(allow file-read* (literal (param "BROWSER_HOOK")))
 // A later run reads these as its settings, and Claude's or Codex's next run may start without the outer fence
 // (Claude by its sandbox setting, Codex outside Full access): their hooks, MCP servers and notify then run outside
 // any sandbox, so the agent must not plant them.
-const CLAUDE_SETTINGS = `(deny file-write* (literal (param "PROVIDER_SETTINGS")) (subpath (param "PROVIDER_SKILLS")) (subpath (param "PROVIDER_AGENTS")) (subpath (param "PROVIDER_PLUGINS")) (subpath (param "PROVIDER_COMMANDS")) (subpath (param "PROVIDER_PROJECT")) (literal (param "PROVIDER_MCP")))
+const CLAUDE_SETTINGS = `(deny file-write* (literal (param "PROVIDER_SETTINGS")) (subpath (param "PROVIDER_SKILLS")) (subpath (param "PROVIDER_AGENTS")) (subpath (param "PROVIDER_PLUGINS")) (subpath (param "PROVIDER_COMMANDS")) (subpath (param "PROVIDER_PROJECT")) (literal (param "PROVIDER_MCP")) (literal (param "PROVIDER_MEMORY")))
 `;
-const CODEX_SETTINGS = `(deny file-write* (literal (param "CODEX_CONFIG")) (literal (param "CODEX_HOOKS")) (literal (param "CODEX_MANAGED")) (literal (param "CODEX_ENV")) (subpath (param "CODEX_RULES")) (subpath (param "CODEX_SKILLS")) (subpath (param "CODEX_PLUGINS")))
+const CODEX_SETTINGS = `(deny file-write* (literal (param "CODEX_CONFIG")) (literal (param "CODEX_HOOKS")) (literal (param "CODEX_MANAGED")) (literal (param "CODEX_ENV")) (subpath (param "CODEX_RULES")) (subpath (param "CODEX_SKILLS")) (subpath (param "CODEX_PLUGINS")) (literal (param "CODEX_AGENTS")) (literal (param "CODEX_AGENTS_OVERRIDE")))
 `;
 const ANTIGRAVITY = `(allow file-read-metadata (literal (param "AGENT_RUNTIMES")))
 (allow file-read* (subpath (param "AGENT_RUNTIME")))
@@ -61,15 +61,15 @@ describe("fenceArgs", () => {
     const att = `${U}/attachments/1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed`;
     expect(fenceArgs("claude", paths({ attachments: [att] }))).toEqual(["-p", BASE + HOOK + CLAUDE_SETTINGS,
       "-D", `USERDATA=${U}`, "-D", `AGENT_AUTH=${U}/agent-auth`, "-D", `PROFILES=${U}/agent-auth/profiles`, "-D", `PROFILE=${P}`,
-      "-D", `RUNTIME=${U}/runtime.json`, "-D", `ATTACHMENTS=${att}`, "-D", `BROWSER_HOOK=${U}/agent-auth/browser-hook`, "-D", `PROVIDER_SETTINGS=${P}/settings.json`,
+      "-D", `RUNTIME=${U}/conversation-runtime.json`, "-D", `ATTACHMENTS=${att}`, "-D", `BROWSER_HOOK=${U}/agent-auth/browser-hook`, "-D", `PROVIDER_SETTINGS=${P}/settings.json`,
       "-D", `PROVIDER_SKILLS=${P}/skills`, "-D", `PROVIDER_AGENTS=${P}/agents`, "-D", `PROVIDER_PLUGINS=${P}/plugins`, "-D", `PROVIDER_COMMANDS=${P}/commands`,
-      "-D", `PROVIDER_PROJECT=${P}/.claude`, "-D", `PROVIDER_MCP=${P}/.mcp.json`]);
+      "-D", `PROVIDER_PROJECT=${P}/.claude`, "-D", `PROVIDER_MCP=${P}/.mcp.json`, "-D", `PROVIDER_MEMORY=${P}/CLAUDE.md`]);
   });
   it("names Codex's settings files in its own profile", () => {
     const profile = `${U}/agent-auth/profiles/codex-7`;
     expect(params(fenceArgs("codex", { userData: U, profile, attachments: [`${U}/attachments`] }))).toMatchObject({
       CODEX_CONFIG: `${profile}/config.toml`, CODEX_HOOKS: `${profile}/hooks.json`, CODEX_MANAGED: `${profile}/managed_config.toml`, CODEX_ENV: `${profile}/.env`, CODEX_RULES: `${profile}/rules`,
-      CODEX_SKILLS: `${profile}/skills`, CODEX_PLUGINS: `${profile}/plugins` });
+      CODEX_SKILLS: `${profile}/skills`, CODEX_PLUGINS: `${profile}/plugins`, CODEX_AGENTS: `${profile}/AGENTS.md`, CODEX_AGENTS_OVERRIDE: `${profile}/AGENTS.override.md` });
   });
   it("gives Antigravity its agent runtime and its own profile's skill paths", () => {
     const profile = `${U}/agent-auth/profiles/antigravity`;
@@ -89,7 +89,7 @@ describe("fenceArgs", () => {
   });
   it("names no other provider's profile and no Doan path beyond the allowed ones", () => {
     const values = Object.values(params(fenceArgs("claude", paths())));
-    expect(values.filter(v => v.startsWith(`${U}/agent-auth/profiles/`))).toEqual([P, P, `${P}/settings.json`, `${P}/skills`, `${P}/agents`, `${P}/plugins`, `${P}/commands`, `${P}/.claude`, `${P}/.mcp.json`]);
+    expect(values.filter(v => v.startsWith(`${U}/agent-auth/profiles/`))).toEqual([P, P, `${P}/settings.json`, `${P}/skills`, `${P}/agents`, `${P}/plugins`, `${P}/commands`, `${P}/.claude`, `${P}/.mcp.json`, `${P}/CLAUDE.md`]);
     expect(values.some(v => v.includes("conversations") || v.includes("vault"))).toBe(false);
   });
   it("keeps a path with quotes, spaces and parentheses as one argument", () => {
@@ -163,7 +163,7 @@ describe("profileFencedCommand", () => {
     expect(launch.command).toBe(SANDBOX_EXEC);
     expect(launch.args.slice(-2)).toEqual(["/bin/copilot", "login"]);
     expect(launch.args[1]).toBe(fencePolicy("copilot"));
-    expect(params(launch.args)).toEqual({ USERDATA: U, AGENT_AUTH: `${U}/agent-auth`, PROFILES: `${U}/agent-auth/profiles`, PROFILE: copilot, RUNTIME: `${U}/runtime.json`, ATTACHMENTS: copilot });
+    expect(params(launch.args)).toEqual({ USERDATA: U, AGENT_AUTH: `${U}/agent-auth`, PROFILES: `${U}/agent-auth/profiles`, PROFILE: copilot, RUNTIME: `${U}/conversation-runtime.json`, ATTACHMENTS: copilot });
   });
   it("takes another sandbox-exec path", () => {
     expect(profileFencedCommand("claude", { userData: U, exec: "/tmp/exec" }, P, "/bin/claude", [], real)!.command).toBe("/tmp/exec");
@@ -207,7 +207,7 @@ describe("fencedCommand", () => {
 
 describe("fenceDenied", () => {
   const listing: FenceListing = new Map([
-    [U, [{ name: "agent-auth", directory: true }, { name: "attachments", directory: true }, { name: "conversations", directory: true }, { name: "runtime.json", directory: false }, { name: "sessions.jsonl", directory: false }, { name: "agent-runtimes", directory: true }]],
+    [U, [{ name: "agent-auth", directory: true }, { name: "attachments", directory: true }, { name: "conversations", directory: true }, { name: "conversation-runtime.json", directory: false }, { name: "runtime.json", directory: false }, { name: "sessions.jsonl", directory: false }, { name: "agent-runtimes", directory: true }]],
     [`${U}/agent-auth`, [{ name: "profiles", directory: true }, { name: "vault", directory: true }, { name: "metadata.json", directory: false }, { name: "browser-hook", directory: false }]],
     [`${U}/agent-auth/profiles`, [{ name: "claude", directory: true }, { name: "codex", directory: true }, { name: "codex-7", directory: true }, { name: "cursor", directory: true }]],
     [`${U}/attachments`, [{ name: "0f4e", directory: true }, { name: "77aa", directory: true }]],
@@ -217,14 +217,14 @@ describe("fenceDenied", () => {
   it("leaves Codex the whole attachment store and denies the browser hook it does not run", () => {
     expect(fenceListingDirs(codex)).toEqual([U, `${U}/agent-auth`, `${U}/agent-auth/profiles`]);
     expect(fenceDenied(codex, listing)).toEqual([
-      dir(`${U}/conversations`), file(`${U}/sessions.jsonl`), dir(`${U}/agent-runtimes`),
+      dir(`${U}/conversations`), file(`${U}/runtime.json`), file(`${U}/sessions.jsonl`), dir(`${U}/agent-runtimes`),
       dir(`${U}/agent-auth/vault`), file(`${U}/agent-auth/metadata.json`), file(`${U}/agent-auth/browser-hook`),
       dir(`${U}/agent-auth/profiles/claude`), dir(`${U}/agent-auth/profiles/codex-7`), dir(`${U}/agent-auth/profiles/cursor`),
     ]);
   });
   it("never denies an allowed path or one of its ancestors", () => {
     const denied = fenceDenied(codex, listing)!.map(e => e.path);
-    for (const allowed of [U, codex.profile, `${U}/runtime.json`, `${U}/agent-auth/profiles`, `${U}/agent-auth`, `${U}/attachments`]) expect(denied).not.toContain(allowed);
+    for (const allowed of [U, codex.profile, `${U}/conversation-runtime.json`, `${U}/agent-auth/profiles`, `${U}/agent-auth`, `${U}/attachments`]) expect(denied).not.toContain(allowed);
   });
   it("refuses when an ancestor could not be listed", () => {
     expect(fenceDenied(codex, new Map([...listing].filter(([d]) => d !== `${U}/agent-auth`)))).toBeNull();
@@ -242,7 +242,7 @@ describe("codexProfileArgs", () => {
   const denied = [{ path: `${U}/conversations`, directory: true }, { path: `${U}/agent-auth/profiles/cursor`, directory: true }];
   const sock = "/private/var/folders/x/T/doan-AbC123";
   it("defines Doan's two permission profiles and makes the read-only one the default", () => {
-    const entries = `{"${U}/conversations"="deny","${U}/agent-auth/profiles/cursor"="deny","${profile}/config.toml"="deny","${profile}/hooks.json"="deny","${profile}/managed_config.toml"="deny","${profile}/.env"="deny","${profile}/rules"="deny","${profile}"="write","${U}/runtime.json"="read","${U}/attachments"="read","${profile}/skills"="read","${profile}/plugins"="read"}`;
+    const entries = `{"${U}/conversations"="deny","${U}/agent-auth/profiles/cursor"="deny","${profile}/config.toml"="deny","${profile}/hooks.json"="deny","${profile}/managed_config.toml"="deny","${profile}/.env"="deny","${profile}/rules"="deny","${profile}/AGENTS.md"="deny","${profile}/AGENTS.override.md"="deny","${profile}"="write","${U}/conversation-runtime.json"="read","${U}/attachments"="read","${profile}/skills"="read","${profile}/plugins"="read","${profile}/sessions"="read","${profile}/memories"="read","${profile}/shell_snapshots"="read"}`;
     const network = `network={enabled=true,unix_sockets={"${sock}"="allow"}}`;
     expect(codexProfileArgs(codex, denied, sock)).toEqual([
       "-c", 'default_permissions="doan"',
@@ -266,6 +266,21 @@ describe("codexProfileArgs", () => {
     const text = codexProfileArgs(codex, denied, sock).join(" ");
     for (const dir of ["skills", "plugins"]) { expect(text).toContain(`"${profile}/${dir}"="read"`); expect(text).not.toContain(`"${profile}/${dir}"="deny"`); }
   });
+  // Codex loads <CODEX_HOME>/AGENTS.md (or AGENTS.override.md) as the person's own instructions in every later thread,
+  // and replays sessions/ on a resume; memories/ and shell_snapshots/ feed later threads and commands. Codex itself writes
+  // its sessions, memories and snapshots outside the command sandbox, so only the agent's commands lose the writes.
+  it("closes the instruction files and the stored sessions, memories and shell snapshots to the agent's writes", () => {
+    const text = codexProfileArgs(codex, denied, sock).join(" ");
+    for (const file of ["AGENTS.md", "AGENTS.override.md"]) expect(text).toContain(`"${profile}/${file}"="deny"`);
+    for (const dir of ["sessions", "memories", "shell_snapshots"]) { expect(text).toContain(`"${profile}/${dir}"="read"`); expect(text).not.toContain(`"${profile}/${dir}"="write"`); }
+  });
+  // Conversations read their own runtime file, whose credential the app refuses for onboarding and removal; the
+  // terminal's runtime.json stays closed.
+  it("reopens the conversation runtime file and not runtime.json", () => {
+    const text = codexProfileArgs(codex, denied, sock).join(" ");
+    expect(text).toContain(`"${U}/conversation-runtime.json"="read"`);
+    expect(text).not.toContain(`"${U}/runtime.json"`);
+  });
   // Without network Codex opens no unix socket, for a sandboxed or an approved escalated command alike, so `doan`
   // could not reach the app (user decision: network on, the app socket's directory allowed).
   it("opens the network and the app socket's directory", () => {
@@ -275,7 +290,7 @@ describe("codexProfileArgs", () => {
   // (codex-cli 0.166.0), so a deny over userData as a whole took runtime.json from `doan handoff`.
   it("denies neither userData nor an ancestor of an allowed path", () => {
     const text = codexProfileArgs(codex, denied, sock).join(" ");
-    for (const path of [U, `${U}/agent-auth`, `${U}/agent-auth/profiles`, profile, `${U}/runtime.json`, `${U}/attachments`]) expect(text).not.toContain(`${JSON.stringify(path)}="deny"`);
+    for (const path of [U, `${U}/agent-auth`, `${U}/agent-auth/profiles`, profile, `${U}/conversation-runtime.json`, `${U}/attachments`]) expect(text).not.toContain(`${JSON.stringify(path)}="deny"`);
   });
   it("escapes quotes and backslashes as TOML strings", () => {
     const odd = `/tmp/a"b\\c`;

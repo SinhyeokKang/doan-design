@@ -39,7 +39,17 @@ export function relInside(realRoot: string, realPath: string): string | null {
   return realPath.startsWith(prefix) ? realPath.slice(prefix.length) : null;
 }
 
-// Same rule as `doan check` (`css_not_served`): equal to an entry or under it.
+// Same rule as `doan check` (`css_not_served`): equal to an entry or under it, and not held back.
 export function inScope(rel: string, scope: readonly string[]): boolean {
-  return scope.some((entry) => rel === entry || rel.startsWith(`${entry}/`));
+  return !withheld(rel) && scope.some((entry) => rel === entry || rel.startsWith(`${entry}/`));
+}
+
+// Same rule as `repo.Withheld` in the CLI: a .git directory or a .env file, or anything under one, is never served,
+// whatever `.doan/config.json` lists (ARCHITECTURE §3 'Never served').
+// Letter case is ignored because the volume usually ignores it.
+export function withheld(rel: string): boolean {
+  return rel.split("/").some((segment) => {
+    const lower = segment.toLowerCase();
+    return lower === ".git" || lower.startsWith(".env");
+  });
 }
