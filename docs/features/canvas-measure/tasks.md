@@ -1,6 +1,6 @@
 # 캔버스 거리 측정 — tasks
 
-1. **Figma 추가 관찰.** 다음을 관찰해 design.md '관찰 기록' 표에 사례 행으로 더한다.
+1. **Figma 추가 관찰. (2026-11-18 완료: 사례 19–26, 변 차이 규칙 확정)** 다음을 관찰해 design.md '관찰 기록' 표에 사례 행으로 더한다.
    - '미확정 규칙'을 정할 사례: 한 축만 겹칠 때 변 차이 0이 있는 경우와 없는 경우, 선택과 대상을 바꾼 경우, 대상 범위가 선택의 안·밖·일부인 경우.
    - 줌 50%·200%의 선 두께와 라벨 크기.
    - 라벨보다 짧은 간격, 라벨끼리 겹치는 경우, 라벨이 화면 밖으로 나가는 경우.
@@ -11,7 +11,7 @@
    - 검증: `doan check --repo .`와 `doan ls --repo .`에 오류가 없다. 측정 색과 흰 글자의 대비 값이 `contrastPairs` 검사로 기록된다. 사용자가 앱에서 초안을 확인한다.
    - 커밋 경계: `docs(design): canvas-measure draft`
 3. **테스트 먼저(`/tdd`).** `measure.ts`에 시그니처만 있는 stub을 두고, 아래 테스트가 import 실패가 아니라 단언 실패로 red인지 확인한다.
-   - `measureLines`: 관찰 사례 01–05, 11–17과 1번에서 더한 사례.
+   - `measureLines`: 관찰 사례 01–05, 11–17, 19–25(19–24는 양방향).
    - `canvasPx`: `selection.test.ts`의 `describe("sizeLabel")`과 같은 입력에 같은 출력.
    - `canvasScript.test.ts`: Option을 누른 동안에도 hover rect가 온다. 다음 기존 테스트의 기대값을 "⌥ 중에도 rect가 온다"로 바꾼다. "hides when the pointer leaves, ⌥ is held, the wheel turns or over body"(:1400), "an Alt keydown hides the hover until the next move without ⌥"(:1420), "reports Alt release in the canvas at the app's modifier sequence without losing selection"(:1386). seq 순서 단언(stale `hover-alt` 거부, selection seq 불변, :1449 "hover commands cannot supersede selection commands…")은 그대로 둔다. 캔버스 `blur`가 Option도 놓는다.
    - `CanvasController.test.ts`: 측정이 그려지고 사라지는 조건을 테스트 이름 단위로 고정한다.
