@@ -4,9 +4,8 @@ import type { Session } from "electron";
 
 export type Lookup = (hostname: string) => Promise<readonly string[]>;
 
-// Canvases are served from 127.0.0.1, and Chromium only gates requests from a less private address space to a more
-// private one, so a canvas script's request to another local service (a dev server, an agent's sign-in listener)
-// would go out with no prompt. 0.0.0.0 and :: reach this Mac's own listeners on macOS.
+// Chromium's local-network gating does not cover requests from a document served from 127.0.0.1, so the session
+// filters a canvas's requests to other loopback addresses itself. 0.0.0.0 and :: reach this Mac's own listeners on macOS.
 const LOOPBACK = new BlockList();
 LOOPBACK.addSubnet("127.0.0.0", 8, "ipv4");
 LOOPBACK.addSubnet("0.0.0.0", 8, "ipv4");
@@ -28,9 +27,8 @@ const systemLookup: Lookup = async (hostname) => {
   return answers.flatMap((answer) => answer.status === "fulfilled" ? answer.value : []);
 };
 
-// A name is looked up because one that resolves to 127.0.0.1 reaches the same listeners as the literal. A name whose
-// answer changes between this lookup and Chromium's own, or that only this Mac's /etc/hosts maps (c-ares queries the
-// DNS servers), can still get through; that residual is accepted.
+// A name is looked up because one that resolves to 127.0.0.1 reaches the same listeners as the literal. Name
+// resolution is best-effort.
 export async function reachesLoopback(raw: string, resolve: Lookup = systemLookup): Promise<boolean> {
   if (!URL.canParse(raw)) return false;
   const url = new URL(raw);

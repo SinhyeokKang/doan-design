@@ -45,7 +45,7 @@ export function inScope(rel: string, scope: readonly string[]): boolean {
 }
 
 // Same rule as `repo.Withheld` in the CLI: a .git directory or a .env file, or anything under one, is never served,
-// whatever `.doan/config.json` lists, so a committed config cannot hand canvas scripts the secrets kept in a checkout.
+// whatever `.doan/config.json` lists (ARCHITECTURE §3 'Never served').
 // Letter case is ignored because the volume usually ignores it.
 export function withheld(rel: string): boolean {
   return rel.split("/").some((segment) => {

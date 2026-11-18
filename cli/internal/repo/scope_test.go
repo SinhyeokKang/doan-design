@@ -220,7 +220,7 @@ func TestWithheld(t *testing.T) {
 	}
 }
 
-// A committed config must not put repository secrets in front of canvas scripts.
+// .git and .env paths are never served, whatever the config lists (ARCHITECTURE §3 'Never served').
 func TestScopeWithholdsGitAndEnv(t *testing.T) {
 	root := real(t, t.TempDir())
 	put(t, root, ".doan/canvases/a.html", "")
