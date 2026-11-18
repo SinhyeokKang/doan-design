@@ -45,6 +45,13 @@ function must(result: { code: number; stdout: string; stderr: string }, what: st
   return result.stdout;
 }
 
+// A new directory no Codex agent's shell can write: Codex's workspace-write sandbox opens the agent's folder, /tmp and
+// $TMPDIR to it (codex-cli 0.169.0 `codex sandbox -P :workspace`), but not /var/tmp. The two lanes run side by side, so
+// this covers every Codex home of a round, a judge's included. A short path, because Codex binds ipc/ipc.sock in it.
+export function outsideCodexSandbox(prefix: string): string {
+  return realpathSync(mkdtempSync(`/var/tmp/${prefix}`));
+}
+
 // Builds the starting repo outside any checkout: seed, `doan init` when the
 // scenario asks and the seed has no .doan/config.json, the discovery stub at repo level
 // only, the Codex rule, then one baseline commit. init output, the stub and the rule
@@ -75,11 +82,9 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     // The key the app puts in a canvas conversation's environment; the fake app knows the same one.
     const handoff = o.scenario.handoff ? { key: randomBytes(32).toString("hex"), canvas: o.scenario.handoff.canvas } : null;
     const shared = { ...agentEnvironment(process.env), PATH: [join(base, "bin"), ...path].join(delimiter), DOAN_RUNTIME: join(base, "rt/runtime.json"), ...(handoff ? { DOAN_HANDOFF: handoff.key } : {}) };
-    // Codex's workspace-write sandbox opens the agent's folder, /tmp and $TMPDIR to the agent's shell (codex-cli 0.169.0
-    // `codex sandbox -P :workspace`), but not /var/tmp. Codex itself, outside that sandbox, writes refreshed tokens
-    // through this home's links and reads instructions and settings there, and the rollout read as evidence lives
-    // there, so the agent must not be able to rewrite it. A short path, because Codex binds ipc/ipc.sock in it.
-    if (o.agent === "codex") codexHome = realpathSync(mkdtempSync("/var/tmp/doan-eval-codex-"));
+    // Codex itself, outside its sandbox, writes refreshed tokens through this home's links and reads instructions and
+    // settings there, and the rollout read as evidence lives there, so the agent must not be able to rewrite it.
+    if (o.agent === "codex") codexHome = outsideCodexSandbox("doan-eval-codex-");
     const env = o.agent === "fixture" ? shared : isolateUserInstructions(o.agent, shared, codexHome ?? join(base, "codex-home"));
     const gitDir = o.scenario.git ? null : join(base, "seed.git");
     const git = (args: string[]) => must(sh("git", [...GIT, "-C", repo, ...(gitDir ? ["--git-dir", gitDir, "--work-tree", repo] : []), ...args], repo, env), `git ${args[0]}`);
