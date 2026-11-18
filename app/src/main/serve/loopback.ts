@@ -1,4 +1,4 @@
-import { lookup } from "node:dns/promises";
+import { Resolver } from "node:dns/promises";
 import { BlockList, isIP } from "node:net";
 import type { Session } from "electron";
 
@@ -20,10 +20,17 @@ export function loopbackAddress(ip: string): boolean {
 
 const SCHEMES = new Set(["http:", "https:", "ws:", "wss:"]);
 
-const systemLookup: Lookup = async (hostname) => (await lookup(hostname, { all: true, verbatim: true })).map((entry) => entry.address);
+// c-ares, not getaddrinfo: `dns.lookup` holds a libuv worker for as long as a slow resolver takes, and four of them
+// stall main's file system work, the canvas server's included. A bounded query on the network keeps that apart.
+const resolver = new Resolver({ timeout: 2000, tries: 1 });
+const systemLookup: Lookup = async (hostname) => {
+  const answers = await Promise.allSettled([resolver.resolve4(hostname), resolver.resolve6(hostname)]);
+  return answers.flatMap((answer) => answer.status === "fulfilled" ? answer.value : []);
+};
 
 // A name is looked up because one that resolves to 127.0.0.1 reaches the same listeners as the literal. A name whose
-// answer changes between this lookup and Chromium's own can still get through; that residual is accepted.
+// answer changes between this lookup and Chromium's own, or that only this Mac's /etc/hosts maps (c-ares queries the
+// DNS servers), can still get through; that residual is accepted.
 export async function reachesLoopback(raw: string, resolve: Lookup = systemLookup): Promise<boolean> {
   if (!URL.canParse(raw)) return false;
   const url = new URL(raw);
