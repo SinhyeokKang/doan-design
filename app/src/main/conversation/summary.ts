@@ -21,8 +21,8 @@ export interface ConversationSummary {
   readError?: true;
   // What started this canvas conversation when the person did not: a handoff (its first message names the earlier
   // conversation) or a promotion (a project conversation moved to the canvas). The renderer lets a conversation the
-  // person started or a promoted one take over an empty panel, never a handoff's. A handoff's start is in the history alone, so an unreadable one reads
-  // as the person's.
+  // person started or a promoted one take over an empty panel, never a handoff's. A handoff's start is in the history
+  // alone, so an unreadable one reads as the person's.
   startedBy?: "handoff" | "promotion";
   // Queued messages came back as a draft (conversation:takeDraft) after a failed or stopped turn, a refused queued
   // send or a restart.
