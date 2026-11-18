@@ -3047,11 +3047,15 @@ const links = JSON.parse(readFileSync(new URL("../../../schema/fixtures/prototyp
 type BoardFrame = { id: string; prototype?: string; cut?: true; parent?: number };
 type BoardLayout = { type: "layout"; frames: BoardFrame[]; gotos: { value: string; frame?: number }[]; truncated: boolean };
 
+// One Electron serves every real-DOM block in this file, so these hooks are the file's, wherever they sit.
+// Real-DOM blocks allow 60 s a test: each helper step is bounded at 15 s, so a step that hangs fails by its own name
+// before the test limit.
+let dom: ElectronDom;
+beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
+afterAll(async () => { await dom?.close(); }, 30_000);
+
 // The board's frames and links in a real DOM, the script running first as the board's injection puts it.
-describe("layout frames and links in a real DOM", () => {
-  let dom: ElectronDom;
-  beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
-  afterAll(async () => { await dom?.close(); }, 30_000);
+describe("layout frames and links in a real DOM", { timeout: 60_000 }, () => {
 
   const layoutOf = async (body: string): Promise<BoardLayout> => {
     const frame = await dom.load(`<!doctype html><html><head><script>${canvasScriptSource()}</script></head><body>${body}</body></html>`);
@@ -3219,10 +3223,7 @@ describe("elementTree", () => {
 });
 
 // The element tree in a real DOM: computed display and direction, own text nodes and the selection channel.
-describe("canvasScript element-tree in a real DOM", () => {
-  let dom: ElectronDom;
-  beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
-  afterAll(async () => { await dom?.close(); }, 30_000);
+describe("canvasScript element-tree in a real DOM", { timeout: 60_000 }, () => {
 
   type Frame = Awaited<ReturnType<ElectronDom["load"]>>;
   const toCanvas = (frame: Frame, data: unknown) =>

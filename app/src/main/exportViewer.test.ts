@@ -6,6 +6,7 @@ import { Eye, Hand, MousePointer2 } from "lucide-react";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import type { Frame } from "playwright";
 import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
+import { bounded } from "../../runtime/harness";
 import { MAX_FRAMES, MAX_HREF, MAX_STRING, parseCanvasMessage } from "../renderer/canvasMessage";
 import { INITIAL_HEIGHT, layoutHeight as appLayoutHeight, MAX_HEIGHT } from "../renderer/canvasView";
 import { frameLabel } from "../renderer/canvasTree";
@@ -1196,10 +1197,14 @@ const viewerPage = (body: string, { width = 800, reports = true } = {}): string 
 };
 const twoFrames = '<section data-doan-frame="cart" data-doan-title="Cart" style="height:600px">Cart</section><section data-doan-frame="pay" data-doan-title="Payment" style="height:600px">Payment</section>';
 
-describe("the viewer header in a real DOM", () => {
-  let dom: ElectronDom;
-  beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
-  afterAll(async () => { await dom?.close(); }, 30_000);
+// One Electron serves every real-DOM block in this file, so these hooks are the file's, wherever they sit.
+// Real-DOM blocks allow 60 s a test: each helper step is bounded at 15 s, so a step that hangs fails by its own name
+// before the test limit.
+let dom: ElectronDom;
+beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
+afterAll(async () => { await dom?.close(); }, 30_000);
+
+describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
 
   // The viewer at 800 × 500 inside the test window, once its first view is drawn.
   const open = async (body: string): Promise<Frame> => {
@@ -1413,10 +1418,7 @@ describe("measure.js keeps the canvas in its document as isolate.js does", () =>
 const measureDocument = (body: string) =>
   `<!doctype html><html><head><script>(function () {\n${lib}\n${measure}\n})();</script></head><body>${body}</body></html>`;
 
-describe("measure.js keeps the canvas in its srcdoc document in a real DOM", () => {
-  let dom: ElectronDom;
-  beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
-  afterAll(async () => { await dom?.close(); }, 30_000);
+describe("measure.js keeps the canvas in its srcdoc document in a real DOM", { timeout: 60_000 }, () => {
   const page = `<a id="toc" href="#pricing">Pricing</a><div style="height:2000px"></div><h2 id="pricing">Pricing</h2>`;
 
   test("a # link moves within the document", async () => {
@@ -1704,10 +1706,7 @@ const clicks = JSON.parse(readFileSync(new URL("../../../schema/fixtures/prototy
 const isolateDocument = (frame: string, body: string) =>
   `<!doctype html><html><head><script>window.name = ${JSON.stringify(frame)};</script><script>(function () {\n${isolateJs}\n})();</script></head><body>${body}</body></html>`;
 
-describe("isolate.js follows links in a real DOM", () => {
-  let dom: ElectronDom;
-  beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
-  afterAll(async () => { await dom?.close(); }, 30_000);
+describe("isolate.js follows links in a real DOM", { timeout: 60_000 }, () => {
 
   // Loads the document, checks the frame played, clicks `selector` and returns what the click posted.
   const clickIn = async (frameId: string, html: string, selector: string, host: string | null = null, iframe?: string) => {
@@ -1936,16 +1935,19 @@ describe("isolate.js follows links in a real DOM", () => {
     const frame = await dom.load(isolateDocument("a", frames(`<a id="x" href="#sec" data-doan-goto="b">Next</a>`, script)));
     const top = frame.parentFrame()!;
     await dom.flush(frame);
-    await frame.evaluate(() => (document.getElementById("x") as HTMLElement).click());
-    const seen = await top.evaluate(() => new Promise<{ posted: unknown[]; url: string }>(resolve => {
+    await bounded(frame.evaluate(() => (document.getElementById("x") as HTMLElement).click()), 15_000, "click");
+    // The poll gives up on its own and returns what it saw, so a missing goto or navigation shows in the expectations
+    // below instead of as a bare test timeout; `bounded` names the poll if the page itself stops answering.
+    const seen = await bounded(top.evaluate(() => new Promise<{ posted: unknown[]; url: string }>(resolve => {
       const w = window as unknown as { doanPosted: unknown[]; doanFrame: HTMLIFrameElement };
+      const end = Date.now() + 10_000;
       const check = () => {
         const url = w.doanFrame.contentWindow!.location.href;
-        if (url !== "about:srcdoc" && w.doanPosted.some(m => (m as { goto?: string }).goto !== undefined)) resolve({ posted: w.doanPosted, url });
+        if ((url !== "about:srcdoc" && w.doanPosted.some(m => (m as { goto?: string }).goto !== undefined)) || Date.now() >= end) resolve({ posted: w.doanPosted, url });
         else setTimeout(check, 10);
       };
       check();
-    }));
+    })), 15_000, "goto and navigation poll");
     expect(seen.posted.filter(m => (m as { goto?: string }).goto !== undefined)).toEqual([{ type: "doan-prototype", goto: "b" }]);
     expect(seen.url).not.toBe("about:srcdoc");
     expect(seen.url.endsWith("#new")).toBe(true);
