@@ -130,6 +130,52 @@ describe("permission choices", () => {
   });
 });
 
+// The approval card leads with what will run; the agent's own words (Claude's description, Codex's reason) are a second
+// line, and a choice that saves a rule says which.
+describe("approval card content", () => {
+  it("shows a Claude command, not its description, and keeps the description as the reason", () => {
+    const event = claudePermission("r", "Bash", { command: "npm test", description: "Run the tests" }, [], "/repo").event;
+    expect(event).toMatchObject({ summary: "npm test", reason: "Run the tests" });
+    expect(claudePermission("r", "Write", { file_path: "/repo/a.html", description: "Save" }, [], "/repo").event).toMatchObject({ summary: "a.html", reason: "Save" });
+    expect(claudePermission("r", "NotebookEdit", { notebook_path: "/elsewhere/n.ipynb" }, [], "/repo").event.summary).toBe("/elsewhere/n.ipynb");
+    expect(claudePermission("r", "WebFetch", { url: "https://example.invalid/a", prompt: "Read it" }, [], "/repo").event.summary).toBe("https://example.invalid/a");
+    expect("reason" in claudePermission("r", "Bash", { command: "ls" }, [], "/repo").event).toBe(false);
+  });
+  it("marks a cut reason", () => {
+    expect(claudePermission("r", "Bash", { command: "ls", description: "d".repeat(600) }, [], "/repo").event.reason).toBe(`${"d".repeat(511)}…`);
+  });
+  it("keeps the activity of a non-command tool as it was", () => {
+    const tool = { type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: "t", name: "mcp__claude_ai_Figma__get_screenshot", input: { description: "Take a screenshot" } }] } };
+    expect(collect("claude", [tool]).events).toEqual([{ type: "activity", kind: "other", summary: "Take a screenshot" }]);
+  });
+  it("shows a Codex command, not its reason, and keeps the reason", () => {
+    const request = codexPermission({ id: 4, method: "item/commandExecution/requestApproval", params: { threadId: "s", turnId: "t", itemId: "i", command: "npm run build", reason: "Build the app" } });
+    expect(request?.event).toMatchObject({ summary: "npm run build", reason: "Build the app" });
+  });
+  it("names the rule a Codex command rule choice saves", () => {
+    const request = codexPermission({ id: 9, method: "item/commandExecution/requestApproval", params: { threadId: "s", turnId: "t", itemId: "i", command: "npm test", proposedExecpolicyAmendment: ["npm", "test"] } });
+    const options = request?.event.type === "permission.request" ? request.event.options : [];
+    expect(options.find(o => o.id === "execpolicy")).toEqual({
+      id: "execpolicy", label: "Allow with proposed command rule", kind: "allowAlways", detail: "Adds a rule that runs commands starting with “npm test” without asking.",
+    });
+    // The one-time choices save nothing, so they carry no detail.
+    expect(options.filter(o => o.id !== "execpolicy").every(o => !("detail" in o))).toBe(true);
+    const spaced = codexPermission({ id: 9, method: "item/commandExecution/requestApproval", params: { threadId: "s", turnId: "t", itemId: "i", command: "x", proposedExecpolicyAmendment: ["sh", "-c", "a b"] } });
+    expect(spaced?.event.type === "permission.request" && spaced.event.options.find(o => o.id === "execpolicy")?.detail).toBe("Adds a rule that runs commands starting with “sh -c \"a b\"” without asking.");
+  });
+  it("names what Claude's suggested permissions save and where", () => {
+    const detail = (suggestions: unknown[]) => claudePermission("r", "Bash", { command: "npm test" }, suggestions, "/repo").event.options.find(o => o.id === "always")?.detail;
+    expect(detail([{ type: "addRules", rules: [{ toolName: "Bash", ruleContent: "npm test:*" }], behavior: "allow", destination: "localSettings" }]))
+      .toBe("Adds the allow rule Bash(npm test:*) in .claude/settings.local.json.");
+    expect(detail([{ type: "addRules", rules: [{ toolName: "Read" }, { toolName: "Bash", ruleContent: "ls:*" }], behavior: "allow", destination: "session" }]))
+      .toBe("Adds the allow rules Read, Bash(ls:*) in this session.");
+    expect(detail([{ type: "addDirectories", directories: ["/elsewhere"], destination: "projectSettings" }, { type: "setMode", mode: "acceptEdits", destination: "userSettings" }]))
+      .toBe("Allows access to /elsewhere in .claude/settings.json. Switches to the acceptEdits mode in your Claude Code user settings.");
+    expect(detail([{ type: "future", value: 1 }])).toBe('{"type":"future","value":1}');
+    expect(claudePermission("r", "Bash", { command: "npm test" }, [], "/repo").event.options.every(o => !("detail" in o))).toBe(true);
+  });
+});
+
 it("keeps multiple Claude text blocks distinct while connecting each delta to its done", () => {
   const messages = [
     { type: "stream_event", event: { type: "message_start", message: { id: "m" } } },
@@ -180,8 +226,10 @@ describe("readable activity and permission summaries", () => {
   it("names the first changed file and how many more a Codex file approval covers", () => {
     const changes = ["/repo/a.html", "/repo/b.html", "/elsewhere/c.html"].map(path => ({ path, kind: { type: "update" }, diff: "" }));
     expect(summaries([started({ type: "fileChange", id: "f", changes }), approval("item/fileChange/requestApproval", { reason: null })]))
-      .toEqual(["a.html", "b.html", "/elsewhere/c.html", "a.html and 2 more"]);
-    expect(summaries([started({ type: "fileChange", id: "f", changes }), approval("item/fileChange/requestApproval", { reason: "Allow writes outside the repo" })]).at(-1)).toBe("Allow writes outside the repo");
+      .toEqual(["a.html", "b.html", "/elsewhere/c.html", "a.html, b.html, /elsewhere/c.html"]);
+    // The agent's reason never stands in for the files the approval covers.
+    const withReason = collect("codex", [started({ type: "fileChange", id: "f", changes }), approval("item/fileChange/requestApproval", { reason: "Allow writes outside the repo" })]).events.at(-1);
+    expect(withReason).toMatchObject({ type: "permission.request", summary: "a.html, b.html, /elsewhere/c.html", reason: "Allow writes outside the repo" });
   });
   it("falls back to a short phrase when a Codex item carries nothing readable", () => {
     expect(summaries([approval("item/fileChange/requestApproval", { reason: null })])).toEqual(["Editing files"]);
@@ -190,9 +238,11 @@ describe("readable activity and permission summaries", () => {
       .toEqual(["Running a command", "Editing files"]);
     expect(summaries([started({ type: "mcpToolCall", id: "m", server: "doan", tool: "check", arguments: {} }), started({ type: "mcpToolCall", id: "n", server: "", tool: "", arguments: {} })]))
       .toEqual(["check (doan)", "Using a tool"]);
-    const long = "x".repeat(5000);
-    expect(summaries([approval("item/commandExecution/requestApproval", { command: long })]).map(s => s.length)).toEqual([512]);
-    expect(claudePermissionSummary("Bash", { command: long }, "/repo")).toHaveLength(512);
+    // A cut command says so: its last character is the ellipsis.
+    const long = "x".repeat(9000);
+    expect(summaries([approval("item/commandExecution/requestApproval", { command: long })])).toEqual([`${"x".repeat(8191)}…`]);
+    expect(claudePermissionSummary("Bash", { command: long }, "/repo")).toBe(`${"x".repeat(8191)}…`);
+    expect(claudePermissionSummary("Bash", { command: "x".repeat(8192) }, "/repo")).toBe("x".repeat(8192));
     expect(normalizeCodex(initialTransport(), approval("item/commandExecution/requestApproval", { command: "/bin/zsh -c 'rm x'", commandActions: [{ type: "unknown", command: "rm x" }] }), context).events)
       .toMatchObject([{ type: "permission.request", tool: "commandExecution", summary: "rm x" }]);
   });
@@ -201,7 +251,7 @@ describe("readable activity and permission summaries", () => {
     const fileItem = (id: string, path = `/repo/${id}.html`) => started({ type: "fileChange", id, changes: [{ path, kind: { type: "add" }, diff: "" }] });
     const ask = (itemId: string) => ({ id: 1, method: "item/fileChange/requestApproval", params: { threadId: "session-1", turnId: "turn-1", itemId, reason: null } });
     let state = collect("codex", [fileItem("long", long)]).state;
-    expect(state.fileSummaries.long).toHaveLength(512);
+    expect(state.fileSummaries.long).toBe(long.slice("/repo/".length));
     const run = (messages: unknown[]) => { const events: EventPayload[] = []; for (const m of messages) { const r = normalizeCodex(state, m, context); state = r.state; events.push(...r.events); } return events; };
     run(Array.from({ length: 100 }, (_, i) => fileItem(`f${i}`)));
     expect(Object.keys(state.fileSummaries).length).toBeLessThanOrEqual(32);
@@ -260,12 +310,13 @@ describe("readable activity and permission summaries", () => {
     const other = { type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: "t3", name: "mcp__claude_ai_Figma__get_screenshot", input: { path: "/repo/a.html" } }] } };
     expect(collect("claude", [other]).events).toMatchObject([{ type: "activity", path: "/repo/a.html" }]);
   });
-  it("leaves other MCP servers' tools and lookalike names to the input-based summary", () => {
-    expect(claudePermissionSummary("mcp__claude_ai_Figma__get_screenshot", { description: "Take a screenshot" }, "/repo")).toBe("Take a screenshot");
-    expect(claudePermissionSummary("mcp__notion__notion-fetch", { description: "Fetch" }, "/repo")).toBe("Fetch");
-    expect(claudePermissionSummary("mcp__doan-__x", { description: "Fetch" }, "/repo")).toBe("Fetch");
-    expect(claudePermissionSummary("mcp__doan-notion__", { description: "Fetch" }, "/repo")).toBe("Fetch");
-    expect(claudePermissionSummary("mcp__doan-Notion__x", { description: "Fetch" }, "/repo")).toBe("Fetch");
+  it("names other MCP servers' tools and lookalike names by server and tool, never by the agent's description", () => {
+    expect(claudePermissionSummary("mcp__claude_ai_Figma__get_screenshot", { description: "Take a screenshot" }, "/repo")).toBe("Run get_screenshot on claude_ai_Figma");
+    expect(claudePermissionSummary("mcp__notion__notion-fetch", { description: "Fetch" }, "/repo")).toBe("Run notion-fetch on notion");
+    expect(claudePermission("r", "mcp__notion__notion-fetch", { description: "Fetch" }, [], "/repo").event).toMatchObject({ summary: "Run notion-fetch on notion", reason: "Fetch" });
+    expect(claudePermissionSummary("mcp__doan-__x", { description: "Fetch" }, "/repo")).toBe("Run x on doan-");
+    expect(claudePermissionSummary("mcp__doan-notion__", { description: "Fetch" }, "/repo")).toBe("Using a tool");
+    expect(claudePermissionSummary("mcp__doan-Notion__x", { description: "Fetch" }, "/repo")).toBe("Run x on doan-Notion");
   });
 });
 it("fails closed for an unsupported request rather than silently waiting forever", () => {
@@ -288,12 +339,14 @@ describe("Codex permission profile summary", () => {
     if (!request || request.event.type !== "permission.request") throw new Error("missing profile approval");
     return request.event.summary;
   };
-  it("keeps Codex's reason when it has one", () => {
-    expect(summaryOf({ network: { enabled: true }, fileSystem: null }, "Needs to download fonts")).toBe("Needs to download fonts");
+  it("names the permissions even when Codex gives a reason, which goes on its own line", () => {
+    expect(summaryOf({ network: { enabled: true }, fileSystem: null }, "Needs to download fonts")).toBe("Use the network");
+    const request = codexPermission({ id: 7, method: "item/permissions/requestApproval", params: { threadId: "session-1", turnId: "turn-1", itemId: "p", cwd: "/repo", reason: "Needs to download fonts", permissions: { network: { enabled: true } } } });
+    expect(request?.event).toMatchObject({ summary: "Use the network", reason: "Needs to download fonts" });
   });
   it("names network access, paths to read and paths to write, relative to the working folder", () => {
     expect(summaryOf({ network: { enabled: true }, fileSystem: { read: ["/repo/data"], write: ["/repo/out", "/repo/tmp", "/elsewhere"] } }))
-      .toBe("Use the network; Read data; Write out and 2 more");
+      .toBe("Use the network; Read data; Write out, tmp, /elsewhere");
     expect(summaryOf({ network: { enabled: false }, fileSystem: { read: null, write: ["/repo/out"] } })).toBe("Write out");
   });
   it("reads file system entries by access, with glob patterns and special paths", () => {
@@ -302,13 +355,15 @@ describe("Codex permission profile summary", () => {
       { path: { type: "glob_pattern", pattern: "**/*.png" }, access: "read" },
       { path: { type: "special", value: { kind: "tmpdir" } }, access: "write" },
       { path: { type: "path", path: "/repo/.env" }, access: "deny" },
-    ] } })).toBe("Read **/*.png; Write src and 1 more; No access to .env");
+    ] } })).toBe("Read **/*.png; Write src, the temporary folder; No access to .env");
   });
   it("leaves an unknown shape as short JSON and caps the whole summary", () => {
     const unknown = summaryOf({ network: null, fileSystem: null, browser: { origins: ["https://example.com/".repeat(40)] } });
     expect(unknown.startsWith('{"browser":')).toBe(true);
     expect(unknown.length).toBeLessThanOrEqual(121);
-    expect(summaryOf({ network: { enabled: true }, fileSystem: { read: [`/elsewhere/${"x".repeat(600)}`], write: null } }).length).toBe(512);
+    const cut = summaryOf({ network: { enabled: true }, fileSystem: { read: [`/elsewhere/${"x".repeat(9000)}`], write: null } });
+    expect(cut).toHaveLength(8192);
+    expect(cut.endsWith("…")).toBe(true);
   });
 });
 // Claude reports the mode it switched to after a plan approval in a status message.

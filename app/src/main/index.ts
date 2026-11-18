@@ -76,7 +76,7 @@ import { folderState, realHome } from "./folderState";
 import { revealTarget, type FolderEntry } from "./view";
 import { createWindowDebugger, type WindowDebugger } from "./windowDebugger";
 import { createInspector, parseInspectRequest, type InspectRefused, type InspectReply, type Inspector } from "./inspector";
-import { startRuntime, type Runtime } from "./runtime";
+import { CONVERSATION_RUNTIME, startRuntime, type Runtime } from "./runtime";
 import { menuState, updateMenu, type Screen } from "./menuState";
 import { electronUpdater, hasFeedConfig, releaseNotesUrl, UpdateService } from "./update/service";
 import { updateEligibility } from "./update/eligibility";
@@ -89,6 +89,7 @@ import { usagePublisher, usageVisible } from "./usageWindows";
 import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, type SettingsPageTarget } from "./settings";
 import { createInstallOpener } from "./installCommand";
 import { startShell, type Shell, type ProjectInitResult } from "./shell";
+import { guardLoopback } from "./serve/loopback";
 import { createThrottle } from "./throttle";
 import { createThumbnails, type ThumbnailReply, type Thumbnails } from "./thumbnails";
 import { createWindowCapturer } from "./thumbnailWindow";
@@ -614,14 +615,23 @@ function parseMenuInputs(value: unknown): MenuInputs | null {
 
 // Without handlers Electron grants permissions to the app's own main frame.
 // Canvas iframes are already stopped by Permissions Policy, so this guards the app.
-// The prototype window's own session gets the same.
+// The prototype window's own session gets the same, and both keep canvases off other local listeners.
 function denyPermissions(target: Session = session.defaultSession): void {
+  guardLoopback(target, loopbackHosts);
   target.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   target.setPermissionCheckHandler(() => false);
   target.setDevicePermissionHandler(() => false);
   // Chromium turns an ⌥-clicked canvas link into a download, and the iframe
   // sandbox without `allow-downloads` does not stop it.
   target.on("will-download", (event) => event.preventDefault());
+}
+
+// The loopback origins the app's sessions may reach: the canvas server and, in a dev run, the renderer's dev server.
+function loopbackHosts(): string[] {
+  const hosts = shell ? [new URL(shell.tokenBase).host] : [];
+  const devUrl = process.env.ELECTRON_RENDERER_URL;
+  if (!app.isPackaged && devUrl && URL.canParse(devUrl)) hosts.push(new URL(devUrl).host);
+  return hosts;
 }
 
 function systemClockHour12(): boolean {
@@ -1065,7 +1075,7 @@ async function start(): Promise<void> {
   });
 
   removeStaleLinkDirs();
-  const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, "runtime.json"), fence: { userData }, locate: shellLocator(process.env, PROVIDER_AUTH, { antigravity: signal => antigravityServer(join(userData, "agent-runtimes", "antigravity-acp"), signal ? { signal } : {}) }),
+  const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, CONVERSATION_RUNTIME), fence: { userData }, locate: shellLocator(process.env, PROVIDER_AUTH, { antigravity: signal => antigravityServer(join(userData, "agent-runtimes", "antigravity-acp"), signal ? { signal } : {}) }),
     // The onboarding tap comes after AuthIpc stored the link, so the link it opens is this prompt's.
     onChange: () => authIpc?.changed(), onPrompt: prompt => { authIpc?.prompted(prompt); onboarding?.prompted(prompt); },
     // A sign-out or replacement also stops the provider's usage read, whose lease it waits for like a run's.
@@ -1254,7 +1264,7 @@ async function start(): Promise<void> {
   // Runs read the MCP connectors' generation and names when they ask.
   const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc, connectorFacts(() => mcp), { userData, socket: () => runtime?.socket });
   // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
-  const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),
+  const prepareConversation = routePrepare(createPrepare(userData, join(userData, CONVERSATION_RUNTIME), process.env),
     wireAccountPrepare(accountPrepare, () => !!agentAuth, prepared => usage ? withTurnUsage(prepared, usage) : prepared));
   const conversationStore = new ConversationStore(userData);
   // After the store, which made and checked the conversations directory.

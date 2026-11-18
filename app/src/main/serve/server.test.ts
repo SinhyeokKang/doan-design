@@ -100,6 +100,10 @@ beforeAll(async () => {
   writeFileSync(join(repo, "design-x", "a.css"), "x{}");
   writeFileSync(join(repo, "tokens.css"), ":root{}");
   writeFileSync(join(repo, ".env"), "SECRET=1");
+  mkdirSync(join(repo, "web", ".git"), { recursive: true });
+  writeFileSync(join(repo, "web", ".git", "config"), "[remote]");
+  writeFileSync(join(repo, "web", ".env.local"), "SECRET=1");
+  writeFileSync(join(repo, "web", "page.css"), "p{}");
   writeFileSync(join(repo, "src", "secret.ts"), "export const secret = 1;");
   writeFileSync(join(outside, "secret.txt"), "outside");
   symlinkSync(join(outside, "secret.txt"), join(repo, ".doan/canvases", "link-out"));
@@ -113,7 +117,8 @@ beforeAll(async () => {
   writeFileSync(join(dotRepo, "a.html"), "<!doctype html>");
 
   server = await startServer();
-  key = server.addFolder({ root: repo, scope: [".doan/canvases", "tokens.css"] });
+  // `web`, `.env` and `.git`-holding entries stand for a config that lists them: the server still holds them back.
+  key = server.addFolder({ root: repo, scope: [".doan/canvases", "tokens.css", "web", ".env", "web/.git"] });
   // Worst case on purpose: even if `doan -> .` reached the scope, realpath
   // must turn `.doan/canvases/.env` back into `.env`.
   dotKey = server.addFolder({ root: dotRepo, scope: [".doan/canvases"] });
@@ -136,6 +141,10 @@ describe("in-scope files", () => {
     expect(res.headers["content-length"]).toBe(String(res.body.length));
     expect(res.headers["access-control-allow-origin"]).toBe("null");
     expect(corsHeaders(res.headers)).toEqual(["access-control-allow-origin"]);
+  });
+
+  test("a configured directory still serves its other files", async () => {
+    expect((await send(server.port, `${base}/web/page.css`)).status).toBe(200);
   });
 
   test("serve the token CSS and nested files with their content type", async () => {
@@ -182,6 +191,8 @@ describe("in-scope files", () => {
 describe("everything else is the same bodiless 404", () => {
   test.each([
     [".env"],
+    ["web/.env.local"],
+    ["web/.git/config"],
     ["src/secret.ts"],
     ["design-x/a.css"],
     [".doan/canvases"],

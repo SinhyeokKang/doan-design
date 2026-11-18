@@ -158,6 +158,16 @@ describe("threadItems", () => {
   });
 
   // A Stop's expiry is main's `optionId: "expired"` record, not an answer.
+  test("a permission request carries the agent's reason and each choice's detail", () => {
+    seq = 0;
+    const options = [{ id: "always", label: "Allow with proposed command rule", kind: "allowAlways", detail: "Adds a rule that runs commands starting with “npm test” without asking." }];
+    const items = threadItems([...turn("t1"), ev("t1", { type: "permission.request", requestId: "r1", tool: "commandExecution", summary: "npm test", reason: "Run the tests", options })], ROOT, true);
+    expect(items[1]).toMatchObject({ kind: "permission", summary: "npm test", reason: "Run the tests", options });
+    seq = 0;
+    const plain = threadItems([...turn("t1"), ev("t1", { type: "permission.request", requestId: "r1", tool: "Bash", summary: "ls", options })], ROOT, true);
+    expect(plain[1]).not.toHaveProperty("reason");
+  });
+
   test("a permission request main expires folds as expired, not answered", () => {
     seq = 0;
     const options = [{ id: "a", label: "Allow once", kind: "allow" }, { id: "d", label: "Deny", kind: "deny" }];

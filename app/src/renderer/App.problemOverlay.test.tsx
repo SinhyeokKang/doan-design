@@ -715,6 +715,33 @@ test("a canvas that failed to load shows the status block with the alert icon, i
   expect(reload.props).toMatchObject({ "data-ui-variant": "subtle", "data-ui-size": "sm", children: "Retry" });
 });
 
+// DESIGN 'Busy action': the reload Retry starts turns the status to loading at once; the line and a busy Retry stay
+// until it answers, and only a load that succeeds clears them (POSTMORTEM 2026-11-17 'Retry cleared its own failure line').
+test("the canvas load failure's Retry keeps its line and itself, busy, while the reload runs", () => {
+  render(); folders([listed("/w/a")]);
+  canvasOpen();
+  const failed = { ...initialCanvasState(), open: { folder: "/w/a", canvas: ".doan/canvases/a.html", row: { path: ".doan/canvases/a.html", url: "u", width: 1280 } }, status: "failed" as const, message: "" };
+  harness.setState!(failed); render();
+  // The pane's own hooks follow App's; each draw starts them where App's render left off, so its Retry state carries.
+  const appHooks = { cursor: hooks.cursor, refCursor: hooks.refCursor, effectCursor: hooks.effectCursor };
+  const block = () => {
+    hooks.cursor = appHooks.cursor; hooks.refCursor = appHooks.refCursor; hooks.effectCursor = appHooks.effectCursor;
+    const inside = all((pane()!.type as (props: unknown) => ReactNode)(pane()!.props));
+    return inside.find(element => element.props.className === "canvas-status-block");
+  };
+  const retry = () => all(block()).find(element => element.type === "button")!;
+  expect(retry().props["aria-describedby"]).toBe(all(block()).find(element => element.type === "h2")!.props.id);
+  (retry().props.onClick as (event?: unknown) => void)();
+  expect(harness.controller!.command).toHaveBeenCalledWith("reload");
+  harness.setState!({ ...failed, status: "loading" }); render();
+  expect(block()).toBeDefined();
+  expect(retry().props).toMatchObject({ "aria-busy": true, "aria-disabled": true });
+  harness.setState!({ ...failed, status: "failed" }); render();
+  expect(retry().props["aria-busy"]).toBeUndefined();
+  harness.setState!({ ...failed, status: null }); render();
+  expect(block()).toBeUndefined();
+});
+
 // D12: the status region is drawn at once, so its live region exists before Loading is written into it 300 ms later.
 test("a loading canvas keeps its status region and leaves the Loading line to the delayed CanvasLoading", async () => {
   const { CanvasLoading } = await import("./App");

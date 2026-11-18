@@ -128,7 +128,7 @@ const CLAUDE_PROFILE_ALLOW: SettingMerge = current => {
 // stub there and not at <GEMINI_HOME>/skills, where earlier builds wrote it; that old file is left alone, nothing reads it).
 const HOME_STUB = (dir: string) => ({ [`${dir}/skills/doan/SKILL.md`]: stub });
 // Codex applies the strictest matching rule (forbidden > prompt > allow, Codex docs 'Rules'), so `doan handoff` still asks
-// in the asking modes, as the person chose for starting a conversation, although rules/doan.rules allows every `doan`.
+// in the asking modes, as the person chose for starting a conversation, although rules/doan.rules allows most `doan` commands.
 const CODEX_HANDOFF_RULE = '# Written by Doan so Codex asks before `doan handoff` starts another conversation.\nprefix_rule(pattern=["doan", "handoff"], decision="prompt")\n';
 const CLI_RUN = { acpAuth: null, acp: null, verifyByRun: false, hookLink: null, loginClears: false, identity: null };
 export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {

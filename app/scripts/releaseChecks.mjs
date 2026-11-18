@@ -89,6 +89,49 @@ export function compareEntitlements(committedPlist, signedXml) {
   return [...new Set(plistKeys(signedXml))].filter((key) => !allowed.has(key));
 }
 
+// electron-builder's `electronFuses` keys in fuse wire order (@electron/fuses FuseV1Options).
+const FUSES = [
+  "runAsNode",
+  "enableCookieEncryption",
+  "enableNodeOptionsEnvironmentVariable",
+  "enableNodeCliInspectArguments",
+  "enableEmbeddedAsarIntegrityValidation",
+  "onlyLoadAppFromAsar",
+  "loadBrowserProcessSpecificV8Snapshot",
+  "grantFileProtocolExtraPrivileges",
+];
+// A signing option electron-builder takes in the same object; it is not a fuse.
+const NOT_FUSES = new Set(["resetAdHocDarwinSignature"]);
+const FUSE_SENTINEL = "dL7pKGdnNz796PbbjQWNKmHXBZaB9tsX";
+const FUSE_STATES = { 48: "disabled", 49: "enabled", 114: "removed" };
+
+// Compares the committed `electronFuses` with the fuse wire in the bytes of Electron Framework.
+// A removed fuse is reported, not taken as disabled: the protection it named no longer exists.
+export function compareFuses(config, framework) {
+  const at = framework.indexOf(FUSE_SENTINEL);
+  if (at === -1) return ["no fuse wire found"];
+  const version = framework[at + FUSE_SENTINEL.length];
+  if (version !== 1) return [`fuse wire version ${version}, expected 1`];
+  const length = framework[at + FUSE_SENTINEL.length + 1];
+  const problems = [];
+  for (const [name, wanted] of Object.entries(config)) {
+    if (NOT_FUSES.has(name)) continue;
+    const index = FUSES.indexOf(name);
+    const expected = wanted ? "enabled" : "disabled";
+    if (index === -1) {
+      problems.push(`unknown fuse ${name}`);
+      continue;
+    }
+    if (index >= length) {
+      problems.push(`${name} is missing from the wire, expected ${expected}`);
+      continue;
+    }
+    const state = FUSE_STATES[framework[at + FUSE_SENTINEL.length + 2 + index]] ?? "unreadable";
+    if (state !== expected) problems.push(`${name} is ${state}, expected ${expected}`);
+  }
+  return problems;
+}
+
 // Reads `spctl -a -vv` output.
 export function parseSpctl(text) {
   return {
