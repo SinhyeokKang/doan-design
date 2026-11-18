@@ -142,6 +142,9 @@
   transform-origin: var(--radix-tooltip-content-transform-origin);
   pointer-events: none;
 }
+/* Radix positions the capsule inside a wrapper box of the same size; the label rule above would not stop that box from
+   taking the press meant for the control under it. */
+[data-radix-popper-content-wrapper]:has(> .doan-tooltip) { pointer-events: none; }
 
 /* ── Modal dialog ────────────────────────────────────────────────────────────
    Native <dialog> opened with showModal(). Width comes in four steps. A compact
