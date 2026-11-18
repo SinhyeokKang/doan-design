@@ -131,6 +131,11 @@ describe("provider auth adapters", () => {
     expect(PROVIDER_AUTH.codex.settings["rules/doan-handoff.rules"]).toMatch(/^prefix_rule\(pattern=\["doan", "handoff"\], decision="prompt"\)$/m);
     expect(PROVIDER_AUTH.codex.settings["rules/doan.rules"]).toBe(codexRuleText());
     expect(codexRuleText()).not.toContain("handoff");
+    // Full access never asks, so a prompt rule there refuses the command: export and config, which the person may want
+    // in that mode, carry none and follow the mode's sandbox like any other command.
+    const prompts = Object.entries(PROVIDER_AUTH.codex.settings).filter(([name]) => name.endsWith(".rules"))
+      .flatMap(([, text]) => [...String(text).matchAll(/^prefix_rule\(pattern=(\[.*\]), decision="prompt"\)$/gm)].map(([, pattern]) => pattern));
+    expect(prompts).toEqual(['["doan", "handoff"]']);
     for (const provider of ["claude", "cursor", "antigravity", "copilot"] as const) {
       expect(Object.keys(PROVIDER_AUTH[provider].settings).some(name => name.includes("handoff")), provider).toBe(false);
     }

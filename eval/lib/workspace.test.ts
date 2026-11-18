@@ -355,11 +355,13 @@ test("a Codex run's own sessions are kept in the run directory when its rollout 
   }
 });
 
-// Codex runs with approval_policy="never", where agent setup's `prompt` rules refuse the command outright. The eval
-// measures how agents use the guide, not the person's approvals, so its rule is agent setup's allow rule without them.
-test("the eval's Codex rule is agent setup's rule without its prompt rules", () => {
-  assert.match(codexRuleText(), /decision="prompt"/);
-  assert.equal(evalCodexRuleText(), codexRuleText().split("\n").filter(line => !line.includes('decision="prompt"')).join("\n"));
-  assert.match(evalCodexRuleText(), /^prefix_rule\(pattern=\["doan"\], decision="allow"\)$/m);
-  assert.doesNotMatch(evalCodexRuleText(), /decision="prompt"/);
+// Codex runs with approval_policy="never", where a command that needs to leave the sandbox is refused outright. The eval
+// measures how agents use the guide, not the person's approvals, so its rule is agent setup's rule plus an allow rule
+// for each command agent setup leaves to the person's Codex settings: every `doan` command runs outside the sandbox.
+test("the eval's Codex rule is agent setup's rule plus allow rules for every other command", () => {
+  assert.ok(evalCodexRuleText().startsWith(codexRuleText()));
+  const allowed = [...evalCodexRuleText().matchAll(/^prefix_rule\(pattern=\["doan", "([a-z-]+)"\], decision="allow"\)$/gm)].map(([, command]) => command).sort();
+  assert.deepEqual(allowed, ["active", "check", "config", "design-skill", "export", "handoff", "help", "init", "ls", "onboarding", "open", "remove", "skill", "work"]);
+  assert.doesNotMatch(evalCodexRuleText(), /decision="(prompt|forbidden)"/);
+  assert.doesNotMatch(evalCodexRuleText(), /^prefix_rule\(pattern=\["doan"\]/m);
 });

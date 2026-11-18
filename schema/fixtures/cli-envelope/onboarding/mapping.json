@@ -6,7 +6,7 @@
     "3. A v2 error keeps its code, except bad_request -> internal_error (the CLI sent a schema-valid request) and bad_token -> app_not_running (a stale runtime.json, as for active).",
     "4. A reply with numeric v other than 2, including an older app's v1 bad_request, is app_protocol_mismatch.",
     "5. exitCodes gives the exit for every code a command can return; a code missing from it exits 1.",
-    "Codes produced by the CLI before or without a reply: usage_error (bad flags, a Copilot check without --spend-copilot-request), app_not_running, app_launch_failed (the bundled app did not publish a runtime within 15 seconds), internal_error."
+    "Codes produced by the CLI before or without a reply: usage_error (bad flags, a Copilot check without --spend-copilot-request), conversation_refused (run from a Doan app conversation, before dialling), app_not_running, app_launch_failed (the bundled app did not publish a runtime within 15 seconds), internal_error."
   ],
   "translate": {
     "bad_request": "internal_error",
@@ -23,6 +23,7 @@
     "operation_not_found": 2,
     "inspection_stale": 2,
     "destination_exists": 2,
+    "conversation_refused": 2,
     "app_not_running": 3,
     "app_protocol_mismatch": 3,
     "app_launch_failed": 3,
