@@ -89,6 +89,7 @@ import { usagePublisher, usageVisible } from "./usageWindows";
 import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, type SettingsPageTarget } from "./settings";
 import { createInstallOpener } from "./installCommand";
 import { startShell, type Shell, type ProjectInitResult } from "./shell";
+import { guardLoopback } from "./serve/loopback";
 import { createThrottle } from "./throttle";
 import { createThumbnails, type ThumbnailReply, type Thumbnails } from "./thumbnails";
 import { createWindowCapturer } from "./thumbnailWindow";
@@ -614,14 +615,23 @@ function parseMenuInputs(value: unknown): MenuInputs | null {
 
 // Without handlers Electron grants permissions to the app's own main frame.
 // Canvas iframes are already stopped by Permissions Policy, so this guards the app.
-// The prototype window's own session gets the same.
+// The prototype window's own session gets the same, and both keep canvases off other local listeners.
 function denyPermissions(target: Session = session.defaultSession): void {
+  guardLoopback(target, loopbackHosts);
   target.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   target.setPermissionCheckHandler(() => false);
   target.setDevicePermissionHandler(() => false);
   // Chromium turns an ⌥-clicked canvas link into a download, and the iframe
   // sandbox without `allow-downloads` does not stop it.
   target.on("will-download", (event) => event.preventDefault());
+}
+
+// The loopback origins the app's sessions may reach: the canvas server and, in a dev run, the renderer's dev server.
+function loopbackHosts(): string[] {
+  const hosts = shell ? [new URL(shell.tokenBase).host] : [];
+  const devUrl = process.env.ELECTRON_RENDERER_URL;
+  if (!app.isPackaged && devUrl && URL.canParse(devUrl)) hosts.push(new URL(devUrl).host);
+  return hosts;
 }
 
 function systemClockHour12(): boolean {
