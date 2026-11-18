@@ -263,3 +263,36 @@ test("sessionOf forgets every owner on a debugger detach and follows the session
   dbg.emit("message", {}, "Page.frameNavigated", { frame: { id: "FRAME", parentId: "MAIN", loaderId: "again", url: CANVAS } }, "S2");
   expect(debuggerOf.sessionOf("FRAME")).toBe("S2");
 });
+
+// A same-process iframe inside the canvas commits on the canvas's own session. Ownership belongs to the target's root
+// frame only, or that nested commit would let a superseded session's late commit take the canvas frame back.
+test("a nested same-process frame does not let a former session take the canvas frame back", () => {
+  const docs = new DocumentBindings();
+  const dbg = new FakeDebugger();
+  const debuggerOf = createWindowDebugger(dbg, docs);
+  const emit = (method: string, params: object, session?: string) => dbg.emit("message", {}, method, params, session);
+  const frame = { id: "FRAME", parentId: "MAIN", loaderId: "loader", url: CANVAS };
+  dbg.target("OLD", "iframe");
+  docs.response({ marker: "m", root: "/repo", path: ".doan/canvases/a.html", hash: "hash", complete: true, stable: true });
+  emit("Network.responseReceived", { type: "Document", requestId: "request", frameId: "FRAME", loaderId: "loader", response: { headers: { "X-Doan-Response": "m" } } });
+  emit("Page.frameNavigated", { frame }, "OLD");
+  emit("Network.loadingFinished", { requestId: "request" }, "OLD");
+  // Nested two deep: the canvas's srcdoc iframe and an iframe inside it.
+  emit("Page.frameNavigated", { frame: { id: "NESTED", parentId: "FRAME", loaderId: "nested", url: "about:srcdoc" } }, "OLD");
+  emit("Page.frameNavigated", { frame: { id: "DEEPER", parentId: "NESTED", loaderId: "deeper", url: "about:srcdoc" } }, "OLD");
+  expect(debuggerOf.sessionOf("FRAME")).toBe("OLD");
+  expect(debuggerOf.sessionOf("NESTED")).toBeNull();
+  expect(debuggerOf.sessionOf("DEEPER")).toBeNull();
+  emit("Page.frameDetached", { frameId: "FRAME", reason: "swap" }, "OLD");
+  dbg.target("NEW", "iframe");
+  emit("Page.frameNavigated", { frame }, "NEW");
+  expect(debuggerOf.sessionOf("FRAME")).toBe("NEW");
+  const current = docs.current("FRAME", CANVAS);
+  expect(current?.generation).toBe("loader");
+  // The former session's queued commit, then its late detach.
+  emit("Page.frameNavigated", { frame }, "OLD");
+  expect(debuggerOf.sessionOf("FRAME")).toBe("NEW");
+  emit("Target.detachedFromTarget", { sessionId: "OLD" });
+  expect(debuggerOf.sessionOf("FRAME")).toBe("NEW");
+  expect(docs.current("FRAME", CANVAS)).toEqual(current);
+});
