@@ -897,7 +897,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         const live = entry.seq > props.liveAfter;
         return <div className="doan-notice thread-notice" role={live ? "alert" : undefined}>
           <span className="strip-agent doan-alert-icon"><img className="logo" src={providerLogo(provider)} alt="" /></span>
-          <span className="strip-text selectable"><b>{`${p} needs your answer`}</b><span>{entry.summary}</span></span>
+          {/* What will run leads; the agent's words about it and what a saving choice adds follow (ARCHITECTURE §7). */}
+          <span className="strip-text selectable"><b>{`${p} needs your answer`}</b><span className="ask-command">{entry.summary}</span>
+            {entry.reason && <span className="ask-reason">{entry.reason}</span>}
+            {entry.options.flatMap(option => option.detail ? [<span key={option.id} className="ask-saves">{`${option.label}: ${option.detail}`}</span>] : [])}</span>
           <span className="strip-actions">
             {entry.options.map(option => <button key={option.id} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={option.kind === "allow" ? "prominent" : "panel"}
               data-request={entry.requestId} onClick={() => answer(entry.requestId, option.id)}>{option.label}</button>)}
