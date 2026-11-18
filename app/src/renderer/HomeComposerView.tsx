@@ -24,7 +24,7 @@ import { draftFrom } from "./conversationStore";
 import { cardRow, chipClass, groupProjects } from "./homeCards";
 import { generationOf, modelsKey } from "./dockedSupport";
 import {
-  followDrawerHighlight, type PresetRow, attachmentChipView, attachmentLimit, attachRefusal, chosenAttachments, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider,
+  followDrawerHighlight, type PresetRow, attachmentChipView, attachmentLimit, MAX_PASTED_BYTES, attachRefusal, chosenAttachments, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider,
   fixedPreference, greetingText, lengthCounter, markRefused, modelOption, modelPickerView, presetListView, presetPlaceholder, readyAttachment,
   rootForProject, selectableProvider, sendAvailability, slashKey, slashQuery, startErrorView, suggestedPresets, suggestedPrompts, TEXT_LIMIT,
   type AttachmentDraft, type ModelsState, type NewConversationDefault, type PresetListReply, type PresetSummary,
@@ -402,7 +402,7 @@ export function HeroComposer(props: HeroComposerProps) {
       const final = await Promise.all(results.map(async (result, i) => {
         const file = accepted[i]!;
         if (!pastedImages || result.ok || result.error !== "not_found" || !file.type.startsWith("image/") || window.doan.droppedPath(file) !== null) return result;
-        if (file.size > 50 * 1024 * 1024) return { ok: false as const, name: "Pasted image", error: "too_large" as const };
+        if (file.size > MAX_PASTED_BYTES) return { ok: false as const, name: "Pasted image", error: "too_large" as const };
         // A page-made image whose bytes can't be read settles with the rest of its batch.
         const bytes = await file.arrayBuffer().catch(() => null);
         if (!bytes) return result;

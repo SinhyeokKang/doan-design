@@ -5,7 +5,8 @@ import { sameCanvas } from "./canvasConversationRows";
 // The handoff card's and toast's copy, and whether a started handoff moves the screen. The source thread's canvas cards
 // have theirs in canvasCardText.ts.
 
-// main's BIND_GRACE_MS: how long a move waits for the renderer's list to name the target before it turns into the toast.
+// main's BIND_GRACE_MS (main/conversation/project.ts; handoffView.test.ts compares them): how long a move waits for the
+// renderer's list to name the target before it turns into the toast.
 export const HANDOFF_WAIT_MS = 10_000;
 
 // A handoff card names its canvases by file name, extension kept (PRODUCT §5 item 2 'Handoff'); the thread's
@@ -17,8 +18,8 @@ const fileName = (path: string) => path.split("/").at(-1) ?? path;
 // or chose something in the panel since the handoff was announced.
 export interface HandoffScreen { canvas: { root: string; canvas: Canvas } | null; locked: boolean; dialog: boolean; firstRun: boolean; typing: boolean; chose: boolean }
 
-// Decision 5: the screen moves only from the source conversation's canvas page with nothing in the way; a person
-// typing there keeps their place too.
+// The screen moves only from the source conversation's canvas page with nothing in the way; a person typing there
+// keeps their place too (PRODUCT §5 item 2 'Handoff').
 export function handoffMove(screen: HandoffScreen, notice: HandoffNotice): "move" | "toast" {
   const on = screen.canvas;
   if (!on || on.root !== notice.root || !sameCanvas(on.canvas, notice.source.canvas)) return "toast";

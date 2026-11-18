@@ -3,6 +3,7 @@ import { skillWords } from "./skillWords";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { PROVIDERS, type AuthStatusDto, type Provider, type ReadinessCause } from "../main/agentAuth/types";
 import type { AcpModes, PermissionModeId } from "../main/conversation/permissionMode";
+import { LIMITS } from "../main/conversation/messageText";
 import type { AttachmentRecord, FastUnusedReason, SkillSummary } from "../main/conversation/types";
 import type { AttachmentInfo, AttachmentResult } from "../main/attachments";
 import type { DesignPresetSummary, DesignSkillReply } from "../main/designSkills";
@@ -26,8 +27,9 @@ export type PresetListReply = DesignSkillReply<{ version: string; presets: Prese
 export interface PresetRef { id: string; title: string }
 
 // The conversation IPC's text limit, in UTF-16 code units.
-export const TEXT_LIMIT = 32768;
-export const MAX_ATTACHMENTS = 10;
+export const TEXT_LIMIT = LIMITS.text;
+export const MAX_ATTACHMENTS = LIMITS.attachments;
+// main's MAX_IMAGE_BYTES (main/attachments.ts), which the renderer cannot import: that module reaches node:fs.
 export const MAX_PASTED_BYTES = 50 * 1024 * 1024;
 const PLACEHOLDER = "Describe what to design, / for presets";
 const PRESET_PLACEHOLDER = "Which canvas or screen? Add details…";

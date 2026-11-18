@@ -174,7 +174,7 @@ test("opening a canvas conversation opens its canvas with that conversation, wai
   expect(h.host.openCanvas).toHaveBeenLastCalledWith(ROOT, expect.objectContaining({ path: ".doan/canvases/a.html" }), { conversationId: "w", waiting: false });
 });
 
-// Decision 17: main binds a new canvas only after the turn ends, so the open does not wait for main.
+// Main binds a new canvas only after the turn ends, so the open does not wait for main.
 test("a new canvas row during the turn opens without asking main; only the first, and only while the turn runs", async () => {
   const h = harness();
   const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c1" }); await sending;
@@ -598,8 +598,8 @@ test("visiting the project row leaves project conversations unseen and marks onl
   expect(h.run.slots().get(ROOT)?.kind).toBe("unseen");
 });
 
-// A canvas-panel conversation's slot moves to the project row too once its canvas leaves (sidebar-canvas-conversations
-// decision 7), so the project row's visit must clear it as it clears a Home one's.
+// A canvas-panel conversation's slot moves to the project row too once its canvas leaves, so the project row's visit
+// must clear it as it clears a Home one's.
 test("visiting the project row marks a canvas-panel conversation's ending seen once its canvas left", async () => {
   lists({ [ROOT]: [summary({ conversationId: "panel", unseen: true, fromHome: false, canvas: { path: ".doan/canvases/gone.html", id: "gone" } })] });
   doan.readConversation!.mockResolvedValue({ events: [event("x", { type: "turn.done" })], lastSeq: 5, turn: "idle" });

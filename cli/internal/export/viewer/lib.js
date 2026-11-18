@@ -9,7 +9,9 @@
 //   - the constants, fitScale, wheelAction: app/src/renderer/viewport.ts (compared as values);
 //   - toolShortcut with TOOL_KEYS, CONTROL_ROLES and interactiveTarget: app/src/renderer/canvasTool.ts,
 //     and editableTarget: app/src/renderer/selection.ts (compared as values over one event table,
-//     since the app does not export the helpers).
+//     since the app does not export the helpers);
+//   - TIP_DELAY_MS and TIP_SKIP_MS: app/src/renderer/components/ui/tooltip.tsx (compared as values
+//     read from its source).
 
 const MIN_SCALE = 0.05;
 const MAX_SCALE = 4;
@@ -174,8 +176,8 @@ function fitWidth(boardWidth, viewport) {
 }
 
 // A frame is shown whole at the scale that fits its width, centred; one taller than the safe area
-// is read from its top. Same as the app's frame jump (fitFrame), but a zero-size frame keeps the
-// current scale.
+// is read from its top. Same as the app's frame jump (fitFrame); a zero-size frame keeps the
+// current scale there too.
 function fitFrame(rect, viewport, current) {
   const safe = safeArea(viewport, FIT_INSET);
   const centerX = rect.x + rect.width / 2;

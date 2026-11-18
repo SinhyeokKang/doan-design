@@ -4,7 +4,7 @@ export interface ResponseRecord { marker: string; root: string; path: string; ha
 interface Frame { id: string; parentId: string; loaderId: string; url: string }
 export interface LoadedDocument extends ResponseRecord { generation: string; frame: string }
 
-// Frame and loader IDs span the parent Network and OOPIF Page sessions (P-H).
+// Frame and loader IDs span the parent Network and OOPIF Page sessions.
 export class DocumentBindings {
   private responses = new Map<string, ResponseRecord>();
   private loaders = new Map<string, { frame: string; marker: string }>();

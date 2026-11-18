@@ -35,7 +35,7 @@ import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedBusy, type 
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import { cardRow, chipClass, ROW_ACTION_ICONS, ROW_ACTION_LABELS, type RowAction } from "./homeCards";
 import {
-  attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, modelOption, modelPickerView,
+  attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, MAX_PASTED_BYTES, modelOption, modelPickerView,
   selectableProvider, sendRefusal, suggestedPresets, suggestedPrompts, type AttachmentDraft, type ModelsState, type NewConversationDefault,
 } from "./homeComposer";
 import type { LastRequest } from "./homeConversations";
@@ -252,7 +252,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
       const final = await Promise.all(results.map(async (result, i) => {
         const file = accepted[i]!;
         if (!pasted || result.ok || result.error !== "not_found" || !file.type.startsWith("image/") || window.doan.droppedPath(file) !== null) return result;
-        if (file.size > 50 * 1024 * 1024) return { ok: false as const, name: "Pasted image", error: "too_large" as const };
+        if (file.size > MAX_PASTED_BYTES) return { ok: false as const, name: "Pasted image", error: "too_large" as const };
         // A page-made image whose bytes can't be read settles with the rest of its batch.
         const bytes = await file.arrayBuffer().catch(() => null);
         if (!bytes) return result;

@@ -8,7 +8,7 @@ export function appWindow(app: ElectronApplication, page: Page): Promise<JSHandl
 }
 
 // `CAPTURE_WINDOW_TITLE` in src/main/thumbnailWindow.ts, which imports electron
-// and so cannot be loaded here.
+// and so cannot be loaded here; thumbnailWindow.test.ts compares the two.
 export const CAPTURE_WINDOW_TITLE = "Doan thumbnails";
 
 // Windows other than the capture window. Told apart by its title, which it has

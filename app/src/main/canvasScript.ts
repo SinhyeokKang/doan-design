@@ -4,7 +4,7 @@
 // bundler could hoist out. `canvasScript` gets the helpers as an argument
 // instead, which keeps the helpers unit-testable on their own. It runs in the
 // canvas's main world, so the canvas can see and fake everything it posts
-// (the renderer validates it, design flow 5).
+// (the renderer validates it).
 
 import type { ElementKind } from "../renderer/canvasMessage";
 
@@ -398,7 +398,7 @@ export function canvasScript(lib: CanvasLib): void {
 
   // Selection state. `seq` is the last command seq from the renderer, raised by
   // one on each human click; every selection message echoes it so the renderer
-  // can drop answers that a later click or Esc already replaced (design flow 4).
+  // can drop answers that a later click or Esc already replaced.
   interface Anchor {
     doanId?: string;
     selector?: string;
@@ -668,7 +668,7 @@ export function canvasScript(lib: CanvasLib): void {
 
   // An anchor sent after a reload may name an element the canvas's own script
   // has not drawn yet, so it is retried until 1 s after the first layout and
-  // the document's load, then answered with null (design flow 6).
+  // the document's load, then answered with null.
   const tryPending = () => {
     if (pending === null) return;
     const found = resolve(pending);
@@ -982,7 +982,7 @@ export function canvasScript(lib: CanvasLib): void {
     { passive: false, capture: true },
   );
 
-  // Input direction (design flow 1): a plain primary press is selection and
+  // Input direction: a plain primary press is selection and
   // never reaches the canvas, so links, buttons, inputs, the browser's own text
   // selection and :focus stay inert; text is selected only by the script's own
   // drag range below. ⌥ passes through. Only trusted input counts: a canvas's

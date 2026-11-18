@@ -1,11 +1,12 @@
 import { codexStartupGate, STARTUP_LIMIT_MS, STARTUP_NOTICE_MS } from "../mcpConnectors/startupGate";
+import { CONNECTOR_NAME_PATTERN } from "../mcpConnectors/names";
 import { serverLabel } from "../mcpConnectors/presets";
 import { object } from "./sessions";
 import type { EventPayload } from "./types";
 
 // The doan- servers a Codex profile registers: every [mcp_servers.doan-<slug>] table header in its config.toml, which
 // `codex mcp add` and codexServerToml write. Subtables ([mcp_servers.doan-x.env]) and other servers are not Doan's.
-const HEADER = /^\s*\[\s*mcp_servers\s*\.\s*("?)(doan-[a-z0-9][a-z0-9-]{0,15})\1\s*\]\s*(?:#.*)?$/;
+const HEADER = new RegExp(`^\\s*\\[\\s*mcp_servers\\s*\\.\\s*("?)(${CONNECTOR_NAME_PATTERN})\\1\\s*\\]\\s*(?:#.*)?$`);
 export function codexProfileServers(toml: string): string[] {
   const names: string[] = [];
   for (const line of toml.split(/\r?\n/)) {
