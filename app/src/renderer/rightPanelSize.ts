@@ -21,8 +21,7 @@ const NUDGE = 16;
 // the canvas limit follows the real layout. `reserved` is another panel's width beside the canvas (the canvas page's
 // inspector), which the canvas limit leaves out too. In a window too narrow for both limits the maximum wins.
 export function panelBounds(windowWidth: number, shellWidth: number, reserved = 0): PanelBounds {
-  void reserved;
-  const max = Math.max(0, Math.floor(Math.min(windowWidth * WINDOW_SHARE_MAX, shellWidth - CANVAS_MIN)));
+  const max = Math.max(0, Math.floor(Math.min(windowWidth * WINDOW_SHARE_MAX, shellWidth - reserved - CANVAS_MIN)));
   return { min: Math.min(PANEL_MIN, max), max };
 }
 
@@ -44,9 +43,21 @@ export interface CanvasPanelsLayout {
   inspectorFits: boolean;
 }
 
-export function canvasPanelsLayout(input: CanvasPanelsInput): CanvasPanelsLayout {
-  void input;
-  return { conversation: { width: 0, bounds: { min: 0, max: 0 } }, inspector: { width: 0, bounds: null }, inspectorFits: false };
+// The conversation is sized first and the inspector takes what is left, so a narrow window costs the inspector, never
+// the conversation the person is talking in. The inspector has no window-share cap: its width is bounded only by the
+// canvas's minimum beside the conversation.
+export function canvasPanelsLayout({ windowWidth, shellWidth, conversation, inspector }: CanvasPanelsInput): CanvasPanelsLayout {
+  const alone = panelBounds(windowWidth, shellWidth);
+  const conversationWidth = conversation.open ? panelWidth(conversation.width, alone, canvasPanelDefault(windowWidth)) : 0;
+  const left = Math.floor(shellWidth - conversationWidth - CANVAS_MIN);
+  const inspectorFits = left >= PANEL_MIN;
+  const bounds = inspectorFits ? { min: PANEL_MIN, max: left } : null;
+  const inspectorWidth = bounds && inspector.open ? panelWidth(inspector.width, bounds, PANEL_MIN) : 0;
+  return {
+    conversation: { width: conversationWidth, bounds: inspectorWidth > 0 ? panelBounds(windowWidth, shellWidth, inspectorWidth) : alone },
+    inspector: { width: inspectorWidth, bounds },
+    inspectorFits,
+  };
 }
 
 // The canvas conversation panel's default: wider than its minimum and growing with the window.

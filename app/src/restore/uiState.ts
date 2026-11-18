@@ -145,6 +145,7 @@ export function parseUiState(text: string, savedRoots: readonly string[], spelli
   });
   const rightPanel = parseRightPanel(value["rightPanel"]);
   if (rightPanel !== undefined) state.rightPanel = rightPanel;
+  if (isRecord(value["inspector"])) state.inspector = parseInspectorState(value["inspector"]);
   const overviewWidth = isRecord(value["overviewPanel"]) ? value["overviewPanel"]["width"] : undefined;
   if (savedWidth(overviewWidth)) state.overviewPanel = { width: overviewWidth };
   if (isRecord(value["sidebar"])) {
@@ -243,8 +244,9 @@ function parseHome(value: Record<string, unknown>, saved: ReadonlySet<string>): 
 
 // Read like rightPanel, each field on its own, but anything not a boolean `open` is closed.
 export function parseInspectorState(value: unknown): NonNullable<UiState["inspector"]> {
-  void value;
-  return { open: true };
+  if (!isRecord(value)) return { open: false };
+  const open = value["open"] === true;
+  return savedWidth(value["width"]) ? { open, width: value["width"] } : { open };
 }
 
 // Each field falls back on its own; a value with neither field usable is dropped so it reads as the default.
