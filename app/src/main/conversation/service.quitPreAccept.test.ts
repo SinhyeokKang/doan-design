@@ -132,6 +132,41 @@ describe("a quit before acceptance keeps the message", () => {
   });
 });
 
+// A quit whose appQuit write failed aborts, and the service stays quitting while the composers stay open: the person
+// may press Send again on the busy refusal. Each composer keeps one held copy, its last, not one per press.
+describe("after an aborted quit", () => {
+  it("keeps one copy of a start pressed again on the same composer", async () => {
+    const h = fixture();
+    void h.service.quit();
+    await expect(h.service.start(homeStart)).rejects.toThrow("busy");
+    await expect(h.service.start({ ...homeStart, text: "Make a pricing page with FAQ" })).rejects.toThrow("busy");
+    await expect(h.service.start(canvasStart)).rejects.toThrow("busy");
+    await expect(h.service.start(canvasStart)).rejects.toThrow("busy");
+    const restarted = h.restart();
+    expect(restarted.takeStartDraft("/repo")).toMatchObject({ text: "Make a pricing page with FAQ" });
+    expect(restarted.takeStartDraft("/repo", canvas)).toMatchObject({ text: "Draw the hero" });
+  });
+  it("replaces a start the quit refused when its composer presses it again", async () => {
+    const h = fixture(); h.hold();
+    const pending = h.service.start(homeStart);
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledOnce());
+    await h.service.quit(); h.release(); await expect(pending).rejects.toThrow("busy");
+    await expect(h.service.start(homeStart)).rejects.toThrow("busy");
+    expect(h.restart().takeStartDraft("/repo")).toMatchObject({ text: "Make a pricing page" });
+  });
+  it("keeps one copy of a send pressed again in the same conversation", async () => {
+    const h = fixture();
+    const id = (await h.service.start(canvasStart)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    h.hold(); const pending = h.service.send(id, "make it darker", []);
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(2));
+    await h.service.quit(); h.release(); await expect(pending).rejects.toThrow("busy");
+    await expect(h.service.send(id, "make it darker", [])).rejects.toThrow("busy");
+    await expect(h.service.send(id, "make it darker", [])).rejects.toThrow("busy");
+    expect(h.restart().takeDraft(id)).toMatchObject({ text: "make it darker", reason: "restarted" });
+  });
+});
+
 describe("no draft is left by a start or send that settled", () => {
   it("leaves nothing for an accepted start or send", async () => {
     const h = fixture();

@@ -186,6 +186,17 @@ test("StrictMode's double effect and double ref callback leave one context", asy
   expect(created.filter(node => node.className === "docked-buddy" && node.isConnected).length).toBe(1);
 });
 
+// A move to a display of another scale changes devicePixelRatio without a CSS resize, so no ResizeObserver fires.
+test("the canvas follows a change of devicePixelRatio, as on a display of another scale", async () => {
+  const env = setup();
+  env.start(); env.frame(); await env.load();
+  const host = env.host(), canvas = env.canvas(), observer = resizeObservers.find(o => o.nodes.has(host))!;
+  host.clientWidth = 56; observer.callback();
+  expect([canvas.width, canvas.height]).toEqual([112, 112]);
+  vi.stubGlobal("devicePixelRatio", 1); media.dispatch("change");
+  expect([canvas.width, canvas.height]).toEqual([56, 56]);
+});
+
 test("a 0-wide host (a detached slot) does not resize the canvas", async () => {
   const env = setup();
   env.start(); env.frame(); await env.load();
@@ -363,6 +374,23 @@ test("stop and a buddy change clear a pending retry, and a late restore event do
   changed.shell.setBuddy("puri");
   expect(vi.getTimerCount()).toBe(0);
   changed.shell.stop();
+});
+
+// An earlier unseen stretch must not leave a later loss free to rebuild at once, while the GPU may still be restarting.
+test("after the buddy was hidden and shown again, a context lost while seen still waits for the GPU", async () => {
+  const env = setup();
+  env.start(); env.frame(); await env.load(); env.run(2);
+  for (const listener of nativeVisible) listener(false);
+  env.run(1);
+  for (const listener of nativeVisible) listener(true);
+  env.run(3);
+  expect(gl.made.length).toBe(1);
+  env.canvas().dispatch("webglcontextlost");
+  env.run(3);
+  expect(gl.made.length).toBe(1);
+  expect(env.host().dataset.state).toBe("static");
+  vi.advanceTimersByTime(1000); env.frame();
+  expect(gl.made.length).toBe(2);
 });
 
 test("a context lost while unseen is rebuilt only once the buddy is seen again", async () => {
