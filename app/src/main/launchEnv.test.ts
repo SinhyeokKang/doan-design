@@ -55,13 +55,22 @@ describe("main's own TLS trusts the NODE_EXTRA_CA_CERTS file", () => {
   let dir = "", ca = "", server: Server, url = "";
   beforeAll(async () => {
     dir = mkdtempSync(join(tmpdir(), "doan-ca-"));
+    // Extensions, digest and curve encoding are spelled out, because LibreSSL (macOS's /usr/bin/openssl, the CI
+    // runner's) defaults differ from OpenSSL 3's in ways Node refuses: no CA:TRUE on a `req -x509` certificate (Node
+    // takes only a CA as a trust anchor), SHA-1 signatures and explicit EC parameters.
+    const openssl = (...args: string[]) => execFileSync("openssl", args, { stdio: "ignore" });
+    const key = ["-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256", "-pkeyopt", "ec_param_enc:named_curve", "-nodes", "-sha256"];
     for (const name of ["corp", "other"]) {
-      execFileSync("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256", "-nodes", "-days", "1", "-subj", "/CN=localhost",
-        "-addext", "subjectAltName=IP:127.0.0.1", "-keyout", join(dir, `${name}.key`), "-out", join(dir, `${name}.pem`)], { stdio: "ignore" });
+      openssl("req", "-x509", ...key, "-days", "1", "-subj", `/CN=Doan test ${name} CA`, "-addext", "basicConstraints=critical,CA:TRUE",
+        "-addext", "keyUsage=critical,keyCertSign", "-keyout", join(dir, `${name}.key`), "-out", join(dir, `${name}.pem`));
     }
+    openssl("req", "-new", ...key, "-subj", "/CN=127.0.0.1", "-keyout", join(dir, "server.key"), "-out", join(dir, "server.csr"));
+    writeFileSync(join(dir, "server.ext"), "basicConstraints=critical,CA:FALSE\nsubjectAltName=IP:127.0.0.1\n");
+    openssl("x509", "-req", "-in", join(dir, "server.csr"), "-CA", join(dir, "corp.pem"), "-CAkey", join(dir, "corp.key"), "-set_serial", "1",
+      "-sha256", "-days", "1", "-extfile", join(dir, "server.ext"), "-out", join(dir, "server.pem"));
     ca = join(dir, "bundle.pem");
     writeFileSync(ca, readFileSync(join(dir, "other.pem"), "utf8") + readFileSync(join(dir, "corp.pem"), "utf8"));
-    server = createServer({ key: readFileSync(join(dir, "corp.key")), cert: readFileSync(join(dir, "corp.pem")) }, (_request, response) => response.end("ok"));
+    server = createServer({ key: readFileSync(join(dir, "server.key")), cert: readFileSync(join(dir, "server.pem")) }, (_request, response) => response.end("ok"));
     await new Promise<void>(done => server.listen(0, "127.0.0.1", done));
     const address = server.address();
     if (!address || typeof address === "string") throw new Error("no port");
