@@ -21,7 +21,7 @@ const ENTRIES = [MAIN, OTHER, FIX, AUTO];
 const turn = (root: string, running = true): LiveTurn => ({ root, turnId: `t-${root}`, running, provider: "claude" });
 
 const input = (patch: Partial<CliRemoveInput> = {}): CliRemoveInput => ({
-  root: "/w/app-fix", entries: ENTRIES, ready: true, firstRun: false, menu: { screen: "home", modal: false }, liveTurns: new Map(), ...patch,
+  root: "/w/app-fix", entries: ENTRIES, ready: true, firstRun: false, menu: { screen: "home", modal: false }, liveTurns: new Map(), pendingRoots: new Set(), ...patch,
 });
 const refusal = (patch: Partial<CliRemoveInput>) => {
   const decision = cliRemoveDecision(input(patch));
@@ -102,6 +102,21 @@ describe("refusals change nothing", () => {
     expect(cliRemoveDecision(input({ liveTurns: new Map([["done", turn("/w/app", false)], ["elsewhere", turn("/w/other")]]) })).kind).toBe("remove");
   });
 
+  // A start or send main has not accepted yet, or one waiting for its previous turn, has no running turn in liveTurns
+  // but runs for the person (POSTMORTEM 2026-11-17 'A quit before main accepted a send…').
+  test("a conversation not accepted yet in any root of the group refuses; one in another project does not", () => {
+    const running = { code: "conversation_running", message: "A conversation is running in this project in Doan." };
+    expect(refusal({ pendingRoots: new Set(["/w/app"]) }).error).toEqual(running);
+    expect(refusal({ root: "/w/app", pendingRoots: new Set(["/w/.wt/app-auto"]) }).error).toEqual(running);
+    expect(cliRemoveDecision(input({ pendingRoots: new Set(["/w/other"]) })).kind).toBe("remove");
+  });
+  test("a v7 request asks the host for the roots with a conversation not accepted yet", async () => {
+    const removeRoots = vi.fn(async (roots: readonly string[]) => ({ kind: "removed" as const, paths: [...roots] }));
+    const host: CliRemoveHost = { ready: () => true, firstRun: () => false, entries: () => ENTRIES, menu: () => ({ screen: "workspace", modal: false }), liveTurns: () => new Map(), pendingRoots: () => new Set(["/w/app-fix"]), removeRoots };
+    expect(await answerCliRemove({ v: 7, token: "t", root: "/w/app" }, host)).toMatchObject({ v: 7, ok: false, error: { code: "conversation_running" } });
+    expect(removeRoots).not.toHaveBeenCalled();
+  });
+
   // What the person must finish comes before loading: the renderer reports ready only after first run and the buddy
   // screen, and a locked Add Projects page is itself reading the root it sets up (found by the runtime probe).
   test("the checks run in order: registration, first run, dialog, locked page, loading, conversations", () => {
@@ -118,7 +133,7 @@ describe("refusals change nothing", () => {
 describe("answering a v7 request", () => {
   const request: RemoveRequest = { v: 7, token: "t", root: "/w/app-fix" };
   const host = (patch: Partial<CliRemoveHost> = {}): CliRemoveHost => ({
-    ready: () => true, firstRun: () => false, entries: () => ENTRIES, menu: () => ({ screen: "workspace", modal: false }), liveTurns: () => new Map(),
+    ready: () => true, firstRun: () => false, entries: () => ENTRIES, menu: () => ({ screen: "workspace", modal: false }), liveTurns: () => new Map(), pendingRoots: () => new Set(),
     removeRoots: vi.fn(async (roots: readonly string[]) => ({ kind: "removed" as const, paths: [...roots] })), ...patch,
   });
 

@@ -194,7 +194,8 @@ export class OverviewRun {
       this.roots.delete(root);
       if (this.visible === root) this.visible = null;
     }
-    this.store.dropDrafts(key => roots.some(root => key === `root:${root}`));
+    // The root's own draft and its canvases' (draftKey: `canvas:` then the JSON array that starts with the root).
+    this.store.dropDrafts(key => roots.some(root => key === `root:${root}` || key.startsWith(`canvas:${JSON.stringify([root]).slice(0, -1)},`)));
     this.host.changed();
   }
   settleAttachments(keys: readonly string[], results: readonly (AttachmentResult | null)[]): { notices: string[]; images: { key: string; thumbnail: Uint8Array }[] } {
