@@ -40,7 +40,7 @@ export interface InspectorDeps {
   debugger: Pick<DebuggerLike, "sendCommand">;
   // Its mainFrame() also attaches again after a detach or a failed attach.
   window: Pick<WindowDebugger, "mainFrame" | "sessionOf">;
-  documents: Pick<DocumentBindings, "frames" | "current">;
+  documents: Pick<DocumentBindings, "frames" | "current" | "onChange">;
   // The listed canvas row's URL, or null when the canvas is not listed.
   canvasUrl(canvas: { root: string; path: string }): string | null;
 }
@@ -86,11 +86,34 @@ export function createInspector(deps: InspectorDeps): Inspector {
     return shownDocument(deps.documents.frames(), (frame, at) => deps.documents.current(frame, at), main, { url, ...canvas });
   };
 
-  const run = async ({ selector, canvas }: InspectRequest): Promise<InspectResult> => {
+  // Another canvas's document is proven shown in the window, so the request lost a switch.
+  const otherShown = (main: string, canvas: InspectRequest["canvas"]): boolean =>
+    deps.documents.frames().some((frame) => {
+      if (frame.parentId !== main) return false;
+      const doc = deps.documents.current(frame.id, frame.url);
+      return doc !== null && (doc.root !== canvas.root || doc.path !== canvas.path);
+    });
+
+  // Resolves true on the next bindings change, false once `end` settles first; the listener goes either way.
+  const changeBefore = async (end: Promise<void>): Promise<boolean> => {
+    let off = () => {};
+    const changed = new Promise<boolean>((resolve) => { off = deps.documents.onChange(() => resolve(true)); });
+    try { return await Promise.race([changed, end.then(() => false)]); }
+    finally { off(); }
+  };
+
+  const run = async ({ selector, canvas }: InspectRequest, end: Promise<void>): Promise<InspectResult> => {
     const main = await deps.window.mainFrame();
     if (main === null) return failed("unavailable");
-    const shown = shownNow(main, canvas);
-    if (shown === null) return failed("not-shown");
+    // No proof yet (a load still finishing, or one lost to a debugger detach) is judged again on each bindings change,
+    // as read-state does. Only a confirmed other canvas is not-shown: the renderer asks again when that document's
+    // selection settles, while a missing proof gives it no such moment, so it gets unavailable and its Retry.
+    let shown = shownNow(main, canvas);
+    while (shown === null) {
+      if (otherShown(main, canvas)) return failed("not-shown");
+      if (!(await changeBefore(end))) return failed("unavailable");
+      shown = shownNow(main, canvas);
+    }
     const session = deps.window.sessionOf(shown.frame);
     if (session === null) return failed("unavailable");
     // What was read belongs to the requested canvas only if the same document and session are still current.
@@ -126,10 +149,11 @@ export function createInspector(deps: InspectorDeps): Inspector {
       // The budget counts from the call, so time spent waiting in the queue counts too. A timeout does not cancel the
       // CDP commands already sent; their late answers are dropped.
       let timer: ReturnType<typeof setTimeout> | undefined;
-      const late = new Promise<InspectResult>((resolve) => {
-        timer = setTimeout(() => resolve(failed("unavailable")), BUDGET_MS);
+      const end = new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, BUDGET_MS);
       });
-      const result = Promise.race([queue.then(() => run(request)), late]).finally(() => clearTimeout(timer));
+      const late = end.then(() => failed("unavailable"));
+      const result = Promise.race([queue.then(() => run(request, end)), late]).finally(() => clearTimeout(timer));
       // A request that ran out of time releases the queue, so one stuck call cannot block later ones.
       queue = result;
       return result;

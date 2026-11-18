@@ -145,10 +145,8 @@ test("overlapping requests run one after another", async () => {
   expect(methods.indexOf("DOM.disable")).toBeLessThan(methods.lastIndexOf("DOM.enable"));
 });
 
-test("a canvas the window does not show is not-shown, without any DOM command", async () => {
+test("not-shown only while another canvas is confirmed shown, without any DOM command", async () => {
   const { dbg, docs, inspector } = setup();
-  // Nothing committed yet.
-  expect(await inspector.inspect(request())).toEqual({ ok: false, reason: "not-shown" });
   show(dbg, docs, "S1", "loader");
   // Another listed canvas, and one that is not listed.
   expect(await inspector.inspect(request("#c3", OTHER))).toEqual({ ok: false, reason: "not-shown" });
@@ -157,10 +155,45 @@ test("a canvas the window does not show is not-shown, without any DOM command", 
   const elsewhere = createInspector({ debugger: dbg, window: { mainFrame: () => Promise.resolve("MAIN"), sessionOf: () => "S1" }, documents: docs, canvasUrl: () => URL_A });
   expect(await elsewhere.inspect(request("#c3", { root: "/elsewhere", path: CANVAS.path }))).toEqual({ ok: false, reason: "not-shown" });
   expect(dbg.sent("DOM.enable")).toEqual([]);
-  // A navigation that started leaves no shown document until it finishes.
-  dbg.emit("message", {}, "Page.frameStartedNavigating", { frameId: "FRAME", loaderId: "next" }, "S1");
-  expect(await inspector.inspect(request())).toEqual({ ok: false, reason: "not-shown" });
+});
+
+// The renderer asks again on a not-shown only once a new document's selection settles; a missing proof for the canvas
+// it shows has no such moment, so main waits for the proof within the budget and answers unavailable (Retry) without it.
+test("with no proof yet, waits within the budget for the canvas's document and reads it", async () => {
+  vi.useFakeTimers();
+  const { dbg, docs, inspector } = setup();
+  await vi.advanceTimersByTimeAsync(0);
+  const pending = inspector.inspect(request());
+  await vi.advanceTimersByTimeAsync(1500);
   expect(dbg.sent("DOM.enable")).toEqual([]);
+  show(dbg, docs, "S1", "loader");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(await pending).toMatchObject({ ok: true });
+  // A reload that started: the proof comes back when it finishes.
+  dbg.emit("message", {}, "Page.frameStartedNavigating", { frameId: "FRAME", loaderId: "next" }, "S1");
+  const reloading = inspector.inspect(request());
+  await vi.advanceTimersByTimeAsync(100);
+  show(dbg, docs, "S1", "next");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(await reloading).toMatchObject({ ok: true });
+});
+
+test("with no proof by the end of the budget, answers unavailable and stops waiting", async () => {
+  vi.useFakeTimers();
+  const { dbg, docs, inspector } = setup();
+  const pending = inspector.inspect(request());
+  let settled = false;
+  void pending.then(() => { settled = true; });
+  // An unrelated change is judged again and keeps waiting.
+  docs.response({ marker: "other", root: CANVAS.root, path: CANVAS.path, hash: "h", complete: true, stable: true });
+  await vi.advanceTimersByTimeAsync(1999);
+  expect(settled).toBe(false);
+  await vi.advanceTimersByTimeAsync(1);
+  expect(await pending).toEqual({ ok: false, reason: "unavailable" });
+  expect(dbg.sent("DOM.enable")).toEqual([]);
+  // Every listener the wait added is gone.
+  const listeners = (docs as unknown as { listeners: Set<unknown> }).listeners;
+  expect(listeners.size).toBe(0);
 });
 
 test("a document replaced during the read is not-shown, not its rows or a failure", async () => {
@@ -215,22 +248,27 @@ test("a failed attach is unavailable and the next request attaches again", async
   expect(await inspector.inspect(request())).toEqual({ ok: false, reason: "unavailable" });
   expect(dbg.sent("Target.setAutoAttach")).toHaveLength(0);
   dbg.attachError = null;
-  // Attached, but no document is proven yet.
-  expect(await inspector.inspect(request())).toEqual({ ok: false, reason: "not-shown" });
-  expect(dbg.sent("Target.setAutoAttach")).toHaveLength(1);
+  // Attached; the document proven during the wait is read.
+  const pending = inspector.inspect(request());
+  await vi.waitFor(() => expect(dbg.sent("Target.setAutoAttach")).toHaveLength(1));
   show(dbg, docs, "S1", "loader");
-  expect(await inspector.inspect(request())).toMatchObject({ ok: true });
+  expect(await pending).toMatchObject({ ok: true });
 });
 
-test("re-attaches on the next request after a detach and reads through the new session", async () => {
+test("re-attaches on the next request after a detach, answers unavailable without a proof, and reads through the new session", async () => {
+  vi.useFakeTimers();
   const { dbg, docs, inspector } = setup();
-  await vi.waitFor(() => expect(dbg.sent("Target.setAutoAttach")).toHaveLength(1));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(dbg.sent("Target.setAutoAttach")).toHaveLength(1);
   show(dbg, docs, "S1", "loader");
   expect(await inspector.inspect(request())).toMatchObject({ ok: true });
   dbg.attached = false;
   dbg.emit("detach", {}, "target closed");
-  // The detach forgot the document proof and the session; nothing is shown until the canvas commits again.
-  expect(await inspector.inspect(request())).toEqual({ ok: false, reason: "not-shown" });
+  // The detach forgot the document proof and the session, and the committed canvas does not commit again: a Retry,
+  // not a wait for a new selection that never comes.
+  const lost = inspector.inspect(request());
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(await lost).toEqual({ ok: false, reason: "unavailable" });
   expect(dbg.attached).toBe(true);
   expect(dbg.sent("Target.setAutoAttach")).toHaveLength(2);
   show(dbg, docs, "S2", "again");
