@@ -1239,6 +1239,8 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .thread-notice > svg, :is(.cp-scroll, .ov-new) > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }
 /* The strip's one-line clip (overflow hidden) would cut glyphs that overhang a wrapped line. */
 .conversation-thread .thread-notice .strip-text span, :is(.cp-scroll, .ov-new) > .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
+/* A permission request's command keeps its line breaks, so every line that will run shows. */
+.conversation-thread .thread-notice .strip-text span.ask-command { white-space: pre-wrap; }
 .conversation-thread .marker { display: flex; align-items: center; gap: var(--space-3); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .conversation-thread .marker::before, .conversation-thread .marker::after { content: ""; flex: 1; height: 1px; background: var(--border-standard); }
 .conversation-thread .marker span { display: inline-flex; align-items: center; gap: var(--space-1h); min-width: 0; max-width: 80%; text-align: center; }

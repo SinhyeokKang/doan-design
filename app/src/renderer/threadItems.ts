@@ -26,7 +26,7 @@ export type ThreadItem =
   // A run of activities folds into one line: "N steps", or the running tool's words while it is the running turn's last
   // item and the turn indicator names a tool (activityRun).
   | { kind: "activity"; key: string; running: boolean; head: string; steps: ActivityStep[] }
-  | { kind: "permission"; key: string; seq: number; requestId: string; summary: string; options: PermissionOption[]; status: "pending" | "answered" | "expired"; answer: PermissionOption | null }
+  | { kind: "permission"; key: string; seq: number; requestId: string; summary: string; reason?: string; options: PermissionOption[]; status: "pending" | "answered" | "expired"; answer: PermissionOption | null }
   // An agent's question. answers: what main kept of an answered one, by question id.
   | { kind: "question"; key: string; seq: number; requestId: string; questions: Question[]; status: "pending" | QuestionOutcome; answers: Record<string, StoredAnswer> | null }
   // seq is null for the end a crash-folded turn never wrote; its key is the turn's, so it stays when later turns arrive.
@@ -276,7 +276,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         break;
       }
       case "permission.request": {
-        const item = { kind: "permission" as const, key: `p${event.requestId}`, seq: event.seq, requestId: event.requestId, summary: event.summary, options: event.options, status: "pending" as const, answer: null as PermissionOption | null };
+        const item = { kind: "permission" as const, key: `p${event.requestId}`, seq: event.seq, requestId: event.requestId, summary: event.summary, ...(event.reason ? { reason: event.reason } : {}), options: event.options, status: "pending" as const, answer: null as PermissionOption | null };
         permissions.set(event.requestId, item); askTurn.set(`permission:${event.requestId}`, event.turnId);
         push(item, event.turnId);
         break;

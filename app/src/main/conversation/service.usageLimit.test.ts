@@ -239,6 +239,49 @@ describe("a turn the limit stopped before the agent did anything", () => {
   });
 });
 
+// A project turn waits for its judgement after it ends, and the list shows it working meanwhile, so the composer queues.
+// What it queues then waits for the same reset as a canvas conversation's does (ARCHITECTURE §7 'Usage-limit schedule').
+describe("a project conversation's queue made while its limited turn waits for its judgement", () => {
+  it("waits for the reset once the reset is known before the judgement", async () => {
+    const h = fixture(); h.limit(RESET);
+    const id = await h.startProject();
+    h.service.receive(id, { type: "turn.failed", code: "rate_limited", detail: "limit" });
+    expect(h.summary(id).working).toBe(true);
+    h.service.queue(id, { text: "next", anchors: [] });
+    await drain();
+    h.service.refreshed("/repo", []); await drain();
+    expect(h.texts(id)).toEqual(["make a page"]);
+    expect(h.service.scheduled(id).map(item => item.text)).toEqual(["make a page", "next"]);
+    expect(h.summary(id)).toMatchObject({ scheduledAt: iso(RESET), working: false });
+    h.clock.advance(HOUR + MIN); await drain();
+    expect(h.texts(id)).toEqual(["make a page", "make a page\n\nnext"]);
+  });
+  it("waits for the usage read when the judgement comes first", async () => {
+    const h = fixture(); h.limit(RESET);
+    const id = await h.startProject();
+    const read = h.holdRead();
+    h.service.receive(id, { type: "turn.failed", code: "rate_limited", detail: "limit" });
+    h.service.queue(id, { text: "next", anchors: [] });
+    h.service.refreshed("/repo", []); await drain();
+    expect(h.texts(id)).toEqual(["make a page"]);
+    read.answer(); await drain();
+    expect(h.texts(id)).toEqual(["make a page"]);
+    expect(h.summary(id)).toMatchObject({ scheduledAt: iso(RESET), working: false });
+  });
+  it("comes back as a draft when the usage read tells no reset", async () => {
+    const h = fixture();
+    const id = await h.startProject();
+    const read = h.holdRead();
+    h.service.receive(id, { type: "activity", kind: "read", summary: "Reading files" });
+    h.service.receive(id, { type: "turn.failed", code: "rate_limited", detail: "limit" });
+    h.service.queue(id, { text: "next", anchors: [] });
+    h.service.refreshed("/repo", []); await drain();
+    read.answer(); await drain();
+    expect(h.texts(id)).toEqual(["make a page"]);
+    expect(h.drafts.returned(id)).toMatchObject({ text: "next", reason: "turn_failed" });
+  });
+});
+
 describe("a scheduled send the limit stops again", () => {
   async function sentOnce(h: ReturnType<typeof fixture>) {
     const id = await h.start(); await h.limited(id);

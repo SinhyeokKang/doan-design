@@ -19,9 +19,11 @@ export interface Anchor {
 }
 // model_unavailable: the provider has no such model for this account, so the turn ended before it did any work.
 export type FailureCode = "runtime_unsupported" | "cli_missing" | "not_logged_in" | "session_unavailable" | "session_in_use" | "process_exited" | "rate_limited" | "model_unavailable" | "prompt_unread" | "unknown";
-export interface PermissionOption { id: string; label: string; kind: "allow" | "allowAlways" | "deny" }
+// detail: what a choice saves beyond this request (a rule, a setting), shown before the person picks it.
+export interface PermissionOption { id: string; label: string; kind: "allow" | "allowAlways" | "deny"; detail?: string }
+// summary: what the approval lets run (the command, the files, the permissions); reason: the agent's own words about it.
 export interface PermissionRequest {
-  type: "permission.request"; requestId: string; tool: string; summary: string; options: PermissionOption[];
+  type: "permission.request"; requestId: string; tool: string; summary: string; reason?: string; options: PermissionOption[];
 }
 // An agent's question to the person; it waits in the turn like a permission request.
 export interface QuestionRequest { type: "question.request"; requestId: string; questions: Question[] }

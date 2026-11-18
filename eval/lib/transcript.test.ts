@@ -258,8 +258,6 @@ test("commandWords expands loop and assigned variables where the shell would", (
   assert.deepEqual(commandWords('for p in harden clarify\ndo\n  doan design-skill "${p}" --json | head -5\ndone'),
     [["doan", "design-skill", "harden", "--json"], ["head", "-5"], ["doan", "design-skill", "clarify", "--json"], ["head", "-5"]]);
   assert.deepEqual(commandWords("p=harden; doan design-skill $p --json"), [["doan", "design-skill", "harden", "--json"]]);
-  assert.deepEqual(commandWords("ids='harden clarify'; for p in $ids; do doan design-skill $p; done"),
-    [["doan", "design-skill", "harden"], ["doan", "design-skill", "clarify"]]);
   assert.deepEqual(commandWords("for a in x y; do for b in 1 2; do echo $a$b; done; done"),
     [["echo", "x1"], ["echo", "x2"], ["echo", "y1"], ["echo", "y2"]]);
   assert.deepEqual(commandWords("bash -c 'for p in harden; do doan design-skill $p; done'"), [["doan", "design-skill", "harden"]]);
@@ -287,6 +285,16 @@ test("a command whose program or doan operand is unresolved is incomplete and yi
   assert.deepEqual(parseCommand("doan design-skill harden; $c design-skill polish"), { words: [["doan", "design-skill", "harden"]], incomplete: true });
   assert.deepEqual(parseCommand("for p in $ids; do doan design-skill $p; done"), { words: [], incomplete: true });
   assert.deepEqual(parseCommand("q=$unset; doan design-skill $q"), { words: [], incomplete: true });
+});
+// Agents run zsh (Codex's exec headers show `/bin/zsh -lc`), which does not split an unquoted variable into words, while
+// bash and sh do; a variable holding several words may therefore be one word or several.
+test("a bare variable holding several words is unresolved, since zsh passes it as one word and bash splits it", () => {
+  assert.deepEqual(parseCommand("ids='harden clarify'; for p in $ids; do doan design-skill $p; done"), { words: [], incomplete: true });
+  assert.deepEqual(parseCommand("p='harden clarify'; doan design-skill $p"), { words: [], incomplete: true });
+  assert.deepEqual(parseCommand("c='doan init'; $c"), { words: [], incomplete: true });
+  // One word, or several quoted into one, reads the same in every shell.
+  assert.deepEqual(parseCommand("p=harden; doan design-skill $p"), { words: [["doan", "design-skill", "harden"]], incomplete: false });
+  assert.deepEqual(parseCommand("m='a b'; echo \"$m\""), { words: [["echo", "a b"]], incomplete: false });
 });
 test("loop variables and assignments in a body are the shell state that goes on after the loop", () => {
   assert.deepEqual(commandWords("p=harden; for p in polish; do echo $p; done; doan design-skill $p"), [["echo", "polish"], ["doan", "design-skill", "polish"]]);
@@ -535,6 +543,23 @@ test("a wrapper option the shell may expand to nothing makes the read incomplete
 
 // The shell takes a redirection and its target out of the command's words before it runs the command, so the doan
 // argv never holds them; a quoted `>` is an ordinary word.
+// The shell drops a backslash-newline outside single quotes before it splits words, so a continued command is one
+// command; agents write long doan calls this way.
+test("a backslash-newline continues the command, outside single quotes", () => {
+  const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
+  read("doan design-skill audit \\\n  --json", [["doan", "design-skill", "audit", "--json"]]);
+  read("doan \\\ninit", [["doan", "init"]]);
+  read("doan export .doan/canvases/a.html \\\n  -o /tmp/a.html && \\\n  doan open .doan/canvases/a.html \\\n  --frame hero", [["doan", "export", ".doan/canvases/a.html", "-o", "/tmp/a.html"], ["doan", "open", ".doan/canvases/a.html", "--frame", "hero"]]);
+  read("bash -c 'doan design-skill audit \\\n  --json'", [["doan", "design-skill", "audit", "--json"]]);
+  read("echo \"a\\\nb\"", [["echo", "ab"]]);
+  // Single quotes keep it, an escaped backslash ends the line, and a comment's backslash continues nothing.
+  read("echo 'a\\\nb'", [["echo", "a\\\nb"]]);
+  read("echo a\\\\\ndoan active", [["echo", "a\\"], ["doan", "active"]]);
+  read("# note \\\ndoan active", [["doan", "active"]]);
+  const exec = "exec\n/bin/zsh -lc 'doan design-skill audit \\\n  --json' in /tmp/repo succeeded in 2ms:\noutput";
+  assert.deepEqual(toolCalls(exec).commands.flatMap(commandWords), [["doan", "design-skill", "audit", "--json"]]);
+});
+
 test("redirections and their targets are not words of the command", () => {
   const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
   const preset = ["doan", "design-skill", "document", "--json"];
