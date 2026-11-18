@@ -26,7 +26,8 @@ export interface InspectRow {
   label: string;
   value: string;
   state: InspectState;
-  // Space-separated when the sides of a combined row use different tokens.
+  // Set only when every side of a combined row uses this one token; absent when the sides use different tokens or
+  // some side has none (each side's token is then in `sides`).
   token?: string;
   // The declared token first, then each token it points at.
   chain?: string[];
@@ -535,21 +536,32 @@ function cap(text: string): string {
 
 const RANK: Record<InspectState, number> = { default: 0, token: 1, hardcoded: 2, unknown: 3 };
 
-const ROWS: { group: InspectGroup; label: string; props: string[]; color?: boolean }[] = [
+type Layout = "flex" | "grid";
+const LAYOUT_OF: Record<string, Layout> = { flex: "flex", "inline-flex": "flex", grid: "grid", "inline-grid": "grid" };
+
+// In the panel's order. `sides` names each prop of a split row; `layout` limits a row to those containers, so a block
+// element shows no `flex-direction: row` it never uses.
+const ROWS: { group: InspectGroup; label: string; props: string[]; color?: boolean; sides?: readonly string[]; layout?: readonly Layout[] }[] = [
+  { group: "box", label: "Padding", props: SIDES.map((s) => `padding-${s}`), sides: SIDES },
+  { group: "box", label: "Gap", props: ["row-gap", "column-gap"] },
+  { group: "box", label: "Margin", props: SIDES.map((s) => `margin-${s}`), sides: SIDES },
   { group: "box", label: "Width", props: ["width"] },
   { group: "box", label: "Height", props: ["height"] },
-  { group: "box", label: "Padding", props: SIDES.map((s) => `padding-${s}`) },
-  { group: "box", label: "Margin", props: SIDES.map((s) => `margin-${s}`) },
-  { group: "box", label: "Gap", props: ["row-gap", "column-gap"] },
-  { group: "typography", label: "Family", props: ["font-family"] },
   { group: "typography", label: "Size", props: ["font-size"] },
-  { group: "typography", label: "Line height", props: ["line-height"] },
   { group: "typography", label: "Weight", props: ["font-weight"] },
+  { group: "typography", label: "Line height", props: ["line-height"] },
+  { group: "typography", label: "Family", props: ["font-family"] },
   { group: "colors", label: "Text", props: ["color"], color: true },
   { group: "colors", label: "Background", props: ["background-color"], color: true },
   { group: "colors", label: "Border", props: SIDES.map((s) => `border-${s}-color`), color: true },
-  { group: "radius", label: "Radius", props: CORNERS.map((c) => `border-${c}-radius`) },
+  { group: "radius", label: "Radius", props: CORNERS.map((c) => `border-${c}-radius`), sides: CORNERS },
   { group: "shadow", label: "Shadow", props: ["box-shadow"] },
+  { group: "layout", label: "Display", props: ["display"], layout: ["flex", "grid"] },
+  { group: "layout", label: "Direction", props: ["flex-direction"], layout: ["flex"] },
+  { group: "layout", label: "Columns", props: ["grid-template-columns"], layout: ["grid"] },
+  { group: "layout", label: "Wrap", props: ["flex-wrap"], layout: ["flex"] },
+  { group: "layout", label: "Justify", props: ["justify-content"], layout: ["flex", "grid"] },
+  { group: "layout", label: "Align", props: ["align-items"], layout: ["flex", "grid"] },
 ];
 
 function combine(values: string[]): string {
@@ -560,7 +572,8 @@ function combine(values: string[]): string {
 
 export function inspectRows(input: InspectInput): InspectRow[] {
   const computed = new Map(input.computed.map((c) => [c.name, c.value]));
-  return ROWS.map(({ group, label, props, color }) => {
+  const layout = LAYOUT_OF[computed.get("display") ?? ""];
+  return ROWS.filter((r) => r.layout === undefined || (layout !== undefined && r.layout.includes(layout))).map(({ group, label, props, color, sides }) => {
     let shown = props;
     let values = props.map((p) => computed.get(p) ?? "");
     if (color) values = values.map(colorHex);
@@ -575,11 +588,21 @@ export function inspectRows(input: InspectInput): InspectRow[] {
     const sources = shown.map((p) => longhandSource(input, p));
     const state = sources.reduce<InspectState>((worst, s) => (RANK[s.state] > RANK[worst] ? s.state : worst), "default");
     const row: InspectRow = { group, label, value: cap(combine(values)), state };
-    if (state === "token") {
-      const tokens = [...new Set(sources.flatMap((s) => (s.token !== undefined ? [s.token] : [])))];
-      row.token = cap(tokens.join(" "));
-      const chain = tokens.length === 1 ? sources.find((s) => s.chain)?.chain : undefined;
+    // One name only when every side uses it: a joined list would read as one token, and a side without a token
+    // would hide behind the others' chip.
+    const token = sources[0]?.token;
+    if (state === "token" && token !== undefined && sources.every((s) => s.token === token)) {
+      row.token = cap(token);
+      const chain = sources.find((s) => s.chain)?.chain;
       if (chain) row.chain = chain.map(cap);
+    }
+    if (sides) {
+      row.sides = sides.map((side, i) => {
+        const entry: InspectSide = { side, value: cap(values[i] ?? "") };
+        const own = sources[i]?.token;
+        if (own !== undefined) entry.token = cap(own);
+        return entry;
+      });
     }
     const inherited = sources.length === 1 ? sources[0]?.inheritedFrom : undefined;
     if (inherited !== undefined) row.inheritedFrom = cap(inherited);
