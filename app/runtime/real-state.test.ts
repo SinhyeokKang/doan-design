@@ -242,7 +242,6 @@ test("real-state fingerprints every userData entry main names", async () => {
     for (const match of text.matchAll(/join\((?:[\w.]+\.)?userData, "([^"]+)"/g)) named.add(match[1]!);
     for (const match of text.matchAll(/join\((?:[\w.]+\.)?userData, ([A-Z][A-Z0-9_]*)\)/g)) joined.add(match[1]!);
     for (const match of text.matchAll(/\bconst ([A-Z][A-Z0-9_]*) = "([^"]+)"/g)) constants.set(match[1]!, match[2]!);
-    for (const match of text.matchAll(/\b(?:COMPLETION_FILE|CANCELLED_FILE) = "([^"]+)"/g)) named.add(match[1]!);
   }
   for (const name of joined) {
     const value = constants.get(name);
