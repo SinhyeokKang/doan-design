@@ -1,7 +1,7 @@
 import type { ShortcutEvent } from "./canvasTool";
 
 // Test support: there is no DOM in the renderer tests, so a key target is faked from the props a surface draws.
-export interface Drawn { className?: unknown; role?: unknown }
+export type Drawn = Readonly<Record<string, unknown>>;
 
 // The innermost of these drawn elements (outermost first). Its closest() matches the class and role selectors the
 // app uses on the way out, as the DOM's does.

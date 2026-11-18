@@ -5,7 +5,7 @@ import type { ViewCommand } from "../main/index";
 import type { CanvasState, CanvasViewStore } from "./CanvasController";
 import { canvasLabel } from "./canvasTree";
 import { frameDrawerView, type FrameDrawerRow, type FrameDrawerView } from "./frameDrawer";
-import { drawerKey, focusedRowAfter, listTakesKey } from "./frameDrawerList";
+import { drawerKey, focusedRowAfter } from "./frameDrawerList";
 import { FrameName, FrameRowMarks } from "./FrameListBody";
 import { NameTip } from "./NameTip";
 import { menuCloseFocus, menuCloseNow } from "./canvasFocus";
@@ -175,9 +175,7 @@ function limit(enabled: boolean, atLimit: boolean): { disabled?: true; "aria-dis
 function ZoomControl({ view, canvasKey, fallbackFocus, command, zoomTo }: { view: ZoomControlView; canvasKey: string | null; fallbackFocus(): void; command(name: ViewCommand): void; zoomTo(scale: number): void }) {
   const [open, setOpen] = useState(false);
   const { trigger, onCloseAutoFocus } = useMenuFocus(canvasKey, open, view.enabled, () => setOpen(false), fallbackFocus);
-  // Radix's typeahead runs in the menu's own keydown, which a key prevented earlier would skip, so the open menu takes
-  // its printable keys from V and H here, on the way out of the portal.
-  return <span className="doan-canvas-zoom" onKeyDown={event => { if (event.target instanceof Element && event.target.closest(".doan-zoom-menu") && listTakesKey(event)) event.preventDefault(); }}>
+  return <span className="doan-canvas-zoom">
     <IconTip label={view.zoomOut.tooltip.label} shortcut={view.zoomOut.tooltip.key}><button type="button" className="doan-icon-button" aria-label="Zoom out" {...limit(view.enabled, view.zoomOut.disabled)} onClick={() => { if (!view.zoomOut.disabled) command("zoomOut"); }}><Minus aria-hidden="true" /></button></IconTip>
     <DropdownMenu.Root open={open && view.enabled} onOpenChange={setOpen}>
       <DropdownMenu.Trigger asChild><button ref={trigger} type="button" className="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label={view.triggerLabel} disabled={!view.enabled}>

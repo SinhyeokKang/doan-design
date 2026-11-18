@@ -82,7 +82,7 @@ export function drawerOrder(groups: readonly DrawerGroup[]): DrawerRow[] {
 export interface Typed { text: string; at: number }
 
 // An unmodified printable key, which an open list keeps from the window's shortcuts.
-export function listTakesKey(event: { key: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean }): boolean {
+function listTakesKey(event: { key: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean }): boolean {
   return event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey;
 }
 export interface DrawerKey { prevent: boolean; pick?: string; move?: string; typed: Typed }
