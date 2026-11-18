@@ -32,7 +32,7 @@ func Scope(root string, config Config) ([]string, error) {
 				protected = protected || MetadataPath(".doan"+strings.TrimPrefix(p, metadataRoot))
 			}
 		}
-		if p == "." || protected || seen[p] {
+		if p == "." || protected || Withheld(p) || seen[p] {
 			return
 		}
 		seen[p] = true
@@ -98,6 +98,20 @@ func defaultServeDirs(root string) ([]string, error) {
 		}
 	}
 	return dirs, nil
+}
+
+// Withheld reports whether a real repo-relative path is a .git directory or a
+// .env file, or lies under one. These are never served, whatever
+// .doan/config.json lists (ARCHITECTURE §3 'Never served').
+// Letter case is ignored because the volume usually ignores it.
+func Withheld(p string) bool {
+	for _, segment := range strings.Split(p, "/") {
+		segment = strings.ToLower(segment)
+		if segment == ".git" || strings.HasPrefix(segment, ".env") {
+			return true
+		}
+	}
+	return false
 }
 
 // MetadataPath keeps project settings and other .doan/ metadata out of the serving scope.

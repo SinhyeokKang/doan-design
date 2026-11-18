@@ -63,11 +63,23 @@ func checkInput(r repo.Repository, resolver *repo.Resolver, inspected func([]can
 		}
 		in.TokenCSS = check.TokenCSS{Configured: true, Path: r.Config.TokenCSS, RealPath: p, State: checkState(state)}
 	}
+	for _, entry := range r.Config.Serve {
+		state, real, e := repo.Resolve(r.Root, r.Root, entry)
+		if e != nil {
+			return in, e
+		}
+		if repo.Withheld(filepath.ToSlash(filepath.Clean(entry))) || (state == repo.Inside && repo.Withheld(real)) {
+			in.WithheldServe = append(in.WithheldServe, entry)
+		}
+	}
 	served, e := repo.Scope(r.Root, r.Config)
 	if e != nil {
 		return in, e
 	}
 	in.Served = func(p string) bool {
+		if repo.Withheld(p) {
+			return false
+		}
 		for _, s := range served {
 			if p == s || strings.HasPrefix(p, s+"/") {
 				return true

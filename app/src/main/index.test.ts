@@ -104,6 +104,7 @@ const mocks = await vi.hoisted(async () => {
     runtime: { socket: "/tmp/doan-x/app.sock", token: "t", file: "/tmp/doan-index-test/runtime.json", disposeSync: vi.fn() },
     startRuntime: vi.fn(),
     sessionOn: vi.fn(),
+    onBeforeRequest: vi.fn(),
     windowDebugger: { mainFrame: vi.fn(), sessionOf: vi.fn() },
     createWindowDebugger: vi.fn(),
     inspector: { inspect: vi.fn() },
@@ -138,7 +139,7 @@ vi.mock("electron", () => ({
   dialog: mocks.dialog,
   ipcMain: { handle: (channel: string, handler: (...args: unknown[]) => unknown) => mocks.ipc.set(channel, handler) },
   Menu: { buildFromTemplate: mocks.menu, setApplicationMenu: vi.fn() },
-  session: { defaultSession: { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(), setDevicePermissionHandler: vi.fn(), on: mocks.sessionOn } },
+  session: { defaultSession: { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(), setDevicePermissionHandler: vi.fn(), on: mocks.sessionOn, webRequest: { onBeforeRequest: mocks.onBeforeRequest } } },
   webFrameMain: { fromId: vi.fn() },
   webContents: { getFocusedWebContents: () => null },
   nativeTheme: mocks.nativeTheme,
@@ -644,6 +645,15 @@ test("cancels every download in the session", () => {
   const event = { preventDefault: vi.fn() };
   handler(event);
   expect(event.preventDefault).toHaveBeenCalledOnce();
+});
+
+test("keeps the session's requests off loopback listeners other than the canvas server", async () => {
+  const listener = mocks.onBeforeRequest.mock.calls.at(-1)?.[0] as ((details: { url: string }, callback: (response: { cancel: boolean }) => void) => void) | undefined;
+  if (!listener) throw new Error("no onBeforeRequest listener");
+  const request = (url: string) => new Promise<{ cancel: boolean }>((resolve) => listener({ url }, resolve));
+  expect(await request("http://127.0.0.1:1/t/tok/key/.doan/canvases/a.html")).toEqual({ cancel: false });
+  expect(await request("http://127.0.0.1:2/")).toEqual({ cancel: true });
+  expect(await request("http://localhost:1/")).toEqual({ cancel: true });
 });
 
 test("removes the runtime files synchronously on will-quit", () => {
