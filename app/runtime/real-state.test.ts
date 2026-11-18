@@ -235,11 +235,21 @@ test("real-state fingerprints every userData entry main names", async () => {
   const main = new URL("../src/main/", import.meta.url);
   const files = (await readdir(main, { recursive: true })).filter(name => name.endsWith(".ts") && !/\.(test|fixture)\.ts$/.test(name));
   const named = new Set<string>();
+  // A name joined through a constant (`join(userData, CONVERSATION_RUNTIME)`) is looked up where any main file defines it.
+  const constants = new Map<string, string>(), joined = new Set<string>();
   for (const file of files) {
     const text = await readFile(new URL(file, main), "utf8");
     for (const match of text.matchAll(/join\((?:[\w.]+\.)?userData, "([^"]+)"/g)) named.add(match[1]!);
+    for (const match of text.matchAll(/join\((?:[\w.]+\.)?userData, ([A-Z][A-Z0-9_]*)\)/g)) joined.add(match[1]!);
+    for (const match of text.matchAll(/\bconst ([A-Z][A-Z0-9_]*) = "([^"]+)"/g)) constants.set(match[1]!, match[2]!);
     for (const match of text.matchAll(/\b(?:COMPLETION_FILE|CANCELLED_FILE) = "([^"]+)"/g)) named.add(match[1]!);
   }
+  for (const name of joined) {
+    const value = constants.get(name);
+    assert.ok(value !== undefined, `${name} is joined to userData but no main file defines it as a string`);
+    named.add(value);
+  }
+  assert.ok(named.has("conversation-runtime.json"), "the scan missed a name joined to userData through a constant");
   assert.ok(named.size >= 10, `the scan found only ${[...named].join(", ")}`);
   for (const name of named) assert.ok(USER_DATA.includes(name), `${name} is written under userData but not in the real-state snapshot`);
 });
