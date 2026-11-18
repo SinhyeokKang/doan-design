@@ -154,6 +154,19 @@ test("an idle tick keeps the same state, so nothing re-renders; a tick still cle
   expect(toastState(after, { type: "tick", elapsedMs: 100 })).toBe(after);
 });
 
+// A toast left up while the window is closed or hidden never expires, and the clock keeps ticking (a closed window
+// keeps document.hidden false, so Chromium does not throttle it): a new object per tick re-rendered all of App.
+test("a tick while the window is hidden keeps the same state; one drawn in a dialog still re-renders to see the dialog go", () => {
+  const hidden = run([{ type: "show", toast: one }, { type: "hidden", on: true }]);
+  expect(toastState(hidden, { type: "tick", elapsedMs: 100 })).toBe(hidden);
+  const dialog = { isConnected: true, open: true } as unknown as HTMLDialogElement;
+  const inDialog = run([{ type: "show", toast: { ...one, dialog } }, { type: "hidden", on: true }]);
+  expect(toastState(inDialog, { type: "tick", elapsedMs: 100 })).not.toBe(inDialog);
+  // Hovered or focused, the toast is on screen and re-renders as before.
+  const hovered = run([{ type: "show", toast: one }, { type: "hover", on: true }]);
+  expect(toastState(hovered, { type: "tick", elapsedMs: 100 })).not.toBe(hovered);
+});
+
 // The toast's element (Toast.tsx) is keyed by its slot: a replacement changes only the content and does not play the
 // enter motion again; a toast that comes after none, or after one that is leaving, is a new element that enters.
 test("a toast shown with none on screen takes a new slot; a replacement or an update keeps it", () => {

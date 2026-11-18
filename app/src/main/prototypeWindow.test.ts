@@ -82,6 +82,22 @@ test("a dead renderer of a window already replaced does not touch the new one", 
   expect(closed).toHaveBeenCalledTimes(1);
 });
 
+// A Play can land between a window's `close` and `closed` (the page's unload is a renderer round trip). The new window
+// keeps its run, and the old one's own drafts still go: nothing else ever releases them (POSTMORTEM 2026-11-14).
+test("a Play between the old window's close and closed keeps the new window and still releases the old window's drafts", async () => {
+  const { prototype, closed, window } = await opened();
+  window.emit("close");
+  prototype.controller.play("main", play);
+  expect(created).toHaveLength(2);
+  window.destroy();
+  expect(closed.mock.calls).toEqual([[window.webContents.id, true]]);
+  // The new window is still the live one: the next Play raises it instead of making a third.
+  prototype.controller.play("main", play);
+  expect(created).toHaveLength(2);
+  created[1]!.destroy();
+  expect(closed.mock.calls.at(-1)).toEqual([created[1]!.webContents.id, false]);
+});
+
 // The menu follows these: the main window's items go off while the prototype window has focus and come back when it
 // loses it or closes, before main hears prototype:closed.
 test("focus, blur and close report focus changes in order", async () => {

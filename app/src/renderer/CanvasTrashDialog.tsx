@@ -40,7 +40,10 @@ export function CanvasTrashDialog({ view, cancel, confirm }: { view: TrashDialog
   const dismiss = () => { if (view.cancellable) cancel(); };
   const describedBy = view.error ? "canvas-trash-error" : view.reason ? "canvas-trash-reason" : undefined;
   return <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="canvas-trash-title" aria-describedby="canvas-trash-body"
-    ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); dismiss(); }}>
+    ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); dismiss(); }}
+    // Chromium closes a modal dialog on a repeated Escape even when its cancel is prevented; handling the keydown keeps
+    // the alert open while the move is out (as ConversationDeleteDialog does).
+    onKeyDown={event => { if (event.key !== "Escape" || event.nativeEvent.isComposing) return; event.preventDefault(); dismiss(); }}>
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="canvas-trash-title">{view.title}</h3><p className="doan-dialog-description selectable" id="canvas-trash-body">{view.body}</p></div></div>
     {view.reason && <p className="doan-notice" id="canvas-trash-reason"><AlertIcon /><span className="selectable">{view.reason}</span></p>}
     {view.error && <p className="doan-notice error" role="alert" id="canvas-trash-error"><AlertIcon /><span className="selectable">{view.error}</span></p>}

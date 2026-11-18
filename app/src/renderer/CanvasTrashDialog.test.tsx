@@ -127,6 +127,22 @@ test("while the move is out the confirm is busy and Cancel and Escape are refuse
   expect(confirm).not.toHaveBeenCalled();
 });
 
+// Chromium closes a modal dialog on a repeated Escape even when its cancel is prevented (SettingsDialog,
+// ConversationDeleteDialog): the keydown itself is handled, so a busy alert stays open.
+test("Escape's keydown is taken by the alert: refused while the move is out, a cancel otherwise, and left alone while composing", () => {
+  const key = (view: ReturnType<typeof trashDialogView>, isComposing = false) => {
+    const cancel = vi.fn(), event = { key: "Escape", nativeEvent: { isComposing }, preventDefault: vi.fn() };
+    const onKeyDown = CanvasTrashDialog({ view, cancel, confirm: vi.fn() }).props.onKeyDown as ((event: unknown) => void) | undefined;
+    onKeyDown?.(event);
+    return { cancelled: cancel.mock.calls.length, prevented: event.preventDefault.mock.calls.length };
+  };
+  const ready = trashDialogView("checkout", PATH, { kind: "ready" }, false);
+  const moving = trashDialogView("checkout", PATH, { kind: "ready" }, false, { pending: true, failed: null });
+  expect(key(moving)).toEqual({ cancelled: 0, prevented: 1 });
+  expect(key(ready)).toEqual({ cancelled: 1, prevented: 1 });
+  expect(key(ready, true)).toEqual({ cancelled: 0, prevented: 0 });
+});
+
 test("a refused move shows the refusal's sentence as an error notice inside the dialog, and Move to Trash retries", () => {
   const cancel = vi.fn(), confirm = vi.fn();
   const view = trashDialogView("checkout", PATH, { kind: "ready" }, false, { pending: false, failed: { kind: "refused", reason: "failed" } });
