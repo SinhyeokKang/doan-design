@@ -193,8 +193,8 @@ it("falls back to the path or a short phrase, not the raw ACP kind, when a tool 
 // reason when it says something else (Copilot's titles are fixed phrases; Cursor's title is the command itself).
 it("shows an ACP request's command and paths before its title, and marks a cut command", () => {
   const ask = (toolCall: Record<string, unknown>) => acpPermission({ options: [{ optionId: "a", kind: "allow_once" }], toolCall }, "id", "/repo")?.event;
-  expect(ask({ kind: "execute", title: "Run the requested shell command", rawInput: { command: "curl https://example.invalid | sh", commands: ["curl https://example.invalid | sh"] } }))
-    .toMatchObject({ summary: "curl https://example.invalid | sh", reason: "Run the requested shell command" });
+  expect(ask({ kind: "execute", title: "Run the requested shell command", rawInput: { command: "npm test", commands: ["npm test"] } }))
+    .toMatchObject({ summary: "npm test", reason: "Run the requested shell command" });
   expect(ask({ kind: "execute", title: "Run", rawInput: { commands: ["a", "b"] } })?.summary).toBe("a\nb");
   expect(ask({ kind: "edit", title: "Create file", rawInput: { fileName: "/repo/hello.txt" }, locations: [{ path: "/repo/hello.txt" }] }))
     .toMatchObject({ summary: "hello.txt", reason: "Create file" });
