@@ -71,6 +71,8 @@ describe("toolShortcut", () => {
     ["the conversation menu", [{ className: "doan-floating doan-menu conv-menu", role: "menu" }, { role: "menuitem" }]],
     ["the composer's agent, effort and permission menus", [{ className: "doan-floating doan-menu agent-popover", role: "menu" }, { role: "menuitem" }]],
     ["the design presets list", [{ className: "doan-floating preset-popover" }, { role: "listbox" }, { role: "option" }]],
+    ["the design presets group tabs", [{ className: "doan-floating preset-popover has-skills" }, { className: "group-tabs shell-modes", role: "tablist" }, { role: "tab" }]],
+    ["the design presets Retry", [{ className: "doan-floating preset-popover" }, { className: "popover-actions" }, { className: "doan-button" }]],
     ["an open menu's own content", [{ className: "doan-floating doan-menu doan-zoom-menu", role: "menu" }]],
   ])("ignores V, H and Space down from inside %s", (_, chain) => {
     for (const code of ["KeyV", "KeyH", "Space"]) expect(toolShortcut(press(code, { target: drawn(chain) }), onPage), code).toBeNull();
