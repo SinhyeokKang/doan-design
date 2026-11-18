@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas, ConversationEvent, EventPayload } from "../main/conversation/types";
 import { plainText, textSegments } from "./anchorField";
-import { EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
+import { draftKey, EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
 import { endSeq, lastTurnSeq, OverviewRun, scrollTarget, type ListView, type OverviewRunHost } from "./overviewRun";
 import { dropAttachment } from "./conversationStore";
 import { AttachmentStore } from "../main/attachments";
@@ -369,6 +369,25 @@ test("Edit and resend over a taken returned queue releases its held ids after re
   expect(calls).toEqual(["remove q-notes", "release q-notes"]);
 });
 
+// ARCHITECTURE §7 Attachments: a pasted image removed before sending is deleted, so a draft Edit and resend replaces
+// gives back every chip it held, not only a returned queue's.
+test("Edit and resend over a draft with pasted and chosen files gives each of them back to main", async () => {
+  const h = harness();
+  histories.set(A, ended(A));
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A)]);
+  await flush();
+  doan.removeAttachment = vi.fn(async () => true);
+  doan.releaseAttachments = vi.fn(async () => true);
+  const chip = (id: string, pasted: boolean) => ({ key: `k-${id}`, id, name: id, kind: "file" as const, pasted, status: "ready" as const });
+  h.run.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, { ...draft("other words"), attachments: [chip("pasted", true), chip("chosen", false)] }));
+  expect(await h.run.editAndResend(ROOT, A)).toBe(true);
+  await flush();
+  expect(textOf(h.run.drafts.get(`conversation:${A}`))).toBe("hi");
+  expect(doan.removeAttachment.mock.calls.map(([id]) => id).sort()).toEqual(["chosen", "pasted"]);
+  expect(doan.releaseAttachments).not.toHaveBeenCalled();
+});
+
 // Attachment results follow their chip, wherever the draft went.
 test("an attachment checked during a promotion lands in the moved draft, and a removed chip's file is released", async () => {
   const h = harness();
@@ -732,6 +751,24 @@ test("a removed root takes its state and drafts with it", () => {
   h.run.forgetRoots([ROOT]);
   expect(h.run.view(ROOT)).toEqual({ kind: "wait" });
   expect(h.run.drafts.has(`root:${ROOT}`)).toBe(false);
+});
+
+// POSTMORTEM 2026-11-17 'Removing a project or trashing a canvas left state keyed by it behind': the canvas panel's
+// new conversation drafts of the root go too, and every chip they hold goes back to main (a held one is released).
+test("a removed root's canvas drafts go with it and give every attachment back; another root's stay", () => {
+  doan.removeAttachment = vi.fn(async () => true);
+  doan.releaseAttachments = vi.fn(async () => true);
+  const h = harness();
+  const chip = (id: string, held = false) => ({ key: `k-${id}`, id, name: id, kind: "file" as const, pasted: false, status: "ready" as const, ...(held ? { held: true } : {}) });
+  const canvasDraft = (root: string, ids: { id: string; held?: boolean }[]) => [draftKey({ kind: "new", root, canvas: { path: ".doan/canvases/a.html", id: "a" } }), { ...draft("x"), attachments: ids.map(({ id, held }) => chip(id, held)) }] as const;
+  const mine = canvasDraft(ROOT, [{ id: "pasted" }, { id: "returned", held: true }]);
+  const pathOnly = [draftKey({ kind: "new", root: ROOT, canvas: { path: ".doan/canvases/b.html" } }), { ...draft("y"), attachments: [chip("chosen")] }] as const;
+  const other = canvasDraft(`${ROOT}-other`, [{ id: "kept" }]);
+  h.run.setDrafts(drafts => new Map(drafts).set(mine[0], mine[1]).set(pathOnly[0], pathOnly[1]).set(other[0], other[1]));
+  h.run.forgetRoots([ROOT]);
+  expect([...h.run.drafts.keys()]).toEqual([other[0]]);
+  expect(doan.removeAttachment.mock.calls.map(([id]) => id).sort()).toEqual(["chosen", "pasted", "returned"]);
+  expect(doan.removeAttachment).not.toHaveBeenCalledWith("kept");
 });
 
 // An entry request still waiting for the list is a newer choice than a start or send sent before it.
