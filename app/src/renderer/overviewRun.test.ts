@@ -759,7 +759,7 @@ test("a removed root's canvas drafts go with it and give every attachment back; 
   doan.removeAttachment = vi.fn(async () => true);
   doan.releaseAttachments = vi.fn(async () => true);
   const h = harness();
-  const chip = (id: string, held = false) => ({ key: `k-${id}`, id, name: id, kind: "file" as const, pasted: false, status: "ready" as const, ...(held ? { held: true } : {}) });
+  const chip = (id: string, held = false) => ({ key: `k-${id}`, id, name: id, kind: "file" as const, pasted: false, status: "ready" as const, ...(held ? { held: true as const } : {}) });
   const canvasDraft = (root: string, ids: { id: string; held?: boolean }[]) => [draftKey({ kind: "new", root, canvas: { path: ".doan/canvases/a.html", id: "a" } }), { ...draft("x"), attachments: ids.map(({ id, held }) => chip(id, held)) }] as const;
   const mine = canvasDraft(ROOT, [{ id: "pasted" }, { id: "returned", held: true }]);
   const pathOnly = [draftKey({ kind: "new", root: ROOT, canvas: { path: ".doan/canvases/b.html" } }), { ...draft("y"), attachments: [chip("chosen")] }] as const;

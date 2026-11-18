@@ -208,6 +208,8 @@ interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runn
   // loop inside the CLI's 2 s deadline. A conversation's root never changes; every save of a new canvas (promoteTo,
   // refreshCanvas) updates it here too, since a running turn keeps this entry across a send refused as busy.
   turnOf?: TurnOf;
+  // A start's root and canvas until acceptance, when the conversation joins the index (startingCanvases, pendingRoots).
+  starting?: { root: string; canvas?: Canvas };
   // A Stop came while this send was prepared, before acceptance: the send is refused at its next check and never runs.
   cancelled?: true;
   // The accepted turn's provider command (providerCommands.ts commandName), absent for a message.
@@ -375,7 +377,8 @@ export class ConversationService {
     // A new conversation's thread was told no mode yet, so its /review is refused before anything opens.
     if (request.runtime && !handoff) { checkCommand(request.runtime, request.text, request.anchors, request.attachments?.length || attached ? 1 : 0, !!commandName(request.runtime, request.text)); checkReview(request.runtime, request.text, true, undefined, undefined); }
     const id = randomUUID(); this.reserve(id);
-    const live: Live = { turnId: randomUUID(), busy: true, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: this.stops, ...(project ? { project } : {}) }; this.live.set(id, live);
+    const live: Live = { turnId: randomUUID(), busy: true, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: this.stops, ...(project ? { project } : {}),
+      starting: { root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}) } }; this.live.set(id, live);
     // The composer let the message go: until acceptance only drafts.json has it, so a quit returns it after the restart.
     // A handoff's message is the agent's, which a refused handoff reports instead.
     if (!handoff) this.drafts.hold(id, { root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), text: request.text, anchors: request.anchors, attachments: request.attachments ?? [] });
@@ -437,7 +440,7 @@ export class ConversationService {
       attached?.sent();
       const saved = this.store.acceptStart([...entries, metadata], id, writes);
       this.drafts.release(id);
-      live.accepted = true; live.turnOf = turnOf(metadata); this.noteTranscript(live, input, runner.sessionId); this.noteCommand(id, live, command);
+      live.accepted = true; live.turnOf = turnOf(metadata); delete live.starting; this.noteTranscript(live, input, runner.sessionId); this.noteCommand(id, live, command);
       this.noteMode(live, input.runtime, !!input.owner, command, input.permissionMode ?? "default");
       if (project) this.evidence.set(id, { root: project, turnId: live.turnId, snapshot: base.canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
       if (metadata.owner.kind === "doan") this.handoffTurns.set(id, { root: request.root, turnId: live.turnId, snapshot: this.snapshot(request.root), requests: [], guided, edits: new Set(), waiters: [], ...(handoff ? { startedBy: "handoff" as const } : {}) });
@@ -770,6 +773,27 @@ export class ConversationService {
     }
     return turns;
   }
+  // Starts main has not accepted yet on this root's canvases: the index names a conversation only from acceptance, so
+  // Move to Trash's busy check (canvasTrash.ts trashBusy) reads these beside the list. A later send needs none: its
+  // conversation is listed, and working while prepared.
+  startingCanvases(root: string): Canvas[] {
+    const canvases: Canvas[] = [];
+    for (const live of this.live.values()) if (this.preparing(live) && live.starting?.root === root && live.starting.canvas) canvases.push(live.starting.canvas);
+    return canvases;
+  }
+  // Roots with a start or send main has not accepted yet, or a send waiting for its previous turn's judgement or process:
+  // running for the person though liveTurns counts only accepted turns, so `doan remove` (cliRemove.ts) refuses for
+  // them as restartHolds holds the restart (POSTMORTEM 2026-11-17 'A quit before main accepted a send…').
+  pendingRoots(): ReadonlySet<string> {
+    const roots = new Set<string>(), indexed = new Map(this.store.list().map(m => [m.conversationId, m.root]));
+    for (const [id, live] of this.live) {
+      const root = live.starting?.root ?? indexed.get(id);
+      if (this.preparing(live) && root !== undefined) roots.add(root);
+    }
+    for (const id of [...this.waits.keys(), ...this.judging.keys()]) { const root = indexed.get(id); if (root !== undefined) roots.add(root); }
+    return roots;
+  }
+  private preparing(live: Live): boolean { return live.busy && !live.accepted && !live.terminal && !live.closed && !live.failedPersistence; }
   // What holds Restart to Update back (update installGate): turns running as liveTurns counts them, and the permission
   // requests and questions they wait on, of every conversation, several of one canvas included. Memory only, since main
   // asks on every conversation event. A history that stopped taking writes ends a turn without clearing `asking`, so
