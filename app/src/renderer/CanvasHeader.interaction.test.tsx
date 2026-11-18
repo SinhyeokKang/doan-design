@@ -33,8 +33,10 @@ function part(name: string): Props[] {
   return elements((element.type as (props: Props) => ReactNode)(element.props)).map(item => item.props);
 }
 // A key pressed inside an open list (or outside it) bubbles through every handler the part draws, deepest first.
+class FakeElement { constructor(readonly inside: boolean) {} closest() { return this.inside ? {} : null; } }
+vi.stubGlobal("Element", FakeElement);
 function press(handlers: Props[], key: string, { inside = true, meta = false } = {}) {
-  const target = { closest: () => inside ? {} : null };
+  const target = new FakeElement(inside);
   const event = { key, code: /^[a-z]$/i.test(key) ? `Key${key.toUpperCase()}` : key, target, currentTarget: target, metaKey: meta, ctrlKey: false, altKey: false, shiftKey: false,
     defaultPrevented: false, preventDefault: vi.fn(() => { event.defaultPrevented = true; }), stopPropagation: vi.fn() };
   for (const props of [...handlers].reverse()) if (typeof props.onKeyDown === "function") props.onKeyDown(event);

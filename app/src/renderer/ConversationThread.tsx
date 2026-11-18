@@ -14,7 +14,7 @@ import { AlertIcon } from "./AlertIcon";
 import { retryButton } from "./ListRetryButton";
 import { announcedAgain, LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
 import { canvasCardText, middleCut, newCanvasesText, trailingCards } from "./canvasCardText";
-import { canvasLabel } from "./canvasTree";
+import { canvasLabel, canvasStem } from "./canvasTree";
 import { SKIP_FAILED_TEXT } from "./conversationStrip";
 import { focusAfter, type FocusAction } from "./composerRules";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
@@ -929,7 +929,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       case "handoffCard": return <HandoffCard entry={entry} headId={`${base}-${entry.key}-head`} project={props.project} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
       case "boundary": return <div className="context-boundary" role="separator" aria-label={entry.label}><span>{entry.label}</span></div>;
       case "marker": {
-        const canvas = entry.canvas, listed = props.canvasListed(canvas), name = canvas.path.split("/").at(-1) ?? canvas.path;
+        const canvas = entry.canvas, listed = props.canvasListed(canvas), name = canvasStem(canvas.path);
         // On the panel of the canvas it moved to, "Moved to" and Open would point at the screen already shown.
         if (openCanvasId !== null && canvas.id === openCanvasId) return <div className="marker"><span><ArrowUpRight aria-hidden="true" />{`Moved here from ${props.project} Overview`}</span></div>;
         return <div className="marker"><span><ArrowUpRight aria-hidden="true" />{listed ? `Moved to ${name}` : `Moved to ${name} · No longer in ${props.project}`}</span>
