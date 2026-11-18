@@ -993,7 +993,7 @@ describe("Option-hover measurement", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Spec 3: wherever the hover mark cannot show, no measurement shows either; one coming back needs the hover again.
+  // Wherever the hover mark cannot show, no measurement shows either; one coming back needs the hover again.
   const press = (h: H, code: string) => h.host.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { code, key: code === "Space" ? " " : code.slice(3).toLowerCase() }));
   it.each<[string, (h: H) => unknown]>([
     ["picking", h => h.controller.pick()],
@@ -1016,7 +1016,7 @@ describe("Option-hover measurement", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Spec 4: without a measurement, Option keeps hiding the hover, as an ⌥-click selects nothing.
+  // Without a measurement, Option keeps hiding the hover: an ⌥-click selects nothing, so a hover would mislead.
   it("with nothing selected, Option hides the hover and measures nothing", () => {
     const h = harness();
     try {
@@ -1028,7 +1028,7 @@ describe("Option-hover measurement", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Case 10: Figma measures nothing here; Doan's hover target is the next click's step into the frame, so it measures.
+  // Figma measures nothing here; Doan's hover target is the next click's step into the frame, so it measures.
   it("with a frame selected, measures to the element inside it that the next click would select", () => {
     const h = harness();
     try {
