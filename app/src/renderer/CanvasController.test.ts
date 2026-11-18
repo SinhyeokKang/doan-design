@@ -1053,6 +1053,22 @@ describe("Option-hover measurement", () => {
     } finally { h.controller.dispose(); }
   });
 
+  it("follows the board through a wheel pan and a pinch from the canvas while Option is held", () => {
+    const h = harness();
+    try {
+      start(h);
+      h.receive({ type: "wheel", dx: 0, dy: 40, ctrl: false, meta: false, deltaMode: 0, x: 120, y: 30 });
+      expect(labels(h)).toEqual(["30"]);
+      expect(lines(h)[0]!.style).toMatchObject({ left: "170px", top: "69px", width: "30px" });
+      h.receive({ type: "wheel", dx: 0, dy: -50, ctrl: true, meta: false, deltaMode: 0, x: 120, y: 30 });
+      expect(labels(h)).toEqual(["30"]);
+      expect(lines(h)[0]!.style.width).not.toBe("30px");
+      altUp(h);
+      h.receive({ type: "wheel", dx: 0, dy: 40, ctrl: false, meta: false, deltaMode: 0, x: 120, y: 30 });
+      expect(h.markOf("hover")?.hidden).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
   it("redraws the lines with the board on a zoom, keeping canvas px numbers", () => {
     const h = harness();
     try {

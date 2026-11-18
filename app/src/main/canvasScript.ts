@@ -776,9 +776,13 @@ export function canvasScript(lib: CanvasLib): void {
     "wheel",
     (event: WheelEvent) => {
       // The element under the cursor changes without a pointermove, so the
-      // hover waits for the next one.
-      hoverEl = null;
-      postHover();
+      // hover waits for the next one. While ⌥ is held the app measures to the
+      // hover target, a rect on the board that follows the board's move, so it
+      // stays until the pointer moves.
+      if (!alt) {
+        hoverEl = null;
+        postHover();
+      }
       const zoom = event.ctrlKey || event.metaKey;
       if (!zoom && scrollsFurther(event.target, event.deltaX, event.deltaY)) return;
       event.preventDefault();

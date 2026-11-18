@@ -1755,8 +1755,9 @@ export class CanvasController {
   };
 
   wheel(input: WheelInput, point: Point): void {
-    // The element under the cursor changes without a pointermove (flow 2).
-    this.hoverRect = null;
+    // The element under the cursor changes without a pointermove (flow 2). An Option measurement keeps its target,
+    // a board rect that applyView redraws where the board moved it.
+    if (!this.altHeld) this.hoverRect = null;
     const action = wheelAction(input);
     this.view = "zoom" in action ? zoomAt(this.view, action.zoom, point, ZOOM_LIMITS) : panBy(this.view, action.pan.dx, action.pan.dy);
     this.applyView();

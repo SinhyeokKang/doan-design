@@ -1428,6 +1428,18 @@ describe("canvasScript hover", () => {
     expect(ofType(canvas, "hover").at(-1)?.rect).toEqual({ x: 1, y: 2, width: 30, height: 40 });
   });
 
+  // While ⌥ is held the app measures to the hover target, a rect on the board that the board's move carries along.
+  test("a wheel turned while ⌥ is held keeps the hover's rect", () => {
+    const { canvas, span } = heroCanvas();
+    move(canvas, span, { altKey: true });
+    canvas.runFrame();
+    const before = ofType(canvas, "hover").length;
+    canvas.fireWindow("wheel", Object.assign(wheelEvent({ target: span, deltaY: 5, altKey: true }), { target: span }));
+    expect(ofType(canvas, "hover")).toHaveLength(before);
+    expect(ofType(canvas, "hover").at(-1)?.rect).not.toBeNull();
+    expect(ofType(canvas, "wheel")).toHaveLength(1);
+  });
+
   // ⌥ released while focus was elsewhere (an ⌥-click moved focus in here, then ⌘Tab) never comes back as a keyup.
   test("the canvas losing focus releases ⌥ at the app's modifier sequence", () => {
     const { canvas, span } = heroCanvas();
