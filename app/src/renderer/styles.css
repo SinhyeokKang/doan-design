@@ -79,6 +79,25 @@ code, kbd { font-family: var(--type-family); }
 /* The jump highlight's 12px point keeps its own box. */
 .mark:not(.jump-point) { box-sizing: content-box; margin: -1.5px; }
 .mark.hover { border-style: dashed; }
+/* Option-hover measurement (canvas-measure draft). While measuring, the target's hover line turns solid and both marks
+   get a 1px measurement-red line inside the element's edge (an inset shadow on the padding box, which is the element's
+   rect): the one case where a mark covers element pixels. */
+.mark.measuring { border-style: solid; box-shadow: inset 0 0 0 1px var(--border-measure); }
+/* The measurement layer: above the marks and the size bubble (a label may cover its buttons while Option is held, as in Figma), below the
+   canvas chrome like every mark, in screen px so lines stay 1px at any zoom. forced-color-adjust keeps the red fill and
+   white number readable when the system forces colours. */
+.measure { position: absolute; inset: 0; z-index: 1; forced-color-adjust: none; }
+.measure-line { position: absolute; }
+.measure-line.h { height: 1px; margin-top: -0.5px; background: var(--border-measure); }
+.measure-line.v { width: 1px; margin-left: -0.5px; background: var(--border-measure); }
+.measure-line.h.dashed { height: 0; background: none; border-top: 1px dashed var(--border-measure); }
+/* The right border on a zero-width box draws the same 1px line as the left one, which the start-side stripe check
+   (ds/checks.ts edgeStripes) reserves for neutral dividers. */
+.measure-line.v.dashed { width: 0; background: none; border-right: 1px dashed var(--border-measure); }
+/* The label: 6px from its line (observed in Figma; a component constant), centred on it, never moved out of the way. */
+.measure-label { position: absolute; padding: 0 var(--space-1); background: var(--affordance-measure); color: var(--text-on-measure); font: var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); border-radius: var(--radius-inline); white-space: nowrap; }
+.measure-line.h > .measure-label { top: 6px; left: 50%; transform: translateX(-50%); }
+.measure-line.v > .measure-label { left: 6px; top: 50%; transform: translateY(-50%); }
 /* Select's canvas text range: the line rects of its Text nodes in board px, inside a layer that takes the board's own
    transform. The overlay lies over the canvas, so the fill lies over the glyphs: the person's accent at 30 % alpha and
    no ring (the jump highlight's color-mix pattern). z-index -1 in the overlay's stacking context keeps it under the

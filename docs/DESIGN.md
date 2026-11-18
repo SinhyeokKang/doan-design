@@ -253,6 +253,7 @@ Each screen's measured values, documented differences and Not verified list are 
 | Permission mode picker | [design/canvas-conversation.md](design/canvas-conversation.md) |
 | Picker default labels | [design/canvas-conversation.md](design/canvas-conversation.md) |
 | Canvas text range | [design/canvas.md](design/canvas.md) |
+| Canvas distance measurement | [design/canvas.md](design/canvas.md) |
 | Settings | [design/shell.md](design/shell.md) |
 | App updates | [design/shell.md](design/shell.md) |
 | Settings › MCP Connectors | [design/shell.md](design/shell.md) |

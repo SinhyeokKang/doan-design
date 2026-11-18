@@ -1383,13 +1383,14 @@ describe("canvasScript hover", () => {
     expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 1, rect: { x: 10, y: 20, width: 60.5, height: 18 } });
   });
 
+  // The app measures from the selection to the hover target while ⌥ is held, so ⌥ keeps the target's rect coming.
   test("reports Alt release in the canvas at the app's modifier sequence without losing selection", () => {
     const { canvas, span, button } = heroCanvas();
     click(canvas, button);
     move(canvas, span);
     canvas.runFrame();
     canvas.fromParent({ type: "hover-alt", alt: true, seq: 2 });
-    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 2, rect: null });
+    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 2, rect: { x: 10, y: 20, width: 60.5, height: 18 } });
     canvas.fireWindow("keyup", input({ target: canvas.body, key: "Alt" }));
     expect(ofType(canvas, "key").at(-1)).toMatchObject({ key: "Alt", alt: false, seq: 2 });
     expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 2, rect: { x: 10, y: 20, width: 60.5, height: 18 } });
@@ -1397,7 +1398,7 @@ describe("canvasScript hover", () => {
     expect(ofType(canvas, "layout").at(-1)).toMatchObject({ seq: 1, selected: { x: 1, y: 2, width: 30, height: 40 } });
   });
 
-  test("hides when the pointer leaves, ⌥ is held, the wheel turns or over body", () => {
+  test("hides when the pointer leaves, the wheel turns or over body, and not while ⌥ is held", () => {
     const { canvas, span } = heroCanvas();
     const rects = () => ofType(canvas, "hover").map((m) => m.rect === null ? null : "rect");
     move(canvas, span);
@@ -1407,6 +1408,7 @@ describe("canvasScript hover", () => {
     canvas.runFrame();
     move(canvas, span, { altKey: true });
     canvas.runFrame();
+    expect(ofType(canvas, "hover").at(-1)?.rect).not.toBeNull();
     move(canvas, span);
     canvas.runFrame();
     canvas.fireWindow("wheel", Object.assign(wheelEvent({ target: span, deltaY: 5 }), { target: span }));
@@ -1414,15 +1416,40 @@ describe("canvasScript hover", () => {
     canvas.runFrame();
     move(canvas, canvas.body);
     canvas.runFrame();
-    expect(rects()).toEqual(["rect", null, "rect", null, "rect", null, "rect", null]);
+    expect(rects()).toEqual(["rect", null, "rect", null, "rect", null]);
   });
 
-  test("an Alt keydown hides the hover until the next move without ⌥", () => {
+  test("an Alt keydown reports ⌥ and keeps the hover's rect", () => {
     const { canvas, span } = heroCanvas();
     move(canvas, span);
     canvas.runFrame();
     canvas.fireWindow("keydown", input({ target: canvas.body, key: "Alt", altKey: true }));
-    expect(ofType(canvas, "hover").at(-1)?.rect).toBeNull();
+    expect(ofType(canvas, "key").at(-1)).toMatchObject({ key: "Alt", alt: true, seq: 0 });
+    expect(ofType(canvas, "hover").at(-1)?.rect).toEqual({ x: 1, y: 2, width: 30, height: 40 });
+  });
+
+  // While ⌥ is held the app measures to the hover target, a rect on the board that the board's move carries along.
+  test("a wheel turned while ⌥ is held keeps the hover's rect", () => {
+    const { canvas, span } = heroCanvas();
+    move(canvas, span, { altKey: true });
+    canvas.runFrame();
+    const before = ofType(canvas, "hover").length;
+    canvas.fireWindow("wheel", Object.assign(wheelEvent({ target: span, deltaY: 5, altKey: true }), { target: span }));
+    expect(ofType(canvas, "hover")).toHaveLength(before);
+    expect(ofType(canvas, "hover").at(-1)?.rect).not.toBeNull();
+    expect(ofType(canvas, "wheel")).toHaveLength(1);
+  });
+
+  // ⌥ released while focus was elsewhere (an ⌥-click moved focus in here, then ⌘Tab) never comes back as a keyup.
+  test("the canvas losing focus releases ⌥ at the app's modifier sequence", () => {
+    const { canvas, span } = heroCanvas();
+    move(canvas, span);
+    canvas.runFrame();
+    canvas.fromParent({ type: "hover-alt", alt: true, seq: 3 });
+    canvas.fireWindow("keydown", input({ target: canvas.body, key: "Alt", altKey: true }));
+    canvas.fireWindow("blur", input({ target: canvas.body }));
+    expect(ofType(canvas, "key").at(-1)).toMatchObject({ key: "Alt", alt: false, seq: 3 });
+    expect(ofType(canvas, "select")).toEqual([]);
   });
 
   test("shows nothing over the selected element without advancing the hover channel", () => {
@@ -1445,6 +1472,47 @@ describe("canvasScript hover", () => {
   });
 });
 
+// After a reload, a modal or a problem's overlay the pointer may rest over the canvas without moving, and the canvas
+// sends a hover only on a move; the app then names the resting point and the canvas finds what is under it.
+describe("canvasScript hover-at", () => {
+  const at = (canvas: ReturnType<typeof fakeCanvas>, el: unknown) => { (canvas.document as Record<string, unknown>).elementFromPoint = () => el; };
+  const move = (canvas: ReturnType<typeof fakeCanvas>, target: unknown) => canvas.fireWindow("pointermove", input({ target }));
+
+  test("finds the next click's target under the named point and posts it at that hover seq", () => {
+    const { canvas, span } = heroCanvas();
+    const points: number[][] = [];
+    (canvas.document as Record<string, unknown>).elementFromPoint = (x: number, y: number) => { points.push([x, y]); return span; };
+    canvas.fromParent({ type: "hover-at", x: 15, y: 25.5, seq: 1 });
+    expect(points).toEqual([[15, 25.5]]);
+    expect(ofType(canvas, "hover")).toEqual([{ type: "hover", href: HREF, seq: 1, viewport: 150, rect: { x: 1, y: 2, width: 30, height: 40 } }]);
+  });
+
+  test("sends the same rect again after a leave, and nothing under the point is no target", () => {
+    const { canvas, span } = heroCanvas();
+    at(canvas, span);
+    move(canvas, span); canvas.runFrame();
+    canvas.fromParent({ type: "hover-leave", seq: 1 });
+    canvas.fromParent({ type: "hover-at", x: 15, y: 25, seq: 2 });
+    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 2, rect: { x: 1, y: 2, width: 30, height: 40 } });
+    at(canvas, null);
+    canvas.fromParent({ type: "hover-at", x: 9999, y: 9999, seq: 3 });
+    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 3, rect: null });
+  });
+
+  test("rides the hover channel only: stale or malformed commands do nothing and the selection seq stays", () => {
+    const { canvas, span, button } = heroCanvas();
+    at(canvas, span);
+    canvas.fromParent({ type: "hover-at", x: "1", y: 2, seq: 5 });
+    canvas.fromParent({ type: "hover-at", x: Number.NaN, y: 2, seq: 5 });
+    expect(ofType(canvas, "hover")).toEqual([]);
+    canvas.fromParent({ type: "hover-at", x: 1, y: 2, seq: 5 });
+    canvas.fromParent({ type: "hover-at", x: 1, y: 2, seq: 4 });
+    expect(ofType(canvas, "hover").map(m => m.seq)).toEqual([5]);
+    click(canvas, button, { metaKey: true });
+    expect(ofType(canvas, "select").at(-1)).toMatchObject({ seq: 1 });
+  });
+});
+
 describe("canvasScript independent command channels", () => {
   test("hover commands cannot supersede selection commands, and stale commands stay rejected in each channel", () => {
     const { canvas, span, button } = heroCanvas();
@@ -1455,7 +1523,7 @@ describe("canvasScript independent command channels", () => {
     expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 10, rect: null });
     canvas.fireWindow("pointermove", input({ target: span, altKey: true }));
     canvas.runFrame();
-    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 10, rect: null });
+    expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 10, rect: { x: 10, y: 20, width: 60.5, height: 18 } });
     canvas.fromParent({ type: "clear", seq: 2 });
     canvas.fromParent({ type: "select-anchor", seq: 1, doanId: "cta" });
     expect(ofType(canvas, "select")).toHaveLength(1);

@@ -517,10 +517,11 @@ export function canvasScript(lib: CanvasLib): void {
   };
 
   // The hover shows what the next click would select: the pick target while picking, Select's step otherwise, and
-  // nothing where that click would select the selection again.
+  // nothing where that click would select the selection again. It keeps coming while ⌥ is held: the app measures from
+  // the selection to it, and hides it itself when there is nothing to measure.
   const postHover = () => {
     const over = hoverEl;
-    const el = !isElement(over) || isRoot(over) || alt || textDrag?.state === "drag" ? null : picking !== null ? over : selectTarget(over, meta);
+    const el = !isElement(over) || isRoot(over) || textDrag?.state === "drag" ? null : picking !== null ? over : selectTarget(over, meta);
     const rect = el !== null && el !== selected ? rectOf(el) : null;
     const key = JSON.stringify([hoverSeq, rect]);
     if (key === lastHover) return;
@@ -682,7 +683,7 @@ export function canvasScript(lib: CanvasLib): void {
   const command = (data: Record<string, unknown>) => {
     const next = data.seq;
     if (typeof next !== "number" || !Number.isInteger(next)) return;
-    const { type, frame, doanId, selector, index, id } = data;
+    const { type, frame, doanId, selector, index, id, x, y } = data;
     if (type === "pick-start" || type === "pick-cancel") {
       if (data.document !== documentToken || next <= pickSeq) return;
       pickSeq = next;
@@ -701,8 +702,10 @@ export function canvasScript(lib: CanvasLib): void {
       if (typeof data.meta !== "boolean") return;
     } else if (type === "hover-hand") {
       if (typeof data.hand !== "boolean") return;
+    } else if (type === "hover-at") {
+      if (typeof x !== "number" || typeof y !== "number" || !Number.isFinite(x) || !Number.isFinite(y)) return;
     } else if (type !== "clear" && type !== "hover-leave" && type !== "select-parent") return;
-    if (type === "hover-alt" || type === "hover-meta" || type === "hover-hand" || type === "hover-leave") {
+    if (type === "hover-alt" || type === "hover-meta" || type === "hover-hand" || type === "hover-leave" || type === "hover-at") {
       if (next <= hoverSeq) return;
       hoverSeq = next;
     } else {
@@ -721,6 +724,12 @@ export function canvasScript(lib: CanvasLib): void {
     } else if (type === "hover-leave") {
       hoverEl = null;
       lastHover = "";
+    } else if (type === "hover-at" && typeof x === "number" && typeof y === "number") {
+      // The pointer rests where the app names (this document's client px) and no move will come to say what is under
+      // it; the dedupe value is emptied as after a leave, so the same rect is sent again.
+      hoverEl = document.elementFromPoint(x, y);
+      lastHover = "";
+      postHover();
     } else if (type === "clear") {
       drop();
       postHover();
@@ -775,9 +784,13 @@ export function canvasScript(lib: CanvasLib): void {
     "wheel",
     (event: WheelEvent) => {
       // The element under the cursor changes without a pointermove, so the
-      // hover waits for the next one.
-      hoverEl = null;
-      postHover();
+      // hover waits for the next one. While ⌥ is held the app measures to the
+      // hover target, a rect on the board that follows the board's move, so it
+      // stays until the pointer moves.
+      if (!alt) {
+        hoverEl = null;
+        postHover();
+      }
       const zoom = event.ctrlKey || event.metaKey;
       if (!zoom && scrollsFurther(event.target, event.deltaX, event.deltaY)) return;
       event.preventDefault();
@@ -845,12 +858,17 @@ export function canvasScript(lib: CanvasLib): void {
   // A nested iframe has no script of ours; a click inside it only shows here
   // as focus moving into it.
   addEventListener("blur", () => {
-    // The ⌘ held on the way into a nested iframe, before the release below forgets it.
+    // The ⌘ and ⌥ held on the way into a nested iframe, before the release below forgets them.
     const direct = meta;
-    // ⌘ released while focus was elsewhere (⌘Tab) never comes back as a keyup.
+    const usesCanvas = alt;
+    // ⌘ and ⌥ released while focus was elsewhere (⌘Tab) never come back as a keyup.
     if (meta) {
       meta = false;
       postHover();
+    }
+    if (alt) {
+      alt = false;
+      postSelection("key", { key: "Alt", alt, seq: hoverSeq });
     }
     if (spaceHeld) {
       spaceHeld = false;
@@ -872,7 +890,7 @@ export function canvasScript(lib: CanvasLib): void {
         if (active.isConnected) pickAt(active, null);
         return;
       }
-      if (alt) return;
+      if (usesCanvas) return;
       if (!active.isConnected) return;
       choose(active, direct);
       // Focus goes back to this document, or the next press in the same nested frame moves no focus and goes unheard,
