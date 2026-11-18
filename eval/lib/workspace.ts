@@ -13,6 +13,8 @@ export interface Workspace {
   // `/tmp/doan-eval-<id>-<agent>-XXXXXX/`: repo/, bin/doan, rt/ (runtime file and socket),
   // and worktree/ when the scenario sets `worktree`.
   base: string;
+  // A Codex run's own CODEX_HOME (isolateUserInstructions); null for any other agent.
+  codexHome: string | null;
   // The instruction's root and the root the fake app has open.
   repo: string;
   // Where the agent runs: `repo`, or the second worktree.
@@ -50,6 +52,7 @@ function must(result: { code: number; stdout: string; stderr: string }, what: st
 export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Agent | "fixture"; cli: string; stub: string }): Promise<Workspace> {
   // /tmp keeps the socket path under macOS's 104-byte sun_path limit.
   const base = realpathSync(mkdtempSync(`/tmp/doan-eval-${o.scenario.id}-${o.agent}-`));
+  let codexHome: string | null = null;
   try {
     assertOutsideCheckout(base);
     const repo = join(base, "repo");
@@ -72,8 +75,12 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     // The key the app puts in a canvas conversation's environment; the fake app knows the same one.
     const handoff = o.scenario.handoff ? { key: randomBytes(32).toString("hex"), canvas: o.scenario.handoff.canvas } : null;
     const shared = { ...agentEnvironment(process.env), PATH: [join(base, "bin"), ...path].join(delimiter), DOAN_RUNTIME: join(base, "rt/runtime.json"), ...(handoff ? { DOAN_HANDOFF: handoff.key } : {}) };
-    // Outside repo, so the run's own Codex home never shows up as agent output.
-    const env = o.agent === "fixture" ? shared : isolateUserInstructions(o.agent, shared, join(base, "codex-home"));
+    // Codex's workspace-write sandbox opens the agent's folder, /tmp and $TMPDIR to the agent's shell (codex-cli 0.169.0
+    // `codex sandbox -P :workspace`), but not /var/tmp. Codex itself, outside that sandbox, writes refreshed tokens
+    // through this home's links and reads instructions and settings there, and the rollout read as evidence lives
+    // there, so the agent must not be able to rewrite it. A short path, because Codex binds ipc/ipc.sock in it.
+    if (o.agent === "codex") codexHome = realpathSync(mkdtempSync("/var/tmp/doan-eval-codex-"));
+    const env = o.agent === "fixture" ? shared : isolateUserInstructions(o.agent, shared, codexHome ?? join(base, "codex-home"));
     const gitDir = o.scenario.git ? null : join(base, "seed.git");
     const git = (args: string[]) => must(sh("git", [...GIT, "-C", repo, ...(gitDir ? ["--git-dir", gitDir, "--work-tree", repo] : []), ...args], repo, env), `git ${args[0]}`);
     if (gitDir) must(sh("git", [...GIT, "init", "-q", "--bare", gitDir], base, env), "git init");
@@ -106,14 +113,16 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
       ? await startFakeApp({ dir: join(base, "rt"), root: repo, selection: o.scenario.selectionValue ? { root: repo, ...o.scenario.selectionValue } : null, onboarding: o.scenario.onboardingValue, workOthers: o.scenario.workOthers, handoff })
       : null;
     return {
-      base, repo, cwd, env, seedCommit, gitDir, app, onboardingLog: join(base, "rt/onboarding.jsonl"), workLog: join(base, "rt/work.jsonl"), openLog: join(base, "rt/open.jsonl"), handoffLog: join(base, "rt/handoff.jsonl"), prototypeLog: join(base, "rt/prototype.jsonl"), appWrites: join(base, "rt", APP_WRITES),
+      base, codexHome, repo, cwd, env, seedCommit, gitDir, app, onboardingLog: join(base, "rt/onboarding.jsonl"), workLog: join(base, "rt/work.jsonl"), openLog: join(base, "rt/open.jsonl"), handoffLog: join(base, "rt/handoff.jsonl"), prototypeLog: join(base, "rt/prototype.jsonl"), appWrites: join(base, "rt", APP_WRITES),
       async dispose() {
         await app?.close();
         rmSync(base, { recursive: true, force: true });
+        if (codexHome) rmSync(codexHome, { recursive: true, force: true });
       },
     };
   } catch (error) {
     rmSync(base, { recursive: true, force: true });
+    if (codexHome) rmSync(codexHome, { recursive: true, force: true });
     throw error;
   }
 }
@@ -131,9 +140,10 @@ export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial
 // A Codex run's own CODEX_HOME (isolateUserInstructions) goes with the workspace; when readAgentTranscript could not
 // copy the run's rollout, its sessions are kept so the rollout can still be found by hand. Only that home is copied:
 // any other CODEX_HOME may hold the user's own sessions.
-export function keepCodexSessions(ws: Pick<Workspace, "base" | "env">, dir: string): void {
-  const sessions = join(ws.base, "codex-home", "sessions");
-  if (ws.env.CODEX_HOME !== join(ws.base, "codex-home") || existsSync(join(dir, "codex-rollout.jsonl")) || !existsSync(sessions)) return;
+export function keepCodexSessions(ws: Pick<Workspace, "codexHome">, dir: string): void {
+  if (!ws.codexHome) return;
+  const sessions = join(ws.codexHome, "sessions");
+  if (existsSync(join(dir, "codex-rollout.jsonl")) || !existsSync(sessions)) return;
   cpSync(sessions, join(dir, "codex-sessions"), { recursive: true });
 }
 

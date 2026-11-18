@@ -76,7 +76,7 @@ test("Delivery and Notify me about: four switches with the design's copy, the pe
   render();
   expect(switches().map(element => [element.props["aria-label"], element.props["aria-checked"], !!element.props.disabled, element.props.className])).toEqual([
     ["Desktop notifications", true, false, "doan-switch"], ["Approval requests", true, false, "doan-switch"], ["Finished", true, false, "doan-switch"], ["Couldn’t finish", true, false, "doan-switch"]]);
-  for (const copy of ["Delivery", "Notify me about", "Only while Doan isn’t the active window. Clicking one opens the conversation.", "An agent is waiting for you to allow or deny an action.",
+  for (const copy of ["Delivery", "Notify me about", "Only while Doan isn’t the active window. Clicking one opens the conversation.", "An agent is waiting for you to allow or deny an action, or to answer a question.",
     "An agent finished its turn.", "An agent stopped because of an error. Stops you make aren’t announced.", "If no notification appears, allow Doan in System Settings › Notifications."]) expect(text()).toContain(copy);
   expect(button("Send test notification")).toBeDefined();
   expect(button("Open System Settings ↗")).toBeDefined();

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -288,13 +288,20 @@ test("each real agent's environment leaves out the user's own instruction files;
     writeFileSync(join(fake, "AGENTS.md"), "global\n");
     process.env.CODEX_HOME = fake;
     const codex = await prepareWorkspace({ scenario: seeded(), agent: "codex", cli, stub: "stub\n" });
+    const home = codex.env.CODEX_HOME!;
     try {
-      assert.ok(codex.env.CODEX_HOME?.startsWith(`${codex.base}/`), codex.env.CODEX_HOME);
-      assert.ok(!codex.env.CODEX_HOME!.startsWith(`${codex.repo}/`));
-      assert.equal(existsSync(join(codex.env.CODEX_HOME!, "AGENTS.md")), false);
-      assert.equal(readFileSync(join(codex.env.CODEX_HOME!, "auth.json"), "utf8"), "{}\n");
+      // Codex's workspace-write sandbox opens the agent's folder, /tmp and $TMPDIR to the agent's shell (codex-cli 0.169.0
+      // `codex sandbox -P :workspace`), while Codex itself, outside that sandbox, writes refreshed tokens through the
+      // home's links and keeps the rollout read as evidence there.
+      for (const writable of ["/tmp", "/private/tmp", realpathSync(tmpdir()), codex.base])
+        assert.ok(!`${home}/`.startsWith(`${writable}/`), `${home} is inside ${writable}`);
+      assert.equal(codex.codexHome, home);
+      assert.equal(existsSync(join(home, "AGENTS.md")), false);
+      assert.equal(readFileSync(join(home, "auth.json"), "utf8"), "{}\n");
       assert.equal(git(codex.repo, ["status", "--porcelain"]), "");
     } finally { await codex.dispose(); }
+    // The links to the user's sign-in do not outlive the run.
+    assert.equal(existsSync(home), false);
     assert.equal(readFileSync(join(fake, "AGENTS.md"), "utf8"), "global\n");
     const claude = await prepareWorkspace({ scenario: seeded(), agent: "claude", cli, stub: "stub\n" });
     try {

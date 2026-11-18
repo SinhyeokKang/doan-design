@@ -27,6 +27,7 @@
     "runtime",
     "vitest.config.ts",
     "vitest.globalSetup.ts",
-    "electron.vite.config.ts"
+    "electron.vite.config.ts",
+    "electron.vite.config.test.ts"
   ]
 }
