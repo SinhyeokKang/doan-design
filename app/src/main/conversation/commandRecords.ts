@@ -2,8 +2,8 @@ import { COMMAND_ALIASES } from "./providerCommands";
 
 // Provider records that stand for a command's effect rather than a message: a context boundary the thread draws, or a
 // record the thread leaves out. Boundaries are never stored: in this run they come from the provider's stream, and after
-// a restart each command turn that ended done stands for one (ARCHITECTURE §7 'Provider built-in commands'). Shapes
-// from a live check (2026-11-17): Claude Code 2.1.326, Codex 0.167.1, Copilot 1.0.105.
+// a restart each `/compact` or Claude `/clear` turn that ended done stands for one (ARCHITECTURE §7 'Provider built-in
+// commands'). Shapes from a live check (2026-11-17): Claude Code 2.1.326, Codex 0.167.1, Copilot 1.0.105.
 export type BoundaryKind = "compacted" | "cleared";
 
 function record(value: unknown): value is Record<string, unknown> {
