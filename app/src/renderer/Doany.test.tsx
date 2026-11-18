@@ -78,11 +78,12 @@ function environment(options: { noContext?: boolean; compileFails?: boolean; bud
   // Native visibility (a closed window or a hidden app keeps document.hidden false).
   const native = new Set<(visible: boolean) => void>();
   vi.stubGlobal("window", { doan: { onWindowVisible: (listener: (visible: boolean) => void) => { native.add(listener); return () => { native.delete(listener); }; } } });
-  vi.stubGlobal("matchMedia", (query: string) => { expect(query).toBe("(prefers-reduced-motion: reduce)"); return media; });
+  // devicePixelRatio's own query is apart from reduced motion's.
+  const resolution = events(log, "resolution");
+  vi.stubGlobal("matchMedia", (query: string) => { if (query.startsWith("(resolution:")) return resolution; expect(query).toBe("(prefers-reduced-motion: reduce)"); return media; });
   vi.stubGlobal("requestAnimationFrame", (callback: (now: number) => void) => { frames.set(++next, callback); return next; });
   vi.stubGlobal("cancelAnimationFrame", (id: number) => { if (frames.delete(id)) log.push("cancel frame"); });
-  const observed: unknown[] = [];
-  vi.stubGlobal("ResizeObserver", class { constructor(callback: () => void) { resize = callback; } observe(_node: unknown, options?: unknown) { observed.push(options); } disconnect() { log.push("resize disconnect"); } });
+  vi.stubGlobal("ResizeObserver", class { constructor(callback: () => void) { resize = callback; } observe() {} disconnect() { log.push("resize disconnect"); } });
   vi.stubGlobal("IntersectionObserver", class { constructor(callback: typeof intersect) { intersect = callback; } observe() {} disconnect() { log.push("intersect disconnect"); } });
   const makeCanvas = (name: string): FakeCanvas => {
     const listeners = events(log, `canvas`);
@@ -100,7 +101,7 @@ function environment(options: { noContext?: boolean; compileFails?: boolean; bud
   const still = { hidden: false, complete: false, naturalWidth: 0, ...events(log, "still") };
   const canvas = makeCanvas("canvas");
   return {
-    log, record, count, media, page, host, still, canvas, lift, native, observed, live: () => canvases.at(-1)!,
+    log, record, count, media, page, host, still, canvas, lift, native, resolution, live: () => canvases.at(-1)!,
     mount: () => mountBuddy(buddy(options.buddy ?? "doany"), host as unknown as HTMLButtonElement, still as unknown as HTMLImageElement, canvas as unknown as HTMLCanvasElement),
     keep: () => keepBuddy(buddy(options.buddy ?? "doany"), host as unknown as HTMLButtonElement, still as unknown as HTMLImageElement, canvas as unknown as HTMLCanvasElement),
     contexts: () => (record as unknown[][]).filter(call => call[0] === "getContext").length,
@@ -181,7 +182,7 @@ test("dispose removes the lost listener, the frame and every listener before rel
   mounted.dispose();
   expect(env.log[0]).toBe("canvas off webglcontextlost");
   expect(env.log[1]).toBe("cancel frame");
-  expect(env.log.slice(2, -4).sort()).toEqual(["document off pointermove", "host off click", "host off keydown", "intersect disconnect", "media off change", "resize disconnect"]);
+  expect(env.log.slice(2, -4).sort()).toEqual(["document off pointermove", "host off click", "host off keydown", "intersect disconnect", "media off change", "resize disconnect", "resolution off change"]);
   expect(env.log.slice(-4)).toEqual(["loseContext", "canvas off webglcontextrestored", "still off error", "replace clone with canvas"]);
   expect(env.host.dataset.state).toBe("idle");
 });
@@ -239,11 +240,16 @@ test("a window that is not natively visible stops the buddy drawing; shown again
   expect(env.native.size).toBe(0);
 });
 
-// A move to a display of another scale changes devicePixelRatio without a CSS resize; the device-pixel box changes.
-test("the canvas is sized again when its device-pixel size changes, as on a display of another scale", () => {
+// A move to a display of another scale changes devicePixelRatio without a CSS resize, so no ResizeObserver fires.
+test("the canvas follows a change of devicePixelRatio, as on a display of another scale, and dispose stops listening", async () => {
   const env = environment();
-  env.mount();
-  expect(env.observed).toEqual([{ box: "device-pixel-content-box" }]);
+  const mounted = env.mount();
+  await env.load();
+  expect(env.live().width).toBe(114);
+  vi.stubGlobal("devicePixelRatio", 2); env.resolution.dispatch("change");
+  expect(env.live().width).toBe(228);
+  mounted.dispose();
+  expect(env.log).toContain("resolution off change");
 });
 
 test("the pointer anywhere in the window turns the gaze", async () => {

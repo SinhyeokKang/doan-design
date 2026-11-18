@@ -163,6 +163,8 @@ describe("DotField lifecycle", () => {
   const doc = { hidden: false, addEventListener: vi.fn(), removeEventListener: vi.fn() };
   const media = { motion: { matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }, scheme: { matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() } };
   const observer = { observe: vi.fn(), disconnect: vi.fn() };
+  // devicePixelRatio's own query (a global, as in the page).
+  const resolution = { listeners: new Set<() => void>(), change() { for (const listener of [...this.listeners]) listener(); } };
   const ctx = { setTransform: vi.fn(), clearRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), arc: vi.fn(), fill: vi.fn(), globalAlpha: 1, fillStyle: "" };
   let rect = { width: 120, height: 60 }, color = "rgb(255, 255, 255)";
   const node = { width: 0, height: 0, getContext: () => ctx, getBoundingClientRect: () => rect };
@@ -188,6 +190,9 @@ describe("DotField lifecycle", () => {
     vi.stubGlobal("requestAnimationFrame", (run: unknown) => { const id = next++; frames.set(id, run); return id; });
     vi.stubGlobal("cancelAnimationFrame", (id: number) => { frames.delete(id); });
     vi.stubGlobal("ResizeObserver", class { constructor(run: () => void) { resize = run; } observe = observer.observe; disconnect = observer.disconnect; });
+    resolution.listeners.clear();
+    vi.stubGlobal("devicePixelRatio", 2);
+    vi.stubGlobal("matchMedia", () => ({ addEventListener: (_: string, listener: () => void) => resolution.listeners.add(listener), removeEventListener: (_: string, listener: () => void) => resolution.listeners.delete(listener) }));
   });
   afterEach(() => { vi.useRealTimers(); });
 
@@ -325,20 +330,24 @@ describe("DotField lifecycle", () => {
     } finally { media.motion.matches = false; ctx.arc.mockReset(); }
   });
 
-  // A move to a display of another scale changes devicePixelRatio without a CSS resize; the device-pixel box changes.
-  test("the canvas is watched by its device-pixel size, and a new ratio alone gives the Worker a new size", () => {
+  // A move to a display of another scale changes devicePixelRatio without a CSS resize, so no ResizeObserver fires.
+  test("a change of devicePixelRatio alone gives the Worker a new size, and unmount stops listening", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     render(field(true), attach);
-    expect(observer.observe).toHaveBeenCalledWith(node, { box: "device-pixel-content-box" });
     posted = [];
     (window as unknown as { devicePixelRatio: number }).devicePixelRatio = 1;
-    resize!();
+    vi.stubGlobal("devicePixelRatio", 1);
+    resolution.change();
     expect(posted).toContainEqual({ kind: "size", size: { width: 120, height: 60, ratio: 1 } });
+    unmount();
+    vi.runAllTimers();
+    expect(resolution.listeners.size).toBe(0);
   });
 
   test("unmount ends the Worker and leaves no observer, media listener or visibility subscription", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     render(field(true), attach);
-    expect(observer.observe).toHaveBeenCalledWith(node, { box: "device-pixel-content-box" });
+    expect(observer.observe).toHaveBeenCalledWith(node);
     const motion = media.motion.addEventListener.mock.calls[0], scheme = media.scheme.addEventListener.mock.calls[0];
     expect(motion?.[0]).toBe("change");
     unmount();

@@ -363,14 +363,15 @@ const prototype = createPrototypeWindow({
   entries: () => shell?.entries() ?? [],
   vibrancyWindow: window => opaqueFallback.adopt(window),
   mainWindow: () => win,
-  closed: contents => {
+  closed: (contents, replaced) => {
+    prototypeAttachmentsClosed(`prototype:${contents}`);
+    if (replaced) return;
     prototypeShowing.closed();
     prototypeDrawing.closed();
     prototypePromoted.closed();
     prototypeResume = null;
     prototypeWorkSent = "[]";
     prototypeEntrySent = null;
-    prototypeAttachmentsClosed(`prototype:${contents}`);
     send(PROTOTYPE_CHANNELS.closed);
     prototypeRelay.changed();
   },
