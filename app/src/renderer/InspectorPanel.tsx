@@ -136,6 +136,10 @@ const KIND_ICONS: Record<ElementKind, LucideIcon> = {
 // board. Radix closes it on Esc (preventing the default, so the selection stays) and gives focus back to the trigger.
 export function ElementMenu({ view, nodes, tree, shown, onEscape }: { view: SelectionView; nodes: ElementTreeNode[] | null; tree: ElementTreeSource; shown: boolean; onEscape(event: globalThis.KeyboardEvent): void }) {
   const [open, setOpen] = useState(false);
+  // The menu spans the panel, less an inset a side (styles.css), whatever its rows' width; the panel's inner width is
+  // read when it opens, since the column can be resized.
+  const [width, setWidth] = useState<number | null>(null);
+  const trigger = useRef<HTMLButtonElement | null>(null);
   const [active, setActive] = useState<string | null>(null);
   const rowNodes = useRef(new Map<string, HTMLElement>());
   const fallback = selectionName(view);
@@ -181,12 +185,19 @@ export function ElementMenu({ view, nodes, tree, shown, onEscape }: { view: Sele
 
   const kind = view.element === undefined ? "frame" : "element";
   return <span className="ov-title-wrap doan-conv-title doan-insp-pick">
-    <Popover.Root open={open && shown} onOpenChange={next => { setOpen(next); setActive(null); if (next) tree.request(); }}>
+    <Popover.Root open={open && shown} onOpenChange={next => {
+      setOpen(next); setActive(null);
+      if (!next) return;
+      const panel = trigger.current?.closest(".doan-insp-panel");
+      setWidth(panel ? panel.clientWidth : null);
+      tree.request();
+    }}>
       {/* While the menu is open a cut name's tooltip over the trigger can be the top layer; its Escape then closes the
           menu, as the menu's own would, and never steps the selection back. */}
-      <NameTip text={named} onEscape={open ? () => setOpen(false) : onEscape}><Popover.Trigger asChild><button type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="tree"
+      <NameTip text={named} onEscape={open ? () => setOpen(false) : onEscape}><Popover.Trigger asChild><button ref={trigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="tree"
         aria-label={`${named}, ${kind}. Elements in this frame`}><span>{named}</span><ChevronDown className="chev" aria-hidden="true" /></button></Popover.Trigger></NameTip>
       <Popover.Portal><Popover.Content role={undefined} className="doan-floating doan-menu doan-insp-menu" data-ui-variant="tree" side="bottom" align="start" sideOffset={4} collisionPadding={8}
+        style={width === null ? undefined : { "--doan-insp-panel-width": `${width}px` } as CSSProperties}
         onOpenAutoFocus={event => { event.preventDefault(); focusRow(current); }}>
         <div role="tree" aria-label={`Elements in ${frameName}`} onKeyDown={keydown}>
           {rows.map((node, index) => {

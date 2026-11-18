@@ -307,6 +307,22 @@ test("the cut name's tooltip keeps its Escape to itself while the menu is open",
   expect(rendered.find(element => element.type === Popover.Root)!.props.open).toBe(false);
 });
 
+// canvas-inspector-panel 'Element menu': the menu spans the panel less 8px on each side (263 in a 280 column with its
+// 1px start edge), not its content's width.
+test("the element menu is as wide as the panel's inside less 8px a side", async () => {
+  const VIEW: SelectionView = { tag: "button", element: { selector: "#pay", html: "<button>" }, path: [] };
+  const tree = { request: vi.fn(() => true), subscribe: vi.fn(() => () => {}), preview: vi.fn(), select: vi.fn() };
+  const props = { view: VIEW, nodes: null, tree, shown: true, onEscape: noop };
+  let rendered = run(ElementMenu, props);
+  const trigger = rendered.find(element => element.type === "button")!;
+  (trigger.props.ref as { current: unknown }).current = { closest: (selector: string) => selector === ".doan-insp-panel" ? { clientWidth: 279 } : null };
+  (rendered.find(element => element.type === Popover.Root)!.props.onOpenChange as (open: boolean) => void)(true);
+  rendered = run(ElementMenu, props);
+  expect((rendered.find(element => element.type === Popover.Content)!.props.style as Record<string, unknown>)["--doan-insp-panel-width"]).toBe("279px");
+  const css = (await import("node:fs")).readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".doan-floating.doan-insp-menu { width: calc(var(--doan-insp-panel-width) - 2 * var(--space-2)); }");
+});
+
 describe("the element menu leaves no trace", () => {
   const VIEW: SelectionView = { tag: "button", element: { selector: "#pay", html: "<button>" }, path: [] };
   const NODES: ElementTreeNode[] = [

@@ -529,6 +529,8 @@ body:has(.shell-top) { background: transparent; }
 :root { --doan-right-width: 280px; }
 /* The canvas page's inspector column: App writes its shown width on the shell, 0 while folded and on the Overview. */
 :root { --doan-inspector-width: 0px; }
+/* The inspector panel's inner width, set on the element menu when it opens. */
+:root { --doan-insp-panel-width: 280px; }
 /* The buddy slot's hop, 0 on the floor to 1 at the apex; the rig writes it on the slot each frame (doany.css floor shadow). */
 :root { --hop-lift: 0; }
 /* The sidebar's width: App sets the remembered one on the root element, so every shell follows it (sidebarSize.ts). */
@@ -1552,6 +1554,8 @@ body:has(.shell-top) { background: transparent; }
 .doan-insp-none { margin: 0; padding: var(--space-4) var(--space-2); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .doan-insp-swatch { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); border-radius: var(--radius-inline); box-shadow: inset 0 0 0 1px var(--border-prominent); }
 .doan-insp-swatch.transparent { background: repeating-conic-gradient(var(--surface-inset) 0 25%, var(--surface-panel) 0 50%) 0 0 / 8px 8px; }
+/* The element menu spans the panel less --space-2 a side, not its rows' width. */
+.doan-floating.doan-insp-menu { width: calc(var(--doan-insp-panel-width) - 2 * var(--space-2)); }
 /* The row's tooltip: one line per fact. */
 .doan-insp-tip > span { display: block; }
 /* A new selection's read: the spinner line after the delay. */
