@@ -63,9 +63,9 @@ interface DomNode {
   children?: DomNode[];
 }
 
-// An ancestor's name as the canvas script's path labels give it (canvasScript.ts `ancestorPath`, `nodeLabel`), so an
-// inherited row says where the value comes from in the person's terms: a frame by its title, else its id; an element
-// by its data-doan-id; anything else by its tag.
+// An ancestor's name as the element menu names nodes (canvasScript.ts `nodeLabel`, canvasTree.ts `frameLabel`), without
+// the menu's quote of a tag's text, so an inherited row says where the value comes from in the person's terms: a frame
+// by its title, else its id; an element by its data-doan-id; anything else by its tag.
 function ancestorLabel(node: Pick<DomNode, "localName" | "attributes">): string {
   const attributes = new Map<string, string>();
   const list = node.attributes ?? [];

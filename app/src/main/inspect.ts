@@ -494,8 +494,8 @@ export function longhandSource(input: InspectInput, prop: string): LonghandSourc
     if (chain.length > 1) found.chain = chain;
   }
   if (level > 0) {
-    const tag = input.ancestors[level - 1];
-    if (tag !== undefined) found.inheritedFrom = tag;
+    const ancestor = input.ancestors[level - 1];
+    if (ancestor !== undefined) found.inheritedFrom = ancestor;
   }
   if (STATE_PSEUDO.test(winner.selector)) found.hoverState = true;
   return found;
