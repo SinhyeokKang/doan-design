@@ -70,14 +70,19 @@ export function rowTooltip(row: RowView, cut: boolean): string[] {
   return cut ? [row.token ?? row.text, ...row.tip] : row.tip;
 }
 
+// The rows main splits by side or corner; `sides` is read on these only.
+const SPLIT_ROWS = new Set(["box:padding", "box:margin", "radius:radius"]);
+
 function rowView(row: InspectRow): RowView {
-  const token = chipToken(row);
-  const text = oneSide(row.sides) ?? row.value;
+  const split = SPLIT_ROWS.has(rowKey(row));
+  const sides = split ? row.sides : undefined;
+  const token = chipToken(row.token, split, sides);
+  const text = oneSide(sides) ?? row.value;
   const swatch = swatchColor(row);
   const tip = [
     token === undefined ? "" : row.value,
     row.chain ? row.chain.join(" → ") : "",
-    row.sides && !uniform(row.sides) ? sideList(row.sides) : "",
+    sides && !uniform(sides) ? sideList(sides) : "",
     row.inheritedFrom === undefined ? "" : `Inherited from ${row.inheritedFrom}`,
   ].filter(line => line !== "");
   const view: RowView = { key: rowKey(row), label: row.label, text, tip, copy: token ?? text, spoken: [row.label, token === undefined ? text : row.value, token === undefined ? "" : `token ${token}`].filter(part => part !== "").join(", ") };
@@ -87,12 +92,12 @@ function rowView(row: InspectRow): RowView {
 }
 
 // A chip stands for the whole value, so a split row is a token only when every side names the same one: a chip on a
-// partly tokenized padding would give a wrong answer to "what is the padding?". The resolver joins different tokens
-// with spaces, which is never one token either.
-function chipToken(row: InspectRow): string | undefined {
-  const { token, sides } = row;
+// partly tokenized padding would give a wrong answer to "what is the padding?". A split row without its sides cannot
+// show that, so it is never a chip. Space-joined tokens are never one token either.
+function chipToken(token: string | undefined, split: boolean, sides: readonly InspectSide[] | undefined): string | undefined {
   if (token === undefined || token === "" || /\s/.test(token)) return undefined;
-  return sides === undefined || sides.every(side => side.token === token) ? token : undefined;
+  if (!split) return token;
+  return sides !== undefined && sides.length > 0 && sides.every(side => side.token === token) ? token : undefined;
 }
 
 const ZERO = /^0[a-z%]*$/i;
@@ -109,9 +114,21 @@ function uniform(sides: readonly InspectSide[]): boolean {
   return sides.every(side => side.value === sides[0]?.value && side.token === sides[0].token);
 }
 
+// Each side's value, a side's token in parentheses. A two-value shorthand (opposite sides equal) pairs them as the
+// draft words it: "Top and bottom 20px, left and right 24px"; anything else lists the sides in order.
 function sideList(sides: readonly InspectSide[]): string {
-  const parts = sides.map(side => `${sideName(side.side)} ${side.value}${side.token === undefined ? "" : ` (${side.token})`}`);
+  const part = (names: string, side: InspectSide) => `${names} ${side.value}${side.token === undefined ? "" : ` (${side.token})`}`;
+  const same = (a: InspectSide | undefined, b: InspectSide | undefined) => a !== undefined && b !== undefined && a.value === b.value && a.token === b.token;
+  const [a, b, c, d] = sides;
+  const parts = sides.length === 4 && a && b && c && d && same(a, c) && same(b, d)
+    ? [part(`${sideName(a.side)} and ${sideName(c.side)}`, a), part(pairName(b, d), b)]
+    : sides.map(side => part(sideName(side.side), side));
   return capitalized(parts.join(", "));
+}
+
+// The draft names the horizontal pair "left and right", not in the resolver's right-before-left order.
+function pairName(b: InspectSide, d: InspectSide): string {
+  return b.side === "right" && d.side === "left" ? "left and right" : `${sideName(b.side)} and ${sideName(d.side)}`;
 }
 
 function sideName(side: string): string {
@@ -142,11 +159,12 @@ export interface InspectTarget {
 
 // The request in flight or last answered. `seq` only grows; `target` is null when nothing is asked (hidden, no
 // selection), so any reply still on its way is dropped. `same`: a read of the selection already shown, whose rows stay
-// until the reply.
+// until the reply. `notShown`: the last reply for this target was not-shown, carried to the one re-ask with `again`.
 export interface InspectFlight {
   seq: number;
   target: InspectTarget | null;
   same: boolean;
+  notShown?: true;
 }
 
 export interface InspectRequestInput {
@@ -164,7 +182,8 @@ export function inspectRequestFor({ visible, accepted, flight, again }: InspectR
   if (!visible || accepted === null) return { flight: flight.target === null ? flight : { seq: flight.seq, target: null, same: false }, send: null };
   if (!again && flight.target !== null && sameTarget(flight.target, accepted)) return { flight, send: null };
   // A same-canvas move keeps the anchor but not the path, so "same" is the caller's word plus the same anchor.
-  const send = { seq: flight.seq + 1, target: accepted, same: again && flight.target !== null && flight.target.selector === accepted.selector };
+  const send: InspectFlight = { seq: flight.seq + 1, target: accepted, same: again && flight.target !== null && flight.target.selector === accepted.selector };
+  if (flight.notShown && flight.target !== null && sameTarget(flight.target, accepted)) send.notShown = true;
   return { flight: send, send };
 }
 
@@ -174,13 +193,9 @@ function sameTarget(a: InspectTarget, b: InspectTarget): boolean {
 
 export type InspectFailure = "not-shown" | "not-found" | "unavailable";
 
-// What the request asked, and main's answer to it.
-export interface InspectReply {
-  seq: number;
-  canvas: InspectCanvas;
-  selector: string;
-  result: { ok: true; rows: InspectRow[] } | { ok: false; reason: InspectFailure };
-}
+// Main's answer beside the request it echoes (`{selector, canvas, seq}`). A request main refuses outright gets a bare
+// `{ok: false, reason: "unavailable"}` with no echo.
+export type InspectReply = Partial<{ seq: number; canvas: InspectCanvas; selector: string }> & ({ ok: true; rows: InspectRow[] } | { ok: false; reason: InspectFailure });
 
 export type InspectPanel =
   | { kind: "empty" }
@@ -189,16 +204,21 @@ export type InspectPanel =
   | { kind: "failed" }
   | { kind: "rows"; rows: InspectRow[] };
 
-// null: a late reply (an older seq, another selection or another canvas) that changes nothing. `again`: ask once
-// more without showing a failure.
-export function acceptInspect(panel: InspectPanel, flight: InspectFlight, reply: InspectReply): { panel: InspectPanel; again: boolean } | null {
-  if (flight.target === null || reply.seq !== flight.seq || !sameTarget(flight.target, reply)) return null;
-  if (reply.result.ok) return { panel: { kind: "rows", rows: reply.result.rows }, again: false };
-  switch (reply.result.reason) {
+// null: a late reply (an older seq, another selection or another canvas), or a bare refusal that echoes no request,
+// changes nothing. `flight` replaces the caller's.
+// `again` (after a not-shown): ask once more without showing a failure, but not from this reply. Main answers
+// not-shown until the requested canvas is its shown document again (a switch or reload in progress, or a debugger
+// that detached), so asking straight back would loop. The caller asks on the next accepted-selection apply or
+// shown-document change; a second not-shown in a row for the same selection and canvas is a failure with Retry.
+export function acceptInspect(panel: InspectPanel, flight: InspectFlight, reply: InspectReply): { panel: InspectPanel; again: boolean; flight: InspectFlight } | null {
+  if (flight.target === null || reply.seq !== flight.seq || reply.canvas === undefined || reply.selector === undefined || !sameTarget(flight.target, { canvas: reply.canvas, selector: reply.selector })) return null;
+  const answered: InspectFlight = { seq: flight.seq, target: flight.target, same: flight.same };
+  if (reply.ok) return { panel: { kind: "rows", rows: reply.rows }, again: false, flight: answered };
+  switch (reply.reason) {
     // Retry cannot bring back a node CDP does not find, so it reads like a selection that left the canvas.
-    case "not-found": return { panel: { kind: "empty" }, again: false };
-    // Main's shown document is not yet the requested canvas (a switch in progress): no failure, ask again.
-    case "not-shown": return { panel, again: true };
-    case "unavailable": return { panel: { kind: "failed" }, again: false };
+    case "not-found": return { panel: { kind: "empty" }, again: false, flight: answered };
+    // Once without a failure, then a failure with Retry (see above).
+    case "not-shown": return flight.notShown ? { panel: { kind: "failed" }, again: false, flight: answered } : { panel, again: true, flight: { ...answered, notShown: true } };
+    case "unavailable": return { panel: { kind: "failed" }, again: false, flight: answered };
   }
 }
