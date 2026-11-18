@@ -50,17 +50,20 @@ function insideRoot(root: string, path: string): string | null {
   return null;
 }
 
-// Check 5, main's own grounds (the renderer's trashBlock is display only). `conversations` and `evidence` are this
-// root's: the conversation list and the unjudged project turns (ConversationService.projectEvidence), which may still
-// bind to a canvas they edited. Worktrees share ids and paths, so nothing of another root counts (POSTMORTEM
+// Check 5, main's own grounds (the renderer's trashBlock is display only). `conversations`, `evidence` and `starting`
+// are this root's: the conversation list, the unjudged project turns (ConversationService.projectEvidence), which may
+// still bind to a canvas they edited, and the canvases of starts not accepted yet, which no list names
+// (ConversationService.startingCanvases). Worktrees share ids and paths, so nothing of another root counts (POSTMORTEM
 // 2026-11-01).
 export function trashBusy(
   target: Pick<TrashTarget, "root" | "path" | "id">,
   conversations: readonly ConversationSummary[],
   evidence: readonly { edits: readonly string[]; changed: readonly string[] }[],
   work: readonly WorkItem[],
+  starting: readonly Canvas[] = [],
 ): boolean {
   const canvas: Canvas = target.id ? { path: target.path, id: target.id } : { path: target.path };
+  if (starting.some(start => sameCanvas(start, canvas))) return true;
   // Running, waiting for an answer or `working` (preparing, a queue about to go out): the renderer's trashBlock reads the
   // same set, so an enabled item is not refused as busy for a conversation state alone.
   // Every conversation of the canvas counts: several run side by side.

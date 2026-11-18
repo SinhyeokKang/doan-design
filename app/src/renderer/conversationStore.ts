@@ -269,9 +269,9 @@ export class ConversationStore {
     this.unclaimed = this.unclaimed.filter(event => event.conversationId !== conversationId);
     this.host.changed();
   }
-  // Drafts whose key matches go (a removed project's), with the returned queue's ids they held.
+  // Drafts whose key matches go (a removed project's), with every file they held.
   dropDrafts(drop: (key: string) => boolean): void {
-    for (const [key, draft] of this.drafts) if (drop(key)) dropHeld(this.calls, draft);
+    for (const [key, draft] of this.drafts) if (drop(key)) dropAll(this.calls, draft);
     this.drafts = new Map([...this.drafts].filter(([key]) => !drop(key)));
   }
   // The typed text, composition included, follows into another draft; the field element stays the same, so focus and
@@ -341,7 +341,8 @@ export class ConversationStore {
       for (const attachment of restored.attachments) if (attachment.id) void this.calls.removeAttachment(attachment.id).catch(() => false);
       return false;
     }
-    dropHeld(this.calls, before);
+    // The restored chips are issued afresh, so every file of the replaced draft goes back.
+    dropAll(this.calls, before);
     this.setDrafts(drafts => new Map(drafts).set(key, restored));
     return true;
   }
@@ -466,7 +467,9 @@ export class ConversationStore {
     const take = this.calls.takeStartDraft;
     if (!take || this.startsAsked.has(key)) return;
     this.startsAsked.add(key);
-    void take({ root, ...(canvas ? { canvas } : {}) }).catch(() => null).then(async reply => {
+    void take({ root, ...(canvas ? { canvas } : {}) }).catch(() => ({ error: "unknown" })).then(async reply => {
+      // Main keeps a draft it could not hand over (preload takeStartDraft), so the next list read asks again.
+      if (reply && "error" in reply) this.startsAsked.delete(key);
       if (!reply || "error" in reply) return;
       this.addReturned(key, await draftFrom(this.calls, reply.text, reply.anchors, reply.attachments));
     });
@@ -504,9 +507,10 @@ export function dropAttachment(calls: Pick<StoreCalls, "removeAttachment" | "rel
   const removed = calls.removeAttachment(id);
   void (attachment.held ? removed.then(() => calls.releaseAttachments([id])) : removed).catch(console.error);
 }
-// A draft dropped whole releases the ids a returned queue handed it.
-function dropHeld(calls: StoreCalls, draft: DockedDraft | undefined): void {
-  for (const attachment of draft?.attachments ?? []) if (attachment.held) dropAttachment(calls, attachment);
+// A draft dropped or replaced whole gives back every file it held: a pasted image is deleted, a returned queue's id
+// released (main attachments.ts remove).
+function dropAll(calls: StoreCalls, draft: DockedDraft | undefined): void {
+  for (const attachment of draft?.attachments ?? []) dropAttachment(calls, attachment);
 }
 const emptyDraft = (draft: DockedDraft) => draft.segments.length === 0 && !draft.preset && draft.attachments.length === 0;
 

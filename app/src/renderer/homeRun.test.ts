@@ -677,6 +677,31 @@ test("a failed list's Retry runs until its read settles, and counts the Retries 
   expect(h.run.listRetry(ROOT)).toEqual({ running: false, failures: 0 });
 });
 
+// POSTMORTEM 2026-11-17 'Removing a project or trashing a canvas left state keyed by it behind': a project added
+// again in the same run reads its list as new, not as the failure it had before the removal.
+test("a removed root forgets its failed list and Retries: added again, its list loads instead of showing the old failure", async () => {
+  const h = harness();
+  doan.listConversations!.mockResolvedValueOnce({ error: "unknown" });
+  h.run.entriesChanged();
+  await flush();
+  doan.listConversations!.mockResolvedValueOnce({ error: "unknown" });
+  h.run.retryList(ROOT);
+  await flush();
+  expect(h.run.listRetry(ROOT)).toEqual({ running: false, failures: 1 });
+  h.view.entries = [];
+  h.run.entriesChanged();
+  h.run.forgetRoots([ROOT]);
+  const read = deferred<unknown>();
+  doan.listConversations!.mockReturnValueOnce(read.promise);
+  h.view.entries = [list(ROOT, ["a"])];
+  h.run.entriesChanged();
+  expect(h.run.listState(ROOT)).toBe("loading");
+  expect(h.run.listRetry(ROOT)).toEqual({ running: false, failures: 0 });
+  read.resolve([summary({})]);
+  await flush();
+  expect(h.run.listState(ROOT)).toEqual([summary({})]);
+});
+
 test("a start from the Overview stays there: no move, no started toast, and the run still tracks the conversation", async () => {
   const h = harness();
   h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
