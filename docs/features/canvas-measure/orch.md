@@ -15,6 +15,7 @@
 - 리뷰 A(🔴 0, 🟡 2, ⚪ 6): 🟡1 ⌥ + 휠·pinch에서 측정이 사라지는 문제는 ⌥ 중 휠이 대상을 유지하게 고친다 — conductor 판단, 근거는 spec 11. 🟡2 테스트가 feature 문서의 절·사례 번호를 인용하는 문제는 기하 설명으로 바꾼다 — conductor 판단, 근거는 AGENTS.md 'Commit conventions'.
 - task 8 grep 기준: 초안 파일 이름은 남으므로 `docs/features/canvas-measure`로 좁혔다 — conductor 판단.
 - 맞닿은 두 요소(간격 0): conductor가 Figma Touch 프레임(사례 27)에서 세 쌍을 양방향으로 관찰했다. 여섯 경우 모두 선과 라벨이 없고 측정 중 외곽선만 나왔다. 사용자가 Figma대로 하기로 결정했다(spec 6-1, design.md '맞닿은 두 대상'). 캡처는 develop 체크아웃의 `.scratch/canvas-measure/touch-*.png`다.
+- 맞닿음 규칙 보정: "어느 한 축이라도 맞닿으면 선 없음"은 관찰(사례 27)을 넘어선 일반화였다. 대각선(한 축 맞닿음, 다른 축 떨어짐, 사례 28)과 모서리 맞닿음(사례 29)을 더 관찰했다. 28은 선이 나오고 29는 없다. 사용자의 "Figma대로" 결정에 맞춰 규칙을 고쳤다 — conductor 판단, 근거는 캡처 `touch-t4-*`, `touch-t5-*`.
 - task 7에 리뷰 ⚪2·⚪4(메뉴·대화상자 열림·닫힘, reload 뒤 복귀)와 맞닿음 확인을 더했다.
 
 ## 배치
