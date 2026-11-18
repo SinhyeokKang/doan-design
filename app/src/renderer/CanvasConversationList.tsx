@@ -11,6 +11,7 @@ import { announcedAgain, LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
 import { LIST_FAILED_TEXT, listRetryButton } from "./ListRetryButton";
 import { applyVisibility, thumbnailView, type ThumbnailState, type ThumbnailView } from "./thumbnails";
 import { NameTip } from "./NameTip";
+import { useActivationFocus } from "./activationFocus";
 
 // The Overview's right panel body: one row per canvas conversation.
 
@@ -74,13 +75,16 @@ export function CanvasConversationList({ list, project, thumbnails, open, retry,
 
   const previous = useRef(keys);
   const keysKey = keys.join("\n");
+  // A row can leave while the window is in the background (a terminal, the prototype window), so the hand-off is made
+  // again on activation (POSTMORTEM 2026-11-17).
+  const handFocus = useActivationFocus();
   useLayoutEffect(() => {
     const before = previous.current;
     previous.current = keys;
     const now = document.activeElement;
     const target = memory.left(before, keys, !!now && now !== document.body && now.isConnected);
     if (target === null) return;
-    if (target.kind === "row") { setActive(target.key); focusKey(target.key); } else title.current?.focus();
+    if (target.kind === "row") { setActive(target.key); handFocus(() => focusKey(target.key)); } else handFocus(() => title.current?.focus());
   }, [keysKey]);
 
   useEffect(() => {

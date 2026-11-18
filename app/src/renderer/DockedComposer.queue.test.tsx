@@ -20,7 +20,7 @@ vi.mock("./components/ui/tooltip", () => ({
   TooltipContent: ({ children }: { children: ReactNode }) => <span data-tip="">{children}</span>,
 }));
 
-const page = { body: { name: "body" }, activeElement: null as unknown };
+const page = { body: { name: "body" }, activeElement: null as unknown, hasFocus: () => true };
 beforeEach(() => { hooks.states = []; hooks.refs = []; page.activeElement = null; vi.stubGlobal("document", page); });
 afterEach(() => vi.unstubAllGlobals());
 

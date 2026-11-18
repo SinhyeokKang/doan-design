@@ -20,15 +20,19 @@ export interface CliRemoveInput {
   // The main window's last menu state; one frame late at most, which reads as the menu's Remove pressed just before.
   menu: CliRemoveMenu;
   liveTurns: ReadonlyMap<string, LiveTurn>;
+  // Roots with a start or send main has not accepted yet, or one waiting for its previous turn
+  // (ConversationService.pendingRoots): running for the person, though liveTurns counts only accepted turns.
+  pendingRoots: ReadonlySet<string>;
 }
 export type CliRemoveDecision = { kind: "refuse"; response: RemoveResponse } | { kind: "remove"; roots: string[]; project: string };
 
 const NOT_OPEN = "The project is not open in Doan.";
+const RUNNING = "A conversation is running in this project in Doan.";
 const refuse = (code: Exclude<RemoveErrorCode, "bad_request" | "bad_token">, message: string): CliRemoveDecision => ({ kind: "refuse", response: { v: 7, ok: false, error: { code, message } } });
 
 // The CLI has no confirmation, so any running turn in the group refuses, not only the project conversations the
 // menu's dialog counts; an app conversation's agent therefore cannot remove its own project.
-export function cliRemoveDecision({ root, entries, ready, firstRun, menu, liveTurns }: CliRemoveInput): CliRemoveDecision {
+export function cliRemoveDecision({ root, entries, ready, firstRun, menu, liveTurns, pendingRoots }: CliRemoveInput): CliRemoveDecision {
   const card = groupProjects(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])))
     .find(candidate => candidate.rows.some(row => row.path === root));
   if (!card) return refuse("project_not_open", NOT_OPEN);
@@ -46,8 +50,9 @@ export function cliRemoveDecision({ root, entries, ready, firstRun, menu, liveTu
   if (!ready || card.rows.some(row => row.kind === "loading")) return refuse("busy", "Doan is still loading a project. Try again shortly.");
   const roots = card.rows.map(row => row.path);
   for (const turn of liveTurns.values()) {
-    if (turn.running && roots.includes(turn.root)) return refuse("conversation_running", "A conversation is running in this project in Doan.");
+    if (turn.running && roots.includes(turn.root)) return refuse("conversation_running", RUNNING);
   }
+  if (roots.some(at => pendingRoots.has(at))) return refuse("conversation_running", RUNNING);
   return { kind: "remove", roots, project: card.name };
 }
 
@@ -57,13 +62,14 @@ export interface CliRemoveHost {
   entries(): readonly FolderEntry[];
   menu(): CliRemoveMenu;
   liveTurns(): ReadonlyMap<string, LiveTurn>;
+  pendingRoots(): ReadonlySet<string>;
   // index.ts removeRoots, shared with the menu's Remove from Doan.
   removeRoots(roots: readonly string[]): Promise<{ kind: "removed"; paths: string[] } | { kind: "unavailable" }>;
 }
 
 // The whole answer to a v7 request whose schema, token and root passed (runtime.ts).
 export async function answerCliRemove(request: RemoveRequest, host: CliRemoveHost): Promise<RemoveResponse> {
-  const decision = cliRemoveDecision({ root: request.root, entries: host.entries(), ready: host.ready(), firstRun: host.firstRun(), menu: host.menu(), liveTurns: host.liveTurns() });
+  const decision = cliRemoveDecision({ root: request.root, entries: host.entries(), ready: host.ready(), firstRun: host.firstRun(), menu: host.menu(), liveTurns: host.liveTurns(), pendingRoots: host.pendingRoots() });
   if (decision.kind === "refuse") return decision.response;
   const removed = await host.removeRoots(decision.roots);
   if (removed.kind === "unavailable") return { v: 7, ok: false, error: { code: "project_not_open", message: NOT_OPEN } };

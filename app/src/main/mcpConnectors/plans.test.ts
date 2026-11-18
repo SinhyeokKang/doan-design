@@ -3,22 +3,35 @@ import { codexServerToml, mcpLogoutOutcome, mcpLogoutPlan, plaintextLeftovers, r
 
 describe("reconcilePlan", () => {
   const file = { v: 1 as const, servers: [{ name: "doan-example-com", url: "https://example.com/mcp" }], everConnected: {} };
+  // Registrations whose URL the list did not give.
+  const names = (list: string[]) => list.map(name => ({ name, url: null }));
 
   test("only doan- registrations that are neither a preset nor a URL server in the file are removed", () => {
-    expect(reconcilePlan(["doan-notion", "doan-figma", "doan-example-com", "doan-removed-com", "doan-old"], { ok: true, file })).toEqual(["doan-removed-com", "doan-old"]);
+    expect(reconcilePlan(names(["doan-notion", "doan-figma", "doan-example-com", "doan-removed-com", "doan-old"]), { ok: true, file })).toEqual(["doan-removed-com", "doan-old"]);
   });
 
   test("the person's terminal servers are never targets, whatever their name", () => {
-    expect(reconcilePlan(["notion", "notion-poc", "figma", "doan", "Doan-x", "mcp-doan-x"], { ok: true, file })).toEqual([]);
+    expect(reconcilePlan(names(["notion", "notion-poc", "figma", "doan", "Doan-x", "mcp-doan-x"]), { ok: true, file })).toEqual([]);
   });
 
   test("nothing is removed while the file cannot be read or was written by a later Doan", () => {
-    expect(reconcilePlan(["doan-removed-com"], { ok: false, code: "broken" })).toEqual([]);
-    expect(reconcilePlan(["doan-removed-com"], { ok: false, code: "newer" })).toEqual([]);
+    expect(reconcilePlan(names(["doan-removed-com"]), { ok: false, code: "broken" })).toEqual([]);
+    expect(reconcilePlan(names(["doan-removed-com"]), { ok: false, code: "newer" })).toEqual([]);
   });
 
   test("a missing registration is not added back", () => {
     expect(reconcilePlan([], { ok: true, file })).toEqual([]);
+  });
+
+  // A Remove while the provider had no connection leaves the registration, and a later Add on the same host reuses
+  // its name: the registration of the old URL is not the server in the file.
+  test("a registration under a known name but another URL is stale; the same URL and an unknown URL are kept", () => {
+    expect(reconcilePlan([
+      { name: "doan-example-com", url: "https://example.com/old" },
+      { name: "doan-notion", url: "https://mcp.notion.com/mcp" },
+    ], { ok: true, file })).toEqual(["doan-example-com"]);
+    expect(reconcilePlan([{ name: "doan-example-com", url: "https://example.com/mcp" }], { ok: true, file })).toEqual([]);
+    expect(reconcilePlan([{ name: "doan-example-com", url: null }], { ok: true, file })).toEqual([]);
   });
 });
 
