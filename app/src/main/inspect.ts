@@ -75,7 +75,8 @@ export interface MatchedStyles {
 export interface InspectInput {
   matched: MatchedStyles;
   computed: { name: string; value: string }[];
-  // Tag names of the ancestors, nearest first; `matched.inherited[i]` is `ancestors[i]`.
+  // The ancestors' names (a frame's title, a data-doan-id, else the tag), nearest first; `matched.inherited[i]` is
+  // `ancestors[i]`.
   ancestors: string[];
 }
 

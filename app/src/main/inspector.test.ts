@@ -317,3 +317,24 @@ test("inheritedFrom names the ancestor from the document tree", async () => {
   expect(result.rows.find((r) => r.label === "Text")).toMatchObject({ token: "--muted", inheritedFrom: "div" });
   expect(dbg.sent("DOM.getDocument")[0]?.[1]).toEqual({ depth: -1 });
 });
+
+// The ancestor is named as the canvas's own path labels name it: a frame by its title, else its id; an element by its
+// data-doan-id; anything else by its tag. So the tooltip says "Inherited from Payment", not "Inherited from section".
+test("inheritedFrom names a frame by its title or id and an element by its data-doan-id", async () => {
+  const c4 = (fixture as unknown as Record<string, InspectInput>)["#c4"];
+  const node = (nodeId: number, localName: string, attributes: string[], children: object[] = []) => ({ nodeId, nodeType: 1, localName, attributes, children });
+  const named = async (parent: { localName: string; attributes: string[] }) => {
+    const { dbg, docs, inspector } = setup();
+    dbg.styles = c4;
+    // html > body > (frame section) > div(parent under test) > p > span#c4; the fixture's inherited value is two up.
+    dbg.tree = { nodeId: 1, nodeType: 9, localName: "", children: [node(2, "html", [], [node(3, "body", [], [node(4, parent.localName, parent.attributes, [node(5, "p", [], [node(7, "span", ["id", "c4"])])])])])] };
+    show(dbg, docs, "S1", "loader");
+    const result = await inspector.inspect(request("#c4"));
+    if (!result.ok) throw new Error(result.reason);
+    return result.rows.find((r) => r.label === "Text")?.inheritedFrom;
+  };
+  expect(await named({ localName: "section", attributes: ["class", "f", "data-doan-frame", "payment", "data-doan-title", " Payment "] })).toBe("Payment");
+  expect(await named({ localName: "section", attributes: ["data-doan-frame", "payment", "data-doan-title", "  "] })).toBe("payment");
+  expect(await named({ localName: "div", attributes: ["data-doan-id", "order-total", "data-doan-title", "ignored"] })).toBe("order-total");
+  expect(await named({ localName: "div", attributes: ["class", "x"] })).toBe("div");
+});

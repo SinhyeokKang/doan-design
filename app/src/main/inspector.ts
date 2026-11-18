@@ -58,14 +58,28 @@ interface DomNode {
   nodeId: number;
   nodeType: number;
   localName: string;
+  // CDP's flat name, value list.
+  attributes?: string[];
   children?: DomNode[];
 }
 
-// Element tag names above `nodeId`, nearest first, matching CDP's `inherited[]`.
+// An ancestor's name as the canvas script's path labels give it (canvasScript.ts `ancestorPath`, `nodeLabel`), so an
+// inherited row says where the value comes from in the person's terms: a frame by its title, else its id; an element
+// by its data-doan-id; anything else by its tag.
+function ancestorLabel(node: Pick<DomNode, "localName" | "attributes">): string {
+  const attributes = new Map<string, string>();
+  const list = node.attributes ?? [];
+  for (let i = 0; i + 1 < list.length; i += 2) attributes.set(list[i]!, list[i + 1]!);
+  const frame = attributes.get("data-doan-frame");
+  if (frame !== undefined) return attributes.get("data-doan-title")?.trim() || frame || node.localName;
+  return attributes.get("data-doan-id") || node.localName;
+}
+
+// Element labels above `nodeId`, nearest first, matching CDP's `inherited[]`.
 function ancestorsOf(root: DomNode, nodeId: number): string[] {
   const walk = (node: DomNode, above: string[]): string[] | null => {
     if (node.nodeId === nodeId) return above;
-    const next = node.nodeType === 1 ? [node.localName, ...above] : above;
+    const next = node.nodeType === 1 ? [ancestorLabel(node), ...above] : above;
     for (const child of node.children ?? []) {
       const found = walk(child, next);
       if (found) return found;
