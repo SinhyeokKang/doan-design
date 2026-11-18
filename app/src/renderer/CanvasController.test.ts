@@ -6490,3 +6490,81 @@ describe("canvas area's left edge moves", () => {
     } finally { h.controller.dispose(); }
   });
 });
+
+// The inspector's element menu: its own request channel to the canvas script, its board mark and its pick.
+describe("the inspector's element tree", () => {
+  const harness = () => { const h = selectionHarness(); h.layout({ document: "doc" }); return h; };
+  const posted = (h: ReturnType<typeof harness>) => h.current().contentWindow.postMessage.mock.calls.map(call => call[0] as Record<string, unknown>);
+  const answer = (over: Record<string, unknown> = {}) => ({ type: "element-tree", document: "doc", seq: 1, truncated: false,
+    nodes: [{ depth: 0, name: "Hero", kind: "frame", anchor: { selector: "section", frame: "hero" }, rect: { x: 0, y: 20, width: 10, height: 10 } }], ...over });
+
+  it("a request goes to the last laid-out document on its own seq, apart from the selection's", () => {
+    const h = harness();
+    try {
+      expect(h.controller.requestElementTree()).toBe(true);
+      expect(h.controller.requestElementTree()).toBe(true);
+      expect(posted(h).filter(message => message.type === "element-tree")).toEqual([{ type: "element-tree", document: "doc", seq: 1 }, { type: "element-tree", document: "doc", seq: 2 }]);
+      // The selection's channel did not move: the next command still takes seq 1.
+      h.controller.selectElement({ selector: "#cta", doanId: "cta" });
+      expect(posted(h).at(-1)).toEqual({ type: "select-anchor", selector: "#cta", doanId: "cta", seq: 1 });
+    } finally { h.controller.dispose(); }
+  });
+
+  it("nothing is asked before a canvas has laid out", () => {
+    const h = selectionHarness();
+    try {
+      h.controller.openCanvas("/repo", h.other);
+      expect(h.controller.requestElementTree()).toBe(false);
+      expect(posted(h).some(message => message.type === "element-tree")).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("only the answer to the latest request, from the document it went to, reaches the listener; it changes no selection", () => {
+    const h = harness();
+    try {
+      const listener = vi.fn();
+      h.controller.onElementTree(listener);
+      h.controller.requestElementTree();
+      h.controller.requestElementTree();
+      h.receive(answer({ seq: 1 }));
+      h.receive(answer({ seq: 2, document: "other" }));
+      expect(listener).not.toHaveBeenCalled();
+      h.receive(answer({ seq: 2 }));
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(listener.mock.calls[0]![0]).toMatchObject({ seq: 2, document: "doc" });
+      expect(h.state()?.selection ?? null).toBeNull();
+      // A new document: the earlier request's answer no longer counts.
+      h.controller.requestElementTree();
+      h.layout({ document: "doc2" });
+      h.receive(answer({ seq: 3 }));
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a menu row's node is marked where the hover mark goes, and taken off again", () => {
+    const h = harness();
+    try {
+      h.controller.previewElement({ x: 0, y: 20, width: 10, height: 10 });
+      const mark = h.markOf("hover")!;
+      expect(mark.hidden).toBe(false);
+      const shown = { ...mark.style };
+      h.controller.previewElement(null);
+      expect(mark.hidden).toBe(true);
+      // The canvas's own hover is still the hover mark once the menu's is gone.
+      h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 20, width: 10, height: 10 } });
+      expect(mark.hidden).toBe(false);
+      expect(mark.style).toEqual(shown);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("picking a row selects that node by select-anchor, as the canvas answers it, without taking focus as a click would", () => {
+    const h = harness();
+    try {
+      h.controller.selectElement({ selector: '[data-doan-id="cta"]', doanId: "cta" });
+      expect(posted(h).at(-1)).toEqual({ type: "select-anchor", selector: '[data-doan-id="cta"]', doanId: "cta", seq: 1 });
+      h.select(1, { answer: "select-anchor" });
+      expect(h.state()?.selection).toMatchObject({ element: { doanId: "cta" } });
+      expect(h.viewport.focus).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+});
