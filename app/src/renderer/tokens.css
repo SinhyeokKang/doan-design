@@ -290,6 +290,12 @@
   --surface-accent-subtle: var(--buddy-3);
   --text-accent-subtle: var(--buddy-11);
 
+  /* Option-hover distance measurement on the canvas: Figma's measurement red, observed in the Figma editor, and fixed
+     like Figma's own (not the buddy accent), so the lines read as measurement and never as a selection. */
+  --border-measure: #e34c2c;
+  --affordance-measure: var(--border-measure);
+  --text-on-measure: var(--neutral-1);
+
   /* macOS window control artwork, drawn by drafts; fixed by the OS, not by this system. */
   --window-close: #ff5f57;
   --window-minimize: #febc2e;

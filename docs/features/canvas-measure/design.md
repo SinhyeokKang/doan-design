@@ -113,6 +113,14 @@ ARCHITECTURE §1 'Conventions'와 `doan check` 규칙은 바뀌지 않는다. �
 - **2026-10-23 'Hover stayed hidden across direct reentry and Alt focus transfer'** (`docs/postmortem/2026-10.md:780`): Alt를 누르고 떼는 일이 서로 다른 문서(앱과 캔버스 iframe)에서 일어날 수 있다. 렌더러가 자기 Alt 플래그를 따로 들고 있다가 hover가 사라졌다. 그래서 Option 상태의 근거를 `altHeld` 하나로 유지한다. Option을 캔버스 안에서 떼는 경우와 ⌘Tab 경우는 같은 실제 입력 검사(포커스를 옮기는 키 순서, 포인터 한 번에 이동)로 확인한다.
 - **2026-10-23 'Hover commands discarded pending selection replies'** (`:788`): selection과 hover/modifier의 순서 카운터를 섞지 않는다. 측정은 hover 채널만 쓰고, selection 응답을 기다리는 중에 Option을 눌러도 selection 바닥값이 움직이지 않아야 한다.
 
+## 초안
+
+- 2026-11-18에 사용자가 앱에서 초안을 확인하고 확정했다.
+- 경로와 id: `.doan/canvases/canvas-measure.html`, `canvas-measure`, 너비 1200. 생성 스크립트는 `.scratch/canvas-measure/gen.py`(커밋하지 않음)다.
+- 프레임: `separate`(01, 02), `overlap`(03, 15), `contain`(05, 11, 10), `one-axis`(04, 16, 01, 17), `labels`(14, 25), `outlines`(측정 전후 외곽선), `no-measure`(선택 없음, 선택 자신, 빈 곳), `zoom`(50·100·200%). `/design-sync`는 모든 프레임을 비교한다.
+- 라벨 모양: Doan의 caption 역할(12/16), 좌우 `--space-1`, 모서리 `--radius-inline`(4px)을 쓴다. Figma의 약 11px 글자와 약 2px 모서리를 따르지 않는다(2026-11-18 사용자 결정). 라벨과 선 사이 6px는 컴포넌트 상수다.
+- 새 토큰: `--border-measure`(#e34c2c), `--affordance-measure`, `--text-on-measure`(흰색). forced-colors에서는 `.measure`에 `forced-color-adjust: none`을 둔다.
+
 ## 읽은 디자인 preset
 
 `shape`(`doan design-skill shape --json`). 기존 화면(캔버스 overlay)에 기능을 더하는 경우라서, 시각 체계는 그대로 두고 새 상태와 상호작용만 정했다. 측정 색은 Figma와 같게 하려는 사용자 요구에 따라 accent 대신 고정 빨강을 쓴다.
