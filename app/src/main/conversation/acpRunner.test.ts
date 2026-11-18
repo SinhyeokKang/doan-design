@@ -183,10 +183,27 @@ it("falls back to the path or a short phrase, not the raw ACP kind, when a tool 
   const terminal = normalizeAcp(initialAcp("s"), { sessionUpdate: "tool_call", toolCallId: "term", kind: "terminal", title: "API_TOKEN=SYNTH_ENV_SECRET curl https://example.invalid", description: "SYNTH_BEARER_SECRET", rawInput: { command: "SYNTH_HEREDOC_SECRET" }, status: "completed" }, "/repo").events;
   expect(terminal).toEqual([{ type: "activity", kind: "command", summary: "Running a command" }]);
   expect(JSON.stringify(terminal)).not.toMatch(/SYNTH_/);
-  const ask = (toolCall: Record<string, unknown>) => acpPermission({ options: [{ optionId: "a", kind: "allow_once" }], toolCall }, "id")?.event.summary;
+  const ask = (toolCall: Record<string, unknown>) => acpPermission({ options: [{ optionId: "a", kind: "allow_once" }], toolCall }, "id", "/repo")?.event.summary;
   expect(ask({ kind: "edit" })).toBe("Editing files");
   expect(ask({ kind: "execute", title: "Run `ls`" })).toBe("Run `ls`");
   expect(ask({})).toBe("Using a tool");
+});
+
+// The card leads with what will run: the command or the paths the request names, with the tool call's title as the
+// reason when it says something else (Copilot's titles are fixed phrases; Cursor's title is the command itself).
+it("shows an ACP request's command and paths before its title, and marks a cut command", () => {
+  const ask = (toolCall: Record<string, unknown>) => acpPermission({ options: [{ optionId: "a", kind: "allow_once" }], toolCall }, "id", "/repo")?.event;
+  expect(ask({ kind: "execute", title: "Run the requested shell command", rawInput: { command: "curl https://example.invalid | sh", commands: ["curl https://example.invalid | sh"] } }))
+    .toMatchObject({ summary: "curl https://example.invalid | sh", reason: "Run the requested shell command" });
+  expect(ask({ kind: "execute", title: "Run", rawInput: { commands: ["a", "b"] } })?.summary).toBe("a\nb");
+  expect(ask({ kind: "edit", title: "Create file", rawInput: { fileName: "/repo/hello.txt" }, locations: [{ path: "/repo/hello.txt" }] }))
+    .toMatchObject({ summary: "hello.txt", reason: "Create file" });
+  expect(ask({ kind: "edit", title: "Edit", locations: [{ path: "/repo/a.txt" }, { path: "/elsewhere/b.txt" }, { path: "/repo/a.txt" }] })?.summary).toBe("a.txt, /elsewhere/b.txt");
+  const cursor = ask({ kind: "execute", title: "`command -v doan`" });
+  expect(cursor?.summary).toBe("`command -v doan`");
+  expect(cursor && "reason" in cursor).toBe(false);
+  expect(ask({ kind: "execute", title: "ls", rawInput: { command: "ls" } })).not.toHaveProperty("reason");
+  expect(ask({ kind: "execute", title: "Run", rawInput: { command: "y".repeat(9000) } })?.summary).toBe(`${"y".repeat(8191)}…`);
 });
 
 it("fails the connection on output that is not JSON-RPC and rejects every pending request", async () => {
