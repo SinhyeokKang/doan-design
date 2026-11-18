@@ -70,8 +70,9 @@ export function rowTooltip(row: RowView, cut: boolean): string[] {
   return cut ? [row.token ?? row.text, ...row.tip] : row.tip;
 }
 
-// The rows main splits by side or corner; `sides` is read on these only.
-const SPLIT_ROWS = new Set(["box:padding", "box:margin", "radius:radius"]);
+// The rows main splits by side or corner (its resolver's ROWS with `sides`; a test ties the two); `sides` is read on
+// these only.
+export const SPLIT_ROWS = new Set(["box:padding", "box:margin", "radius:radius"]);
 
 function rowView(row: InspectRow): RowView {
   const split = SPLIT_ROWS.has(rowKey(row));

@@ -56,7 +56,7 @@ let props: ConversationThreadProps;
 beforeEach(() => {
   hooks.slots = []; hooks.layout = [];
   active = body; controls = new Map(); composer = vi.fn<() => void>();
-  vi.stubGlobal("document", { get activeElement() { return active; }, body });
+  vi.stubGlobal("document", { get activeElement() { return active; }, body, hasFocus: () => true });
   vi.stubGlobal("CSS", { escape: (value: string) => value });
   props = {
     conversationId: "c1", items: [], provider: "claude", project: "acme", liveAfter: 0, canvasListed: () => true,
