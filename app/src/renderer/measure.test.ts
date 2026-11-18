@@ -87,6 +87,18 @@ describe("measureLines: overlapping or containing", () => {
   });
 });
 
+// A gap of exactly 0 on either axis draws nothing, whichever of the two is selected.
+describe("measureLines: touching", () => {
+  test.each<[string, CanvasRect, CanvasRect]>([
+    ["stacked, same width", rect(100, 100, 200, 48), rect(100, 148, 200, 48)],
+    ["stacked, different widths", rect(400, 100, 200, 48), rect(420, 148, 140, 48)],
+    ["side by side", rect(650, 100, 100, 60), rect(750, 120, 80, 40)],
+  ])("%s: no lines either way", (_name, first, second) => {
+    expectLines(first, second, []);
+    expectLines(second, first, []);
+  });
+});
+
 // The selection S is 120×60 at y 320–380, the target T is 40 high at y 200–240, 80 above. Only T's columns change.
 // Each case runs both ways: S selected and Option over T, then T selected and Option over S. A side's edge difference
 // shows when it is not zero and either the selection's edge lies strictly inside the target's columns or the target's

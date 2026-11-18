@@ -1069,6 +1069,19 @@ describe("Option-hover measurement", () => {
     } finally { h.controller.dispose(); }
   });
 
+  it("marks a touching target as measured, with no lines", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      h.key("Alt");
+      hover(h, { x: 70, y: 20, width: 40, height: 18 });
+      expect(lines(h)).toEqual([]);
+      expect(h.markOf("hover")?.hidden).toBe(false);
+      expect(outlined(h, "hover")).toBe(true);
+      expect(outlined(h, "selected")).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
   it("redraws the lines with the board on a zoom, keeping canvas px numbers", () => {
     const h = harness();
     try {

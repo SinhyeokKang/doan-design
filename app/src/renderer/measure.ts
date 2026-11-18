@@ -20,13 +20,16 @@ const spans = (rect: CanvasRect): Spans => ({ x: { start: rect.x, end: rect.x + 
 const other = (axis: Axis): Axis => (axis === "x" ? "y" : "x");
 const middle = (span: Span) => (span.start + span.end) / 2;
 const line = (axis: Axis, a: number, b: number, at: number, dashed = false): MeasureLine => ({ axis, from: Math.min(a, b), to: Math.max(a, b), at, dashed });
-// Touching edges count as overlapping: there is no gap to draw.
 const apart = (a: Span, b: Span) => a.end < b.start || b.end < a.start;
+// One edge exactly on the other's opposite edge: a gap of 0.
+const touching = (a: Span, b: Span) => a.end === b.start || b.end === a.start;
 
 // The lines Figma draws for a selection and the hovered target (the observed cases in measure.test.ts).
 export function measureLines(selected: CanvasRect, target: CanvasRect): MeasureLine[] {
   const s = spans(selected);
   const t = spans(target);
+  // Figma draws no line at all between touching targets, on either axis and whichever is selected.
+  if (touching(s.x, t.x) || touching(s.y, t.y)) return [];
   const apartX = apart(s.x, t.x);
   const apartY = apart(s.y, t.y);
   if (!apartX && !apartY) return [...insets("x", s, t), ...insets("y", s, t)];
