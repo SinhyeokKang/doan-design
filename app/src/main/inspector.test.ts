@@ -150,9 +150,14 @@ test("DOM and CSS are on only during a request", async () => {
 test("overlapping requests run one after another", async () => {
   const { dbg, docs, inspector } = setup();
   show(dbg, docs, "S1", "loader");
-  const [first, second] = await Promise.all([inspector.inspect(request()), inspector.inspect(request())]);
-  expect(first).toMatchObject({ ok: true });
-  expect(second).toMatchObject({ ok: true });
+  dbg.holdOn.add("DOM.getDocument");
+  const first = inspector.inspect(request());
+  await vi.waitFor(() => expect(dbg.held).toHaveLength(1));
+  dbg.holdOn.clear();
+  const second = inspector.inspect(request());
+  dbg.release("DOM.getDocument");
+  expect(await first).toMatchObject({ ok: true });
+  expect(await second).toMatchObject({ ok: true });
   const methods = dbg.calls.map(([method]) => method);
   expect(methods.filter((m) => m === "DOM.disable")).toHaveLength(2);
   // The second request enables only after the first has disabled.
@@ -323,9 +328,9 @@ test("a queued request that a newer one overtook runs no command and answers una
   show(dbg, docs, "S1", "loader");
   dbg.holdOn.add("CSS.getMatchedStylesForNode");
   const first = inspector.inspect({ ...request(), seq: 1 });
+  await vi.waitFor(() => expect(dbg.held).toHaveLength(1));
   const second = inspector.inspect({ ...request(), seq: 2 });
   const third = inspector.inspect({ ...request(), seq: 3 });
-  await vi.waitFor(() => expect(dbg.held).toHaveLength(1));
   dbg.holdOn.clear();
   dbg.release("CSS.getMatchedStylesForNode");
   expect(await first).toMatchObject({ ok: true });
