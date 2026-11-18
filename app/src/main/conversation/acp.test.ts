@@ -40,5 +40,5 @@ it("leaves every other shape to the permission request", () => {
   // At the limits it is still a question.
   expect(acpQuestion(asked({ toolCall: { title: "q".repeat(4096) } }, Array.from({ length: 8 }, (_, i) => ({ optionId: String(i), name: "n".repeat(511) + i, kind: "allow_once" }))), "req")?.event.questions[0]!.options).toHaveLength(8);
   // The same question-shaped request still reads as a permission where the runner does not take questions.
-  expect(acpPermission(asked(), "req")?.event).toMatchObject({ type: "permission.request", summary: "Which color should the header be?", options: [{ id: "allow" }] });
+  expect(acpPermission(asked(), "req", "/repo")?.event).toMatchObject({ type: "permission.request", summary: "Which color should the header be?", options: [{ id: "allow" }] });
 });

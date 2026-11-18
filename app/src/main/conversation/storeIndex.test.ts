@@ -492,6 +492,14 @@ describe("handoff events in event v1", () => {
     const f = seed({ "c.jsonl": line({ type: "user.message", text: "{{1}}", anchors: [] }) });
     expect(() => new ConversationStore(f.root).read("c")).toThrow("Invalid conversation event");
   });
+  it("reads a permission request's reason and an option's detail, and rejects them when they are not text", () => {
+    const ask = { type: "permission.request", requestId: "r", tool: "Bash", summary: "npm test", reason: "Run the tests", options: [{ id: "always", label: "Always", kind: "allowAlways", detail: "Adds a rule." }] };
+    expect(new ConversationStore(seed({ "c.jsonl": line(ask) }).root).read("c")).toEqual([JSON.parse(line(ask))]);
+    for (const body of [{ ...ask, reason: 1 }, { ...ask, options: [{ ...ask.options[0], detail: {} }] }]) {
+      const f = seed({ "c.jsonl": line(body) });
+      expect(() => new ConversationStore(f.root).read("c"), JSON.stringify(body)).toThrow("Invalid conversation event");
+    }
+  });
   it("rejects malformed handoff events", () => {
     const bad = [
       { type: "user.message", text: "x", anchors: [], origin: { kind: "other", conversationId: "a", canvas: origin.canvas } },
