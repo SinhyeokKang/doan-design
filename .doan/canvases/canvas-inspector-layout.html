@@ -1,0 +1,279 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="canvas-inspector-layout"><meta name="doan:width" content="1600"><title>Canvas inspector — layout</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../assets/ds-canvas.css"><link rel="stylesheet" href="../assets/canvas-page-snapshot.css"><link rel="stylesheet" href="../assets/mock.css">
+<style>
+/* ---- Draft board (not app UI) ---- */
+body { padding: var(--space-8); background: var(--surface-inset); color: var(--text-standard); font-family: var(--type-family); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.intro { max-width: 1100px; margin-bottom: var(--space-8); }
+.intro .status { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); margin-bottom: var(--space-2); }
+.intro h1 { font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium); }
+.intro h2 { margin-top: var(--space-6); font-size: var(--type-label-size); line-height: var(--type-label-line-height); font-weight: var(--type-weight-medium); }
+.intro p, .intro li { color: var(--text-subtle); }
+.intro p { margin-top: var(--space-3); }
+.intro ul { margin-top: var(--space-2); padding-left: var(--space-5); list-style: disc; display: grid; gap: var(--space-1); }
+.intro code { font-family: var(--type-family-mono); font-size: var(--type-caption-size); }
+.ctl { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
+.ctl .grp { display: inline-flex; gap: var(--space-half); padding: var(--space-half); border-radius: var(--radius-control); background: var(--affordance-backdrop-hover); }
+.ctl button { height: var(--size-control-xs); padding: 0 var(--space-3); border-radius: var(--radius-control); color: var(--text-subtle); cursor: pointer; }
+.ctl button[aria-pressed="true"] { background: var(--surface-panel); color: var(--text-standard); box-shadow: var(--shadow-panel); }
+.ctl .readout { margin-left: var(--space-2); color: var(--text-standard); font-variant-numeric: tabular-nums; }
+.stagebox { width: 1470px; transition: width var(--time-panel-enter) var(--ease-settle); box-shadow: var(--shadow-panel); }
+
+/* ---- The window (the frame). The workspace below is the shipped canvas page copied from a built app. ---- */
+.doan-window { position: relative; width: 100%; height: 920px; overflow: hidden; --doan-sidebar-width: 220px; }
+/* macOS draws the traffic lights over the hidden-inset title bar; drawn here only so the header reads as the app's. */
+.mock-lights { position: absolute; z-index: 5; top: 22px; left: 16px; display: flex; gap: var(--space-2); }
+.mock-lights i { width: var(--space-3); height: var(--space-3); border-radius: 50%; }
+.mock-lights i:nth-child(1) { background: var(--mock-light-close); }
+.mock-lights i:nth-child(2) { background: var(--mock-light-minimize); }
+.mock-lights i:nth-child(3) { background: var(--mock-light-zoom); }
+
+/* ---- New: the inspector column, a fourth grid column between the board and the conversation. ---- */
+.doan-window .workspace.app-shell { grid-template-columns: var(--doan-sidebar-width) minmax(0, 1fr) var(--doan-inspector-width) var(--doan-right-width); }
+.doan-window[data-sidebar="hidden"] .workspace.app-shell { grid-template-columns: 0px minmax(0, 1fr) var(--doan-inspector-width) var(--doan-right-width); }
+.doan-window .workspace > .doan-insp-column { grid-column: 3; grid-row: 2; position: relative; display: flex; min-width: 0; min-height: 0; }
+.doan-window .workspace > .doan-conv-column, .doan-window[data-sidebar="hidden"] .workspace > .doan-conv-column { grid-column: 4; grid-row: 2; }
+/* Folded, a column keeps its node but leaves the page once it has closed, as the conversation column does. */
+.doan-insp-column[data-collapsed] { visibility: hidden; }
+.workspace[data-panel-motion] > .doan-insp-column[data-collapsed] { transition: visibility 0s linear var(--time-panel-enter); }
+.workspace.app-shell[data-panel-motion] { transition: grid-template-columns var(--time-panel-enter) var(--ease-settle); }
+/* The white panel's right corners belong to whichever column is last: the conversation, the inspector, or the canvas. */
+.right.doan-insp-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 0; overflow: hidden; }
+.workspace[data-conv="collapsed"] .right.doan-insp-panel { border-radius: 0 var(--radius-container) var(--radius-container) 0; }
+.workspace[data-conv="collapsed"][data-insp="collapsed"] > .doan-canvas-panel { border-top-right-radius: var(--radius-container); border-bottom-right-radius: var(--radius-container); }
+/* The title sits where the conversation's title-menu label does (16 from the edge); .rp-head's shipped type. */
+.doan-insp-head .rp-head { flex: 1; min-width: 0; display: flex; align-items: center; padding: var(--space-2) var(--space-4); font: var(--type-weight-medium) var(--type-label-sm-size) / var(--type-label-sm-line-height) var(--type-family); letter-spacing: var(--type-label-sm-letter-spacing); }
+.doan-insp-content { flex: 1; min-height: 0; }
+
+/* ---- Mock canvas document on the board (example content the person designs; colours from mock.css). ---- */
+.board { cursor: default; }
+.doan-window[data-tool="hand"] .area, .doan-window[data-space] .area { cursor: grab; }
+.doan-window[data-panning] .area { cursor: grabbing; }
+.mock-doc { position: relative; width: 1000px; height: 800px; padding: 40px; }
+.mock-frame { display: flex; flex-direction: column; gap: 16px; width: 390px; height: 720px; padding: 24px; background: var(--mock-bg); color: var(--mock-ink); font: 400 15px/22px var(--type-family); }
+.mf-head { display: flex; align-items: center; gap: 12px; padding-bottom: 8px; }
+.mf-back { width: 32px; height: 32px; border-radius: 50%; background: var(--mock-fill); }
+.mf-head h1 { font-size: 22px; line-height: 28px; font-weight: 600; }
+.mf-total { display: flex; justify-content: space-between; align-items: center; padding: 16px; border-radius: 12px; background: var(--mock-fill); }
+.mf-total span { color: var(--mock-ink-2); }
+.mf-total b { font-size: 20px; font-weight: 600; }
+.mf-field { display: flex; flex-direction: column; gap: 6px; }
+.mf-field span { font-size: 13px; line-height: 18px; color: var(--mock-ink-2); }
+.mf-field i { font-style: normal; height: 48px; padding: 0 14px; display: flex; align-items: center; border-radius: 10px; box-shadow: inset 0 0 0 1px var(--mock-line); }
+.mf-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.mf-pay { height: 52px; margin-top: 8px; border-radius: 10px; background: var(--mock-brand); color: var(--mock-brand-ink); font: 600 16px/22px var(--type-family); }
+.mf-note { margin-top: auto; text-align: center; font-size: 12px; line-height: 16px; color: var(--mock-ink-2); }
+</style></head><body>
+
+<header class="intro" data-doan-id="intro">
+  <div class="status">Draft · layout exploration · not in code · no feature documents yet</div>
+  <h1>Canvas inspector — a column between the board and the conversation</h1>
+  <p>A read-only Inspector gets its own column on the canvas page, left of the conversation. It opens, folds and resizes as the conversation panel does, so the thread keeps the column's full height. The inspector's contents are not drawn: it is empty while something is selected, and shows its empty state while nothing is.</p>
+  <h2>How to try it</h2>
+  <ul>
+    <li>Play the frame (marked 1470 × 920, a 13" MacBook Air's default size) or Option-click on the board. On the board, the controls above the frame set the window width and read the board's width; they are not app UI.</li>
+    <li>Select: the first click in the Payment frame selects the frame, the next one the element under the pointer; Esc steps back; a click on empty board clears. Hand (H) or holding Space drags the board; − / + zoom.</li>
+    <li>Hide inspector / Show inspector, Hide conversation / Show conversation and Hide sidebar (⌘B) fold and unfold with the shipped 180 ms motion. Drag a column's edge to resize it; a double-click on the edge restores the default.</li>
+  </ul>
+  <h2>Proposed, to settle in the feature</h2>
+  <ul>
+    <li>The inspector opens and closes only by the person, and its shown or hidden state and width are remembered on this device for every canvas, as the conversation panel's are.</li>
+    <li>While hidden, Show inspector sits at the end of the canvas header after the divider, before Show conversation; Hide inspector sits in the inspector's own head.</li>
+    <li>Icons: with two right panels, the header's Show buttons name what they open instead of a panel shape: Show conversation changes from lucide <code>panel-right-open</code> (shipped) to <code>message-square</code>, Show inspector takes <code>sliders-horizontal</code>. Each panel's Hide keeps <code>panel-right-close</code>, since it sits in the panel it closes.</li>
+    <li>Width: 280 by default and at least 280; at most what leaves the board 360 beside the conversation's width, the rule the conversation panel already follows. Empty state copy: “Select a frame or element on the canvas to see its properties.”</li>
+  </ul>
+  <h2>Copied from shipped screens</h2>
+  <ul>
+    <li>The window is the canvas page's DOM captured from a built app (develop at the commit in <code>.doan/assets/canvas-page-snapshot.css</code>) at 1470 × 920, with the CSS rules it matched in that stylesheet: header, sidebar and its resize handle, canvas header, tools row, selection marks and size bubble, conversation panel and its resize handle, thread and composer. Resize limits follow PRODUCT §5 (sidebar 180–360, default 220; conversation at least 280, default max(320px, 28 % of the window), at most min(50 %, what leaves the board 360)).</li>
+    <li>Changed for the mock: the conversation shows a thread with an agent ready (Claude Code, Opus 5.5) in place of the capture's new conversation with no agent; the board's iframe is replaced by the canvas document drawn in place; the docked buddy and tooltips are left out; the traffic lights are drawn.</li>
+  </ul>
+</header>
+
+<div class="ctl" data-doan-id="draft-controls">
+  <span>Window</span><span class="grp"><button type="button" data-w="1280">1280</button><button type="button" data-w="1470" aria-pressed="true">1470 · 13"</button><button type="button" data-w="1512">1512 · 14"</button></span>
+  <span class="readout"></span><span>Draft controls, not app UI.</span>
+</div>
+<div class="stagebox">
+<div class="doan-window" data-doan-frame="inspector-column" data-doan-title="Canvas page with the inspector column" data-doan-prototype="1470x920" data-sidebar="shown" data-tool="select" tabindex="-1">
+<main class="app-shell workspace" data-doan-id="workspace" style="--doan-right-width: 412px; --doan-inspector-width: 280px;"><header class="top shell-top"><span class="traffic-space" aria-hidden="true"></span><div class="shell-history"><button class="doan-icon-button shell-sidebar-toggle" data-ui-placement="chrome" aria-label="Hide sidebar" aria-expanded="true" aria-controls="doan-workspace-sidebar"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-close lucide-sidebar-close" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path><path d="m16 15-3-3 3-3"></path></svg></button><button class="doan-icon-button" data-ui-placement="chrome" aria-label="Back" aria-disabled="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left" aria-hidden="true"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></svg></button><button class="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" aria-disabled="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></button></div><div class="shell-modes"><button><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Add Projects</button><button class="current" aria-current="page"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-grid" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"></rect><rect width="7" height="7" x="14" y="3" rx="1"></rect><rect width="7" height="7" x="14" y="14" rx="1"></rect><rect width="7" height="7" x="3" y="14" rx="1"></rect></svg>Projects</button><button><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"></path><circle cx="12" cy="12" r="3"></circle></svg>Settings</button></div><span class="update-anchor"></span></header><aside class="side shell-side" id="doan-workspace-sidebar" aria-label="Projects"><button class="shell-search"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" aria-hidden="true"><path d="m21 21-4.34-4.34"></path><circle cx="11" cy="11" r="8"></circle></svg>Search</button><button type="button" class="shell-home-row row"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-house lucide-home" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"></path><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span>Home</span></button><div class="shell-projects doan-scroll"><h2 class="shell-projects-heading">Projects</h2><div role="tree" aria-label="Projects and canvases"><div class="shell-project"><div class="shell-project-row row" role="treeitem" data-key="/private/var/folders/3q/sr52cksn1ps_1q74ppwr3kjm0000gn/T/doan-insp-qGbuUW/shop-web/.git" aria-label="shop-web" aria-level="1" aria-expanded="true" tabindex="0"><span class="shell-lead"><span class="shell-thumbnail hue-teal" aria-hidden="true">S</span><button type="button" class="shell-disclosure" aria-label="Collapse shop-web" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></span><span class="shell-project-name">shop-web</span><span class="doan-chip shell-branch" data-ui-variant="translucent"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-git-branch" aria-hidden="true"><path d="M15 6a9 9 0 0 0-9 9V3"></path><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle></svg><span>main</span></span><button class="doan-icon-button shell-more" aria-label="shop-web menu" tabindex="0" type="button" aria-haspopup="menu" aria-expanded="false"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ellipsis lucide-more-horizontal" aria-hidden="true"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg></button></div><div role="group"><div class="shell-group"><div class="shell-group-head row" role="treeitem" data-key="/private/var/folders/3q/sr52cksn1ps_1q74ppwr3kjm0000gn/T/doan-insp-qGbuUW/shop-web
+#ds" aria-label="Design system" aria-describedby="_r_p_-0-ds" aria-level="2" aria-expanded="true" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg><span class="shell-group-label">Design system</span><span class="doan-chip shell-group-count" data-ui-variant="translucent" aria-hidden="true">0</span><span id="_r_p_-0-ds" class="sr-only">0 canvases</span></div><div role="group"><p class="shell-empty">No design system yet</p></div></div><div class="shell-group"><div class="shell-group-head row" role="treeitem" data-key="/private/var/folders/3q/sr52cksn1ps_1q74ppwr3kjm0000gn/T/doan-insp-qGbuUW/shop-web
+#canvases" aria-label="Canvases" aria-describedby="_r_p_-0-canvases" aria-level="2" aria-expanded="true" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg><span class="shell-group-label">Canvases</span><span class="doan-chip shell-group-count" data-ui-variant="translucent" aria-hidden="true">4</span><span id="_r_p_-0-canvases" class="sr-only">4 canvases</span></div><div role="group"><div><div class="shell-canvas-row row" aria-label="settings-redesign" data-key="/private/var/folders/3q/sr52cksn1ps_1q74ppwr3kjm0000gn/T/doan-insp-qGbuUW/shop-web
+.doan/canvases/settings-redesign.html" role="treeitem" aria-level="3" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panels-top-left lucide-layout" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></svg><span>settings-redesign</span><button class="doan-icon-button shell-more" aria-label="settings-redesign menu" tabindex="-1" type="button" aria-haspopup="menu" aria-expanded="false"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ellipsis lucide-more-horizontal" aria-hidden="true"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg></button></div></div><div><div class="shell-canvas-row row" aria-label="order-history" data-key="/private/var/folders/3q/sr52cksn1ps_1q74ppwr3kjm0000gn/T/doan-insp-qGbuUW/shop-web
+.doan/canvases/order-history.html" role="treeitem" aria-level="3" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panels-top-left lucide-layout" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></svg><span>order-history</span><button class="doan-icon-button shell-more" aria-label="order-history menu" tabindex="-1" type="button" aria-haspopup="menu" aria-expanded="false"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ellipsis lucide-more-horizontal" aria-hidden="true"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg></button></div></div><div><div class="shell-canvas-row row" aria-label="payment-form" data-key="/private/var/folders/3q/sr52cksn1ps_1q74ppwr3kjm0000gn/T/doan-insp-qGbuUW/shop-web
+.doan/canvases/payment-form.html" role="treeitem" aria-level="3" aria-current="location" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panels-top-left lucide-layout" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></svg><span>payment-form</span><button class="doan-icon-button shell-more" aria-label="payment-form menu" tabindex="-1" type="button" aria-haspopup="menu" aria-expanded="false"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ellipsis lucide-more-horizontal" aria-hidden="true"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg></button></div></div><div><div class="shell-canvas-row row" aria-label="checkout-flow" data-key="/private/var/folders/3q/sr52cksn1ps_1q74ppwr3kjm0000gn/T/doan-insp-qGbuUW/shop-web
+.doan/canvases/checkout-flow.html" role="treeitem" aria-level="3" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panels-top-left lucide-layout" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></svg><span>checkout-flow</span><button class="doan-icon-button shell-more" aria-label="checkout-flow menu" tabindex="-1" type="button" aria-haspopup="menu" aria-expanded="false"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ellipsis lucide-more-horizontal" aria-hidden="true"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg></button></div></div></div></div></div></div></div></div></aside><div class="doan-panel-handle doan-sidebar-handle" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" aria-valuenow="220" aria-valuemin="180" aria-valuemax="360" tabindex="0"></div><div class="doan-canvas-panel"><header class="ov-head doan-canvas-head"><span class="doan-canvas-name"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panels-top-left lucide-layout" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></svg><span>payment-form</span></span><span class="ov-sep" aria-hidden="true">/</span><span class="ov-title-wrap"><button type="button" class="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="listbox" aria-label="Frame 1: Payment" aria-expanded="false"><span>1. Payment</span><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></span><div class="doan-canvas-head-tools"><span class="doan-canvas-zoom"><button type="button" class="doan-icon-button" aria-label="Zoom out"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-minus" aria-hidden="true"><path d="M5 12h14"></path></svg></button><button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label="Zoom 75%, zoom options" aria-haspopup="menu" aria-expanded="false">75%<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button><button type="button" class="doan-icon-button" aria-label="Zoom in"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button></span><button type="button" class="doan-icon-button" aria-label="Reload canvas"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rotate-cw" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path></svg></button><span class="doan-canvas-head-sep" aria-hidden="true" hidden></span><button type="button" class="doan-icon-button doan-panel-show doan-insp-show" data-doan-id="show-inspector" aria-label="Show inspector" aria-expanded="false" aria-controls="doan-inspector-panel" title="Show inspector" hidden><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sliders-horizontal" aria-hidden="true"><path d="M10 5H3"></path><path d="M12 19H3"></path><path d="M14 3v4"></path><path d="M16 17v4"></path><path d="M21 12h-9"></path><path d="M21 19h-5"></path><path d="M21 5h-7"></path><path d="M8 10v4"></path><path d="M8 12H3"></path></svg></button><button type="button" class="doan-icon-button doan-panel-show doan-conv-show" data-doan-id="show-conversation" title="Show conversation" hidden aria-label="Show conversation" aria-expanded="false" aria-controls="doan-conversation-panel"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-message-square" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></button></div></header><section class="area" role="region" aria-label="Canvas" tabindex="-1"><div class="board" style="transform: translate(32px, 80px) scale(0.75);"><div class="mock-doc">
+  <section class="mock-frame" data-doan-id="board-frame" data-name="Payment">
+    <header class="mf-head" data-name="Header"><span class="mf-back"></span><h1>Payment</h1></header>
+    <div class="mf-total" data-name="Order total"><span>Order total</span><b>$48.00</b></div>
+    <label class="mf-field" data-name="Card number"><span>Card number</span><i>4242 4242 4242 4242</i></label>
+    <div class="mf-row" data-name="Card details">
+      <label class="mf-field" data-name="Expiry"><span>Expiry</span><i>08 / 28</i></label>
+      <label class="mf-field" data-name="CVC"><span>CVC</span><i>123</i></label>
+    </div>
+    <label class="mf-field" data-name="Name on card"><span>Name on card</span><i>Jamie Park</i></label>
+    <button type="button" class="mf-pay" data-name="Pay button">Pay $48.00</button>
+    <p class="mf-note" data-name="Secure note">Payments are encrypted and processed securely.</p>
+  </section></div></div><div class="overlay"><div class="mark hover" hidden></div><div class="mark selected" hidden><div class="dims"><span>390 × 720</span><span class="bubble-host"><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Add to message"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-crosshair" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="22" x2="18" y1="12" y2="12"></line><line x1="6" x2="2" y1="12" y2="12"></line><line x1="12" x2="12" y1="6" y2="2"></line><line x1="12" x2="12" y1="22" y2="18"></line></svg></button></span></div></div></div><div class="drag-layer" hidden=""></div><div class="doan-canvas-top"></div><div class="doan-canvas-bottom"><div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools"><button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Select" aria-keyshortcuts="V" tabindex="0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mouse-pointer-2" aria-hidden="true"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"></path></svg></button><button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Hand" aria-keyshortcuts="H" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hand" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"></path><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"></path><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"></path><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"></path></svg></button><button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Pick from canvas" aria-keyshortcuts="Meta+L" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-crosshair" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="22" x2="18" y1="12" y2="12"></line><line x1="6" x2="2" y1="12" y2="12"></line><line x1="12" x2="12" y1="6" y2="2"></line><line x1="12" x2="12" y1="22" y2="18"></line></svg></button><button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Capture area" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scan" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path></svg></button><span class="doan-canvas-tools-sep" role="separator" aria-orientation="vertical"></span><button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Play prototype" tabindex="-1" aria-describedby="canvas-play-reason" aria-disabled="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"></path></svg></button><span class="sr-only" id="canvas-play-reason">No frames in this canvas are marked for prototyping.</span><button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export canvas" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download" aria-hidden="true"><path d="M12 15V3"></path><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="m7 10 5 5 5-5"></path></svg></button></div></div></section></div><div class="doan-insp-column" data-doan-id="inspector-column"><div class="doan-panel-handle" role="separator" aria-orientation="vertical" aria-label="Resize inspector" aria-valuenow="280" aria-valuemin="280" tabindex="0"></div><aside class="right ov-right doan-insp-panel" id="doan-inspector-panel" role="region" aria-label="Inspector" data-doan-id="inspector-panel"><div class="doan-conv-head doan-insp-head"><span class="rp-head doan-insp-title">Inspector</span><button type="button" class="doan-icon-button doan-panel-hide doan-insp-hide" data-doan-id="hide-inspector" aria-label="Hide inspector" aria-expanded="true" aria-controls="doan-inspector-panel" title="Hide inspector"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-right-close" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M15 3v18"></path><path d="m8 9 3 3-3 3"></path></svg></button></div><div class="doan-conv-body doan-insp-empty" data-doan-id="inspector-empty"><p class="doan-conv-empty">Select a frame or element on the canvas to see its properties.</p></div><div class="doan-insp-content" data-doan-id="inspector-content" hidden></div></aside></div><div class="doan-conv-column" data-doan-id="conversation-column"><div class="doan-panel-handle" role="separator" aria-orientation="vertical" aria-label="Resize conversation panel" aria-valuenow="412" aria-valuemin="280" aria-valuemax="735" tabindex="0"></div><aside class="right ov-right doan-conv-panel" id="doan-conversation-panel" role="region" aria-label="Conversation"><div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="menu" aria-expanded="false"><span>Tighten the payment form</span><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></span><button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation" title="New conversation"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square-pen lucide-pen-box lucide-edit lucide-pen-square" aria-hidden="true"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"></path></svg></button><button type="button" class="doan-icon-button doan-panel-hide" aria-label="Hide conversation" aria-expanded="true" aria-controls="doan-conversation-panel"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-right-close" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M15 3v18"></path><path d="m8 9 3 3-3 3"></path></svg></button></div><div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll doan-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble">Make the pay button full width and move it under the card fields.</div></div></div>
+<div class="thread-item"><div class="activity"><button type="button" class="activity-head" aria-expanded="false"><span>Edited payment-form.html</span><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></div></div>
+<div class="thread-item"><div class="msg-agent md"><p>Done. The pay button now spans the form and sits 24px under the name field. I also matched its corner radius to the fields.</p></div></div>
+<div class="thread-item"><div class="msg-user"><div class="bubble">The card fields feel cramped. Can you check the spacing?</div></div></div>
+<div class="thread-item"><div class="activity"><button type="button" class="activity-head" aria-expanded="false"><span>Read 1 file, edited payment-form.html</span><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></div></div>
+<div class="thread-item"><div class="msg-agent md"><p>I changed the spacing in the <strong>Payment</strong> frame:</p><ul><li>Fields now sit 16px apart, up from 8px.</li><li>Expiry and CVC share one row with a 12px gap.</li><li>Labels sit 6px above each field.</li></ul><p>Tell me if you want the order total to stand out more.</p></div></div>
+</div></div></div></div><div class="cp-foot"><div class="docked" data-shape="capsule"><div class="queue-schedule" role="status"></div><div class="composer-card"><div class="composer-input doan-scroll" aria-label="Message" tabindex="0" contenteditable="true" aria-placeholder="Ask, / for presets" role="textbox" aria-multiline="true" data-chip-field="" data-empty="" style=""></div><div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets" aria-haspopup="dialog" aria-expanded="false"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pencil-sparkles" aria-hidden="true"><path d="M10 3H8"></path><path d="m15.007 5.008 3.987 3.986"></path><path d="M20 15v4"></path><path d="M21.174 6.813a2.82 2.82 0 0 0-3.986-3.987L3.842 16.175a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path><path d="M22 17h-4"></path><path d="M4 5v4"></path><path d="M6 7H2"></path><path d="M9 2v2"></path></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" aria-disabled="true" data-disabled=""><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up" aria-hidden="true"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg></button></div></div><div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-crosshair" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="22" x2="18" y1="12" y2="12"></line><line x1="6" x2="2" y1="12" y2="12"></line><line x1="12" x2="12" y1="6" y2="2"></line><line x1="12" x2="12" y1="22" y2="18"></line></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Agent: Claude Code, model Opus 5.5" aria-haspopup="menu" aria-expanded="false"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></div></div></div></div></div></aside></div></main>
+</div>
+</div>
+
+<script>
+(() => {
+  const win = document.querySelector(".doan-window");
+  const ws = win.querySelector(".workspace");
+  const q = s => win.querySelector(s);
+  const SIDE_OPEN = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-open lucide-sidebar-open" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path><path d="m14 9 3 3-3 3"></path></svg>`, SIDE_CLOSE = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-close lucide-sidebar-close" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path><path d="m16 15-3-3 3-3"></path></svg>`;
+  // Lights go where macOS draws them.
+  win.insertAdjacentHTML("afterbegin", '<span class="mock-lights" aria-hidden="true"><i></i><i></i><i></i></span>');
+  // The page lives inside a scaled board while on the canvas: read lengths in the frame's own px.
+  const unit = () => win.getBoundingClientRect().width / win.offsetWidth || 1;
+  const W = () => win.offsetWidth;
+
+  // ---- Widths and folding ----
+  const st = { side: 220, insp: 280, conv: null, sideOn: true, inspOn: true, convOn: true };
+  const convDefault = () => Math.max(320, Math.round(0.28 * W()));
+  const bodyW = () => W() - 16; // the shell's 8 px side padding
+  const sideW = () => st.sideOn ? st.side + 8 : 0; // the canvas panel's 8 px gap after the sidebar
+  const convMax = () => Math.max(280, Math.min(Math.round(W() / 2), bodyW() - sideW() - (st.inspOn ? st.insp : 0) - 360));
+  const inspMax = () => Math.max(280, bodyW() - sideW() - (st.convOn ? (st.conv ?? convDefault()) : 0) - 360);
+  const apply = () => {
+    const conv = Math.min(st.conv ?? convDefault(), convMax()), insp = Math.min(st.insp, inspMax());
+    win.style.setProperty("--doan-sidebar-width", st.side + "px");
+    win.dataset.sidebar = st.sideOn ? "shown" : "hidden";
+    ws.style.setProperty("--doan-right-width", st.convOn ? conv + "px" : "0px");
+    ws.style.setProperty("--doan-inspector-width", st.inspOn ? insp + "px" : "0px");
+    ws.dataset.conv = st.convOn ? "open" : "collapsed";
+    ws.dataset.insp = st.inspOn ? "open" : "collapsed";
+    if (!st.convOn && !st.inspOn) ws.dataset.panel = "collapsed"; else delete ws.dataset.panel;
+    q(".doan-conv-column").toggleAttribute("data-collapsed", !st.convOn); q(".doan-conv-column").toggleAttribute("inert", !st.convOn);
+    q(".doan-insp-column").toggleAttribute("data-collapsed", !st.inspOn); q(".doan-insp-column").toggleAttribute("inert", !st.inspOn);
+    q(".doan-insp-show").hidden = st.inspOn; q(".doan-conv-show").hidden = st.convOn;
+    q(".doan-canvas-head-sep").hidden = st.inspOn && st.convOn;
+    const toggle = q(".shell-sidebar-toggle");
+    toggle.setAttribute("aria-label", st.sideOn ? "Hide sidebar" : "Show sidebar"); toggle.setAttribute("aria-expanded", String(st.sideOn));
+    toggle.innerHTML = st.sideOn ? SIDE_CLOSE : SIDE_OPEN;
+    const [hs, hi, hc] = [q(".doan-sidebar-handle"), q(".doan-insp-column > .doan-panel-handle"), q(".doan-conv-column > .doan-panel-handle")];
+    hs.setAttribute("aria-valuenow", st.side);
+    hi.setAttribute("aria-valuenow", insp); hi.setAttribute("aria-valuemax", inspMax());
+    hc.setAttribute("aria-valuenow", conv); hc.setAttribute("aria-valuemax", convMax());
+    readout();
+  };
+  // Only folding animates; a drag must not, or the edge trails the pointer.
+  const animated = fn => { ws.setAttribute("data-panel-motion", ""); win.setAttribute("data-sidebar-motion", ""); fn(); apply(); follow(); clearTimeout(animated.t); animated.t = setTimeout(() => { ws.removeAttribute("data-panel-motion"); win.removeAttribute("data-sidebar-motion"); }, 220); };
+  q(".doan-insp-hide").onclick = () => animated(() => { st.inspOn = false; });
+  q(".doan-insp-show").onclick = () => animated(() => { st.inspOn = true; });
+  q(".doan-panel-hide:not(.doan-insp-hide)").onclick = () => animated(() => { st.convOn = false; });
+  q(".doan-conv-show").onclick = () => animated(() => { st.convOn = true; });
+  q(".shell-sidebar-toggle").onclick = () => animated(() => { st.sideOn = !st.sideOn; });
+
+  // ---- Resize handles: pointer drag, double-click restores the default, arrow keys step 16 ----
+  const handle = (el, get, set, sign, reset) => {
+    el.onpointerenter = () => { if (!el.dataset.uiState) el.dataset.uiState = "hover"; };
+    el.onpointerleave = () => { if (el.dataset.uiState === "hover") delete el.dataset.uiState; };
+    el.onpointerdown = e => {
+      if (e.button !== 0) return; e.preventDefault(); el.setPointerCapture(e.pointerId); el.dataset.uiState = "drag";
+      const cover = document.createElement("div"); cover.className = "doan-resize-cover"; document.body.append(cover);
+      const x0 = e.clientX, w0 = get();
+      el.onpointermove = m => { set(w0 + sign * (m.clientX - x0) / unit()); apply(); };
+      el.onpointerup = () => { el.onpointermove = null; el.onpointerup = null; cover.remove(); delete el.dataset.uiState; apply(); };
+    };
+    el.ondblclick = () => { reset(); apply(); };
+    el.onkeydown = e => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); set(get() + (e.key === "ArrowRight" ? 16 : -16) * sign); apply(); } };
+  };
+  const clamp = (v, lo, hi) => Math.round(Math.max(lo, Math.min(hi, v)));
+  handle(q(".doan-sidebar-handle"), () => st.side, v => { st.side = clamp(v, 180, 360); }, 1, () => { st.side = 220; });
+  handle(q(".doan-insp-column > .doan-panel-handle"), () => Math.min(st.insp, inspMax()), v => { st.insp = clamp(v, 280, inspMax()); }, -1, () => { st.insp = 280; });
+  handle(q(".doan-conv-column > .doan-panel-handle"), () => Math.min(st.conv ?? convDefault(), convMax()), v => { st.conv = clamp(v, 280, convMax()); }, -1, () => { st.conv = null; });
+
+  // ---- Board: pan and zoom ----
+  const area = q(".area"), board = q(".board"), view = { x: 32, y: 80, s: 0.75 };
+  const zooms = [0.25, 0.5, 0.75, 1, 1.5, 2];
+  const zoomLabel = q(".doan-zoom-value") || [...win.querySelectorAll(".doan-canvas-head-tools button")].find(b => /%/.test(b.textContent));
+  const place = () => { board.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.s})`; if (zoomLabel) { const t = zoomLabel.querySelector("span") || zoomLabel.firstChild; t.textContent = `${Math.round(view.s * 100)}%`; zoomLabel.setAttribute("aria-label", `Zoom ${Math.round(view.s * 100)}%, zoom options`); } follow(); };
+  const zoomBy = dir => {
+    const i = zooms.indexOf(view.s), next = zooms[Math.max(0, Math.min(zooms.length - 1, i + dir))];
+    const cx = area.offsetWidth / 2, cy = area.offsetHeight / 2;
+    view.x = cx - (cx - view.x) * next / view.s; view.y = cy - (cy - view.y) * next / view.s; view.s = next; place();
+  };
+  q('[aria-label="Zoom out"]').onclick = () => zoomBy(-1);
+  q('[aria-label="Zoom in"]').onclick = () => zoomBy(1);
+  const tools = [...win.querySelectorAll(".doan-canvas-tool")];
+  const setTool = name => { win.dataset.tool = name; for (const t of tools) if (/^(Select|Hand)$/.test(t.getAttribute("aria-label"))) t.setAttribute("aria-pressed", String(t.getAttribute("aria-label").toLowerCase() === name)); if (name === "hand") select(null); };
+  for (const t of tools) { const n = t.getAttribute("aria-label"); if (n === "Select" || n === "Hand") t.onclick = () => setTool(n.toLowerCase()); }
+  let pan = null;
+  area.addEventListener("pointerdown", e => {
+    if (e.button !== 0 || e.target.closest(".doan-canvas-bottom, .doan-canvas-top, .dims")) return;
+    if (win.dataset.tool === "hand" || win.hasAttribute("data-space")) {
+      pan = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }; area.setPointerCapture(e.pointerId); win.setAttribute("data-panning", ""); e.preventDefault();
+    }
+  });
+  area.addEventListener("pointermove", e => {
+    if (pan) { view.x = pan.vx + (e.clientX - pan.x) / unit(); view.y = pan.vy + (e.clientY - pan.y) / unit(); place(); return; }
+    hover(target(e));
+  });
+  area.addEventListener("pointerup", () => { if (pan) { pan = null; win.removeAttribute("data-panning"); } });
+  area.addEventListener("pointerleave", () => hover(null));
+
+  // ---- Selection: frame first, then one level in per click (PRODUCT §5 item 4) ----
+  const frame = q(".mock-frame");
+  let selected = null;
+  const target = e => {
+    if (win.dataset.tool !== "select" || win.hasAttribute("data-space")) return null;
+    const el = e.target.closest("[data-name]"); if (!el || !frame.contains(el)) return null;
+    const path = []; for (let n = el; n && frame.contains(n); n = n.parentElement?.closest("[data-name]")) path.unshift(n);
+    if (!selected || !frame.contains(selected)) return frame;
+    // Keep what contains both the selection and the pointer, then go one level in toward the pointer.
+    let i = path.length - 1; while (i > 0 && !path[i].contains(selected)) i--;
+    return path[Math.min(i + 1, path.length - 1)];
+  };
+  const markHover = q(".mark.hover"), markSel = q(".mark.selected"), dims = markSel.querySelector(".dims > span");
+  const box = (mark, el) => {
+    const a = area.getBoundingClientRect(), r = el.getBoundingClientRect(), u = unit();
+    Object.assign(mark.style, { left: (r.left - a.left) / u + "px", top: (r.top - a.top) / u + "px", width: r.width / u + "px", height: r.height / u + "px" });
+  };
+  let hovered = null;
+  const hover = el => { hovered = el && el !== selected ? el : null; markHover.hidden = !hovered; if (hovered) box(markHover, hovered); };
+  const select = el => {
+    selected = el; markSel.hidden = !el;
+    if (el) { box(markSel, el); dims.textContent = `${Math.round(el.offsetWidth)} × ${Math.round(el.offsetHeight)}`; }
+    q(".doan-insp-empty").hidden = !!el; q(".doan-insp-content").hidden = !el;
+    hover(null);
+  };
+  const follow = () => { requestAnimationFrame(() => { if (selected) box(markSel, selected); if (hovered) box(markHover, hovered); readout(); }); };
+  area.addEventListener("click", e => {
+    if (pan || win.dataset.tool !== "select" || win.hasAttribute("data-space") || e.target.closest(".doan-canvas-bottom, .doan-canvas-top, .dims")) return;
+    select(target(e));
+  });
+  win.addEventListener("keydown", e => {
+    if (e.key === "Escape" && selected) { const up = selected === frame ? null : selected.parentElement.closest("[data-name]"); select(up && frame.contains(up) ? up : (selected === frame ? null : frame)); }
+    if (e.key === " " && !e.repeat) { win.setAttribute("data-space", ""); e.preventDefault(); }
+    if (e.key === "b" && e.metaKey) { e.preventDefault(); q(".shell-sidebar-toggle").click(); }
+    if (e.key === "h" && !e.metaKey) setTool("hand");
+    if (e.key === "v" && !e.metaKey) setTool("select");
+  });
+  win.addEventListener("keyup", e => { if (e.key === " ") win.removeAttribute("data-space"); });
+  win.addEventListener("pointerdown", e => { if (!e.target.closest("input, textarea, [contenteditable]")) win.focus({ preventScroll: true }); });
+  // Folding animates the columns: keep the marks on the element through the transition.
+  ws.addEventListener("transitionend", follow);
+  new ResizeObserver(() => { apply(); follow(); }).observe(win);
+
+  // ---- Draft controls (outside the frame) ----
+  const stage = document.querySelector(".stagebox");
+  function readout() {
+    const out = document.querySelector(".ctl .readout"); if (!out) return;
+    out.textContent = `Window ${W()}px · board ${Math.round(area.getBoundingClientRect().width / unit())}px`;
+  }
+  for (const b of document.querySelectorAll(".ctl [data-w]")) b.onclick = () => {
+    for (const o of document.querySelectorAll(".ctl [data-w]")) o.setAttribute("aria-pressed", String(o === b));
+    stage.style.width = b.dataset.w + "px"; const t0 = performance.now(); const step = () => { apply(); follow(); if (performance.now() - t0 < 400) requestAnimationFrame(step); }; step();
+  };
+  apply(); place();
+})();
+</script>
+</body></html>
