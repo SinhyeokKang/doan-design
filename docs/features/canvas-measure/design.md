@@ -39,7 +39,7 @@
 - 측정 중에는 선택과 대상 모두 바깥 1px 파란 외곽선 안쪽에 빨간 1px 선이 붙는다. 측정이 아닐 때 hover 외곽선은 파란 2px다.
 - 선택이 있으면 Option과 관계없이 선택에서 부모 프레임 위·왼쪽 변까지 파란 점선이 나온다(00에도 있음). 이 점선은 측정이 아니라 Figma의 다른 표시이므로 이번 범위에 넣지 않는다.
 
-확인하지 않은 것: 줌 100%가 아닐 때의 선 두께·라벨 크기, 라벨이 화면 밖으로 나갈 때의 위치, 매우 짧은 선(라벨보다 짧은 간격)에서 라벨 위치.
+확인하지 않은 것: 줌 100%가 아닐 때의 선 두께·라벨 크기, 라벨이 화면 밖으로 나갈 때의 위치, 매우 짧은 선(라벨보다 짧은 간격, 사례 15의 20)에서 라벨 위치, 라벨끼리 겹칠 때(사례 03처럼 네 라벨이 몰릴 때)의 처리. 모두 tasks 1번에서 관찰한다.
 
 ## 미확정 규칙
 
@@ -50,26 +50,32 @@
 - 17: 01과 선택·대상을 바꾼 것이다. 위쪽(20)을 표시했다.
 - 16: 범위가 일부만 겹친다. 대상 변이 선택 범위 밖인 오른쪽(60)만 표시했다.
 
-01과 04는 같은 포함 관계인데 결과가 다르다. 01에서는 아래쪽 변이 같은 위치(차이 0)라는 점이 다르다. 후보 규칙은 두 가지다. (a) 차이 0인 변이 하나라도 있으면 그 축의 변 차이를 그리지 않는다. 다만 17에도 0인 변이 있어서 맞지 않는다. (b) 선택의 중심선과 대상 변의 위치 관계로 정한다. tasks.md 1번에서 Figma를 더 관찰해 규칙을 확정하고, 이 절을 확정한 규칙으로 바꾼다.
+01과 04는 같은 포함 관계인데 결과가 다르다. 01에서는 아래쪽 변이 같은 위치(차이 0)라는 점이 다르다. 후보 규칙은 두 가지다. (a) 차이 0인 변이 하나라도 있으면 그 축의 변 차이를 그리지 않는다. 다만 17에도 0인 변이 있어서 맞지 않는다. (b) 선택의 중심선과 대상 변의 위치 관계로 정한다. tasks.md 1번에서 Figma를 더 관찰한다. 관찰 결과를 사용자에게 보여주고 규칙을 정한 뒤(2026-11-18 사용자 결정: 하나로 설명되지 않아도 임의로 고르지 않고 다시 묻는다), 이 절을 정한 규칙으로 바꾼다.
+
 
 ## 영향받는 구성 요소
 
-- **앱(렌더러)만 바뀐다.** CLI, 스킬, 포맷(`.doan/config.json`, CLI 응답, `runtime.json`, 소켓 메시지, `sessions.v1`)은 바뀌지 않는다.
-- **캔버스 스크립트** (`app/src/main/canvasScript.ts`): `postHover`는 지금 `alt`가 눌려 있으면 대상을 `null`로 보낸다(`:523`). 측정에는 Option을 누른 동안의 대상 rect가 필요하다. Option 상태에서도 대상을 계산해 보내되, 메시지에 그 hover가 Option 상태에서 나온 것인지 표시한다. 대상 규칙은 지금 hover와 같다. `selectTarget(over, meta)`가 ⌘이면 가장 안쪽 대상을, 아니면 다음 클릭의 대상을 고른다. 대상이 선택 자신이면 `null`이다.
-- **CanvasController** (`app/src/renderer/CanvasController.ts`): `drawMarks`는 지금 `altHeld`면 hover 표시를 숨긴다(`:2058`). 측정은 `altHeld && selectedRect && hoverRect`일 때만 그린다. 선과 라벨은 overlay(`pointer-events: none`, board transform 밖) 안의 별도 요소에 그린다. 그래서 줌과 관계없이 화면 1px 선과 같은 크기의 라벨이 된다. 측정 중에는 대상의 hover 표시를 측정용 외곽선으로 바꾼다.
-- **메시지 검증** (`app/src/renderer/canvasMessage.ts`): `hover` 메시지에 Option 여부를 실을 필드를 더하고 파서를 넓힌다. 이 메시지는 앱 내부 postMessage 계약이고, ARCHITECTURE §11 'Shared formats'의 JSON Schema 대상이 아니다.
-- **스타일과 토큰** (`styles.css`, `tokens.css`): 측정 색 `#E34C2C` 토큰 하나와 측정 선·점선·라벨 클래스를 더한다. 색은 버디 accent를 따르지 않고 고정한다. Figma도 바꿀 수 없는 빨강으로 고정한다(공식 문서: "It's not currently possible to change the weight or color of the red measurement line"). 대비와 forced-colors 처리는 `/design-draft`와 `/design-sync`에서 정한다.
+- **앱(렌더러와 캔버스 스크립트)만 바뀐다.** CLI, 스킬, 포맷(`.doan/config.json`, CLI 응답, `runtime.json`, 소켓 메시지, `sessions.v1`)은 바뀌지 않는다. prototype 창은 별도 스크립트(`app/src/main/prototypeScript.ts`)를 쓰고 선택이 없으므로 영향이 없다.
+- **캔버스 스크립트** (`app/src/main/canvasScript.ts`): `postHover`(`:521-529`)의 null 조건에서 `alt ||`만 뺀다. 그러면 Option을 누른 동안에도 hover 대상 rect가 온다. `selectTarget(over, meta)`는 alt와 무관하므로, 대상은 Option 여부와 관계없이 같다. hover 메시지 형식은 바꾸지 않는다. 캔버스의 `blur` 리스너(`:850` 부근)는 지금 ⌘만 놓는데, Option도 놓고(`alt = false`) Alt `key` 메시지를 보내게 한다.
+- **CanvasController** (`app/src/renderer/CanvasController.ts`):
+  - Option 상태의 근거는 지금처럼 `altHeld` 하나다. 앱의 keydown/keyup(`:1288`, `:1371`), 캔버스의 Alt `key` 메시지(hoverSeq 순서, `:949-953`), `pointerOnApp`(`:1397`)이 이 값을 맞춘다. hover 메시지에 Option 필드를 더하지 않는다. 근거가 둘이 되면 2026-10-23 postmortem처럼 서로 어긋날 수 있기 때문이다.
+  - `appBlur`(`:1383` 부근)는 지금 Space와 ⌘만 놓는다. `altHeld = false`로 하고 `hover-alt false` 명령도 보내게 한다.
+  - `drawMarks`(`:2057`)의 조건: 측정은 `altHeld && selectedRect && hoverRect && !markHidden && !layerShown && !captureShown && !textDragging && !state.picking`이고 캔버스가 덮이지 않았을 때만 그린다. 그 밖에 Option이 눌려 있으면 지금처럼 hover를 숨긴다(spec 4).
+  - 선·점선·라벨은 overlay(`pointer-events: none`, board transform 밖) 안의 별도 요소로 그린다. 그래서 줌과 관계없이 화면 1px 선과 같은 크기의 라벨이 된다. 라벨은 선 요소의 자식으로 두고 CSS로 배치한다(가로선: `top: calc(100% + 6px)`, 가운데 맞춤 / 세로선: `left: calc(100% + 6px)`, 세로 가운데 맞춤). 기존 `.dims`가 `left: 50%; transform: translateX(-50%)`로 가운데를 맞추는 것과 같은 방식이다(`styles.css:91`). 측정 요소는 크기 말풍선(`.dims`)보다 위 층에 둔다(spec 8). floating chrome(헤더, 에이전트 notice, 툴바)보다는 기존 마크처럼 아래에 둔다.
+  - 측정 중에는 선택 마크와 대상 hover 마크에 안쪽 빨간 1px 선을 더하고, 대상 hover 마크를 점선에서 실선으로 바꾼다(spec 9).
+  - 다시 그리기: view 변경(휠, pinch, Fit, ⌘0, following, 영역 크기 변경)은 이미 `applyView`가 `drawMarks`를 다시 부르는 경로를 탄다. 측정도 같은 경로로 다시 그린다. 선택을 다시 찾았을 때와 ⌥·⌘ 변경도 hover를 다시 계산하는 기존 경로를 쓴다.
+- **스타일과 토큰** (`styles.css`, `tokens.css`): 측정 색 `#E34C2C` 토큰 하나와 측정 선·점선·라벨 클래스를 더한다. 색은 버디 accent를 따르지 않고 고정한다. Figma도 바꿀 수 없는 빨강으로 고정한다(공식 문서: "It's not currently possible to change the weight or color of the red measurement line"). 흰 글자 대비는 `contrastPairs`(`app/src/renderer/ds/checks.ts:415`) 검사로 값을 기록하고, 약 3.9:1인 한계를 받아들인다(spec 비목표). forced-colors 처리는 `/design-draft`에서 정한다.
 
 ## 순수 함수로 뺄 부분 (/tdd 대상)
 
-- `measureLines(selected: CanvasRect, target: CanvasRect): MeasureLine[]` (새 파일 `app/src/renderer/measure.ts`). 두 board rect를 받아 실선과 점선 연장선, 각 선의 값을 board 좌표로 돌려준다. '관찰 기록'의 01–05, 11–17이 테스트 사례다. '미확정 규칙'이 정해질 때까지 01·04·16·17은 관찰 결과 그대로 고정한다.
-- `measureLabel(value: number): string`. `sizeLabel`(`selection.ts:107`)과 같은 반올림을 쓴다. 측정과 크기 말풍선이 같은 숫자를 보이도록 같은 헬퍼를 공유한다.
-- `measureLabelPlace(line, screen)`. 화면 좌표의 선을 받아 라벨 상자 위치를 돌려준다(가로선은 아래 6px, 세로선은 오른쪽 6px, 가운데 맞춤).
-- 좌표 변환은 기존 `boardRectToScreen`과 `boardToScreen`(`viewport.ts:63-71`)을 그대로 쓴다.
+- `measureLines(selected: CanvasRect, target: CanvasRect): MeasureLine[]` (새 파일 `app/src/renderer/measure.ts`). 두 board rect를 받아 실선과 점선 연장선, 각 선의 값을 board 좌표로 돌려준다. '관찰 기록'의 01–05, 11–17과 tasks 1번에서 더할 사례가 테스트 사례다. '미확정 규칙'이 정해질 때까지 01·04·16·17은 관찰 결과 그대로 고정한다. 값은 원래 rect 값의 차이로 구한다(반올림은 표시 때만).
+- `canvasPx(value: number): string`. 지금 `sizeLabel`(`selection.ts:107`) 안의 지역 함수 `px`를 export한다. `sizeLabel`과 측정 라벨이 같은 반올림을 쓰도록 한 곳에 둔다. 테스트는 `selection.test.ts`의 `describe("sizeLabel")`과 같은 입력으로 같은 출력을 고정한다.
+- 라벨 위치는 함수로 빼지 않는다. 관찰상 Figma는 라벨 위치를 조정하지 않고(사례 14), CSS만으로 배치할 수 있다. 화면 밖이나 겹침 조정이 tasks 1번 관찰에서 필요하다고 나오면 그때 함수를 만든다.
+- 좌표 변환은 기존 `boardRectToScreen`과 `boardToScreen`(`viewport.ts:63-69`)을 그대로 쓴다.
 
 ## 포맷 변경
 
-없다. JSON Schema, 포맷 버전 `v`, TS·Go 공용 fixture는 바뀌지 않는다.
+없다. hover 메시지 형식도 바뀌지 않는다. JSON Schema, 포맷 버전 `v`, TS·Go 공용 fixture도 바뀌지 않는다.
 
 ## 규약 영향
 
@@ -77,14 +83,22 @@ ARCHITECTURE §1 'Conventions'와 `doan check` 규칙은 바뀌지 않는다. �
 
 ## 결정 영향
 
-- **PRODUCT §5 item 4 'Selection'이 바뀐다.** 지금은 "Hover highlights what the next click would select"와 "Option-click uses the canvas without changing the selection"만 있다. 지금 코드는 Option을 누르면 hover 표시를 숨긴다. 이번 기능으로 Option을 누른 동안 hover가 측정 대상 표시로 바뀐다. Option-click 동작은 그대로 둔다(2026-11-18 사용자 결정: 측정과 Option-click을 둘 다 유지). 마지막 task에서 PRODUCT를 고친다.
-- **Figma와 다른 점 하나.** Doan의 hover 대상은 "다음 클릭이 선택할 대상"이다. 그래서 프레임을 선택한 채 그 안의 요소에 Option-hover하면, Figma(사례 10, 측정 없음)와 달리 그 요소와 프레임 사이를 잰다. 다음 클릭이 그 요소로 한 단계 들어가기 때문이다. 2026-11-18에 사용자가 이 차이를 받아들이고, 측정 대상을 Doan의 hover 대상과 같게 하기로 정했다. 그래서 hover 표시와 측정 대상이 어긋나는 경우가 없다.
+- **PRODUCT §3 In scope 1 'Show'를 넓힌다**(2026-11-18 사용자 결정). 마지막 task에서 고친다.
+- **PRODUCT §5 item 4 'Selection'이 바뀐다.** 지금은 "Hover highlights what the next click would select"와 "Option-click uses the canvas without changing the selection"만 있다. 지금 코드는 Option을 누르면 hover 표시를 숨긴다. 이번 기능으로 선택이 있으면 Option을 누른 동안 대상까지의 측정이 나오고, 측정이 없으면 지금처럼 hover를 숨긴다. Option-click 동작은 그대로 둔다(2026-11-18 사용자 결정: 측정과 Option-click을 둘 다 유지). 마지막 task에서 PRODUCT를 고친다.
+- **Figma와 다른 점 하나.** Doan의 hover 대상은 "다음 클릭이 선택할 대상"이다. 그래서 프레임을 선택한 채 그 안의 요소에 Option-hover하면, Figma(사례 10, 측정 없음)와 달리 그 요소와 프레임 사이를 잰다. 2026-11-18에 사용자가 이 차이를 받아들이고, 측정 대상을 Doan의 hover 대상과 같게 하기로 정했다. 그래서 hover 표시와 측정 대상이 어긋나는 경우가 없다.
+- **마크 규칙의 예외.** docs/design/canvas.md 'Overlay marks'는 마크 선이 요소 픽셀을 덮지 않는다고 정한다. 측정 중의 안쪽 빨간 1px만 이 규칙의 예외다(2026-11-18 사용자 결정).
 - ARCHITECTURE §3 'Selection'의 sandbox iframe, 메시지 순서(`seq`의 selection·hover 두 채널), Option-click 링크 처리는 그대로다. 측정은 hover 채널만 쓰고, selection 채널에는 아무것도 보내지 않는다.
+
+## 알려진 한계
+
+- 비프레임 요소의 자식(카드 안의 글자 등)에 hover하면 카드가 아니라 그 자식을 잰다. 지금 hover 규칙 그대로의 결과다. ⌘ 없이도 그렇다.
+- `selectedRect`는 layout 메시지로 갱신되지만 `hoverRect`는 포인터가 움직이거나 hover 명령이 와야 다시 온다. 애니메이션이 있는 캔버스에서 포인터를 멈춘 채 재면 대상 쪽 값이 잠시 낡을 수 있다.
+- composer에 ⌥ 조합 문자를 입력할 때 포인터가 캔버스 위에 있으면 측정이 잠깐 나타날 수 있다.
 
 ## 관련 postmortem
 
-- **2026-10-23 'Hover stayed hidden across direct reentry and Alt focus transfer'** (`docs/postmortem/2026-10.md`): Alt를 누르고 떼는 일이 서로 다른 문서(앱과 캔버스 iframe)에서 일어날 수 있다. 렌더러가 자기 Alt 플래그를 따로 들고 있다가 hover가 사라졌다. 측정도 같은 `altHeld`를 쓰므로, Option을 캔버스 안에서 떼는 경우 측정이 남지 않는지 같은 실제 입력 검사(포커스를 옮기는 키 순서, 포인터 한 번에 이동)로 확인한다.
-- **2026-10-23 'Hover commands discarded pending selection replies'**: selection과 hover/modifier의 순서 카운터를 섞지 않는다. 측정용 필드는 hover 메시지와 `hoverSeq`에만 싣고, selection 응답을 기다리는 중에 Option을 눌러도 selection 바닥값이 움직이지 않아야 한다.
+- **2026-10-23 'Hover stayed hidden across direct reentry and Alt focus transfer'** (`docs/postmortem/2026-10.md:780`): Alt를 누르고 떼는 일이 서로 다른 문서(앱과 캔버스 iframe)에서 일어날 수 있다. 렌더러가 자기 Alt 플래그를 따로 들고 있다가 hover가 사라졌다. 그래서 Option 상태의 근거를 `altHeld` 하나로 유지한다. Option을 캔버스 안에서 떼는 경우와 ⌘Tab 경우는 같은 실제 입력 검사(포커스를 옮기는 키 순서, 포인터 한 번에 이동)로 확인한다.
+- **2026-10-23 'Hover commands discarded pending selection replies'** (`:788`): selection과 hover/modifier의 순서 카운터를 섞지 않는다. 측정은 hover 채널만 쓰고, selection 응답을 기다리는 중에 Option을 눌러도 selection 바닥값이 움직이지 않아야 한다.
 
 ## 읽은 디자인 preset
 
@@ -92,5 +106,4 @@ ARCHITECTURE §1 'Conventions'와 `doan check` 규칙은 바뀌지 않는다. �
 
 ## PoC 의존
 
-- '미확정 규칙'(한 축만 겹칠 때의 변 차이)은 관찰이 더 필요하다. tasks.md 1번이다.
-- 줌 100%가 아닐 때의 선·라벨 크기도 확인하지 않았다. 같은 관찰에서 확인한다.
+- '미확정 규칙'(한 축만 겹칠 때의 변 차이), 줌 50·200%의 선·라벨 크기, 짧은 선·라벨 겹침·화면 밖 라벨 처리는 관찰이 더 필요하다. tasks 1번이다.
