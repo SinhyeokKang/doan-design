@@ -365,7 +365,7 @@ describe("focus that was in the inspector", () => {
   const fake = (inside: string | null = null) => ({ isConnected: true, focus: vi.fn(), closest: (selector: string) => inside !== null && selector.includes(inside) ? {} : null });
   function setup(nodes: { row?: unknown; trigger?: unknown; area?: unknown }) {
     const body = {};
-    const doc = { activeElement: null as unknown, body, querySelector: (selector: string) => selector.includes(".area") ? nodes.area ?? null : null, addEventListener: vi.fn(), removeEventListener: vi.fn() };
+    const doc = { activeElement: null as unknown, body, querySelector: (selector: string) => selector.includes(".area") ? nodes.area ?? null : null, querySelectorAll: () => [], hasFocus: () => true, addEventListener: vi.fn(), removeEventListener: vi.fn() };
     vi.stubGlobal("document", doc);
     const aside = { querySelector: (selector: string) => selector.includes("doan-insp-row") ? nodes.row ?? null : selector.includes("ov-title") ? nodes.trigger ?? null : null };
     return { doc, body, aside };
@@ -409,6 +409,25 @@ describe("focus that was in the inspector", () => {
     lose(panel, fake(".doan-insp-row"), doc);
     render(aside, { selection: null });
     expect(area.focus).toHaveBeenCalled();
+  });
+
+  test("a recovery made with the window in the background is made again when the window activates", () => {
+    // POSTMORTEM 2026-11-17: activation restores focus to the row that went, and with it gone to Hide sidebar.
+    const area = fake();
+    const { doc, aside } = setup({ area });
+    doc.hasFocus = () => false;
+    const win = new EventTarget();
+    vi.stubGlobal("window", win);
+    vi.useFakeTimers();
+    try {
+      const panel = render(aside);
+      lose(panel, fake(".doan-insp-row"), doc);
+      render(aside, { selection: null });
+      expect(area.focus).toHaveBeenCalledTimes(1);
+      win.dispatchEvent(new Event("focus"));
+      vi.runAllTimers();
+      expect(area.focus).toHaveBeenCalledTimes(3);
+    } finally { vi.useRealTimers(); }
   });
 
   test("focus that moved on to another control is left where it is", () => {

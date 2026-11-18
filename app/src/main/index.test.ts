@@ -591,10 +591,11 @@ test("clears only the removed project selection", async () => {
 });
 
 // ARCHITECTURE §4 'Auto-registration': a vanished auto-registered worktree goes through Remove's clean-up.
-test("an auto-removed worktree clears its selection and thumbnails", async () => {
+test("an auto-removed worktree goes through Remove's clean-up: selection, thumbnails, background work, prototype and starts", async () => {
   const W = "/orca/workspaces/repo/w1";
   const before = [{ path: ROOT }, { path: W }];
   mocks.shell.entries.mockReturnValue(before);
+  const stop = vi.spyOn(mocks.conversationService as unknown as { stopBackground(paths: string[]): void }, "stopBackground");
   await invoke("selection:set", window().webContents, null, { ...SELECTION, root: W });
   expect(runtimeState().selection()).toMatchObject({ root: W });
   const options = mocks.startShell.mock.calls[0]?.[3] as { autoRemoved?: (paths: string[], before: unknown[]) => void } | undefined;
@@ -603,6 +604,9 @@ test("an auto-removed worktree clears its selection and thumbnails", async () =>
   options.autoRemoved([W], before);
   expect(runtimeState().selection()).toBeNull();
   expect(mocks.thumbnails.removed).toHaveBeenCalledExactlyOnceWith([W], before);
+  expect(stop).toHaveBeenCalledExactlyOnceWith([W]);
+  expect(mocks.prototypeRootsRemoved).toHaveBeenCalledExactlyOnceWith([W]);
+  expect(mocks.discardRootStarts).toHaveBeenCalledExactlyOnceWith([W]);
 });
 
 test("an auto-removed worktree keeps another root's selection", async () => {
@@ -1378,6 +1382,15 @@ describe("removing from the CLI", () => {
     expect(mocks.discardRootStarts).not.toHaveBeenCalled();
   });
 
+  // A start or send main has not accepted yet runs for the person (PRODUCT §5 item 10, POSTMORTEM 2026-11-17).
+  test("a conversation not accepted yet in another worktree of the group refuses and changes nothing", async () => {
+    const service = mocks.conversationService as unknown as { pendingRoots(): ReadonlySet<string> };
+    vi.spyOn(service, "pendingRoots").mockReturnValue(new Set([APP]));
+    expect(await remove(WT)).toEqual({ v: 7, ok: false, error: { code: "conversation_running", message: "A conversation is running in this project in Doan." } });
+    expect(mocks.shell.remove).not.toHaveBeenCalled();
+    expect(removedEvents()).toEqual([]);
+  });
+
   test("a running turn in another worktree of the group refuses and changes nothing", async () => {
     const service = mocks.conversationService as unknown as { liveTurns(): ReadonlyMap<string, { root: string; turnId: string; running: boolean }> };
     vi.spyOn(service, "liveTurns").mockReturnValue(new Map([["c", { root: APP, turnId: "t1", running: true }]]));
@@ -1992,6 +2005,18 @@ describe("canvas trash on main's grounds", () => {
     service().list.mockImplementation(at => at === root ? [summary(patch)] : []);
     expect(await invoke("canvas:trashPlan", window().webContents, null, { root, path })).toEqual({ kind: "refused", reason: "busy" });
     expect(await trash()).toEqual({ kind: "refused", reason: "busy" });
+    expect(mocks.electronShell.trashItem).not.toHaveBeenCalled();
+  });
+
+  // PRODUCT §5 'Canvas row menu': a conversation still being prepared counts, and the first one of a canvas is listed
+  // only once main accepts it (POSTMORTEM 2026-11-17 'A quit before main accepted a send…').
+  test("refuses as busy for a start on this canvas main has not accepted yet, asking only this root", async () => {
+    service();
+    const s = mocks.conversationService as unknown as { startingCanvases(root: string): { path: string; id?: string }[] };
+    const starting = vi.spyOn(s, "startingCanvases").mockImplementation(at => at === root ? [{ path, id: "a" }] : []);
+    expect(await invoke("canvas:trashPlan", window().webContents, null, { root, path })).toEqual({ kind: "refused", reason: "busy" });
+    expect(await trash()).toEqual({ kind: "refused", reason: "busy" });
+    expect(starting.mock.calls.every(([at]) => at === root)).toBe(true);
     expect(mocks.electronShell.trashItem).not.toHaveBeenCalled();
   });
 
