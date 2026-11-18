@@ -200,3 +200,49 @@ describe("no draft is left by a start or send that settled", () => {
     h.release(); await pending;
   });
 });
+
+// Move to Trash and `doan remove` ask whether a conversation runs: a start is listed only once accepted, and liveTurns
+// counts only accepted turns, so both read these (POSTMORTEM 2026-11-17 'A quit before main accepted a send…').
+describe("starts and sends before acceptance, for the trash and remove gates", () => {
+  it("names a canvas start's canvas and root from its press until acceptance", async () => {
+    const h = fixture(); h.hold();
+    const pending = h.service.start(canvasStart);
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledOnce());
+    expect(h.service.startingCanvases("/repo")).toEqual([canvas]);
+    expect(h.service.startingCanvases("/other")).toEqual([]);
+    expect([...h.service.pendingRoots()]).toEqual(["/repo"]);
+    h.release(); await pending;
+    expect(h.service.startingCanvases("/repo")).toEqual([]);
+    expect([...h.service.pendingRoots()]).toEqual([]);
+  });
+  it("counts a Home start's root but names no canvas for it", async () => {
+    const h = fixture(); h.hold();
+    const pending = h.service.start(homeStart);
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledOnce());
+    expect(h.service.startingCanvases("/repo")).toEqual([]);
+    expect([...h.service.pendingRoots()]).toEqual(["/repo"]);
+    h.release(); await pending;
+  });
+  it("forgets a start refused before acceptance", async () => {
+    const h = fixture();
+    let fail!: (error: Error) => void;
+    h.prepare.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+    const pending = h.service.start(canvasStart);
+    await vi.waitFor(() => expect(h.prepare).toHaveBeenCalledOnce());
+    expect(h.service.startingCanvases("/repo")).toEqual([canvas]);
+    fail(new Error("not_logged_in")); await expect(pending).rejects.toThrow("not_logged_in");
+    expect(h.service.startingCanvases("/repo")).toEqual([]);
+    expect([...h.service.pendingRoots()]).toEqual([]);
+  });
+  it("counts a follow-up send's root while it is prepared, not its canvas (the list already has the conversation)", async () => {
+    const h = fixture();
+    const id = (await h.service.start(canvasStart)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    h.hold(); const pending = h.service.send(id, "make it darker", []);
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(2));
+    expect(h.service.startingCanvases("/repo")).toEqual([]);
+    expect([...h.service.pendingRoots()]).toEqual(["/repo"]);
+    h.release(); await pending;
+    expect([...h.service.pendingRoots()]).toEqual([]);
+  });
+});

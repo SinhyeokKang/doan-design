@@ -548,6 +548,20 @@ describe("takeStartDraft", () => {
     h.store.takeStartDraft("/code/other");
     await vi.waitFor(() => expect(h.store.drafts.get("root:/code/other")?.segments).toEqual([{ kind: "text", text: "Draw it" }]));
   });
+  // preload: taking a draft that cannot be saved answers an error and keeps it, so a later list read asks again.
+  test("asks again after a take that answered an error or failed, and only once after one that answered", async () => {
+    for (const failure of [async () => ({ error: "unknown" }), async () => { throw new Error("gone"); }]) {
+      const h = harness();
+      doan.takeStartDraft = vi.fn(failure);
+      h.store.takeStartDraft(ROOT, CANVAS); await flush();
+      expect(h.store.drafts.size).toBe(0);
+      doan.takeStartDraft = vi.fn(async () => ({ text: "Draw it", anchors: [], attachments: [], reason: "restarted" }));
+      h.store.takeStartDraft(ROOT, CANVAS);
+      await vi.waitFor(() => expect(h.store.drafts.size).toBe(1));
+      h.store.takeStartDraft(ROOT, CANVAS); await flush();
+      expect(doan.takeStartDraft).toHaveBeenCalledOnce();
+    }
+  });
   test("does nothing in a window without the call (the prototype window)", () => {
     const h = harness();
     expect(() => h.store.takeStartDraft(ROOT)).not.toThrow();
