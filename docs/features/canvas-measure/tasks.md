@@ -42,6 +42,8 @@
    - 크기 말풍선과 라벨이 겹치는 경우(사례 14).
    - 줌 50·100·200%의 선 두께와 라벨 크기.
    - 중첩 iframe이나 Shadow DOM 안에서는 지금 hover 규칙대로 동작하는지.
+   - 측정 중 메뉴·대화상자·problem overlay가 열리고 닫힐 때 포인터가 멈춰 있어도 측정이 숨고 다시 나오는지. reload로 선택을 다시 찾은 뒤 포인터가 멈춰 있어도 측정이 다시 나오는지.
+   - 맞닿은 두 요소(간격 0)의 측정이 Figma 관찰로 정한 규칙대로인지.
    - 검증: 측정값과 화면 기록이 `docs/design/canvas.md`에 남는다. `node .agents/skills/verify/scripts/verify.mjs`가 통과한다.
 8. **문서 승격과 정리.**
    - PRODUCT §3 In scope 1 'Show'에 거리 측정을 더한다. §5 item 4 'Selection'에 Option-hover 측정 규칙(그리는 조건, Option 중 hover 숨김, 사례 10의 차이)을 현재 규칙으로 쓴다.
@@ -49,5 +51,5 @@
    - `docs/design/canvas.md`에 측정 모양과 'Overlay marks'의 측정 중 예외를 쓴다. 새 절이면 DESIGN.md의 화면 절 색인도 고친다.
    - 확인하지 못한 것이 있으면 `docs/BACKLOG.md`에 남긴다.
    - `docs/features/canvas-measure/`를 지운다. 관찰용 Figma 파일을 지울지 사용자에게 묻는다.
-   - 검증: `grep -rn "canvas-measure" docs AGENTS.md .agents app/src` 결과가 비어 있다. `node .agents/skills/verify/scripts/verify.mjs`가 통과한다.
+   - 검증: `grep -rn "docs/features/canvas-measure" docs AGENTS.md .agents app/src` 결과가 비어 있다(초안 `.doan/canvases/canvas-measure.html`은 남으므로 그 이름은 남아도 된다). `node .agents/skills/verify/scripts/verify.mjs`가 통과한다.
    - 커밋 경계: 문서별로 나눈다(`docs(PRODUCT): ...`, `docs(ARCHITECTURE): ...`, `docs(design): ...`, `docs(backlog): ...`).
