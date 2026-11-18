@@ -236,6 +236,32 @@ func TestResolveUsesDiskSpelling(t *testing.T) {
 	}
 }
 
+// A link whose target names the root in another spelling (letter case, or NFD where the disk has NFC) still
+// resolves inside: the target is compared with the root by disk spelling, as InsideRelative does.
+func TestResolveLinkTargetInOtherSpelling(t *testing.T) {
+	parent := real(t, t.TempDir())
+	root := filepath.Join(parent, "Repo\uD55C")
+	put(t, root, "dist/tokens.css", "")
+	upper := filepath.Join(strings.ToUpper(parent), "REPO\uD55C")
+	nfd := filepath.Join(parent, "Repo\u1112\u1161\u11AB")
+	for _, p := range []string{upper, nfd} {
+		if _, err := os.Stat(p); os.IsNotExist(err) {
+			t.Skip("temporary filesystem is case-sensitive or does not normalize names")
+		} else if err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, target := range map[string]string{"case": upper, "nfd": nfd} {
+		link(t, filepath.Join(target, "dist"), filepath.Join(root, "public-"+name))
+		for _, r := range []*Resolver{NewResolver(root), NewResolver(upper)} {
+			state, rel, err := r.Resolve(".", "public-"+name+"/tokens.css")
+			if err != nil || state != Inside || rel != "dist/tokens.css" {
+				t.Errorf("%s from %s: %s %q %v", name, r.root, state, rel, err)
+			}
+		}
+	}
+}
+
 func TestFindReportsDiskSpelling(t *testing.T) {
 	root := filepath.Join(real(t, t.TempDir()), "Repo")
 	put(t, root, ".doan/config.json", `{"v":1}`)
