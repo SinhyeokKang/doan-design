@@ -868,7 +868,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         return [provider, props.project, canvas, props.canvasListed(canvas), !!props.onOpenHandoff];
       }
       case "handoffCard": return [props.project, props.canvasListed(entry.origin.canvas), !!props.onOpenHandoff];
-      case "marker": return [props.project, props.canvasListed(entry.canvas)];
+      case "marker": return [props.project, props.canvasListed(entry.canvas), openCanvasId];
       default: return [];
     }
   };
@@ -926,6 +926,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       case "boundary": return <div className="context-boundary" role="separator" aria-label={entry.label}><span>{entry.label}</span></div>;
       case "marker": {
         const canvas = entry.canvas, listed = props.canvasListed(canvas), name = canvas.path.split("/").at(-1) ?? canvas.path;
+        // On the panel of the canvas it moved to, "Moved to" and Open would point at the screen already shown.
+        if (openCanvasId !== null && canvas.id === openCanvasId) return <div className="marker"><span><ArrowUpRight aria-hidden="true" />{`Moved here from ${props.project} Overview`}</span></div>;
         return <div className="marker"><span><ArrowUpRight aria-hidden="true" />{listed ? `Moved to ${name}` : `Moved to ${name} · No longer in ${props.project}`}</span>
           <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="trigger" disabled={!listed} onClick={() => latest.current.onOpenCanvas(canvas)}>Open</button></div>;
       }
