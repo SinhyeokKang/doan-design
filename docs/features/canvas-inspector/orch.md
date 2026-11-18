@@ -16,6 +16,9 @@
 - 좁은 창 기준은 design의 계산 순서(대화 폭을 먼저 뺀다)를 따른다. 그래서 대화 기본 폭에서는 약 1228, 둘 다 최소 폭이면 1164 미만에서 인스펙터가 양보한다. 비활성 툴팁은 대화 좁히기도 알린다("No room for the inspector. Widen the window, or narrow or hide the conversation."). 승격 때 PRODUCT의 경계 문구는 "대화 폭에 따라"로 적는다(사용자 결정).
 - 면별 툴팁은 확정 패널 초안처럼 마주 보는 면을 묶는다("Top and bottom 20px, left and right 24px")(지휘자 판단 — 사용자가 확정한 초안).
 - `not-shown`은 응답에서 바로 재요청하지 않는다. 다음 선택 적용이나 보이는 문서 변경 때 한 번 다시 묻고, 같은 선택·캔버스에서 두 번 이어지면 실패(Retry)로 바꾼다(지휘자 판단 — 디버거 분리 뒤 끝나지 않는 읽기를 막는다).
+- `windowDebugger.ts`의 소유권 결함(같은 프로세스 중첩 iframe이 있으면 교체된 OOPIF 세션이 소유권을 되찾는다)을 이 feature에서 고친다. read-state proof에도 해당한다(사용자 결정).
+- 수집기는 보이는 문서 proof가 없으면 2초 예산 안에서 `documents.onChange`를 기다려 다시 판정하고, 그래도 없으면 `unavailable`(Retry)로 답한다. `not-shown`은 다른 캔버스가 보이는 것이 확인될 때만 쓴다(지휘자 판단 — 디버거 분리 뒤 재요청 계기가 없는 고착을 막는다, read-state와 같은 대기 방식).
+- Border·Gap은 `sides` 없이 단일 토큰 규칙을 따른다(지휘자 판단 — design은 면별 툴팁을 padding·margin·radius에만 요구한다).
 - tasks 7(문서 승격과 정리)은 지휘자가 한다(orchestrate §5). README 표에 인스펙터를 넣을지는 통합 뒤 지휘자가 판단한다.
 
 ## 배치
@@ -43,5 +46,5 @@ tasks 체크 항목 대응: 0·1 완료, 2a→B0, 2b·3→B1·B2·B3(함수별),
 
 - B0: 원본 대비 diff를 지휘자가 확인하고 먼저 통합했다(`3bfb41dcc`, `6e2101bf7`). 독립 리뷰는 B1과 함께 받는다.
 - B2: 리뷰 🔴0 🟡0 🟢4. 🟢 두 건과 사용자 결정(박스 없는 요소 빼기)을 고쳤다. 통합 `e70f26bb7`, `dddeccdf3`, `aabce53bc`. 워커 해제, worktree 삭제, 브랜치 `SinhyeokKang/ci-b2` 유지.
-- B3: 리뷰 🔴0 🟡1(`not-shown` 무한 재요청). 수정 라운드 1 진행 중.
-- B1: 완료, B0+B1 리뷰(Opus high) 진행 중.
+- B3: 리뷰 🔴0 🟡1(`not-shown` 무한 재요청). 수정 라운드 1을 지휘자가 diff로 확인했다. 통합 `ae1fa59a6`, `f4d16203b`, `896cf30a8`. 워커 해제, worktree 삭제, 브랜치 유지.
+- B0+B1: 리뷰 🔴0 🟡3 ⚪3. 수정 라운드 1 진행 중.
