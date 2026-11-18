@@ -25,7 +25,8 @@ export function launchEnv(inherited: Record<string, string | undefined>): Record
 // value is replaced too (an unfused dev Electron keeps it), so every launch passes on the same CA.
 export function restoreLaunchdCaCerts(env: Record<string, string | undefined>, getenv: (name: string) => string): void {
   let value = "";
-  try { value = getenv("NODE_EXTRA_CA_CERTS").replace(/\n$/, ""); } catch { /* launchd unreadable: pass no CA rather than a terminal's */ }
+  // Unreadable launchd: pass no CA rather than a terminal's, and say so, since agents' TLS errors would not.
+  try { value = getenv("NODE_EXTRA_CA_CERTS").replace(/\n$/, ""); } catch (error) { console.warn("doan: could not read NODE_EXTRA_CA_CERTS from launchd", error); }
   if (value) env.NODE_EXTRA_CA_CERTS = value;
   else delete env.NODE_EXTRA_CA_CERTS;
 }
