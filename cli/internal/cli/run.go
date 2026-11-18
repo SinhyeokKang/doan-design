@@ -243,6 +243,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 					failure = internal(e)
 				} else {
 					ctx := Context{Start: start, Now: time.Now, Random: rand.Reader, Dial: func(socket string, deadline time.Time) (net.Conn, error) {
+						if e := ownSocket(socket, os.Geteuid()); e != nil {
+							return nil, e
+						}
 						return (&net.Dialer{Deadline: deadline}).Dial("unix", socket)
 					}, Executable: os.Executable, Launch: launchBundle, Sleep: time.Sleep}
 					if home, err := os.UserHomeDir(); err == nil {
