@@ -1,4 +1,4 @@
-import type { AnchorsMessage, PinGeometry, TargetCandidates, CanvasFrameRect, PickedMessage, PickStartedMessage, TextRangeMessage } from "./canvasMessage";
+import type { AnchorsMessage, PinGeometry, TargetCandidates, CanvasFrameRect, PickedMessage, PickStartedMessage, TextRangeMessage, ElementTreeAnchor, ElementTreeMessage } from "./canvasMessage";
 import type { Anchor } from "../main/conversation/types";
 import type { Selection } from "../formats/types";
 import type { ViewCommand } from "../main/index";
@@ -8,7 +8,7 @@ import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGH
 import { switchTarget } from "./switchTarget";
 import { sizeBubblePlay } from "./prototypePlay";
 import { SIZE_BUBBLE, sizeBubblePlace, type BubbleRoom } from "./sizeBubble";
-import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
+import { acceptSelectionMessage, anchorRequest, canvasPx, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, screenToBoard, elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { scaleFactor } from "./zoomControl";
 import { currentFrame } from "./currentFrame";
@@ -18,6 +18,7 @@ import { textCopy } from "./canvasTextCopy";
 import { captureRect } from "./canvasCapture";
 import type { Rect } from "./canvasPicker";
 import { workFrameRect } from "./agentIndicator";
+import { measureLines } from "./measure";
 import { EMPTY_FOLLOW, followDecision, followedFrames, followStopped, markFollowed, type FollowMemory } from "./workFollow";
 
 export const MEASURE_ANSWER_MS = 1000;
@@ -161,6 +162,8 @@ export class CanvasController {
   private jumpKind: "rect" | "point" = "rect";
   private jumpMark: HTMLElement | null = null;
   private viewResize: ResizeObserver | null = null;
+  // The canvas area's left edge on screen when it was last laid out, null before that.
+  private viewportLeft: number | null = null;
   private jumpTimer: ReturnType<typeof setTimeout> | undefined;
   private work: CanvasWorkTarget | null = null;
   private workMark: HTMLElement | null = null;
@@ -185,6 +188,13 @@ export class CanvasController {
   private hoverSeq = 0;
   private selectedRect: CanvasRect | null = null;
   private hoverRect: CanvasRect | null = null;
+  // The inspector element menu's row under the pointer or keyboard focus, drawn in the hover mark's place.
+  private treeHover: CanvasRect | null = null;
+  // The inspector's element-tree channel: its own seq, apart from selection, hover and pick, and the document and seq
+  // of the last request, so only the answer to that one reaches the listener.
+  private treeSeq = 0;
+  private treeAsked: { document: string; seq: number } | null = null;
+  private treeListener: ((message: ElementTreeMessage) => void) | null = null;
   private altHeld = false;
   // Whether the canvas was last told ⌘ is down, so the app losing focus can take it back (⌘Tab sends no keyup).
   private metaHeld = false;
@@ -193,6 +203,8 @@ export class CanvasController {
   private markHidden = false;
   private reanchor: AnchorRequest | null = null;
   private marks: { hover: HTMLElement; selected: HTMLElement; size: HTMLElement } | null = null;
+  // The Option-hover measurement's layer and its line elements (each with its label), reused across draws.
+  private measure: { layer: HTMLElement; lines: { line: HTMLElement; label: HTMLElement }[] } | null = null;
   private sentSelection = "null";
   private anchorDocument: string | null = null;
   private anchorGeneration = 0;
@@ -241,10 +253,10 @@ export class CanvasController {
   private snapshots = 0;
   private snapshotFrames = new Set<number>();
   private canvasPage = true;
-  // The page's menus and dialogs (frame drawer, zoom menu, Quick Open, any dialog), which hold following off. Their
-  // React owners live outside the controller, so it reads the document. Radix menus and popovers exist only while
-  // open; a native <dialog> may stay mounted closed, so only an open one counts.
-  overlayOpen: () => boolean = () => document.querySelector('.doan-frame-list, .doan-zoom-menu, [role="menu"], dialog[open], [role="dialog"]:not(dialog), [role="alertdialog"]:not(dialog)') !== null;
+  // The page's menus and dialogs (frame drawer, zoom menu, the inspector's element menu, Quick Open, any dialog), which
+  // hold following off. Their React owners live outside the controller, so it reads the document. Radix menus and
+  // popovers exist only while open; a native <dialog> may stay mounted closed, so only an open one counts.
+  overlayOpen: () => boolean = () => document.querySelector('.doan-frame-list, .doan-zoom-menu, .doan-insp-menu, [role="menu"], dialog[open], [role="dialog"]:not(dialog), [role="alertdialog"]:not(dialog)') !== null;
   // The newest canvas click waiting for main's cursor reading; an older reading does not move focus.
   private clickTag = 0;
   // The composer's preset lists, which close on a press in the canvas (the app's document never sees one).
@@ -370,7 +382,7 @@ export class CanvasController {
     private pointer: () => Promise<{ x: number; y: number } | null>,
   ) {
     if (typeof ResizeObserver !== "undefined" && "nodeType" in viewport) {
-      this.viewResize = new ResizeObserver(() => this.applyView("app"));
+      this.viewResize = new ResizeObserver(this.viewportResized);
       this.viewResize.observe(viewport as unknown as Element);
     }
     window.addEventListener("message", this.receive);
@@ -379,6 +391,8 @@ export class CanvasController {
     window.addEventListener("keyup", this.keyup);
     window.addEventListener("pointermove", this.pointerOnApp, { capture: true });
     window.addEventListener("blur", this.appBlur);
+    // `focus` in the capture phase reaches the window for every element, as focusin would.
+    window.addEventListener("focus", this.focusMoved, true);
     window.addEventListener("input", this.typed, { capture: true });
     // Bubbling, so the composer's field and copyText, which copy on their own element or in the capture phase, go first.
     window.addEventListener("copy", this.copy);
@@ -414,6 +428,7 @@ export class CanvasController {
     window.removeEventListener("keyup", this.keyup);
     window.removeEventListener("pointermove", this.pointerOnApp, { capture: true });
     window.removeEventListener("blur", this.appBlur);
+    window.removeEventListener("focus", this.focusMoved, true);
     window.removeEventListener("input", this.typed, { capture: true });
     window.removeEventListener("copy", this.copy);
     window.removeEventListener("selectionchange", this.appSelection, { capture: true });
@@ -613,9 +628,13 @@ export class CanvasController {
   // when it goes.
   setCanvasPage(shown: boolean): void {
     const before = this.onCanvasPage();
+    const changed = shown !== this.canvasPage;
     this.canvasPage = shown;
     if (!before && this.onCanvasPage()) this.enteredPage();
     if (!shown) { this.releaseInput(); this.cancelCapture(); this.clearText(true); }
+    // An Option measurement hides under a modal and comes back when it closes, with the pointer still on its target.
+    if (changed) this.drawMarks();
+    if (changed && shown) this.refindHover();
   }
 
   private onCanvasPage(): boolean { return this.workspaceActive && this.canvasPage; }
@@ -623,7 +642,14 @@ export class CanvasController {
   // A problem project's overlay covers the canvas (ARCHITECTURE §7 'Problem overlay'): no key reaches it, Esc's
   // clearing of the selection included, while focus sits in the overlay.
   private covered = false;
-  setCovered(covered: boolean): void { this.covered = covered; }
+  setCovered(covered: boolean): void {
+    if (covered === this.covered) return;
+    this.covered = covered;
+    // As for a modal: the Option measurement hides under the overlay and comes back after it. The overlay took the
+    // hover away (the app heard the pointer over it), so it is asked for again at the resting pointer.
+    this.drawMarks();
+    if (!covered) this.refindHover();
+  }
 
   // The toolbar's Select and Hand. While picking they cancel the pick first; V and H
   // still change nothing then (shortcut).
@@ -801,6 +827,7 @@ export class CanvasController {
     this.textEpoch = 0;
     this.resetText();
     this.applySelectionEffect({ kind: fresh ? "otherCanvas" : "reload" });
+    this.refindOnLoad = !fresh;
     if (row.width === undefined) {
       this.pendingFrame?.found?.(false);
       this.dropFrame();
@@ -841,7 +868,10 @@ export class CanvasController {
     this.seq = 0;
     this.pickFrameCommand = null;
     this.hoverSeq = 0;
+    this.refindSeq = null;
     this.hoverRect = null;
+    this.treeHover = null;
+    this.treeAsked = null;
     this.drawMarks();
     this.state.unlisted = false;
     this.loading = true;
@@ -884,6 +914,8 @@ export class CanvasController {
     this.loading = false;
     this.jumpTo = null;
     this.hoverRect = null;
+    this.treeHover = null;
+    this.treeAsked = null;
     this.clearSelection(false);
     clearTimeout(this.loadTimer);
     clearTimeout(this.answerTimer);
@@ -922,6 +954,7 @@ export class CanvasController {
     if (message.type === "press") { this.pressed(); return; }
     if (message.type === "activity") { this.personActive(false); return; }
     if (message.type === "text-range") { this.onTextRange(message); return; }
+    if (message.type === "element-tree") { this.receiveElementTree(message); return; }
     this.onSelectionMessage(message);
   };
 
@@ -951,7 +984,14 @@ export class CanvasController {
       }
       return;
     }
-    if (message.type === "hover") { this.hoverSeq = message.seq; this.hoverRect = message.rect; this.drawMarks(); this.personActive(false); return; }
+    if (message.type === "hover") {
+      // The answer to the app's own hover-at is not the person moving (refindHover); later hovers at that seq are.
+      const asked = message.seq === this.refindSeq;
+      this.refindSeq = null;
+      this.hoverSeq = message.seq; this.hoverRect = message.rect; this.drawMarks();
+      if (!asked) this.personActive(false);
+      return;
+    }
     // A click's selection, not a command's answer: the person's, which stops following in a work turn.
     if (!this.commandReply(message)) { this.focusOnClick(); this.personActive(true); }
     this.seq = message.seq;
@@ -1039,6 +1079,49 @@ export class CanvasController {
     this.sendCommand({ type: "clear" });
     this.clearSelection(false);
     this.publish();
+  }
+
+  // The inspector's element menu. A request goes to the document of the last layout on the tree's own channel, so no
+  // selection, hover or pick seq moves and the selection stays as it is; only the answer to the latest request, from
+  // that same document, reaches the listener. False when no listed canvas has laid out yet.
+  requestElementTree(): boolean {
+    const document = this.pickDocument;
+    if (document === null || this.frame === null || this.loading || this.state.unlisted) return false;
+    this.treeSeq += 1;
+    this.treeAsked = { document, seq: this.treeSeq };
+    this.post({ type: "element-tree", document, seq: this.treeSeq });
+    return true;
+  }
+
+  // The one listener for element-tree answers; returns its removal.
+  onElementTree(listener: (message: ElementTreeMessage) => void): () => void {
+    this.treeListener = listener;
+    return () => { if (this.treeListener === listener) this.treeListener = null; };
+  }
+
+  private receiveElementTree(message: ElementTreeMessage): void {
+    const asked = this.treeAsked;
+    if (asked === null || message.document !== asked.document || message.seq !== asked.seq || message.document !== this.pickDocument) return;
+    this.treeListener?.(message);
+  }
+
+  // A menu row's node marked on the board as a canvas hover would mark it (iframe viewport px, as hover rects are);
+  // null takes it off and the canvas's own hover shows again.
+  previewElement(rect: CanvasRect | null): void {
+    if (this.treeHover === rect) return;
+    this.treeHover = rect;
+    this.drawMarks();
+  }
+
+  // A menu row picked: that node is selected as a ⌘-click on it would select it, and the canvas answers on the
+  // selection channel like any select-anchor.
+  selectElement(anchor: ElementTreeAnchor): void {
+    if (this.frame === null || this.loading || this.state.unlisted) return;
+    this.treeHover = null;
+    this.transition(() => {
+      this.personActive(true);
+      this.sendCommand({ type: "select-anchor", ...anchor });
+    });
   }
 
   // The one listener for how picks end; returns its removal.
@@ -1383,6 +1466,40 @@ export class CanvasController {
     if (document.hasFocus()) return;
     this.releaseInput();
     if (this.metaHeld) this.setMeta(false);
+    // Option released in another app never comes back as a keyup either.
+    if (this.altHeld) {
+      this.altHeld = false;
+      this.sendHoverCommand({ type: "hover-alt", alt: false });
+      this.drawMarks();
+    }
+  };
+
+  // The canvas sends a hover only on a pointer move, so where the hover could show again with the pointer resting on the
+  // canvas, the app names the resting point and the canvas finds what is under it (hover-at, on the hover channel). The
+  // point is main's OS cursor point: the app hears no pointer move over the canvas iframe, so it has none of its own
+  // there. Only when the canvas itself is what lies under the pointer.
+  private refindOnLoad = false;
+  // The hover seq of the last hover-at, until its answer arrives.
+  private refindSeq: number | null = null;
+  private refindHover(): void {
+    if (this.hoverRect !== null || this.loading || this.frame === null) return;
+    const frame = this.frame;
+    this.pointer().then(point => {
+      if (point === null || frame !== this.frame || this.hoverRect !== null || this.loading || !this.onCanvasPage() || this.covered) return;
+      if (this.layerShown || this.captureShown || this.textDragging || this.overlayOpen()) return;
+      const area = this.viewport.getBoundingClientRect();
+      if (point.x < area.left || point.x >= area.right || point.y < area.top || point.y >= area.bottom) return;
+      if (document.elementFromPoint(point.x, point.y) !== frame) return;
+      const at = screenToBoard(this.view, { x: point.x - area.left, y: point.y - area.top });
+      this.sendHoverCommand({ type: "hover-at", x: at.x, y: at.y });
+      this.refindSeq = this.hoverSeq;
+    }, (error: unknown) => { console.error("pointer:get failed", error); });
+  }
+
+  // A menu or popover (overlayOpen) takes focus when it opens and gives it back when it closes, which is the only sign of
+  // it here; an Option measurement hides and comes back with it while the pointer rests on its target.
+  private focusMoved = (): void => {
+    if (this.altHeld) this.drawMarks();
   };
 
   private releaseInput(): void {
@@ -1583,7 +1700,9 @@ export class CanvasController {
       this.seq = 0;
       this.pickFrameCommand = null;
       this.hoverSeq = 0;
+      this.refindSeq = null;
       this.hoverRect = null;
+      this.treeHover = null;
       this.applySelectionEffect({ kind: "otherCanvas" });
       // A link or the canvas's own script left for another page: another canvas, so the pick and capture mode end.
       this.resetPickChannel();
@@ -1598,6 +1717,8 @@ export class CanvasController {
       this.state.status = null;
       if (this.reanchor !== null) this.sendCommand({ type: "select-anchor", ...this.reanchor });
     }
+    // A reloaded document hears no pointer move until the pointer moves; its hover is asked for at the resting pointer.
+    if (first && this.refindOnLoad) { this.refindOnLoad = false; this.refindHover(); }
     this.state.layout = message;
     const linked = this.markShown(message.href);
     if (linked && this.state.open) this.linkedCanvas?.(this.state.open.folder);
@@ -1714,7 +1835,8 @@ export class CanvasController {
 
   // The first Fit of a freshly opened canvas, again at the board's present size. The
   // canvas loads while the Overview still lays out the page (its right column is 280 wide), so the renderer calls this
-  // once the canvas page's own column width is applied. Only once per load; later width changes keep the top-left.
+  // once the canvas page's own column width is applied. Only once per load; later resizes keep the board's screen
+  // position on either side (viewportResized).
   settleFit(): void {
     const pending = this.firstFit;
     this.firstFit = null;
@@ -1743,8 +1865,9 @@ export class CanvasController {
   };
 
   wheel(input: WheelInput, point: Point): void {
-    // The element under the cursor changes without a pointermove (flow 2).
-    this.hoverRect = null;
+    // The element under the cursor changes without a pointermove (flow 2). An Option measurement keeps its target,
+    // a board rect that applyView redraws where the board moved it.
+    if (!this.altHeld) this.hoverRect = null;
     const action = wheelAction(input);
     this.view = "zoom" in action ? zoomAt(this.view, action.zoom, point, ZOOM_LIMITS) : panBy(this.view, action.pan.dx, action.pan.dy);
     this.applyView();
@@ -1752,6 +1875,25 @@ export class CanvasController {
     // the board point now under it.
     if (this.textDragging) { const at = screenToBoard(this.view, point); this.post({ type: "text-point", epoch: this.textEpoch, x: at.x, y: at.y }); }
   }
+
+  // The view is kept relative to the area's top-left, so a sidebar fold, unfold or width drag, which moves the left
+  // edge, would carry the board along. Taking the edge's move off the view keeps the board where it is on screen, as the
+  // conversation panel does by moving only the right edge. Done on every callback, so a fold animation's frames do not
+  // slide it either. An area not laid out (zero width) is skipped, so its return counts the edge it had before.
+  private viewportResized = (): void => {
+    const rect = this.viewport.getBoundingClientRect();
+    if (rect.width > 0) {
+      const shift = this.viewportLeft === null ? 0 : rect.left - this.viewportLeft;
+      this.viewportLeft = rect.left;
+      if (shift !== 0) {
+        // A first Fit still waiting for settleFit stays that wait: the moved view takes over its identity.
+        const waiting = this.firstFit !== null && this.firstFit === this.view;
+        this.view = { ...this.view, x: this.view.x - shift };
+        if (waiting) this.firstFit = this.view;
+      }
+    }
+    this.applyView("app");
+  };
 
   private applyView(origin: ViewOrigin = "person"): void {
     if (origin === "person") this.personActive(true);
@@ -2033,7 +2175,8 @@ export class CanvasController {
   // scale, while the size label (a child of the selection mark, centered
   // under it by CSS) reads canvas px.
   private drawMarks(): void {
-    const hover = this.markHidden || this.altHeld || this.layerShown || this.captureShown || this.textDragging ? null : this.hoverRect;
+    const measured = this.measured();
+    const hover = measured === null && (this.markHidden || this.altHeld || this.layerShown || this.captureShown || this.textDragging) ? null : this.treeHover ?? this.hoverRect;
     const selected = this.markHidden ? null : this.selectedRect;
     // Read before this draw writes any style, so it costs no forced layout.
     const room = selected === null ? null : this.sizeBubbleRoom();
@@ -2060,7 +2203,58 @@ export class CanvasController {
     };
     place(this.marks.hover, hover);
     place(this.marks.selected, selected);
+    this.marks.hover.className = measured === null ? "mark hover" : "mark hover measuring";
+    this.marks.selected.className = measured === null ? "mark selected" : "mark selected measuring";
     this.placeSize(this.marks.size, selected, room);
+    this.drawMeasure(measured);
+  }
+
+  // PRODUCT §5 item 4: Option with a selection measures to the hover target, wherever the hover mark could show
+  // (nothing measures over a pick, the drag or capture layer, a text drag, or anything covering the canvas). altHeld
+  // stays the one source of Option's state (POSTMORTEM 2026-10-23 'Hover stayed hidden across direct reentry and Alt
+  // focus transfer'). Returns the two rects, or null when nothing is measured.
+  private measured(): { selected: CanvasRect; target: CanvasRect } | null {
+    const selected = this.selectedRect;
+    const target = this.hoverRect;
+    if (!this.altHeld || this.markHidden || selected === null || target === null) return null;
+    if (this.layerShown || this.captureShown || this.textDragging || this.state.picking || this.covered || this.overlayOpen()) return null;
+    return { selected, target };
+  }
+
+  // Lines in screen px, so they stay 1px at any zoom; the labels read canvas px.
+  private drawMeasure(measured: { selected: CanvasRect; target: CanvasRect } | null): void {
+    if (measured === null) {
+      if (this.measure !== null) this.measure.layer.hidden = true;
+      return;
+    }
+    if (this.measure === null) {
+      const layer = document.createElement("div");
+      layer.className = "measure";
+      this.overlay.append(layer);
+      this.measure = { layer, lines: [] };
+    }
+    const { layer, lines } = this.measure;
+    layer.hidden = false;
+    const drawn = measureLines(measured.selected, measured.target);
+    drawn.forEach((line, index) => {
+      let element = lines[index];
+      if (element === undefined) {
+        element = { line: document.createElement("div"), label: document.createElement("span") };
+        element.label.className = "measure-label";
+        element.line.append(element.label);
+        layer.append(element.line);
+        lines.push(element);
+      }
+      const horizontal = line.axis === "x";
+      element.line.hidden = false;
+      element.line.className = `measure-line ${horizontal ? "h" : "v"}${line.dashed ? " dashed" : ""}`;
+      element.label.hidden = line.dashed;
+      element.label.textContent = line.dashed ? "" : canvasPx(line.to - line.from);
+      const start = boardToScreen(this.view, horizontal ? { x: line.from, y: line.at } : { x: line.at, y: line.from });
+      const length = `${(line.to - line.from) * this.view.scale}px`;
+      Object.assign(element.line.style, { left: `${start.x}px`, top: `${start.y}px`, width: horizontal ? length : "", height: horizontal ? "" : length });
+    });
+    for (const element of lines.slice(drawn.length)) element.line.hidden = true;
   }
 
   private sizeBubbleRoom(): BubbleRoom {

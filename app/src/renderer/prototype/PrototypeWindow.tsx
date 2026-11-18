@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { Popover } from "radix-ui";
-import { ArrowLeft, ArrowRight, ChevronDown, CircleSlash, Download, Expand, FileWarning, MessageCircle, PanelRightOpen, Proportions, RotateCw, SquareDashed, TriangleAlert, type LucideIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronDown, CircleSlash, Download, Expand, FileWarning, MessageSquare, Proportions, RotateCw, SquareDashed, TriangleAlert, type LucideIcon } from "lucide-react";
 import type { ExportReply } from "../../main/canvasExport";
 import { PROTOTYPE_LOAD_TIMEOUT_MS, type ExportTarget, type GotoMessage, type PrototypeMode, type PrototypeSnapshot, type PrototypeView, type PrototypeWindowApi } from "../../main/prototype/ipc";
 import { prototypePanelBounds, prototypeSideLayout, prototypeViewportBox, type Rect, type ViewportBox } from "../../main/prototype/fit";
@@ -542,17 +542,16 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
         </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>{exportReason ?? "Export prototype"}</TooltipContent></Tooltip>
         {/* One element in every state, before the first view too: only its name and badge change (POSTMORTEM
             2026-11-13). While the panel is open it is hidden (no box, no Tab stop), since Hide conversation is in the
-            panel's head; closing shows it again and focus comes back to it. The badges are in its name; the tooltip
-            says the label only. */}
+            panel's head; closing shows it again and focus comes back to it. The badges are in its name, which the tooltip
+            says too: the dot alone does not tell an answer waiting from an unread ending. */}
         <Tooltip><TooltipTrigger asChild>
           <button type="button" className="doan-icon-button pw-conv" data-ui-placement="chrome" aria-label={conv.button.name} aria-expanded={false} aria-controls={CONVERSATION_PANEL_ID}
             data-badge={conv.button.badge === null ? undefined : conv.button.badge === "permission" ? "true" : conv.button.badge} ref={conv.buttonRef} hidden={conv.open}
             onMouseDown={keepFocus} onClick={conv.onToggle}>
-            <PanelRightOpen aria-hidden="true" />
+            <MessageSquare aria-hidden="true" />
             {conv.button.badge === "working" && <span className="badge-working" aria-hidden="true"><span className="doan-spinner" /></span>}
-            {conv.button.badge === "unseen" && <span className="badge-bubble" aria-hidden="true"><MessageCircle /></span>}
           </button>
-        </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>{conv.button.label}</TooltipContent></Tooltip>
+        </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>{conv.button.name}</TooltipContent></Tooltip>
       </div>
     </header>
     {exportReason !== null && <span className="sr-only" id={EXPORT_REASON_ID}>{exportReason}</span>}

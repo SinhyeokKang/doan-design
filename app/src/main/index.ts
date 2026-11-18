@@ -75,6 +75,7 @@ import { DESIGN_SKILL_CHANNELS, DESIGN_SKILL_REFUSED, designSkillGetRequest, int
 import { folderState, realHome } from "./folderState";
 import { revealTarget, type FolderEntry } from "./view";
 import { createWindowDebugger, type WindowDebugger } from "./windowDebugger";
+import { createInspector, parseInspectRequest, type InspectRefused, type InspectReply, type Inspector } from "./inspector";
 import { startRuntime, type Runtime } from "./runtime";
 import { menuState, updateMenu, type Screen } from "./menuState";
 import { electronUpdater, hasFeedConfig, releaseNotesUrl, UpdateService } from "./update/service";
@@ -257,6 +258,7 @@ const onboardingStarted = new Promise<OnboardingService>(resolve => { onboarding
 // Each listed folder's canvas rows as last handed to the conversation service (conversation/refreshes.ts).
 let conversationLists = new Map<string, readonly { path: string; rev?: number }[]>();
 let windowDebugger: WindowDebugger | undefined;
+let inspector: Inspector | undefined;
 // One selection app-wide; the socket answers it only for
 // its own project. Memory only, never written to disk.
 let selection: Selection | null = null;
@@ -432,6 +434,13 @@ function sendPrototypeEntry(): void {
   if (text === prototypeEntrySent) return;
   prototypeEntrySent = text;
   prototype.send(PROTOTYPE_CHANNELS.entryChanged, entry);
+}
+
+// The URL a listed canvas's iframe shows, which the inspector's shown-document check needs; null for a canvas that is
+// not listed.
+function listedCanvasUrl(canvas: { root: string; path: string }): string | null {
+  const entry = shell?.entries().find((item) => item.path === canvas.root);
+  return entry?.kind === "list" ? entry.canvases.find((row) => row.path === canvas.path)?.url ?? null : null;
 }
 
 // A registered window's main frame, or nothing: iframes, the capture window
@@ -668,7 +677,9 @@ function createWindow(buddy: BuddyId): BrowserWindow {
     // No `frame`: Electron uses it to add OS items such as Writing Tools, and the menu holds only Doan's items.
     if (template.length > 0) Menu.buildFromTemplate(template).popup({ window });
   });
-  windowDebugger = createWindowDebugger(window.webContents.debugger, documents);
+  const debuggerOf = createWindowDebugger(window.webContents.debugger, documents);
+  windowDebugger = debuggerOf;
+  inspector = createInspector({ debugger: window.webContents.debugger, window: debuggerOf, documents, canvasUrl: listedCanvasUrl });
   // A reloaded or crashed renderer has lost the selection it reported; an
   // in-page navigation is not a new document, so it does not count.
   // A new renderer starts on Home again with no toast up.
@@ -1608,6 +1619,14 @@ async function start(): Promise<void> {
   handle("selection:set", undefined, (event, value: unknown) => {
     if (!fromWindow(event)) return;
     selection = validateSelection(value) && isOpen(value.root) ? value : null;
+  });
+  // Main reads the shown canvas with CDP; values and token names are canvas text. A request refused for its sender or
+  // shape has nothing to echo and gets a bare unavailable.
+  handle("inspect:get", { ok: false, reason: "unavailable" }, async (event, value: unknown): Promise<InspectReply | InspectRefused> => {
+    const request = parseInspectRequest(value);
+    if (!fromWindow(event) || request === null) return { ok: false, reason: "unavailable" };
+    const result = inspector ? await inspector.inspect(request) : { ok: false as const, reason: "unavailable" as const };
+    return { ...request, ...result };
   });
 
   const command = cliCommand(process.env, app.isPackaged, process.resourcesPath);

@@ -170,15 +170,16 @@ describe("the conversation the panel shows", () => {
     expect(run.store.drafts.get("conversation:from-main")).toBe(writing);
   });
 
-  // The canvas run's rules, the main window's: a conversation a handoff or a promotion started is not the person's,
-  // so it never moves this window off its own new conversation state.
-  test("from its own new conversation state, a conversation a handoff or a promotion started does not move this window", async () => {
+  // The canvas run's rules, the main window's: a conversation a handoff started is not the person's, so it never moves
+  // this window off its own new conversation state; one promoted to the canvas does.
+  test("from its own new conversation state, a handoff's conversation does not move this window and a promoted one does", async () => {
     await playing({}, []);
-    for (const startedBy of ["handoff", "promotion"] as const) {
-      listChanged!({ root: ROOT });
-      await answer(ROOT, [summary({ conversationId: `by-${startedBy}`, startedBy })]);
-      expect(run.shown()).toEqual({ kind: "new" });
-    }
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [summary({ conversationId: "by-handoff", startedBy: "handoff" })]);
+    expect(run.shown()).toEqual({ kind: "new" });
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [summary({ conversationId: "by-handoff", startedBy: "handoff" }), summary({ conversationId: "by-promotion", startedBy: "promotion" })]);
+    expect(run.shown()).toEqual({ kind: "conversation", conversationId: "by-promotion" });
   });
 
   test("the first pick: a conversation waiting for an answer, else the most recent", async () => {
@@ -553,18 +554,28 @@ describe("the drawing project conversation", () => {
 });
 
 // A project conversation promoted to the playing canvas comes from main by id (user decision): this window's list never
-// held it as a project conversation, so the relayed id feeds the shared notice rule. A promotion never moves the panel,
-// so it is announced unless the panel already shows it, as in the main window.
+// held it as a project conversation, so the relayed id feeds the shared notice rule. A promotion moves only the default
+// new conversation state, so elsewhere it is announced unless the panel already shows it, as in the main window.
 describe("the promoted conversation", () => {
   const current = (conversationId: string) => summary({ conversationId });
   const promotedRow = (conversationId: string) => summary({ conversationId, startedBy: "promotion" });
-  test("over the new conversation state the panel stays and announces it, with Open", async () => {
+  test("over the default new conversation state the promoted conversation shows, without a notice", async () => {
     await playing({}, []);
     drawing!("P");
     promoted!("P");
     drawing!(null);
     listChanged!({ root: ROOT });
     await answer(ROOT, [promotedRow("P")]);
+    expect(run.shown()).toEqual({ kind: "conversation", conversationId: "P" });
+    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "P", notice: null });
+  });
+
+  test("over the New conversation the person chose the panel stays and announces it, with Open", async () => {
+    await playing({}, [current("A")]);
+    run.run.select(null);
+    promoted!("P");
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [current("A"), promotedRow("P")]);
     expect(run.shown()).toEqual({ kind: "new" });
     expect(run.run.view()).toMatchObject({ kind: "new", notice: { kind: "promoted", open: "P" } });
   });

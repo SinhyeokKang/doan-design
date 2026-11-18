@@ -49,6 +49,7 @@ A light, neutral system (Light only, below): black `prominent` actions and white
   | `--surface-accent-subtle` | Chosen design preset chip in the Home composer |
   | `--text-accent-subtle` | Same chip's text |
   | `--size-icon-sm` | Icon inside chips, triggers and tabs |
+  | `--size-icon-xs` | A colour swatch inside a token chip (the canvas inspector, draft `canvas-inspector-panel`) |
   | `--size-icon-lg` | Project thumbnail in a picker, Settings row icon |
   | `--size-control-xs` | `xs` icon button (a chip's remove button) |
   | `--affordance-panel-hover` | Hover fill of the `panel` button variant, one step darker than the inset fill |
@@ -61,6 +62,7 @@ A light, neutral system (Light only, below): black `prominent` actions and white
   | `--hop-lift` | 0 on `:root`; `Buddy` writes 0–1 on its button while it hops. Shrinks and fades the buddy's floor shadow (`doany.css`: scale 1 − .45 × lift, opacity 1 − .6 × lift) |
   | `--shadow-floating` | Surfaces that float on their own over the content: toasts and the GitHub star card |
   | `--radius-inline`, `--radius-word`, `--radius-thumbnail` | The small corner steps (see Radii), replacing `--space-1`, `--space-2` and 4/5/6px literals used as corners |
+  | `--border-measure`, `--affordance-measure`, `--text-on-measure` | The canvas's Option-hover distance measurement: lines and the inner outline, the label fill, the label's white number. A fixed red (Figma's measurement colour, observed), not the buddy accent; drawn in `.doan/canvases/canvas-measure.html` |
 
 - **Roles.** Code reads roles named by purpose (`surface-*`, `text-*`, `border-*`, `affordance-*`, `bg-*`), never palette steps. Text has three reading levels: `text-standard`, `text-subtle`, `text-metadata`; `text-disabled` is below the contrast targets on purpose. The primary button is the neutral prominent fill (black, white text). Status colours use the reference status roles (`text-danger`/`-warning`/`-success`, `affordance-danger`/`-warning`/`-success`, `border-danger`/`-warning`).
 - **Type roles.** Size, line height, tracking and weight travel together: caption 12/16, body-sm and body 14/20, label-sm 14/20 500, label 16/24 500, body-lg 20/28, heading 24 and title 32 at line height 1.1. Regular 400 is for reading and form labels, medium 500 for actions and structure. One sans stack; the only monospace use is `--type-family-mono` (system stack, no bundled font) for code and paths in the conversation thread, and other inline code stays a sans chip.
@@ -89,6 +91,8 @@ A light, neutral system (Light only, below): black `prominent` actions and white
   - `.doan-dialog` with `data-ui-presentation="search"`: Quick Open (see Design navigation).
   - `doan-button` `panel` (`data-ui-variant="panel"`): the secondary button inside an inset notice, where `subtle` would lose its fill (both are `--neutral-2`). Rest `--surface-panel`, hover `--affordance-panel-hover`, pressed `--affordance-subtle-pressed`, disabled the shared filled disabled rule. On the inset fill the fill measures 1.09 (rest), 1.12 (hover) and 1.28 (pressed) to 1, the label 19.17, 15.64 and 13.71 to 1. Used by secondary actions inside inset notices, for example the conversation strip's Deny, Always allow, Skip and Edit on Home, the thread's and the docked composer's notice actions and the Overview's moved-line Open.
   - `.doan-notice.doan-panel` (notice on a non-white backdrop, `ds/surfaces.css`): see Notices.
+  - `.doan-code` (`ds/controls.css`): the inline code chip in the sans face: body-sm type, `--surface-inset` fill, `--radius-inline` corner, `0 --space-1` padding, one line cut with an ellipsis on its text span, and an optional leading swatch (`i`) at `--size-icon-xs`. Only the canvas inspector's token rows use it so far; the six hand-written chips in `styles.css` are not moved to it yet.
+  - `.doan-menu[data-ui-variant="tree"]` (`ds/surfaces.css`): a menu of nested rows (`role="tree"` / `treeitem`). Each row's `--tree-depth` moves it in by one icon plus `--space-2`, so a child's 16px `--text-metadata` icon starts under its parent's name; one 1px `--border-standard` guide (`.guide`, `--tree-level`) per ancestor runs down that ancestor's icon centre to its last descendant row; the selected row is pressed (`--affordance-backdrop-pressed`); a row fills while focused, or hovered while the tree has no focus, so one fill shows at a time. The canvas inspector's element menu.
 - **Scrollbars.** Native and thin (`scrollbar-width: thin`, `scrollbar-thumb-quiet` on a transparent track) through `.doan-scroll`, the one class for it, which every modal dialog takes; Radix ScrollArea is forbidden.
 - **Style loading.** The main window's `index.html` links `fonts.css`, `styles.css` and `doany.css`; `styles.css` brings in `tokens.css` and `ds/index.css` (and through it `controls.css` and `surfaces.css`) with CSS `@import`, because importing CSS from JS is blocked by the dev CSP. Cascade order under the strict CSP in production and DEV, with no entry CSP warning, was last observed with an earlier stylesheet set and is not re-measured for this one.
 
@@ -105,7 +109,7 @@ A light, neutral system (Light only, below): black `prominent` actions and white
   | Assignment | Places |
   |---|---|
   | Step 9 fill, glow or gradient (`--affordance-accent`, hover `--affordance-accent-hover`, pressed `--affordance-accent-pressed`, ink `--text-on-accent`) | Home Send (`doan-icon-button` `accent`), its spinner ink and the docked composer's Stop and Queue in the same slot; the Home glow around the composer; the chosen buddy card's glow; the canvas agent indicator's glow; the canvas jump highlight's gradient line and glow and its working-frame variant's travelling gradient and breathing glow; the canvas text range's fill; the canvas size bubble's fill and ink and its buttons' ink, hover and press fill, focus ring and unavailable ink; the conversation panel's resize bar |
-  | Icon colour (`--text-accent`) | The Fast icon on the Effort trigger, in the Effort menu's Fast row and in a thread's Fast-not-used line (a disabled row's icon takes `--text-disabled`); the suggested prompts' group icons and hover arrow; the sidebar status slot (the permission mark, the finished-conversation bubble, the canvas change dot); the folded panel's Show conversation dot and bubble; preset row group icons and preset group tab icons (the Project tab staying neutral); the composer drop outline; the chosen buddy card's 2px ring; the canvas selection and hover line |
+  | Icon colour (`--text-accent`) | The Fast icon on the Effort trigger, in the Effort menu's Fast row and in a thread's Fast-not-used line (a disabled row's icon takes `--text-disabled`); the suggested prompts' group icons and hover arrow; the sidebar status slot (the permission mark, the finished-conversation bubble, the canvas change dot); the Show conversation dot in the canvas header and the prototype window's conversation dot (answer waiting and unseen); preset row group icons and preset group tab icons (the Project tab staying neutral); the composer drop outline; the chosen buddy card's 2px ring; the canvas selection and hover line |
   | Chip: step 3 fill (`--surface-accent-subtle`), step 11 text (`--text-accent-subtle`) | The chosen preset chip; the project and canvas names in the suggested prompts' sentences; the suggested prompt and preset row icon tiles (fill only); inline anchor chips; exact project skill words; the person's thread bubble (fill only, standard ink) and its preset line (text only) |
 
 - **No coloured edge stripes.** No message, notice, card or row uses a coloured or thick start-side border (`edgeStripes` checks it). Errors take one of three forms, each with the lucide `CircleAlert` icon so colour is not the only signal:
@@ -252,6 +256,8 @@ Each screen's measured values, documented differences and Not verified list are 
 | Permission mode picker | [design/canvas-conversation.md](design/canvas-conversation.md) |
 | Picker default labels | [design/canvas-conversation.md](design/canvas-conversation.md) |
 | Canvas text range | [design/canvas.md](design/canvas.md) |
+| Canvas inspector | [design/canvas.md](design/canvas.md) |
+| Canvas distance measurement | [design/canvas.md](design/canvas.md) |
 | Settings | [design/shell.md](design/shell.md) |
 | App updates | [design/shell.md](design/shell.md) |
 | Settings › MCP Connectors | [design/shell.md](design/shell.md) |

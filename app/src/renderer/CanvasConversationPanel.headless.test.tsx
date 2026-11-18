@@ -165,6 +165,8 @@ test("the promotion notice's Open goes to the host's callback when it gives one"
   const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, calls);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
+  // The person's New: a promotion over it is announced rather than shown.
+  run.select(null);
   list = [summary(CANVAS)];
   run.sync();
   await flush();

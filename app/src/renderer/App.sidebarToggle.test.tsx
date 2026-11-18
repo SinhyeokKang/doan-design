@@ -54,7 +54,7 @@ vi.mock("./CanvasController", async original => ({
     constructor(_viewport: unknown, _board: unknown, _overlay: unknown, setState: (state: unknown) => void) {
       harness.setState = setState;
       const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
-      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "onPicked", "onCapture", "pick", "cancelPick", "locate", "dropPendingLocate"]) self[name] = vi.fn();
+      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "onPicked", "onElementTree", "requestElementTree", "previewElement", "selectElement", "onCapture", "pick", "cancelPick", "locate", "dropPendingLocate"]) self[name] = vi.fn();
       self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
       self.showOverview = vi.fn((done: () => void) => done());
       self.destination = vi.fn((root: string) => ({ root }));
@@ -281,7 +281,10 @@ test("a hidden sidebar places the auto-placed panels in their own columns", asyn
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(':root[data-sidebar="hidden"] .home-shell > .home-panel { grid-column: 2; }');
-  expect(css).toContain(':root[data-sidebar="hidden"] .workspace > :is(.doan-conv-column, .right-stack) { grid-column: 3; }');
+  // The workspace's right columns keep their numbers whether or not the sidebar shows.
+  expect(css).toContain(".workspace > :is(.doan-conv-column, .right-stack) { grid-column: 4; }");
+  expect(css).toContain(".workspace > .doan-insp-column { grid-column: 3;");
+  expect(css).not.toMatch(/:root\[data-sidebar="hidden"\] \.workspace > [^{]*(doan-conv-column|right-stack|doan-insp-column)[^{]*\{ grid-column/);
 });
 
 // main's fullscreen value (its initial read, then each change) marks the root element,

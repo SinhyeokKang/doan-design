@@ -20,10 +20,19 @@ describe("followNewConversation", () => {
     expect(followNewConversation(null, [old, summary({ conversationId: "new" })], billing)).toBeNull();
   });
 
-  test("a conversation a handoff or a promotion started never moves the panel", () => {
+  test("a conversation a handoff started never moves the panel", () => {
     expect(followNewConversation(KNOWN, [old, summary({ conversationId: "h", startedBy: "handoff" })], billing)).toBeNull();
-    expect(followNewConversation(KNOWN, [old, summary({ conversationId: "p", startedBy: "promotion" })], billing)).toBeNull();
     expect(followNewConversation(KNOWN, [summary({ conversationId: "h", startedBy: "handoff", lastActivityAt: at(9) }), summary({ conversationId: "mine", lastActivityAt: at(1) })], billing)).toBe("mine");
+  });
+
+  // A promoted conversation was listed as a project conversation when the default state was taken, so `known` names it.
+  test("a conversation promoted to this canvas is followed, even one the default state's list named", () => {
+    expect(followNewConversation(KNOWN, [old, summary({ conversationId: "p", startedBy: "promotion" })], billing)).toBe("p");
+    expect(followNewConversation(new Set(["old", "p"]), [old, summary({ conversationId: "p", startedBy: "promotion" })], billing)).toBe("p");
+    expect(followNewConversation(null, [summary({ conversationId: "p", startedBy: "promotion" })], billing)).toBeNull();
+    expect(followNewConversation(new Set(["p"]), [summary({ conversationId: "p", startedBy: "promotion", canvas: { path: ".doan/canvases/home.html", id: "home" } })], billing)).toBeNull();
+    expect(followNewConversation(new Set(["p"]), [summary({ conversationId: "p", startedBy: "promotion" })], billing, id => id === "p")).toBeNull();
+    expect(followNewConversation(new Set(["p"]), [summary({ conversationId: "p", startedBy: "promotion", readError: true, lastActivityAt: "" })], billing)).toBeNull();
   });
 
   test("two new at once: the most recent", () => {

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { conversationCanvasKey, parseUiState, UI_STATE_MAX_BYTES, withoutCanvas, withoutConversation, withoutRoots, withoutUnlisted } from "./uiState";
+import { conversationCanvasKey, parseInspectorState, parseUiState, UI_STATE_MAX_BYTES, withoutCanvas, withoutConversation, withoutRoots, withoutUnlisted } from "./uiState";
 
 const saved = ["/repo/a", "/repo/b"];
 const view = { scale: 1, x: 10, y: -20 };
@@ -557,4 +557,39 @@ test("withoutUnlisted drops canvases and conversations a read list no longer nam
   expect(withoutUnlisted({ "/repo/a": { gone: ID_A } }, listed)).toEqual({});
   const kept = { "/repo/a": { checkout: ID_A } };
   expect(withoutUnlisted(kept, listed)).toBe(kept);
+});
+
+test("reads the inspector's open flag and width", () => {
+  expect(parse({ screen: "home", inspector: { open: true, width: 320 } })?.inspector).toEqual({ open: true, width: 320 });
+  expect(parse({ screen: "home", inspector: { open: false, width: 300.5 } })?.inspector).toEqual({ open: false, width: 300.5 });
+  expect(parse({ screen: "home", inspector: { open: true } })?.inspector).toEqual({ open: true });
+});
+
+test("a missing inspector is closed", () => {
+  expect(parse({ screen: "home" })).not.toHaveProperty("inspector");
+  expect(parseInspectorState(undefined)).toEqual({ open: false });
+  for (const value of [null, "open", [true], 1]) expect(parseInspectorState(value)).toEqual({ open: false });
+});
+
+test("an open flag that is not a boolean is closed and keeps the width", () => {
+  for (const open of ["true", 1, null, undefined]) expect(parseInspectorState({ open, width: 320 })).toEqual({ open: false, width: 320 });
+  expect(parse({ screen: "home", inspector: { open: "yes", width: 320 } })?.inspector).toEqual({ open: false, width: 320 });
+  expect(parseInspectorState({})).toEqual({ open: false });
+});
+
+// Written as JSON text: 1e999 reads as Infinity, which JSON.stringify could not produce.
+test.each(["0", "-1", "-280", "1e999", "-1e999", "10001", "1e9", "\"320\""])("an out-of-range inspector width reads as the default: %s", (width) => {
+  expect(parseUiState(`{"screen":"home","inspector":{"open":true,"width":${width}}}`, saved)?.inspector).toEqual({ open: true });
+});
+
+test("a NaN inspector width reads as the default", () => {
+  expect(parseInspectorState({ open: true, width: Number.NaN })).toEqual({ open: true });
+  expect(parseInspectorState({ open: true, width: 10_000 })).toEqual({ open: true, width: 10_000 });
+});
+
+test("a malformed inspector costs nothing else", () => {
+  const state = parse({ screen: "workspace", root: "/repo/a", expanded: {}, lastByRoot: {}, inspector: "open", rightPanel: { open: false } });
+  expect(state?.root).toBe("/repo/a");
+  expect(state?.rightPanel).toEqual({ open: false });
+  expect(state?.inspector ?? { open: false }).toEqual({ open: false });
 });

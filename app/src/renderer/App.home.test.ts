@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import { mergeCanvasMemory, mergeConversationMemory, savedUiState, wizardCloseFocus } from "./App";
 import { removalConfirm, restoreRequest, type LastRequest } from "./homeConversations";
+import { parseUiState } from "../restore/uiState";
 
 // App's own helpers; the send, move, binding, toast and removal wiring is in homeRun.test.ts.
 
@@ -75,4 +76,17 @@ test("every save carries the conversation panel's state", () => {
   expect(savedUiState({ ...base, home, rightPanel: { open: true } })?.rightPanel).toEqual({ open: true });
   expect(savedUiState({ ...base, home, sidebar: { width: 260 } })?.sidebar).toEqual({ width: 260 });
   expect(savedUiState({ ...base, home })).not.toHaveProperty("sidebar");
+});
+
+// The inspector's open flag and width, one per device for every canvas: saved as the person left them and read back
+// the same, so a restart or another canvas shows the same column. Without a saved value it is closed.
+test("the inspector's state survives a save and a read", () => {
+  for (const inspector of [{ open: true, width: 320 }, { open: false, width: 300 }, { open: true }]) {
+    const saved = savedUiState({ ...base, home: {}, inspector });
+    expect(saved?.inspector).toEqual(inspector);
+    expect(parseUiState(JSON.stringify(saved), [])?.inspector).toEqual(inspector);
+  }
+  const none = savedUiState({ ...base, home: {} });
+  expect(none).not.toHaveProperty("inspector");
+  expect(parseUiState(JSON.stringify(none), [])?.inspector?.open ?? false).toBe(false);
 });

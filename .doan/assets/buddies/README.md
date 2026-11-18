@@ -44,24 +44,23 @@ Each friend has `typing.gif`, `typing-rest.png`, `reading.gif` and `reading-rest
 shown in its existing `buddy-assets` frame; the working notice's copies are made from them (below).
 Built-in image_gen generated the typing source as an eight-pose 4-by-2 sprite sheet,
 using each friend's `still.png` for identity and Doany's `artist/typing-rest.png`
-for the action and prop. Reading uses the original eight-pose 4-by-2 sheet, with
-closed-eye poses replaced by the preceding open-eye poses and the original page turn
-retained. The silver laptop carries the Doany product logo reference;
-the reading prop is the same dark teal book. Prompts are in each buddy's
-`typing-prompt.json` and `reading-prompt.json`.
+for the action and prop. The silver laptop carries the Doany product logo reference.
+Prompts are in each buddy's `typing-prompt.json`.
 
-ImageMagick splits the sheets into equal cells, thresholds alpha at 65%, removes
+The reading GIFs were made by the maintainer outside this repository and supplied as files, kept as they are:
+512² with 1-bit transparency, 8 frames at 220 ms each (1.76 s) with a page turn and no blink, holding the same
+dark teal book. `reading-rest.png` is their first frame as RGBA.
+
+ImageMagick splits the typing sheets into equal cells, thresholds alpha at 65%, removes
 isolated mask components smaller than 150 pixels, and places the artwork on transparent
-512-square canvases. Reading retains its original framing. Typing omits the source's closed-eye pose and sequences the
+512-square canvases. Typing omits the source's closed-eye pose and sequences the
 seven open-eye poses across 24 frames at 100 ms each (2.4 s). A cosine brightness curve
-makes the laptop logo pulse from dark to white and back once per loop. Reading has
-8 frames at 220 ms each (1.76 s). Neither action blinks. Both GIFs use background
-disposal and infinite loops. The PNGs preserve the first processed frame. Source sheets and the assembly
+makes the laptop logo pulse from dark to white and back once per loop. Typing does not blink. Its GIF uses background
+disposal and an infinite loop. `typing-rest.png` preserves the first processed frame. Source sheets and the assembly
 script are retained locally in `.scratch/buddy-actions/`. Typing frames are registered
 to the first frame's laptop lid top and left edge; Dungdung required up to 28 px of
 horizontal and 5 px of vertical correction. The logo was generated from the Doany
 reference rather than copied exactly, so exact product-logo fidelity is unresolved.
-Reading uses newly generated page-turn poses rather than Doany's original hand motion.
 These limitations remain visible in the canvas and prompt metadata; the maintainer approved the frames.
 
 - Friends' cards and painter GIFs were made by the maintainer outside this repository and supplied as files.
@@ -110,14 +109,14 @@ character: the size scales the painting box by the eye separation (first frame),
 painting box's eye height, and the opacity-weighted centroid sits at 50 % of the width, as Doany's do. Applied to
 Doany, this lands within 8 source px of its own typing and reading boxes. Dungdung's typing pose has its eyes
 9 % further apart than its other poses at the same head width, so its typing box takes its size from the head width
-against its reading box instead. No box clips the character.
+instead. No box clips the character.
 
 | id | Typing box (x, y, size) | Reading box (x, y, size) |
 |---|---|---|
-| puri | −47, −51, 607 | −46, −50, 603 |
-| dungdung | −15, −11, 570 | −27, 3, 565 |
-| popo | −40, −12, 591 | −31, −7, 574 |
-| dori | −22, −6, 565 | −11, 25, 550 |
+| puri | −47, −51, 607 | −52, −22, 616 |
+| dungdung | −15, −11, 570 | −72, −46, 655 |
+| popo | −40, −12, 591 | −80, −46, 674 |
+| dori | −22, −6, 565 | −7, 15, 524 |
 
 ## Puri layers and rig
 

@@ -6,6 +6,8 @@
 // canvas's main world, so the canvas can see and fake everything it posts
 // (the renderer validates it, design flow 5).
 
+import type { ElementKind } from "../renderer/canvasMessage";
+
 export interface HeightState {
   sent: number;
   inner: number;
@@ -202,6 +204,79 @@ export function textBoundary(frames: readonly boolean[], holdsFrames: boolean): 
   return frames.length === 0 || holdsFrames ? null : 0;
 }
 
+// The kind icon of a node in the inspector's element menu, from its tag and computed layout. Labels, headings and
+// paragraphs read as text even when they lay their content out as flex, since a person names them by their words;
+// other inline text tags are text unless they are a flex or grid box.
+export function nodeKind(tag: string, display: string, direction: string, frame: boolean): ElementKind {
+  if (frame) return "frame";
+  if (tag === "input" || tag === "textarea" || tag === "select") return "input";
+  if (tag === "button") return "button";
+  if (/^(label|p|h[1-6])$/.test(tag)) return "text";
+  if (display === "flex" || display === "inline-flex") return direction.startsWith("column") ? "flex-column" : "flex-row";
+  if (display === "grid" || display === "inline-grid") return "grid";
+  if (/^(a|abbr|b|cite|code|em|i|kbd|mark|q|s|small|span|strong|sub|sup|time|u)$/.test(tag)) return "text";
+  return "box";
+}
+
+export interface LabelSource {
+  tag: string;
+  frame?: { id: string; title?: string };
+  doanId?: string;
+  // The element's own text nodes, joined: a wrapper's name is not the text of everything inside it.
+  text: string;
+}
+
+// The selection path's label rule (ancestorPath), with the frame's title first and a short quote of the element's own
+// text after its tag when it has no data-doan-id. The quote ends at a word when it is cut, as the draft shows it.
+export function nodeLabel(source: LabelSource): string {
+  // Trimmed as the canvas tree trims it (canvasTree.ts frameLabel), so both name a frame alike.
+  if (source.frame !== undefined) return source.frame.title?.trim() || source.frame.id || source.tag;
+  if (source.doanId) return source.doanId;
+  const folded = source.text.replace(/\s+/g, " ").trim();
+  if (folded === "") return source.tag;
+  const points = Array.from(folded);
+  if (points.length <= 24) return `${source.tag} “${folded}”`;
+  const kept = points.slice(0, 24).join("");
+  const space = points[24] === " " ? kept.length : kept.lastIndexOf(" ");
+  return `${source.tag} “${(space > 0 ? kept.slice(0, space) : kept).trimEnd()}…”`;
+}
+
+// Which nodes of a frame's tree an element-tree answer sends. `depths` is the tree in document order (the frame at
+// index 0, depth 0) and `selected` the selection's index, -1 when it is not in the tree. A tree over `max` keeps the
+// path to the selection, then its children, then its siblings nearest it (the earlier one first on a tie), up to
+// `max`; what is kept always nests, so depths still read as a tree.
+export function elementTree(depths: readonly number[], selected: number, max: number): { keep: number[]; truncated: boolean } {
+  const all = depths.map((_, i) => i);
+  if (depths.length <= max) return { keep: all, truncated: false };
+  const own = depths[selected];
+  if (own === undefined) return { keep: all.slice(0, max), truncated: true };
+  const chosen = new Set<number>();
+  const add = (i: number) => { if (chosen.size < max) chosen.add(i); };
+  const path = [selected];
+  for (let i = selected - 1, depth = own; i >= 0 && depth > 0; i--) {
+    const at = depths[i] ?? 0;
+    if (at < depth) { path.unshift(i); depth = at; }
+  }
+  // A path deeper than `max` keeps its top and loses the selection: the depths must start at the frame, and describe
+  // already anchors so deep an element at an ancestor whose selector fits, so it hardly ever happens.
+  for (const i of path) add(i);
+  for (let i = selected + 1; i < depths.length && (depths[i] ?? 0) > own; i++) if (depths[i] === own + 1) add(i);
+  const parent = path.at(-2);
+  if (parent !== undefined) {
+    const siblings: number[] = [];
+    for (let i = parent + 1; i < depths.length && (depths[i] ?? 0) >= own; i++) if (depths[i] === own && i !== selected) siblings.push(i);
+    const before = siblings.filter(i => i < selected).reverse();
+    const after = siblings.filter(i => i > selected);
+    for (let n = 0; n < Math.max(before.length, after.length); n++) {
+      const earlier = before[n];
+      const later = after[n];
+      if (earlier !== undefined) add(earlier);
+      if (later !== undefined) add(later);
+    }
+  }
+  return { keep: [...chosen].sort((a, b) => a - b), truncated: true };
+}
+
 interface CanvasLib {
   nextHeight: typeof nextHeight;
   documentHeight: typeof documentHeight;
@@ -217,6 +292,9 @@ interface CanvasLib {
   escapeTarget: typeof escapeTarget;
   textDragState: typeof textDragState;
   textBoundary: typeof textBoundary;
+  nodeKind: typeof nodeKind;
+  nodeLabel: typeof nodeLabel;
+  elementTree: typeof elementTree;
 }
 
 export function canvasScript(lib: CanvasLib): void {
@@ -235,6 +313,8 @@ export function canvasScript(lib: CanvasLib): void {
   const MAX_TEXT_RECTS = 2000;
   const TEXT_DRAG_PX = 4;
   const ANCHOR_RETRY_MS = 1000;
+  // canvasMessage.ts's MAX_TREE_NODES.
+  const MAX_TREE_NODES = 200;
   // Each navigation is injected once, but a canvas re-running us must not
   // double every listener.
   const mark = Symbol.for("doan.canvas");
@@ -517,10 +597,11 @@ export function canvasScript(lib: CanvasLib): void {
   };
 
   // The hover shows what the next click would select: the pick target while picking, Select's step otherwise, and
-  // nothing where that click would select the selection again.
+  // nothing where that click would select the selection again. It keeps coming while ⌥ is held: the app measures from
+  // the selection to it, and hides it itself when there is nothing to measure.
   const postHover = () => {
     const over = hoverEl;
-    const el = !isElement(over) || isRoot(over) || alt || textDrag?.state === "drag" ? null : picking !== null ? over : selectTarget(over, meta);
+    const el = !isElement(over) || isRoot(over) || textDrag?.state === "drag" ? null : picking !== null ? over : selectTarget(over, meta);
     const rect = el !== null && el !== selected ? rectOf(el) : null;
     const key = JSON.stringify([hoverSeq, rect]);
     if (key === lastHover) return;
@@ -682,7 +763,7 @@ export function canvasScript(lib: CanvasLib): void {
   const command = (data: Record<string, unknown>) => {
     const next = data.seq;
     if (typeof next !== "number" || !Number.isInteger(next)) return;
-    const { type, frame, doanId, selector, index, id } = data;
+    const { type, frame, doanId, selector, index, id, x, y } = data;
     if (type === "pick-start" || type === "pick-cancel") {
       if (data.document !== documentToken || next <= pickSeq) return;
       pickSeq = next;
@@ -701,8 +782,10 @@ export function canvasScript(lib: CanvasLib): void {
       if (typeof data.meta !== "boolean") return;
     } else if (type === "hover-hand") {
       if (typeof data.hand !== "boolean") return;
+    } else if (type === "hover-at") {
+      if (typeof x !== "number" || typeof y !== "number" || !Number.isFinite(x) || !Number.isFinite(y)) return;
     } else if (type !== "clear" && type !== "hover-leave" && type !== "select-parent") return;
-    if (type === "hover-alt" || type === "hover-meta" || type === "hover-hand" || type === "hover-leave") {
+    if (type === "hover-alt" || type === "hover-meta" || type === "hover-hand" || type === "hover-leave" || type === "hover-at") {
       if (next <= hoverSeq) return;
       hoverSeq = next;
     } else {
@@ -721,6 +804,12 @@ export function canvasScript(lib: CanvasLib): void {
     } else if (type === "hover-leave") {
       hoverEl = null;
       lastHover = "";
+    } else if (type === "hover-at" && typeof x === "number" && typeof y === "number") {
+      // The pointer rests where the app names (this document's client px) and no move will come to say what is under
+      // it; the dedupe value is emptied as after a leave, so the same rect is sent again.
+      hoverEl = document.elementFromPoint(x, y);
+      lastHover = "";
+      postHover();
     } else if (type === "clear") {
       drop();
       postHover();
@@ -748,6 +837,108 @@ export function canvasScript(lib: CanvasLib): void {
     }
   };
 
+  // The inspector's element menu asks for the tree of the innermost frame around the selection. Its seq is a channel
+  // of its own, which no click, selection or hover command moves, and the request names this document's token, so a
+  // request meant for the document this one replaced is never answered. Reading the tree changes no selection state.
+  let treeSeq = 0;
+  const skippedTags = new Set(["script", "style", "template", "noscript"]);
+  const treeCommand = (data: Record<string, unknown>) => {
+    const next = data.seq;
+    if (typeof next !== "number" || !Number.isSafeInteger(next) || data.document !== documentToken || next <= treeSeq) return;
+    treeSeq = next;
+    const nodes: Record<string, unknown>[] = [];
+    let truncated = false;
+    const now = current();
+    const root = now === null ? undefined : framesOf(now).at(-1);
+    if (root !== undefined) {
+      const els: Element[] = [];
+      const depths: number[] = [];
+      // Iterative, so a deeply nested canvas cannot overflow the stack.
+      const stack: [Element, number][] = [[root, 0]];
+      for (let item = stack.pop(); item !== undefined; item = stack.pop()) {
+        const [el, depth] = item;
+        els.push(el);
+        depths.push(depth);
+        const children: Element[] = [];
+        // An element that renders no box has nothing to point at on the board, so it is left out, unless the
+        // selection is it or inside it. A display:contents element draws no box of its own but its children may, so
+        // they take its place at its depth.
+        const gather = (parent: Element) => {
+          for (const child of parent.children) {
+            if (skippedTags.has(child.localName)) continue;
+            if (child.getClientRects().length > 0) children.push(child);
+            else if (getComputedStyle(child).display === "contents") gather(child);
+            else if (now !== null && child.contains(now)) children.push(child);
+          }
+        };
+        gather(el);
+        for (let i = children.length - 1; i >= 0; i--) {
+          const child = children[i];
+          if (child !== undefined) stack.push([child, depth + 1]);
+        }
+      }
+      const reduced = lib.elementTree(depths, now === null ? -1 : els.indexOf(now), MAX_TREE_NODES);
+      truncated = reduced.truncated;
+      const counts = new Map<string, boolean>();
+      const unique = (attribute: AnchorAttribute, value: string) => {
+        const key = `${attribute}\n${value}`;
+        if (!counts.has(key)) counts.set(key, value.length <= MAX_STRING && byAttribute(attribute, value).length === 1);
+        return counts.get(key) === true;
+      };
+      // A node whose selector does not fit cannot be sent; its subtree goes with it so the depths still nest.
+      let droppedBelow: number | null = null;
+      for (const index of reduced.keep) {
+        const el = els[index];
+        const depth = depths[index];
+        if (el === undefined || depth === undefined) continue;
+        if (droppedBelow !== null && depth > droppedBelow) continue;
+        droppedBelow = null;
+        const chain: ChainLink[] = [];
+        for (let node: Element | null = el; node !== null; node = node.parentElement) {
+          let indexOfType = 1;
+          for (let sibling = node.previousElementSibling; sibling !== null; sibling = sibling.previousElementSibling) {
+            if (sibling.localName === node.localName && sibling.namespaceURI === node.namespaceURI) indexOfType++;
+          }
+          const link: ChainLink = { tag: node.localName, indexOfType };
+          const doanId = node.getAttribute("data-doan-id");
+          if (doanId !== null) link.doanId = doanId;
+          const frameId = node.getAttribute("data-doan-frame");
+          if (frameId !== null) link.frameId = frameId;
+          chain.push(link);
+          if (isRoot(node)) break;
+        }
+        const selector = lib.elementSelector(chain, unique);
+        if (selector.length > MAX_SELECTOR) {
+          droppedBelow = depth;
+          truncated = true;
+          continue;
+        }
+        const anchor: Record<string, string> = { selector };
+        const doanId = el.getAttribute("data-doan-id");
+        if (doanId !== null && doanId.length <= MAX_STRING) anchor.doanId = doanId;
+        const frameId = el.getAttribute("data-doan-frame");
+        const frame = frameId === null ? undefined : { id: lib.clipText(frameId, MAX_STRING), title: el.getAttribute("data-doan-title") ?? undefined };
+        if (frame !== undefined) anchor.frame = frame.id;
+        let text = "";
+        for (const child of el.childNodes) if (isText(child)) text += child.data;
+        const style = getComputedStyle(el);
+        const source: LabelSource = { tag: el.localName, text };
+        if (frame !== undefined) source.frame = frame.title === undefined ? { id: frame.id } : { id: frame.id, title: frame.title };
+        if (doanId !== null) source.doanId = doanId;
+        const node: Record<string, unknown> = {
+          depth,
+          name: lib.clipText(lib.nodeLabel(source), MAX_STRING),
+          kind: lib.nodeKind(el.localName, style.display, style.flexDirection, frame !== undefined),
+          anchor,
+          rect: rectOf(el),
+        };
+        if (el === now) node.selected = true;
+        nodes.push(node);
+      }
+    }
+    post({ type: "element-tree", href: location.href, document: documentToken, seq: next, viewport: innerHeight, nodes, truncated });
+  };
+
   addEventListener("message", (event: MessageEvent) => {
     if (event.source !== parent) return;
     const data: unknown = event.data;
@@ -755,6 +946,7 @@ export function canvasScript(lib: CanvasLib): void {
     const type = (data as { type?: unknown }).type;
     if (type === "measure") send();
     else if (type === "clear-text" || type === "text-point") textCommand(data as Record<string, unknown>);
+    else if (type === "element-tree") treeCommand(data as Record<string, unknown>);
     else command(data as Record<string, unknown>);
   });
 
@@ -775,9 +967,13 @@ export function canvasScript(lib: CanvasLib): void {
     "wheel",
     (event: WheelEvent) => {
       // The element under the cursor changes without a pointermove, so the
-      // hover waits for the next one.
-      hoverEl = null;
-      postHover();
+      // hover waits for the next one. While ⌥ is held the app measures to the
+      // hover target, a rect on the board that follows the board's move, so it
+      // stays until the pointer moves.
+      if (!alt) {
+        hoverEl = null;
+        postHover();
+      }
       const zoom = event.ctrlKey || event.metaKey;
       if (!zoom && scrollsFurther(event.target, event.deltaX, event.deltaY)) return;
       event.preventDefault();
@@ -845,12 +1041,17 @@ export function canvasScript(lib: CanvasLib): void {
   // A nested iframe has no script of ours; a click inside it only shows here
   // as focus moving into it.
   addEventListener("blur", () => {
-    // The ⌘ held on the way into a nested iframe, before the release below forgets it.
+    // The ⌘ and ⌥ held on the way into a nested iframe, before the release below forgets them.
     const direct = meta;
-    // ⌘ released while focus was elsewhere (⌘Tab) never comes back as a keyup.
+    const usesCanvas = alt;
+    // ⌘ and ⌥ released while focus was elsewhere (⌘Tab) never come back as a keyup.
     if (meta) {
       meta = false;
       postHover();
+    }
+    if (alt) {
+      alt = false;
+      postSelection("key", { key: "Alt", alt, seq: hoverSeq });
     }
     if (spaceHeld) {
       spaceHeld = false;
@@ -872,7 +1073,7 @@ export function canvasScript(lib: CanvasLib): void {
         if (active.isConnected) pickAt(active, null);
         return;
       }
-      if (alt) return;
+      if (usesCanvas) return;
       if (!active.isConnected) return;
       choose(active, direct);
       // Focus goes back to this document, or the next press in the same nested frame moves no focus and goes unheard,
@@ -1229,7 +1430,7 @@ export function canvasScript(lib: CanvasLib): void {
 }
 
 export function canvasScriptSource(): string {
-  const lib = { nextHeight, documentHeight, frameBottom, canScrollAxis, clipText, elementSelector, ancestorPath, clipHtml, textQuote, chipAnchors, frameStep, escapeTarget, textDragState, textBoundary };
+  const lib = { nextHeight, documentHeight, frameBottom, canScrollAxis, clipText, elementSelector, ancestorPath, clipHtml, textQuote, chipAnchors, frameStep, escapeTarget, textDragState, textBoundary, nodeKind, nodeLabel, elementTree };
   return `(${canvasScript.toString()})({${Object.entries(lib).map(([name, fn]) => `${name}: ${fn.toString()}`).join(", ")}}); void 0;`;
 }
 

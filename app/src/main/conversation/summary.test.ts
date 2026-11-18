@@ -76,8 +76,8 @@ describe("conversationSummary", () => {
     expect(conversationSummary(migrated, { ok: true, events: replaced }, restarted).unseen).toBe(false);
     expect(conversationSummary({ ...doan, seenSeq: 0 }, { ok: true, events: replaced }, restarted).unseen).toBe(true);
   });
-  // A new conversation the person started (main window or prototype window) may take over an empty panel; one a handoff
-  // or a promotion made never does, so the summary says who started it.
+  // A new conversation the person started (main window or prototype window) or a promoted one may take over an empty
+  // panel; one a handoff made never does, so the summary says who started it.
   it("says a handoff or a promotion started the conversation, and nothing for the person's own", () => {
     const origin = { kind: "handoff" as const, conversationId: "source", canvas: { path: ".doan/canvases/s.html", id: "s" } };
     const handedOff = history({ type: "user.message", text: "Continue here.", anchors: [], origin }, { type: "turn.started" });
