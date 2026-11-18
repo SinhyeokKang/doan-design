@@ -44,11 +44,15 @@ export class InspectorReads {
 
   // The panel's inputs after each commit: whether it shows (open and not yielding to a narrow window), the accepted
   // selection and the shown document's token.
-  update(shown: boolean, selection: InspectorSelection | null, document: string | null): void {
+  update(shown: boolean, given: InspectorSelection | null, document: string | null): void {
+    const view = given?.view ?? null;
+    const previous = this.seen;
+    // A selection belongs to the canvas it was applied in. A same-id move changes the open canvas's path at once while
+    // the controller keeps the old selection until the moved canvas finds it again; until then it is still that
+    // canvas's selection, so nothing is asked and the rows stay.
+    const selection = given !== null && this.selection !== null && view === previous.view ? { ...given, canvas: this.selection.canvas } : given;
     this.shown = shown;
     this.selection = selection;
-    const view = selection?.view ?? null;
-    const previous = this.seen;
     this.seen = { view, document };
     const target = selection === null ? null : inspectTarget(selection);
     const viewChanged = previous.view !== view, documentChanged = previous.document !== document;

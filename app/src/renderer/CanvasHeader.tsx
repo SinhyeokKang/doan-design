@@ -28,7 +28,7 @@ import { INSPECTOR_PANEL_ID } from "./InspectorPanel";
 export function CanvasHeader({ state, view, canvasKey = null, command, zoomTo, selectFrame, fallbackFocus = () => {}, panel, inspector }: {
   state: CanvasState; view: CanvasViewStore; canvasKey?: string | null; command(name: ViewCommand): void; zoomTo(scale: number): void; selectFrame(index: number, id: string): void;
   fallbackFocus?: () => void; panel?: { open: boolean; show(): void; badge?: Pick<CanvasSignal, "kind" | "label"> | null };
-  inspector?: { open: boolean; fits: boolean; show(): void };
+  inspector?: { open: boolean; fits: boolean; show(): void; focused?(node: Element): void };
 }) {
   const reasonId = useId();
   const shown = useSyncExternalStore(view.subscribe, view.get, view.get);
@@ -50,7 +50,7 @@ export function CanvasHeader({ state, view, canvasKey = null, command, zoomTo, s
       {shows.buttons.map(({ target, disabled }) => target === "inspector"
         // Unavailable rather than gone: the saved open flag stays, and the reason is its tooltip and description.
         ? <Fragment key={target}><IconTip label={disabled ?? "Show inspector"}><button type="button" className="doan-icon-button doan-panel-show" data-panel-target="inspector" aria-label="Show inspector" aria-expanded={false} aria-controls={INSPECTOR_PANEL_ID}
-            {...(disabled === undefined ? {} : { "aria-disabled": true, "aria-describedby": reasonId })} onClick={() => { if (disabled === undefined) inspector?.show(); }}><SlidersHorizontal aria-hidden="true" /></button></IconTip>
+            {...(disabled === undefined ? {} : { "aria-disabled": true, "aria-describedby": reasonId })} onFocus={event => inspector?.focused?.(event.currentTarget)} onClick={() => { if (disabled === undefined) inspector?.show(); }}><SlidersHorizontal aria-hidden="true" /></button></IconTip>
           {disabled !== undefined && <span className="sr-only" id={reasonId}>{disabled}</span>}</Fragment>
         // The badged name is the tooltip too, so a pointer reads the dot's meaning as a screen reader does.
         : panel && <IconTip key={target} label={panel.badge?.label ?? "Show conversation"}><button type="button" className="doan-icon-button doan-panel-show" data-panel-target="conversation" aria-label={panel.badge?.label ?? "Show conversation"} aria-expanded={false} aria-controls={CONVERSATION_PANEL_ID}

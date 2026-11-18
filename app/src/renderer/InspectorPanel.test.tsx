@@ -10,7 +10,7 @@ import { TooltipProvider } from "./components/ui/tooltip";
 
 // .doan/canvases/canvas-inspector-panel.html panel-states: the panel's states and rows as markup.
 const html = (node: ReactElement) => renderToStaticMarkup(<TooltipProvider>{node}</TooltipProvider>);
-const body = (read: InspectorReadState) => html(<InspectorBody read={read} onRetry={vi.fn()} onNotice={vi.fn()} />);
+const body = (read: InspectorReadState) => html(<InspectorBody read={read} onRetry={vi.fn()} onNotice={vi.fn()} onEscape={vi.fn()} />);
 const read = (panel: InspectorReadState["panel"], retrying = false): InspectorReadState => ({ panel, retrying, seq: 1 });
 const tree: ElementTreeSource = { request: () => true, subscribe: () => () => {}, preview: vi.fn(), select: vi.fn() };
 const PAY: SelectionView = { tag: "button", frame: { id: "pay", title: "Payment" }, element: { selector: "#pay-button", doanId: "pay-button", html: "<button>" }, path: [{ label: "pay", selector: "section" }, { label: "pay-button", selector: "#pay-button" }] };
@@ -93,7 +93,7 @@ describe("rows", () => {
 
 describe("the head and the column", () => {
   test("without a selection the title is Inspector, then Hide inspector", () => {
-    const markup = html(<InspectorPanel shown={true} onHide={vi.fn()} selection={null} document={null} inspect={vi.fn()} tree={tree} onNotice={vi.fn()} />);
+    const markup = html(<InspectorPanel shown={true} onHide={vi.fn()} selection={null} document={null} inspect={vi.fn()} tree={tree} onNotice={vi.fn()} onEscape={vi.fn()} />);
     expect(markup).toContain(`<aside class="right ov-right doan-insp-panel" id="${INSPECTOR_PANEL_ID}" role="region" aria-label="Inspector">`);
     expect(markup).toContain('<div class="doan-conv-head doan-insp-head"><span class="doan-insp-title">Inspector</span>');
     expect(markup).toMatch(/<button type="button" class="doan-icon-button doan-panel-hide" aria-label="Hide inspector" aria-expanded="true" aria-controls="doan-inspector-panel"[^>]*><svg[^>]*lucide-panel-right-close/);
@@ -101,7 +101,7 @@ describe("the head and the column", () => {
   });
 
   test("with a selection the title is its name in the conversation head's title-menu trigger, opening a tree", () => {
-    const markup = html(<InspectorPanel shown={true} onHide={vi.fn()} selection={{ canvas: { root: "/repo", path: "a.html" }, view: PAY }} document="d" inspect={() => new Promise(() => {})} tree={tree} onNotice={vi.fn()} />);
+    const markup = html(<InspectorPanel shown={true} onHide={vi.fn()} selection={{ canvas: { root: "/repo", path: "a.html" }, view: PAY }} document="d" inspect={() => new Promise(() => {})} tree={tree} onNotice={vi.fn()} onEscape={vi.fn()} />);
     expect(markup).toMatch(/<span class="ov-title-wrap doan-conv-title doan-insp-pick"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="tree" aria-label="pay-button, element\. Elements in this frame"/);
     expect(markup).toMatch(/<span>pay-button<\/span><svg[^>]*lucide-chevron-down chev/);
   });
@@ -114,7 +114,7 @@ describe("the head and the column", () => {
   });
 
   test("folded or yielding, the column stays in the DOM, inert and hidden, with its resize handle", () => {
-    const column = (shown: boolean) => html(<InspectorColumn shown={shown} width={280} bounds={{ min: 280, max: 512 }} onHide={vi.fn()} onResize={vi.fn()} preview={vi.fn()} selection={null} document={null} inspect={vi.fn()} tree={tree} onNotice={vi.fn()} />);
+    const column = (shown: boolean) => html(<InspectorColumn shown={shown} width={280} bounds={{ min: 280, max: 512 }} onHide={vi.fn()} onResize={vi.fn()} preview={vi.fn()} selection={null} document={null} inspect={vi.fn()} tree={tree} onNotice={vi.fn()} onEscape={vi.fn()} />);
     expect(column(false)).toMatch(/^<div class="doan-insp-column" data-collapsed="" inert="">/);
     expect(column(true)).toMatch(/^<div class="doan-insp-column">/);
     expect(column(true)).toContain('<div class="doan-panel-handle" role="separator" aria-orientation="vertical" aria-label="Resize inspector" aria-valuenow="280" aria-valuemin="280" aria-valuemax="512" tabindex="0"></div>');
@@ -157,7 +157,7 @@ describe("styles", () => {
     expect(controls).toMatch(/\.doan-code \{[^}]*border-radius: var\(--radius-inline\);[^}]*background: var\(--surface-inset\);[^}]*white-space: nowrap;[^}]*overflow: hidden;/);
     expect(controls).toContain(".doan-code > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }");
     expect(controls).toContain(".doan-code > i { flex: none; width: var(--size-icon-xs); height: var(--size-icon-xs); }");
-    expect(surfaces).toContain('.doan-menu[data-ui-variant="tree"] .doan-menu-item { position: relative; gap: var(--space-2); padding-inline-start: calc(var(--space-3) + var(--depth) * (var(--size-icon) + var(--space-2))); }');
+    expect(surfaces).toContain('.doan-menu[data-ui-variant="tree"] .doan-menu-item { position: relative; gap: var(--space-2); padding-inline-start: calc(var(--space-3) + var(--tree-depth) * (var(--size-icon) + var(--space-2))); }');
     expect(surfaces).toContain('.doan-menu[data-ui-variant="tree"] .doan-menu-item[aria-selected="true"] { background: var(--affordance-backdrop-pressed); }');
     expect(surfaces).toMatch(/\.doan-menu\[data-ui-variant="tree"\] \.guide \{[^}]*width: 1px;[^}]*background: var\(--border-standard\);/);
   });

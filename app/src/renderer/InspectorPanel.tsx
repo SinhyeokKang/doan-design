@@ -39,39 +39,62 @@ export function selectionName(view: SelectionView): string {
 
 // The canvas page's inspector column: the resize handle on its start edge and the panel. While folded, or yielding to
 // a narrow window, it stays in the DOM out of the Tab order, so the Show button's aria-controls resolves.
-export function InspectorColumn({ shown, width, bounds, onHide, onResize, preview, selection, document, inspect, tree, onNotice }: {
+// `onEscape`: every tooltip in the panel hands its Escape to the canvas page, which then takes Esc's step as it would
+// with no tooltip open (CanvasController.toolbarEscape): an open tooltip's Radix layer prevents the key first.
+export function InspectorColumn({ shown, width, bounds, onHide, onResize, preview, selection, document, inspect, tree, onNotice, onEscape }: {
   shown: boolean; width: number; bounds: PanelBounds; onHide(): void; onResize(width: number | undefined): void; preview(width: number): void;
-  selection: InspectorSelection | null; document: string | null; inspect: InspectCall; tree: ElementTreeSource; onNotice(text: string): void;
+  selection: InspectorSelection | null; document: string | null; inspect: InspectCall; tree: ElementTreeSource; onNotice(text: string): void; onEscape(event: globalThis.KeyboardEvent): void;
 }) {
   return <div className="doan-insp-column" data-collapsed={shown ? undefined : ""} inert={!shown}>
     <ResizeHandle width={width} bounds={bounds} onResize={onResize} preview={preview} label="Resize inspector" />
-    <InspectorPanel shown={shown} onHide={onHide} selection={selection} document={document} inspect={inspect} tree={tree} onNotice={onNotice} />
+    <InspectorPanel shown={shown} onHide={onHide} selection={selection} document={document} inspect={inspect} tree={tree} onNotice={onNotice} onEscape={onEscape} />
   </div>;
 }
 
-export function InspectorPanel({ shown, onHide, selection, document, inspect, tree, onNotice }: {
-  shown: boolean; onHide(): void; selection: InspectorSelection | null; document: string | null; inspect: InspectCall; tree: ElementTreeSource; onNotice(text: string): void;
+export function InspectorPanel({ shown, onHide, selection, document: shownDocument, inspect, tree, onNotice, onEscape }: {
+  shown: boolean; onHide(): void; selection: InspectorSelection | null; document: string | null; inspect: InspectCall; tree: ElementTreeSource; onNotice(text: string): void; onEscape(event: globalThis.KeyboardEvent): void;
 }) {
   const [reads] = useState(() => new InspectorReads(inspect));
   const read = useSyncExternalStore(reads.subscribe, reads.get, reads.get);
-  useLayoutEffect(() => { reads.update(shown, selection, document); }, [reads, shown, selection, document]);
+  useLayoutEffect(() => { reads.update(shown, selection, shownDocument); }, [reads, shown, selection, shownDocument]);
+  const panel = useRef<HTMLElement | null>(null);
+  // The control in the panel that last took focus, until focus moves on to another control.
+  const lastFocus = useRef<Element | null>(null);
+  // After every commit: a focused control that left the page (Retry once it succeeded, a row an Esc step or a new read
+  // replaced, the trigger of a selection that cleared) hands focus on instead of letting it fall to the page.
+  useLayoutEffect(() => {
+    const lost = lastFocus.current, aside = panel.current;
+    if (lost === null || lost.isConnected || aside === null) return;
+    lastFocus.current = null;
+    const active = document.activeElement;
+    if (active !== null && active !== document.body) return;
+    focusAfterLoss(lost, aside)?.focus({ preventScroll: true });
+  });
   const view = selection?.view ?? null;
   const nodes = useElementTree(shown, view, tree);
-  return <aside className="right ov-right doan-insp-panel" id={INSPECTOR_PANEL_ID} role="region" aria-label="Inspector">
+  return <aside ref={panel} className="right ov-right doan-insp-panel" id={INSPECTOR_PANEL_ID} role="region" aria-label="Inspector"
+    onFocus={event => { lastFocus.current = event.target; }} onBlur={event => { if (event.relatedTarget !== null) lastFocus.current = null; }}>
     <div className="doan-conv-head doan-insp-head">
-      {view === null ? <span className="doan-insp-title">Inspector</span> : <ElementMenu view={view} nodes={nodes} tree={tree} />}
-      <IconTip label="Hide inspector"><button type="button" className="doan-icon-button doan-panel-hide" aria-label="Hide inspector" aria-expanded={shown} aria-controls={INSPECTOR_PANEL_ID} onClick={onHide}><PanelRightClose aria-hidden="true" /></button></IconTip>
+      {view === null ? <span className="doan-insp-title">Inspector</span> : <ElementMenu view={view} nodes={nodes} tree={tree} shown={shown} onEscape={onEscape} />}
+      <IconTip label="Hide inspector" onEscape={onEscape}><button type="button" className="doan-icon-button doan-panel-hide" aria-label="Hide inspector" aria-expanded={shown} aria-controls={INSPECTOR_PANEL_ID} onClick={onHide}><PanelRightClose aria-hidden="true" /></button></IconTip>
     </div>
-    <InspectorBody read={shown && selection !== null ? read : EMPTY_READ} onRetry={() => reads.retry()} onNotice={onNotice} />
+    <InspectorBody read={shown && selection !== null ? read : EMPTY_READ} onRetry={() => reads.retry()} onNotice={onNotice} onEscape={onEscape} />
   </aside>;
 }
 
 const EMPTY_READ: InspectorReadState = { panel: { kind: "empty" }, retrying: false, seq: 0 };
 
+// Where focus goes when the focused control in the panel left the page: a Retry that succeeded to the rows' Tab stop;
+// otherwise the head's trigger while a selection stays (its name says what is selected now), else the board area.
+function focusAfterLoss(lost: Element, aside: Element): HTMLElement | null {
+  const row = lost.closest(".doan-insp-failed") === null ? null : aside.querySelector<HTMLElement>('.doan-insp-row[tabindex="0"]');
+  return row ?? aside.querySelector<HTMLElement>(".doan-insp-pick .ov-title") ?? document.querySelector<HTMLElement>(".doan-canvas-panel .area");
+}
+
 // The panel under its head, for each state of the read: no selection, a new selection's read (nothing until the
 // delay, so a quick read never flashes the line), the same selection read again (its rows stay), a failure with Retry,
 // and the rows.
-export function InspectorBody({ read, onRetry, onNotice }: { read: InspectorReadState; onRetry(): void; onNotice(text: string): void }) {
+export function InspectorBody({ read, onRetry, onNotice, onEscape }: { read: InspectorReadState; onRetry(): void; onNotice(text: string): void; onEscape(event: globalThis.KeyboardEvent): void }) {
   const failedId = useId();
   const { panel } = read;
   const rows = panel.kind === "rows" || panel.kind === "reading" ? panel.rows : null;
@@ -79,7 +102,7 @@ export function InspectorBody({ read, onRetry, onNotice }: { read: InspectorRead
   if (panel.kind === "empty") return <div className="doan-conv-body"><p className="doan-conv-empty">{INSPECTOR_EMPTY}</p></div>;
   return <div className="doan-insp-body doan-scroll">
     {panel.kind === "failed" ? <div className="doan-insp-failed" role="alert"><AlertIcon /><span id={failedId}>{INSPECTOR_FAILED}</span>{retryButton({ running: read.retrying, variant: "panel", describedBy: failedId, onRetry })}</div>
-      : shownRows !== null ? <RowList view={shownRows} busy={panel.kind === "reading"} onNotice={onNotice} />
+      : shownRows !== null ? <RowList view={shownRows} busy={panel.kind === "reading"} onNotice={onNotice} onEscape={onEscape} />
       : <ReadingLine key={read.seq} />}
   </div>;
 }
@@ -111,7 +134,7 @@ const KIND_ICONS: Record<ElementKind, LucideIcon> = {
 // The head's title: the selection's name as the conversation head's title menu draws one, opening the innermost
 // frame's tree. A row picked selects that node as a ⌘-click would; the row under the pointer or focus is marked on the
 // board. Radix closes it on Esc (preventing the default, so the selection stays) and gives focus back to the trigger.
-export function ElementMenu({ view, nodes, tree }: { view: SelectionView; nodes: ElementTreeNode[] | null; tree: ElementTreeSource }) {
+export function ElementMenu({ view, nodes, tree, shown, onEscape }: { view: SelectionView; nodes: ElementTreeNode[] | null; tree: ElementTreeSource; shown: boolean; onEscape(event: globalThis.KeyboardEvent): void }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<string | null>(null);
   const rowNodes = useRef(new Map<string, HTMLElement>());
@@ -126,6 +149,11 @@ export function ElementMenu({ view, nodes, tree }: { view: SelectionView; nodes:
 
   // Another selection closes the menu: its rows were the old selection's.
   useEffect(() => { setOpen(false); }, [view]);
+  // A folded or yielding inspector closes its menu, which would otherwise float over the hidden column.
+  useEffect(() => { if (!shown) setOpen(false); }, [shown]);
+  // The menu can go with its trigger while a row is marked (a selection cleared by a press the app's document never
+  // sees, so Radix did not close it first): the mark goes too, or it would hide the canvas's own hover.
+  useEffect(() => () => tree.preview(null), [tree]);
   useEffect(() => { if (!open) tree.preview(null); }, [open, tree]);
 
   const focusRow = (target: string | null) => {
@@ -153,8 +181,8 @@ export function ElementMenu({ view, nodes, tree }: { view: SelectionView; nodes:
 
   const kind = view.element === undefined ? "frame" : "element";
   return <span className="ov-title-wrap doan-conv-title doan-insp-pick">
-    <Popover.Root open={open} onOpenChange={next => { setOpen(next); setActive(null); if (next) tree.request(); }}>
-      <NameTip text={named}><Popover.Trigger asChild><button type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="tree"
+    <Popover.Root open={open && shown} onOpenChange={next => { setOpen(next); setActive(null); if (next) tree.request(); }}>
+      <NameTip text={named} onEscape={onEscape}><Popover.Trigger asChild><button type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="tree"
         aria-label={`${named}, ${kind}. Elements in this frame`}><span>{named}</span><ChevronDown className="chev" aria-hidden="true" /></button></Popover.Trigger></NameTip>
       <Popover.Portal><Popover.Content role={undefined} className="doan-floating doan-menu doan-insp-menu" data-ui-variant="tree" side="bottom" align="start" sideOffset={4} collisionPadding={8}
         onOpenAutoFocus={event => { event.preventDefault(); focusRow(current); }}>
@@ -162,13 +190,13 @@ export function ElementMenu({ view, nodes, tree }: { view: SelectionView; nodes:
           {rows.map((node, index) => {
             const id = key(node, index), Icon = KIND_ICONS[node.kind];
             return <div key={id} role="treeitem" aria-level={node.depth + 1} aria-selected={node.selected === true} tabIndex={id === current ? 0 : -1}
-              className="doan-menu-item" style={{ "--depth": node.depth } as CSSProperties}
+              className="doan-menu-item" style={{ "--tree-depth": node.depth } as CSSProperties}
               ref={element => { if (element) rowNodes.current.set(id, element); else rowNodes.current.delete(id); }}
               onFocus={() => { setActive(id); mark(node); }}
               onPointerMove={event => { if (document.activeElement !== event.currentTarget) event.currentTarget.focus({ preventScroll: true }); }}
               onClick={() => pick(node)}>
               {/* One guide per ancestor, down to that ancestor's last descendant row. */}
-              {Array.from({ length: node.depth }, (_, level) => <i key={level} className="guide" aria-hidden="true" style={{ "--level": level } as CSSProperties} />)}
+              {Array.from({ length: node.depth }, (_, level) => <i key={level} className="guide" aria-hidden="true" style={{ "--tree-level": level } as CSSProperties} />)}
               <Icon aria-hidden="true" /><span className="name">{node.name}</span>
             </div>;
           })}
@@ -180,7 +208,7 @@ export function ElementMenu({ view, nodes, tree }: { view: SelectionView; nodes:
 
 // The rows: one Tab stop (roving), ↑/↓ and Home/End move, Enter, Space and ⌘C copy what the row shows. Focus and
 // scroll follow a row's key across replies, so a read in place keeps them.
-export function RowList({ view, busy, onNotice }: { view: RowsView; busy: boolean; onNotice(text: string): void }) {
+export function RowList({ view, busy, onNotice, onEscape }: { view: RowsView; busy: boolean; onNotice(text: string): void; onEscape(event: globalThis.KeyboardEvent): void }) {
   const [active, setActive] = useState<string | null>(null);
   const nodes = useRef(new Map<string, HTMLButtonElement>());
   const hint = useId();
@@ -204,7 +232,7 @@ export function RowList({ view, busy, onNotice }: { view: RowsView; busy: boolea
   return <div className="doan-insp-groups" role="group" aria-label="Styles" aria-busy={busy || undefined}>
     {view.groups.map(group => <section key={group.group} className="doan-insp-group" aria-label={group.title}>
       <h3 className="doan-insp-group-title">{group.title}</h3>
-      {group.rows.map(row => <RowTip key={row.key} row={row}>
+      {group.rows.map(row => <RowTip key={row.key} row={row} onEscape={onEscape}>
         <button type="button" className="doan-insp-row" data-key={row.key} tabIndex={row.key === current ? 0 : -1} aria-label={row.spoken} aria-describedby={hint}
           ref={element => { if (element) nodes.current.set(row.key, element); else nodes.current.delete(row.key); }}
           onFocus={() => setActive(row.key)} onKeyDown={event => keydown(event, row)} onClick={() => copy(row)}>
@@ -226,7 +254,7 @@ function swatch(row: RowView): ReactElement | null {
 
 // The row's one tooltip, opened by hover or focus when it has something to say: a cut value in full, then the token's
 // computed value, its chain, each side, where it is inherited from. Cut is measured when it would open (NameTip's rule).
-function RowTip({ row, children }: { row: RowView; children: ReactElement }) {
+function RowTip({ row, onEscape, children }: { row: RowView; onEscape(event: globalThis.KeyboardEvent): void; children: ReactElement }) {
   const [lines, setLines] = useState<string[] | null>(null);
   const node = useRef<HTMLButtonElement | null>(null);
   return <Tooltip open={lines !== null} onOpenChange={open => {
@@ -234,10 +262,10 @@ function RowTip({ row, children }: { row: RowView; children: ReactElement }) {
     setLines(next.length > 0 ? next : null);
   }}>
     <TooltipTrigger asChild ref={node}>{children}</TooltipTrigger>
-    <TooltipContent side="bottom" align="start" className="doan-insp-tip">{lines?.map((line, index) => <span key={index}>{line}</span>)}</TooltipContent>
+    <TooltipContent side="bottom" align="start" className="doan-insp-tip" onEscapeKeyDown={onEscape}>{lines?.map((line, index) => <span key={index}>{line}</span>)}</TooltipContent>
   </Tooltip>;
 }
 
-function IconTip({ label, children }: { label: string; children: ReactElement }) {
-  return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip>;
+function IconTip({ label, onEscape, children }: { label: string; onEscape(event: globalThis.KeyboardEvent): void; children: ReactElement }) {
+  return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent onEscapeKeyDown={onEscape}>{label}</TooltipContent></Tooltip>;
 }

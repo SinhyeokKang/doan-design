@@ -91,19 +91,19 @@
 .doan-menu-item:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 
 /* A tree row's depth and a guide's level, set inline on each; 0 when unset. */
-:root { --depth: 0; --level: 0; }
-/* A tree of nested rows (data-ui-variant="tree"). A row's --depth moves it in by its icon and the gap, so a child's
-   icon starts under its parent's name; a 1px neutral guide per ancestor (--level) runs down that ancestor's icon to
+:root { --tree-depth: 0; --tree-level: 0; }
+/* A tree of nested rows (data-ui-variant="tree"). A row's --tree-depth moves it in by its icon and the gap, so a child's
+   icon starts under its parent's name; a 1px neutral guide per ancestor (--tree-level) runs down that ancestor's icon to
    its last descendant row. The selected row is pressed. As in a listbox, a row fills while focused, or hovered while
    the tree has no focus, so one fill shows at a time. */
-.doan-menu[data-ui-variant="tree"] .doan-menu-item { position: relative; gap: var(--space-2); padding-inline-start: calc(var(--space-3) + var(--depth) * (var(--size-icon) + var(--space-2))); }
+.doan-menu[data-ui-variant="tree"] .doan-menu-item { position: relative; gap: var(--space-2); padding-inline-start: calc(var(--space-3) + var(--tree-depth) * (var(--size-icon) + var(--space-2))); }
 .doan-menu[data-ui-variant="tree"] .doan-menu-item > svg { flex: none; width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
 .doan-menu[data-ui-variant="tree"] .doan-menu-item > .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .doan-menu[data-ui-variant="tree"] .doan-menu-item[aria-selected="true"] { background: var(--affordance-backdrop-pressed); }
 .doan-menu[data-ui-variant="tree"] .doan-menu-item[aria-selected="true"] > svg { color: var(--text-standard); }
 .doan-menu[data-ui-variant="tree"] .doan-menu-item[role="treeitem"]:focus:not([aria-selected="true"]),
 .doan-menu[data-ui-variant="tree"] [role="tree"]:not(:has(:focus)) > .doan-menu-item[role="treeitem"]:hover:not([aria-selected="true"]) { background: var(--affordance-floating-hover); }
-.doan-menu[data-ui-variant="tree"] .guide { position: absolute; top: 0; bottom: 0; left: calc(var(--space-3) + var(--level) * (var(--size-icon) + var(--space-2)) + var(--size-icon) / 2); width: 1px; transform: translateX(-50%); background: var(--border-standard); pointer-events: none; }
+.doan-menu[data-ui-variant="tree"] .guide { position: absolute; top: 0; bottom: 0; left: calc(var(--space-3) + var(--tree-level) * (var(--size-icon) + var(--space-2)) + var(--size-icon) / 2); width: 1px; transform: translateX(-50%); background: var(--border-standard); pointer-events: none; }
 
 /* Popovers hold a few lines of content rather than a list. */
 .doan-popover { width: 320px; padding: var(--space-3); }

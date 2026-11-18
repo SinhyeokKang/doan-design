@@ -1111,7 +1111,7 @@ test("a late answer after the panel switched conversation or the canvas page lef
 // sized after the conversation and taken away, with its saved open flag kept, from a window too narrow for it.
 describe("the inspector column", () => {
   type Column = { shown: boolean; width: number; bounds: { min: number; max: number }; onHide(): void; onResize(width: number | undefined): void };
-  type InspectorPane = { inspector: { open: boolean; fits: boolean; show(): void } };
+  type InspectorPane = { inspector: { open: boolean; fits: boolean; show(): void; focused?(node: Element): void } };
   const column = () => find<Column>(InspectorColumn)[0]?.props;
   const inspectorPane = () => (pane() as unknown as InspectorPane | undefined)?.inspector;
   const savedInspector = () => (doan.saveUiState!.mock.lastCall?.[0] as { inspector?: unknown } | undefined)?.inspector;
@@ -1175,6 +1175,22 @@ describe("the inspector column", () => {
     expect(panel()?.width).toBe(320);
     measure(1470);
     expect(column()).toMatchObject({ shown: true, width: 320 });
+  });
+
+  // POSTMORTEM 2026-11-13: the narrow window's hand-off put focus on Show inspector; widening again removes that
+  // button, so focus goes on to Hide inspector, as unfolding does.
+  test("widening again after the narrow window's hand-off gives focus to Hide inspector", async () => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true, width: 320 } });
+    measure(1100);
+    const show = { isConnected: true };
+    inspectorPane()!.focused!(show as never);
+    const { asked, focus } = focusing();
+    show.isConnected = false;
+    (document as unknown as { activeElement: unknown }).activeElement = (document as unknown as { body: unknown }).body;
+    measure(1470);
+    expect(column()?.shown).toBe(true);
+    expect(asked).toContain(".doan-insp-panel .doan-panel-hide");
+    expect(focus).toHaveBeenCalled();
   });
 
   test("with the inspector shown the conversation's drag stops where the board keeps 360", async () => {

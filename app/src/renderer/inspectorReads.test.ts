@@ -156,6 +156,28 @@ describe("the same selection read again", () => {
     expect(reads.get().panel).toEqual({ kind: "rows", rows: rows("56px") });
   });
 
+  // The same canvas id moved to a new path (CanvasController's same-id move): the open canvas's path changes at once
+  // while the old selection stays until the moved canvas has found it again.
+  test("a canvas moved to a new path keeps the rows until the selection is found there, then reads in place", async () => {
+    const { calls, inspect } = fakeInspect();
+    const reads = new InspectorReads(inspect);
+    const before = element("#pay");
+    const moved = { root: "/repo", path: ".doan/canvases/renamed.html" };
+    reads.update(true, at(before), "doc-1");
+    answer(calls[0]!, { rows: rows("52px") });
+    await settled(calls[0]!);
+    reads.update(true, at(before, moved), "doc-1");
+    reads.update(true, at(before, moved), "doc-2");
+    expect(calls).toHaveLength(1);
+    expect(reads.get().panel).toEqual({ kind: "rows", rows: rows("52px") });
+    reads.update(true, at(element("#pay"), moved), "doc-2");
+    expect(calls.map(call => call.request)).toEqual([{ selector: "#pay", canvas: CANVAS, seq: 1 }, { selector: "#pay", canvas: moved, seq: 2 }]);
+    expect(reads.get().panel).toEqual({ kind: "reading", rows: rows("52px") });
+    answer(calls[1]!, { rows: rows("56px") });
+    await settled(calls[1]!);
+    expect(reads.get().panel).toEqual({ kind: "rows", rows: rows("56px") });
+  });
+
   test("a new selection drops the previous rows while it reads", async () => {
     const { calls, inspect } = fakeInspect();
     const reads = new InspectorReads(inspect);

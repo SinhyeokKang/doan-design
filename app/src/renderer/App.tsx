@@ -2370,13 +2370,22 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   }, [inspectorPanel.open]);
   // A window narrowed under the inspector's minimum takes the column away; focus inside it goes to Show inspector,
   // which now says why, rather than falling to the page.
+  // Widening again removes Show inspector; if focus was on it, it goes on to Hide inspector, as unfolding does.
   const inspectorWasShown = useRef(inspectorShown);
+  // The Show inspector button that last took focus (the header reports it).
+  const inspectorShowFocused = useRef<Element | null>(null);
   useLayoutEffect(() => {
     const was = inspectorWasShown.current;
     inspectorWasShown.current = inspectorShown;
-    if (!was || inspectorShown || inspectorFocus.current !== null) return;
+    if (was === inspectorShown || inspectorFocus.current !== null) return;
     const active = document.activeElement;
-    if (active instanceof HTMLElement && active.closest(".doan-insp-column")) document.querySelector<HTMLElement>('.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]')?.focus();
+    if (!inspectorShown) {
+      if (active instanceof HTMLElement && active.closest(".doan-insp-column")) document.querySelector<HTMLElement>('.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]')?.focus();
+      return;
+    }
+    const show = inspectorShowFocused.current;
+    inspectorShowFocused.current = null;
+    if (show !== null && !show.isConnected && (active === null || active === document.body)) document.querySelector<HTMLElement>(".doan-insp-panel .doan-panel-hide")?.focus();
   }, [inspectorShown]);
   useEffect(() => {
     if (!inspectorMotion) return;
@@ -2554,7 +2563,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     {strip}
     <CanvasPane viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} view={canvasView.current} command={command} covered={overview !== null || overlaid} overlaid={overlaid}
       zoomTo={scale => controller.current?.zoomTo(scale)} onToolbarEscape={event => controller.current?.toolbarEscape(event)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: showPanel, badge: panelBadge }}
-      inspector={{ open: inspectorPanel.open, fits: canvasPanels.inspectorFits, show: () => foldInspector(true) }}
+      inspector={{ open: inspectorPanel.open, fits: canvasPanels.inspectorFits, show: () => foldInspector(true), focused: node => { inspectorShowFocused.current = node; } }}
       agent={{ list: state.open ? run.listState(state.open.folder) : undefined, shown: canvasRun.current!.showing()?.conversationId ?? null, canvas: workingCanvas(state.open, state.unlisted, entry), buddy: buddySelection.shown, running: screen === "workspace" && overview === null, work, entries,
         conversationWork, frames: state.layout?.frames ?? null, onWork: target => controller.current?.setWork(target),
         onOpen: openRequest, onOpenSibling }}
@@ -2578,7 +2587,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       open={item => { if (item.row) openCanvasConversation(overview.path, item.row, item.conversationId, { kind: "overviewRow" }); }} retry={() => run.retryList(overview.path)} listRetry={run.listRetry(overview.path)}
       onDelete={(item, button, after) => openDelete({ conversationId: item.conversationId, root: overview.path, title: item.title, provider: item.provider, from: "canvasList", after }, button)} /></div>
       : <><InspectorColumn shown={inspectorShown} width={shownInspector} bounds={inspectorLimits} onHide={() => foldInspector(false)} onResize={resizeInspector} preview={previewInspector}
-        selection={inspectorSelection} document={state.layout?.document ?? null} inspect={inspectCall} tree={elementTree} onNotice={text => toast.show(text)} />
+        selection={inspectorSelection} document={state.layout?.document ?? null} inspect={inspectCall} tree={elementTree} onNotice={text => toast.show(text)}
+        onEscape={event => controller.current?.toolbarEscape(event)} />
       <ConversationPanel open={rightPanel.open} width={shownPanel} bounds={conversationLimits} onHide={() => { controller.current?.cancelPick(); foldPanel(false); }} onResize={resizePanel} preview={previewPanel}
         title={panelTarget && <CanvasConversationTitle run={canvasRun.current!} list={panelList} canvasName={panelCanvasName} now={clock} seen={run.seenPending()}
           title={panelTitle.title} current={panelTitle.current} onChoose={() => controller.current?.dropPendingLocate()} onDelete={openDelete} onPicked={() => queueMicrotask(() => document.querySelector<HTMLElement>(".doan-conv-panel .composer-input")?.focus())} />}>
@@ -2682,7 +2692,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   // covered: the Overview or a problem's overlay is over the pane. overlaid: the overlay, which names the problem itself.
   state: CanvasState; view: CanvasViewStore; command: (name: ViewCommand) => void; covered: boolean; overlaid: boolean;
-  zoomTo(scale: number): void; onToolbarEscape(event: KeyboardEvent): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: CanvasSignal | null }; inspector: { open: boolean; fits: boolean; show(): void }; agent: AgentProps;
+  zoomTo(scale: number): void; onToolbarEscape(event: KeyboardEvent): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: CanvasSignal | null }; inspector: { open: boolean; fits: boolean; show(): void; focused(node: Element): void }; agent: AgentProps;
   picking: boolean; capturing: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool; capture: CaptureTool; player: PlayTool; exporter: ExportTool;
 }) {
   const panel = useRef<HTMLDivElement>(null);
