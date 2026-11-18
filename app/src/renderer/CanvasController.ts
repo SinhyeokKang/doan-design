@@ -161,6 +161,8 @@ export class CanvasController {
   private jumpKind: "rect" | "point" = "rect";
   private jumpMark: HTMLElement | null = null;
   private viewResize: ResizeObserver | null = null;
+  // The canvas area's left edge on screen when it was last laid out, null before that.
+  private viewportLeft: number | null = null;
   private jumpTimer: ReturnType<typeof setTimeout> | undefined;
   private work: CanvasWorkTarget | null = null;
   private workMark: HTMLElement | null = null;
@@ -370,7 +372,7 @@ export class CanvasController {
     private pointer: () => Promise<{ x: number; y: number } | null>,
   ) {
     if (typeof ResizeObserver !== "undefined" && "nodeType" in viewport) {
-      this.viewResize = new ResizeObserver(() => this.applyView("app"));
+      this.viewResize = new ResizeObserver(this.viewportResized);
       this.viewResize.observe(viewport as unknown as Element);
     }
     window.addEventListener("message", this.receive);
@@ -1714,7 +1716,8 @@ export class CanvasController {
 
   // The first Fit of a freshly opened canvas, again at the board's present size. The
   // canvas loads while the Overview still lays out the page (its right column is 280 wide), so the renderer calls this
-  // once the canvas page's own column width is applied. Only once per load; later width changes keep the top-left.
+  // once the canvas page's own column width is applied. Only once per load; later resizes keep the board's screen
+  // position on either side (viewportResized).
   settleFit(): void {
     const pending = this.firstFit;
     this.firstFit = null;
@@ -1752,6 +1755,25 @@ export class CanvasController {
     // the board point now under it.
     if (this.textDragging) { const at = screenToBoard(this.view, point); this.post({ type: "text-point", epoch: this.textEpoch, x: at.x, y: at.y }); }
   }
+
+  // The view is kept relative to the area's top-left, so a sidebar fold, unfold or width drag, which moves the left
+  // edge, would carry the board along. Taking the edge's move off the view keeps the board where it is on screen, as the
+  // conversation panel does by moving only the right edge. Done on every callback, so a fold animation's frames do not
+  // slide it either. An area not laid out (zero width) is skipped, so its return counts the edge it had before.
+  private viewportResized = (): void => {
+    const rect = this.viewport.getBoundingClientRect();
+    if (rect.width > 0) {
+      const shift = this.viewportLeft === null ? 0 : rect.left - this.viewportLeft;
+      this.viewportLeft = rect.left;
+      if (shift !== 0) {
+        // A first Fit still waiting for settleFit stays that wait: the moved view takes over its identity.
+        const waiting = this.firstFit !== null && this.firstFit === this.view;
+        this.view = { ...this.view, x: this.view.x - shift };
+        if (waiting) this.firstFit = this.view;
+      }
+    }
+    this.applyView("app");
+  };
 
   private applyView(origin: ViewOrigin = "person"): void {
     if (origin === "person") this.personActive(true);

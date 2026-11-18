@@ -6022,12 +6022,15 @@ describe("canvas area's left edge moves", () => {
     const edge = { left, width };
     const viewport = Object.assign(new EventTarget(), {
       nodeType: 1, clientWidth: width, clientHeight: 600, focus: vi.fn(),
-      getBoundingClientRect: () => new DOMRect(edge.left, 48, edge.width, edge.width === 0 ? 0 : 600),
+      // A plain rect: the test environment has no DOMRect.
+      getBoundingClientRect: () => { const height = edge.width === 0 ? 0 : 600; return { x: edge.left, y: 48, left: edge.left, top: 48, right: edge.left + edge.width, bottom: 48 + height, width: edge.width, height, toJSON: () => ({}) }; },
     });
     // Object.assign would copy a getter's value once.
     Object.defineProperty(viewport, "clientWidth", { get: () => edge.width });
     const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
     const controller = new CanvasController(viewport, board, { append: vi.fn() }, vi.fn(), vi.fn(), fakeLayer(), async () => null);
+    // A ResizeObserver reports every observed element once after observe().
+    (resized as (() => void) | null)?.();
     const row = { path: ".doan/canvases/a.html", url: "http://localhost/a.html", width: 1200 };
     controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }]);
     controller.openCanvas("/repo", row);
