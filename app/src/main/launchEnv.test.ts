@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
+import { X509Certificate } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:https";
-import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getCACertificates, setDefaultCACertificates } from "node:tls";
@@ -48,6 +48,10 @@ describe("NODE_EXTRA_CA_CERTS from launchd", () => {
 // The fuse also stops Node from loading NODE_EXTRA_CA_CERTS for main's own requests, so main adds the file itself.
 describe("main's own TLS trusts the NODE_EXTRA_CA_CERTS file", () => {
   const defaults = getCACertificates("default");
+  // setDefaultCACertificates re-encodes what it stores, so certificates are compared by fingerprint.
+  const trusted = () => new Set(getCACertificates("default").map(pem => new X509Certificate(pem).fingerprint256));
+  const fingerprint = (path: string) => new X509Certificate(readFileSync(path)).fingerprint256;
+  const original = new Set(defaults.map(pem => new X509Certificate(pem).fingerprint256));
   let dir = "", ca = "", server: Server, url = "";
   beforeAll(async () => {
     dir = mkdtempSync(join(tmpdir(), "doan-ca-"));
@@ -59,7 +63,9 @@ describe("main's own TLS trusts the NODE_EXTRA_CA_CERTS file", () => {
     writeFileSync(ca, readFileSync(join(dir, "other.pem"), "utf8") + readFileSync(join(dir, "corp.pem"), "utf8"));
     server = createServer({ key: readFileSync(join(dir, "corp.key")), cert: readFileSync(join(dir, "corp.pem")) }, (_request, response) => response.end("ok"));
     await new Promise<void>(done => server.listen(0, "127.0.0.1", done));
-    url = `https://127.0.0.1:${(server.address() as AddressInfo).port}/`;
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("no port");
+    url = `https://127.0.0.1:${address.port}/`;
   });
   afterEach(() => { setDefaultCACertificates(defaults); vi.restoreAllMocks(); });
   afterAll(async () => { await new Promise(done => server.close(done)); rmSync(dir, { recursive: true, force: true }); });
@@ -67,8 +73,7 @@ describe("main's own TLS trusts the NODE_EXTRA_CA_CERTS file", () => {
   test("adds every certificate in the file to the defaults, so a request to a server it signed succeeds", async () => {
     await expect(fetch(url)).rejects.toThrow();
     trustExtraCaCerts(ca, path => readFileSync(path, "utf8"));
-    expect(getCACertificates("default")).toEqual(expect.arrayContaining(defaults));
-    expect(getCACertificates("default")).toHaveLength(defaults.length + 2);
+    expect(trusted()).toEqual(new Set([...original, fingerprint(join(dir, "other.pem")), fingerprint(join(dir, "corp.pem"))]));
     expect(await (await fetch(url)).text()).toBe("ok");
   });
   test("keeps the defaults when there is no file, or it cannot be read or parsed", () => {
@@ -77,7 +82,7 @@ describe("main's own TLS trusts the NODE_EXTRA_CA_CERTS file", () => {
     expect(warn).not.toHaveBeenCalled();
     for (const read of [() => { throw new Error("ENOENT"); }, () => "-----BEGIN CERTIFICATE-----\nnot base64\n-----END CERTIFICATE-----\n"]) {
       trustExtraCaCerts("/etc/corp-ca.pem", read);
-      expect(getCACertificates("default")).toEqual(defaults);
+      expect(trusted()).toEqual(original);
     }
     expect(warn).toHaveBeenCalledTimes(2);
   });
