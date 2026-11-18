@@ -604,6 +604,11 @@ const INLINE: [RegExp, RegExp][] = [
   [/^(?:perl|ruby)$/, /^-[\w]*[eE]$/],
   [/^osascript$/, /^-e$/],
 ];
+// The switches that take their value as the next word, which is then not the script.
+const VALUED: [RegExp, RegExp][] = [
+  [/^python/, /^-[A-Za-z]*[WX]$/],
+  [/^(?:node|bun)$/, /^(?:-r|--require|--import|--loader|--experimental-loader)$/],
+];
 
 // Whether an interpreter may run doan where this reader cannot see it: an argument (an inline script among them) that
 // names doan, a script file, or a script read from its input, unless that is a heredoc or here-string the transcript
@@ -613,7 +618,8 @@ function interpreterMayRunDoan(program: string, args: string[], redirects: Redir
   if (args.some(word => NAMES_DOAN.test(word))) return true;
   const inline = INLINE.find(([name]) => name.test(program))?.[1];
   // Only a switch before the script is the interpreter's; one after it is the script's own argument.
-  const at = args.findIndex(word => word === "-" || !word.startsWith("-"));
+  const valued = VALUED.find(([name]) => name.test(program))?.[1];
+  const at = args.findIndex((word, k) => (word === "-" || !word.startsWith("-")) && !(k > 0 && valued?.test(args[k - 1]!)));
   const switches = at < 0 ? args : args.slice(0, at);
   if (inline && switches.some(word => inline.test(word))) return false;
   if (/^python/.test(program) && /^-[A-Za-z]*m$/.test(switches.at(-1) ?? "") && args[at] === "json.tool") return false;

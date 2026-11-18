@@ -735,6 +735,9 @@ test("an interpreter running a script the reader cannot see, or find -exec into 
   read("python3 - <<'EOF'\nimport json\nprint(json.load(open('.doan/canvases/a.html')))\nEOF", [["python3", "-"]]);
   read("python3 -I - .doan/canvases/a.html <<'EOF'\nimport sys\nprint(open(sys.argv[1]).read())\nEOF", [["python3", "-I", "-", ".doan/canvases/a.html"]]);
   read("doan ls --json | python3 -m json.tool", [["doan", "ls", "--json"], ["python3", "-m", "json.tool"]]);
+  // An option's own value is not the script.
+  read("python3 -W ignore -c 'print(1)'", [["python3", "-W", "ignore", "-c", "print(1)"]]);
+  read("node -r ./setup.cjs -e 'console.log(1)'", [["node", "-r", "./setup.cjs", "-e", "console.log(1)"]]);
   read("python3 --version; node -v", [["python3", "--version"], ["node", "-v"]]);
   read("perl -0pi -e 's/a/b/' .doan/canvases/a.html", [["perl", "-0pi", "-e", "s/a/b/", ".doan/canvases/a.html"]]);
   read("cat <<'EOF' > /tmp/x\ndoan active\nEOF", [["cat"]]);
