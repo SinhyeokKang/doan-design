@@ -972,7 +972,10 @@ describe("the board iframe's ancestors never clip with four equal radii", () => 
 describe("the toolbar", () => {
   // The app's tooltips wait 700ms and skip the wait within 300ms of the last one (components/ui/tooltip.tsx).
   test("a pointer tooltip waits as the app's, and opens at once right after another one closed", () => {
-    expect([v.TIP_DELAY_MS, v.TIP_SKIP_MS]).toEqual([700, 300]);
+    const tooltip = readFileSync(new URL("../renderer/components/ui/tooltip.tsx", import.meta.url), "utf8");
+    const appTip = [/\bdelayDuration = (\d+),/, /\bskipDelayDuration = (\d+),/].map(re => Number(re.exec(tooltip)?.[1]));
+    expect([v.TIP_DELAY_MS, v.TIP_SKIP_MS]).toEqual(appTip);
+    expect(appTip).toEqual([700, 300]);
     expect(v.tipWait(10_000, null)).toBe(700);
     expect(v.tipWait(10_000, 9_800)).toBe(0);
     expect(v.tipWait(10_000, 9_700)).toBe(700);

@@ -1062,7 +1062,7 @@ const state = (screen: string, modal = false) => ({ screen, modal });
 describe("menus", () => {
   test("pins the item names and accelerators", () => {
     expect(template().map((menu) => menu.label ?? menu.role)).toEqual(["Doan", "File", "Edit", "View", "Go", "windowMenu"]);
-    // Settings… replaces Set Up doan… right after About (orch.md decision).
+    // Settings… sits right after About.
     expect(submenu("Doan").map((entry) => entry.label ?? entry.role ?? entry.type)).toEqual(["About Doan", "Check for Updates…", "Settings…", "separator", "services", "separator", "Hide Doan", "hideOthers", "unhide", "separator", "Quit Doan"]);
     expect(item("Settings…").accelerator).toBe("CmdOrCtrl+,");
     expect(submenu("File").map((entry) => entry.label ?? entry.type)).toEqual(["New Conversation", "Add Projects…", "separator", "Close Window"]);
@@ -3418,7 +3418,7 @@ test("answers agent-usage:read with entries for the window and an empty list for
   expect(await invoke("agent-usage:read", contents, null, { trigger: "start" })).toEqual([]);
 });
 
-// Decision 17: blocked providers stay hidden only until the first tool-facts probe ends, whichever way it ends.
+// Blocked providers stay hidden only until the first tool-facts probe ends, whichever way it ends.
 describe("the usage start trigger", () => {
   const started = () => usageProbe.triggers.filter(trigger => (trigger as { kind: string }).kind === "start");
   test.each([

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { PROVIDERS } from "../agentAuth/types";
 import { aboutNotice, PATH_LINE, rcFileFor, type AboutNotice, type SetupItem } from "./notice";
+import { CLAUDE_ALLOW_RULES } from "./plan";
 
 const HOME = "/Users/u";
-const ALL = ["claude", "codex", "cursor", "antigravity", "copilot"] as const;
+const ALL = PROVIDERS;
 // Flattens a line the way the renderer shows it: agents, an em dash, then the parts with `code` kept as backticks.
 function lines(notice: AboutNotice | null): string[] {
   return notice?.lines.map(line => `${line.agents ? `${line.agents} — ` : ""}${line.parts.map(part => "code" in part ? `\`${part.code}\`` : part.text).join("")}${line.command ? ` [${line.command}]` : ""}`) ?? [];
@@ -63,6 +65,13 @@ describe("aboutNotice", () => {
     ["allow", "Claude Code — `permissions.allow` in `~/.claude/settings.json` isn’t a list, so Doan couldn’t add the rules that let Claude Code run `doan work` and `doan open` without asking. Fix the file, then reopen Doan."],
   ] as const)("says why the Claude Code settings were left alone (%s)", (problem, line) => {
     expect(lines(aboutNotice([{ target: "claude-allow", path: `${HOME}/.claude/settings.json`, providers: ["claude"], reason: "claude-settings", problem }], HOME))).toEqual([line]);
+  });
+
+  // notice.ts spells the rules out because it cannot import plan.ts under the renderer import boundary.
+  it("names every rule Doan writes when the Claude Code settings are a link", () => {
+    const notice = aboutNotice([{ target: "claude-allow", path: `${HOME}/.claude/settings.json`, providers: ["claude"], reason: "claude-settings", problem: "link" }], HOME);
+    const rules = notice?.lines[0]?.parts.flatMap(part => "code" in part && part.code.startsWith("Bash(") ? [part.code] : []);
+    expect(rules).toEqual(CLAUDE_ALLOW_RULES);
   });
 
   it("puts the Claude Code allow rule after the Codex rule", () => {

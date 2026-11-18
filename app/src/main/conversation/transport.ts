@@ -4,6 +4,7 @@ import { object } from "./sessions";
 import { claudeModeAfterPlan, type PermissionModeId } from "./permissionMode";
 import { connectorLabels, serverLabel } from "../mcpConnectors/presets";
 import { codexMcpApproval } from "../mcpConnectors/codexApproval";
+import { CONNECTOR_NAME_PATTERN } from "../mcpConnectors/names";
 import type { BoundaryKind } from "./commandRecords";
 import { QUESTION_LIMITS, type Question, type QuestionAnswer, type StoredAnswer } from "./question";
 import type { EventPayload, FailureCode, FastUnused, FastUnusedReason, PendingPermission, PermissionChoice, TransportResult, TransportState, TurnStage } from "./types";
@@ -238,7 +239,7 @@ function claudePath(input: Record<string, unknown>): string { return text(input.
 // A Doan connector's tool (`mcp__doan-<slug>__<tool>`) is named with its connector, and its input never reaches the
 // summary: it can hold page ids, queries and bodies. labels maps doan- names to
 // connector names; the presets are always known.
-const DOAN_MCP_TOOL = /^mcp__(doan-[a-z0-9][a-z0-9-]{0,15})__(.+)$/s;
+const DOAN_MCP_TOOL = new RegExp(`^mcp__(${CONNECTOR_NAME_PATTERN})__(.+)$`, "s");
 const PRESET_LABELS = connectorLabels([]);
 function doanToolSummary(tool: string, labels: Readonly<Record<string, string>>): string | null {
   const mcp = tool.match(DOAN_MCP_TOOL);

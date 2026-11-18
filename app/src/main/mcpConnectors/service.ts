@@ -454,7 +454,7 @@ export class McpService implements McpConversationFacts {
       } finally { await lease.release(); }
       // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() or quit() can set these while the awaited call runs
       if (attempt.stopped || this.closed) return;
-      // A disconnected row is Not connected, not Reconnect needed (user decision, orch.md).
+      // A disconnected row is Not connected, not Reconnect needed (PRODUCT §5 item 0 'Settings page', MCP Connectors).
       this.options.store.patch({ everConnected: { name: server.name, provider, value: false } });
       this.succeeded(provider, server.name, { registered: true, authenticated: false });
     } catch (error) {

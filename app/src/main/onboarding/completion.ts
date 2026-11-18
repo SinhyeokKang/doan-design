@@ -38,7 +38,7 @@ export function readCompletion(userData: string): CompletionRead {
 }
 export function onboardingComplete(read: CompletionRead): read is { kind: "complete"; projectRoot: string } { return read.kind === "complete"; }
 
-// Same staging as markClosed: a temporary file in userData, then rename, so a crash never leaves a half record.
+// A temporary file in userData, then rename, so a crash never leaves a half record.
 function replace(path: string, content: string, userData: string): void {
   const temporary = join(userData, `.onboarding-${randomUUID()}.tmp`);
   try { writeFileSync(temporary, content, { flag: "wx", mode: 0o600 }); renameSync(temporary, path); } finally { rmSync(temporary, { force: true }); }

@@ -48,7 +48,7 @@ export interface RuntimeState extends ActiveState {
   // (cliRemove.ts answerCliRemove). The removal's write must land inside the 2 s deadline for the CLI to see the answer;
   // a later one still removes.
   remove(request: RemoveRequest): Promise<RemoveResponse>;
-  // Auto-registration of a saved repository's worktree on a v3 start (ARCHITECTURE §4 'Auto-registration'): the registered roots,
+  // Auto-registration of a saved repository's worktree on a v3 start or terminal update (ARCHITECTURE §4 'Auto-registration'): the registered roots,
   // `doan ls --json --repo <root>` (never killed early, so a late registration still lands), and the registration,
   // which must make `isOpen(root)` true before it returns so the start's work applies.
   roots(): readonly string[];

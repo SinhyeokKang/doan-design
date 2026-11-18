@@ -57,7 +57,7 @@ describe("slotsFromList", () => {
     expect(slotsFromList(lists, none, canvases).size).toBe(0);
   });
 
-  // A conversation started in a canvas panel counts on its canvas row too (sidebar-canvas-conversations decision 7).
+  // A conversation started in a canvas panel counts on its canvas row too.
   test("a canvas-panel conversation shows on its canvas row, whatever started it", () => {
     const lists = new Map([["/r/doan", [summary({ conversationId: "panel", phase: "waiting", fromHome: false, canvas: { path: ".doan/canvases/a.html", id: "a" } })]]]);
     expect(slotsFromList(lists, none, canvases)).toEqual(new Map([[slotKey("/r/doan", ".doan/canvases/a.html"), { kind: "permission", label: "Claude Code needs your answer" }]]));

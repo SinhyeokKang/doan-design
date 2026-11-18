@@ -756,7 +756,7 @@ test("a notice with one action keeps the shipped one-row layout, with the action
   expect(html).not.toContain("ob-state-actions");
 });
 
-// Decision 1: a folder's failure sits under the card, where the drop notice sits; a URL's stays after the URL field.
+// A folder's failure sits under the card, where the drop notice sits; a URL's stays after the URL field.
 test("on the choose screen a folder's failure sits under the card and a URL's after the URL field", () => {
   const folder = screen({ error: { code: "config_invalid", source: "folder" } }, { use: "addPage" });
   expect(folder).toMatch(/New folder<\/button><\/div><\/div><div class="doan-notice error stacked ob-project-notice" role="alert" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable">This folder’s Doan configuration couldn’t be read\./);
@@ -775,7 +775,7 @@ test("the drop notice takes the notice text's class and keeps its own marker, so
   expect(html).toMatch(/<div class="doan-notice error ob-project-notice ob-drop-notice" role="alert" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable">Drop one folder at a time\.<\/span><\/div>/);
 });
 
-// Decision 7: the step's intermediate buttons are sm; the footer keeps its size.
+// The step's intermediate buttons are sm; the footer keeps its size.
 test("Choose folder, New folder and Find repository are sm, the footer buttons keep the default size", () => {
   const html = screen({ url: "https://github.com/acme/studio" }, { use: "addPage" });
   expect(html).toContain('data-ui-variant="subtle" data-ui-size="sm">Choose folder</button>');

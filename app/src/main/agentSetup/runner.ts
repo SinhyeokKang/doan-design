@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { accessSync, chmodSync, constants, linkSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
+import { PROVIDERS } from "../agentAuth/types";
 import { readRegularBytesSync, readRegularFileNoFollowSync } from "../regularFile";
 import { rcFileFor, type SetupItem, type SetupTarget } from "./notice";
 import { swapFile, swapLink, type SwapResult } from "./swap";
@@ -229,7 +230,7 @@ export async function runAgentSetup(options: AgentSetupOptions): Promise<AgentSe
   const { home, resources, bundle, eligibility } = eligibilityOf(options);
   if (eligibility !== "eligible") {
     log(`not set up: ${eligibility} (${bundle})`);
-    return { home, items: [{ target: "copy", path: bundle, providers: ["claude", "codex", "cursor", "antigravity", "copilot"], reason: "not-eligible", eligibility }], steps: [] };
+    return { home, items: [{ target: "copy", path: bundle, providers: [...PROVIDERS], reason: "not-eligible", eligibility }], steps: [] };
   }
   const providerDirs = (["claude", "codex", "gemini"] as const satisfies readonly ProviderDir[]).filter(dir => isDirectory(join(home, `.${dir}`)));
   const targets = plannedTargets(home, resources, providerDirs, needsSystemLink(options.loginPath, home), options.systemBin);

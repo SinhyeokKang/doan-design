@@ -3,6 +3,8 @@ import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
+import { MAX_ATTACHMENTS as MAIN_MAX_ATTACHMENTS, MAX_IMAGE_BYTES } from "../main/attachments";
+import { LIMITS } from "../main/conversation/messageText";
 import {
   attachmentChipView, attachmentLimit, chosenAttachments, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProject, defaultProvider, fixedPreference,
   GREETINGS, greetingText, foldRows, olderOrder, lockedOlderSide, heldScrollTop, NO_OLDER, olderLabel, olderOpened, olderToggled, groupIcon, groupLabel, isSubmitKey, steerKey, takesSuggestion, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
@@ -84,6 +86,7 @@ test("the limit counts the user's text plus the preset header: 32,768 sends, 32,
   const header = composeRequest("", preset("polish"), [], 0).length + 2;
   const at = "a".repeat(TEXT_LIMIT - header), over = at + "a";
   expect(composeRequest(at, preset("polish"), [], 0)).toHaveLength(TEXT_LIMIT);
+  expect(TEXT_LIMIT).toBe(LIMITS.text);
   expect(sendAvailability(base({ text: at, preset: preset("polish") }))).toEqual({ enabled: true, reason: null });
   expect(sendAvailability(base({ text: over, preset: preset("polish") }))).toEqual({ enabled: false, reason: { kind: "overLimit", text: "Shorten the message to send it." } });
   expect(sendAvailability(base({ text: "a".repeat(TEXT_LIMIT) })).enabled).toBe(true);
@@ -670,6 +673,8 @@ test("a pick of more than ten leaves the rest out with one counted notice, and r
 
 test("ten attachments fit; the eleventh is left out with a count", () => {
   expect(MAX_ATTACHMENTS).toBe(10);
+  expect(MAX_ATTACHMENTS).toBe(LIMITS.attachments);
+  expect(MAX_ATTACHMENTS).toBe(MAIN_MAX_ATTACHMENTS);
   expect(attachmentLimit(9, [{ pasted: false, size: 1 }])).toEqual({ accept: [0], notices: [] });
   expect(attachmentLimit(9, [{ pasted: false, size: 1 }, { pasted: false, size: 1 }])).toEqual({ accept: [0], notices: ["Only 10 attachments can be added. 1 was left out."] });
   expect(attachmentLimit(8, Array.from({ length: 4 }, () => ({ pasted: false, size: 1 })))).toEqual({ accept: [0, 1], notices: ["Only 10 attachments can be added. 2 were left out."] });
@@ -678,6 +683,7 @@ test("ten attachments fit; the eleventh is left out with a count", () => {
 
 test("a pasted image may be 50 MB, not a byte more; local files have no size limit", () => {
   expect(MAX_PASTED_BYTES).toBe(50 * 1024 * 1024);
+  expect(MAX_PASTED_BYTES).toBe(MAX_IMAGE_BYTES);
   expect(attachmentLimit(0, [{ pasted: true, size: MAX_PASTED_BYTES }])).toEqual({ accept: [0], notices: [] });
   expect(attachmentLimit(0, [{ pasted: true, size: MAX_PASTED_BYTES + 1 }])).toEqual({ accept: [], notices: ["This image is over 50 MB, so it wasn’t attached."] });
   expect(attachmentLimit(0, [{ pasted: false, size: MAX_PASTED_BYTES * 4 }])).toEqual({ accept: [0], notices: [] });

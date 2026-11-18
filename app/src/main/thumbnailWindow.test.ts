@@ -124,6 +124,11 @@ test("one window, but a fresh host page and iframe for every canvas", async () =
   expect(only().webContents.executeJavaScript).toHaveBeenCalledTimes(2);
 });
 
+test("the runtime probes tell the capture window apart by main's title", async () => {
+  const runtime = await import("../../runtime/windows");
+  expect(runtime.CAPTURE_WINDOW_TITLE).toBe(CAPTURE_WINDOW_TITLE);
+});
+
 test("the window carries a fixed title from creation, which no page replaces", async () => {
   await createWindowCapturer().capture(URL_A, 1280);
   expect(only().options).toMatchObject({ title: CAPTURE_WINDOW_TITLE, show: false });
