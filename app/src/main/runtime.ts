@@ -56,11 +56,19 @@ export interface RuntimeState extends ActiveState {
   adopt(root: string, view: Extract<FolderState, { kind: "list" }>): void;
 }
 
+// App conversations' runtime file, beside runtime.json: the same socket under a credential that answers only what a
+// conversation's agent needs, never onboarding (v2) or a project removal (v7). A conversation's environment and fence
+// name this file, so a sandboxed agent cannot clone into any folder or remove projects through the socket.
+export const CONVERSATION_RUNTIME = "conversation-runtime.json";
+
 export interface Runtime {
   readonly socket: string;
   readonly token: string;
   // `<userData>/runtime.json`.
   readonly file: string;
+  readonly conversationToken: string;
+  // `<userData>/conversation-runtime.json`.
+  readonly conversationFile: string;
   // Synchronous because `will-quit` does not wait for promises; an async
   // cleanup can be cut off when the process ends.
   disposeSync(): void;
@@ -204,11 +212,13 @@ function workApplied(state: RuntimeState, request: WorkRequest): WorkResponse {
   return others.length > 0 ? { v: 3, ok: true, others } : { v: 3, ok: true };
 }
 
-// Unknown versions keep the v1 refusal. No version exposes state before its token matched.
+// Unknown versions keep the v1 refusal. No version exposes state before its token matched. conversation: the app
+// conversations' credential, accepted for v1 and v3–v6 only; onboarding and removal take the full token.
 type Answer = SocketResponse | OnboardingResponse | WorkResponse | OpenResponse | HandoffResponse | PrototypeResponse | RemoveResponse;
-export async function answerLine(line: string, token: string, state: RuntimeState): Promise<Answer> {
+export async function answerLine(line: string, token: string, state: RuntimeState, conversation?: string): Promise<Answer> {
   let value: unknown;
   try { value = JSON.parse(line); } catch { value = null; }
+  const scoped = (given: string) => tokenMatches(given, token) || (conversation !== undefined && tokenMatches(given, conversation));
   // No auto-registration here, unlike v3: an unregistered worktree of a listed group is not open.
   if (typeof value === "object" && value !== null && !Array.isArray(value) && Reflect.get(value, "v") === 7) {
     if (!validateRemoveRequest(value)) return removeError("bad_request", "The request is not an app-socket v7 request.");
@@ -219,28 +229,28 @@ export async function answerLine(line: string, token: string, state: RuntimeStat
   }
   if (typeof value === "object" && value !== null && !Array.isArray(value) && Reflect.get(value, "v") === 6) {
     if (!validatePrototypeRequest(value)) return prototypeError("bad_request", "The request is not an app-socket v6 request.");
-    if (!tokenMatches(value.token, token)) return prototypeError("bad_token", "The token does not match this app.");
+    if (!scoped(value.token)) return prototypeError("bad_token", "The token does not match this app.");
     if (!state.isOpen(value.root)) return prototypeError("project_not_open", "The project is not open in Doan.");
     try { return state.playPrototype(value); }
     catch (error) { console.error("doan: prototype request failed", error); return prototypeError("bad_request", "Doan could not handle this request."); }
   }
   if (typeof value === "object" && value !== null && !Array.isArray(value) && Reflect.get(value, "v") === 5) {
     if (!validateHandoffRequest(value)) return handoffError("bad_request", "The request is not an app-socket v5 request.");
-    if (!tokenMatches(value.token, token)) return handoffError("bad_token");
+    if (!scoped(value.token)) return handoffError("bad_token");
     if (!state.isOpen(value.root)) return handoffError("project_not_open");
     try { const refused = state.handoff(value); return refused ? handoffError(refused) : { v: 5, ok: true, requested: true }; }
     catch (error) { console.error("doan: handoff request failed", error); return handoffError("bad_request"); }
   }
   if (typeof value === "object" && value !== null && !Array.isArray(value) && Reflect.get(value, "v") === 4) {
     if (!validateOpenRequest(value)) return openError("bad_request", "The request is not an app-socket v4 request.");
-    if (!tokenMatches(value.token, token)) return openError("bad_token", "The token does not match this app.");
+    if (!scoped(value.token)) return openError("bad_token", "The token does not match this app.");
     if (!state.isOpen(value.root)) return openError("project_not_open", "The project is not open in Doan.");
     try { return await state.open(value); }
     catch (error) { console.error("doan: open request failed", error); return openError("bad_request", "Doan could not handle this request."); }
   }
   if (typeof value === "object" && value !== null && !Array.isArray(value) && Reflect.get(value, "v") === 3) {
     if (!validateWorkRequest(value)) return workError("bad_request", "The request is not an app-socket v3 request.");
-    if (!tokenMatches(value.token, token)) return workError("bad_token", "The token does not match this app.");
+    if (!scoped(value.token)) return workError("bad_token", "The token does not match this app.");
     if (value.action !== "done" && !CANVAS_PATH.test(value.path)) return workError("bad_request", "The path is not a canvas path.");
     if (value.action === "update" && value.conversation !== undefined) {
       try { state.conversationWork(value); }
@@ -252,7 +262,11 @@ export async function answerLine(line: string, token: string, state: RuntimeStat
     catch (error) { console.error("doan: work request failed", error); return workError("bad_request", "Doan could not handle this request."); }
     return workApplied(state, value);
   }
-  if (typeof value !== "object" || value === null || Array.isArray(value) || Reflect.get(value, "v") !== 2) return answerRequest(line, token, state);
+  if (typeof value !== "object" || value === null || Array.isArray(value) || Reflect.get(value, "v") !== 2) {
+    // answerRequest keeps its own checks and their order; it is handed whichever credential the request carries.
+    const request = parseSocketRequest(line);
+    return answerRequest(line, request !== null && scoped(request.token) ? request.token : token, state);
+  }
   if (!validateOnboardingRequest(value)) return onboardingError("bad_request", "The request is not an app-socket v2 request.");
   if (!tokenMatches(value.token, token)) return onboardingError("bad_token", "The token does not match this app.");
   try { return await state.onboarding(value); }
@@ -264,7 +278,7 @@ export async function answerLine(line: string, token: string, state: RuntimeStat
 // deadline rather than an idle timeout, so a client dripping bytes cannot hold
 // the connection open; it also outlives the reply, since `end` only half-closes
 // and a peer that never closes its side would keep the socket.
-function serve(connection: Socket, token: string, state: RuntimeState): void {
+function serve(connection: Socket, token: string, conversation: string, state: RuntimeState): void {
   const chunks: Buffer[] = [];
   let size = 0;
   let done = false;
@@ -287,7 +301,7 @@ function serve(connection: Socket, token: string, state: RuntimeState): void {
     if (newline !== -1) {
       done = true;
       // A throwing state callback still gets a reply now rather than holding the connection to the deadline.
-      void answerLine(Buffer.concat(chunks).toString("utf8"), token, state).then(reply, (error: unknown) => {
+      void answerLine(Buffer.concat(chunks).toString("utf8"), token, state, conversation).then(reply, (error: unknown) => {
         console.error("doan: socket request failed", error);
         reply(socketError("bad_request", "Doan could not handle this request."));
       });
@@ -313,24 +327,31 @@ function listen(server: Server, path: string): Promise<void> {
 // keeps other users out; the socket file itself follows the umask.
 export async function startRuntime(userData: string, state: RuntimeState): Promise<Runtime> {
   const token = randomBytes(32).toString("hex");
+  const conversationToken = randomBytes(32).toString("hex");
   const dir = await mkdtemp(join(tmpdir(), "doan-"));
   const socket = join(dir, "app.sock");
   const file = join(userData, "runtime.json");
-  const temp = `${file}.${process.pid}.tmp`;
-  const content = JSON.stringify(runtimeFile(socket, token));
-  const server = createServer((connection) => serve(connection, token, state));
+  const conversationFile = join(userData, CONVERSATION_RUNTIME);
+  const written = [
+    { path: file, content: JSON.stringify(runtimeFile(socket, token)) },
+    { path: conversationFile, content: JSON.stringify(runtimeFile(socket, conversationToken)) },
+  ];
+  const temp = (path: string) => `${path}.${process.pid}.tmp`;
+  const server = createServer((connection) => serve(connection, token, conversationToken, state));
   try {
     await chmod(dir, 0o700);
     await listen(server, socket);
     // Renamed into place so the CLI never reads a half-written file; a second
     // instance cannot interleave because of the single-instance lock.
-    await rm(temp, { force: true });
-    await writeFile(temp, content, { mode: 0o600 });
-    await rename(temp, file);
+    for (const { path, content } of written) {
+      await rm(temp(path), { force: true });
+      await writeFile(temp(path), content, { mode: 0o600 });
+      await rename(temp(path), path);
+    }
   } catch (error) {
     server.close();
     await rm(dir, { recursive: true, force: true });
-    await rm(temp, { force: true });
+    for (const { path } of written) await rm(temp(path), { force: true });
     throw error;
   }
 
@@ -338,15 +359,19 @@ export async function startRuntime(userData: string, state: RuntimeState): Promi
     socket,
     token,
     file,
+    conversationToken,
+    conversationFile,
     disposeSync() {
       server.close();
       try { rmSync(socket, { force: true }); } catch { /* already gone */ }
       try { rmdirSync(dir); } catch { /* already gone */ }
-      // Another start may have replaced the file (after a crash of this one,
+      // Another start may have replaced a file (after a crash of this one,
       // or a quit racing a relaunch); only our own content is removed.
-      try {
-        if (readFileSync(file, "utf8") === content) rmSync(file);
-      } catch { /* already gone */ }
+      for (const { path, content } of written) {
+        try {
+          if (readFileSync(path, "utf8") === content) rmSync(path);
+        } catch { /* already gone */ }
+      }
     },
   };
 }

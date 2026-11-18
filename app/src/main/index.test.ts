@@ -146,6 +146,12 @@ vi.mock("electron", () => ({
   systemPreferences: { subscribeLocalNotification: (name: string, callback: () => void) => { mocks.notifications.set(name, callback); return mocks.notifications.size; }, getUserDefault: (key: string) => key === "AppleICUForce24HourTime" },
   powerMonitor: { on: vi.fn() },
 }));
+// Conversations' environment names their own runtime file, never the terminal's runtime.json.
+const preparedRuntime = vi.hoisted(() => ({ external: [] as unknown[] }));
+vi.mock("./conversation/prepare", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./conversation/prepare")>();
+  return { ...actual, createPrepare: (...args: Parameters<typeof actual.createPrepare>) => { preparedRuntime.external.push(args[1]); return actual.createPrepare(...args); } };
+});
 vi.mock("./conversation/store", async (importOriginal) => ({ ...await importOriginal<typeof import("./conversation/store")>(), ConversationStore: class { list() { return mocks.conversations; } finishDeletions() {} } }));
 // The fake store makes no conversations directory, so the queue's drafts stay in memory.
 vi.mock("./conversation/drafts", async (importOriginal) => {
@@ -176,7 +182,7 @@ vi.mock("electron-updater", () => ({ MacUpdater: mocks.Updater }));
 vi.mock("./update/service", async (importOriginal) => ({ ...await importOriginal<typeof import("./update/service")>(), hasFeedConfig: mocks.hasFeedConfig }));
 vi.mock("./cli", async (importOriginal) => ({ cliEnv: (await importOriginal<typeof import("./cli")>()).cliEnv, cliCommand: mocks.cliCommand, runConfig: mocks.runConfig, readFolder: mocks.readFolder, runDesignSkill: mocks.runDesignSkill, runExport: mocks.runExport }));
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
-vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
+vi.mock("./runtime", async (importOriginal) => ({ ...await importOriginal<typeof import("./runtime")>(), startRuntime: mocks.startRuntime }));
 vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<typeof import("./addProjects")>(), createAddFlow: mocks.createAddFlow }));
 vi.mock("./windowDebugger", () => ({ createWindowDebugger: mocks.createWindowDebugger }));
 vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
@@ -543,6 +549,11 @@ test("starts the runtime in userData with the open projects", () => {
   expect(runtimeState().isOpen(`${ROOT}/`)).toBe(false);
   expect(runtimeState().isOpen("/Users/sam/code")).toBe(false);
   expect(runtimeState().selection()).toBeNull();
+});
+
+test("gives app conversations the conversation runtime file", () => {
+  expect(preparedRuntime.external.length).toBeGreaterThan(0);
+  expect(new Set(preparedRuntime.external)).toEqual(new Set(["/tmp/doan-index-test/conversation-runtime.json"]));
 });
 
 test("keeps the selection the window sets, after the schema check", async () => {
