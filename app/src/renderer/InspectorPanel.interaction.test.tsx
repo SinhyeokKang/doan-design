@@ -320,7 +320,7 @@ test("the element menu is as wide as the panel's inside less 8px a side", async 
   rendered = run(ElementMenu, props);
   expect((rendered.find(element => element.type === Popover.Content)!.props.style as Record<string, unknown>)["--doan-insp-panel-width"]).toBe("279px");
   const css = (await import("node:fs")).readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  expect(css).toContain(".doan-floating.doan-insp-menu { width: calc(var(--doan-insp-panel-width) - 2 * var(--space-2)); }");
+  expect(css).toContain(".doan-floating.doan-insp-menu { width: calc(var(--doan-insp-panel-width) - 2 * var(--space-2)); max-width: none; }");
 });
 
 describe("the element menu leaves no trace", () => {

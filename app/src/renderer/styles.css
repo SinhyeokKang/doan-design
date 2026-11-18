@@ -1302,7 +1302,7 @@ body:has(.shell-top) { background: transparent; }
 .workspace > .ov.ov-main { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
 /* The body's tabular figures widen every "1" (short times like "1d", "12m", thread text), which the shell keeps for its
    counts; these surfaces read like the page. The two menus are portalled out of .ov-main, so they are named too. */
-.ov-main, .right.ov-right, .conv-menu, .wt-menu { font-variant-numeric: normal; }
+.ov-main, .right.ov-right, .conv-menu, .wt-menu, .doan-insp-menu, .doan-insp-tip { font-variant-numeric: normal; }
 .ov-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); }
 /* A long folder name stops at 40% of the header, as the canvas header's crumb, so New conversation stays in. */
 .ov-project { display: inline-flex; align-items: center; gap: var(--space-2); flex: 0 1 auto; max-width: 40%; min-width: 0; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); }
@@ -1554,8 +1554,9 @@ body:has(.shell-top) { background: transparent; }
 .doan-insp-none { margin: 0; padding: var(--space-4) var(--space-2); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .doan-insp-swatch { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); border-radius: var(--radius-inline); box-shadow: inset 0 0 0 1px var(--border-prominent); }
 .doan-insp-swatch.transparent { background: repeating-conic-gradient(var(--surface-inset) 0 25%, var(--surface-panel) 0 50%) 0 0 / 8px 8px; }
-/* The element menu spans the panel less --space-2 a side, not its rows' width. */
-.doan-floating.doan-insp-menu { width: calc(var(--doan-insp-panel-width) - 2 * var(--space-2)); }
+/* The element menu spans the panel less --space-2 a side, not its rows' width, however wide the column is made: it
+   reads as part of the panel, so the shared menu's 320 cap does not apply. */
+.doan-floating.doan-insp-menu { width: calc(var(--doan-insp-panel-width) - 2 * var(--space-2)); max-width: none; }
 /* The row's tooltip: one line per fact. */
 .doan-insp-tip > span { display: block; }
 /* A new selection's read: the spinner line after the delay. */

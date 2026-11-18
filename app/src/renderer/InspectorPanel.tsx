@@ -136,8 +136,8 @@ const KIND_ICONS: Record<ElementKind, LucideIcon> = {
 // board. Radix closes it on Esc (preventing the default, so the selection stays) and gives focus back to the trigger.
 export function ElementMenu({ view, nodes, tree, shown, onEscape }: { view: SelectionView; nodes: ElementTreeNode[] | null; tree: ElementTreeSource; shown: boolean; onEscape(event: globalThis.KeyboardEvent): void }) {
   const [open, setOpen] = useState(false);
-  // The menu spans the panel, less an inset a side (styles.css), whatever its rows' width; the panel's inner width is
-  // read when it opens, since the column can be resized.
+  // The menu spans the panel, less an inset a side, whatever its rows' width and however wide the column is (styles.css);
+  // the panel's inner width is read when it opens, since the column can be resized.
   const [width, setWidth] = useState<number | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
   const [active, setActive] = useState<string | null>(null);

@@ -163,6 +163,14 @@ describe("styles", () => {
     expect(css).not.toContain(".doan-insp-value .doan-code { font-variant-numeric: tabular-nums; }");
   });
 
+  // Measured against canvas-inspector-panel: the element menu and the row tooltip draw proportional figures, as the
+  // conversation's title menu does (the app body's tabular figures are reset at the call site, not in the shared
+  // tooltip); the menu follows the panel's width, above the shared menu cap of 320, as the confirmed draft does.
+  test("the element menu and the row tooltip use proportional figures; the menu is not capped below the panel", () => {
+    expect(css).toMatch(/\n\.ov-main, \.right\.ov-right, \.conv-menu, \.wt-menu, \.doan-insp-menu, \.doan-insp-tip \{ font-variant-numeric: normal; \}/);
+    expect(css).toContain(".doan-floating.doan-insp-menu { width: calc(var(--doan-insp-panel-width) - 2 * var(--space-2)); max-width: none; }");
+  });
+
   test("the shared code chip and the tree menu variant", () => {
     expect(controls).toMatch(/\.doan-code \{[^}]*border-radius: var\(--radius-inline\);[^}]*background: var\(--surface-inset\);[^}]*white-space: nowrap;[^}]*overflow: hidden;/);
     expect(controls).toContain(".doan-code > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }");
