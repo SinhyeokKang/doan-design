@@ -38,6 +38,7 @@ import { localClock, queueButtonHint, queueStatusLine, resetTimeText } from "./l
 import type { PermissionPickerView } from "./permissionPicker";
 import type { SettingsTarget } from "./settingsSections";
 import { withPlayingFrame, type PlayingFrame, type PlayingFrameChip } from "./prototype/conversation";
+import { useActivationFocus } from "./activationFocus";
 
 // The composer under a conversation (draft frame `docked-composer`). It has no screen
 // in this feature: its host (Overview, later the canvas panel) owns the conversation, the drafts map,
@@ -513,9 +514,12 @@ export function DockedComposer(props: DockedComposerProps) {
   const slotAction = useRef<ComposerAction>(action);
   const slotNode = slotAction.current === "stop" && action === "send" && !availability.enabled ? root.current?.querySelector(".composer-send") ?? null : null;
   const stopLeft = slotNode !== null && typeof document !== "undefined" && document.activeElement === slotNode;
+  // A turn can end with the window in the background, so the field takes focus again on activation (POSTMORTEM
+  // 2026-11-17).
+  const handFocus = useActivationFocus();
   useLayoutEffect(() => {
     slotAction.current = action;
-    if (stopLeft) field.current?.focus();
+    if (stopLeft) handFocus(() => field.current?.focus());
   });
   useEffect(() => {
     const card = props.card;
@@ -650,16 +654,18 @@ export function QueueRows(props: QueueRowsProps) {
     const timer = setTimeout(() => setRefused(new Set()), SEND_NOW_REFUSED_MS);
     return () => clearTimeout(timer);
   }, [refused]);
+  // Main can send the queue with the window in the background, so these hand-offs are made again on activation.
+  const handFocus = useActivationFocus();
   useLayoutEffect(() => {
     const wanted = pending.current;
     if (wanted && !props.items.some(item => item.id === wanted.leaving)) {
       pending.current = null; lost.current = false;
       const { target } = wanted;
-      const button = target.kind === "input" ? undefined : buttons.current.get(`${target.kind}:${target.itemId}`) ?? buttons.current.get(`remove:${target.itemId}`);
-      if (button) button.focus(); else props.focusInput();
+      const button = () => target.kind === "input" ? undefined : buttons.current.get(`${target.kind}:${target.itemId}`) ?? buttons.current.get(`remove:${target.itemId}`);
+      handFocus(() => { const next = button(); if (next) next.focus(); else props.focusInput(); });
       return;
     }
-    if (lost.current && !wanted) { lost.current = false; props.focusInput(); }
+    if (lost.current && !wanted) { lost.current = false; handFocus(() => props.focusInput()); }
   });
 
   // The next row's buttons as they are drawn now; the row that leaves may already be gone from the latest list. Only

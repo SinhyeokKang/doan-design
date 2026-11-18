@@ -25,6 +25,7 @@ import { CLOSE, covered, DETAILS, drawerGroups, drawerLabel, EMPTY_DRAWER, expor
 import { announcedAgain } from "../listRetry";
 import { FrameListBody } from "../FrameListBody";
 import { useHeaderNoDrag } from "../headerNoDrag";
+import { useActivationFocus } from "../activationFocus";
 
 // The prototype window (PRODUCT §3 Show, one frame): the main window's shell without a sidebar, a header of Back,
 // Forward and Reload, the playing frame's name, the Fit/Responsive toggle and Export, and the frame's own document in a
@@ -299,13 +300,15 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   // falls to the page. The new run takes it back once ready, unless the person put focus elsewhere meanwhile. A failure
   // or lost state forgets the press: its scene takes focus by the rule above.
   const visibleGen = layers.visible;
+  const handFocus = useActivationFocus();
   useEffect(() => {
     const pressed = reloadFocus.current;
     if (pressed === null || phase === null || phase === "loading") return;
     if (phase !== "ready") { reloadFocus.current = null; return; }
     if (visibleGen === null || visibleGen <= pressed) return;
     reloadFocus.current = null;
-    if (document.activeElement === document.body) frames.current.get(visibleGen)?.focus();
+    // The run can be ready with the window in the background, so the frame takes focus again on activation.
+    if (document.activeElement === document.body) handFocus(() => frames.current.get(visibleGen)?.focus());
   }, [phase, visibleGen]);
   // A run reloaded while focus is in the conversation column gives focus back to it (focusGuard.ts): each new run's
   // iframe is armed by where focus is as it is created, until a second after that run is ready and shown.

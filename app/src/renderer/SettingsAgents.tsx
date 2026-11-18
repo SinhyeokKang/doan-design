@@ -18,6 +18,7 @@ import { firstUsable, focusLost, NoticeView, PasteDialog, StopDialog } from "./O
 import { settingsEffortLabel, settingsEffortMenu, settingsEffortPick, settingsModelMenu, settingsModelPick } from "./newConversationSettings";
 import { permissionPickerView } from "./permissionPicker";
 import { preferencesNotice } from "./SettingsNotifications";
+import { useActivationFocus } from "./activationFocus";
 
 export interface SettingsAgentsProps {
   // The renderer's sign-in controller: a sign-in outlives this page.
@@ -81,6 +82,9 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
   // The row whose control the person used, or the row an arrival focused. A control that goes away or is disabled hands
   // focus on within its row, else to the row group, which also follows the row into the other section.
   const watch = useRef<{ provider: Provider; node: HTMLElement } | null>(null);
+  // A sign-in finished in the browser lands with the window in the background, so the hand-off is made again on
+  // activation (POSTMORTEM 2026-11-17).
+  const handFocus = useActivationFocus();
   useEffect(() => {
     const watched = watch.current;
     if (!watched || state.dialog) return;
@@ -96,7 +100,7 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
       const node = target === "notice" ? group?.querySelector<HTMLElement>(".doan-notice") : target ? group?.querySelector<HTMLElement>(`[data-command="${target}"]:not(:disabled)`) : null;
       const next = node ?? group;
       if (!next) return;
-      next.focus();
+      handFocus(() => next.focus());
       watched.node = next;
     });
   });
