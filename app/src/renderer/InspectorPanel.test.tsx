@@ -153,6 +153,16 @@ describe("styles", () => {
     expect(css).toContain("  .workspace[data-panel-motion] > .doan-insp-column[data-collapsed] { transition: none; }");
   });
 
+  // canvas-inspector-panel panel-states, measured in the built app: the reading, failed and no-styles lines are body-sm
+  // like the rest of the panel (they inherited the app's 13px body); the fixed "Inspector" title has no ellipsis, and
+  // a token chip keeps proportional figures, as the draft computes them.
+  test("the panel's lines set their own type; the title and chips follow the draft", () => {
+    const bodySm = /font-size: var\(--type-body-sm-size\); line-height: var\(--type-body-sm-line-height\); letter-spacing: var\(--type-body-sm-letter-spacing\);/;
+    for (const selector of [".doan-insp-loading", ".doan-insp-failed", ".doan-insp-none"]) expect(css.match(new RegExp(`\\n\\${selector} \\{[^}]*\\}`))?.[0], selector).toMatch(bodySm);
+    expect(css).toMatch(/\n\.doan-insp-title \{ flex: 1; min-width: 0; font:/);
+    expect(css).not.toContain(".doan-insp-value .doan-code { font-variant-numeric: tabular-nums; }");
+  });
+
   test("the shared code chip and the tree menu variant", () => {
     expect(controls).toMatch(/\.doan-code \{[^}]*border-radius: var\(--radius-inline\);[^}]*background: var\(--surface-inset\);[^}]*white-space: nowrap;[^}]*overflow: hidden;/);
     expect(controls).toContain(".doan-code > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }");

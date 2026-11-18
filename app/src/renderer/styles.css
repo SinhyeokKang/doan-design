@@ -1536,7 +1536,7 @@ body:has(.shell-top) { background: transparent; }
    selection the title is the conversation head's title-menu trigger in the same place. */
 .doan-insp-head { gap: var(--space-2); padding-left: var(--space-4); }
 .doan-insp-head:has(.doan-insp-pick) { padding-left: 0; }
-.doan-insp-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--type-weight-medium) var(--type-label-sm-size) / var(--type-label-sm-line-height) var(--type-family); letter-spacing: var(--type-label-sm-letter-spacing); }
+.doan-insp-title { flex: 1; min-width: 0; font: var(--type-weight-medium) var(--type-label-sm-size) / var(--type-label-sm-line-height) var(--type-family); letter-spacing: var(--type-label-sm-letter-spacing); }
 .doan-insp-body { flex: 1; min-height: 0; overflow: auto; padding: var(--space-2) var(--space-2) var(--space-6); }
 .doan-insp-groups { display: flex; flex-direction: column; gap: var(--space-3); }
 .doan-insp-group-title { margin: 0; padding: var(--space-3) var(--space-2) var(--space-1); color: var(--text-standard); font: var(--type-weight-medium) var(--type-label-sm-size) / var(--type-label-sm-line-height) var(--type-family); letter-spacing: var(--type-label-sm-letter-spacing); }
@@ -1549,16 +1549,15 @@ body:has(.shell-top) { background: transparent; }
 .doan-insp-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-subtle); }
 .doan-insp-value { display: flex; align-items: center; gap: var(--space-1h); min-width: 0; }
 .doan-insp-text { flex: none; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.doan-insp-value .doan-code { font-variant-numeric: tabular-nums; }
-.doan-insp-none { margin: 0; padding: var(--space-4) var(--space-2); color: var(--text-subtle); }
+.doan-insp-none { margin: 0; padding: var(--space-4) var(--space-2); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .doan-insp-swatch { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); border-radius: var(--radius-inline); box-shadow: inset 0 0 0 1px var(--border-prominent); }
 .doan-insp-swatch.transparent { background: repeating-conic-gradient(var(--surface-inset) 0 25%, var(--surface-panel) 0 50%) 0 0 / 8px 8px; }
 /* The row's tooltip: one line per fact. */
 .doan-insp-tip > span { display: block; }
 /* A new selection's read: the spinner line after the delay. */
-.doan-insp-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-8) var(--space-4); color: var(--text-subtle); }
+.doan-insp-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-8) var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 /* A failed read is the list-read error (.rp-error): the alert icon, the sentence taking the row, Retry at its end. */
-.doan-insp-failed { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); color: var(--text-danger); }
+.doan-insp-failed { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); color: var(--text-danger); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .doan-insp-failed > span { flex: 1; min-width: 0; }
 .doan-insp-failed .doan-alert-icon { margin: 0; }
 /* doan-canvas-conversation: the panel's content (.doan/canvases/doan-canvas-conversation.html panel-*). The title is the
