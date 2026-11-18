@@ -7,31 +7,32 @@
 
 ## 문제
 
-- 지금 캔버스 화면에는 선택한 요소의 값을 보는 곳이 없다(PRODUCT §5 item 4 "There is no Inspector"). 사람이 "이 버튼 padding이 토큰을 쓰는지"를 확인하려면 에이전트에게 묻거나 파일을 직접 읽어야 한다.
-- 예전 Inspector(값마다 토큰·Hardcoded·Unknown·Default 판정)는 캔버스 화면이 보드와 도구 줄 배치로 바뀐 뒤 보일 자리가 없었고, 2026-11-17에 코드째 지웠다(`67c222f71`, "a future one will be built for the app as it is then").
+- PRODUCT §1 문제 3("Design drafts do not know the code")과 §3 In scope 5 'Tie to code'는 캔버스가 저장소의 실제 토큰 CSS를 쓰게 한다. 그런데 사람은 캔버스의 어떤 값이 토큰을 쓰고 어떤 값이 하드코딩됐는지 앱에서 확인할 수 없다. 지금 캔버스 화면에는 선택한 요소의 값을 보는 곳이 없다(PRODUCT §5 item 4 "There is no Inspector"). 확인하려면 에이전트에게 묻거나 파일을 직접 읽어야 한다.
+- 예전 Inspector(값마다 토큰·Hardcoded·Unknown source·Default 판정)는 캔버스 화면이 보드와 도구 줄 배치로 바뀐 뒤 보일 자리가 없었고, 2026-11-17에 코드째 지웠다(`67c222f71`, "a future one will be built for the app as it is then").
 
 ## 정해진 것 (사용자 결정)
 
 - **레이아웃**: 보드와 대화 사이의 자기 열. 대화 패널처럼 접고 펴고 폭을 바꾼다. 초안 `.doan/canvases/canvas-inspector-layout.html`(`b781e5681`)으로 확정했다.
 - **여닫기**: 사람만 연다. 열림 여부와 폭은 이 기기에 하나로 기억하고 모든 캔버스에 적용한다. 저장된 값이 없으면 닫혀 있다.
+- **좁은 창**: 인스펙터와 대화를 둘 다 열면 보드가 360보다 좁아지는 창에서는 인스펙터가 양보한다. 인스펙터 열을 보이지 않고, 저장된 '열림'은 그대로 둔다. 창을 넓히면 다시 보인다. 그동안 Show inspector는 사용할 수 없고 툴팁으로 이유를 말한다.
 - **빈 상태**: 열려 있는데 선택이 없으면 빈 상태를 보인다.
-- **값 출처와 보기**: CDP로 매칭된 규칙을 읽어 값마다 출처를 판정한다(지운 리졸버 복원). 사람은 **토큰 보기**와 **값 보기**(computed) 중 고른다. 처음엔 토큰 보기이고, 고른 보기를 이 기기에 기억한다. 토큰 보기에서 토큰이 없는 값은 값과 출처(Hardcoded / Unknown / Default)를 보인다.
-- **속성 그룹**: Layout(display, 방향, 정렬, wrap), Box(크기, padding, margin, gap), Typography(font, size, line height, weight), Colors(text, background, border), Radius, Shadow, `data-doan-*` 속성.
-- **행 동작**: 읽기 전용. 행을 누르면 지금 보기에 보이는 값(토큰 보기는 토큰 이름, 값 보기는 값)을 복사하고 "Copied"를 알린다.
-- **헤더 아이콘**: 패널이 접혔을 때 캔버스 헤더 끝 구분선 뒤에 Show inspector(lucide `sliders-horizontal`), Show conversation(lucide `message-square`, 출시된 `panel-right-open`에서 바뀜) 순서로 나온다. 각 패널 head의 Hide는 `panel-right-close` 그대로다.
-- **안 읽음 배지**: Show conversation의 안 읽은 대화 배지는 말풍선 대신 답 대기와 같은 8px 액센트 점으로 바뀐다. 두 상태는 aria-label과 툴팁으로 구분한다. 작업 중 스피너는 그대로다.
+- **값 출처와 보기**: CDP로 매칭된 규칙을 읽어 값마다 출처를 판정한다(지운 리졸버 복원). 사람은 **토큰 보기**와 **값 보기** 중 고른다. 처음엔 토큰 보기이고, 고른 보기를 이 기기에 기억한다. 토큰 보기에서 토큰이 없는 값은 값과 출처(Hardcoded / Unknown source / Default)를 보인다.
+- **속성 그룹**: Layout, Box, Typography, Colors, Radius, Shadow, Attributes(`data-doan-*`).
+- **행 동작**: 읽기 전용. 행을 누르면 지금 보기의 값을 복사한다. 토큰 보기에서 토큰이 있으면 토큰 이름(`--space-4`), 없으면 값. 값 보기에서는 값. 행은 텍스트 선택 대상이 아니라 누르기로 복사한다(PRODUCT §5 item 0 'Text edit menu'의 "no extra Copy buttons"는 텍스트 옆의 복사 버튼 이야기라 이 행과 다르다. 승격 때 그 문단에 인스펙터 행을 적는다).
+- **헤더 아이콘**: 패널이 접혔을 때 캔버스 헤더 끝 구분선 뒤에 Show inspector(lucide `sliders-horizontal`), Show conversation(lucide `message-square`) 순서로 나온다. 프로토타입 창의 대화 버튼도 `message-square`로 바꾼다(PRODUCT §5 item 2 'Prototype window'의 "the main window's icon" 규칙 유지). 각 패널 head의 Hide는 `panel-right-close` 그대로다.
+- **안 읽음 배지**: 대화를 여는 버튼 두 곳(캔버스 헤더, 프로토타입 창)의 안 읽은 대화 배지는 말풍선 대신 답 대기와 같은 8px 액센트 점이다. 두 상태는 aria-label과 툴팁 문구로 구분한다. 작업 중 스피너는 그대로다. 사이드바 캔버스 슬롯과 Show sidebar의 말풍선은 바꾸지 않는다.
 
 ## 완료 조건
 
 1. 캔버스 화면에 인스펙터 열이 보드와 대화 사이에 있고, Show inspector / Hide inspector로 접고 편다. 접고 펴는 움직임은 대화 패널과 같다(`--time-panel-enter`).
-2. 인스펙터 열 시작 가장자리를 끌면 폭이 바뀐다. 최소 280, 기본 280, 최대는 대화 폭을 뺀 뒤 보드에 360을 남기는 폭이다. 더블클릭은 280으로 돌린다. 대화 패널의 최대 폭도 열린 인스펙터 폭을 뺀 뒤 보드에 360을 남긴다.
-3. 열림 여부, 폭, 보기 선택이 앱을 다시 켜도 유지된다. 저장된 값이 없으면 닫혀 있고 토큰 보기다.
-4. 선택이 없으면 빈 상태, 값을 읽는 중이면 읽는 중 상태, 읽기에 실패하면 실패 상태(다시 시도 포함), 성공하면 그룹별 행이 보인다. 문구는 `/design-draft`에서 정한다.
-5. 토큰 보기의 각 행은 토큰 이름 또는 출처와 값을, 값 보기의 각 행은 computed 값을 보인다. 같은 선택에서 보기를 바꿔도 값을 다시 읽지 않는다.
-6. 행을 누르면 보이는 값이 클립보드에 들어가고 "Copied"가 알려진다.
-7. 선택이 바뀌거나 캔버스가 다시 로드되거나 다른 캔버스로 바뀌는 사이에 늦게 온 응답은 새 선택의 값을 덮지 않는다.
-8. 헤더의 Show 버튼 두 개가 정해진 아이콘과 순서로 나오고, 안 읽은 대화 배지가 액센트 점으로 보인다.
-9. 인스펙터가 닫혀 있으면 스타일을 읽지 않는다.
+2. 인스펙터 열 시작 가장자리를 끌거나 ←/→를 누르면 폭이 바뀐다. 최소 280, 기본 280, 최대는 대화 폭을 뺀 뒤 보드에 360을 남기는 폭이다. 더블클릭은 280으로 돌린다. 대화 패널의 최대 폭도 열린 인스펙터 폭을 뺀 뒤 보드에 360을 남긴다. 둘 다 최소 폭이어도 보드가 360보다 좁아지는 창(사이드바가 보이면 약 1140 미만)에서는 인스펙터 열이 보이지 않고 Show inspector가 비활성이다.
+3. 열림 여부, 폭, 보기 선택이 앱을 다시 켜도, 다른 캔버스로 옮겨도 같다. 저장된 값이 없으면 닫혀 있고 토큰 보기다.
+4. 선택 없음, 읽는 중, 실패(Retry), 값의 네 상태가 보이고, 각 상태의 문구와 모양은 tasks 1에서 확정한 패널 초안과 같다.
+5. 토큰 보기의 각 행은 토큰 이름 또는 출처와 값을, 값 보기의 각 행은 표시용으로 가공한 computed 값을 보인다. 같은 선택에서 보기를 바꿔도 값을 다시 읽지 않고, 포커스한 행과 스크롤이 유지된다.
+6. 행을 누르거나 행에 포커스를 두고 Enter·Space·⌘C를 누르면 보이는 값이 클립보드에 들어가고, 그 행 안에 "Copied"가 잠깐 보이며 스크린 리더에도 알려진다. 복사가 실패하면 실패 문구가 보인다.
+7. 선택이 바뀌거나 캔버스가 다시 로드되거나 다른 캔버스로 바뀌는 사이에 늦게 온 응답은 새 선택의 값을 덮지 않는다. 같은 선택을 다시 읽는 동안(reload, Retry)에는 이전 행이 그대로 있다.
+8. 인스펙터나 대화가 접혀 있으면 캔버스 헤더의 Reload 뒤에 구분선이 하나 있고, 접힌 것만 Show inspector(`sliders-horizontal`), Show conversation(`message-square`) 순서로 나온다. 안 읽은 대화가 있으면 Show conversation에 8px 액센트 점이 보인다.
+9. 인스펙터가 닫혀 있거나 좁은 창이라 보이지 않으면 스타일을 읽지 않는다.
 
 ## 범위 밖
 
