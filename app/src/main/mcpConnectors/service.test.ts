@@ -132,6 +132,20 @@ describe("connect", () => {
     expect(cli.commands("claude")).toContainEqual(["mcp", "add", "--transport", "http", "--scope", "user", "doan-example-com", "https://example.com/a"]);
   });
 
+  // A registration left at another URL under the same name (its reconcile failed or has not run): signing it in
+  // would connect the old server while the row shows the new one.
+  it.each(["claude", "codex"] as const)("%s: Connect replaces a registration of another URL under the server's name before it signs in", async provider => {
+    cli.registered[provider].set("doan-foo-com", { url: "https://foo.com/a", auth: false });
+    const s = service();
+    s.add("https://foo.com/b"); await s.idle();
+    s.connect(provider, "doan-foo-com");
+    const p = await login(provider);
+    expect(cli.commands(provider).filter(c => c[1] === "remove").map(c => c[2])).toEqual(["doan-foo-com"]);
+    expect(cli.registered[provider].get("doan-foo-com")?.url).toBe("https://foo.com/b");
+    cli.approve(p); await s.idle();
+    expect(status(s, provider, "doan-foo-com")).toBe("connected");
+  });
+
   it("allows one attempt per provider: a second Connect there is refused, the other provider is free", async () => {
     const s = service();
     s.refresh(); await s.idle();
@@ -481,6 +495,25 @@ describe("provider ready: pending logouts and reconcile", () => {
     expect(cli.commands("codex").filter(c => c[1] === "logout" || c[1] === "remove")).toEqual([["mcp", "logout", "doan-gone-example"], ["mcp", "remove", "doan-gone-example"]]);
     expect([...cli.registered.codex.keys()]).toEqual(["doan-kept-example", "doan-notion", "notion"]);
     expect(status(s, "codex", "doan-notion")).toBe("connected");
+  });
+
+  // A Remove while the provider was signed out keeps its registration; an Add on the same host then reuses the name.
+  it.each(["claude", "codex"] as const)("%s: a registration of another URL under a reused name is logged out and removed, and Connect registers the file's URL", async provider => {
+    states[provider] = { ...connected(provider), connection: null, phase: "disconnected" };
+    readiness[provider] = { ready: false, cause: "not_connected", action: "signIn" };
+    cli.registered[provider].set("doan-foo-com", { url: "https://foo.com/a", auth: true });
+    const s = service();
+    expect(s.add("https://foo.com/a")).toEqual({ ok: true, name: "doan-foo-com" });
+    s.remove("doan-foo-com"); await s.idle();
+    expect(s.add("https://foo.com/b")).toEqual({ ok: true, name: "doan-foo-com" });
+    states[provider] = connected(provider); readiness[provider] = { ready: true };
+    s.authChanged(provider); await s.idle();
+    expect(cli.commands(provider).filter(c => c[1] === "logout" || c[1] === "remove").map(c => c.slice(1, 3))).toEqual([["logout", "doan-foo-com"], ["remove", "doan-foo-com"]]);
+    expect(cli.registered[provider].has("doan-foo-com")).toBe(false);
+    s.connect(provider, "doan-foo-com");
+    cli.approve(await login(provider)); await s.idle();
+    expect(cli.registered[provider].get("doan-foo-com")).toEqual({ url: "https://foo.com/b", auth: true });
+    expect(status(s, provider, "doan-foo-com")).toBe("connected");
   });
 
   it("removes nothing while the connectors file is unreadable", async () => {

@@ -62,7 +62,7 @@ beforeEach(() => {
   hooks.slots = []; hooks.layout = []; hooks.mocked = true;
   active = body; composer = vi.fn<() => void>();
   stopBackground = vi.fn((_turnId: string) => new Promise<boolean>(resolve => { answer = { resolve }; }));
-  vi.stubGlobal("document", { get activeElement() { return active; }, body });
+  vi.stubGlobal("document", { get activeElement() { return active; }, body, hasFocus: () => true });
   vi.stubGlobal("CSS", { escape: (value: string) => value });
   props = {
     conversationId: "c1", items: ITEMS, provider: "claude", project: "acme-web", liveAfter: 0, canvasListed: () => true,

@@ -6,12 +6,21 @@ import { PRESETS, type McpProvider } from "./presets";
 const doan = (names: readonly string[]) => names.filter(name => CONNECTOR_NAME.test(name));
 
 // The doan- registrations a provider keeps that are neither a preset nor a URL server in the file: left by a Remove
-// while that provider had no Doan connection. Nothing is removed while the file cannot be read, and a missing
-// registration is not added back (a server registers at its first Connect).
-export function reconcilePlan(registered: readonly string[], file: ConnectorsRead): string[] {
+// while that provider had no Doan connection. A registration at another URL than the file's under the same name is
+// one of them too: such a Remove frees the name, and an Add on the same host takes it again. url null: the list gave
+// none, so only the name is compared. Nothing is removed while the file cannot be read, and a missing registration
+// is not added back (a server registers at its first Connect).
+export function reconcilePlan(registered: readonly { name: string; url: string | null }[], file: ConnectorsRead): string[] {
   if (!file.ok) return [];
-  const known = new Set([...PRESETS.map(preset => preset.name), ...file.file.servers.map(server => server.name)]);
-  return doan(registered).filter(name => !known.has(name));
+  const known = new Map([...PRESETS, ...file.file.servers].map(server => [server.name, server.url]));
+  return registered.filter(server => CONNECTOR_NAME.test(server.name) && (!known.has(server.name) || staleUrl(server.url, known.get(server.name)!)))
+    .map(server => server.name);
+}
+
+// Whether a registration's URL is not the one Doan stores for its name. Both are the stored string Doan registered,
+// compared as is (ARCHITECTURE §7 'MCP connectors' 'URLs').
+export function staleUrl(registered: string | null, stored: string): boolean {
+  return registered !== null && registered !== stored;
 }
 
 // servers: the doan- registrations read from the provider's own list, so a broken connectors file does not stop
