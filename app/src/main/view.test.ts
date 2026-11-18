@@ -20,6 +20,8 @@ describe("canvasRows", () => {
         { path: ".doan/canvases/a.html", frames: [] },
         { path: ".doan/canvases/sub", frames: [], error: { code: "unreadable_folder", message: "Cannot read .doan/canvases/sub: permission denied" } },
         { path: ".doan/canvases", frames: [], error: { code: "unreadable_folder", message: "Cannot read .doan/canvases: permission denied" } },
+        // A folder named like a canvas is still a folder: its path alone does not tell.
+        { path: ".doan/canvases/x.html", frames: [], error: { code: "unreadable_folder", message: "Cannot read .doan/canvases/x.html: permission denied" } },
         { path: ".doan/ds/b.html", frames: [] },
       ],
       base,

@@ -11,6 +11,7 @@
 import type { VisibleCalls } from "./visibleClock";
 import { EYE_TEXTURE, buddy as registry, type BuddyId } from "./buddies";
 import { canvasSize } from "./doanyMotion";
+import { onDevicePixelRatio } from "./devicePixels";
 // After a lost context a rebuild waits for the GPU to come back, on Home's schedule (the reason is in Doany.tsx).
 import { RETRIES, RETRY_MS } from "./Doany";
 import {
@@ -288,8 +289,9 @@ export class DockedBuddyShell {
     window.addEventListener("focus", wake); window.addEventListener("blur", wake);
     live.reduced.addEventListener("change", wake);
     const native = live.calls.onWindowVisible(visible => { live.nativeVisible = visible; this.wake(); });
+    const ratio = onDevicePixelRatio(() => { this.resize(); this.wake(); });
     return () => {
-      native();
+      native(); ratio();
       document.removeEventListener("pointermove", move);
       document.removeEventListener("input", typed, true); document.removeEventListener("keydown", typed, true);
       document.removeEventListener("wheel", person, true); document.removeEventListener("pointerdown", person, true); document.removeEventListener("keydown", person, true);
@@ -329,7 +331,9 @@ export class DockedBuddyShell {
     if (still.complete && still.naturalWidth > 0) readMask(); else still.addEventListener("load", readMask, { once: true });
     const goStill = () => { rig.ready = false; rig.failed = true; still.hidden = false; canvas.hidden = true; this.retryLater(live); this.wake(); };
     // preventDefault lets Chromium restore the context, which tells when the GPU is back.
-    const lost = (event: Event) => { event.preventDefault(); if (rig.ready) live.retries = RETRIES; goStill(); };
+    // A ready rig's loss also marks the stretch rebuilt: an earlier unseen stretch must not leave the next seen frame
+    // free to rebuild at once, while the GPU may still be restarting.
+    const lost = (event: Event) => { event.preventDefault(); if (rig.ready) { live.retries = RETRIES; live.rebuilt = true; } goStill(); };
     const restored = () => { if (!disposed) this.allowRebuild(live); };
     try {
       rig.target = glTarget(canvas, id);

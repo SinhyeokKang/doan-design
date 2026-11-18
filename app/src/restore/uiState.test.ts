@@ -549,7 +549,7 @@ test("withoutUnlisted drops canvases and conversations a read list no longer nam
     "/repo/c": { checkout: ID_A },
   };
   const listed = (root: string) => root === "/repo/a"
-    ? { canvases: [{ path: ".doan/canvases/checkout.html", id: "checkout" }, { path: ".doan/canvases/cart.html" }], conversations: [ID_A] }
+    ? { canvases: [{ path: ".doan/canvases/checkout.html", id: "checkout" }, { path: ".doan/canvases/cart.html" }], conversations: [{ conversationId: ID_A }] }
     : root === "/repo/b" ? { canvases: [{ path: ".doan/canvases/checkout.html", id: "checkout" }], conversations: null }
     : { canvases: null, conversations: null };
   expect(withoutUnlisted(memory, listed)).toEqual({ "/repo/a": { checkout: ID_A }, "/repo/b": { checkout: ID_B }, "/repo/c": { checkout: ID_A } });
@@ -557,6 +557,20 @@ test("withoutUnlisted drops canvases and conversations a read list no longer nam
   expect(withoutUnlisted({ "/repo/a": { gone: ID_A } }, listed)).toEqual({});
   const kept = { "/repo/a": { checkout: ID_A } };
   expect(withoutUnlisted(kept, listed)).toBe(kept);
+});
+
+// An agent rewriting a canvas can leave it listed for a moment without its ID (unparsable mid-write, or unreadable); the
+// canvas is still listed at its path, so the conversation remembered under its ID stays (ARCHITECTURE §7).
+test("withoutUnlisted keeps an entry whose canvas is listed for now without its ID, by its conversation's canvas path", () => {
+  const memory = { "/repo/a": { home: ID_A, gone: ID_B } };
+  const listed = () => ({
+    canvases: [{ path: ".doan/canvases/home.html" }],
+    conversations: [
+      { conversationId: ID_A, canvas: { path: ".doan/canvases/home.html", id: "home" } },
+      { conversationId: ID_B, canvas: { path: ".doan/canvases/gone.html", id: "gone" } },
+    ],
+  });
+  expect(withoutUnlisted(memory, listed)).toEqual({ "/repo/a": { home: ID_A } });
 });
 
 test("reads the inspector's open flag and width", () => {

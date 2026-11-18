@@ -5,7 +5,7 @@ import type { ViewCommand } from "../main/index";
 import type { CanvasState, CanvasViewStore } from "./CanvasController";
 import { canvasLabel } from "./canvasTree";
 import { frameDrawerView, type FrameDrawerRow, type FrameDrawerView } from "./frameDrawer";
-import { drawerKeyTarget, drawerTypeahead, focusedRowAfter } from "./frameDrawerList";
+import { drawerKey, focusedRowAfter, listTakesKey } from "./frameDrawerList";
 import { FrameName, FrameRowMarks } from "./FrameListBody";
 import { NameTip } from "./NameTip";
 import { menuCloseFocus, menuCloseNow } from "./canvasFocus";
@@ -129,22 +129,14 @@ function FrameDrawer({ view, label, canvasKey, fallbackFocus, select }: { view: 
   });
 
   const pick = (row: FrameDrawerRow) => { setOpen(false); select(row.index, row.id); };
+  // The Play drawer's keys (drawerKey): every printable key is the list's, so V and H never switch the tool from here.
   const keydown = (event: KeyboardEvent<HTMLDivElement>) => {
-    // Like a menu, Tab does not walk out of the open list into the page.
-    if (event.key === "Tab") { event.preventDefault(); return; }
-    if (event.key === "Enter" || event.key === " ") {
-      const row = view.rows.find(row => row.key === active);
-      if (row) { event.preventDefault(); pick(row); }
-      return;
-    }
-    const target = drawerKeyTarget(view.rows, active, event.key);
-    if (target !== null) { event.preventDefault(); move(target); return; }
-    if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
-      const now = Date.now();
-      typed.current = { text: (now - typed.current.at < 500 ? typed.current.text : "") + event.key.toLowerCase(), at: now };
-      const match = drawerTypeahead(view.rows, active, typed.current.text);
-      if (match !== null) { event.preventDefault(); move(match); }
-    }
+    const result = drawerKey(view.rows, active, event, typed.current, Date.now());
+    typed.current = result.typed;
+    if (result.prevent) event.preventDefault();
+    const picked = result.pick === undefined ? undefined : view.rows.find(row => row.key === result.pick);
+    if (picked) pick(picked);
+    else if (result.move !== undefined) move(result.move);
   };
 
   return <Popover.Root open={shown} onOpenChange={next => { setOpen(next); if (next) setFocused(null); }}>
@@ -183,7 +175,9 @@ function limit(enabled: boolean, atLimit: boolean): { disabled?: true; "aria-dis
 function ZoomControl({ view, canvasKey, fallbackFocus, command, zoomTo }: { view: ZoomControlView; canvasKey: string | null; fallbackFocus(): void; command(name: ViewCommand): void; zoomTo(scale: number): void }) {
   const [open, setOpen] = useState(false);
   const { trigger, onCloseAutoFocus } = useMenuFocus(canvasKey, open, view.enabled, () => setOpen(false), fallbackFocus);
-  return <span className="doan-canvas-zoom">
+  // Radix's typeahead runs in the menu's own keydown, which a key prevented earlier would skip, so the open menu takes
+  // its printable keys from V and H here, on the way out of the portal.
+  return <span className="doan-canvas-zoom" onKeyDown={event => { if (event.target instanceof Element && event.target.closest(".doan-zoom-menu") && listTakesKey(event)) event.preventDefault(); }}>
     <IconTip label={view.zoomOut.tooltip.label} shortcut={view.zoomOut.tooltip.key}><button type="button" className="doan-icon-button" aria-label="Zoom out" {...limit(view.enabled, view.zoomOut.disabled)} onClick={() => { if (!view.zoomOut.disabled) command("zoomOut"); }}><Minus aria-hidden="true" /></button></IconTip>
     <DropdownMenu.Root open={open && view.enabled} onOpenChange={setOpen}>
       <DropdownMenu.Trigger asChild><button ref={trigger} type="button" className="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label={view.triggerLabel} disabled={!view.enabled}>

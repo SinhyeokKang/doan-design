@@ -69,7 +69,11 @@ export function toastState(state: ToastState, event: ToastEvent): ToastState {
       // The same object when nothing changes: useToast ticks every 100 ms for the life of App, and a new state each
       // time re-rendered all of App while no toast was shown.
       if (!state.toast && !state.ended) return state;
-      if (!state.toast || isToastPaused(state)) return base;
+      if (!state.toast) return base;
+      // A toast left up while the window is closed or hidden never expires and the clock keeps ticking; a new object
+      // per tick re-rendered all of App. One drawn in a dialog still re-renders, so Toast sees that dialog go.
+      if (state.hidden && !state.ended && !state.toast.dialog) return state;
+      if (isToastPaused(state)) return base;
       const remainingMs = state.remainingMs - Math.max(event.elapsedMs, 0);
       if (remainingMs > 0) return { ...base, remainingMs };
       return gone(base, state.toast, "expired");

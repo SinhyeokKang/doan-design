@@ -175,3 +175,36 @@ func TestListRootInDiskSpelling(t *testing.T) {
 		t.Fatalf("cwd: %v", got)
 	}
 }
+
+// `doan check` names the serve entries the server holds back, and a CSS file it reaches there is not served.
+func TestCheckReportsWithheldServeEntries(t *testing.T) {
+	root := initialized(t)
+	putFile(t, root, ".env", "SECRET=1")
+	putFile(t, root, ".git/config", "")
+	putFile(t, root, "web/.env.css", "")
+	putFile(t, root, "web/page.css", "")
+	if e := os.Symlink(".env", filepath.Join(root, "settings")); e != nil {
+		t.Fatal(e)
+	}
+	putFile(t, root, ".doan/config.json", `{"v":1,"serve":[".env","web",".git","settings"]}`)
+	putFile(t, root, ".doan/canvases/a.html", `<head><meta name="doan:canvas" content="foo"><meta name="doan:width" content="800"><link rel="stylesheet" href="../../web/page.css"><link rel="stylesheet" href="../../web/.env.css"></head>`)
+	withheld, notServed := []string{}, []string{}
+	for _, f := range result(t, root, 4, "check")["findings"].([]any) {
+		f := f.(map[string]any)
+		switch f["code"] {
+		case "serve_withheld":
+			if f["path"] != ".doan/config.json" || f["severity"] != "warning" {
+				t.Fatal(f)
+			}
+			withheld = append(withheld, f["target"].(string))
+		case "css_not_served":
+			notServed = append(notServed, f["target"].(string))
+		}
+	}
+	if !reflect.DeepEqual(withheld, []string{".env", ".git", "settings"}) {
+		t.Fatal("withheld:", withheld)
+	}
+	if !reflect.DeepEqual(notServed, []string{"../../web/.env.css"}) {
+		t.Fatal("not served:", notServed)
+	}
+}

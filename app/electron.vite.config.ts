@@ -7,15 +7,17 @@ import { fileURLToPath } from "node:url";
 // local server, whose port changes every run. electron-vite dev serves the
 // renderer over http with an HMR websocket, so only dev names that origin.
 // Overview thumbnails arrive as PNG bytes over IPC and show as blob: URLs.
+// The windows load from file:, where 'self' covers local files, so <base>, plugins and form
+// submissions are refused outright rather than left to default-src.
 function contentSecurityPolicy(): Plugin {
   return {
     name: "doan-csp",
     transformIndexHtml(_html, ctx) {
       const devUrl = ctx.server?.resolvedUrls?.local[0];
-      const frames = "; frame-src http://127.0.0.1:*; img-src 'self' blob:";
+      const rest = "; frame-src http://127.0.0.1:*; img-src 'self' blob:; base-uri 'none'; object-src 'none'; form-action 'none'";
       const policy = devUrl
-        ? `default-src 'self' ${new URL(devUrl).origin} ${new URL(devUrl).origin.replace(/^http/, "ws")}${frames}`
-        : `default-src 'self'${frames}`;
+        ? `default-src 'self' ${new URL(devUrl).origin} ${new URL(devUrl).origin.replace(/^http/, "ws")}${rest}`
+        : `default-src 'self'${rest}`;
       return [{ tag: "meta", attrs: { "http-equiv": "Content-Security-Policy", content: policy }, injectTo: "head-prepend" }];
     },
   };

@@ -86,6 +86,8 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
   // The gen of a kill's view: the latest still goes out again just before that view, whenever the view is sent, so a
   // still that finishes after the kill is still the one re-sent.
   let resendFor: number | null = null;
+  // Counts window closes: a still taken in an earlier window is never kept for, or re-sent into, a later one.
+  let windows = 0;
   const resolve: Resolve = (ref, lastPath) => resolveTarget(ref, entries(), lastPath);
   let canvasGeneration = 0;
   const canvasOf = (current: PrototypeState): string | null => current.open ? canvasKeyString(current.target) : null;
@@ -126,10 +128,10 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
   const publish = (still: Promise<Still | null> | null, killed: boolean) => {
     if (killed && still === null && state.open) resendFor = state.gen;
     if (still !== null) {
-      const gen = state.gen;
+      const gen = state.gen, takenIn = windows;
       later(async () => {
         const taken = await still;
-        if (!state.open) return;
+        if (!state.open || windows !== takenIn) return;
         // Kept even when a later step moved the gen on: a kill right after leaving ready re-sends this still, with the
         // box it was taken at. A still that could not be read clears the last one, so another frame's screen is never
         // re-sent in its place.
@@ -147,7 +149,7 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
     state = step.state;
     const canvasMoved = canvasOf(previous) !== canvasOf(state);
     if (canvasMoved) canvasGeneration++;
-    if (!state.open) { latest = null; resendFor = null; }
+    if (!state.open) { latest = null; resendFor = null; if (previous.open) windows++; }
     const still = leavingReady(previous);
     // A fit with the panel open may narrow the panel to fit the work area (prototypePanelFit); the view says so.
     const fitted = (given: number | null) => {
