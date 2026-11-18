@@ -28,11 +28,13 @@ const touching = (a: Span, b: Span) => a.end === b.start || b.end === a.start;
 export function measureLines(selected: CanvasRect, target: CanvasRect): MeasureLine[] {
   const s = spans(selected);
   const t = spans(target);
-  // Figma draws no line at all between touching targets, on either axis and whichever is selected.
-  if (touching(s.x, t.x) || touching(s.y, t.y)) return [];
   const apartX = apart(s.x, t.x);
   const apartY = apart(s.y, t.y);
-  if (!apartX && !apartY) return [...insets("x", s, t), ...insets("y", s, t)];
+  if (!apartX && !apartY) {
+    // Touching on one axis and overlapping or touching on the other: Figma draws no line, whichever is selected.
+    if (touching(s.x, t.x) || touching(s.y, t.y)) return [];
+    return [...insets("x", s, t), ...insets("y", s, t)];
+  }
   const lines: MeasureLine[] = [];
   if (apartX) lines.push(...gap("x", s, t));
   if (apartY) lines.push(...gap("y", s, t));
@@ -63,15 +65,19 @@ function gap(axis: Axis, s: Spans, t: Spans): MeasureLine[] {
 
 // Apart on one axis and overlapping along `axis`: each side's edge difference, shown only when it is not zero and
 // either the selection's edge lies strictly inside the target's range or the target's range lies strictly inside the
-// selection's (the rule that explains every observed case). The line sits on the selection's centre line; a dashed
-// line runs along the target's edge from the target's near edge to the selection's far edge.
+// selection's (the rule that explains every observed case). When the two touch along `axis`, a selection edge on the
+// shared coordinate counts as inside (observed with diagonal touching targets). The line sits on the selection's centre
+// line; a dashed line runs along the target's edge from the target's near edge to the selection's far edge.
 function edges(axis: Axis, s: Spans, t: Spans): MeasureLine[] {
   const apartAxis = other(axis);
   const at = middle(s[apartAxis]);
   const targetBefore = t[apartAxis].end < s[apartAxis].start;
   const near = targetBefore ? t[apartAxis].end : t[apartAxis].start;
   const far = targetBefore ? s[apartAxis].end : s[apartAxis].start;
-  const within = (value: number, span: Span) => span.start < value && value < span.end;
+  // A selection edge equal to a target edge on the other side is the touching one; an equal same-side edge is a zero
+  // difference and is skipped below, so taking both ends in is the same as taking the touching one in.
+  const touches = touching(s[axis], t[axis]);
+  const within = (value: number, span: Span) => (touches ? span.start <= value && value <= span.end : span.start < value && value < span.end);
   const targetInside = s[axis].start < t[axis].start && t[axis].end < s[axis].end;
   const lines: MeasureLine[] = [];
   for (const side of ["start", "end"] as const) {

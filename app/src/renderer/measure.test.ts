@@ -87,15 +87,26 @@ describe("measureLines: overlapping or containing", () => {
   });
 });
 
-// A gap of exactly 0 on either axis draws nothing, whichever of the two is selected.
+// Touching: a gap of exactly 0 on one axis.
 describe("measureLines: touching", () => {
+  // Overlapping or also touching on the other axis: nothing to measure, whichever of the two is selected.
   test.each<[string, CanvasRect, CanvasRect]>([
     ["stacked, same width", rect(100, 100, 200, 48), rect(100, 148, 200, 48)],
     ["stacked, different widths", rect(400, 100, 200, 48), rect(420, 148, 140, 48)],
     ["side by side", rect(650, 100, 100, 60), rect(750, 120, 80, 40)],
+    ["corner to corner", rect(650, 240, 60, 40), rect(710, 280, 50, 30)],
   ])("%s: no lines either way", (_name, first, second) => {
     expectLines(first, second, []);
     expectLines(second, first, []);
+  });
+
+  // Apart on the other axis: that gap as usual, and the touching axis's edge differences, where a selection edge on
+  // the touching coordinate counts as inside the target's range.
+  test("touching columns, apart rows: the row gap and the edge difference from the touching edge, both ways", () => {
+    const upper = rect(400, 240, 100, 40);
+    const lower = rect(500, 300, 80, 30);
+    expectLines(upper, lower, [v(280, 300, 450), hd(450, 500, 300), h(500, 580, 260), vd(240, 300, 580)]);
+    expectLines(lower, upper, [v(280, 300, 540), hd(500, 540, 280), h(400, 500, 315), vd(280, 330, 400)]);
   });
 });
 
