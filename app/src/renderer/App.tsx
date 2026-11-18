@@ -2292,7 +2292,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     };
     measure();
     window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    // Hiding or showing the sidebar animates the shell's columns, so the measure above still sees the old start; the
+    // end of the shell's own transition measures the final layout (the inspector's room depends on it).
+    const settled = (event: Event) => { if (event.target === shellRoot.current) measure(); };
+    window.addEventListener("transitionend", settled);
+    return () => { window.removeEventListener("resize", measure); window.removeEventListener("transitionend", settled); };
   // The sidebar's width and hiding move the canvas column's start, so either measures again.
   }, [shownSidebar, sidebarHidden]);
   // Written here rather than in the style prop: a drag previews its width on the same property (previewPanel), and this

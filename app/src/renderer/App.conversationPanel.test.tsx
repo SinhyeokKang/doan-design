@@ -1117,12 +1117,13 @@ describe("the inspector column", () => {
   const savedInspector = () => (doan.saveUiState!.mock.lastCall?.[0] as { inspector?: unknown } | undefined)?.inspector;
   // The window and the shell column App measures: the canvas panel starts 236px in, and the shell ends 8px before the
   // window's right edge.
-  function measure(width: number) {
+  function measure(width: number, canvasLeft = 236) {
     (window as unknown as { innerWidth: number }).innerWidth = width;
     vi.stubGlobal("getComputedStyle", () => ({ paddingRight: "8px" }));
     const main = all(tree).find(element => element.type === "main")!.props.ref as { current: unknown };
-    main.current = { clientWidth: width, getBoundingClientRect: () => ({ left: 0 }), querySelector: () => ({ getBoundingClientRect: () => ({ left: 236 }) }), style: { setProperty: vi.fn() } };
+    main.current = { clientWidth: width, getBoundingClientRect: () => ({ left: 0 }), querySelector: () => ({ getBoundingClientRect: () => ({ left: canvasLeft }) }), style: { setProperty: vi.fn() } };
     windowListeners.resize!(undefined as never); render();
+    return main.current;
   }
   const focusing = () => {
     const asked: string[] = [];
@@ -1211,6 +1212,20 @@ describe("the inspector column", () => {
     expect(column()?.shown).toBe(true);
     expect(asked).toContain(".doan-insp-panel .doan-panel-hide");
     expect(focus).toHaveBeenCalled();
+  });
+
+  // Found in the real app: hiding the sidebar animates the shell's columns, so the measure taken when it hides still saw
+  // the sidebar, and at 1000 the inspector stayed away until the next window resize. The end of the shell's own
+  // transition measures again.
+  test("the shell measures again when its columns finish moving, so a hidden sidebar makes room for the inspector", async () => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true } });
+    const main = measure(1000);
+    expect(column()?.shown).toBe(false);
+    (main as { querySelector(): unknown }).querySelector = () => ({ getBoundingClientRect: () => ({ left: 8 }) });
+    windowListeners.transitionend!({ target: {} } as never); render();
+    expect(column()?.shown).toBe(false);
+    windowListeners.transitionend!({ target: main } as never); render();
+    expect(column()?.shown).toBe(true);
   });
 
   test("with the inspector shown the conversation's drag stops where the board keeps 360", async () => {
