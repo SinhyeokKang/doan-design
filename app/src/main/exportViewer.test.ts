@@ -1928,14 +1928,18 @@ describe("isolate.js follows links in a real DOM", { timeout: 60_000 }, () => {
 
   // A documented limit: a listener the canvas adds during the click that runs after ours and sets the href again gives
   // the browser something to follow, so the frame navigates while the link is still followed. The document is gone by
-  // then, so the page around it (the test's top window) reads what happened.
-  test("an href the canvas sets again after ours came off is followed by the browser too", async () => {
+  // then, so the page around it (the test's top window) reads what happened. A document kept busy after the click lets
+  // the navigation commit before a 0 ms timer's message reaches the page, which then arrives with no source.
+  test.each([[0], [300]])("an href the canvas sets again after ours came off is followed by the browser too (busy %i ms after the click)", async busy => {
     const script = `<script>document.getElementById("x").addEventListener("click", () =>
       window.addEventListener("click", () => document.getElementById("x").setAttribute("href", "#new"), { once: true }));</script>`;
     const frame = await dom.load(isolateDocument("a", frames(`<a id="x" href="#sec" data-doan-goto="b">Next</a>`, script)));
     const top = frame.parentFrame()!;
     await dom.flush(frame);
-    await bounded(frame.evaluate(() => (document.getElementById("x") as HTMLElement).click()), 15_000, "click");
+    await bounded(frame.evaluate(busy => {
+      if (busy > 0) setTimeout(() => { for (const end = Date.now() + busy; Date.now() < end;); }, 0);
+      (document.getElementById("x") as HTMLElement).click();
+    }, busy), 15_000, "click");
     // The poll gives up on its own and returns what it saw, so a missing goto or navigation shows in the expectations
     // below instead of as a bare test timeout; `bounded` names the poll if the page itself stops answering.
     const seen = await bounded(top.evaluate(() => new Promise<{ posted: unknown[]; url: string }>(resolve => {

@@ -47,6 +47,15 @@ test("a close that hangs is bounded, then the process is killed, the folder remo
   assert.match(String(warn.mock.calls[0]?.arguments.join(" ")), /timed out/);
 });
 
+test("a SIGKILL from outside the close is not its own kill and still fails", async () => {
+  const dir = await tempDir();
+  const child = spawn(process.execPath, ["-e", "process.on('SIGTERM', () => process.kill(process.pid, 'SIGKILL')); console.log('ready'); setInterval(() => {}, 1000)"]);
+  await once(child.stdout!, "data");
+  await assert.rejects(dom.closeElectron({ process: () => child, close: async () => { process.kill(child.pid!, "SIGTERM"); } }, dir, 2_000), /exit cleanly/);
+  assert.equal(child.signalCode, "SIGKILL");
+  assert.equal(await exists(dir), false);
+});
+
 test("an exit the close did not force, such as a crash on quit, still fails", async () => {
   const dir = await tempDir();
   const child = spawn(process.execPath, ["-e", "process.on('SIGTERM', () => process.exit(3)); console.log('ready'); setInterval(() => {}, 1000)"]);
