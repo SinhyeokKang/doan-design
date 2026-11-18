@@ -1016,6 +1016,26 @@ describe("Option-hover measurement", () => {
     } finally { h.controller.dispose(); }
   });
 
+  // A dialog, a menu or a problem's overlay that comes and goes while the pointer rests on the canvas: the hover target
+  // is still there, so the measurement hides and comes back without another move (seen in the app with Quick Open,
+  // the zoom menu opened by keyboard and a config error's overlay).
+  const covering = (h: H, open: boolean) => { (h.doc as { querySelector: () => unknown }).querySelector = () => (open ? {} : null); };
+  it.each<[string, (h: H, open: boolean) => void]>([
+    ["a modal leaving the canvas page", (h, open) => { covering(h, open); h.controller.setCanvasPage(!open); }],
+    ["a problem's overlay", (h, open) => h.controller.setCovered(open)],
+    ["a menu taking focus", (h, open) => { covering(h, open); h.host.dispatchEvent(new Event("focus")); }],
+  ])("hides and brings back the measurement with the pointer still around %s", (_name, act) => {
+    const h = harness();
+    try {
+      h.controller.setCanvasPage(true);
+      start(h);
+      act(h, true);
+      expect(measuring(h)).toBe(false);
+      act(h, false);
+      expect(labels(h)).toEqual(["30"]);
+    } finally { h.controller.dispose(); }
+  });
+
   // Without a measurement, Option keeps hiding the hover: an ⌥-click selects nothing, so a hover would mislead.
   it("with nothing selected, Option hides the hover and measures nothing", () => {
     const h = harness();

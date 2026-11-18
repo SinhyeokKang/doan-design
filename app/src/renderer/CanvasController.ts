@@ -384,6 +384,8 @@ export class CanvasController {
     window.addEventListener("keyup", this.keyup);
     window.addEventListener("pointermove", this.pointerOnApp, { capture: true });
     window.addEventListener("blur", this.appBlur);
+    // `focus` in the capture phase reaches the window for every element, as focusin would.
+    window.addEventListener("focus", this.focusMoved, true);
     window.addEventListener("input", this.typed, { capture: true });
     // Bubbling, so the composer's field and copyText, which copy on their own element or in the capture phase, go first.
     window.addEventListener("copy", this.copy);
@@ -419,6 +421,7 @@ export class CanvasController {
     window.removeEventListener("keyup", this.keyup);
     window.removeEventListener("pointermove", this.pointerOnApp, { capture: true });
     window.removeEventListener("blur", this.appBlur);
+    window.removeEventListener("focus", this.focusMoved, true);
     window.removeEventListener("input", this.typed, { capture: true });
     window.removeEventListener("copy", this.copy);
     window.removeEventListener("selectionchange", this.appSelection, { capture: true });
@@ -618,9 +621,12 @@ export class CanvasController {
   // when it goes.
   setCanvasPage(shown: boolean): void {
     const before = this.onCanvasPage();
+    const changed = shown !== this.canvasPage;
     this.canvasPage = shown;
     if (!before && this.onCanvasPage()) this.enteredPage();
     if (!shown) { this.releaseInput(); this.cancelCapture(); this.clearText(true); }
+    // An Option measurement hides under a modal and comes back when it closes, with the pointer still on its target.
+    if (changed) this.drawMarks();
   }
 
   private onCanvasPage(): boolean { return this.workspaceActive && this.canvasPage; }
@@ -628,7 +634,12 @@ export class CanvasController {
   // A problem project's overlay covers the canvas (ARCHITECTURE §7 'Problem overlay'): no key reaches it, Esc's
   // clearing of the selection included, while focus sits in the overlay.
   private covered = false;
-  setCovered(covered: boolean): void { this.covered = covered; }
+  setCovered(covered: boolean): void {
+    if (covered === this.covered) return;
+    this.covered = covered;
+    // As for a modal: the Option measurement hides under the overlay and comes back after it.
+    this.drawMarks();
+  }
 
   // The toolbar's Select and Hand. While picking they cancel the pick first; V and H
   // still change nothing then (shortcut).
@@ -1394,6 +1405,12 @@ export class CanvasController {
       this.sendHoverCommand({ type: "hover-alt", alt: false });
       this.drawMarks();
     }
+  };
+
+  // A menu or popover (overlayOpen) takes focus when it opens and gives it back when it closes, which is the only sign of
+  // it here; an Option measurement hides and comes back with it while the pointer rests on its target.
+  private focusMoved = (): void => {
+    if (this.altHeld) this.drawMarks();
   };
 
   private releaseInput(): void {
