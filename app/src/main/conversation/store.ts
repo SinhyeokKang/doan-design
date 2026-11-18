@@ -113,7 +113,8 @@ function payload(value: Record<string, unknown>): value is Record<string, unknow
     case "handoff.missed": case "canvas.drawn": return validCanvas(value.canvas);
     case "message.delta": case "message.done": return str(value.messageId) && str(value.text);
     case "activity": return ["edit", "read", "command", "other"].includes(String(value.kind)) && str(value.summary) && (value.path === undefined || str(value.path)) && (value.insideDesign === undefined || typeof value.insideDesign === "boolean");
-    case "permission.request": return str(value.requestId) && str(value.tool) && str(value.summary) && Array.isArray(value.options) && value.options.length > 0 && [...value.options].every(o => object(o) && str(o.id) && str(o.label) && ["allow", "allowAlways", "deny"].includes(String(o.kind)));
+    case "permission.request": return str(value.requestId) && str(value.tool) && str(value.summary) && (value.reason === undefined || str(value.reason)) && Array.isArray(value.options) && value.options.length > 0 &&
+      [...value.options].every(o => object(o) && str(o.id) && str(o.label) && ["allow", "allowAlways", "deny"].includes(String(o.kind)) && (o.detail === undefined || str(o.detail)));
     case "permission.resolved": return str(value.requestId) && str(value.optionId);
     case "question.request": return str(value.requestId) && Array.isArray(value.questions) && questions([...value.questions]);
     case "question.resolved": return str(value.requestId) && ["answered", "skipped", "expired"].includes(String(value.outcome)) &&

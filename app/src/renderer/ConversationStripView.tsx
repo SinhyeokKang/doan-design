@@ -77,9 +77,11 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
       // The draft (workspace-strip, states-strip) fills Allow; the other answers, Skip, Edit on Home and Open rest on the panel
       // white, since the strip's inset fill is subtle's own grey.
       const variant = action.command === "answer" ? (action.kind === "allow" ? "prominent" : "panel") : action.command === "editOnHome" || action.command === "open" || action.command === "skip" ? "panel" : undefined;
+      // The strip has one line for the request, so what a saving choice adds rides on its button's tooltip.
       const key = action.command === "answer" ? `answer-${action.optionId}` : action.command;
       // data-strip-stop: App focuses Stop after a Home send's move, never a permission answer.
-      return <button key={key} ref={action.command === "stop" ? stopRef : action.command === "dismiss" ? dismiss : undefined} data-strip-stop={action.command === "stop" ? "" : undefined} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={variant} onClick={() => run(action)}>
+      return <button key={key} ref={action.command === "stop" ? stopRef : action.command === "dismiss" ? dismiss : undefined} data-strip-stop={action.command === "stop" ? "" : undefined} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={variant}
+        title={action.command === "answer" ? action.detail : undefined} onClick={() => run(action)}>
         {action.command === "stop" && <CircleStop aria-hidden="true" />}{action.label}
       </button>;
     })}</span>

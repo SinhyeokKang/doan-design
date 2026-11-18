@@ -123,10 +123,10 @@ it("refuses to open when the server asks for a new browser sign-in, and when the
 
 it("offers only the options the agent sent and prefers a one-time deny", () => {
   const params = (options: { optionId: string; kind: string }[]) => ({ sessionId: "s", toolCall: { title: "Edit a.html", kind: "edit" }, options });
-  expect(acpPermission(params([{ optionId: "a", kind: "allow_once" }, { optionId: "r", kind: "reject_always" }, { optionId: "o", kind: "reject_once" }]), "id")?.choices)
+  expect(acpPermission(params([{ optionId: "a", kind: "allow_once" }, { optionId: "r", kind: "reject_always" }, { optionId: "o", kind: "reject_once" }]), "id", "/repo")?.choices)
     .toEqual([{ optionId: "a", option: { id: "allow", label: "Allow", kind: "allow" } }, { optionId: "o", option: { id: "deny", label: "Deny", kind: "deny" } }]);
-  expect(acpPermission(params([{ optionId: "r", kind: "reject_once" }]), "id")).toBeNull();
-  expect(acpPermission({ options: "x" }, "id")).toBeNull();
+  expect(acpPermission(params([{ optionId: "r", kind: "reject_once" }]), "id", "/repo")).toBeNull();
+  expect(acpPermission({ options: "x" }, "id", "/repo")).toBeNull();
 });
 
 it("marks canvas edits as inside the design and splits messages around tool calls", () => {
