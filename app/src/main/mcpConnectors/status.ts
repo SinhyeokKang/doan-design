@@ -15,6 +15,14 @@ export function parseClaudeMcpGet(name: string, output: string, exitCode: number
   return null;
 }
 
+// The URL of a registered server's `claude mcp get <name>` block (exit 0, headed `<name>:`), whatever its Status
+// line says. null: no such block or no URL line (a stdio server).
+export function claudeMcpGetUrl(name: string, output: string): string | null {
+  const lines = output.split("\n").map(line => line.trim());
+  if (lines[0] !== `${name}:`) return null;
+  return lines.find(line => line.startsWith("URL:"))?.slice("URL:".length).trim() || null;
+}
+
 // `codex mcp list --json`: every registered server with its auth_status. authenticated is null for a status Doan does
 // not know (bearer tokens, unsupported), which reads as Couldn’t check rather than as signed out.
 export function parseCodexMcpList(text: string): { name: string; authenticated: boolean | null }[] | null {
