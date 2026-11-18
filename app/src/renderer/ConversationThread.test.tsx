@@ -270,6 +270,15 @@ describe("thread items", () => {
     expect(html([bound], { canvasListed: () => false })).toMatch(/Moved to doan-settings.html · No longer in doan-design<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger" disabled="">Open<\/button>/);
   });
 
+  // On the canvas it moved to, the thread is already there: the line says where it came from, with nothing to open.
+  test("a promotion marker on the canvas panel of its own canvas says where it came from, without Open", () => {
+    const bound: ThreadItem = { kind: "marker", key: "k5", seq: 5, marker: "bound", canvas: { path: ".doan/canvases/doan-settings.html", id: "s" } };
+    const here = html([bound], { openCanvasId: "s" });
+    expect(here).toMatch(/Moved here from doan-design Overview<\/span><\/div>/);
+    expect(here).not.toContain(">Open</button>");
+    expect(html([bound], { openCanvasId: "other" })).toMatch(/Moved to doan-settings.html<\/span><button[^>]*>Open<\/button>/);
+  });
+
   test("two messages with footnotes never share an id", () => {
     const out = html([agent("One[^1]\n\n[^1]: note"), { kind: "agent", key: "m2", messageId: "m2", text: "Two[^1]\n\n[^1]: note", streaming: false }]);
     const ids = [...out.matchAll(/ id="([^"]+)"/g)].map(m => m[1]!);
