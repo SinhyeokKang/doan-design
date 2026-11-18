@@ -877,6 +877,17 @@ async function start(): Promise<void> {
   documents.onChange(() => seen.documentsChanged());
   // One login-shell probe at a time, shared by agent facts, clone and the CLI's git (read only when first needed).
   const shellForFacts = sharedShell(() => probeShell(process.env));
+  // What main keeps for roots that left the list, by Remove (removeRoots) or because a vanished auto-registered worktree
+  // left on its own (shell.ts autoRemoved): one list, so a store keyed by root is wired into both at once (POSTMORTEM
+  // 2026-11-17 'Removing a project or trashing a canvas left state keyed by it behind'). `before`: the list before.
+  function rootsLeft(paths: string[], before: FolderEntry[]): void {
+    if (selection && paths.includes(selection.root)) selection = null;
+    // Background work a done turn left in a removed project stops without asking, as on sign-out.
+    conversations?.stopBackground(paths);
+    prototype.controller.rootsRemoved(paths);
+    conversationDraftStore?.discardRootStarts(paths);
+    void thumbnails?.removed(paths, before);
+  }
   // The CLI's git for Keep out of Git outside Git is found as clone finds its git (cli.ts CliEnv).
   const gitEnv = async (): Promise<CliEnv> => { const probe = await shellForFacts(); return cliEnv(probe.ok ? probe.path : null, process.env); };
   const ready = await startShell(join(userData, "folders.json"), cliCommand(process.env, app.isPackaged, process.resourcesPath), (entries, focus) => {
@@ -911,12 +922,9 @@ async function start(): Promise<void> {
     response: record => documents.response(record),
     git: root => seen.gitChanged(root),
     saveFailed: () => send("folders:save-failed"),
-    // A vanished auto-registered worktree is cleaned up like Remove (folders:remove); its work items go with the
+    // A vanished auto-registered worktree is cleaned up as Remove's roots are (rootsLeft); its work items go with the
     // list's retainWorkRoots above.
-    autoRemoved(paths, before) {
-      if (selection && paths.includes(selection.root)) selection = null;
-      void thumbnails?.removed(paths, before);
-    },
+    autoRemoved: rootsLeft,
     // A root saved through a symlink is read as its real path once its seen canvases and UI memory have moved to it,
     // in this order and before the renderer reads ui-state.json (folderStore RootMigration).
     migrate: async aliases => seenStore.copyRoots(aliases) && await moveUiStateRoots(join(userData, "ui-state.json"), aliases),
@@ -976,7 +984,7 @@ async function start(): Promise<void> {
   // this root's conversations, its unjudged project turns and terminal work.
   const canvasTrash = createCanvasTrash({
     entries: () => ready.entries(),
-    busy: target => trashBusy(target, conversations?.list(target.root) ?? [], conversations?.projectEvidence(target.root) ?? [], workItems(workState)),
+    busy: target => trashBusy(target, conversations?.list(target.root) ?? [], conversations?.projectEvidence(target.root) ?? [], workItems(workState), conversations?.startingCanvases(target.root) ?? []),
     trashItem: path => electronShell.trashItem(path),
     trashed: (root, canvas) => conversationDraftStore?.discardCanvasStarts(root, canvas),
   });
@@ -1038,6 +1046,7 @@ async function start(): Promise<void> {
       entries: () => ready.entries(),
       menu: () => menuInputs,
       liveTurns: () => conversations?.liveTurns() ?? new Map(),
+      pendingRoots: () => conversations?.pendingRoots() ?? new Set(),
       async removeRoots(roots) {
         const removed = await removeRoots(roots);
         if (removed.kind === "removed") send("folders:removed", { paths: removed.paths });
@@ -1454,11 +1463,7 @@ async function start(): Promise<void> {
     if (selection && roots.includes(selection.root)) selection = null;
     const removed = await ready.remove(roots);
     if (removed.paths.length === 0) return { kind: "unavailable" };
-    // Background work a done turn left in a removed project stops without asking, as on sign-out.
-    conversations?.stopBackground(removed.paths);
-    prototype.controller.rootsRemoved(removed.paths);
-    conversationDraftStore?.discardRootStarts(removed.paths);
-    void thumbs.removed(removed.paths, before);
+    rootsLeft(removed.paths, before);
     return { kind: "removed", paths: removed.paths };
   }
   // A row or a whole card.

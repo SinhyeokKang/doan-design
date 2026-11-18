@@ -13,6 +13,7 @@ import type { McpConnectorsWatch } from "./mcpConnectorsWatch";
 import { retryButton, useRetry } from "./ListRetryButton";
 import { announcedAgain } from "./listRetry";
 import { dialogKeys, NoticeView, openModal } from "./Onboarding";
+import { useActivationFocus } from "./activationFocus";
 
 export interface SettingsMcpConnectorsProps {
   // App's reader of main's snapshots: attempts and their notices outlive this page.
@@ -79,13 +80,16 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
   // Focus that waits for a snapshot: the new item after Add, the next item after Remove. `alert`: the Remove alert waits
   // too; `replied` once main took the request, since a snapshot before that may still carry the last attempt's failure.
   const pending = useRef<{ kind: "added"; name: string } | { kind: "removed"; provider: McpProvider; name: string; names: string[]; alert: boolean; replied: boolean } | null>(null);
+  // A Connect finished in the browser lands with the window in the background, so these hand-offs are made again on
+  // activation (POSTMORTEM 2026-11-17).
+  const handFocus = useActivationFocus();
   useEffect(() => {
     const waiting = pending.current;
     if (waiting?.kind === "added") {
       const first = view.sections[0];
       if (first?.rows.some(row => row.name === waiting.name)) {
         pending.current = null;
-        requestAnimationFrame(() => { const group = rowGroup(first.provider, waiting.name); group?.scrollIntoView({ block: "nearest" }); group?.focus(); });
+        requestAnimationFrame(() => { const group = rowGroup(first.provider, waiting.name); group?.scrollIntoView({ block: "nearest" }); handFocus(() => rowGroup(first.provider, waiting.name)?.focus()); });
       }
     } else if (waiting?.kind === "removed") {
       const server = watch.snapshot?.servers.find(item => item.name === waiting.name);
@@ -93,7 +97,7 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
         pending.current = null; focusWatch.current = null;
         if (waiting.alert && current.current?.kind === "remove") setDialog(null);
         const target = removeFocus(waiting.names, waiting.name);
-        if (target) requestAnimationFrame(() => rowGroup(waiting.provider, target)?.focus());
+        if (target) requestAnimationFrame(() => handFocus(() => rowGroup(waiting.provider, target)?.focus()));
       } else if (server.removeFailed && (!waiting.alert || waiting.replied)) {
         pending.current = null;
         if (waiting.alert) removeFailed();
@@ -114,7 +118,7 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
       }
       const group = rowGroup(watched.provider, watched.name);
       if (!group) return;
-      group.focus();
+      handFocus(() => rowGroup(watched.provider, watched.name)?.focus());
       focusWatch.current = { ...watched, node: group, wasUnusable: false };
     });
   });

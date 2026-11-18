@@ -102,7 +102,7 @@ function sameScope(a: readonly string[], b: readonly string[]): boolean {
 
 // Electron-free on purpose: the window, dialog and IPC live in index.ts.
 // `autoRemoved` runs when a vanished auto-registered root left the list on its own, before the list goes out, so main
-// clears what it keeps for that root as on Remove; `before` is the list before the removal.
+// clears what it keeps for that root as on Remove (index.ts rootsLeft); `before` is the list before the removal.
 // `migrate` is the folder store's startup step (RootMigration): it runs before folders.json is rewritten and before any
 // folder is read, listed or pruned, so stores keyed by root move a symlink root's memory to its real path first.
 export interface ShellHooks {
