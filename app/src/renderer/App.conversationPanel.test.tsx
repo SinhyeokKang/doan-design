@@ -1214,14 +1214,14 @@ describe("the inspector column", () => {
     expect(focus).toHaveBeenCalled();
   });
 
-  const narrowWithFocusIn = async (target: { closest(selector: string): unknown }, hasFocus = true) => {
+  const narrowWithFocusIn = async (target: { closest(selector: string): unknown }, hasFocus = true, active?: unknown) => {
     await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true, width: 320 } });
     measure(1470);
     const focusin = (document.addEventListener as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(call => call[0] === "focusin").map(call => call[1] as (event: unknown) => void);
     for (const listener of focusin) listener({ target });
     const seen = focusing();
     (document as unknown as { hasFocus(): boolean }).hasFocus = () => hasFocus;
-    (document as unknown as { activeElement: unknown }).activeElement = (document as unknown as { body: unknown }).body;
+    (document as unknown as { activeElement: unknown }).activeElement = active ?? (document as unknown as { body: unknown }).body;
     measure(1100);
     return seen;
   };
@@ -1231,6 +1231,17 @@ describe("the inspector column", () => {
   // trigger in the inert column, so focus in the menu is focus in the inspector.
   test("narrowing the window with focus in the element menu hands focus to Show inspector", async () => {
     const { asked, focus } = await narrowWithFocusIn({ closest: (selector: string) => selector.includes(".doan-insp-menu") ? {} : null });
+    expect(asked).toContain(SHOW);
+    expect(focus).toHaveBeenCalled();
+  });
+
+  // Found in the real app: the closing menu stays mounted for its exit animation, with focus still on its row, when
+  // App's effect runs.
+  test("narrowing the window while focus is still on the closing element menu hands focus to Show inspector", async () => {
+    vi.stubGlobal("HTMLElement", class {});
+    const HTMLElementFake = (globalThis as unknown as { HTMLElement: new () => object }).HTMLElement;
+    const menuRow = Object.assign(new HTMLElementFake(), { closest: (selector: string) => selector.includes(".doan-insp-menu") ? {} : null });
+    const { asked, focus } = await narrowWithFocusIn(menuRow, true, menuRow);
     expect(asked).toContain(SHOW);
     expect(focus).toHaveBeenCalled();
   });

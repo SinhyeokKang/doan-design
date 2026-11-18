@@ -2411,7 +2411,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (was === inspectorShown || inspectorFocus.current !== null) return;
     const active = document.activeElement;
     if (!inspectorShown) {
-      const fell = active === null || active === document.body || (active instanceof HTMLElement && active.closest(".doan-insp-column") !== null);
+      // Still inside the column or its element menu (closing, it stays mounted for its exit animation), or already on
+      // the page.
+      const fell = active === null || active === document.body || (active instanceof HTMLElement && active.closest(".doan-insp-column, .doan-insp-menu") !== null);
       if (fell && focusInInspector.current) handInspectorFocus('.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]');
       return;
     }
