@@ -262,7 +262,7 @@ test("a canvas moved under the same ID keeps what it showed", () => {
 // A promoted project conversation carries startedBy "promotion" (main's summary).
 const promoted = (patch: Parameters<typeof summary>[1] = {}) => summary(P, { startedBy: "promotion", ...patch });
 
-test("opened right after a promotion the promoted conversation shows; promoted while the panel is open it is announced", () => {
+test("opened right after a promotion the promoted conversation shows; promoted while the panel is open it takes the default new state's place", () => {
   const opened = harness();
   opened.answer([summary(P, { canvas: null })]);
   opened.answer([promoted()]);
@@ -274,7 +274,7 @@ test("opened right after a promotion the promoted conversation shows; promoted w
   open.answer([summary(P, { canvas: null })]);
   expect(open.run.view()).toMatchObject({ kind: "new", notice: null });
   open.answer([promoted()]);
-  expect(open.run.view()).toMatchObject({ kind: "new", notice: { kind: "promoted", text: PROMOTED_TEXT, open: P } });
+  expect(open.run.view()).toEqual({ kind: "conversation", conversationId: P, notice: null });
 });
 
 test("an announced promotion stays over later list reads until the person acts; what shows stays", () => {
@@ -334,6 +334,7 @@ test("an announced promotion stays over later list reads until the person acts; 
   const once = harness();
   once.run.show(checkout);
   once.answer([summary(P, { canvas: null })]);
+  once.run.select(null);
   once.answer([promoted()]);
   expect(once.run.view()).toMatchObject({ kind: "new", notice });
   once.run.show(cart);
@@ -354,6 +355,8 @@ test("a send reply from another canvas leaves this canvas's promotion notice", (
   h.run.show(cart);
   h.answer([summary(A), summary(P, { canvas: null })]);
   expect(h.run.revision()).toBe(revision);
+  // The person's New on cart: a promotion there is announced rather than shown.
+  h.run.select(null);
   h.answer([summary(A), promoted({ canvas: CART })]);
   h.answer([summary(A), promoted({ canvas: CART })]);
   const notice = { kind: "promoted" as const, text: PROMOTED_TEXT, open: P };
@@ -717,6 +720,7 @@ test("a promotion notice for the deleted conversation goes, and the list compari
   const h = harness();
   h.run.show(checkout);
   h.answer([summary(P, { canvas: null })]);
+  h.run.select(null);
   h.answer([promoted()]);
   expect(h.run.view()).toMatchObject({ kind: "new", notice: { kind: "promoted", open: P } });
   confirmDelete(h, P);
@@ -754,8 +758,8 @@ test("a canvas that opens before the next list read does not pick the deleted co
 });
 
 // POSTMORTEM 2026-11-14 'The main window's panel never showed…': the default new state (nothing existed) gives way to
-// a conversation the person newly started (in this window or another), the person's New does not; a handoff's or a
-// promotion's conversation moves no screen and takes no draft. CanvasRun runs in the main window and in the
+// a conversation the person newly started (in this window or another) or one promoted to the canvas, the person's New
+// does not; a handoff's conversation moves no screen and takes no draft. CanvasRun runs in the main window and in the
 // prototype window, each from its own state.
 for (const prototype of [false, true]) {
   const where = prototype ? "the prototype window" : "the main window";
@@ -780,21 +784,46 @@ for (const prototype of [false, true]) {
     expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: B });
   });
 
-  test(`${where}: a handoff's or a promotion's new conversation moves nothing and takes no draft`, () => {
-    for (const startedBy of ["handoff", "promotion"] as const) {
-      const h = harness({ prototype });
-      h.run.show(checkout);
-      h.answer([]);
-      const draft = writing("keep me");
-      h.store.setDrafts(drafts => new Map(drafts).set(canvasKey(checkout), draft));
-      h.answer([summary(A, { startedBy })]);
-      expect(h.run.view()).toMatchObject({ kind: "new" });
-      expect(h.store.drafts.get(canvasKey(checkout))).toBe(draft);
-      expect(h.store.drafts.has(`conversation:${A}`)).toBe(false);
-      // A person's start after it still moves the default state.
-      h.answer([summary(A, { startedBy, lastActivityAt: at(1) }), summary(B, { lastActivityAt: at(2) })]);
-      expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: B });
-    }
+  test(`${where}: a handoff's new conversation moves nothing and takes no draft`, () => {
+    const h = harness({ prototype });
+    h.run.show(checkout);
+    h.answer([]);
+    const draft = writing("keep me");
+    h.store.setDrafts(drafts => new Map(drafts).set(canvasKey(checkout), draft));
+    h.answer([summary(A, { startedBy: "handoff" })]);
+    expect(h.run.view()).toMatchObject({ kind: "new" });
+    expect(h.store.drafts.get(canvasKey(checkout))).toBe(draft);
+    expect(h.store.drafts.has(`conversation:${A}`)).toBe(false);
+    // A person's start after it still moves the default state.
+    h.answer([summary(A, { startedBy: "handoff", lastActivityAt: at(1) }), summary(B, { lastActivityAt: at(2) })]);
+    expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: B });
+  });
+
+  // A Home or Overview request makes the canvas, the canvas opens on the default new state, then the turn is promoted.
+  test(`${where}: a conversation promoted to the canvas takes the default new state's place, with its draft`, () => {
+    const h = harness({ prototype });
+    h.run.show(checkout);
+    // The prototype window never lists a project conversation.
+    h.answer(prototype ? [] : [summary(P, { canvas: null, working: true, phase: "running" })]);
+    expect(h.run.view()).toMatchObject({ kind: "new" });
+    const draft = writing("and a coupon field");
+    h.store.setDrafts(drafts => new Map(drafts).set(canvasKey(checkout), draft));
+    h.state.promoted = P;
+    h.answer([promoted({ working: true, phase: "running" })]);
+    expect(h.run.view()).toEqual({ kind: "conversation", conversationId: P, notice: null });
+    expect(h.store.drafts.get(`conversation:${P}`)).toBe(draft);
+    h.answer([promoted()]);
+    expect(h.run.view()).toEqual({ kind: "conversation", conversationId: P, notice: null });
+  });
+
+  test(`${where}: a promotion never moves the new conversation state the person chose`, () => {
+    const h = harness({ prototype });
+    h.run.show(checkout);
+    h.answer(prototype ? [summary(A)] : [summary(A), summary(P, { canvas: null })]);
+    h.run.select(null);
+    h.state.promoted = P;
+    h.answer([summary(A), promoted()]);
+    expect(h.run.view()).toMatchObject({ kind: "new", notice: { kind: "promoted", open: P } });
   });
 
   // POSTMORTEM 2026-11-14 'A list read moved the prototype window's first message…': never a draft whose send can be in flight.
@@ -848,12 +877,18 @@ test("an empty new state draft is not carried to a conversation started elsewher
   expect(h.store.drafts.has(`conversation:${A}`)).toBe(false);
 });
 
-test("a promotion while the panel shows the default new state is still announced, not shown", () => {
+test("a promotion while this panel's own start is in flight shows without taking the draft being sent", () => {
   const h = harness();
   h.run.show(checkout);
   h.answer([summary(P, { canvas: null })]);
+  const sending = writing("make it blue");
+  h.store.setDrafts(drafts => new Map(drafts).set(canvasKey(checkout), sending));
+  const done = h.run.startSending(checkout);
   h.answer([promoted()]);
-  expect(h.run.view()).toMatchObject({ kind: "new", notice: { kind: "promoted", open: P } });
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: P });
+  expect(h.store.drafts.get(canvasKey(checkout))).toBe(sending);
+  expect(h.store.drafts.get(`conversation:${P}`)).toBeUndefined();
+  done();
 });
 
 // In the app the root's list is read before the canvas opens: the canvas's state has no list of its own yet.

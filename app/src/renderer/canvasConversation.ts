@@ -104,8 +104,9 @@ export interface NoticeContext {
   drawing?: string | null;
 }
 
-// The notice above the composer. A promotion joins the canvas without moving the panel, so it is announced unless the
-// panel already shows it; a drawing project conversation is announced only over the new conversation state.
+// The notice above the composer. A promotion moves only a panel on the default new state (followNewConversation), so it
+// is announced unless the panel already shows it; a drawing project conversation is announced only over the new
+// conversation state.
 export function canvasNotice(list: readonly ConversationSummary[], canvas: Canvas, shown: string | null, context: NoticeContext = {}): CanvasNotice | null {
   const promoted = list.find(c => onCanvas(c, canvas) && (c.conversationId === context.promoted
     || context.previous?.some(p => p.conversationId === c.conversationId && p.canvas === undefined)));

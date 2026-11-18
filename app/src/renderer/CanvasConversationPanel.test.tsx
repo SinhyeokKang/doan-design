@@ -266,13 +266,14 @@ test("New while the list loads sends once the session answers, and again beside 
 });
 
 // BV2 6p: main reads the list again right after a bind; the notice and what shows stay.
-test("a promotion while the panel is open keeps New conversation with the notice and Open over later reads", async () => {
+test("a promotion over the New conversation the person chose keeps it with the notice and Open over later reads", async () => {
   const project = (extra: Partial<ConversationSummary> = {}) => { const { canvas: _canvas, ...rest } = summary("proj", extra); return rest as ConversationSummary; };
   let list: ListView = [project()];
   const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
   const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
+  run.select(null);
   list = [summary("proj", { startedBy: "promotion" })];
   run.sync();
   list = [summary("proj", { startedBy: "promotion", lastActivityAt: "2026-11-01T00:01:00.000Z" })];
