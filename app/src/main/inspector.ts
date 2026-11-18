@@ -47,6 +47,8 @@ export interface InspectorDeps {
 
 // The reply carries the request it answers, so the renderer can drop one that a newer request or selection overtook.
 export type InspectReply = InspectRequest & InspectResult;
+// What a request main refuses (another sender, a bad shape) gets: there is no parsed request to echo.
+export type InspectRefused = { ok: false; reason: "unavailable" };
 
 export interface Inspector {
   inspect(request: InspectRequest): Promise<InspectResult>;

@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
-import { beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, expect, expectTypeOf, test, vi } from "vitest";
+import type { InspectRefused, InspectReply } from "../main/inspector";
 import type { DoanApi } from "./index";
 
 const mocks = vi.hoisted(() => ({
@@ -111,6 +112,11 @@ test("inspect sends the request to inspect:get as it is", async () => {
   const request = { selector: "#a", canvas: { root: ROOT, path: ".doan/canvases/a.html" }, seq: 2 };
   await api.inspect(request);
   expect(mocks.invoke).toHaveBeenCalledWith("inspect:get", request);
+});
+
+test("inspect's type includes the bare refusal main sends without an echo", () => {
+  expectTypeOf<Awaited<ReturnType<DoanApi["inspect"]>>>().toEqualTypeOf<InspectReply | InspectRefused>();
+  expectTypeOf<InspectRefused>().toEqualTypeOf<{ ok: false; reason: "unavailable" }>();
 });
 
 test("project setup exposes choice IDs and forwards focus with folder state", async () => {

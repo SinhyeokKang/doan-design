@@ -75,7 +75,7 @@ import { DESIGN_SKILL_CHANNELS, DESIGN_SKILL_REFUSED, designSkillGetRequest, int
 import { folderState, realHome } from "./folderState";
 import { revealTarget, type FolderEntry } from "./view";
 import { createWindowDebugger, type WindowDebugger } from "./windowDebugger";
-import { createInspector, parseInspectRequest, type InspectReply, type Inspector } from "./inspector";
+import { createInspector, parseInspectRequest, type InspectRefused, type InspectReply, type Inspector } from "./inspector";
 import { startRuntime, type Runtime } from "./runtime";
 import { menuState, updateMenu, type Screen } from "./menuState";
 import { electronUpdater, hasFeedConfig, releaseNotesUrl, UpdateService } from "./update/service";
@@ -1622,7 +1622,7 @@ async function start(): Promise<void> {
   });
   // Main reads the shown canvas with CDP; values and token names are canvas text. A request refused for its sender or
   // shape has nothing to echo and gets a bare unavailable.
-  handle("inspect:get", { ok: false, reason: "unavailable" }, async (event, value: unknown): Promise<InspectReply | { ok: false; reason: "unavailable" }> => {
+  handle("inspect:get", { ok: false, reason: "unavailable" }, async (event, value: unknown): Promise<InspectReply | InspectRefused> => {
     const request = parseInspectRequest(value);
     if (!fromWindow(event) || request === null) return { ok: false, reason: "unavailable" };
     const result = inspector ? await inspector.inspect(request) : { ok: false as const, reason: "unavailable" as const };
