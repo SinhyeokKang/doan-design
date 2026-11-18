@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { inScope, parseServePath, relInside } from "./path";
+import { inScope, parseServePath, relInside, withheld } from "./path";
 
 const token = "a1b2c3";
 const prefix = `/t/${token}/k9`;
@@ -160,5 +160,28 @@ describe("inScope", () => {
 
   test("the root itself is never in scope", () => {
     expect(inScope("", [".doan/canvases"])).toBe(false);
+  });
+
+  test("never serves a .git directory or .env files, whatever the scope lists", () => {
+    for (const rel of [".git", ".git/config", ".env", ".env.local", "web/.env", "web/.envrc", "vendor/lib/.git/HEAD", "web/.ENV", "web/.Git/config", ".env.d/key"]) {
+      expect(inScope(rel, [rel, "web", "vendor", ".git", ".env.d"])).toBe(false);
+    }
+    expect(inScope("web/.gitignore", ["web"])).toBe(true);
+    expect(inScope("web/env.css", ["web"])).toBe(true);
+    expect(inScope("web/a.env", ["web"])).toBe(true);
+  });
+});
+
+describe("withheld", () => {
+  test("holds back a .git segment and a segment starting with .env, in any letter case", () => {
+    for (const rel of [".git", ".git/config", "a/.git", "a/.git/b", ".GIT", ".env", ".env.local", ".envrc", "a/.ENV.production", ".env/x"]) {
+      expect(withheld(rel)).toBe(true);
+    }
+  });
+
+  test("keeps similar names", () => {
+    for (const rel of [".gitignore", ".github/workflows/ci.yml", "a.git", "git/x", "env", "a.env", "x/env/.config", ".doan/assets/env.png", ""]) {
+      expect(withheld(rel)).toBe(false);
+    }
   });
 });
