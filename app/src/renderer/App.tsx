@@ -80,6 +80,7 @@ import type { ScrollTo } from "./overviewRun";
 import { ConversationPanel, ResizeHandle } from "./ConversationPanel";
 import { canvasPanelDefault, canvasPanelsLayout, OVERVIEW_PANEL_DEFAULT, PANEL_MIN, panelBounds, panelWidth } from "./rightPanelSize";
 import { InspectorColumn, type ElementTreeSource } from "./InspectorPanel";
+import { refocusOnActivation } from "./activationFocus";
 import type { InspectorSelection } from "./inspectorReads";
 import type { ElementTreeMessage } from "./canvasMessage";
 import type { InspectRequest } from "../main/inspector";
@@ -2295,8 +2296,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     // Hiding or showing the sidebar animates the shell's columns, so the measure above still sees the old start; the
     // end of the shell's own transition measures the final layout (the inspector's room depends on it).
     const settled = (event: Event) => { if (event.target === shellRoot.current) measure(); };
+    // A transition cut short (its motion flag cleared by a late timer) ends with transitioncancel instead.
     window.addEventListener("transitionend", settled);
-    return () => { window.removeEventListener("resize", measure); window.removeEventListener("transitionend", settled); };
+    window.addEventListener("transitioncancel", settled);
+    return () => { window.removeEventListener("resize", measure); window.removeEventListener("transitionend", settled); window.removeEventListener("transitioncancel", settled); };
   // The sidebar's width and hiding move the canvas column's start, so either measures again.
   }, [shownSidebar, sidebarHidden]);
   // Written here rather than in the style prop: a drag previews its width on the same property (previewPanel), and this
@@ -2372,22 +2375,36 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     inspectorFocus.current = null;
     if (to) document.querySelector<HTMLElement>(to === "show" ? '.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]' : ".doan-insp-panel .doan-panel-hide")?.focus();
   }, [inspectorPanel.open]);
-  // A window narrowed under the inspector's minimum takes the column away; focus inside it goes to Show inspector,
-  // which now says why, rather than falling to the page.
   // Whether the control that last took focus was in the inspector column: the column turns inert in the same commit that
   // hides it, so by the time an effect runs focus has already fallen to the page, and only this says it was there. Read
   // when focus arrives, since the control itself may have been redrawn since (a row list read again).
   const focusInInspector = useRef(false);
   useEffect(() => {
     // focusin targets an element (focus on the page itself fires none).
-    const focusin = (event: FocusEvent) => { focusInInspector.current = (event.target as Element | null)?.closest(".doan-insp-column") != null; };
+    // The element menu is portalled out of the column, and it closes with it, so focus in it counts as in the inspector.
+    const focusin = (event: FocusEvent) => { focusInInspector.current = (event.target as Element | null)?.closest(".doan-insp-column, .doan-insp-menu") != null; };
     document.addEventListener("focusin", focusin);
     return () => document.removeEventListener("focusin", focusin);
   }, []);
+  // A window narrowed under the inspector's minimum takes the column away; focus inside it goes to Show inspector,
+  // which now says why, rather than falling to the page.
   // Widening again removes Show inspector; if focus was on it, it goes on to Hide inspector, as unfolding does.
   const inspectorWasShown = useRef(inspectorShown);
   // The Show inspector button that last took focus (the header reports it).
   const inspectorShowFocused = useRef<Element | null>(null);
+  // A hand-off made while the window is in the background is made again on activation (POSTMORTEM 2026-11-17): the
+  // platform restores focus to the control it remembered, here one the column took away, and lands on Hide sidebar.
+  const inspectorActivation = useRef<() => void>(() => {});
+  useEffect(() => () => inspectorActivation.current(), []);
+  const handInspectorFocus = (selector: string) => {
+    const target = () => document.querySelector<HTMLElement>(selector);
+    target()?.focus();
+    inspectorActivation.current();
+    inspectorActivation.current = refocusOnActivation(window, () => document.hasFocus(), () => {
+      const element = target();
+      if (element?.isConnected && document.activeElement !== element) element.focus();
+    });
+  };
   useLayoutEffect(() => {
     const was = inspectorWasShown.current;
     inspectorWasShown.current = inspectorShown;
@@ -2395,12 +2412,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const active = document.activeElement;
     if (!inspectorShown) {
       const fell = active === null || active === document.body || (active instanceof HTMLElement && active.closest(".doan-insp-column") !== null);
-      if (fell && focusInInspector.current) document.querySelector<HTMLElement>('.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]')?.focus();
+      if (fell && focusInInspector.current) handInspectorFocus('.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]');
       return;
     }
     const show = inspectorShowFocused.current;
     inspectorShowFocused.current = null;
-    if (show !== null && !show.isConnected && (active === null || active === document.body)) document.querySelector<HTMLElement>(".doan-insp-panel .doan-panel-hide")?.focus();
+    if (show !== null && !show.isConnected && (active === null || active === document.body)) handInspectorFocus(".doan-insp-panel .doan-panel-hide");
   }, [inspectorShown]);
   useEffect(() => {
     if (!inspectorMotion) return;

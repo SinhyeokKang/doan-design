@@ -1128,7 +1128,7 @@ describe("the inspector column", () => {
   const focusing = () => {
     const asked: string[] = [];
     const focus = vi.fn();
-    (document as unknown as { querySelector(selector: string): unknown }).querySelector = (selector: string) => { asked.push(selector); return { focus }; };
+    (document as unknown as { querySelector(selector: string): unknown }).querySelector = (selector: string) => { asked.push(selector); return { focus, isConnected: true }; };
     return { asked, focus };
   };
 
@@ -1187,7 +1187,7 @@ describe("the inspector column", () => {
     expect(focusin.length).toBeGreaterThan(0);
     // The row is redrawn afterwards (the list read again), so the node that took focus is no longer in the column.
     let attached = true;
-    const row = { closest: (selector: string) => attached && selector === ".doan-insp-column" ? {} : null };
+    const row = { closest: (selector: string) => attached && selector.includes(".doan-insp-column") ? {} : null };
     for (const listener of focusin) listener({ target: row });
     attached = false;
     const { asked, focus } = focusing();
@@ -1212,6 +1212,47 @@ describe("the inspector column", () => {
     expect(column()?.shown).toBe(true);
     expect(asked).toContain(".doan-insp-panel .doan-panel-hide");
     expect(focus).toHaveBeenCalled();
+  });
+
+  const narrowWithFocusIn = async (target: { closest(selector: string): unknown }, hasFocus = true) => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true, width: 320 } });
+    measure(1470);
+    const focusin = (document.addEventListener as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(call => call[0] === "focusin").map(call => call[1] as (event: unknown) => void);
+    for (const listener of focusin) listener({ target });
+    const seen = focusing();
+    (document as unknown as { hasFocus(): boolean }).hasFocus = () => hasFocus;
+    (document as unknown as { activeElement: unknown }).activeElement = (document as unknown as { body: unknown }).body;
+    measure(1100);
+    return seen;
+  };
+  const SHOW = '.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]';
+
+  // The element menu is portalled out of the column; a narrow window closes it and Radix cannot give focus back to its
+  // trigger in the inert column, so focus in the menu is focus in the inspector.
+  test("narrowing the window with focus in the element menu hands focus to Show inspector", async () => {
+    const { asked, focus } = await narrowWithFocusIn({ closest: (selector: string) => selector.includes(".doan-insp-menu") ? {} : null });
+    expect(asked).toContain(SHOW);
+    expect(focus).toHaveBeenCalled();
+  });
+
+  test("focus that was outside the inspector before it fell to the page stays put when the window narrows", async () => {
+    const { asked } = await narrowWithFocusIn({ closest: () => null });
+    expect(asked).not.toContain(SHOW);
+  });
+
+  // POSTMORTEM 2026-11-17: in a background window the platform's own restore on activation would put focus back on the
+  // remembered row (now inert) and fall to Hide sidebar; the hand-off is made again once the window is active.
+  test("a hand-off made in a background window is made again on activation", async () => {
+    const { asked, focus } = await narrowWithFocusIn({ closest: (selector: string) => selector.includes(".doan-insp-column") ? {} : null }, false);
+    expect(asked).toContain(SHOW);
+    const before = focus.mock.calls.length;
+    (document as unknown as { hasFocus(): boolean }).hasFocus = () => true;
+    windowListeners.focus!(undefined as never);
+    expect(focus.mock.calls.length).toBeGreaterThan(before);
+    // And once more after the platform's own restore.
+    const restored = focus.mock.calls.length;
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(focus.mock.calls.length).toBeGreaterThan(restored);
   });
 
   // Found in the real app: hiding the sidebar animates the shell's columns, so the measure taken when it hides still saw
