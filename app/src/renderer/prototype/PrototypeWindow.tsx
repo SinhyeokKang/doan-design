@@ -309,7 +309,7 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     reloadFocus.current = null;
     // The run can be ready with the window in the background, so the frame takes focus again on activation.
     if (document.activeElement === document.body) handFocus(() => frames.current.get(visibleGen)?.focus());
-  }, [phase, visibleGen]);
+  }, [phase, visibleGen, handFocus]);
   // A run reloaded while focus is in the conversation column gives focus back to it (focusGuard.ts): each new run's
   // iframe is armed by where focus is as it is created, until a second after that run is ready and shown.
   const knownFrames = useRef(new Set<number>());

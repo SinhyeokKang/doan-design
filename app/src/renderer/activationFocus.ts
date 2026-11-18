@@ -35,11 +35,14 @@ export function focusThroughActivation(focus: () => void, win?: EventTarget, doc
 }
 
 // One component's focus recoveries: a newer one replaces the activation focus of the last, and unmounting cancels it.
+// The returned function is the same on every render, so effects can list it.
 export function useActivationFocus(): (focus: () => void) => void {
   const cancel = useRef<() => void>(() => {});
+  const hand = useRef<((focus: () => void) => void) | null>(null);
   useEffect(() => () => cancel.current(), []);
-  return focus => {
+  hand.current ??= focus => {
     cancel.current();
     cancel.current = focusThroughActivation(focus);
   };
+  return hand.current;
 }
