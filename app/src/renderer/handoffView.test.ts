@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { HandoffMultiNotice, HandoffNotice } from "../main/conversation/handoff";
+import { BIND_GRACE_MS as MAIN_BIND_GRACE_MS } from "../main/conversation/project";
 import { HANDOFF_WAIT_MS, handoffArrival, handoffCardHead, handoffGoneText, handoffMove, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
 
 const DRAFTS = { path: ".doan/canvases/drafts.html", id: "drafts" }, CHECKOUT = { path: ".doan/canvases/checkout-flow.html", id: "checkout" };
@@ -50,7 +51,7 @@ describe("handoffMultiStep", () => {
 
 describe("handoffArrival: the wait for the target's list read", () => {
   test("a listed target moves at once; an unlisted one waits until the limit, then toasts", () => {
-    expect(HANDOFF_WAIT_MS).toBe(10_000);
+    expect(HANDOFF_WAIT_MS).toBe(MAIN_BIND_GRACE_MS);
     expect(handoffArrival(onSource, notice, true, false)).toBe("move");
     expect(handoffArrival(onSource, notice, false, false)).toBe("wait");
     expect(handoffArrival(onSource, notice, false, true)).toBe("toast");
