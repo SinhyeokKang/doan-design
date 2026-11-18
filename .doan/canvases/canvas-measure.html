@@ -60,7 +60,7 @@ code { font-family: var(--type-family-mono); font-size: var(--type-caption-size)
   <ul>
     <li>All eight frames are new; nothing here is in code. <code>/design-sync</code> compares every frame.</li>
     <li>Copied from the shipped canvas page: the selection and hover marks and the size bubble (<code>styles.css</code> “Overlay marks”, docs/design/canvas.md “Overlay marks”). Only the <code>.measuring</code> rules and the <code>.measure</code> layer are new.</li>
-    <li>Tiles draw the observed Figma cases at their canvas coordinates (docs/features/canvas-measure/design.md “관찰 기록”); case numbers refer to that table.</li>
+    <li>Tiles draw the observed Figma cases at their canvas coordinates (the same shapes as app/src/renderer/measure.test.ts); case numbers are the order in which they were observed.</li>
     <li>New tokens: <code>--border-measure</code> (#e34c2c), <code>--affordance-measure</code>, <code>--text-on-measure</code>. Component constant: the 6px label gap.</li>
     <li>Forced colours: <code>.measure</code> takes <code>forced-color-adjust: none</code>, so the red fill and white number stay readable.</li>
   </ul>
