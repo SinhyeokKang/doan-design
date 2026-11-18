@@ -876,7 +876,6 @@ async function start(): Promise<void> {
   documents.onChange(() => seen.documentsChanged());
   // One login-shell probe at a time, shared by agent facts, clone and the CLI's git (read only when first needed).
   const shellForFacts = sharedShell(() => probeShell(process.env));
-  // The CLI's git for Keep out of Git outside Git is found as clone finds its git (cli.ts CliEnv).
   // What main keeps for roots that left the list, by Remove (removeRoots) or because a vanished auto-registered worktree
   // left on its own (shell.ts autoRemoved): one list, so a store keyed by root is wired into both at once (POSTMORTEM
   // 2026-11-17 'Removing a project or trashing a canvas left state keyed by it behind'). `before`: the list before.
@@ -888,6 +887,7 @@ async function start(): Promise<void> {
     conversationDraftStore?.discardRootStarts(paths);
     void thumbnails?.removed(paths, before);
   }
+  // The CLI's git for Keep out of Git outside Git is found as clone finds its git (cli.ts CliEnv).
   const gitEnv = async (): Promise<CliEnv> => { const probe = await shellForFacts(); return cliEnv(probe.ok ? probe.path : null, process.env); };
   const ready = await startShell(join(userData, "folders.json"), cliCommand(process.env, app.isPackaged, process.resourcesPath), (entries, focus) => {
     const refreshes = folderRefreshes(conversationLists, entries);
