@@ -14,7 +14,7 @@ import {
   FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, FIT_SCALE_MAX, fitFrame as appFitFrame, fitWidth as appFitWidth, LINE_PX, MAX_SCALE, MIN_SCALE, PAGE_PX,
   WHEEL_ZOOM_MAX, WHEEL_ZOOM_SENSITIVITY, wheelAction as appWheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt as appZoomAt,
 } from "../renderer/viewport";
-import { canScrollAxis, clipText, documentHeight, frameBottom, nextHeight } from "./canvasScript";
+import { canScrollAxis, canvasScript, clipText, documentHeight, frameBottom, nextHeight } from "./canvasScript";
 import { toolShortcut as appToolShortcut, type ShortcutEvent } from "../renderer/canvasTool";
 import { editableTarget as appEditableTarget } from "../renderer/selection";
 import { panBy as appPanBy } from "../renderer/viewport";
@@ -108,6 +108,48 @@ describe("lib.js height and scroll rules", () => {
     expect(fitted.sent).toBe(405);
     state = fitted;
     expect(v.nextHeight(state, v.documentHeight(0, 405, 405, 405), 405, 0).sent).toBe(405);
+  });
+});
+
+// The text of the statement `const name = ...;` in a source, ending at the first `;` outside brackets, strings and
+// comments, so an arrow function's block body is taken whole.
+function extractConst(source: string, name: string): string {
+  const start = source.search(new RegExp(`\\bconst ${name} = `));
+  if (start < 0) throw new Error(`const ${name} not found`);
+  let depth = 0;
+  for (let i = start; i < source.length; i++) {
+    const rest = source.slice(i);
+    if (rest.startsWith("//")) { i = source.indexOf("\n", i); continue; }
+    if (rest.startsWith("/*")) { i = source.indexOf("*/", i) + 1; continue; }
+    const ch = source[i]!;
+    if (ch === '"' || ch === "'" || ch === "`") {
+      for (i++; source[i] !== ch; i++) if (source[i] === "\\") i++;
+      continue;
+    }
+    if ("([{".includes(ch)) depth++;
+    if (")]}".includes(ch)) depth--;
+    if (ch === ";" && depth === 0) return source.slice(start, i + 1);
+  }
+  throw new Error(`const ${name} is not closed`);
+}
+
+// measure.js copies these from the function canvasScript.ts injects, not from lib.js; the app calls the lib.js
+// functions through its `lib` argument.
+describe("measure.js frame walk and wheel hand-off", () => {
+  const app = canvasScript.toString();
+  const appConst = (name: string) => normalize(extractConst(app, name).replace(/\blib\./g, ""));
+  test.each(["bodyClips", "ancestors", "scrollsFurther"])("%s is the same as in canvasScript.ts", (name) => {
+    expect(appConst(name).length).toBeGreaterThan(40);
+    expect(normalize(extractConst(measure, name))).toBe(appConst(name));
+  });
+
+  test("the comparison fails when a copy drifts", () => {
+    const drifted = measure.replace('rootStyle.overflowX !== "visible"', 'rootStyle.overflowX !== "hidden"');
+    expect(normalize(extractConst(drifted, "bodyClips"))).not.toBe(appConst("bodyClips"));
+    const walk = measure.replace("node !== null && node !== html", "node !== null");
+    expect(normalize(extractConst(walk, "ancestors"))).not.toBe(appConst("ancestors"));
+    const wheel = measure.replace("node !== document.body;", "node !== null;");
+    expect(normalize(extractConst(wheel, "scrollsFurther"))).not.toBe(appConst("scrollsFurther"));
   });
 });
 
@@ -1075,7 +1117,7 @@ describe("tool wiring", () => {
       addEventListener() {}, fonts: { addEventListener() {} },
     };
     const context = {
-      document, parent, CSSStyleSheet: FakeSheet,
+      document, parent, CSSStyleSheet: FakeSheet, history: { pushState() {}, replaceState() {} },
       addEventListener: (type: string, listener: (event: unknown) => void) => { if (!listeners.has(type)) listeners.set(type, listener); },
     };
     runInNewContext(`(function () {\n${lib}\n${measure}\n})();`, context);
@@ -1342,6 +1384,62 @@ describe("isolate.js is the prototype window's isolation", () => {
     const { sameDocument } = loadFunctions(isolateJs, ["sameDocument"]);
     for (const href of ["#", "#pl-target", "#a b"]) expect(sameDocument(href), href).toBe(true);
     for (const href of ["", " #a", "/#a", "?q#a", "other.html", "other.html#a", "https://x/#a", "javascript:void(0)"]) expect(sameDocument(href), href).toBe(false);
+  });
+});
+
+// The canvas in the exported viewer is a srcdoc document too, so measure.js takes isolate.js's History retry and its
+// # link handling as they are.
+const historyRetry = (source: string): string => {
+  const start = source.indexOf('for (const name of ["pushState", "replaceState"]) {');
+  if (start < 0) throw new Error("no History retry");
+  const end = source.indexOf("\n}\n", start);
+  return normalize(source.slice(start, end + 2));
+};
+
+describe("measure.js keeps the canvas in its document as isolate.js does", () => {
+  test("the History retry, sameDocument and linkElement are isolate.js's, as text", () => {
+    expect(historyRetry(isolateJs).length).toBeGreaterThan(200);
+    expect(historyRetry(measure)).toBe(historyRetry(isolateJs));
+    for (const name of ["sameDocument", "linkElement"]) expect(normalize(extractFunction(measure, name)), name).toBe(normalize(extractFunction(isolateJs, name)));
+  });
+
+  test("the comparison fails when a copy drifts", () => {
+    const drifted = isolateJs.replace('error?.name !== "SecurityError"', 'error?.name !== "TypeError"');
+    expect(historyRetry(drifted)).not.toBe(historyRetry(isolateJs));
+  });
+});
+
+// The viewer runs lib.js and measure.js in one function at the top of the canvas's <head> (`assemble`).
+const measureDocument = (body: string) =>
+  `<!doctype html><html><head><script>(function () {\n${lib}\n${measure}\n})();</script></head><body>${body}</body></html>`;
+
+describe("measure.js keeps the canvas in its srcdoc document in a real DOM", () => {
+  let dom: ElectronDom;
+  beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
+  afterAll(async () => { await dom?.close(); }, 30_000);
+  const page = `<a id="toc" href="#pricing">Pricing</a><div style="height:2000px"></div><h2 id="pricing">Pricing</h2>`;
+
+  test("a # link moves within the document", async () => {
+    const frame = await dom.load(measureDocument(page));
+    await frame.evaluate(() => document.getElementById("toc")!.click());
+    await dom.flush(frame);
+    expect(await frame.evaluate(() => [location.href, location.hash, !!document.getElementById("toc")])).toEqual(["about:srcdoc#pricing", "#pricing", true]);
+  });
+
+  test("a # link the canvas cancelled stays where it is", async () => {
+    const frame = await dom.load(measureDocument(`${page}<script>document.getElementById("toc").addEventListener("click", e => e.preventDefault());</script>`));
+    await frame.evaluate(() => document.getElementById("toc")!.click());
+    await dom.flush(frame);
+    expect(await frame.evaluate(() => location.hash)).toBe("");
+  });
+
+  test("a History call with a URL keeps its state and the script going", async () => {
+    const frame = await dom.load(measureDocument(""));
+    expect(await frame.evaluate(() => {
+      history.pushState({ tab: 1 }, "", "#tab");
+      history.replaceState({ tab: 2 }, "", "/x");
+      return history.state;
+    })).toEqual({ tab: 2 });
   });
 });
 

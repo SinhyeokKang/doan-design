@@ -4,6 +4,8 @@ import type { CanvasRow } from "../main/view";
 import type { LayoutMessage } from "./canvasMessage";
 import { CanvasHeader } from "./CanvasHeader";
 import { CanvasViewStore, canvasViewFields, initialCanvasState, type CanvasState } from "./CanvasController";
+import { toolShortcut } from "./canvasTool";
+import { drawn, keydownOn } from "./drawnTarget.test-support";
 
 // There is no DOM in these tests: the header's parts run as plain functions with their hooks stubbed, and the key
 // handlers they draw are called as React would call them.
@@ -32,11 +34,9 @@ function part(name: string): Props[] {
   if (!element) throw new Error(`Missing ${name}`);
   return elements((element.type as (props: Props) => ReactNode)(element.props)).map(item => item.props);
 }
-// A key pressed inside an open list (or outside it) bubbles through every handler the part draws, deepest first.
-class FakeElement { constructor(readonly inside: boolean) {} closest() { return this.inside ? {} : null; } }
-vi.stubGlobal("Element", FakeElement);
-function press(handlers: Props[], key: string, { inside = true, meta = false } = {}) {
-  const target = new FakeElement(inside);
+// A key pressed inside an open list bubbles through every handler the part draws, deepest first.
+function press(handlers: Props[], key: string, { meta = false } = {}) {
+  const target = {};
   const event = { key, code: /^[a-z]$/i.test(key) ? `Key${key.toUpperCase()}` : key, target, currentTarget: target, metaKey: meta, ctrlKey: false, altKey: false, shiftKey: false,
     defaultPrevented: false, preventDefault: vi.fn(() => { event.defaultPrevented = true; }), stopPropagation: vi.fn() };
   for (const props of [...handlers].reverse()) if (typeof props.onKeyDown === "function") props.onKeyDown(event);
@@ -44,7 +44,7 @@ function press(handlers: Props[], key: string, { inside = true, meta = false } =
 }
 
 // PRODUCT §5 item 2 'Canvas header': while the frame drawer or the zoom menu is open every printable key without a
-// modifier is the list's, so V and H (window shortcuts that skip prevented keys) never switch the tool from there.
+// modifier is the list's, so V and H never switch the tool from there.
 describe("an open header list keeps the printable keys", () => {
   it("the frame drawer takes V and H though no frame starts with them, as the Play drawer does", () => {
     const listbox = part("FrameDrawer").filter(props => props.role === "listbox");
@@ -54,12 +54,16 @@ describe("an open header list keeps the printable keys", () => {
     expect(press(listbox, "h", { meta: true }).preventDefault).not.toHaveBeenCalled();
   });
 
-  it("the zoom menu takes V, H and other printable keys pressed inside it, and leaves the rest", () => {
+  it("V, H and Space pressed in the open drawer or zoom menu are never tool keys; on − and + they stay the canvas's", () => {
+    const drawer = part("FrameDrawer");
+    const drawerContent = drawer.find(props => String(props.className).includes("doan-frame-list"))!;
     const zoom = part("ZoomControl");
-    for (const key of ["v", "h", "f", "1"]) expect(press(zoom, key).preventDefault, key).toHaveBeenCalled();
-    expect(press(zoom, "h", { meta: true }).preventDefault).not.toHaveBeenCalled();
-    expect(press(zoom, "ArrowDown").preventDefault).not.toHaveBeenCalled();
-    // On the − and + buttons and the closed trigger the keys stay the window's.
-    expect(press(zoom, "h", { inside: false }).preventDefault).not.toHaveBeenCalled();
+    const zoomContent = zoom.find(props => String(props.className).includes("doan-zoom-menu"))!;
+    // Radix draws role="menu" on the menu's content and menuitem on each item.
+    for (const chain of [[drawerContent, { role: "listbox" }, { role: "option" }], [{ ...zoomContent, role: "menu" }, { role: "menuitem" }]]) {
+      for (const code of ["KeyV", "KeyH", "Space"]) expect(toolShortcut(keydownOn(code, drawn(chain)), { canvasPage: true }), `${String(chain[0]!.className)} ${code}`).toBeNull();
+    }
+    const zoomOut = zoom.find(props => props["aria-label"] === "Zoom out")!;
+    expect(toolShortcut(keydownOn("KeyH", drawn([zoom[0]!, zoomOut])), { canvasPage: true })).toEqual({ kind: "tool", tool: "hand" });
   });
 });

@@ -12,6 +12,56 @@
 // unchanged.
 
 const post = (message) => parent.postMessage(message, "*");
+
+// The canvas is a srcdoc document here, unlike in the app, so it gets the prototype page's handling
+// of the two things that break there; the History retry, sameDocument and linkElement are isolate.js's
+// text (exportViewer.test.ts compares them).
+// A srcdoc document's URL is about:srcdoc while its base is the page's file URL, so a fragment or a
+// path given to pushState or replaceState resolves against that file URL and the browser refuses it
+// with SecurityError (Chromium and WebKit), and a router's next statement never runs. Such a call is
+// made again without the URL: the state and the entry are kept and the script goes on, though
+// location does not change. A call the browser takes (an about:srcdoc URL) keeps its own result. Any
+// other error, and a retry that fails, still reaches the canvas.
+for (const name of ["pushState", "replaceState"]) {
+  const native = history[name];
+  history[name] = function (...args) {
+    try {
+      return native.apply(this, args);
+    } catch (error) {
+      const url = args[2];
+      if (url === undefined || url === null || error?.name !== "SecurityError") throw error;
+      return native.call(this, args[0], args[1]);
+    }
+  };
+}
+
+// Only links whose written value starts with "#" stay in the document.
+function sameDocument(href) {
+  return href.startsWith("#");
+}
+
+// The nearest <a> or <area> in the click's path, as a browser follows it.
+function linkElement(event) {
+  for (const node of event.composedPath()) {
+    if (node instanceof Element && (node.localName === "a" || node.localName === "area")) return node;
+  }
+  return null;
+}
+
+// A srcdoc document resolves "#id" against the page's file URL, not its own, so the browser's own
+// handling leaves it: WebKit loads the viewer page into the canvas frame, and Chromium drops the
+// click. Setting the hash moves within the document, as the link does in the app. Bubble phase, so
+// a canvas that cancelled the click keeps it; links to other documents are left as they are
+// (`doan export` reports them under `links`).
+addEventListener("click", (event) => {
+  if (event.defaultPrevented) return;
+  const node = linkElement(event);
+  const href = node?.getAttribute("href") ?? node?.getAttribute("xlink:href") ?? null;
+  if (href === null || !sameDocument(href)) return;
+  event.preventDefault();
+  location.hash = href;
+});
+
 let height = null;
 let fontLoads = 0;
 let started = false;
