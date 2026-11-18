@@ -264,10 +264,10 @@ describe("thread items", () => {
     expect(out).toContain(">Edit and resend</button>");
   });
 
-  test("markers: promotion with Open, turned off once the canvas is gone", () => {
+  test("markers: promotion named by the canvas file stem, with Open turned off once the canvas is gone", () => {
     const bound: ThreadItem = { kind: "marker", key: "k5", seq: 5, marker: "bound", canvas: { path: ".doan/canvases/doan-settings.html", id: "s" } };
-    expect(html([bound])).toMatch(/Moved to doan-settings.html<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger">Open<\/button>/);
-    expect(html([bound], { canvasListed: () => false })).toMatch(/Moved to doan-settings.html · No longer in doan-design<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger" disabled="">Open<\/button>/);
+    expect(html([bound])).toMatch(/Moved to doan-settings<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger">Open<\/button>/);
+    expect(html([bound], { canvasListed: () => false })).toMatch(/Moved to doan-settings · No longer in doan-design<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger" disabled="">Open<\/button>/);
   });
 
   // On the canvas it moved to, the thread is already there: the line says where it came from, with nothing to open.
@@ -276,7 +276,7 @@ describe("thread items", () => {
     const here = html([bound], { openCanvasId: "s" });
     expect(here).toMatch(/Moved here from doan-design Overview<\/span><\/div>/);
     expect(here).not.toContain(">Open</button>");
-    expect(html([bound], { openCanvasId: "other" })).toMatch(/Moved to doan-settings.html<\/span><button[^>]*>Open<\/button>/);
+    expect(html([bound], { openCanvasId: "other" })).toMatch(/Moved to doan-settings<\/span><button[^>]*>Open<\/button>/);
   });
 
   test("two messages with footnotes never share an id", () => {
