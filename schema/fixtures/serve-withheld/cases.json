@@ -1,0 +1,31 @@
+{
+  "description": "Cases for the never-served rule (ARCHITECTURE §3 'Never served'): Go repo.Withheld and TypeScript withheld in app/src/main/serve/path.ts. path is a real repo-relative path with '/' separators; withheld says whether it is a .git directory or a .env file, or lies under one, ignoring letter case. Test data, not a format.",
+  "cases": [
+    { "path": ".git", "withheld": true },
+    { "path": ".git/config", "withheld": true },
+    { "path": "a/.git", "withheld": true },
+    { "path": "a/.git/b", "withheld": true },
+    { "path": "vendor/lib/.git/HEAD", "withheld": true },
+    { "path": ".GIT", "withheld": true },
+    { "path": "web/.Git/config", "withheld": true },
+    { "path": ".env", "withheld": true },
+    { "path": ".env.local", "withheld": true },
+    { "path": ".envrc", "withheld": true },
+    { "path": "web/.envrc", "withheld": true },
+    { "path": "web/.ENV", "withheld": true },
+    { "path": "web/.ENV.production", "withheld": true },
+    { "path": ".env/x", "withheld": true },
+    { "path": ".env.d/key", "withheld": true },
+    { "path": ".gitignore", "withheld": false },
+    { "path": "web/.gitignore", "withheld": false },
+    { "path": ".github/workflows/ci.yml", "withheld": false },
+    { "path": "a.git", "withheld": false },
+    { "path": "git/x", "withheld": false },
+    { "path": "env", "withheld": false },
+    { "path": "a.env", "withheld": false },
+    { "path": "web/env.css", "withheld": false },
+    { "path": "x/env/.config", "withheld": false },
+    { "path": ".doan/assets/env.png", "withheld": false },
+    { "path": "", "withheld": false }
+  ]
+}
