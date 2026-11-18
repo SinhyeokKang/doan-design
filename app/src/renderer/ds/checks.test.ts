@@ -72,6 +72,9 @@ const violetAllowed = [
   ".buddy-card:has(input:checked)",
   // The dot on the folded conversation panel's open button, the sidebar slot's unseen dot (confirmed draft open-badge).
   '.doan-icon-button[data-badge="true"]::after',
+  // The same dot for an unread ending on the conversation's open buttons (canvas header, prototype window); the
+  // sidebar toggle keeps the bubble (canvas-inspector-panel draft header-buttons).
+  ':is(.doan-canvas-head .doan-panel-show, .pw-conv).doan-icon-button[data-badge="unseen"]::after',
   // The unread finished conversation's speech bubble: the folded buttons' badge and the sidebar slot (`.row-slot.ended`).
   ".badge-bubble",
   // The canvas jump highlight (chip locate, Frames drawer, Quick Open, deep link): a 3px accent gradient line drawn

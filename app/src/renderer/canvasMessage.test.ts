@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { MAX_PROTOTYPE_MARK } from "../main/prototype/mark";
 import type { LayoutMessage } from "./canvasMessage";
-import { MAX_COPY_TEXT, MAX_FRAMES, MAX_GOTOS, MAX_HREF, MAX_STRING, MAX_TEXT_RECTS, acceptCanvasMessage, parseCanvasMessage } from "./canvasMessage";
+import { MAX_COPY_TEXT, MAX_FRAMES, MAX_GOTOS, MAX_HREF, MAX_SELECTOR, MAX_STRING, MAX_TEXT_RECTS, MAX_TREE_NODES, acceptCanvasMessage, parseCanvasMessage } from "./canvasMessage";
 
 const frame = { id: "login", title: "Login", x: 0, y: 10, width: 375, height: 800 };
 const layout = (over: Record<string, unknown> = {}) => ({
@@ -648,5 +648,73 @@ describe("parseCanvasMessage: picked", () => {
     const started = { type: "pick-started", href: HREF, document: "doc", pick: 2 };
     expect(parseCanvasMessage({ ...started, extra: 1 })).toEqual(started);
     for (const over of [{ pick: -1 }, { pick: undefined }, { document: "" }, { document: undefined }, { href: undefined }]) expect(parseCanvasMessage({ ...started, ...over })).toBeNull();
+  });
+});
+
+describe("parseCanvasMessage: element-tree", () => {
+  const HREF = "http://127.0.0.1:4000/t/tok/key/.doan/canvases/a.html";
+  const rect = { x: 1, y: 2, width: 30, height: 40 };
+  const root = { depth: 0, name: "Payment", kind: "frame", anchor: { selector: '[data-doan-frame="pay"]', frame: "pay" }, rect };
+  const child = { depth: 1, name: "pay-button", kind: "button", anchor: { selector: '[data-doan-id="pay-button"]', doanId: "pay-button" }, rect, selected: true };
+  const tree = (over: Record<string, unknown> = {}) => ({ type: "element-tree", href: HREF, document: "doc-1", seq: 3, viewport: 150, nodes: [root, child], truncated: false, ...over });
+
+  test("accepts a well-formed tree and copies only known fields", () => {
+    const extra = { ...root, junk: 1, anchor: { ...root.anchor, junk: 2 } };
+    expect(parseCanvasMessage({ ...tree({ nodes: [extra, child] }), junk: 3 })).toEqual({
+      type: "element-tree", href: HREF, document: "doc-1", seq: 3, viewport: 150, truncated: false,
+      nodes: [
+        { depth: 0, name: "Payment", kind: "frame", anchor: { selector: '[data-doan-frame="pay"]', frame: "pay" }, rect },
+        { depth: 1, name: "pay-button", kind: "button", anchor: { selector: '[data-doan-id="pay-button"]', doanId: "pay-button" }, rect, selected: true },
+      ],
+    });
+  });
+
+  test("accepts an empty tree, the answer for no selection or one outside every frame", () => {
+    expect(parseCanvasMessage(tree({ nodes: [] }))).toMatchObject({ type: "element-tree", nodes: [] });
+  });
+
+  test("keeps a truncated flag", () => {
+    expect(parseCanvasMessage(tree({ truncated: true }))).toMatchObject({ truncated: true });
+  });
+
+  test("rejects a bad header field", () => {
+    for (const bad of [
+      { href: 1 }, { href: "x".repeat(8193) }, { document: "" }, { document: 7 }, { document: "d".repeat(MAX_STRING + 1) },
+      { seq: -1 }, { seq: 1.5 }, { seq: "3" }, { viewport: -1 }, { viewport: Number.NaN }, { nodes: {} }, { truncated: "no" }, { truncated: undefined },
+    ]) expect(parseCanvasMessage(tree(bad)), JSON.stringify(bad)).toBeNull();
+  });
+
+  test("rejects a node with a bad field", () => {
+    for (const bad of [
+      { name: 1 }, { name: "n".repeat(MAX_STRING + 1) }, { kind: "row" }, { kind: undefined }, { depth: 1.5 }, { depth: -1 },
+      { rect: { x: 0, y: 0, width: -1, height: 1 } }, { rect: null }, { selected: false }, { anchor: null }, { anchor: {} },
+      { anchor: { selector: "" } }, { anchor: { selector: "s".repeat(MAX_SELECTOR + 1) } }, { anchor: { selector: "a", doanId: 1 } },
+      { anchor: { selector: "a", doanId: "i".repeat(MAX_STRING + 1) } }, { anchor: { selector: "a", frame: "f".repeat(MAX_STRING + 1) } },
+    ]) expect(parseCanvasMessage(tree({ nodes: [root, { ...child, ...bad }] })), JSON.stringify(bad)).toBeNull();
+  });
+
+  test("accepts every kind the menu has an icon for", () => {
+    for (const kind of ["frame", "flex-row", "flex-column", "grid", "input", "button", "text", "box"]) {
+      expect(parseCanvasMessage(tree({ nodes: [root, { ...child, kind }] })), kind).not.toBeNull();
+    }
+  });
+
+  test("rejects depths that do not nest in pre-order: a first node below 0, a jump of more than one, a second root", () => {
+    expect(parseCanvasMessage(tree({ nodes: [{ ...root, depth: 1 }] }))).toBeNull();
+    expect(parseCanvasMessage(tree({ nodes: [root, { ...child, depth: 2 }] }))).toBeNull();
+    expect(parseCanvasMessage(tree({ nodes: [root, { ...root }] }))).toBeNull();
+    const deep = [root, { ...child, depth: 1, selected: undefined }, { ...child, depth: 2, selected: undefined }, { ...child, depth: 1 }];
+    expect(parseCanvasMessage(tree({ nodes: deep }))).not.toBeNull();
+  });
+
+  test("rejects more than one selected node", () => {
+    expect(parseCanvasMessage(tree({ nodes: [{ ...root, selected: true }, child] }))).toBeNull();
+  });
+
+  test(`takes exactly ${MAX_TREE_NODES} nodes and drops a message with one more`, () => {
+    expect(MAX_TREE_NODES).toBe(200);
+    const nodes = (count: number) => [root, ...Array.from({ length: count - 1 }, () => ({ ...child, selected: undefined }))];
+    expect((parseCanvasMessage(tree({ nodes: nodes(MAX_TREE_NODES) })) as { nodes: unknown[] } | null)?.nodes).toHaveLength(MAX_TREE_NODES);
+    expect(parseCanvasMessage(tree({ nodes: nodes(MAX_TREE_NODES + 1) }))).toBeNull();
   });
 });

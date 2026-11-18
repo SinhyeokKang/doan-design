@@ -206,7 +206,7 @@ test("a problem worktree in the chip menu shows its repair actions instead of op
 test("the Overview's surfaces take plain numerals, the open chip its pressed fill, and notice glyphs the icon size", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  expect(css).toContain(".ov-main, .right.ov-right, .conv-menu, .wt-menu { font-variant-numeric: normal; }");
+  expect(css).toContain(".ov-main, .right.ov-right, .conv-menu, .wt-menu, .doan-insp-menu, .doan-insp-tip { font-variant-numeric: normal; }");
   expect(css).toContain('.ov-project button.wt-chip[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }');
   expect(css).toContain(".doan-notice.moved > svg { width: var(--size-icon); height: var(--size-icon); }");
   expect(css).toContain(".moved-text { display: flex; min-width: 0; white-space: nowrap; }");

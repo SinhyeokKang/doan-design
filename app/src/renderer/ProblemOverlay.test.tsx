@@ -105,7 +105,7 @@ test("a pressed action reaches onAction; a busy one does not", () => {
 test("overlay CSS: above the panel handles (4), under the toast (6); blur with an opaque fallback; the heading is never hidden", () => {
   const overlay = block(".workspace > .problem-overlay");
   expect(overlay).toMatch(/z-index: 5;/);
-  expect(overlay).toMatch(/grid-column: 2 \/ 4;/);
+  expect(overlay).toMatch(/grid-column: 2 \/ 5;/);
   expect(overlay).toMatch(/background: color-mix\(in srgb, var\(--surface-panel\) 60%, transparent\);/);
   expect(overlay).toMatch(/backdrop-filter: blur\(var\(--blur-sm\)\);/);
   expect(overlay).toMatch(/overflow-y: auto;/);
@@ -123,7 +123,7 @@ test("overlay CSS: above the panel handles (4), under the toast (6); blur with a
 // The overlay takes the right column's cell in the content row, so the right column, which has no placement of its
 // own, was auto-placed into a new row under the sidebar and the content row shrank by its height (found by /design-sync).
 test("overlay CSS: the right column (Overview list or canvas conversations) keeps its cell under the overlay; the scene reads in the onboarding scene's body type", () => {
-  expect(block(".workspace.overlaid > :is(.right-stack, .doan-conv-column)")).toMatch(/grid-column: 3;/);
+  expect(block(".workspace.overlaid > :is(.right-stack, .doan-conv-column)")).toMatch(/grid-column: 4;/);
   expect(block(".workspace.overlaid:not(.with-strip) > :is(.right-stack, .doan-conv-column)")).toMatch(/grid-row: -2;/);
   expect(block(".workspace > .problem-overlay")).toMatch(/font-size: var\(--type-body-sm-size\);[^}]*line-height: var\(--type-body-sm-line-height\);/);
 });

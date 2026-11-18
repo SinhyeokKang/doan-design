@@ -327,6 +327,9 @@ test("the capture snapshot hides app marks with opacity alone", () => {
 // does not swallow the click meant for that control.
 test("tooltips never take pointer events", () => {
   expect(rule(read("./surfaces.css"), ".doan-tooltip")).toContain("pointer-events: none;");
+  // Radix wraps the capsule in a positioned box the size of the capsule; that box would still take the press (found by
+  // hit-testing the next inspector row under an open row tooltip in the real app).
+  expect(rule(read("./surfaces.css"), "[data-radix-popper-content-wrapper]:has(> .doan-tooltip)")).toBe("pointer-events: none;");
 });
 
 // A toggle group wraps chrome icon buttons in one track. The raised item must beat the chrome :active rule

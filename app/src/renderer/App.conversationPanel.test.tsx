@@ -1,5 +1,5 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 
@@ -52,7 +52,7 @@ vi.mock("./CanvasController", async original => ({
     constructor(_viewport: unknown, _board: unknown, _overlay: unknown, setState: (state: unknown) => void) {
       harness.setState = setState;
       const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
-      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "onPicked", "pick", "cancelPick", "onCapture", "startCapture", "cancelCapture", "locate", "dropPendingLocate", "settleFit", "bubblePlayButton"]) self[name] = vi.fn();
+      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "onPicked", "onElementTree", "requestElementTree", "previewElement", "selectElement", "pick", "cancelPick", "onCapture", "startCapture", "cancelCapture", "locate", "dropPendingLocate", "settleFit", "bubblePlayButton"]) self[name] = vi.fn();
       self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
       self.showOverview = vi.fn((done: () => void) => done());
       self.destination = vi.fn((root: string) => ({ root }));
@@ -68,6 +68,7 @@ vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
 const { ConversationPanel, ResizeHandle } = await import("./ConversationPanel");
+const { InspectorColumn } = await import("./InspectorPanel");
 const { ProjectOverview } = await import("./ProjectOverview");
 const { SettingsPage } = await import("./SettingsPage");
 const { CAPTURE_LIMIT, CAPTURE_TERMINAL, CAPTURE_UNAVAILABLE } = await import("./canvasCapture");
@@ -1104,4 +1105,190 @@ test("a late answer after the panel switched conversation or the canvas page lef
     expect(saved()?.rightPanel).toMatchObject({ open: false });
     if (leave === "conversation") { expect(panel()?.open).toBe(false); expect(conversation()?.arrival).toBeNull(); }
   }
+});
+
+// The inspector column (PRODUCT §5 item 4): closed until the person opens it, open state and width kept per device,
+// sized after the conversation and taken away, with its saved open flag kept, from a window too narrow for it.
+describe("the inspector column", () => {
+  type Column = { shown: boolean; width: number; bounds: { min: number; max: number }; onHide(): void; onResize(width: number | undefined): void };
+  type InspectorPane = { inspector: { open: boolean; fits: boolean; show(): void; focused?(node: Element): void } };
+  const column = () => find<Column>(InspectorColumn)[0]?.props;
+  const inspectorPane = () => (pane() as unknown as InspectorPane | undefined)?.inspector;
+  const savedInspector = () => (doan.saveUiState!.mock.lastCall?.[0] as { inspector?: unknown } | undefined)?.inspector;
+  // The window and the shell column App measures: the canvas panel starts 236px in, and the shell ends 8px before the
+  // window's right edge.
+  function measure(width: number, canvasLeft = 236) {
+    (window as unknown as { innerWidth: number }).innerWidth = width;
+    vi.stubGlobal("getComputedStyle", () => ({ paddingRight: "8px" }));
+    const main = all(tree).find(element => element.type === "main")!.props.ref as { current: unknown };
+    main.current = { clientWidth: width, getBoundingClientRect: () => ({ left: 0 }), querySelector: () => ({ getBoundingClientRect: () => ({ left: canvasLeft }) }), style: { setProperty: vi.fn() } };
+    windowListeners.resize!(undefined as never); render();
+    return main.current;
+  }
+  const focusing = () => {
+    const asked: string[] = [];
+    const focus = vi.fn();
+    (document as unknown as { querySelector(selector: string): unknown }).querySelector = (selector: string) => { asked.push(selector); return { focus, isConnected: true }; };
+    return { asked, focus };
+  };
+
+  test("a read without its state leaves it closed, and Show inspector opens it and hands focus to Hide inspector", async () => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {} });
+    measure(1470);
+    expect(column()?.shown).toBe(false);
+    expect(inspectorPane()).toMatchObject({ open: false, fits: true });
+    expect(savedInspector()).toBeUndefined();
+    const { asked, focus } = focusing();
+    inspectorPane()!.show(); render();
+    expect(column()).toMatchObject({ shown: true, width: 280, bounds: { min: 280, max: 1226 - 412 - 360 } });
+    expect(savedInspector()).toEqual({ open: true });
+    expect(asked).toContain(".doan-insp-panel .doan-panel-hide");
+    expect(focus).toHaveBeenCalled();
+  });
+
+  test("Hide inspector folds it, keeps its width and hands focus to its own Show button", async () => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true, width: 320 } });
+    measure(1470);
+    expect(column()).toMatchObject({ shown: true, width: 320 });
+    const { asked } = focusing();
+    column()!.onHide(); render();
+    expect(column()?.shown).toBe(false);
+    expect(savedInspector()).toEqual({ open: false, width: 320 });
+    expect(asked).toContain('.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]');
+    column()!.onResize(360); render();
+    expect(savedInspector()).toEqual({ open: false, width: 360 });
+  });
+
+  test("the conversation's fold hands focus to its own Show button, not the inspector's", async () => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {} });
+    const { asked } = focusing();
+    panel()!.onHide(); render();
+    expect(asked).toContain('.doan-canvas-head .doan-panel-show[data-panel-target="conversation"]');
+  });
+
+  test("a window too narrow for it takes the column away and keeps the saved open flag; widening brings it back", async () => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true, width: 320 } });
+    measure(1100);
+    expect(column()?.shown).toBe(false);
+    expect(inspectorPane()).toMatchObject({ open: true, fits: false });
+    expect(savedInspector()).toEqual({ open: true, width: 320 });
+    // The conversation keeps its width: it is sized first.
+    expect(panel()?.width).toBe(320);
+    measure(1470);
+    expect(column()).toMatchObject({ shown: true, width: 320 });
+  });
+
+  // Found in the real app: the column turns inert in the same commit that hides it, so focus has already fallen to the
+  // page when App's effect runs; the last control focused inside the column is what says focus was there.
+  test("narrowing the window with focus in the inspector hands focus to Show inspector", async () => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true, width: 320 } });
+    measure(1470);
+    const focusin = (document.addEventListener as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(call => call[0] === "focusin").map(call => call[1] as (event: unknown) => void);
+    expect(focusin.length).toBeGreaterThan(0);
+    // The row is redrawn afterwards (the list read again), so the node that took focus is no longer in the column.
+    let attached = true;
+    const row = { closest: (selector: string) => attached && selector.includes(".doan-insp-column") ? {} : null };
+    for (const listener of focusin) listener({ target: row });
+    attached = false;
+    const { asked, focus } = focusing();
+    (document as unknown as { activeElement: unknown }).activeElement = (document as unknown as { body: unknown }).body;
+    measure(1100);
+    expect(column()?.shown).toBe(false);
+    expect(asked).toContain('.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]');
+    expect(focus).toHaveBeenCalled();
+  });
+
+  // POSTMORTEM 2026-11-13: the narrow window's hand-off put focus on Show inspector; widening again removes that
+  // button, so focus goes on to Hide inspector, as unfolding does.
+  test("widening again after the narrow window's hand-off gives focus to Hide inspector", async () => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true, width: 320 } });
+    measure(1100);
+    const show = { isConnected: true };
+    inspectorPane()!.focused!(show as never);
+    const { asked, focus } = focusing();
+    show.isConnected = false;
+    (document as unknown as { activeElement: unknown }).activeElement = (document as unknown as { body: unknown }).body;
+    measure(1470);
+    expect(column()?.shown).toBe(true);
+    expect(asked).toContain(".doan-insp-panel .doan-panel-hide");
+    expect(focus).toHaveBeenCalled();
+  });
+
+  const narrowWithFocusIn = async (target: { closest(selector: string): unknown }, hasFocus = true, active?: unknown) => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true, width: 320 } });
+    measure(1470);
+    const focusin = (document.addEventListener as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(call => call[0] === "focusin").map(call => call[1] as (event: unknown) => void);
+    for (const listener of focusin) listener({ target });
+    const seen = focusing();
+    (document as unknown as { hasFocus(): boolean }).hasFocus = () => hasFocus;
+    (document as unknown as { activeElement: unknown }).activeElement = active ?? (document as unknown as { body: unknown }).body;
+    measure(1100);
+    return seen;
+  };
+  const SHOW = '.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]';
+
+  // The element menu is portalled out of the column; a narrow window closes it and Radix cannot give focus back to its
+  // trigger in the inert column, so focus in the menu is focus in the inspector.
+  test("narrowing the window with focus in the element menu hands focus to Show inspector", async () => {
+    const { asked, focus } = await narrowWithFocusIn({ closest: (selector: string) => selector.includes(".doan-insp-menu") ? {} : null });
+    expect(asked).toContain(SHOW);
+    expect(focus).toHaveBeenCalled();
+  });
+
+  // Found in the real app: the closing menu stays mounted for its exit animation, with focus still on its row, when
+  // App's effect runs.
+  test("narrowing the window while focus is still on the closing element menu hands focus to Show inspector", async () => {
+    vi.stubGlobal("HTMLElement", class {});
+    const HTMLElementFake = (globalThis as unknown as { HTMLElement: new () => object }).HTMLElement;
+    const menuRow = Object.assign(new HTMLElementFake(), { closest: (selector: string) => selector.includes(".doan-insp-menu") ? {} : null });
+    const { asked, focus } = await narrowWithFocusIn(menuRow, true, menuRow);
+    expect(asked).toContain(SHOW);
+    expect(focus).toHaveBeenCalled();
+  });
+
+  test("focus that was outside the inspector before it fell to the page stays put when the window narrows", async () => {
+    const { asked } = await narrowWithFocusIn({ closest: () => null });
+    expect(asked).not.toContain(SHOW);
+  });
+
+  // POSTMORTEM 2026-11-17: in a background window the platform's own restore on activation would put focus back on the
+  // remembered row (now inert) and fall to Hide sidebar; the hand-off is made again once the window is active.
+  test("a hand-off made in a background window is made again on activation", async () => {
+    const { asked, focus } = await narrowWithFocusIn({ closest: (selector: string) => selector.includes(".doan-insp-column") ? {} : null }, false);
+    expect(asked).toContain(SHOW);
+    const before = focus.mock.calls.length;
+    (document as unknown as { hasFocus(): boolean }).hasFocus = () => true;
+    windowListeners.focus!(undefined as never);
+    expect(focus.mock.calls.length).toBeGreaterThan(before);
+    // And once more after the platform's own restore.
+    const restored = focus.mock.calls.length;
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(focus.mock.calls.length).toBeGreaterThan(restored);
+  });
+
+  // Found in the real app: hiding the sidebar animates the shell's columns, so the measure taken when it hides still saw
+  // the sidebar, and at 1000 the inspector stayed away until the next window resize. The end of the shell's own
+  // transition measures again.
+  test("the shell measures again when its columns finish moving, so a hidden sidebar makes room for the inspector", async () => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true } });
+    const main = measure(1000);
+    expect(column()?.shown).toBe(false);
+    (main as { querySelector(): unknown }).querySelector = () => ({ getBoundingClientRect: () => ({ left: 8 }) });
+    windowListeners.transitionend!({ target: {} } as never); render();
+    expect(column()?.shown).toBe(false);
+    windowListeners.transitionend!({ target: main } as never); render();
+    expect(column()?.shown).toBe(true);
+  });
+
+  test("with the inspector shown the conversation's drag stops where the board keeps 360", async () => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true, width: 320 } });
+    measure(1470);
+    expect(find<{ bounds: { max: number } }>(ConversationPanel)[0]?.props.bounds.max).toBe(1226 - 320 - 360);
+  });
+
+  test("the Overview has no inspector column", () => {
+    render(); folders([listed("/w/a")]);
+    find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+    expect(find(InspectorColumn)).toHaveLength(0);
+  });
 });

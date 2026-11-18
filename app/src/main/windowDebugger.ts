@@ -17,12 +17,20 @@ export interface DebuggerLike {
 export interface WindowDebugger {
   // The CDP id of the window's main frame, the parent a shown canvas iframe must have; null while it cannot be read.
   mainFrame(): Promise<string | null>;
+  // The child session that committed this frame's current document and is still attached; null once that session
+  // detached, or while no session owns it. Commands for a canvas go only to this session: a former OOPIF session can
+  // outlive its replacement.
+  sessionOf(frameId: string): string | null;
 }
 
 export function createWindowDebugger(dbg: DebuggerLike, documents: DocumentBindings): WindowDebugger {
   // The window's own auto-attached child sessions.
   const sessions = new Set<string>();
+  // Each child session's root frame: the frame its target is. A same-process iframe inside it commits on the same
+  // session but is not what the session owns.
   const sessionFrames = new Map<string, string>();
+  // Every frame each child session has committed, to tell its root frame from the frames nested in it.
+  const sessionCommits = new Map<string, Set<string>>();
   const frameOwners = new Map<string, string>();
   let connected: Promise<void> | null = null;
   let mainFrameId: Promise<string | null> | null = null;
@@ -43,8 +51,16 @@ export function createWindowDebugger(dbg: DebuggerLike, documents: DocumentBindi
         if (!sessionId && object(value.frame) && typeof value.frame.id === "string" && value.frame.parentId === undefined) mainFrameId = Promise.resolve(value.frame.id);
         documents.commit(value.frame);
         if (sessionId && object(value.frame) && typeof value.frame.id === "string") {
-          sessionFrames.set(sessionId, value.frame.id);
-          frameOwners.set(value.frame.id, sessionId);
+          let commits = sessionCommits.get(sessionId);
+          if (!commits) { commits = new Set(); sessionCommits.set(sessionId, commits); }
+          // A nested frame recorded as the root would move the event filter below off the canvas frame, letting the
+          // session's late commit of that frame through after its replacement took over.
+          const nested = typeof value.frame.parentId === "string" && commits.has(value.frame.parentId);
+          commits.add(value.frame.id);
+          if (!nested) {
+            sessionFrames.set(sessionId, value.frame.id);
+            frameOwners.set(value.frame.id, sessionId);
+          }
         }
       }
       if (method === "Page.frameStartedNavigating" && typeof value.frameId === "string") documents.start(value.frameId, typeof value.loaderId === "string" ? value.loaderId : "");
@@ -71,12 +87,14 @@ export function createWindowDebugger(dbg: DebuggerLike, documents: DocumentBindi
         frameOwners.delete(frame);
       }
       sessionFrames.delete(params.sessionId);
+      sessionCommits.delete(params.sessionId);
     }
   });
   // Detached (renderer gone, or another client took over): attach again on the next main frame read.
   dbg.on("detach", () => {
     sessions.clear();
     sessionFrames.clear();
+    sessionCommits.clear();
     frameOwners.clear();
     documents.clear();
     connected = null;
@@ -108,6 +126,10 @@ export function createWindowDebugger(dbg: DebuggerLike, documents: DocumentBindi
         return null;
       });
       return mainFrameId;
+    },
+    sessionOf(frameId) {
+      const owner = frameOwners.get(frameId);
+      return owner !== undefined && sessions.has(owner) ? owner : null;
     },
   };
 }

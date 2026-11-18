@@ -18,10 +18,46 @@ const CANVAS_MIN = 360;
 const NUDGE = 16;
 
 // `shellWidth` is the measured column that holds the canvas and the panel (sidebar and margins excluded), so
-// the canvas limit follows the real layout. In a window too narrow for both limits the maximum wins.
-export function panelBounds(windowWidth: number, shellWidth: number): PanelBounds {
-  const max = Math.max(0, Math.floor(Math.min(windowWidth * WINDOW_SHARE_MAX, shellWidth - CANVAS_MIN)));
+// the canvas limit follows the real layout. `reserved` is another panel's width beside the canvas (the canvas page's
+// inspector), which the canvas limit leaves out too. In a window too narrow for both limits the maximum wins.
+export function panelBounds(windowWidth: number, shellWidth: number, reserved = 0): PanelBounds {
+  const max = Math.max(0, Math.floor(Math.min(windowWidth * WINDOW_SHARE_MAX, shellWidth - reserved - CANVAS_MIN)));
   return { min: Math.min(PANEL_MIN, max), max };
+}
+
+export interface CanvasPanelsInput {
+  windowWidth: number;
+  shellWidth: number;
+  // Each panel's saved open flag and width (a missing width is the panel's default).
+  conversation: { open: boolean; width?: number };
+  inspector: { open: boolean; width?: number };
+}
+
+export interface CanvasPanelsLayout {
+  // `bounds` is the drag range: with the inspector shown it leaves the inspector's width out as well.
+  conversation: { width: number; bounds: PanelBounds };
+  // `width` is 0 while the inspector is closed or does not fit; `bounds` is null when it does not fit.
+  inspector: { width: number; bounds: PanelBounds | null };
+  // Whether the inspector's minimum fits beside the conversation and the canvas's minimum; Show inspector is
+  // unavailable while it does not, and a saved open flag stays.
+  inspectorFits: boolean;
+}
+
+// The conversation is sized first and the inspector takes what is left, so a narrow window costs the inspector, never
+// the conversation the person is talking in. The inspector has no window-share cap: its width is bounded only by the
+// canvas's minimum beside the conversation.
+export function canvasPanelsLayout({ windowWidth, shellWidth, conversation, inspector }: CanvasPanelsInput): CanvasPanelsLayout {
+  const alone = panelBounds(windowWidth, shellWidth);
+  const conversationWidth = conversation.open ? panelWidth(conversation.width, alone, canvasPanelDefault(windowWidth)) : 0;
+  const left = Math.floor(shellWidth - conversationWidth - CANVAS_MIN);
+  const inspectorFits = left >= PANEL_MIN;
+  const bounds = inspectorFits ? { min: PANEL_MIN, max: left } : null;
+  const inspectorWidth = bounds && inspector.open ? panelWidth(inspector.width, bounds, PANEL_MIN) : 0;
+  return {
+    conversation: { width: conversationWidth, bounds: inspectorWidth > 0 ? panelBounds(windowWidth, shellWidth, inspectorWidth) : alone },
+    inspector: { width: inspectorWidth, bounds },
+    inspectorFits,
+  };
 }
 
 // The canvas conversation panel's default: wider than its minimum and growing with the window.

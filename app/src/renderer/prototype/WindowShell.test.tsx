@@ -611,7 +611,9 @@ describe("the conversation button and panel", () => {
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html).toMatch(/aria-label="Export prototype".*?<\/button><button type="button" class="doan-icon-button pw-conv" data-ui-placement="chrome" aria-label="Show conversation" aria-expanded="false" aria-controls="doan-conversation-panel"/);
     expect(tag(html, "pw-conv")).not.toMatch(/disabled|hidden/);
-    expect(html).toContain("lucide-panel-right-open");
+    // The main window's icon (canvas-inspector-panel draft header-buttons).
+    expect(html).toContain("lucide-message-square");
+    expect(html).not.toContain("lucide-panel-right-open");
   });
 
   test("before the first view it is already usable", () => {
@@ -714,7 +716,7 @@ describe("the conversation button and panel", () => {
     expect(stops(closed.replace(inert, "")).at(-1)).toContain("pw-conv");
   });
 
-  test("badges: the answer dot, the working spinner and the unread bubble, with their names", () => {
+  test("badges: the answer dot, the working spinner and the unread dot, with their names, which the tooltip says too", () => {
     const permission = markup({ conversation: conv({ button: { label: "Show conversation", badge: "permission", name: "Show conversation, needs your answer" } }) });
     expect(tag(permission, "pw-conv")).toMatch(/aria-label="Show conversation, needs your answer"[^>]*data-badge="true"/);
     const working = markup({ conversation: conv({ button: { label: "Show conversation", badge: "working", name: "Show conversation, agent is working" } }) });
@@ -722,7 +724,12 @@ describe("the conversation button and panel", () => {
     expect(working).toContain('<span class="badge-working" aria-hidden="true"><span class="doan-spinner"></span></span>');
     const unseen = markup({ conversation: conv({ button: { label: "Show conversation", badge: "unseen", name: "Show conversation, conversation finished unread" } }) });
     expect(tag(unseen, "pw-conv")).toMatch(/data-badge="unseen"/);
-    expect(unseen).toContain('class="badge-bubble"');
+    // The same accent dot as the answer's (drawn by CSS), not the speech bubble; the name tells them apart.
+    expect(unseen).not.toContain("badge-bubble");
+    const tips = all(tree({ conversation: conv({ button: { label: "Show conversation", badge: "unseen", name: "Show conversation, conversation finished unread" } }) }))
+      .filter(element => element.type === TooltipContent).map(element => element.props.children);
+    expect(tips).toContain("Show conversation, conversation finished unread");
+    expect(readFileSync(new URL("../styles.css", import.meta.url), "utf8")).toMatch(/:is\(\.doan-canvas-head \.doan-panel-show, \.pw-conv\)\.doan-icon-button\[data-badge="unseen"\]::after \{ content: ""; position: absolute; top: var\(--space-1\); right: var\(--space-1\); width: var\(--space-2\); height: var\(--space-2\); border-radius: 50%; background: var\(--text-accent\);/);
   });
 
   // POSTMORTEM 2026-11-13: a control that changes state is the same element, so focus on it survives.

@@ -35,6 +35,11 @@ export const MAX_PATH = 32;
 export const MAX_COPY_TEXT = 100_000;
 export const MAX_TEXT_RECTS = 2000;
 
+// The inspector's element menu: at most this many nodes per element-tree answer.
+export const MAX_TREE_NODES = 200;
+
+export type ElementKind = "frame" | "flex-row" | "flex-column" | "grid" | "input" | "button" | "text" | "box";
+
 export interface CanvasFrameRect {
   id: string;
   title?: string;
@@ -179,6 +184,17 @@ export interface PickStartedMessage { type: "pick-started"; href: string; docume
 // nodes in the iframe's viewport, as hover and selected rects are; empty is no range. `text` comes once the drag ends.
 export interface TextRangeMessage { type: "text-range"; document: string; epoch: number; dragging: boolean; rects: CanvasRect[]; text?: string }
 
+// The canvas's answer to the inspector's `element-tree` request: the innermost frame around the selection and the
+// nodes below it, in document order with their depth below that frame (the frame is depth 0). `seq` is the request's,
+// on the tree's own channel that neither clicks nor selection or hover commands move, and `document` the answering
+// document's token, so an answer from a replaced document or to an older request is dropped. Empty without a
+// selection or for one outside every frame. Over MAX_TREE_NODES the script keeps the path to the selection, its
+// children and its nearest siblings, and marks the answer truncated. `anchor` is what `select-anchor` takes; `rect` is
+// in the iframe's viewport, as hover rects are.
+export interface ElementTreeAnchor { selector: string; doanId?: string; frame?: string }
+export interface ElementTreeNode { depth: number; name: string; kind: ElementKind; anchor: ElementTreeAnchor; rect: CanvasRect; selected?: true }
+export interface ElementTreeMessage { type: "element-tree"; href: string; document: string; seq: number; viewport: number; nodes: ElementTreeNode[]; truncated: boolean }
+
 // A trusted press anywhere in the canvas, sent on pointerdown (or on focus moving into a nested frame) before any
 // selection or pick. It carries nothing: the app closes its open lists on it and, when a list took the focused element
 // with it, moves focus to the canvas area, so a forged one can do no more than that.
@@ -186,7 +202,7 @@ export interface PressMessage { type: "press" }
 // The person moved the pointer in the canvas frame (at most once a second).
 export interface ActivityMessage { type: "activity" }
 
-export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage | PickedMessage | PickStartedMessage | PressMessage | ActivityMessage | TextRangeMessage;
+export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage | PickedMessage | PickStartedMessage | PressMessage | ActivityMessage | TextRangeMessage | ElementTreeMessage;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -245,6 +261,7 @@ export function parseCanvasMessage(data: unknown): CanvasMessage | null {
   if (data.type === "press") return { type: "press" };
   if (data.type === "activity") return { type: "activity" };
   if (data.type === "text-range") return parseTextRange(data);
+  if (data.type === "element-tree") return parseElementTree(data);
   if (data.type === "hover" || data.type === "select" || data.type === "clear" || data.type === "key") return parseSelectionMessage(data);
   return null;
 }
@@ -292,6 +309,44 @@ function parseTextRange(data: Record<string, unknown>): TextRangeMessage | null 
     message.text = text;
   }
   return message;
+}
+
+const ELEMENT_KINDS: readonly string[] = ["frame", "flex-row", "flex-column", "grid", "input", "button", "text", "box"] satisfies ElementKind[];
+
+// Over the node cap the whole message is dropped, as the script never sends more. Depths must nest in document order
+// below one root, so the menu can indent and draw guides from them alone.
+function parseElementTree(data: Record<string, unknown>): ElementTreeMessage | null {
+  const { href, document, seq, viewport, nodes, truncated } = data;
+  if (!within(href, MAX_HREF) || !within(document, MAX_STRING) || !document || !seqValue(seq) || !nonNegative(viewport) ||
+    typeof truncated !== "boolean" || !Array.isArray(nodes) || nodes.length > MAX_TREE_NODES) return null;
+  const kept: ElementTreeNode[] = [];
+  let selected = false;
+  for (const raw of nodes) {
+    if (!isRecord(raw) || !isRecord(raw.anchor)) return null;
+    const { depth, name, kind, anchor } = raw;
+    const previous = kept.at(-1)?.depth;
+    const nests = previous === undefined ? depth === 0 : typeof depth === "number" && Number.isInteger(depth) && depth >= 1 && depth <= previous + 1;
+    if (!nests || typeof depth !== "number" || !within(name, MAX_STRING) || typeof kind !== "string" || !ELEMENT_KINDS.includes(kind)) return null;
+    const rect = parseRect(raw.rect);
+    if (rect === null || !within(anchor.selector, MAX_SELECTOR) || !anchor.selector) return null;
+    const keptAnchor: ElementTreeAnchor = { selector: anchor.selector };
+    if (anchor.doanId !== undefined) {
+      if (!within(anchor.doanId, MAX_STRING)) return null;
+      keptAnchor.doanId = anchor.doanId;
+    }
+    if (anchor.frame !== undefined) {
+      if (!within(anchor.frame, MAX_STRING)) return null;
+      keptAnchor.frame = anchor.frame;
+    }
+    const node: ElementTreeNode = { depth, name, kind: kind as ElementKind, anchor: keptAnchor, rect };
+    if (raw.selected !== undefined) {
+      if (raw.selected !== true || selected) return null;
+      selected = true;
+      node.selected = true;
+    }
+    kept.push(node);
+  }
+  return { type: "element-tree", href, document, seq, viewport, nodes: kept, truncated };
 }
 
 function parsePickStarted(data: Record<string, unknown>): PickStartedMessage | null {

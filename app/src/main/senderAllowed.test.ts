@@ -8,7 +8,7 @@ const mainOnly = [
   "conversation-work:get",
   "project:choose-token-css", "project:init",
   "folders:remove", "folders:locate", "folders:reveal", "folders:open", "folders:reopen",
-  "selection:set", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save",
+  "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save",
   "onboarding:choose-folder", "folders:get",
   // The Retry of a failed project-list save.
   "folders:save-again",
@@ -97,8 +97,6 @@ test("rejects unknown channels and every unregistered window", () => {
   const removed = ["read", "run", "answer", "check-again", "status"].map(op => `setup:${op}`);
   // The app's comment screens were removed with their channels.
   removed.push(...["list", "begin", "mutate", "status", "author", "copy", "guard", "transition-answer"].map(op => `comments:${op}`), "review-state:get", "review-state:raise");
-  // The Inspector was removed with its style-row channel.
-  removed.push(["inspect", "get"].join(":"));
   for (const kind of ["main", "settings"]) for (const channel of [...removed, "", "setup:delete", "comments:evil", "toString", "__proto__", "agent-auth:changed", "agent-auth:prompt", "agent-auth:delete"]) expect(senderAllowed(channel, kind)).toBe(false);
 });
 test("restricts every onboarding session request channel to main", () => {
@@ -179,7 +177,7 @@ describe("prototype window", () => {
   test("account, settings, terminal work, capture and the main window's own requests stay closed to it", () => {
     for (const channel of [
       "agent-auth:read", "agent-auth:sign-in", "agent-auth:sign-out", "preferences:read", "preferences:write", "work:get", "conversation-work:get",
-      "attachments:capture", "ui-state:get", "ui-state:save", "selection:set", "folders:get", "pointer:get", "window:visible", "prototype:play",
+      "attachments:capture", "ui-state:get", "ui-state:save", "selection:set", "inspect:get", "folders:get", "pointer:get", "window:visible", "prototype:play",
       "conversation:delete", "conversation:newDesign", "canvas:trash", "config:write",
     ]) expect(senderAllowed(channel, "prototype"), channel).toBe(false);
   });

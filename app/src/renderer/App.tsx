@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { ShellSidebar } from "./ShellSidebar";
 import { useBuddySelection } from "./buddySelection";
@@ -78,7 +78,12 @@ import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { distinctTargets } from "./anchorField";
 import type { ScrollTo } from "./overviewRun";
 import { ConversationPanel, ResizeHandle } from "./ConversationPanel";
-import { canvasPanelDefault, OVERVIEW_PANEL_DEFAULT, panelBounds, panelWidth } from "./rightPanelSize";
+import { canvasPanelDefault, canvasPanelsLayout, OVERVIEW_PANEL_DEFAULT, PANEL_MIN, panelBounds, panelWidth } from "./rightPanelSize";
+import { InspectorColumn, type ElementTreeSource } from "./InspectorPanel";
+import { refocusOnActivation } from "./activationFocus";
+import type { InspectorSelection } from "./inspectorReads";
+import type { ElementTreeMessage } from "./canvasMessage";
+import type { InspectRequest } from "../main/inspector";
 import { SIDEBAR_BOUNDS, sidebarToggleView, sidebarWidth, type SidebarToggleView } from "./sidebarSize";
 import { duplicateIdText } from "./canvasView";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
@@ -152,8 +157,8 @@ function withGroups(project: ShellProject, change: (groups: ShellProject["groups
   const { groups, ...rest } = project, next = change(groups);
   return next ? { ...rest, groups: next } : rest;
 }
-export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection; conversationByRoot?: Record<string, string> | null; conversationByCanvas?: Record<string, Record<string, string>> | null; rightPanel?: UiState["rightPanel"]; overviewPanel?: UiState["overviewPanel"]; sidebar?: UiState["sidebar"]; canvasTool?: CanvasState["tool"] }): UiState | null {
-  const { screen, loadedRoot, open, expanded, shellProjects, home, view, settingsSection, rightPanel, overviewPanel, sidebar, canvasTool } = input;
+export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection; conversationByRoot?: Record<string, string> | null; conversationByCanvas?: Record<string, Record<string, string>> | null; rightPanel?: UiState["rightPanel"]; inspector?: UiState["inspector"]; overviewPanel?: UiState["overviewPanel"]; sidebar?: UiState["sidebar"]; canvasTool?: CanvasState["tool"] }): UiState | null {
+  const { screen, loadedRoot, open, expanded, shellProjects, home, view, settingsSection, rightPanel, inspector, overviewPanel, sidebar, canvasTool } = input;
   const conversationByRoot = input.conversationByRoot && Object.keys(input.conversationByRoot).length ? input.conversationByRoot : undefined;
   const conversationByCanvas = input.conversationByCanvas && Object.keys(input.conversationByCanvas).length ? input.conversationByCanvas : undefined;
   if (home === null) return null;
@@ -161,7 +166,7 @@ export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: 
   const canvasId = canvas ? open?.row.id : undefined;
   // The loaded root's canvas is in `lastByRoot` too, so a restart on Home still reopens it on entry.
   const lastByRoot = { ...input.memory, ...(loadedRoot && canvas ? { [loadedRoot]: { canvas, view } } : {}) };
-  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}), ...(settingsSection ? { settingsSection } : {}), ...(conversationByRoot ? { conversationByRoot } : {}), ...(conversationByCanvas ? { conversationByCanvas } : {}), ...(rightPanel ? { rightPanel } : {}), ...(overviewPanel ? { overviewPanel } : {}), ...(sidebar ? { sidebar } : {}), ...(canvasTool === "hand" ? { canvasTool } : {}) };
+  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}), ...(settingsSection ? { settingsSection } : {}), ...(conversationByRoot ? { conversationByRoot } : {}), ...(conversationByCanvas ? { conversationByCanvas } : {}), ...(rightPanel ? { rightPanel } : {}), ...(inspector ? { inspector } : {}), ...(overviewPanel ? { overviewPanel } : {}), ...(sidebar ? { sidebar } : {}), ...(canvasTool === "hand" ? { canvasTool } : {}) };
 }
 
 // The start's ui-state read under what the run wrote before it: a root the run set, cleared (New) or
@@ -406,6 +411,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const rightPanelRef = useRef(rightPanel); rightPanelRef.current = rightPanel;
   const panelTouched = useRef(false);
   const changePanel = (change: (previous: NonNullable<UiState["rightPanel"]>) => NonNullable<UiState["rightPanel"]>) => { panelTouched.current = true; setRightPanelState(change); };
+  // The canvas page's inspector column, the same way: open state and width on this device, closed until the person
+  // opens it, and a change before the read wins.
+  const [inspectorPanel, setInspectorState] = useState<NonNullable<UiState["inspector"]>>({ open: false });
+  const inspectorTouched = useRef(false);
+  const changeInspector = (change: (previous: NonNullable<UiState["inspector"]>) => NonNullable<UiState["inspector"]>) => { inspectorTouched.current = true; setInspectorState(change); };
   // The Overview's canvas conversations panel width on this device (undefined: its default), apart from the canvas
   // panel's, the same way: a resize before the read wins.
   const [overviewSaved, setOverviewSaved] = useState<number | undefined>(undefined);
@@ -448,8 +458,14 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // agent notice's Open).
   // "content": an entry's arrival takes focus inside the panel itself.
   const panelFocus = useRef<"show" | "hide" | "panel" | "content" | null>(null);
+  // The same for the inspector: its Show button after it folds, its Hide button after it comes back.
+  const inspectorFocus = useRef<"show" | "hide" | null>(null);
   // Only folding and unfolding animate the column; a drag, a window resize or the Overview's own column must not.
   const [panelMotion, setPanelMotion] = useState(false);
+  // The inspector's own, so the docked buddy, which follows the conversation column, is not told it folds.
+  const [inspectorMotion, setInspectorMotion] = useState(false);
+  // The inspector element menu's answers, from the controller App makes after its children have mounted.
+  const treeListener = useRef<((message: ElementTreeMessage) => void) | null>(null);
   const overviewRun = useRef<OverviewRun | null>(null);
   if (!(overviewRun.current instanceof OverviewRun)) overviewRun.current = new OverviewRun({
     list: root => homeRun.current.listState(root),
@@ -616,6 +632,15 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace" && !overlaidRef.current) instance.command(name); });
     return () => { navigationIntent.current++; stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
   }, []);
+  // After the effect above, which makes the controller: the inspector's element menu subscribes before it exists.
+  useEffect(() => controller.current?.onElementTree(message => treeListener.current?.(message)), []);
+  const inspectCall = useCallback((request: InspectRequest) => window.doan.inspect(request), []);
+  const elementTree = useMemo<ElementTreeSource>(() => ({
+    request: () => controller.current?.requestElementTree() ?? false,
+    subscribe: listener => { treeListener.current = listener; return () => { if (treeListener.current === listener) treeListener.current = null; }; },
+    preview: rect => controller.current?.previewElement(rect),
+    select: anchor => controller.current?.selectElement(anchor),
+  }), []);
   // Wall-clock text ("3m", "now", a time of day) is computed while rendering, and nothing re-renders App at rest.
   const clock = useVisibleClock(1000, window.doan);
   useEffect(() => { void window.doan.homeDirectory().then(setHomeDirectory).catch(console.error); }, []);
@@ -704,6 +729,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       }
       if (active && state?.settingsSection && !sectionChosen.current) setSettings({ ...settingsRef.current, section: state.settingsSection });
       if (active && state?.rightPanel && !panelTouched.current) setRightPanelState(state.rightPanel);
+      if (active && state?.inspector && !inspectorTouched.current) setInspectorState(state.inspector);
       if (active && state?.overviewPanel && !overviewTouched.current) setOverviewSaved(state.overviewPanel.width);
       if (active && state?.sidebar && !sidebarTouched.current) setSidebarSaved(state.sidebar.width);
       if (active && state?.sidebar?.hidden && !sidebarHiddenTouched.current) setSidebarHidden(true);
@@ -767,10 +793,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const sidebarState = sidebarSaved === undefined && !sidebarHidden && !conversationsFolded ? undefined
     : { ...(sidebarSaved === undefined ? {} : { width: sidebarSaved }), ...(sidebarHidden ? { hidden: true as const } : {}), ...(conversationsFolded ? { conversationsFolded: true as const } : {}) };
   const overviewPanelState = overviewSaved === undefined ? undefined : { width: overviewSaved };
-  const persisted = useRef({ screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, overviewPanel: overviewPanelState, sidebar: sidebarState, canvasTool: state.tool });
-  persisted.current = { screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, overviewPanel: overviewPanelState, sidebar: sidebarState, canvasTool: state.tool };
+  // Closed at its default width is what a missing value reads as, so it is not written.
+  const inspectorState = inspectorPanel.open || inspectorPanel.width !== undefined ? inspectorPanel : undefined;
+  const persisted = useRef({ screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, inspector: inspectorState, overviewPanel: overviewPanelState, sidebar: sidebarState, canvasTool: state.tool });
+  persisted.current = { screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, inspector: inspectorState, overviewPanel: overviewPanelState, sidebar: sidebarState, canvasTool: state.tool };
   // At commit, so a change already on screen has been sent.
-  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory, settings.section, memoryTick, rightPanel, overviewSaved, sidebarSaved, sidebarHidden, conversationsFolded, state.tool]);
+  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory, settings.section, memoryTick, rightPanel, inspectorPanel, overviewSaved, sidebarSaved, sidebarHidden, conversationsFolded, state.tool]);
   const completeNavigation = (root: string, cursor?: number) => {
     const visit = controller.current?.destination(root);
     if (!visit || !entriesRef.current.some(entry => entry.path === root)) return;
@@ -1069,8 +1097,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   }, [entries, trashing]);
   // The covered parts App does not draw itself are inert under the overlay; the folded conversation column keeps its own.
   useLayoutEffect(() => {
-    for (const node of document.querySelectorAll<HTMLElement>(".workspace > :is(.ov-main, .doan-overview-handle, .doan-conv-column)"))
-      node.toggleAttribute("inert", overlaidRef.current || (node.matches(".doan-conv-column") && !rightPanelRef.current.open));
+    for (const node of document.querySelectorAll<HTMLElement>(".workspace > :is(.ov-main, .doan-overview-handle, .doan-conv-column, .doan-insp-column)"))
+      node.toggleAttribute("inert", overlaidRef.current || (node.matches(".doan-conv-column") && !rightPanelRef.current.open) || (node.matches(".doan-insp-column") && !inspectorShownRef.current));
   });
   // Add to message's chip for a folded panel, once the inert above is off: a focus call before it would fail.
   useLayoutEffect(() => {
@@ -1922,7 +1950,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (sceneKey !== seen.scene || arrived) {
       const active = document.activeElement;
       const left = !active || active === document.body || !(active instanceof HTMLElement) || !active.isConnected
-        || active.closest(".problem-overlay, .workspace > :is(.ov-main, .right-stack, .doan-canvas-panel, .doan-conv-column, .doan-overview-handle)") !== null;
+        || active.closest(".problem-overlay, .workspace > :is(.ov-main, .right-stack, .doan-canvas-panel, .doan-insp-column, .doan-conv-column, .doan-overview-handle)") !== null;
       if (arrived || left) { setAnnouncement(null); focusHeading(); }
       else announce(sceneHeading);
       return;
@@ -2190,9 +2218,18 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const canvasPage = overview === null;
   const panelBox = panelSize ?? { window: 0, shell: 0 };
   const panelLimits = panelBounds(panelBox.window, panelBox.shell);
-  const shownPanel = panelWidth(rightPanel.width, panelLimits, canvasPanelDefault(panelBox.window));
+  // The canvas page sizes the conversation first and gives the inspector what is left beside a 360px board; a window
+  // too narrow for the inspector's minimum hides it and keeps its saved open flag.
+  const canvasPanels = canvasPanelsLayout({ windowWidth: panelBox.window, shellWidth: panelBox.shell, conversation: rightPanel, inspector: inspectorPanel });
+  const conversationLimits = canvasPanels.conversation.bounds;
+  const shownPanel = panelWidth(rightPanel.width, conversationLimits, canvasPanelDefault(panelBox.window));
   const shownOverviewPanel = panelWidth(overviewSaved, panelLimits, OVERVIEW_PANEL_DEFAULT);
   const rightColumn = canvasPage ? (rightPanel.open ? `${shownPanel}px` : "0px") : `${shownOverviewPanel}px`;
+  const inspectorShown = canvasPage && inspectorPanel.open && canvasPanels.inspectorFits;
+  const inspectorLimits = canvasPanels.inspector.bounds ?? { min: PANEL_MIN, max: PANEL_MIN };
+  const shownInspector = panelWidth(inspectorPanel.width, inspectorLimits, PANEL_MIN);
+  const inspectorColumn = inspectorShown ? `${shownInspector}px` : "0px";
+  const inspectorShownRef = useRef(inspectorShown); inspectorShownRef.current = inspectorShown;
   // The docked buddy lives while the workspace is the screen: canvas switches and the Overview keep it, and Home,
   // Settings and Add Projects give its WebGL context back. It animates on its own frames; App only tells it what
   // changed. The <main> is its stable container: slots fold and leave, the shell stays.
@@ -2256,7 +2293,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     };
     measure();
     window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    // Hiding or showing the sidebar animates the shell's columns, so the measure above still sees the old start; the
+    // end of the shell's own transition measures the final layout (the inspector's room depends on it).
+    const settled = (event: Event) => { if (event.target === shellRoot.current) measure(); };
+    // A transition cut short (its motion flag cleared by a late timer) ends with transitioncancel instead.
+    window.addEventListener("transitionend", settled);
+    window.addEventListener("transitioncancel", settled);
+    return () => { window.removeEventListener("resize", measure); window.removeEventListener("transitionend", settled); window.removeEventListener("transitioncancel", settled); };
   // The sidebar's width and hiding move the canvas column's start, so either measures again.
   }, [shownSidebar, sidebarHidden]);
   // Written here rather than in the style prop: a drag previews its width on the same property (previewPanel), and this
@@ -2266,6 +2309,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (!main) return;
     main.style.setProperty("--doan-right-width", rightColumn);
   }, [rightColumn]);
+  // The inspector's column the same way; the Overview has none.
+  useLayoutEffect(() => {
+    shellRoot.current?.style.setProperty("--doan-inspector-width", inspectorColumn);
+  }, [inspectorColumn]);
   // A canvas opened under the Overview was fitted to the Overview's layout; fit it again once this commit has applied
   // the canvas page's column. The controller does it once per opened canvas.
   useLayoutEffect(() => { if (panelSize && canvasPage) controller.current?.settleFit(); });
@@ -2305,7 +2352,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     panelFocus.current = null;
     if (to === "panel") focusPanel();
     else if (to === "content") return;
-    else if (to) document.querySelector<HTMLElement>(to === "show" ? ".doan-canvas-head .doan-panel-show" : ".doan-conv-panel .doan-panel-hide")?.focus();
+    else if (to) document.querySelector<HTMLElement>(to === "show" ? '.doan-canvas-head .doan-panel-show[data-panel-target="conversation"]' : ".doan-conv-panel .doan-panel-hide")?.focus();
   }, [rightPanel.open]);
   useEffect(() => {
     if (!panelMotion) return;
@@ -2315,7 +2362,75 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // A drag shows its width on the grid directly and commits once at the end.
   const previewPanel = (width: number) => shellRoot.current?.style.setProperty("--doan-right-width", `${width}px`);
   const resizePanel = (width: number | undefined) => changePanel(previous => width === undefined ? { open: previous.open } : { ...previous, width });
+  // Only the person opens the inspector; folding it hands focus to the button that undoes it.
+  const foldInspector = (open: boolean) => {
+    inspectorFocus.current = open ? "hide" : "show";
+    setInspectorMotion(true);
+    changeInspector(previous => ({ ...previous, open }));
+  };
+  const previewInspector = (width: number) => shellRoot.current?.style.setProperty("--doan-inspector-width", `${width}px`);
+  const resizeInspector = (width: number | undefined) => changeInspector(previous => width === undefined ? { open: previous.open } : { ...previous, width });
+  useEffect(() => {
+    const to = inspectorFocus.current;
+    inspectorFocus.current = null;
+    if (to) document.querySelector<HTMLElement>(to === "show" ? '.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]' : ".doan-insp-panel .doan-panel-hide")?.focus();
+  }, [inspectorPanel.open]);
+  // Whether the control that last took focus was in the inspector column: the column turns inert in the same commit that
+  // hides it, so by the time an effect runs focus has already fallen to the page, and only this says it was there. Read
+  // when focus arrives, since the control itself may have been redrawn since (a row list read again).
+  const focusInInspector = useRef(false);
+  useEffect(() => {
+    // focusin targets an element (focus on the page itself fires none).
+    // The element menu is portalled out of the column, and it closes with it, so focus in it counts as in the inspector.
+    const focusin = (event: FocusEvent) => { focusInInspector.current = (event.target as Element | null)?.closest(".doan-insp-column, .doan-insp-menu") != null; };
+    document.addEventListener("focusin", focusin);
+    return () => document.removeEventListener("focusin", focusin);
+  }, []);
+  // A window narrowed under the inspector's minimum takes the column away; focus inside it goes to Show inspector,
+  // which now says why, rather than falling to the page.
+  // Widening again removes Show inspector; if focus was on it, it goes on to Hide inspector, as unfolding does.
+  const inspectorWasShown = useRef(inspectorShown);
+  // The Show inspector button that last took focus (the header reports it).
+  const inspectorShowFocused = useRef<Element | null>(null);
+  // A hand-off made while the window is in the background is made again on activation (POSTMORTEM 2026-11-17): the
+  // platform restores focus to the control it remembered, here one the column took away, and lands on Hide sidebar.
+  const inspectorActivation = useRef<() => void>(() => {});
+  useEffect(() => () => inspectorActivation.current(), []);
+  const handInspectorFocus = (selector: string) => {
+    const target = () => document.querySelector<HTMLElement>(selector);
+    target()?.focus();
+    inspectorActivation.current();
+    inspectorActivation.current = refocusOnActivation(window, () => document.hasFocus(), () => {
+      const element = target();
+      if (element?.isConnected && document.activeElement !== element) element.focus();
+    });
+  };
+  useLayoutEffect(() => {
+    const was = inspectorWasShown.current;
+    inspectorWasShown.current = inspectorShown;
+    if (was === inspectorShown || inspectorFocus.current !== null) return;
+    const active = document.activeElement;
+    if (!inspectorShown) {
+      // Still inside the column or its element menu (closing, it stays mounted for its exit animation), or already on
+      // the page.
+      const fell = active === null || active === document.body || (active instanceof HTMLElement && active.closest(".doan-insp-column, .doan-insp-menu") !== null);
+      if (fell && focusInInspector.current) handInspectorFocus('.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]');
+      return;
+    }
+    const show = inspectorShowFocused.current;
+    inspectorShowFocused.current = null;
+    if (show !== null && !show.isConnected && (active === null || active === document.body)) handInspectorFocus(".doan-insp-panel .doan-panel-hide");
+  }, [inspectorShown]);
+  useEffect(() => {
+    if (!inspectorMotion) return;
+    const timer = setTimeout(() => setInspectorMotion(false), 250);
+    return () => clearTimeout(timer);
+  }, [inspectorMotion, inspectorPanel.open]);
   const rendered = useMemo(() => state.open && state.layout ? { root: state.open.folder, path: state.open.canvas, frames: state.layout.frames } : undefined, [state.open?.folder, state.open?.canvas, state.layout]);
+  // The inspector reads the selection the controller applied and published, never one only sent to the canvas.
+  const openFolder = state.open?.folder, openPath = state.open?.canvas, appliedSelection = state.unlisted ? null : state.selection;
+  const inspectorSelection = useMemo<InspectorSelection | null>(() => openFolder !== undefined && openPath !== undefined && appliedSelection !== null ? { canvas: { root: openFolder, path: openPath }, view: appliedSelection } : null,
+    [openFolder, openPath, appliedSelection]);
   const run = homeRun.current;
   // Quick Open searches every listed project's conversations; a new map at each list change, so open results follow.
   const conversationLists = useMemo<ConversationLists>(() => new Map(entries.flatMap(entry => entry.kind === "list" ? [[entry.path, run.listState(entry.path)] as const] : [])),
@@ -2475,13 +2590,14 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     mainCheckout={path => isMainCheckout(entries, path)} choose={page.chooseSeq} onState={pageReport} onCancel={() => leavePage({ kind: "cancel" })} onAdded={pageAdded} />}
   <main ref={shellRoot} className={`app-shell workspace${overlaid ? " overlaid" : ""}${strip ? " with-strip" : ""}`}
     style={{ visibility: screen !== "workspace" ? "hidden" : "visible" }}
-    data-panel={canvasPage && !rightPanel.open ? "collapsed" : undefined} data-panel-motion={panelMotion ? "" : undefined}
+    data-panel={canvasPage && !rightPanel.open && !inspectorShown ? "collapsed" : undefined} data-conv={canvasPage && !rightPanel.open ? "collapsed" : undefined} data-panel-motion={panelMotion || inspectorMotion ? "" : undefined}
     inert={screen !== "workspace"} aria-hidden={screen !== "workspace"}>
     {topBar(false)}
     {sidebar(false)}
     {strip}
     <CanvasPane viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} view={canvasView.current} command={command} covered={overview !== null || overlaid} overlaid={overlaid}
       zoomTo={scale => controller.current?.zoomTo(scale)} onToolbarEscape={event => controller.current?.toolbarEscape(event)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: showPanel, badge: panelBadge }}
+      inspector={{ open: inspectorPanel.open, fits: canvasPanels.inspectorFits, show: () => foldInspector(true), focused: node => { inspectorShowFocused.current = node; } }}
       agent={{ list: state.open ? run.listState(state.open.folder) : undefined, shown: canvasRun.current!.showing()?.conversationId ?? null, canvas: workingCanvas(state.open, state.unlisted, entry), buddy: buddySelection.shown, running: screen === "workspace" && overview === null, work, entries,
         conversationWork, frames: state.layout?.frames ?? null, onWork: target => controller.current?.setWork(target),
         onOpen: openRequest, onOpenSibling }}
@@ -2504,7 +2620,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     {overview ? <div className="right-stack" inert={overlaid}><CanvasConversations key={overview.path} list={canvasList} project={projectLabel(overview.path)} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible}
       open={item => { if (item.row) openCanvasConversation(overview.path, item.row, item.conversationId, { kind: "overviewRow" }); }} retry={() => run.retryList(overview.path)} listRetry={run.listRetry(overview.path)}
       onDelete={(item, button, after) => openDelete({ conversationId: item.conversationId, root: overview.path, title: item.title, provider: item.provider, from: "canvasList", after }, button)} /></div>
-      : <ConversationPanel open={rightPanel.open} width={shownPanel} bounds={panelLimits} onHide={() => { controller.current?.cancelPick(); foldPanel(false); }} onResize={resizePanel} preview={previewPanel}
+      : <><InspectorColumn shown={inspectorShown} width={shownInspector} bounds={inspectorLimits} onHide={() => foldInspector(false)} onResize={resizeInspector} preview={previewInspector}
+        selection={inspectorSelection} document={state.layout?.document ?? null} inspect={inspectCall} tree={elementTree} onNotice={text => toast.show(text)}
+        onEscape={event => controller.current?.toolbarEscape(event)} />
+      <ConversationPanel open={rightPanel.open} width={shownPanel} bounds={conversationLimits} onHide={() => { controller.current?.cancelPick(); foldPanel(false); }} onResize={resizePanel} preview={previewPanel}
         title={panelTarget && <CanvasConversationTitle run={canvasRun.current!} list={panelList} canvasName={panelCanvasName} now={clock} seen={run.seenPending()}
           title={panelTitle.title} current={panelTitle.current} onChoose={() => controller.current?.dropPendingLocate()} onDelete={openDelete} onPicked={() => queueMicrotask(() => document.querySelector<HTMLElement>(".doan-conv-panel .composer-input")?.focus())} />}>
         {panelTarget && entry?.kind === "list" && <CanvasConversation calls={window.doan} run={canvasRun.current!} support={support.current!} target={panelTarget} canvasName={panelCanvasName}
@@ -2515,7 +2634,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
           onOpenProjectConversation={id => showShellOverview(panelTarget.root, undefined, () => askConversation(panelTarget.root, id))}
           onOpenHandoff={(canvas, id) => openConversationCanvas(panelTarget.root, canvas, id, { kind: "promotion" })} work={work} />}
-      </ConversationPanel>}
+      </ConversationPanel></>}
     {/* Its own key space: the Overview beside it is keyed by the same root, and siblings sharing a key remount on every render. */}
     {problem && <ProblemOverlay key={`problem\n${loadedRoot}`} view={problem} details={detailsOpen} detail={detailText} pressed={pressed && pressed.root === loadedRoot ? pressed.name : null}
       announcement={announcement ? `${announcement.text}${announcement.seq % 2 ? "" : "\u00a0"}` : ""} onAction={overlayAction} />}
@@ -2603,11 +2722,11 @@ export function CanvasLoading() {
   return slow ? <p><span className="doan-spinner" aria-hidden="true" />Loading</p> : null;
 }
 
-function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, agent, picking, capturing, tool, onTool, picker, capture, player, exporter }: {
+function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, inspector, agent, picking, capturing, tool, onTool, picker, capture, player, exporter }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   // covered: the Overview or a problem's overlay is over the pane. overlaid: the overlay, which names the problem itself.
   state: CanvasState; view: CanvasViewStore; command: (name: ViewCommand) => void; covered: boolean; overlaid: boolean;
-  zoomTo(scale: number): void; onToolbarEscape(event: KeyboardEvent): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: CanvasSignal | null }; agent: AgentProps;
+  zoomTo(scale: number): void; onToolbarEscape(event: KeyboardEvent): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: CanvasSignal | null }; inspector: { open: boolean; fits: boolean; show(): void; focused(node: Element): void }; agent: AgentProps;
   picking: boolean; capturing: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool; capture: CaptureTool; player: PlayTool; exporter: ExportTool;
 }) {
   const panel = useRef<HTMLDivElement>(null);
@@ -2615,7 +2734,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
   const canvasKey = state.open ? JSON.stringify([state.open.folder, state.open.canvas]) : null;
   // Stays laid out under the Overview: opening a canvas fits it to this size at once.
   return <div className="doan-canvas-panel" ref={panel} inert={covered}>
-    <CanvasHeader state={state} view={view} canvasKey={canvasKey} command={command} zoomTo={zoomTo} selectFrame={selectFrame} fallbackFocus={() => viewport.current?.focus()} panel={conversation} />
+    <CanvasHeader state={state} view={view} canvasKey={canvasKey} command={command} zoomTo={zoomTo} selectFrame={selectFrame} fallbackFocus={() => viewport.current?.focus()} panel={conversation} inspector={inspector} />
     <section className="area" role="region" aria-label="Canvas" tabIndex={-1} ref={viewport} data-picking={picking ? "" : undefined}>
     <div className="board" ref={board} hidden />
     <div className="overlay" ref={overlay} />

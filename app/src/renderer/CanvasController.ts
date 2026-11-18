@@ -1,4 +1,4 @@
-import type { AnchorsMessage, PinGeometry, TargetCandidates, CanvasFrameRect, PickedMessage, PickStartedMessage, TextRangeMessage } from "./canvasMessage";
+import type { AnchorsMessage, PinGeometry, TargetCandidates, CanvasFrameRect, PickedMessage, PickStartedMessage, TextRangeMessage, ElementTreeAnchor, ElementTreeMessage } from "./canvasMessage";
 import type { Anchor } from "../main/conversation/types";
 import type { Selection } from "../formats/types";
 import type { ViewCommand } from "../main/index";
@@ -188,6 +188,13 @@ export class CanvasController {
   private hoverSeq = 0;
   private selectedRect: CanvasRect | null = null;
   private hoverRect: CanvasRect | null = null;
+  // The inspector element menu's row under the pointer or keyboard focus, drawn in the hover mark's place.
+  private treeHover: CanvasRect | null = null;
+  // The inspector's element-tree channel: its own seq, apart from selection, hover and pick, and the document and seq
+  // of the last request, so only the answer to that one reaches the listener.
+  private treeSeq = 0;
+  private treeAsked: { document: string; seq: number } | null = null;
+  private treeListener: ((message: ElementTreeMessage) => void) | null = null;
   private altHeld = false;
   // Whether the canvas was last told ⌘ is down, so the app losing focus can take it back (⌘Tab sends no keyup).
   private metaHeld = false;
@@ -246,10 +253,10 @@ export class CanvasController {
   private snapshots = 0;
   private snapshotFrames = new Set<number>();
   private canvasPage = true;
-  // The page's menus and dialogs (frame drawer, zoom menu, Quick Open, any dialog), which hold following off. Their
-  // React owners live outside the controller, so it reads the document. Radix menus and popovers exist only while
-  // open; a native <dialog> may stay mounted closed, so only an open one counts.
-  overlayOpen: () => boolean = () => document.querySelector('.doan-frame-list, .doan-zoom-menu, [role="menu"], dialog[open], [role="dialog"]:not(dialog), [role="alertdialog"]:not(dialog)') !== null;
+  // The page's menus and dialogs (frame drawer, zoom menu, the inspector's element menu, Quick Open, any dialog), which
+  // hold following off. Their React owners live outside the controller, so it reads the document. Radix menus and
+  // popovers exist only while open; a native <dialog> may stay mounted closed, so only an open one counts.
+  overlayOpen: () => boolean = () => document.querySelector('.doan-frame-list, .doan-zoom-menu, .doan-insp-menu, [role="menu"], dialog[open], [role="dialog"]:not(dialog), [role="alertdialog"]:not(dialog)') !== null;
   // The newest canvas click waiting for main's cursor reading; an older reading does not move focus.
   private clickTag = 0;
   // The composer's preset lists, which close on a press in the canvas (the app's document never sees one).
@@ -863,6 +870,8 @@ export class CanvasController {
     this.hoverSeq = 0;
     this.refindSeq = null;
     this.hoverRect = null;
+    this.treeHover = null;
+    this.treeAsked = null;
     this.drawMarks();
     this.state.unlisted = false;
     this.loading = true;
@@ -905,6 +914,8 @@ export class CanvasController {
     this.loading = false;
     this.jumpTo = null;
     this.hoverRect = null;
+    this.treeHover = null;
+    this.treeAsked = null;
     this.clearSelection(false);
     clearTimeout(this.loadTimer);
     clearTimeout(this.answerTimer);
@@ -943,6 +954,7 @@ export class CanvasController {
     if (message.type === "press") { this.pressed(); return; }
     if (message.type === "activity") { this.personActive(false); return; }
     if (message.type === "text-range") { this.onTextRange(message); return; }
+    if (message.type === "element-tree") { this.receiveElementTree(message); return; }
     this.onSelectionMessage(message);
   };
 
@@ -1067,6 +1079,49 @@ export class CanvasController {
     this.sendCommand({ type: "clear" });
     this.clearSelection(false);
     this.publish();
+  }
+
+  // The inspector's element menu. A request goes to the document of the last layout on the tree's own channel, so no
+  // selection, hover or pick seq moves and the selection stays as it is; only the answer to the latest request, from
+  // that same document, reaches the listener. False when no listed canvas has laid out yet.
+  requestElementTree(): boolean {
+    const document = this.pickDocument;
+    if (document === null || this.frame === null || this.loading || this.state.unlisted) return false;
+    this.treeSeq += 1;
+    this.treeAsked = { document, seq: this.treeSeq };
+    this.post({ type: "element-tree", document, seq: this.treeSeq });
+    return true;
+  }
+
+  // The one listener for element-tree answers; returns its removal.
+  onElementTree(listener: (message: ElementTreeMessage) => void): () => void {
+    this.treeListener = listener;
+    return () => { if (this.treeListener === listener) this.treeListener = null; };
+  }
+
+  private receiveElementTree(message: ElementTreeMessage): void {
+    const asked = this.treeAsked;
+    if (asked === null || message.document !== asked.document || message.seq !== asked.seq || message.document !== this.pickDocument) return;
+    this.treeListener?.(message);
+  }
+
+  // A menu row's node marked on the board as a canvas hover would mark it (iframe viewport px, as hover rects are);
+  // null takes it off and the canvas's own hover shows again.
+  previewElement(rect: CanvasRect | null): void {
+    if (this.treeHover === rect) return;
+    this.treeHover = rect;
+    this.drawMarks();
+  }
+
+  // A menu row picked: that node is selected as a ⌘-click on it would select it, and the canvas answers on the
+  // selection channel like any select-anchor.
+  selectElement(anchor: ElementTreeAnchor): void {
+    if (this.frame === null || this.loading || this.state.unlisted) return;
+    this.treeHover = null;
+    this.transition(() => {
+      this.personActive(true);
+      this.sendCommand({ type: "select-anchor", ...anchor });
+    });
   }
 
   // The one listener for how picks end; returns its removal.
@@ -1647,6 +1702,7 @@ export class CanvasController {
       this.hoverSeq = 0;
       this.refindSeq = null;
       this.hoverRect = null;
+      this.treeHover = null;
       this.applySelectionEffect({ kind: "otherCanvas" });
       // A link or the canvas's own script left for another page: another canvas, so the pick and capture mode end.
       this.resetPickChannel();
@@ -2120,7 +2176,7 @@ export class CanvasController {
   // under it by CSS) reads canvas px.
   private drawMarks(): void {
     const measured = this.measured();
-    const hover = measured === null && (this.markHidden || this.altHeld || this.layerShown || this.captureShown || this.textDragging) ? null : this.hoverRect;
+    const hover = measured === null && (this.markHidden || this.altHeld || this.layerShown || this.captureShown || this.textDragging) ? null : this.treeHover ?? this.hoverRect;
     const selected = this.markHidden ? null : this.selectedRect;
     // Read before this draw writes any style, so it costs no forced layout.
     const room = selected === null ? null : this.sizeBubbleRoom();
