@@ -35,6 +35,11 @@ export const MAX_PATH = 32;
 export const MAX_COPY_TEXT = 100_000;
 export const MAX_TEXT_RECTS = 2000;
 
+// The inspector's element menu: at most this many nodes per element-tree answer.
+export const MAX_TREE_NODES = 200;
+
+export type ElementKind = "frame" | "flex-row" | "flex-column" | "grid" | "input" | "button" | "text" | "box";
+
 export interface CanvasFrameRect {
   id: string;
   title?: string;
@@ -178,6 +183,17 @@ export interface PickStartedMessage { type: "pick-started"; href: string; docume
 // so a range from a replaced document or sent before a clear is dropped. `rects` are the line boxes of the range's Text
 // nodes in the iframe's viewport, as hover and selected rects are; empty is no range. `text` comes once the drag ends.
 export interface TextRangeMessage { type: "text-range"; document: string; epoch: number; dragging: boolean; rects: CanvasRect[]; text?: string }
+
+// The canvas's answer to the inspector's `element-tree` request: the innermost frame around the selection and the
+// nodes below it, in document order with their depth below that frame (the frame is depth 0). `seq` is the request's,
+// on the tree's own channel that neither clicks nor selection or hover commands move, and `document` the answering
+// document's token, so an answer from a replaced document or to an older request is dropped. Empty without a
+// selection or for one outside every frame. Over MAX_TREE_NODES the script keeps the path to the selection, its
+// children and its nearest siblings, and marks the answer truncated. `anchor` is what `select-anchor` takes; `rect` is
+// in the iframe's viewport, as hover rects are.
+export interface ElementTreeAnchor { selector: string; doanId?: string; frame?: string }
+export interface ElementTreeNode { depth: number; name: string; kind: ElementKind; anchor: ElementTreeAnchor; rect: CanvasRect; selected?: true }
+export interface ElementTreeMessage { type: "element-tree"; href: string; document: string; seq: number; viewport: number; nodes: ElementTreeNode[]; truncated: boolean }
 
 // A trusted press anywhere in the canvas, sent on pointerdown (or on focus moving into a nested frame) before any
 // selection or pick. It carries nothing: the app closes its open lists on it and, when a list took the focused element

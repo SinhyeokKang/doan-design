@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { MAX_COPY_TEXT, MAX_FRAMES, MAX_GOTOS, MAX_HTML, MAX_SELECTOR, MAX_STRING, MAX_TEXT, MAX_TEXT_RECTS, MAX_VALUE } from "../renderer/canvasMessage";
+import { MAX_COPY_TEXT, MAX_FRAMES, MAX_GOTOS, MAX_HTML, MAX_SELECTOR, MAX_STRING, MAX_TEXT, MAX_TEXT_RECTS, MAX_TREE_NODES, MAX_VALUE, parseCanvasMessage, type ElementTreeMessage } from "../renderer/canvasMessage";
 import { MAX_PROTOTYPE_MARK } from "./prototype/mark";
 import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
-import { ancestorPath, canScrollAxis, canvasScriptSource, clipHtml, clipText, documentHeight, elementSelector, escapeTarget, frameBottom, frameStep, nextHeight, textBoundary, textDragState, textQuote, type ChainLink } from "./canvasScript";
+import { ancestorPath, canScrollAxis, canvasScriptSource, clipHtml, clipText, documentHeight, elementSelector, elementTree, escapeTarget, frameBottom, frameStep, nextHeight, nodeKind, nodeLabel, textBoundary, textDragState, textQuote, type ChainLink } from "./canvasScript";
 
 describe("nextHeight", () => {
   test("sends the first measurement as is", () => {
@@ -3107,5 +3107,231 @@ describe("layout frames and links in a real DOM", () => {
     expect(layout.frames).toHaveLength(1000);
     expect(layout.truncated).toBe(true);
     expect(layout.gotos).toEqual([{ value: "x", frame: 0 }]);
+  });
+});
+
+describe("nodeKind", () => {
+  test("a frame is a frame whatever its tag or layout", () => {
+    expect(nodeKind("section", "flex", "row", true)).toBe("frame");
+    expect(nodeKind("button", "block", "row", true)).toBe("frame");
+  });
+
+  test("form controls and buttons go by tag, whatever their display", () => {
+    for (const tag of ["input", "textarea", "select"]) expect(nodeKind(tag, "inline-block", "row", false), tag).toBe("input");
+    expect(nodeKind("button", "inline-flex", "row", false)).toBe("button");
+  });
+
+  test("labels, headings and paragraphs are text even when laid out as flex", () => {
+    for (const tag of ["label", "h1", "h2", "h3", "h4", "h5", "h6", "p"]) expect(nodeKind(tag, "flex", "row", false), tag).toBe("text");
+  });
+
+  test("a flex box is a row or a column by its direction, reversed ones included", () => {
+    expect(nodeKind("div", "flex", "row", false)).toBe("flex-row");
+    expect(nodeKind("div", "inline-flex", "row-reverse", false)).toBe("flex-row");
+    expect(nodeKind("header", "flex", "column", false)).toBe("flex-column");
+    expect(nodeKind("div", "flex", "column-reverse", false)).toBe("flex-column");
+  });
+
+  test("a grid box is a grid", () => {
+    expect(nodeKind("div", "grid", "row", false)).toBe("grid");
+    expect(nodeKind("ul", "inline-grid", "row", false)).toBe("grid");
+  });
+
+  test("inline text tags are text unless laid out as flex or grid", () => {
+    for (const tag of ["span", "a", "strong", "em", "small", "code"]) expect(nodeKind(tag, "inline", "row", false), tag).toBe("text");
+    expect(nodeKind("span", "flex", "row", false)).toBe("flex-row");
+  });
+
+  test("any other box is a box", () => {
+    expect(nodeKind("div", "block", "row", false)).toBe("box");
+    expect(nodeKind("img", "inline", "row", false)).toBe("box");
+    expect(nodeKind("svg", "inline", "row", false)).toBe("box");
+  });
+});
+
+describe("nodeLabel", () => {
+  test("a frame is its title, else its id, else its tag", () => {
+    expect(nodeLabel({ tag: "section", frame: { id: "pay", title: "Payment" }, doanId: "x", text: "Pay" })).toBe("Payment");
+    expect(nodeLabel({ tag: "section", frame: { id: "pay" }, text: "Pay" })).toBe("pay");
+    expect(nodeLabel({ tag: "section", frame: { id: "pay", title: "" }, text: "" })).toBe("pay");
+    expect(nodeLabel({ tag: "section", frame: { id: "" }, text: "" })).toBe("section");
+  });
+
+  test("an element is its data-doan-id, else its tag with its own text quoted", () => {
+    expect(nodeLabel({ tag: "button", doanId: "pay-button", text: "Pay" })).toBe("pay-button");
+    expect(nodeLabel({ tag: "label", text: "  Card\n number " })).toBe("label “Card number”");
+    expect(nodeLabel({ tag: "div", doanId: "", text: "" })).toBe("div");
+    expect(nodeLabel({ tag: "div", text: " \n " })).toBe("div");
+  });
+
+  test("cuts the text at 24 code points with an ellipsis, never splitting a pair", () => {
+    expect(nodeLabel({ tag: "p", text: "a".repeat(24) })).toBe(`p “${"a".repeat(24)}”`);
+    expect(nodeLabel({ tag: "p", text: "a".repeat(25) })).toBe(`p “${"a".repeat(24)}…”`);
+    expect(nodeLabel({ tag: "p", text: "😀".repeat(25) })).toBe(`p “${"😀".repeat(24)}…”`);
+    expect(nodeLabel({ tag: "p", text: "Payments are encrypted end to end" })).toBe("p “Payments are encrypted…”");
+  });
+});
+
+describe("elementTree", () => {
+  const all = (n: number) => Array.from({ length: n }, (_, i) => i);
+
+  test("keeps the whole tree when it fits", () => {
+    expect(elementTree([0, 1, 2, 1], 2, 200)).toEqual({ keep: [0, 1, 2, 3], truncated: false });
+    const flat = [0, ...Array.from({ length: 199 }, () => 1)];
+    expect(elementTree(flat, 5, 200)).toEqual({ keep: all(200), truncated: false });
+  });
+
+  test("over the cap keeps the path to the selection, its siblings and its children only, in document order", () => {
+    // 0 frame; 1 a (2 a1, 3 a2); 4 b [selected] (5 b1 (6 b1x), 7 b2); 8 c (9 c1)
+    const depths = [0, 1, 2, 2, 1, 2, 3, 2, 1, 2];
+    expect(elementTree(depths, 4, 9)).toEqual({ keep: [0, 1, 4, 5, 7, 8], truncated: true });
+    // A selection deeper down: path 0 → 4 → 5, siblings 7, children 6.
+    expect(elementTree(depths, 5, 9)).toEqual({ keep: [0, 4, 5, 6, 7], truncated: true });
+  });
+
+  test("a selected frame root over the cap keeps itself and its children", () => {
+    const depths = [0, 1, 2, 1, 2, 1];
+    expect(elementTree(depths, 0, 5)).toEqual({ keep: [0, 1, 3, 5], truncated: true });
+  });
+
+  test("the reduction itself stays within the cap: children first, then siblings nearest the selection, earlier first on a tie", () => {
+    // 0 frame; siblings 1-4, 9, 10 at depth 1; the selection 5 with children 6-8 at depth 2.
+    const depths = [0, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1];
+    const { keep, truncated } = elementTree(depths, 5, 6);
+    expect(truncated).toBe(true);
+    expect(keep).toEqual([0, 4, 5, 6, 7, 8]);
+    expect(elementTree(depths, 5, 8).keep).toEqual([0, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  test("without the selection in the tree, over the cap keeps the first nodes in document order", () => {
+    expect(elementTree([0, 1, 2, 1, 1], -1, 3)).toEqual({ keep: [0, 1, 2], truncated: true });
+  });
+
+  test(`the script's cap is ${MAX_TREE_NODES} nodes`, () => {
+    const depths = [0, ...Array.from({ length: 300 }, () => 1)];
+    expect(elementTree(depths, 150, MAX_TREE_NODES).keep).toHaveLength(MAX_TREE_NODES);
+  });
+});
+
+// The element tree in a real DOM: computed display and direction, own text nodes and the selection channel.
+describe("canvasScript element-tree in a real DOM", () => {
+  let dom: ElectronDom;
+  beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
+  afterAll(async () => { await dom?.close(); }, 30_000);
+
+  type Frame = Awaited<ReturnType<ElectronDom["load"]>>;
+  const toCanvas = (frame: Frame, data: unknown) =>
+    frame.parentFrame()!.evaluate(message => (window as unknown as { doanFrame: HTMLIFrameElement }).doanFrame.contentWindow!.postMessage(message, "*"), data);
+  const open = async (body: string) => {
+    const frame = await dom.load(`<!doctype html><html><head><script>${canvasScriptSource()}</script></head><body>${body}</body></html>`);
+    const layout = (await dom.flush(frame)).find(message => (message as { type?: unknown }).type === "layout") as { document: string };
+    return { frame, document: layout.document };
+  };
+  const posted = async (frame: Frame) => dom.flush(frame);
+  const treesOf = (messages: unknown[]) => messages.filter(message => (message as { type?: unknown }).type === "element-tree") as ElementTreeMessage[];
+  const select = (frame: Frame, seq: number, doanId: string) => toCanvas(frame, { type: "select-anchor", seq, doanId });
+  const ask = (frame: Frame, seq: number, document: string) => toCanvas(frame, { type: "element-tree", seq, document });
+  const onlyTree = (messages: unknown[]) => {
+    const trees = treesOf(messages);
+    expect(trees).toHaveLength(1);
+    return trees[0]!;
+  };
+  const brief = (tree: ElementTreeMessage) => tree.nodes.map(({ depth, name, kind, selected }) => [depth, name, kind, ...(selected ? ["selected"] : [])]);
+
+  const payment = `
+    <div data-doan-frame="outer" data-doan-title="Outer">
+      <p>Outside the inner frame</p>
+      <section data-doan-frame="pay" data-doan-title="Payment" style="display:flex;flex-direction:column">
+        <header style="display:flex">Payment<span data-doan-id="order-total">$42.00</span></header>
+        <label>Card number</label>
+        <input data-doan-id="card">
+        <div style="display:grid"><label>Expiry</label><label>CVC</label></div>
+        <button data-doan-id="pay-button">Pay</button>
+        <script>void 0</script>
+        <p>Payments are encrypted end to end</p>
+      </section>
+    </div>`;
+
+  test("answers the innermost frame around the selection with depth, name, kind, anchor and rect", async () => {
+    const { frame, document } = await open(payment);
+    await select(frame, 1, "pay-button");
+    await ask(frame, 1, document);
+    const tree = onlyTree(await posted(frame));
+    expect(tree).toMatchObject({ type: "element-tree", document, seq: 1, truncated: false });
+    expect(parseCanvasMessage(tree)).toEqual(tree);
+    expect(brief(tree)).toEqual([
+      [0, "Payment", "frame"],
+      [1, "header “Payment”", "flex-row"],
+      [2, "order-total", "text"],
+      [1, "label “Card number”", "text"],
+      [1, "card", "input"],
+      [1, "div", "grid"],
+      [2, "label “Expiry”", "text"],
+      [2, "label “CVC”", "text"],
+      [1, "pay-button", "button", "selected"],
+      [1, "p “Payments are encrypted…”", "text"],
+    ]);
+    expect(tree.nodes[0]!.anchor).toEqual({ selector: '[data-doan-frame="pay"]', frame: "pay" });
+    expect(tree.nodes[8]!.anchor).toEqual({ selector: '[data-doan-id="pay-button"]', doanId: "pay-button" });
+    expect(tree.nodes[3]!.anchor).toEqual({ selector: '[data-doan-frame="pay"] > label:nth-of-type(1)' });
+    expect(tree.nodes[8]!.rect.width).toBeGreaterThan(0);
+  });
+
+  test("a selected frame is the root of its own tree, and the frame around it is not", async () => {
+    const { frame, document } = await open(payment.replace('data-doan-frame="pay"', 'data-doan-frame="pay" data-doan-id="pay-frame"'));
+    await select(frame, 1, "pay-frame");
+    await ask(frame, 1, document);
+    const tree = onlyTree(await posted(frame));
+    expect(brief(tree)[0]).toEqual([0, "Payment", "frame", "selected"]);
+    expect(tree.nodes.some(node => node.name === "Outer")).toBe(false);
+  });
+
+  test("answers an empty tree without a selection or for one outside every frame", async () => {
+    const { frame, document } = await open(`<main data-doan-id="loose">Loose</main>${payment}`);
+    await ask(frame, 1, document);
+    await select(frame, 1, "loose");
+    await ask(frame, 2, document);
+    expect(treesOf(await posted(frame)).map(tree => [tree.seq, tree.nodes])).toEqual([[1, []], [2, []]]);
+  });
+
+  test(`over ${MAX_TREE_NODES} nodes sends the path to the selection, its siblings and its children, marked truncated`, async () => {
+    const rows = Array.from({ length: 300 }, (_, i) => i === 150 ? '<div data-doan-id="picked"><i>a</i><i>b</i></div>' : `<div>row ${i}</div>`).join("");
+    const { frame, document } = await open(`<div data-doan-frame="big">${rows}</div>`);
+    await select(frame, 1, "picked");
+    await ask(frame, 1, document);
+    const tree = onlyTree(await posted(frame));
+    expect(tree.truncated).toBe(true);
+    expect(tree.nodes).toHaveLength(MAX_TREE_NODES);
+    expect(tree.nodes.filter(node => node.depth === 2).map(node => node.name)).toEqual(["i “a”", "i “b”"]);
+    expect(tree.nodes.find(node => node.selected)?.name).toBe("picked");
+    expect(parseCanvasMessage(tree)).not.toBeNull();
+  });
+
+  test("runs on its own seq channel and leaves the selection as it was", async () => {
+    const { frame, document } = await open(payment);
+    await select(frame, 5, "pay-button");
+    await ask(frame, 1, document);
+    await ask(frame, 1, document);
+    await ask(frame, 0, document);
+    // A selection command after a tree request still needs only to beat the selection seq.
+    await select(frame, 6, "card");
+    await ask(frame, 2, document);
+    await toCanvas(frame, { type: "measure" });
+    const messages = await posted(frame);
+    expect(treesOf(messages).map(tree => tree.seq)).toEqual([1, 2]);
+    expect(treesOf(messages).at(-1)!.nodes.find(node => node.selected)?.name).toBe("card");
+    const selects = messages.filter(message => (message as { type?: unknown }).type === "select") as { seq: number }[];
+    expect(selects.map(message => message.seq)).toEqual([5, 6]);
+    expect(messages.filter(message => (message as { type?: unknown }).type === "hover")).toEqual([]);
+    expect((messages.filter(message => (message as { type?: unknown }).type === "layout").at(-1) as { seq: number }).seq).toBe(6);
+  });
+
+  test("ignores a request for another document, so an answer never outlives a replaced document", async () => {
+    const { frame, document } = await open(payment);
+    await select(frame, 1, "pay-button");
+    for (const bad of [{ type: "element-tree", seq: 1, document: "an earlier document" }, { type: "element-tree", seq: 1 }, { type: "element-tree", seq: 1.5, document }, { type: "element-tree", seq: "2", document }]) await toCanvas(frame, bad);
+    expect(treesOf(await posted(frame))).toEqual([]);
+    await ask(frame, 1, document);
+    expect(treesOf(await posted(frame))).toHaveLength(1);
   });
 });

@@ -6,6 +6,8 @@
 // canvas's main world, so the canvas can see and fake everything it posts
 // (the renderer validates it, design flow 5).
 
+import type { ElementKind } from "../renderer/canvasMessage";
+
 export interface HeightState {
   sent: number;
   inner: number;
@@ -200,6 +202,25 @@ export function textBoundary(frames: readonly boolean[], holdsFrames: boolean): 
   const frame = frames.indexOf(true);
   if (frame !== -1) return frame;
   return frames.length === 0 || holdsFrames ? null : 0;
+}
+
+export function nodeKind(_tag: string, _display: string, _direction: string, _frame: boolean): ElementKind {
+  return "box";
+}
+
+export interface LabelSource {
+  tag: string;
+  frame?: { id: string; title?: string };
+  doanId?: string;
+  text: string;
+}
+
+export function nodeLabel(source: LabelSource): string {
+  return source.tag;
+}
+
+export function elementTree(depths: readonly number[], _selected: number, _max: number): { keep: number[]; truncated: boolean } {
+  return { keep: depths.map((_, i) => i), truncated: false };
 }
 
 interface CanvasLib {
