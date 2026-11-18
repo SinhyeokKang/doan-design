@@ -6008,3 +6008,89 @@ describe("canvas text", () => {
     });
   });
 });
+
+// The left sidebar folding, unfolding or being dragged moves the canvas area's left edge. The board stays where it was on
+// screen, as it does when the conversation panel moves the right edge: the sidebar seems to slide over the canvas.
+describe("canvas area's left edge moves", () => {
+  function shell(left: number, width: number) {
+    const host = Object.assign(new EventTarget(), { getSelection: (): Selection | null => null });
+    vi.stubGlobal("window", host);
+    const frame = Object.assign(new EventTarget(), { contentWindow: { postMessage: vi.fn() }, style: {}, setAttribute: vi.fn(), remove: vi.fn(), replaceWith: vi.fn() });
+    vi.stubGlobal("document", { createElement: () => frame });
+    let resized: (() => void) | null = null;
+    vi.stubGlobal("ResizeObserver", class { constructor(callback: () => void) { resized = callback; } observe() {} disconnect() {} });
+    const edge = { left, width };
+    const viewport = Object.assign(new EventTarget(), {
+      nodeType: 1, clientWidth: width, clientHeight: 600, focus: vi.fn(),
+      // A plain rect: the test environment has no DOMRect.
+      getBoundingClientRect: () => { const height = edge.width === 0 ? 0 : 600; return { x: edge.left, y: 48, left: edge.left, top: 48, right: edge.left + edge.width, bottom: 48 + height, width: edge.width, height, toJSON: () => ({}) }; },
+    });
+    // Object.assign would copy a getter's value once.
+    Object.defineProperty(viewport, "clientWidth", { get: () => edge.width });
+    const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
+    const controller = new CanvasController(viewport, board, { append: vi.fn() }, vi.fn(), vi.fn(), fakeLayer(), async () => null);
+    // A ResizeObserver reports every observed element once after observe().
+    (resized as (() => void) | null)?.();
+    const row = { path: ".doan/canvases/a.html", url: "http://localhost/a.html", width: 1200 };
+    controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }]);
+    controller.openCanvas("/repo", row);
+    // Where the board's origin is on screen, in window px.
+    const screenX = () => edge.left + controller.currentView().x;
+    const resize = (to: { left?: number; width?: number }) => { Object.assign(edge, to); resized?.(); };
+    return { controller, screenX, resize };
+  }
+
+  it("keeps the board's screen position when the sidebar folds and unfolds", () => {
+    const h = shell(248, 800);
+    try {
+      h.controller.settleFit();
+      const before = h.screenX();
+      h.resize({ left: 8, width: 1040 });
+      expect(h.screenX()).toBe(before);
+      h.resize({ left: 248, width: 800 });
+      expect(h.screenX()).toBe(before);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("holds on every step of the fold animation and a width drag", () => {
+    const h = shell(248, 800);
+    try {
+      h.controller.settleFit();
+      const before = h.screenX();
+      for (const left of [230.5, 180.25, 96, 20.75, 8, 120, 300, 248]) {
+        h.resize({ left, width: 1048 - left });
+        expect(h.screenX()).toBeCloseTo(before, 6);
+      }
+    } finally { h.controller.dispose(); }
+  });
+
+  it("leaves the view alone when only the right edge moves", () => {
+    const h = shell(248, 800);
+    try {
+      h.controller.settleFit();
+      const view = h.controller.currentView();
+      h.resize({ width: 1100 });
+      expect(h.controller.currentView()).toEqual(view);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a first Fit the sidebar moved before it settled still settles to the column", () => {
+    const h = shell(248, 800);
+    try {
+      h.resize({ left: 8, width: 1040 });
+      h.controller.settleFit();
+      expect(h.controller.currentView()).toEqual(fitWidth(1200, { width: 1040, height: 600 }, FIT_INSET));
+    } finally { h.controller.dispose(); }
+  });
+
+  it("ignores the area while it is not laid out, and counts the edge it had when it comes back", () => {
+    const h = shell(248, 800);
+    try {
+      h.controller.settleFit();
+      const before = h.screenX();
+      h.resize({ left: 0, width: 0 });
+      h.resize({ left: 8, width: 1040 });
+      expect(h.screenX()).toBe(before);
+    } finally { h.controller.dispose(); }
+  });
+});
