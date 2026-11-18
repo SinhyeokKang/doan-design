@@ -206,6 +206,8 @@ describe("approval card content", () => {
     expect(event.reason).toBe("Look<U+202E>");
     expect(event.options.find(o => o.id === "always")?.detail).toBe("Adds the allow rule Bash(echo<U+2067>:*) in this session.");
     expect(codexCommand({ command: "/bin/zsh -lc 'ls ‮x'", reason: "‏why" })).toMatchObject({ summary: "ls <U+202E>x", reason: "<U+200F>why" });
+    // Default-ignorable code points outside the format category draw as nothing too, variation selectors included.
+    expect(claudePermissionSummary("Bash", { command: "echo x\u{E0101}\u{E0102}\uFE0F\u034F\u2065y" }, "/repo")).toBe("echo x<U+E0101><U+E0102><U+FE0F><U+034F><U+2065>y");
     // An escaped text still keeps within the bound and marks the cut.
     expect(claudePermissionSummary("Bash", { command: "‮".repeat(3000) }, "/repo")).toHaveLength(8192);
     expect(claudePermissionSummary("Bash", { command: "‮".repeat(3000) }, "/repo").endsWith("…")).toBe(true);
@@ -214,6 +216,13 @@ describe("approval card content", () => {
     const options = codexCommand({ command: "curl https://example.invalid", proposedNetworkPolicyAmendments: [{ host: "example.invalid", action: "allow" }, { host: "ads.invalid", action: "deny" }] })?.options ?? [];
     expect(options.find(o => o.id === "network-0")).toEqual({ id: "network-0", label: "Allow example.invalid", kind: "allowAlways", detail: "Adds a rule that allows network access to “example.invalid” without asking." });
     expect(options.find(o => o.id === "network-1")).toEqual({ id: "network-1", label: "Deny ads.invalid", kind: "deny", detail: "Adds a rule that blocks network access to “ads.invalid”." });
+  });
+  it("keeps an agent's value inside Doan's quotes in a saving choice's sentence", () => {
+    const options = codexCommand({ command: "x", proposedExecpolicyAmendment: ["a”b"], proposedNetworkPolicyAmendments: [{ host: "h”.“x", action: "allow" }] })?.options ?? [];
+    expect(options.find(o => o.id === "execpolicy")?.detail).toBe("Adds a rule that runs commands starting with “a<U+201D>b” without asking.");
+    expect(options.find(o => o.id === "network-0")?.detail).toBe("Adds a rule that allows network access to “h<U+201D>.<U+201C>x” without asking.");
+    const file = codexPermission({ id: 6, method: "item/fileChange/requestApproval", params: { threadId: "s", turnId: "t", itemId: "f", grantRoot: "/a”b" } })?.event.options ?? [];
+    expect(file.find(o => o.id === "acceptForSession")?.detail).toBe("Codex also asks to allow writes anywhere under “/a<U+201D>b” for the rest of this session.");
   });
   it("names the folder a Codex file approval's session choice also asks for", () => {
     const ask = (params: Record<string, unknown>) => codexPermission({ id: 6, method: "item/fileChange/requestApproval", params: { threadId: "s", turnId: "t", itemId: "f", ...params } })?.event.options ?? [];
@@ -345,6 +354,7 @@ describe("readable activity and permission summaries", () => {
     // A connector missing from the labels (removed meanwhile) shows its slug.
     expect(claudePermissionSummary("mcp__doan-example-com__search", input, "/repo")).toBe("Run search on example-com");
     expect(claudePermissionSummary(`mcp__doan-notion__${"t".repeat(2000)}`, {}, "/repo")).toHaveLength(512);
+    expect(claudePermissionSummary(`mcp__doan-notion__${"t".repeat(2000)}`, {}, "/repo").endsWith("…")).toBe(true);
     expect(claudePermission("r1", "mcp__doan-notion__notion-fetch", input, [], "/repo").event.summary).toBe("Run notion-fetch on Notion");
     const tool = { type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: "t1", name: "mcp__doan-notion__notion-fetch", input }] } };
     // The activity is stored for every call, so the input's path stays out of it as well.

@@ -213,6 +213,8 @@ it("says an ACP Always allow choice is saved by the agent, which decides what it
   expect(always([{ optionId: "a", kind: "allow_once" }, { optionId: "w", name: "Always allow ls", kind: "allow_always" }]))
     .toEqual({ id: "always", label: "Always allow", kind: "allowAlways", detail: "The agent saves this choice as “Always allow ls” and decides what it covers." });
   expect(always([{ optionId: "w", kind: "allow_always" }])?.detail).toBe("The agent saves this choice and decides what it covers.");
+  expect(always([{ optionId: "w", name: "x”. It covers one call. “y", kind: "allow_always" }])?.detail)
+    .toBe("The agent saves this choice as “x<U+201D>. It covers one call. <U+201C>y” and decides what it covers.");
 });
 
 it("fails the connection on output that is not JSON-RPC and rejects every pending request", async () => {

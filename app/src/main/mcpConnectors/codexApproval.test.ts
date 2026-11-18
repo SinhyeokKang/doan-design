@@ -51,6 +51,8 @@ test("a message the tool name cannot be read from falls back to Run a tool on <c
 test("the summary stays within 512 characters", () => {
   const read = codexMcpApproval(withParams({ message: `Allow the doan-echo-poc MCP server to run tool "${"t".repeat(2000)}"?` }), LABELS);
   expect(read?.kind === "permission" && read.permission.event.summary.length).toBe(512);
+  // A cut summary says so.
+  expect(read?.kind === "permission" && read.permission.event.summary.endsWith("…")).toBe(true);
 });
 
 test("a string id keeps its type in the request id and the response", () => {

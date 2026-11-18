@@ -6,7 +6,7 @@ import { connectorLabels, serverLabel } from "../mcpConnectors/presets";
 import { codexMcpApproval } from "../mcpConnectors/codexApproval";
 import { CONNECTOR_NAME_PATTERN } from "../mcpConnectors/names";
 import type { BoundaryKind } from "./commandRecords";
-import { visibleText } from "./visibleText";
+import { clip, quoted, visibleText } from "./cardText";
 import { QUESTION_LIMITS, type Question, type QuestionAnswer, type StoredAnswer } from "./question";
 import type { EventPayload, FailureCode, FastUnused, FastUnusedReason, PendingPermission, PermissionChoice, TransportResult, TransportState, TurnStage } from "./types";
 
@@ -147,11 +147,9 @@ function text(value: unknown): string { return typeof value === "string" ? value
 export const GENERIC_SUMMARY = { edit: "Editing files", read: "Reading files", command: "Running a command", other: "Using a tool" } as const;
 // A permission request leads with what will run (ARCHITECTURE §7: the approval card shows the command), so it keeps far
 // more of it than other one-line summaries; the agent's own words about it (reason) stay short. A cut text ends in "…",
-// so the person sees that more would run than the card shows. Invisible characters are escaped before the cut
-// (visibleText), so the escapes count toward the bound.
+// so the person sees that more would run than the card shows (clip).
 export const PERMISSION_SUMMARY_MAX = 8192;
 const PERMISSION_REASON_MAX = 512;
-export function clip(value: string, max: number): string { const shown = visibleText(value); return shown.length > max ? `${shown.slice(0, max - 1)}…` : shown; }
 // The agent's description of a request, unless it only repeats what the card already shows.
 export function permissionReason(reason: string, summary: string): { reason?: string } {
   const trimmed = reason.trim();
@@ -277,7 +275,7 @@ const DOAN_MCP_TOOL = new RegExp(`^mcp__(${CONNECTOR_NAME_PATTERN})__(.+)$`, "s"
 const PRESET_LABELS = connectorLabels([]);
 function doanToolSummary(tool: string, labels: Readonly<Record<string, string>>): string | null {
   const mcp = tool.match(DOAN_MCP_TOOL);
-  return mcp ? visibleText(`Run ${mcp[2]} on ${serverLabel(mcp[1]!, { ...PRESET_LABELS, ...labels })}`).slice(0, 512) : null;
+  return mcp ? clip(`Run ${mcp[2]} on ${serverLabel(mcp[1]!, { ...PRESET_LABELS, ...labels })}`, 512) : null;
 }
 // Another MCP server's tool, named by its server as Claude Code names it (mcp__<server>__<tool>).
 const MCP_TOOL = /^mcp__(.+?)__(.+)$/s;
@@ -662,19 +660,19 @@ export function codexPermission(raw: unknown, fileSummaries: Readonly<Record<str
   const choices = [
     choice("accept", "Allow", "allow", response("accept")),
     choice("decline", "Deny", "deny", response("decline")),
-    grantRoot ? { ...session, option: { ...session.option, ...savedDetail(`Codex also asks to allow writes anywhere under “${grantRoot}” for the rest of this session.`) } } : session,
+    grantRoot ? { ...session, option: { ...session.option, ...savedDetail(`Codex also asks to allow writes anywhere under ${quoted(grantRoot)} for the rest of this session.`) } } : session,
   ];
   if (raw.method === "item/commandExecution/requestApproval") {
     if (Array.isArray(params.proposedExecpolicyAmendment) && params.proposedExecpolicyAmendment.length && params.proposedExecpolicyAmendment.every(p => typeof p === "string")) {
       const rule = choice("execpolicy", "Allow with proposed command rule", "allowAlways", response({ acceptWithExecpolicyAmendment: { execpolicy_amendment: params.proposedExecpolicyAmendment } }));
-      choices.push({ ...rule, option: { ...rule.option, ...savedDetail(`Adds a rule that runs commands starting with “${commandPrefix(params.proposedExecpolicyAmendment)}” without asking.`) } });
+      choices.push({ ...rule, option: { ...rule.option, ...savedDetail(`Adds a rule that runs commands starting with ${quoted(commandPrefix(params.proposedExecpolicyAmendment))} without asking.`) } });
     }
     if (Array.isArray(params.proposedNetworkPolicyAmendments)) for (const [index, amendment] of params.proposedNetworkPolicyAmendments.entries()) {
       if (object(amendment) && typeof amendment.host === "string" && (amendment.action === "allow" || amendment.action === "deny")) {
         const allow = amendment.action === "allow";
         const rule = choice(`network-${index}`, visibleText(`${allow ? "Allow" : "Deny"} ${amendment.host}`), allow ? "allowAlways" : "deny", response({ applyNetworkPolicyAmendment: { network_policy_amendment: amendment } }));
         // Either answer saves a rule for later requests, so both say so.
-        choices.push({ ...rule, option: { ...rule.option, ...savedDetail(allow ? `Adds a rule that allows network access to “${amendment.host}” without asking.` : `Adds a rule that blocks network access to “${amendment.host}”.`) } });
+        choices.push({ ...rule, option: { ...rule.option, ...savedDetail(allow ? `Adds a rule that allows network access to ${quoted(amendment.host)} without asking.` : `Adds a rule that blocks network access to ${quoted(amendment.host)}.`) } });
       }
     }
   }

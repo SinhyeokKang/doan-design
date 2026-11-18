@@ -2,7 +2,8 @@ import { posix } from "node:path";
 import { canvasDir } from "../../formats/canvasPath";
 import { object } from "./sessions";
 import { QUESTION_LIMITS } from "./question";
-import { clip, contextBefore, contextValue, displayPath, GENERAL_STAGE, GENERIC_SUMMARY, PERMISSION_SUMMARY_MAX, permissionReason, transportError } from "./transport";
+import { contextBefore, contextValue, displayPath, GENERAL_STAGE, GENERIC_SUMMARY, PERMISSION_SUMMARY_MAX, permissionReason, transportError } from "./transport";
+import { clip, quoted } from "./cardText";
 import type { EventPayload, PermissionOption, TransportResult, TransportState, TurnStage } from "./types";
 
 // Agent Client Protocol (https://agentclientprotocol.com) over newline-delimited JSON-RPC 2.0 on stdio, as Cursor
@@ -93,7 +94,7 @@ export function acpPermission(params: Record<string, unknown>, requestId: string
   // The agent keeps this choice itself, and the protocol does not say what it covers, so the card says only that.
   if (always) {
     const name = str(options.find(o => o.optionId === always)?.name).trim();
-    const detail = name ? `The agent saves this choice as “${name}” and decides what it covers.` : "The agent saves this choice and decides what it covers.";
+    const detail = name ? `The agent saves this choice as ${quoted(name)} and decides what it covers.` : "The agent saves this choice and decides what it covers.";
     choices.push({ optionId: always, option: { id: "always", label: "Always allow", kind: "allowAlways", detail: clip(detail, PERMISSION_SUMMARY_MAX) } });
   }
   if (deny) choices.push({ optionId: deny, option: { id: "deny", label: "Deny", kind: "deny" } });
