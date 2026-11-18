@@ -1114,7 +1114,7 @@ describe("tool wiring", () => {
       addEventListener() {}, fonts: { addEventListener() {} },
     };
     const context = {
-      document, parent, CSSStyleSheet: FakeSheet,
+      document, parent, CSSStyleSheet: FakeSheet, history: { pushState() {}, replaceState() {} },
       addEventListener: (type: string, listener: (event: unknown) => void) => { if (!listeners.has(type)) listeners.set(type, listener); },
     };
     runInNewContext(`(function () {\n${lib}\n${measure}\n})();`, context);
