@@ -84,8 +84,12 @@ const noop = () => {};
 const user: ThreadItem = { kind: "user", key: "u1", seq: 1, parts: [{ text: "Make the checkout button full width" }], anchors: [], preset: null, attachments: [] };
 const running: ThreadItem = { kind: "activity", key: "a3", running: true, head: "Running a command", steps: [{ key: "s3", kind: "command", verb: "Running a command", path: null }] };
 const AT = "2026-11-06T10:00:00.000Z";
+// The window's native visibility (main's window-visible event), which document.hidden does not follow.
+let nativeListeners: Set<(visible: boolean) => void>;
+const visibility = { onWindowVisible: (listener: (visible: boolean) => void) => { nativeListeners.add(listener); return () => { nativeListeners.delete(listener); }; } };
+const nativeVisible = (visible: boolean) => { for (const listener of [...nativeListeners]) listener(visible); };
 const props = (items: readonly ThreadItem[], turn: ThreadTurn | null, patch: Partial<ConversationThreadProps> = {}): ConversationThreadProps => ({
-  items, conversationId: "c1", provider: "claude", project: "acme", liveAfter: 0, canvasListed: () => true, turn,
+  items, conversationId: "c1", provider: "claude", project: "acme", liveAfter: 0, canvasListed: () => true, turn, visibility,
   onAnswer: noop, onStop: noop, onEditAndResend: noop, onSignIn: noop, onRetry: noop, onOpenCanvas: noop, onOpenLink: noop, onCopy: async () => true, ...patch,
 });
 const at = (status: TurnStatus, turnId = "t1"): ThreadTurn => ({ turnId, status, at: AT });
@@ -104,6 +108,7 @@ let listeners: Map<string, Set<() => void>>;
 const fire = (type: string) => { for (const listener of listeners.get(type) ?? []) listener(); };
 beforeEach(() => {
   reset();
+  nativeListeners = new Set();
   vi.useFakeTimers({ now: Date.parse(AT) });
   listeners = new Map();
   vi.stubGlobal("document", {
@@ -297,7 +302,7 @@ describe("settle and the screen reader's status", () => {
 
 describe("the indicator's time", () => {
   const time = (tree: ReactNode) => textOf(all(tree).find(element => element.props.className === "ti-time")?.props.children as ReactNode);
-  const run = (startedAt = AT) => render(() => TurnIndicator({ text: "Claude Code is working", at: startedAt, provider: "claude" }));
+  const run = (startedAt = AT) => render(() => TurnIndicator({ text: "Claude Code is working", at: startedAt, provider: "claude", visibility }));
 
   test("counts each second from the turn's start, redrawing only the indicator", () => {
     expect(time(run())).toBe("0s");
@@ -324,12 +329,43 @@ describe("the indicator's time", () => {
     expect(vi.getTimerCount()).toBe(1);
   });
 
-  test("clears its timer and listener when it goes: the turn's end, another conversation, a closed panel", () => {
+  // POSTMORTEM 2026-10-25: a closed window or a hidden app keeps document.hidden false.
+  test("stops while the window is closed or the app hidden and counts again from the start once it shows", () => {
     run();
     expect(vi.getTimerCount()).toBe(1);
+    nativeVisible(false);
+    expect(vi.getTimerCount()).toBe(0);
+    vi.advanceTimersByTime(90_000);
+    expect(vi.getTimerCount()).toBe(0);
+    nativeVisible(true);
+    expect(hooks.dirty).toBe(true);
+    expect(time(run())).toBe("1m 30s");
+    expect(vi.getTimerCount()).toBe(1);
+  });
+
+  test("a document shown again while the window stays closed does not start the timer", () => {
+    run();
+    nativeVisible(false);
+    (document as { hidden: boolean }).hidden = true;
+    fire("visibilitychange");
+    (document as { hidden: boolean }).hidden = false;
+    fire("visibilitychange");
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  test("the thread hands its window's visibility to the indicator", () => {
+    const tree = render(body(props([user], at({ kind: "thinking" }))));
+    expect(indicator(tree)?.props.visibility).toBe(visibility);
+  });
+
+  test("clears its timer and listeners when it goes: the turn's end, another conversation, a closed panel", () => {
+    run();
+    expect(vi.getTimerCount()).toBe(1);
+    expect(nativeListeners.size).toBe(1);
     unmount();
     expect(vi.getTimerCount()).toBe(0);
     expect(listeners.get("visibilitychange")?.size ?? 0).toBe(0);
+    expect(nativeListeners.size).toBe(0);
   });
 
   test("reads an unreadable or future start as 0s", () => {
