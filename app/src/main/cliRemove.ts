@@ -31,7 +31,8 @@ const RUNNING = "A conversation is running in this project in Doan.";
 const refuse = (code: Exclude<RemoveErrorCode, "bad_request" | "bad_token">, message: string): CliRemoveDecision => ({ kind: "refuse", response: { v: 7, ok: false, error: { code, message } } });
 
 // The CLI has no confirmation, so any running turn in the group refuses, not only the project conversations the
-// menu's dialog counts; an app conversation's agent therefore cannot remove its own project.
+// menu's dialog counts. An app conversation's agent never gets here: its CLI refuses `doan remove` before dialling
+// (`conversation_refused`), and its conversation credential is answered `bad_token` (ARCHITECTURE §4 'App-socket credentials').
 export function cliRemoveDecision({ root, entries, ready, firstRun, menu, liveTurns, pendingRoots }: CliRemoveInput): CliRemoveDecision {
   const card = groupProjects(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])))
     .find(candidate => candidate.rows.some(row => row.path === root));

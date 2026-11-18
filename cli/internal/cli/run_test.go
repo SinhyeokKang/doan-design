@@ -226,7 +226,7 @@ func TestHelpUsageAndHumanError(t *testing.T) {
 }
 
 // Codex prefix rules compare a rule's tokens with argv in order (ARCHITECTURE §7 'Agent setup'), so the command must be
-// the first argument: a flag or `--` before it is refused before any command runs, and a lone help flag still prints usage.
+// the first argument: a flag or `--` before it is refused before any command runs, and a help flag still prints usage.
 func TestFlagOrDoubleDashBeforeTheCommandIsRefused(t *testing.T) {
 	root := initialized(t)
 	app := startRemoveApp(t)
@@ -236,7 +236,6 @@ func TestFlagOrDoubleDashBeforeTheCommandIsRefused(t *testing.T) {
 		{"--", "remove"},
 		{"--force", "config", "--add-serve", "assets"},
 		{"-o", "x", "export"},
-		{"--help", "ls"},
 		{"-json", "ls"},
 		{"-", "ls"},
 	} {
@@ -258,7 +257,7 @@ func TestFlagOrDoubleDashBeforeTheCommandIsRefused(t *testing.T) {
 	if _, e := os.Stat(filepath.Join(root, ".doan", "canvases", "a.html")); e == nil {
 		t.Fatal("a command ran")
 	}
-	for _, args := range [][]string{{"--help"}, {"-h"}} {
+	for _, args := range [][]string{{"--help"}, {"-h"}, {"--help", "ls"}} {
 		if result(t, root, 0, args...)["usage"] == nil {
 			t.Fatal(args)
 		}
