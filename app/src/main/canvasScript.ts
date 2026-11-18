@@ -229,7 +229,8 @@ export interface LabelSource {
 // The selection path's label rule (ancestorPath), with the frame's title first and a short quote of the element's own
 // text after its tag when it has no data-doan-id. The quote ends at a word when it is cut, as the draft shows it.
 export function nodeLabel(source: LabelSource): string {
-  if (source.frame !== undefined) return source.frame.title || source.frame.id || source.tag;
+  // Trimmed as the canvas tree trims it (canvasTree.ts frameLabel), so both name a frame alike.
+  if (source.frame !== undefined) return source.frame.title?.trim() || source.frame.id || source.tag;
   if (source.doanId) return source.doanId;
   const folded = source.text.replace(/\s+/g, " ").trim();
   if (folded === "") return source.tag;
@@ -256,6 +257,8 @@ export function elementTree(depths: readonly number[], selected: number, max: nu
     const at = depths[i] ?? 0;
     if (at < depth) { path.unshift(i); depth = at; }
   }
+  // A path deeper than `max` keeps its top and loses the selection: the depths must start at the frame, and describe
+  // already anchors so deep an element at an ancestor whose selector fits, so it hardly ever happens.
   for (const i of path) add(i);
   for (let i = selected + 1; i < depths.length && (depths[i] ?? 0) > own; i++) if (depths[i] === own + 1) add(i);
   const parent = path.at(-2);
@@ -856,7 +859,19 @@ export function canvasScript(lib: CanvasLib): void {
         const [el, depth] = item;
         els.push(el);
         depths.push(depth);
-        const children = Array.from(el.children).filter(child => !skippedTags.has(child.localName));
+        const children: Element[] = [];
+        // An element that renders no box has nothing to point at on the board, so it is left out, unless the
+        // selection is it or inside it. A display:contents element draws no box of its own but its children may, so
+        // they take its place at its depth.
+        const gather = (parent: Element) => {
+          for (const child of parent.children) {
+            if (skippedTags.has(child.localName)) continue;
+            if (child.getClientRects().length > 0) children.push(child);
+            else if (getComputedStyle(child).display === "contents") gather(child);
+            else if (now !== null && child.contains(now)) children.push(child);
+          }
+        };
+        gather(el);
         for (let i = children.length - 1; i >= 0; i--) {
           const child = children[i];
           if (child !== undefined) stack.push([child, depth + 1]);

@@ -3157,6 +3157,11 @@ describe("nodeLabel", () => {
     expect(nodeLabel({ tag: "section", frame: { id: "" }, text: "" })).toBe("section");
   });
 
+  test("trims the frame title as the canvas tree does, so a blank title falls back to the id", () => {
+    expect(nodeLabel({ tag: "section", frame: { id: "pay", title: "  Payment \n" }, text: "" })).toBe("Payment");
+    expect(nodeLabel({ tag: "section", frame: { id: "pay", title: "   " }, text: "" })).toBe("pay");
+  });
+
   test("an element is its data-doan-id, else its tag with its own text quoted", () => {
     expect(nodeLabel({ tag: "button", doanId: "pay-button", text: "Pay" })).toBe("pay-button");
     expect(nodeLabel({ tag: "label", text: "  Card\n number " })).toBe("label “Card number”");
@@ -3324,6 +3329,43 @@ describe("canvasScript element-tree in a real DOM", () => {
     expect(selects.map(message => message.seq)).toEqual([5, 6]);
     expect(messages.filter(message => (message as { type?: unknown }).type === "hover")).toEqual([]);
     expect((messages.filter(message => (message as { type?: unknown }).type === "layout").at(-1) as { seq: number }).seq).toBe(6);
+  });
+
+  test("leaves out elements that render no box, keeps a display:contents element's children at its depth", async () => {
+    const { frame, document } = await open(`
+      <section data-doan-frame="f" data-doan-title="Form">
+        <div style="display:none"><p>Hidden</p></div>
+        <input type="hidden" data-doan-id="token">
+        <div style="display:contents"><label>Inside contents</label><span data-doan-id="pick">Pick</span></div>
+        <br>
+        <p>Shown</p>
+      </section>`);
+    await select(frame, 1, "pick");
+    await ask(frame, 1, document);
+    expect(brief(onlyTree(await posted(frame)))).toEqual([
+      [0, "Form", "frame"],
+      [1, "label “Inside contents”", "text"],
+      [1, "pick", "text", "selected"],
+      // A <br> has a line box, so it renders one.
+      [1, "br", "box"],
+      [1, "p “Shown”", "text"],
+    ]);
+  });
+
+  test("never drops the selection or the frame: a selection without a box keeps its path", async () => {
+    const { frame, document } = await open(`
+      <section data-doan-frame="f" data-doan-title="Form" style="display:contents">
+        <div style="display:none"><p data-doan-id="gone">Hidden</p><p>Other</p></div>
+        <p>Shown</p>
+      </section>`);
+    await select(frame, 1, "gone");
+    await ask(frame, 1, document);
+    expect(brief(onlyTree(await posted(frame)))).toEqual([
+      [0, "Form", "frame"],
+      [1, "div", "box"],
+      [2, "gone", "text", "selected"],
+      [1, "p “Shown”", "text"],
+    ]);
   });
 
   test("ignores a request for another document, so an answer never outlives a replaced document", async () => {
