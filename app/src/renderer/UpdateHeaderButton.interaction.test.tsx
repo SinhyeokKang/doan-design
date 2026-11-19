@@ -55,7 +55,7 @@ beforeEach(() => {
     installUpdate: vi.fn(async () => ({ kind: "allowed" })),
   };
   vi.stubGlobal("window", { doan });
-  vi.stubGlobal("document", { activeElement: null, body: {} });
+  vi.stubGlobal("document", { activeElement: null, body: {}, hasFocus: () => true });
 });
 afterEach(() => { vi.unstubAllGlobals(); });
 
@@ -246,16 +246,39 @@ test("only focus leaving the popover closes it; a focus move elsewhere keeps a q
 test("closing hands focus back to the button only when it would land on the body", () => {
   render(); push(snap(READY)); const view = render();
   const body = {};
-  vi.stubGlobal("document", { activeElement: body, body });
+  vi.stubGlobal("document", { activeElement: body, body, hasFocus: () => true });
   node.focus.mockClear();
   const event = { preventDefault: vi.fn() };
   view.onCloseAutoFocus(event as unknown as Event);
   expect(event.preventDefault).toHaveBeenCalled();
   expect(node.focus).toHaveBeenCalledOnce();
-  vi.stubGlobal("document", { activeElement: { tagName: "TEXTAREA" }, body });
+  vi.stubGlobal("document", { activeElement: { tagName: "TEXTAREA" }, body, hasFocus: () => true });
   node.focus.mockClear();
   view.onCloseAutoFocus({ preventDefault: vi.fn() } as unknown as Event);
   expect(node.focus).not.toHaveBeenCalled();
+});
+
+// POSTMORTEM 2026-11-17: a push that closes the popover can land with the window in the background; activation would
+// otherwise put focus back on the popover that went, or on the first focusable control.
+test("a popover a push closes with the window in the background focuses the button again when the window activates", () => {
+  const win = Object.assign(new EventTarget(), { doan });
+  vi.stubGlobal("window", win);
+  render(); push(snap(READY, GATE_BLOCKED)); render();
+  menuPopover(); expect(render().open).toBe(true);
+  const body = {};
+  vi.stubGlobal("document", { activeElement: body, body, hasFocus: () => false, querySelectorAll: () => [] });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    push(snap({ kind: "restarting", version: "0.1.1" }));
+    const view = render();
+    expect(view.open).toBe(false);
+    node.focus.mockClear();
+    view.onCloseAutoFocus({ preventDefault: vi.fn() } as unknown as Event);
+    expect(node.focus).toHaveBeenCalledOnce();
+    win.dispatchEvent(new Event("focus"));
+    vi.runAllTimers();
+    expect(node.focus).toHaveBeenCalledTimes(3);
+  } finally { vi.useRealTimers(); }
 });
 
 // The popover follows each push while open instead of keeping the words it opened with (draft frame popover-unblocked).

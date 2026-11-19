@@ -33,6 +33,7 @@ import { CANVAS_RETRY_IDLE, canvasFailedShown, canvasRetryPressed, canvasRetrySe
 import { retryButton } from "./ListRetryButton";
 import { announcedAgain } from "./listRetry";
 import { useVisibleClock } from "./visibleClock";
+import { useActivationFocus } from "./activationFocus";
 import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, routeCanvasPublish, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
 import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool, type PlayTool } from "./CanvasTools";
@@ -539,11 +540,14 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   function focusResolved() {
     if (live.current.modal || document.querySelector("dialog[open]")) return;
     const to = resolvedFocus(bodyRef.current === "canvas" ? "canvas" : "overview");
-    const target = document.querySelector<HTMLElement>(to === "composer" ? ".workspace .ov-main .composer-input" : ".workspace .doan-canvas-panel .area");
-    if (target?.isConnected && !target.closest("[inert]")) target.focus();
-    else focusCurrent();
+    handFocus.current(() => {
+      const target = document.querySelector<HTMLElement>(to === "composer" ? ".workspace .ov-main .composer-input" : ".workspace .doan-canvas-panel .area");
+      if (target?.isConnected && !target.closest("[inert]")) target.focus();
+      else focusCurrentNow();
+    });
   }
-  function focusCurrent(previous: HTMLElement | null = null) {
+  function focusCurrent(previous: HTMLElement | null = null) { handFocus.current(() => focusCurrentNow(previous)); }
+  function focusCurrentNow(previous: HTMLElement | null = null) {
     if (document.querySelector("dialog[open]")) return;
     // The Project Settings page is drawn in the Settings page's shell.
     const settingsShell = currentScreen.current === "settings" || currentScreen.current === "projectSettings";
@@ -637,6 +641,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   }, []);
   // After the effect above, which makes the controller: the inspector's element menu subscribes before it exists.
   useEffect(() => controller.current?.onElementTree(message => treeListener.current?.(message)), []);
+  // App's own focus hand-offs also run with the window in the background (an agent's CLI call closes a dialog or ends
+  // first run, a toast expires), so each is made again on activation (POSTMORTEM 2026-11-17). The hand is stable; held
+  // in a ref, it keeps App's focus functions out of every effect's dependencies.
+  const activationFocus = useActivationFocus();
+  const handFocus = useRef(activationFocus);
   const inspectCall = useCallback((request: InspectRequest) => window.doan.inspect(request), []);
   const elementTree = useMemo<ElementTreeSource>(() => ({
     request: () => controller.current?.requestElementTree() ?? false,
@@ -660,7 +669,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     return () => { current = false; };
   }, []);
   useEffect(() => {
-    if (wizard === null && focusComposer.current) { focusComposer.current = false; document.querySelector<HTMLElement>(".home-shell .composer-input")?.focus(); return; }
+    if (wizard === null && focusComposer.current) { focusComposer.current = false; handFocus.current(() => document.querySelector<HTMLElement>(".home-shell .composer-input")?.focus()); return; }
     if (wizard !== null || !restoreFocus.current) return;
     restoreFocus.current = false;
     const previous = beforeWizard.current;
