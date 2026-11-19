@@ -19,6 +19,7 @@
 - V 2차(⚪2~4 테스트 보강) `39f873a4e`·`c2dba5462`·`757fa623f`: conductor가 diff를 확인했다. 게이트 6개 PASS, Vitest 14,814.
 - A-rev ⚪5(Retry를 누른 뒤 복구 구역과 busy Retry를 메뉴에 남길지): conductor 재량 — 지금 규칙(읽기가 시작되면 일반 행으로 돌아간다)을 유지한다. spec 5가 문제 행 처리를 "지금 규칙"으로 정했고, 이전 메뉴와 같은 동작이라 새 회귀가 아니다. ⚪8(캔버스 이름 활성 여부가 `loadedRoot`에 묶임)은 실패 경로가 없어 그대로 둔다.
 - DS 질문(`canvas-header-unavailable` 프로젝트 문제 타일의 호버 툴팁): 실제 앱에서는 문제 오버레이가 헤더를 덮고 패널이 inert라 도달할 수 없다. conductor 재량 — 오버레이와 복구 경로는 그대로 두고(spec 10, 지금 규칙) `docs/design/canvas.md`에 문서화된 편차로 남긴다. 버튼의 `aria-disabled`, 사유 문구, CDP 접근 설명은 측정한다. 목록에 없는 페이지 경우는 덮이지 않으므로 툴팁까지 실제로 잰다.
+- V 3차(보류 항목, dispatch `ctx_b2e3305b11be`): 뷰어 CSS를 `styles.css`의 최종 캔버스 헤더 규칙에 맞추고 `exportViewer.test.ts`로 선언을 고정한다. V 브랜치는 통합 브랜치로 맞춘 뒤 시작한다.
 - tasks 7(`/runtime-test`), 8(최종 `/verify`), 9(승격)는 conductor가 한다. 로그인은 필요 없다(체인 '로그인').
 
 ## Codex 사용
@@ -33,7 +34,7 @@
 | V | tasks 5a | `cli/**`(export 뷰어 `shell.*`, `assemble.go`, 이름·썸네일 Go 함수와 테스트, 고정 출력), `app/src/main/exportViewer.test.ts`, `schema/fixtures/` 새 fixture, fixture를 읽는 새 TS 테스트 파일 | 없음(최종 CSS 맞춤은 A·DS 뒤 보류 항목) | Codex Astra medium — 명세가 구체적이고 Go·정적 HTML/CSS 범위다 | `go test ./...`, `go vet ./...`, `npm --prefix app test`, `node eval/run.ts --self-test --scenarios X1,X2` | 1차 완료 `f4601f37f`·`05a0fe85d` (dispatch `ctx_63ee87aea3bb`, 워크트리 `hbw-v`; 게이트 전부 PASS, X1·X2 self-test PASS, Vitest 510 files / 14,810) |
 | A-rev | A 리뷰 | 없음(보고만) | A | Claude Opus high — 여러 컴포넌트와 이동 상태에 걸친 변경 | `/code-review` 보고 | 1차 🔴0 🟡4 ⚪4 (`.scratch/review-A.md`) → A 고침 1차 `d75bf9544`..`88b395b2e`(🟡1~4, ⚪6·⚪7; conductor가 diff 확인, Vitest 14,808 PASS) 통합 `7dd57ed48`까지 |
 | V-rev | V 리뷰 | 없음(보고만) | V | Claude Opus medium — 범위가 좁고 고정 테스트가 많다 | `/code-review` 보고 | 🔴0 🟡0 ⚪5 (`.scratch/review-V.md`). ⚪2~4는 V 2차(dispatch `ctx_1a24c13a28ad`), ⚪1·⚪5는 승격 문구 |
-| DS | tasks 6 | A와 같음(`styles.css`·컴포넌트 고침), `docs/design/shell.md`·`project.md`·`canvas.md` | A, A-rev | Codex Astra medium(A 워커의 후속 Task라 A의 high로 돈다) — 측정 절차가 정해져 있고 고침은 CSS 위주다 | 세 문서 측정값, 960×600 겹침 없음, test | 진행 중 (dispatch `ctx_54cd99455e5c`). 스킬의 리뷰 단계는 conductor가 Claude 리뷰로 대신한다 |
+| DS | tasks 6 | A와 같음(`styles.css`·컴포넌트 고침), `docs/design/shell.md`·`project.md`·`canvas.md` | A, A-rev | Codex Astra medium(A 워커의 후속 Task라 A의 high로 돈다) — 측정 절차가 정해져 있고 고침은 CSS 위주다 | 세 문서 측정값, 960×600 겹침 없음, test | 1차 완료 `4f4955bb0`(비활성 사유 색·접근 연결) + 문서 3커밋, 통합 `38e272e7d`까지. 8개 프레임 22개 타일 실측, 960×600·720/600 경계 겹침 없음, 앱 실행 1회, Vitest 14,808·typecheck·lint·build PASS. 스킬의 리뷰 단계는 A-rev 2차(Claude, dispatch `ctx_10b75c75dc94`)가 맡는다 |
 | conductor | tasks 7, 8, 9 | orch.md, 승격 문서 | 전부 | — | `/runtime-test`, verify, `grep` | 대기 |
 
 ## Astra 신버전 결과
