@@ -15,6 +15,10 @@
 - 배치 순서: conductor 재량 — 순수 함수(A)를 먼저 통합한 뒤 입력창(B)과 전송·버블(C)을 병렬로 돌린다. `styles.css`는 B가 가진다. C의 버블 CSS는 B 통합 뒤 C에 새 Task로 보낸다(보류 항목). 근거: 파일 겹침 규칙(`/orchestrate` §0 4).
 - A는 리뷰 전에 통합했다: conductor 재량 — 게이트가 통과했고 B·C가 A를 기다리지 않게 하려고. A-rev 결과의 고칠 점은 A 워커가 새 커밋으로 고치고, 최종 리뷰·verify 전에 통합한다.
 - Codex 모델: `gpt-6.2-astra` — `$CODEX_HOME/models_cache.json`의 가장 새 Astra.
+- A-rev(🔴 0, 🟡 5, 🟢 1, 보고서 `.scratch/review-A.md`): 🟡1~4와 🟢는 A 워커가 고친다(고침 1차).
+  - 🟡5(캐럿이 기호 앞일 때 Shift+Enter는 평소 줄바꿈): 그대로 둔다. conductor 재량 — 기호 앞 위치는 텍스트 모델대로 둔다는 시작 점검 2와 같은 원칙이고, 아래 항목은 그대로 남는다.
+  - Tab·Shift+Tab이 자손을 함께 옮기고 번호를 같은 깊이 앞 항목 + 1(없으면 1)로 다시 쓰는 동작: 유지한다. conductor 재량 — 새 하위 목록은 1부터라는 spec 2와 맞고, 내어쓴 뒤에도 번호가 이어진다.
+  - 탭 문자 폭: 다음 4열 경계까지로 센다(CommonMark §2.2). 승격 때 ARCHITECTURE에 그렇게 적는다.
 - `/runtime-test`(tasks 9)와 최종 `/verify`(tasks 10), 승격(tasks 11)은 conductor가 한다. IME 확인에 사용자가 필요하고, 승격은 문서 커밋이다.
 
 ## Codex 사용
@@ -27,7 +31,7 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | A | tasks 3, 4 | 새 renderer 모듈(목록 순수 함수)과 테스트, `skillWords.ts`(+test), `messageText.ts`의 `plainTitle`(+test) | 없음 | Opus high — CommonMark 깊이 규칙과 칩이 섞인 segment 위 캐럿 편집이 B·C 전체의 기반이다 | `npm --prefix app test`, typecheck | 통합 `4cab90fa4`·`02617b8ae` (워커 `cm-a`, 507 files / 14,722 tests PASS) |
-| A-rev | A 리뷰 | 없음(보고만) | A | Codex Astra medium — 교차 계열 독립 리뷰, 순수 함수라 범위가 좁다 | `/code-review` 보고 | 진행 (`gpt-6.2-astra` medium, `cm-a`에서) |
+| A-rev | A 리뷰 | 없음(보고만) | A | Codex Astra medium — 교차 계열 독립 리뷰, 순수 함수라 범위가 좁다 | `/code-review` 보고 | 1차 완료(🔴0 🟡5 🟢1) → A 고침 1차 진행 |
 | B | tasks 5 | `chipField.ts`(+test), `ComposerParts.tsx`(+test), `styles.css`, 네 composer 공유 고정 테스트 | A | Opus high — contenteditable 캐럿·undo·IME 조합, PoC 5가지 처리 | test, typecheck, lint | 진행 (`cm-b`) |
 | B-rev | B 리뷰 | 없음 | B | Codex Astra high — 여러 컴포넌트에 걸친 입력 처리, 실수하면 입력이 깨진다 | `/code-review` 보고 | 대기 |
 | C | tasks 6, 7 | `homeComposer.ts`(`composeRequest`), `messageText.ts`(`messageLine` 연결), `ConversationThread.tsx`(`UserMessage`)와 테스트, 큐·초안 복원 테스트(프로토타입 포함). 버블 CSS는 보류 항목 | A | Opus medium — 명세가 구체적이고 영향 범위가 B보다 좁다 | test, typecheck, lint | 진행 (`cm-c`) |
