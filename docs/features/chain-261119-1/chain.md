@@ -36,6 +36,7 @@
   - conductor는 링크 시작 때와 배치를 나눌 때 Codex의 남은 사용량을 확인한다. 배치 계획을 세우기 전에 반드시 확인하고, 남은 양이 있을 때만 Codex 워커를 띄운다. Codex 토큰은 2026-11-19 18:16 무렵 초기화될 예정이다(사용자 안내). 그 전이라 남은 양이 없으면 초기화 뒤 다시 확인한다.
   - 각 링크의 `orch.md`에 Codex를 쓴 배치와 이유를 적는다.
   - 모델과 effort는 `/orchestrate` §0 3의 공통 규칙을 따른다(Codex Astra·Sol, Claude 모두 effort 상한 `high`).
+- **링크 2 모델 배치(사용자 지시, Astra 신버전 시험)**: 링크 2(header-breadcrumb-worktree)는 conductor가 Claude Code이고, 구현 배치(수정 라운드 포함)는 모두 Codex `gpt-6.2-astra` 워커가 맡는다. 리뷰(독립 리뷰 워커와 conductor 리뷰)는 Claude가 맡는다. effort는 배치 난도에 따라 `medium` 또는 `high`로 정한다. Codex 남은 사용량 확인 규칙은 위와 같다. `orch.md`와 PR 본문에 Astra 신버전의 결과(라운드 수, 리뷰에서 나온 문제)를 적는다.
 
 ## 로그인
 
@@ -76,3 +77,4 @@
   4. inspector tasks 8의 생성 스크립트 명령을 conductor가 링크 브랜치에서 AGENTS.md 'Commands'에 더해도 된다.
   5. 로그인 프로필은 체인이 끝난 뒤에도 남긴다. 로그아웃하지 않고 지우지 않는다(chain skill 기본과 다름).
   - Codex: 사용자가 18:16 무렵 토큰 초기화를 알렸다. conductor는 배치 계획 전에 Codex 남은 사용량을 확인하고, 사용할 수 있을 때만 Codex 워커를 띄운다('상시 권한').
+  - 링크 2: 사용자가 Astra 신버전을 시험하려고 구현은 Codex `gpt-6.2-astra`, 리뷰는 Claude Code로 하자고 했다('상시 권한').
