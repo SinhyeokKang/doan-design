@@ -36,7 +36,7 @@
   - conductor는 링크 시작 때와 배치를 나눌 때 Codex의 남은 사용량을 확인한다. 배치 계획을 세우기 전에 반드시 확인하고, 남은 양이 있을 때만 Codex 워커를 띄운다. Codex 토큰은 2026-11-19 18:16 무렵 초기화될 예정이다(사용자 안내). 그 전이라 남은 양이 없으면 초기화 뒤 다시 확인한다.
   - 각 링크의 `orch.md`에 Codex를 쓴 배치와 이유를 적는다.
   - 모델과 effort는 `/orchestrate` §0 3의 공통 규칙을 따른다(Codex Astra·Sol, Claude 모두 effort 상한 `high`).
-- **링크 2 모델 배치(사용자 지시, Astra 신버전 시험)**: 링크 2(header-breadcrumb-worktree)는 conductor가 Claude Code이고, 구현 배치(수정 라운드 포함)는 모두 Codex `gpt-6.2-astra` 워커가 맡는다. 리뷰(독립 리뷰 워커와 conductor 리뷰)는 Claude가 맡는다. effort는 배치 난도에 따라 `medium` 또는 `high`로 정한다. Codex 남은 사용량 확인 규칙은 위와 같다. `orch.md`와 PR 본문에 Astra 신버전의 결과(라운드 수, 리뷰에서 나온 문제)를 적는다.
+- **링크 2·3 모델 배치(사용자 지시, Astra 신버전 시험)**: 링크 2(header-breadcrumb-worktree)와 링크 3(inspector-reach)은 conductor가 Claude Code이고, 구현 배치(수정 라운드 포함)는 모두 Codex `gpt-6.2-astra` 워커가 맡는다. 리뷰(독립 리뷰 워커와 conductor 리뷰)는 Claude가 맡는다. effort는 배치 난도에 따라 `medium` 또는 `high`로 정한다. Codex 남은 사용량 확인 규칙은 위와 같다. `orch.md`와 PR 본문에 Astra 신버전의 결과(라운드 수, 리뷰에서 나온 문제)를 적는다.
 
 ## 로그인
 
@@ -78,6 +78,7 @@
   5. 로그인 프로필은 체인이 끝난 뒤에도 남긴다. 로그아웃하지 않고 지우지 않는다(chain skill 기본과 다름).
   - Codex: 사용자가 18:16 무렵 토큰 초기화를 알렸다. conductor는 배치 계획 전에 Codex 남은 사용량을 확인하고, 사용할 수 있을 때만 Codex 워커를 띄운다('상시 권한').
   - 링크 2: 사용자가 Astra 신버전을 시험하려고 구현은 Codex `gpt-6.2-astra`, 리뷰는 Claude Code로 하자고 했다('상시 권한').
+  - 링크 3: 사용자가 링크 3도 링크 2와 같은 모델 배치로 하자고 했다('상시 권한').
 - 2026-11-19 (리드, 링크 1 머지): PR #307을 `dc07740a4`로 머지하고 conductor 워크트리를 지웠다(브랜치 `feat/composer-markdown`은 남김). 다음 링크가 알아야 할 것:
   - `app/src/renderer/styles.css`에 전역 `.list-mark`·`.list-depth` 규칙과 `.conversation-thread .bubble-*` 목록 규칙이 생겼다. design check가 커스텀 속성을 `:root`에만 허용해서 `attr(... type(<number>))`를 쓴다.
   - 사용자 결정: 목록 한 단계 20px(`--space-5`), 모든 기호를 한 단계 안쪽에 둔다, 기호 열 12px(`--space-3`), 버블 번호는 오른쪽 정렬.
