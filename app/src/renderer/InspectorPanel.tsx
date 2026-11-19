@@ -3,6 +3,7 @@ import { Popover } from "radix-ui";
 import { ChevronDown, Columns3, Frame, Grid2x2, PanelRightClose, RectangleHorizontal, Rows3, Square, TextCursorInput, Type, type LucideIcon } from "lucide-react";
 import type { CanvasRect, ElementKind, ElementTreeAnchor, ElementTreeMessage, ElementTreeNode } from "./canvasMessage";
 import type { SelectionView } from "./selection";
+import { treeScrollLeft } from "./treeScrollLeft";
 import { rowDisplay, rowTooltip, type RowView, type RowsView } from "./inspectorRows";
 import { InspectorReads, type InspectCall, type InspectorReadState, type InspectorSelection } from "./inspectorReads";
 import { ResizeHandle } from "./ConversationPanel";
@@ -145,6 +146,7 @@ export function ElementMenu({ view, nodes, tree, shown, onEscape }: { view: Sele
   const trigger = useRef<HTMLButtonElement | null>(null);
   const [active, setActive] = useState<string | null>(null);
   const rowNodes = useRef(new Map<string, HTMLElement>());
+  const menu = useRef<HTMLDivElement | null>(null);
   const fallback = selectionName(view);
   const named = nodes?.find(node => node.selected)?.name ?? fallback;
   // Without an answer yet (or for a selection outside every frame) the selection is the one row.
@@ -163,11 +165,26 @@ export function ElementMenu({ view, nodes, tree, shown, onEscape }: { view: Sele
   useEffect(() => () => tree.preview(null), [tree]);
   useEffect(() => { if (!open) tree.preview(null); }, [open, tree]);
 
-  const focusRow = (target: string | null) => {
-    if (target === null) return;
-    setActive(target);
-    rowNodes.current.get(target)?.focus({ preventScroll: false });
+  const focusRow = (index: number) => {
+    const id = keys[index], node = rows[index];
+    if (!id || !node) return;
+    setActive(id);
+    const row = rowNodes.current.get(id);
+    const viewport = menu.current;
+    const left = viewport?.scrollLeft ?? 0;
+    row?.focus();
+    // Native focus reveals the row vertically, but the entire row is as wide as the deepest name.
+    if (row && viewport) {
+      const name = row.querySelector<HTMLElement>(".name");
+      if (name) viewport.scrollLeft = treeScrollLeft(node.depth, { width: viewport.clientWidth, nameWidth: name.offsetWidth }, left);
+    }
   };
+  useLayoutEffect(() => {
+    // The first tree reply can replace the menu's focused placeholder after Radix has already autofocused it.
+    if (open && shown && active !== null && active !== current && current !== null && document.activeElement === document.body) {
+      focusRow(keys.indexOf(current));
+    }
+  });
   const mark = (node: ElementTreeNode) => tree.preview(node.selected || node.anchor.selector === "" ? null : node.rect);
   const pick = (node: ElementTreeNode) => {
     setOpen(false);
@@ -179,7 +196,7 @@ export function ElementMenu({ view, nodes, tree, shown, onEscape }: { view: Sele
     const index = current === null ? -1 : keys.indexOf(current);
     const to = event.key === "ArrowDown" ? Math.min(keys.length - 1, index + 1) : event.key === "ArrowUp" ? Math.max(0, index - 1)
       : event.key === "Home" ? 0 : event.key === "End" ? keys.length - 1 : null;
-    if (to !== null) { event.preventDefault(); focusRow(keys[to] ?? null); return; }
+    if (to !== null) { event.preventDefault(); focusRow(to); return; }
     if (event.key === "Enter" || event.key === " ") {
       const node = rows[index];
       if (node) { event.preventDefault(); pick(node); }
@@ -199,9 +216,9 @@ export function ElementMenu({ view, nodes, tree, shown, onEscape }: { view: Sele
           menu, as the menu's own would, and never steps the selection back. */}
       <NameTip text={named} onEscape={open ? () => setOpen(false) : onEscape}><Popover.Trigger asChild><button ref={trigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="tree"
         aria-label={`${named}, ${kind}. Elements in this frame`}><span>{named}</span><ChevronDown className="chev" aria-hidden="true" /></button></Popover.Trigger></NameTip>
-      <Popover.Portal><Popover.Content role={undefined} className="doan-floating doan-menu doan-insp-menu" data-ui-variant="tree" side="bottom" align="start" sideOffset={4} collisionPadding={8}
+      <Popover.Portal><Popover.Content ref={menu} role={undefined} className="doan-floating doan-menu doan-insp-menu" data-ui-variant="tree" side="bottom" align="start" sideOffset={4} collisionPadding={8}
         style={width === null ? undefined : { "--doan-insp-panel-width": `${width}px` } as CSSProperties}
-        onOpenAutoFocus={event => { event.preventDefault(); focusRow(current); }}>
+        onOpenAutoFocus={event => { event.preventDefault(); focusRow(current === null ? -1 : keys.indexOf(current)); }}>
         <div role="tree" aria-label={`Elements in ${frameName}`} onKeyDown={keydown}>
           {rows.map((node, index) => {
             const id = key(node, index), Icon = KIND_ICONS[node.kind];

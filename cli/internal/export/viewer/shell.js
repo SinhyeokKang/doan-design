@@ -6,7 +6,7 @@
 // wide and as tall as the canvas reports (lib.js height rules); the window only changes the
 // zoom; zoom and the frame jump use the app's constants and Fit rules; the Select and Hand tools,
 // Space and V/H/Esc use the app's key rules (lib.js toolShortcut). The canvas reports only Space,
-// V, H and Escape pressed while it has focus. What it leaves out: selection,
+// V, H and Escape pressed while it has focus. What it leaves out:
 // conversation and Reload.
 
 document.documentElement.classList.add("js");
@@ -59,6 +59,7 @@ const layoutBoard = () => {
   spacer.style.height = geom.height + "px";
   stage.style.left = geom.left + "px";
   stage.style.top = geom.top + "px";
+  stage.style.setProperty("--canvas-scale", scale);
   stage.style.transform = "scale(" + scale + ")";
   return geom;
 };
@@ -101,6 +102,7 @@ const createPopup = ({ button, panel, items, onOpen, onPick }) => {
   const hide = (focus) => {
     popup = { open: false, active: -1, focus, pick: -1, prevent: true };
     panel.hidden = true;
+    inspector.syncOverlay();
     button.setAttribute("aria-expanded", "false");
     if (focus === "trigger") button.focus();
   };
@@ -113,6 +115,7 @@ const createPopup = ({ button, panel, items, onOpen, onPick }) => {
     panel.hidden = false;
     button.setAttribute("aria-expanded", "true");
     popup = popupOpen(count, start);
+    inspector.syncOverlay();
     focusActive();
   };
   button.addEventListener("click", () => (popup.open ? hide("trigger") : open()));
@@ -297,7 +300,7 @@ setTimeout(() => {
 
 window.addEventListener("message", (event) => {
   const message = acceptMessage(event, canvas.contentWindow);
-  if (message === null) return;
+  if (message === null) { inspector.accept(event); return; }
   if (message.type === "layout") {
     step(viewerLayout(viewer, message));
     return;
@@ -305,6 +308,7 @@ window.addEventListener("message", (event) => {
   if (message.type === "key") {
     // A Space down counts only while the canvas has focus, so the canvas's own scripts cannot raise
     // the drag surface over a person's clicks; a release always counts.
+    if (message.key !== "Escape" && inspector.menuOpen()) return;
     if (message.key === "Space") {
       if (!message.down || document.activeElement === canvas) spaceKey(message.down);
     } else if (message.key === "Escape") escapeTool(false, false);
@@ -313,6 +317,7 @@ window.addEventListener("message", (event) => {
   }
   // Wheel input the canvas cannot use itself. Ctrl/Cmd (a pinch included) zooms around the point
   // under the cursor, which arrives in board coordinates; anything else scrolls the board.
+  inspector.wheel(message);
   const action = wheelAction(message);
   if (action.zoom !== undefined) {
     const view = readView();
@@ -399,6 +404,7 @@ function chooseTool(next) {
   }
   pendingTool = null;
   tool = next;
+  if (next === "hand") inspector.clearText();
   for (const button of toolButtons) {
     const own = button.dataset.tool === tool;
     button.setAttribute("aria-pressed", String(own));
@@ -434,7 +440,8 @@ function escapeKey(editable, handled) {
 // Hand back to Select. An Esc forwarded from the canvas comes straight here: the app's tooltip
 // hears Esc only on the app document, so it never spends one pressed inside the canvas.
 function escapeTool(editable, handled) {
-  if (!escapeSelects({ hand: (pendingTool ?? tool) === "hand", editable, defaultPrevented: handled })) return false;
+  if (editable || handled) return false;
+  if (!escapeSelects({ hand: (pendingTool ?? tool) === "hand", editable, defaultPrevented: handled })) return inspector.escape();
   chooseTool("select");
   return true;
 }
@@ -442,6 +449,7 @@ function escapeTool(editable, handled) {
 document.addEventListener("keydown", (event) => {
   const shortcut = toolShortcut(event, { canvasPage: true });
   if (shortcut !== null) {
+    if (inspector.blocks(event.target)) return;
     if (shortcut.kind === "tool" ? (chooseTool(shortcut.tool), true) : spaceKey(true)) event.preventDefault();
     return;
   }
@@ -450,7 +458,7 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     return;
   }
-  if (event.key !== "Escape" || event.isComposing || event.keyCode === 229) return;
+  if (event.key !== "Escape" || (event.repeat && !$("inspector").hidden) || event.isComposing || event.keyCode === 229) return;
   if (escapeKey(editableTarget(event.target), event.defaultPrevented)) event.preventDefault();
 });
 
@@ -590,4 +598,5 @@ for (const button of toolButtons) {
   button.addEventListener("blur", hideTip);
 }
 
+const inspector = mountViewerInspector(canvas, board, () => drawerPopup.isOpen() || zoomPopup.isOpen());
 refresh();

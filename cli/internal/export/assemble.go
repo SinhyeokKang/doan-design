@@ -38,7 +38,7 @@ func Assemble(m Meta, canvasHTML []byte) ([]byte, error) {
 		return nil, errors.New("canvas width must be a positive integer")
 	}
 	files := map[string]string{}
-	for _, name := range []string{"shell.html", "shell.css", "lib.js", "shell.js", "measure.js"} {
+	for _, name := range []string{"shell.html", "shell.css", "lib.js", "shell.js", "measure.js", "inspect.js", "inspectSelection.js", "inspectPanel.js", "inspectMessage.js", "inspectView.js"} {
 		b, err := viewerFS.ReadFile("viewer/" + name)
 		if err != nil {
 			return nil, err
@@ -55,8 +55,8 @@ func Assemble(m Meta, canvasHTML []byte) ([]byte, error) {
 	}
 	// Both scripts are wrapped in a function: lib.js and the other files declare
 	// top-level names that must not become globals of the canvas.
-	shellScript := "(function () {\n" + lib + "\n" + shellJS + "\n})();"
-	measureScript := "<script>(function () {\n" + lib + "\n" + measure + "\n})();</script>"
+	shellScript := "(function () {\n" + lib + "\n" + files["inspectPanel.js"] + "\n" + files["inspectMessage.js"] + "\n" + files["inspectView.js"] + "\n" + shellJS + "\n})();"
+	measureScript := "<script>(function () {\n" + lib + "\n" + files["inspect.js"] + "\n" + files["inspectSelection.js"] + "\n" + measure + "\n})();</script>"
 
 	// A browser drops a byte order mark; in a srcdoc string it would be text and
 	// put the canvas into quirks mode.

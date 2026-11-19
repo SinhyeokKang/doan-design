@@ -133,7 +133,7 @@ const flushAll = async () => { for (let i = 0; i < 4; i++) await Promise.resolve
 type ToolsProps = { picking: boolean; picker: { enabled: boolean; reason: string | null; onToggle(): void; button?: { current: unknown } } };
 type Link = { insert: ReturnType<typeof vi.fn>; focus: ReturnType<typeof vi.fn>; composing: ReturnType<typeof vi.fn>; element: ReturnType<typeof vi.fn> };
 type ConversationProps = { composerLink: { current: unknown } };
-type BubbleProps = { host: unknown; enabled: boolean; reason: string | null; button: { current: unknown }; onEscape(event: unknown): void };
+type BubbleProps = { inspectButton: { current: unknown }; host: unknown; enabled: boolean; reason: string | null; button: { current: unknown }; onEscape(event: unknown): void };
 type BubbleAddHook = { host(element: unknown): void; onAdd(): void; button(): unknown; onFocusLost(): void };
 const rowB: CanvasRow = { path: ".doan/canvases/b.html", id: "b", url: "u-b" };
 const LAYOUT = { type: "layout", href: "u-a", height: 100, viewport: 100, frames: [{ id: "cart", x: 0, y: 0, width: 10, height: 10 }], truncated: false };
@@ -176,6 +176,14 @@ test("Add to message waits for the controller's host, then renders into it with 
   expect(find(BubbleAdd)).toHaveLength(0);
   await bubbleWithComposer();
   expect(bubble()).toMatchObject({ host: HOST, enabled: true, reason: null });
+});
+
+test("rendering the portal needs no read of the controller's native Play button", async () => {
+  await bubbleWithComposer();
+  const play = harness.controller!.bubblePlayButton!;
+  play.mockClear();
+  render();
+  expect(play).not.toHaveBeenCalled();
 });
 
 test("a press with the panel open puts the selection's chip at the field's caret, focus first, and leaves the selection alone", async () => {
@@ -294,7 +302,7 @@ test("the controller reads App's Add to message button", async () => {
 // toolbar (its onFocusLost). A cancel then sends focus to the composer field, never back to the hidden button and
 // never the page body, whether the panel was open or folded (a folded panel's field takes no focus until it unfolds).
 // Add to message's button stays in the DOM, hidden; Play's is removed.
-test.each([["Add to message", "open"], ["Add to message", "folded"], ["Play", "open"], ["Play", "folded"]] as const)(
+test.each([["Add to message", "open"], ["Add to message", "folded"], ["Play", "open"], ["Play", "folded"], ["Show inspector", "open"]] as const)(
   "a pick started with ⌘L from the bubble's %s, panel %s, ends in the composer field when cancelled", async (which, shown) => {
     const { link, field } = await bubbleWithComposer({ panel: shown === "open" });
     const NodeClass = class {};
@@ -315,7 +323,12 @@ test.each([["Add to message", "open"], ["Add to message", "folded"], ["Play", "o
     // A hidden button refuses focus.
     const bubbleButton = { ...focusable(which, which === "Add to message"), focus: vi.fn() };
     Object.setPrototypeOf(bubbleButton, (globalThis.HTMLElement as unknown as { prototype: object }).prototype);
-    if (which === "Add to message") bubble()!.button.current = bubbleButton;
+    if (which === "Show inspector") {
+      bubble()!.inspectButton.current = bubbleButton;
+      const header = focusable("header Show inspector");
+      const query = document.querySelector.bind(document);
+      Object.assign(document, { querySelector: (selector: string) => selector === '.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]' ? header : query(selector) });
+    } else if (which === "Add to message") bubble()!.button.current = bubbleButton;
     else harness.controller!.bubblePlayButton!.mockReturnValue(bubbleButton);
     doc.activeElement = bubbleButton;
     // The field takes focus only once its column is not inert.
@@ -324,8 +337,8 @@ test.each([["Add to message", "open"], ["Add to message", "folded"], ["Play", "o
     expect(harness.controller!.pick, `${which} ${shown}`).toHaveBeenCalledOnce();
     // The pick cleared the selection: the bubble went, and if its button still had focus the controller handed it on.
     if (doc.activeElement === bubbleButton) {
-      const hooks = harness.controller as unknown as { bubbleAdd: BubbleAddHook; bubblePlay: { onFocusLost(): void } };
-      (which === "Add to message" ? hooks.bubbleAdd : hooks.bubblePlay).onFocusLost();
+      const hooks = harness.controller as unknown as { bubbleAdd: BubbleAddHook; bubblePlay: { onFocusLost(): void }; bubbleInspect: { onFocusLost(): void } };
+      (which === "Add to message" ? hooks.bubbleAdd : which === "Play" ? hooks.bubblePlay : hooks.bubbleInspect).onFocusLost();
       focusMoved(doc.activeElement);
     }
     harness.controller!.bubblePlayButton!.mockReturnValue(null);

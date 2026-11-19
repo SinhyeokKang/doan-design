@@ -69,6 +69,7 @@ const { App, TopBar } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
 const { ConversationPanel, ResizeHandle } = await import("./ConversationPanel");
 const { InspectorColumn } = await import("./InspectorPanel");
+const { BubbleAdd } = await import("./BubbleAdd");
 const { ProjectOverview } = await import("./ProjectOverview");
 const { SettingsPage } = await import("./SettingsPage");
 const { CAPTURE_LIMIT, CAPTURE_TERMINAL, CAPTURE_UNAVAILABLE } = await import("./canvasCapture");
@@ -1179,6 +1180,44 @@ describe("the inspector column", () => {
     expect(focus).toHaveBeenCalled();
   });
 
+  test("the bubble's Show inspector respects yield, then opens the same saved panel and focuses Hide", async () => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {} });
+    folders([listed("/w/a")]);
+    const hooks = harness.controller as unknown as { bubbleInspect: { onInspect(): void; onFocusLost(): void } };
+    measure(1100);
+    hooks.bubbleInspect.onInspect(); render();
+    expect(inspectorPane()!.open).toBe(false);
+    const { asked } = focusing();
+    hooks.bubbleInspect.onFocusLost();
+    expect(asked).toContain('.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]');
+    measure(1470);
+    hooks.bubbleInspect.onInspect(); render();
+    expect(column()?.shown).toBe(true);
+    expect(savedInspector()).toEqual({ open: true });
+    expect(asked).toContain(".doan-insp-panel .doan-panel-hide");
+  });
+
+  test.each([true, false])("widening removes the bubble action and hands off only its own focus (still focused: %s)", async stillFocused => {
+    await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true } });
+    folders([listed("/w/a")]);
+    (harness.controller as unknown as { bubbleAdd: { host(node: unknown): void } }).bubbleAdd.host({});
+    measure(1100);
+    const portal = () => find<Parameters<typeof BubbleAdd>[0]>(BubbleAdd)[0]!.props;
+    expect(portal().items.at(-1)).toMatchObject({ kind: "inspect", disabled: expect.any(String) });
+    const action = { isConnected: true };
+    portal().focused(action as Element);
+    if (!stillFocused) {
+      const focusin = (document.addEventListener as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(call => call[0] === "focusin");
+      for (const [, listener] of focusin) listener({ target: { closest: () => null } });
+    }
+    const { asked } = focusing();
+    action.isConnected = false;
+    Object.assign(document, { activeElement: document.body });
+    measure(1470);
+    expect(portal().items.some(item => item.kind === "inspect")).toBe(false);
+    expect(asked.includes(".doan-insp-panel .doan-panel-hide")).toBe(stillFocused);
+  });
+
   test("Hide inspector folds it, keeps its width and hands focus to its own Show button", async () => {
     await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true, width: 320 } });
     measure(1470);
@@ -1297,6 +1336,40 @@ describe("the inspector column", () => {
     const restored = focus.mock.calls.length;
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(focus.mock.calls.length).toBeGreaterThan(restored);
+  });
+
+  test.each(["reload return", "focusin"] as const)("activating the window preserves later inspector bubble focus (%s)", async move => {
+    await canvasPage();
+    folders([listed("/w/a")]);
+    const win = new EventTarget();
+    vi.stubGlobal("window", Object.assign(win, { doan }));
+    let activeWindow = false;
+    Object.assign(document, { hasFocus: () => activeWindow });
+    const focused = (target: unknown) => {
+      Object.assign(document, { activeElement: target });
+      if (move === "reload return") return;
+      for (const [type, listener] of vi.mocked(document.addEventListener).mock.calls) {
+        if (type === "focusin") (listener as (event: unknown) => void)({ target });
+      }
+    };
+    const header = { name: "header", closest: () => null, isConnected: true, focus: () => focused(header) };
+    const bubble = { name: "bubble", closest: () => null, isConnected: true, focus: () => focused(bubble) };
+    Object.assign(document, { querySelector: (selector: string) => selector === SHOW ? header : null });
+    const controller = harness.controller as unknown as { bubbleAdd: { host(node: unknown): void }; bubbleInspect: { onFocusLost(): void; restoreFocus(): void } };
+    controller.bubbleAdd.host({}); render();
+    const portal = find<Parameters<typeof BubbleAdd>[0]>(BubbleAdd)[0]!.props;
+    portal.inspectButton.current = bubble as unknown as HTMLButtonElement;
+    focused(bubble);
+    controller.bubbleInspect.onFocusLost();
+    expect(document.activeElement).toBe(header);
+    // A reload can restore DOM focus silently in the background. A separate focus move can also end the hold.
+    if (move === "reload return") controller.bubbleInspect.restoreFocus();
+    else bubble.focus();
+    expect(document.activeElement).toBe(bubble);
+    activeWindow = true;
+    win.dispatchEvent(new Event("focus"));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(document.activeElement).toBe(bubble);
   });
 
   // Found in the real app: hiding the sidebar animates the shell's columns, so the measure taken when it hides still saw
