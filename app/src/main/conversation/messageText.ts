@@ -67,6 +67,16 @@ export function chipLabel(anchor: Anchor, frames: readonly FrameName[] = []): Ch
   return { kind: "frame", label: frameName(id, anchor.frame?.title, frames), title: `Frame · ${id}` };
 }
 
+// A list item's leading whitespace and marker: "- ", "* " or a 1 to 3 digit number and ". ". A longer number is not a
+// marker, so a line that starts with a year ("2026. 11. 19.") stays text. The composer's lists read the same rule.
+export const LIST_MARKER = /^([ \t]*)([-*] |\d{1,3}\. )/;
+const LIST_MARKERS = new RegExp(LIST_MARKER.source, "gm");
+
+// A title or queue row reads the words, not the list: each line's marker and the spaces before it go.
+export function plainTitle(text: string): string {
+  return text.replace(LIST_MARKERS, "");
+}
+
 // The one-line form of a message for titles, previews, the queue and notifications: each chip marker reads as its
 // chip's name, and line breaks and runs of spaces, in the text or in a frame's name, read as one space. A marker
 // without an anchor stays as typed.
