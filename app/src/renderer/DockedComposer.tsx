@@ -13,6 +13,7 @@ import { ContextRing, type RingUsage } from "./ContextRing";
 import type { ContextUsage } from "./contextWindow";
 import { distinctTargets, plainText, typedText } from "./anchorField";
 import { LIMITS } from "../main/conversation/messageText";
+import { stripRequestLines } from "../main/conversation/requestLines";
 import {
   AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, PermissionPicker, PresetsButton,
   SendButton, SlashPresets, TriggerLabel, useComposerDrop, usePresetListOutside, type CanvasPress, type ComposerFieldHandle,
@@ -537,7 +538,7 @@ export function DockedComposer(props: DockedComposerProps) {
   const playingShown = playing !== null && !locked;
   const describedBy = [reason && !reason.noAgent ? reasonId : null, placeholder.suggestion !== null ? hintId : null, playingShown ? playingId : null].filter(Boolean).join(" ") || undefined;
   return <div className="docked" data-shape={shape} ref={root} {...drop.handlers}>
-    <QueueRows key={key} handle={queueRows} items={commandProvider ? props.queued.map(item => queuedCommand(commandProvider, item.text, props.passthrough ?? []) ? { ...item, command: true } : item) : props.queued} homeDirectory={props.homeDirectory} sendNow={canSendNow} onSendNow={id => props.onSendQueuedNow?.(id) ?? Promise.resolve({ error: "not_running" })}
+    <QueueRows key={key} handle={queueRows} items={commandProvider ? props.queued.map(item => queuedCommand(commandProvider, queuedRequest(item), props.passthrough ?? []) ? { ...item, command: true } : item) : props.queued} homeDirectory={props.homeDirectory} sendNow={canSendNow} onSendNow={id => props.onSendQueuedNow?.(id) ?? Promise.resolve({ error: "not_running" })}
       onRemove={props.onRemoveQueued} focusInput={() => field.current?.focus()}
       // The same refusal again changes the region's text by a no-break space, so it is read again.
       announce={text => setAnnouncement(current => current === text ? `${text}\u00a0` : text)} />
@@ -621,7 +622,12 @@ export interface QueueRowsHandle {
 }
 
 // command: main sends it alone and takes no Send now for it (a provider command is never steered into a turn).
-export interface QueuedRow { id: string; text: string; message?: { attachments: readonly SentFile[] }; command?: boolean }
+export interface QueuedRow { id: string; text: string; message?: { text?: string; attachments: readonly SentFile[] }; command?: boolean }
+// A row's text is for reading (list markers dropped), so `- /compact` would read as a command there; whether a row is
+// a command comes from the request it sends.
+function queuedRequest(item: QueuedRow): string {
+  return item.message?.text === undefined ? item.text : stripRequestLines(item.message.text);
+}
 export interface QueueRowsProps {
   handle?: MutableRefObject<QueueRowsHandle | null>;
   items: readonly QueuedRow[];
