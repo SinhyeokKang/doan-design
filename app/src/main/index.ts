@@ -896,6 +896,12 @@ async function start(): Promise<void> {
   documents.onChange(() => seen.documentsChanged());
   // One login-shell probe at a time, shared by agent facts, clone and the CLI's git (read only when first needed).
   const shellForFacts = sharedShell(() => probeShell(process.env));
+  // Before startShell: its first folder reads can find a vanished auto-registered worktree and call rootsLeft, which
+  // must reach the drafts' starts.
+  const conversationStore = new ConversationStore(userData);
+  // After the store, which made and checked the conversations directory.
+  const conversationDrafts = new DraftStore(join(userData, "conversations"));
+  conversationDraftStore = conversationDrafts;
   // What main keeps for roots that left the list, by Remove (removeRoots) or because a vanished auto-registered worktree
   // left on its own (shell.ts autoRemoved): one list, so a store keyed by root is wired into both at once (POSTMORTEM
   // 2026-11-17 'Removing a project or trashing a canvas left state keyed by it behind'). `before`: the list before.
@@ -1276,10 +1282,6 @@ async function start(): Promise<void> {
   // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
   const prepareConversation = routePrepare(createPrepare(userData, join(userData, CONVERSATION_RUNTIME), process.env),
     wireAccountPrepare(accountPrepare, () => !!agentAuth, prepared => usage ? withTurnUsage(prepared, usage) : prepared));
-  const conversationStore = new ConversationStore(userData);
-  // After the store, which made and checked the conversations directory.
-  const conversationDrafts = new DraftStore(join(userData, "conversations"));
-  conversationDraftStore = conversationDrafts;
   const preferences = createPreferencesStore(join(userData, "preferences.json"));
   const notify = createNotifyService({
     preferences: () => preferences.current().notifications,

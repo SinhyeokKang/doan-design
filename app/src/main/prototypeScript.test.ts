@@ -333,7 +333,9 @@ const NO_FRAME = "\u0000";
 
 type Report = { gen: number; state?: string; frames: unknown[]; gotos: { value: string; frames: string[] }[]; goto?: string | null };
 
-describe("in a real DOM", () => {
+// Real-DOM blocks allow 60 s a test: each helper step is bounded at 15 s, so a step that hangs fails by its own name
+// before the test limit.
+describe("in a real DOM", { timeout: 60_000 }, () => {
   let dom: ElectronDom;
   beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
   afterAll(async () => { await dom?.close(); }, 30_000);

@@ -164,11 +164,10 @@ export function createInspector(deps: InspectorDeps): Inspector {
     } finally {
       // Left on, the whole tree known from `getDocument` turns every later DOM mutation of the canvas into an event to
       // main: about 6,300 a second on a canvas with a 60 fps counter and a rebuilt list. A run that timed out and a
-      // later one has started since leaves them to that run, which needs them on and turns them off when it ends.
-      if (started === ticket) {
-        await command("CSS.disable").catch(() => undefined);
-        await command("DOM.disable").catch(() => undefined);
-      }
+      // later one has started since leaves them to that run, which needs them on and turns them off when it ends. A run
+      // can start while CSS.disable is in flight, so DOM.disable checks again.
+      if (started === ticket) await command("CSS.disable").catch(() => undefined);
+      if (started === ticket) await command("DOM.disable").catch(() => undefined);
     }
   };
 

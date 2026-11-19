@@ -188,6 +188,9 @@ vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<ty
 vi.mock("./windowDebugger", () => ({ createWindowDebugger: mocks.createWindowDebugger }));
 vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
 vi.mock("./uiState", () => ({ createUiStateStore: mocks.createUiStateStore }));
+// Import runs main's launchd CA restore; the real one would run /bin/launchctl and change this worker's CA trust.
+const launchCa = vi.hoisted(() => ({ restore: vi.fn(), trust: vi.fn() }));
+vi.mock("./launchEnv", async (importOriginal) => ({ ...await importOriginal<typeof import("./launchEnv")>(), restoreLaunchdCaCerts: launchCa.restore, trustExtraCaCerts: launchCa.trust }));
 // The first tool-facts probe and the usage service's triggers, observed where index.ts wires them.
 const usageProbe = vi.hoisted(() => ({ read: undefined as undefined | (() => Promise<unknown>), triggers: [] as unknown[] }));
 vi.mock("./agentAuth/ipc", async (importOriginal) => {
@@ -237,6 +240,8 @@ let launchSetup: unknown = { home: "/Users/you", items: [], steps: [] };
 let launchEligibility = "dev";
 let launchFeed = false;
 const HELD = Symbol("held");
+// Runs inside startShell with the options main passed, as the shell's first folder reads do before it resolves.
+let atShellStart: ((options: { autoRemoved?: (paths: string[], before: unknown[]) => void }) => void) | undefined;
 let settleSetup: (value: unknown) => void = () => {};
 // The previous test's launch. A hook that timed out is not cancelled: its launch still opens a window later, which must
 // land before this launch resets the instances, not in the next test.
@@ -260,7 +265,7 @@ beforeEach(async () => {
   mocks.probeShell.mockResolvedValue(launchProbe);
   mocks.runAgentSetup.mockReturnValue(launchSetup === HELD ? new Promise(resolve => { settleSetup = resolve; }) : Promise.resolve(launchSetup));
   mocks.app.whenReady.mockResolvedValue();
-  mocks.startShell.mockResolvedValue(mocks.shell);
+  mocks.startShell.mockImplementation(async (...args: unknown[]) => { atShellStart?.(args[3] as never); return mocks.shell; });
   mocks.startRuntime.mockResolvedValue(mocks.runtime);
   mocks.createWindowDebugger.mockReturnValue(mocks.windowDebugger);
   mocks.createInspector.mockReturnValue(mocks.inspector);
@@ -619,6 +624,23 @@ test("an auto-removed worktree goes through Remove's clean-up: selection, thumbn
   expect(stop).toHaveBeenCalledExactlyOnceWith([W]);
   expect(mocks.prototypeRootsRemoved).toHaveBeenCalledExactlyOnceWith([W]);
   expect(mocks.discardRootStarts).toHaveBeenCalledExactlyOnceWith([W]);
+});
+
+// A worktree that vanished while Doan was closed is found by the first folder read, before main has its other stores.
+describe("a worktree found gone while the shell starts", () => {
+  const W = "/orca/workspaces/repo/gone";
+  beforeAll(() => { atShellStart = options => options.autoRemoved?.([W], [{ path: W }]); });
+  afterAll(() => { atShellStart = undefined; });
+  test("still drops its quit-stopped starts", () => {
+    expect(mocks.discardRootStarts).toHaveBeenCalledExactlyOnceWith([W]);
+  });
+});
+
+// Import restores NODE_EXTRA_CA_CERTS from launchd before the app is ready (stubbed here: see the mock).
+test("restores launchd's CA certificates once at import, then trusts the file it names", () => {
+  expect(launchCa.restore).toHaveBeenCalledExactlyOnceWith(process.env, expect.any(Function));
+  expect(launchCa.trust).toHaveBeenCalledOnce();
+  expect(launchCa.restore.mock.invocationCallOrder[0]).toBeLessThan(launchCa.trust.mock.invocationCallOrder[0]!);
 });
 
 test("an auto-removed worktree keeps another root's selection", async () => {

@@ -439,7 +439,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     </header>
     {props.notice && <div className="doan-notice ov-notice" role="status"><AlertIcon /><span className="grow-text selectable">{props.notice}</span></div>}
     <div className="ov-scroll">
-      {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project} homeDirectory={props.homeDirectory}
+      {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project} visibility={window.doan} homeDirectory={props.homeDirectory}
         liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} turn={thread && Array.isArray(items) ? threadTurn(thread.events, items, live, run.store.stageOf(conversationId), root, summary?.stopping === true, turnId => commands && commandTurnLabel(provider, commands, turnId)) : null}
         card={card} onCardAction={cardAction} onCardDismiss={dismissCard}
         background={summary?.background ?? null} onStopBackground={turnId => stopBackground({ conversationId, turnId }, request => window.doan.interruptConversation(request)).then(failed => { if (failed) props.onNotice?.(failed); return failed === null; })} canvasListed={canvasListed}

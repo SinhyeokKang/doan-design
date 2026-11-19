@@ -75,7 +75,7 @@ function dockedProps(node: ReactNode): Record<string, unknown> | null {
 function fakeCalls() {
   return {
     onAgentAuth: vi.fn(() => () => {}),
-    onAgentUsage: vi.fn(() => () => {}), readAgentUsage: vi.fn(async () => []),
+    onAgentUsage: vi.fn(() => () => {}), onWindowVisible: vi.fn(() => () => {}), readAgentUsage: vi.fn(async () => []),
     conversationResumeTarget: vi.fn(async () => ({ available: false as const, reason: "no_record" as const })),
     listConversationSkills: vi.fn(async () => ({ skills: [] })),
     listConversationModels: vi.fn(async () => ({ models: [{ id: "opus", label: "Opus", default: true, efforts: ["high"] }] })),
