@@ -206,6 +206,14 @@ describe("the conversation the panel shows", () => {
     expect(run.store.drafts.get("conversation:c1")?.segments).toEqual([{ kind: "text", text: "Returned" }]);
   });
 
+  // The prototype window takes a returned queue on its own path (its own store), so the list comes back as sent here too.
+  test("a returned list comes into this window's draft with its markers and depth spaces", async () => {
+    calls.takeConversationDraft!.mockResolvedValueOnce({ text: "- Hero\n  - shorter\n1. Footer", anchors: [], attachments: [], ids: [] });
+    await playing({}, [summary({ conversationId: "c1", returnedDraft: true })]);
+    await flush();
+    expect(run.store.drafts.get("conversation:c1")?.segments).toEqual([{ kind: "text", text: "- Hero\n  - shorter\n1. Footer" }]);
+  });
+
   // A returned queue goes to the window the person looks at: this one only while its panel is open (user decision);
   // folded, the main window's store takes it.
   test("a returned queue is not taken while the panel is folded; opening the panel takes it", async () => {

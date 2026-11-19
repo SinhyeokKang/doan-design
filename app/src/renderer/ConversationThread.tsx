@@ -27,7 +27,8 @@ import { replyUrlTransform } from "./replyUrlTransform";
 import { canSend, EMPTY_QUESTION_DRAFT, questionInput, sendBlockedText, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
 import { useActivationFocus } from "./activationFocus";
 import type { VisibleCalls } from "./visibleClock";
-import { pendingAsks, questionLines, sameItem, scrollFollow, threadScroll, waitsForPerson, type ActivityStep, type ThreadItem, type TurnEnd } from "./threadItems";
+import { pendingAsks, questionLines, sameItem, scrollFollow, threadScroll, waitsForPerson, type ActivityStep, type MessagePart, type ThreadItem, type TurnEnd } from "./threadItems";
+import { bubbleBlocks, type BubbleList } from "./composerLists";
 import { activityRun, backgroundLine, drawingCards, elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
 
 // The conversation thread (draft frames thread-*). The host reads the history, merges
@@ -466,6 +467,24 @@ export function SentChip({ marker, anchor, frames, disabled, onLocate, missing }
     onClick={() => { if (!disabled) void onLocate(anchor).then(outcome => { if (outcome === "missing") missing?.show(missing.key); }); }}>{body}</button></ChipTip>;
 }
 
+// Chromium neither draws nor copies the last line break of a block, so a text block that ends in a blank line (or is
+// one) before a list gets one more.
+function endsInBlankLine(parts: readonly MessagePart[]): boolean {
+  const last = parts[parts.length - 1];
+  return !last || ("text" in last && last.text.endsWith("\n"));
+}
+
+// The list's marker column, in ch, for the bubble's hanging indent: at least as wide as its widest marker so the bodies
+// line up, without measuring. Markers draw in plain figures (styles.css), so each digit counts its own width in Geist,
+// in ch (a "0", the widest, is 1ch; a "1" is 0.58ch), and ". " 0.7ch; each is rounded up, so the column never cuts into
+// the text. "- " and "* " fit the --space-3 minimum (0).
+const DIGIT_CH: Record<string, number> = { "0": 1, "1": 0.58, "2": 0.94, "3": 0.93, "4": 0.93, "5": 0.95, "6": 0.9, "7": 0.79, "8": 0.92, "9": 0.9 };
+function markColumn(block: BubbleList): number {
+  if (block.list !== "ol") return 0;
+  const width = (marker: string) => [...marker.slice(0, -2)].reduce((sum, digit) => sum + (DIGIT_CH[digit] ?? 1), 0.7);
+  return Math.round(Math.max(...block.items.map(item => width(item.marker))) * 100) / 100;
+}
+
 // A sent message: its bubble, attachments and the chip locate note under the bubble (draft frame `chip-locate`). One
 // Send now has in flight ends with a Sending line and has no actions (canvas-composer-polish draft frame `sending`).
 function UserMessage({ entry, frames, disabled, onLocate, home }: { entry: Extract<ThreadItem, { kind: "user" }>; frames: readonly FrameName[] | undefined; disabled: boolean; onLocate: ConversationThreadProps["onLocate"]; home: string | null }) {
@@ -474,17 +493,32 @@ function UserMessage({ entry, frames, disabled, onLocate, home }: { entry: Extra
   const [chip, setChip] = useState<string | null>(null);
   const shownFor = shown ? chip : null;
   const missing = (key: string) => ({ key, shownFor, show: (at: string) => { setChip(at); show(); } });
+  const skills = new Set(entry.skills ?? []);
+  // Chips are numbered in drawing order, which is the order of the message, so each keeps its note id across renders.
+  let chips = 0;
+  const inline = (parts: readonly MessagePart[]) => parts.map((part, i) => {
+    if (!("text" in part)) return <SentChip key={i} marker={part.anchor} anchor={entry.anchors[part.anchor - 1]} frames={frames}
+      disabled={disabled} onLocate={onLocate} missing={missing(`${base}-${chips++}`)} />;
+    // An anchor ends the preceding word but cannot start the next one.
+    const previous = parts[i - 1], prefix = previous && !("text" in previous) ? "x" : "";
+    const runs = skillWords(prefix + part.text, skills);
+    return <Fragment key={i}>{skillTextParts(part.text, prefix.length, runs).map((piece, index) =>
+      piece.skill ? <span key={index} className="skill-word">{piece.text}</span> : <Fragment key={index}>{piece.text}</Fragment>)}</Fragment>;
+  });
+  const blocks = bubbleBlocks(entry.parts), listed = blocks.some(block => block.kind === "list");
+  // Lists are role="list" blocks, not ul/ol: Chromium leaves an ul/ol marker out of copied text, and the person copies
+  // what they sent, markers and depth spaces included. A message without a list draws as plain text, as before.
+  const list = (block: BubbleList, depth: number, mark = markColumn(block)): ReactNode => <div className="bubble-list" role="list">{block.items.map((item, i) => <div key={i} className="bubble-item" role="listitem">
+    {item.lead && <span className="list-depth" data-depth={depth}>{item.lead}</span>}
+    <span className="list-mark" data-kind={block.list} data-mark={mark}>{item.marker}</span>
+    <span className="bubble-item-body" data-depth={depth} data-mark={mark}>{inline(item.parts)}</span>
+    {item.children.map((child, n) => <Fragment key={n}>{list(child, depth + 1)}</Fragment>)}
+  </div>)}</div>;
   return <div className="msg-user">
-    <div className="bubble">{entry.preset && <span className="bubble-preset"><PencilSparkles aria-hidden="true" />{entry.preset.title}</span>}{entry.preset && entry.parts.length > 0 && "\n"}
-      {entry.parts.map((part, i) => {
-        if (!("text" in part)) return <SentChip key={i} marker={part.anchor} anchor={entry.anchors[part.anchor - 1]} frames={frames}
-          disabled={disabled} onLocate={onLocate} missing={missing(`${base}-${i}`)} />;
-        // An anchor ends the preceding word but cannot start the next one.
-        const previous = entry.parts[i - 1], prefix = previous && !("text" in previous) ? "x" : "";
-        const runs = skillWords(prefix + part.text, new Set(entry.skills ?? []));
-        return <Fragment key={i}>{skillTextParts(part.text, prefix.length, runs).map((piece, index) =>
-          piece.skill ? <span key={index} className="skill-word">{piece.text}</span> : <Fragment key={index}>{piece.text}</Fragment>)}</Fragment>;
-      })}</div>
+    <div className="bubble">{entry.preset && <span className="bubble-preset"><PencilSparkles aria-hidden="true" />{entry.preset.title}</span>}{entry.preset && entry.parts.length > 0 && !listed && "\n"}
+      {listed ? blocks.map((block, i) => block.kind === "list" ? <Fragment key={i}>{list(block, 0)}</Fragment>
+        : <span key={i} className="bubble-text">{inline(block.parts)}{i < blocks.length - 1 && endsInBlankLine(block.parts) && "\n"}</span>)
+        : inline(entry.parts)}</div>
     {entry.attachments.length > 0 && <div className="msg-files">{entry.attachments.map((file, i) => {
       const view = sentFileView(file, home);
       const chip = <span className="attach-chip">

@@ -966,9 +966,10 @@ test.each(TAKE_KEYS)("%s does not take the suggestion over typed text, a preset,
 
   for (const modifier of [{ shiftKey: true }, { altKey: true }, { metaKey: true }, { ctrlKey: true }]) {
     const moved = suggestionSetup();
-    const keyEvent = press(moved.render(), takeKey(modifier));
+    const keyEvent = press(moved.render(), takeKey({ ...modifier, currentTarget: { ownerDocument: { querySelectorAll: () => [] } } }));
     expect(moved.handle.insertText).not.toHaveBeenCalled();
-    expect(keyEvent.preventDefault).not.toHaveBeenCalled();
+    // Ctrl+Tab is the field's own focus move (ComposerParts fieldTabKey); every other modified key keeps the browser's.
+    expect(keyEvent.preventDefault).toHaveBeenCalledTimes(_name === "Tab" && "ctrlKey" in modifier ? 1 : 0);
   }
 });
 

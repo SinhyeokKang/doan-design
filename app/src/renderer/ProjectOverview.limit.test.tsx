@@ -49,8 +49,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 const send = vi.fn(async (): Promise<{ scheduled: { itemId: string; at: string } }> => ({ scheduled: { itemId: "s1", at: AT } }));
-function setup() {
-  const list: ListView = [summary];
+function setup(listed: ConversationSummary = summary) {
+  const list: ListView = [listed];
   const host: OverviewRunHost = {
     list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: () => {}, remembered: () => ({}), remember: () => {},
     markSeen: () => {}, focused: () => true, openCanvas: () => {}, toast: () => {}, label: () => "doan", changed: () => {},
@@ -88,6 +88,24 @@ test("a send main scheduled becomes a row and carries no picker change", async (
   expect(await composer.props!.onSend({ text: "Tighten it", anchors: [], attachments: [] })).toEqual({ ok: true, itemId: "s1" });
   expect(send).toHaveBeenLastCalledWith("claude", { conversationId: A, text: "Tighten it", anchors: [] });
   expect(run.queue(A).map(row => row.id)).toEqual(["s0", "s1"]);
+});
+
+test("a list main scheduled reads without its markers in the row and keeps them in the message", async () => {
+  const { run, render } = setup();
+  render();
+  await flush();
+  expect(await composer.props!.onSend({ text: "- Hero\n  - Footer", anchors: [], attachments: [] })).toEqual({ ok: true, itemId: "s1" });
+  expect(run.queue(A).at(-1)).toMatchObject({ id: "s1", text: "Hero Footer", message: { text: "- Hero\n  - Footer" } });
+});
+
+// Before the summary has a title, the header reads the first message the way a new title is made: markers dropped.
+test("an untitled conversation's header reads its first list message without markers", async () => {
+  const history = [event({ type: "user.message", text: "- Hero\n  - Footer {{1}}", anchors: [{ frame: { id: "cart", title: "Cart" } }] }), event({ type: "turn.started" })];
+  doan.readConversation = vi.fn(async () => ({ events: history, lastSeq: history.at(-1)!.seq, turn: "running" }));
+  const { render } = setup({ ...summary, title: "" });
+  render();
+  await flush();
+  expect(render()).toMatch(/class="ov-title doan-button"[^>]*>.*?<span>Hero Footer Cart<\/span>/);
 });
 
 // U16: the Overview's attachment refusals show under its composer, not as the window's toast.

@@ -74,9 +74,9 @@ test("Send now shows the queued message with its chips and files above the open 
   await flush();
   const anchors = [{ frame: { id: "cart", title: "Cart" } }];
   expect(await composer.props!.onQueue({ text: "Tighten {{1}}", anchors, attachments: [{ id: "f1" }], files: [{ name: "notes.pdf", size: 86016, kind: "file", path: "/Users/ada/notes.pdf" }] })).toEqual({ ok: true, itemId: "q1" });
-  // The Overview's row keeps the request's own text.
+  // The Overview's row reads its line as the canvas panel's does (chips by name); the request keeps its own text.
   render();
-  expect(composer.props!.queued.map(({ id, text }) => ({ id, text }))).toEqual([{ id: "q1", text: "Tighten {{1}}" }]);
+  expect(composer.props!.queued.map(({ id, text }) => ({ id, text }))).toEqual([{ id: "q1", text: "Tighten Cart" }]);
 
   const answer = (() => { let resolve!: (value: { error: string }) => void; const promise = new Promise<{ error: string }>(r => { resolve = r; }); return { promise, resolve }; })();
   doan.sendQueuedNow = vi.fn(() => answer.promise);
@@ -92,7 +92,7 @@ test("Send now shows the queued message with its chips and files above the open 
   answer.resolve({ error: "not_running" });
   expect(await sent).toMatchObject({ error: "not_running" });
   expect(render()).not.toContain("msg-sending");
-  expect(composer.props!.queued.map(({ id, text }) => ({ id, text }))).toEqual([{ id: "q1", text: "Tighten {{1}}" }]);
+  expect(composer.props!.queued.map(({ id, text }) => ({ id, text }))).toEqual([{ id: "q1", text: "Tighten Cart" }]);
   expect(run.sending(A)).toEqual([]);
 });
 
@@ -102,4 +102,13 @@ test("Overview queue rows strip fixed lines while retaining the full request for
   await composer.props!.onQueue({ text, anchors: [], attachments: [] });
   render();
   expect(composer.props!.queued[0]).toMatchObject({ text: "/deploy now", message: { text } });
+});
+
+test("a queued list reads without its markers in the row and keeps them in the message", async () => {
+  const { render } = setup();
+  render();
+  await flush();
+  expect(await composer.props!.onQueue({ text: "- Hero\n  - Footer", anchors: [], attachments: [] })).toEqual({ ok: true, itemId: "q1" });
+  render();
+  expect(composer.props!.queued).toMatchObject([{ id: "q1", text: "Hero Footer", message: { text: "- Hero\n  - Footer" } }]);
 });

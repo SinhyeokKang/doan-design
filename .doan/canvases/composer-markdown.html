@@ -170,27 +170,30 @@ button.anchor-chip{cursor:pointer}
 /* ── New, not in code (composer-markdown) ── */
 /* Field (ChipField render): a list line's marker and depth spaces are wrapped in inline spans; the text inside stays
    ordinary field text, so caret, delete, undo and copy work as on any text. No hanging indent in the field: a wrapped
-   line starts at the line start. The marker column and one depth level are both --space-6 (24 px), the indent of the
-   agent's Markdown lists (.md ul/ol padding-left), so a child's marker sits under its parent's body. A wider marker
-   ("100. ") grows its own span, so that item's text starts later: the field has no columns to align. */
-.list-mark{display:inline-block;position:relative;min-width:var(--space-6)}
+   line starts at the line start. Every marker stands one --space-5 step (20 px) in, so a depth-0 list reads as
+   indented, and each depth adds one more step. The marker column is --space-3 (12 px): a bullet, then a short gap,
+   then the text; a number ("1. ", wider than the column) is followed by its own typed space. A wider marker ("100. ")
+   grows its own span, so that item's text starts later: the field has no columns to align. */
+.list-mark{display:inline-block;position:relative;min-width:var(--space-3);margin-inline-start:var(--space-5)}
 /* "- " and "* ": the characters stay in the DOM but are not painted; a • is drawn where the "-" was. */
 .list-mark[data-kind="ul"]{color:transparent}
 .list-mark[data-kind="ul"]::before{content:"•";position:absolute;left:0;top:0;color:var(--text-standard)}
 /* Ordered markers ("1. ", "12. ") are painted as typed. */
 .list-depth{display:inline-block}
-.list-depth[data-depth="1"]{width:var(--space-6)}
-.list-depth[data-depth="2"]{width:calc(2 * var(--space-6))}
+.list-depth[data-depth="1"]{width:var(--space-5)}
+.list-depth[data-depth="2"]{width:calc(2 * var(--space-5))}
 /* Sent bubble (UserMessage): list lines become role="list"/"listitem" blocks, not ul/ol, so Chromium copies the marker
    and depth spaces as text. Each item is a grid of depth, marker and body; the body column wraps under itself (hanging
    indent). A nested list spans the whole item, and its own depth span moves it in. No gap between items: lines read as
    typed. Each list is one grid and its items are subgrids, so the marker column is as wide as the list's widest marker
-   (at least 24 px) and the bodies of one list line up ("9.", "10.", "100."); a nested list sizes its own column. */
+   (at least 12 px, after the marker's one-step margin) and the bodies of one list line up ("9.", "10.", "100."); a nested list sizes its own column. */
 .bubble-text{display:block}
 .bubble-list{display:grid;grid-template-columns:auto auto minmax(0,1fr)}
 .bubble-item{display:grid;grid-column:1 / -1;grid-template-columns:subgrid}
 .bubble-item>.list-depth{grid-column:1}
 .bubble-item>.list-mark{grid-column:2}
+/* Numbers stand at the column's end, as a native ol draws them, so every "N." keeps the same gap to its text. */
+.bubble-item>.list-mark[data-kind="ol"]{text-align:right}
 .bubble-item>.bubble-item-body{grid-column:3;min-width:0}
 .bubble-item>.bubble-list{grid-column:1 / -1}
 </style></head><body><svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -222,8 +225,8 @@ button.anchor-chip{cursor:pointer}
 <p>Example data is illustrative: project <b>acme-web</b>, canvas <b>landing</b> (frame <code>hero</code> “Hero”, element <code>cta</code> button “Get started”), a project skill <code>copy-check</code>.</p>
 <h2>Settled in this draft</h2>
 <ol>
-<li>Marker column and one depth step: both <code>--space-6</code> (24 px), in the field and the bubble. In the bubble a list’s marker column grows to its widest marker, so the bodies of one list line up; in the field a wider marker (<code>100. </code>) pushes only its own item’s text (frames 02 and 05, tiles <i>c</i>).</li>
-<li>Markers take the body ink (<code>--text-standard</code>): the • and the typed numbers, left-aligned in the marker column.</li>
+<li>Indent and marker column, in the field and the bubble: every marker stands one <code>--space-5</code> step (20 px) in and each depth adds one more step; the marker column is <code>--space-3</code> (12 px), so a bullet is followed by a short gap and a number by its typed space. In the bubble a list’s marker column grows to its widest marker, so the bodies of one list line up; in the field a wider marker (<code>100. </code>) pushes only its own item’s text (frames 02 and 05, tiles <i>c</i>).</li>
+<li>Markers take the body ink (<code>--text-standard</code>): the • and the typed numbers. In the field each marker starts at its step; in the bubble the • starts the column and numbers are right-aligned in it, so <code>9.</code> and <code>10.</code> keep the same gap to their text.</li>
 <li>No extra spacing between list items in the bubble or the field: lines keep the spacing they had as plain text.</li>
 </ol>
 <p>The person’s list differs from the agent’s Markdown list on purpose: the agent’s replies keep 4 px between items and a circle at the second bullet level (<code>.md</code> lists in <code>styles.css</code>); the person’s bubble keeps the lines as typed and draws • at every level.</p>
@@ -288,7 +291,7 @@ button.anchor-chip{cursor:pointer}
 <span class="list-mark" data-kind="ol" data-doan-id="fo-c-mark9">9. </span>Hero spacing
 <span class="list-mark" data-kind="ol" data-doan-id="fo-c-mark10">10. </span>Pricing cards
 <span class="list-mark" data-kind="ol" data-doan-id="fo-c-mark100">100. </span>Footer links<span class="caret" aria-hidden="true"></span></div><div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send"><svg aria-hidden="true"><use href="#i-up"/></svg></button></div></div><div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"><svg aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"><svg aria-hidden="true"><use href="#i-pick"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Agent: Claude Code, model Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High"><svg aria-hidden="true"><use href="#i-gauge"/></svg><span class="label">High</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Default"><svg aria-hidden="true"><use href="#i-shield"/></svg><span class="label">Default</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div></div>
-<p class="note">The marker is at least 24 px; <code>100. </code> is wider, so only that item’s text starts later. The field draws no columns, so the bodies are not aligned here; the sent bubble aligns them (frame 05, tile <i>c</i>).</p></div>
+<p class="note">The marker is at least 12 px; numbers are wider, and <code>100. </code> widest, so only that item’s text starts later. The field draws no columns, so the bodies are not aligned here; the sent bubble aligns them (frame 05, tile <i>c</i>).</p></div>
 <aside class="keys" aria-label="Keys in a numbered item"><h3>Keys in a numbered item</h3><dl>
 <dt><kbd>Shift</kbd>+<kbd>Enter</kbd></dt><dd>Adds the next number at the same depth. If that number would have four digits (after <code>999. </code>), it is an ordinary line break.</dd>
 <dt><kbd>Tab</kbd></dt><dd>Moves the item under the one above and renumbers it <code>1. </code>, the first item of a nested numbered list.</dd>
@@ -358,7 +361,7 @@ button.anchor-chip{cursor:pointer}
 <dt>Items</dt><dd>Lines that start with <code>- </code>, <code>* </code> or a 1–3 digit <code>N. </code>, and their depth by the parent item’s text column.</dd>
 <dt>Numbers</dt><dd>As typed, never renumbered: two items typed <code>1.</code> both read <code>1.</code>, as in tile <i>b</i>.</dd>
 <dt>Wrapping</dt><dd>Under the item’s text (hanging indent), in the bubble only.</dd>
-<dt>Columns</dt><dd>One marker column per list, as wide as its widest marker (at least 24 px), so <code>9.</code>, <code>10.</code> and <code>100.</code> items start their text together.</dd>
+<dt>Columns</dt><dd>One marker column per list, as wide as its widest marker (at least 12 px), so <code>9.</code>, <code>10.</code> and <code>100.</code> items start their text together.</dd>
 <dt>Not items</dt><dd>A line that starts with a chip, a 4-digit number or anything else; it keeps its spaces as plain text.</dd>
 <dt>Copy</dt><dd>⌘C on a selection copies the sent text, markers and depth spaces included.</dd>
 </dl>
