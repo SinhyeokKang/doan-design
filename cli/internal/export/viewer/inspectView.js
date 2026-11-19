@@ -220,6 +220,10 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     else if (event.key !== "Tab") return;
     event.preventDefault(); event.stopPropagation();
   });
+  const endDrag = () => { dragging = false; point = null; };
+  window.addEventListener("pointerup", endDrag, true);
+  window.addEventListener("blur", endDrag);
+  document.addEventListener("focusin", event => { if (event.target !== canvas) endDrag(); });
   document.addEventListener("pointerdown", event => {
     if (!menu.contains(event.target) && !trigger.contains(event.target)) closeMenu(false);
     if (event.button === 0 && !event.ctrlKey && !panel.hidden && board.contains(event.target) && !panTold) command("inspect-clear-text");
@@ -257,7 +261,7 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
   return {
     accept(event) {
       if (panel.hidden) return;
-      const message = inspectorMessages.parseMessage(event, canvas.contentWindow, epoch, seq);
+      const message = inspectorMessages.parseMessage(event, canvas.contentWindow, epoch, seq, document.activeElement === canvas);
       if (!message) return;
       seq = message.seq;
       if (message.type === "inspection") render(message);

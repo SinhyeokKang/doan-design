@@ -1,8 +1,11 @@
 // Runs inside the canvas document, the first script in its <head>, so the font listener below
-// cannot miss `loadingdone`. `assemble` puts lib.js, then this file, in one inline <script> wrapped
-// in a function, so none of the names leak into the canvas's own scripts.
+// cannot miss `loadingdone`. `assemble` wraps lib.js, the inspector readers and this file together
+// in one function, so none of the names leak into the canvas's own scripts.
 //
-// Inspection readers and input listeners are enabled by the shell while its column is visible.
+// The size-reporting half of app/src/main/canvasScript.ts: it tells the viewer page how tall the
+// document is and where its frames are, and hands wheel input the canvas itself cannot scroll to
+// the page. The folded viewer forwards tool keys (Space, V, H, Escape) and shows the hand while
+// the board pans. The shell enables inspection readers and input handling while its column is visible.
 // POSTMORTEM 2026-11-01 (absolutely positioned frames resizing the iframe between 0 and 405 px
 // forever) is why the height comes from lib.js `documentHeight`/`frameBottom`/`nextHeight`
 // unchanged.

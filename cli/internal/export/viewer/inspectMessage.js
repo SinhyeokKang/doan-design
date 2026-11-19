@@ -31,7 +31,7 @@ const inspectorMessages = (() => {
     return result;
   }
 
-  return { parseMessage(event, frame, epoch, last) {
+  return { parseMessage(event, frame, epoch, last, canvasFocused) {
     const data = event.data;
     if (!frame || event.source !== frame || event.origin !== "null" || !isRecord(data) || data.epoch !== epoch
       || !Number.isSafeInteger(data.seq) || data.seq <= last) return null;
@@ -48,10 +48,11 @@ const inspectorMessages = (() => {
         if ((data.selected !== null && !rect(data.selected)) || (data.hover !== null && !rect(data.hover))) return null;
         return { ...message, selected: copyRect(data.selected), hover: copyRect(data.hover) };
       case "inspect-text":
+        if (data.dragging === true && !canvasFocused) return null;
         if (!list(data.rects, 2000, rect) || !string(data.text, 100000) || typeof data.dragging !== "boolean") return null;
         return { ...message, rects: Array.from(data.rects, copyRect), text: data.text, dragging: data.dragging };
       case "inspect-press":
-        return message;
+        return canvasFocused ? message : null;
       default:
         return null;
     }
