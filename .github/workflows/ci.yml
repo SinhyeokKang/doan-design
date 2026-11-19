@@ -25,8 +25,10 @@ jobs:
   shard:
     name: shard ${{ matrix.shard }}/3
     runs-on: macos-26
-    # About twice the measured shard 1 time.
-    timeout-minutes: 15
+    # About twice the slowest measured shard (4.7 min). The limit also ends a
+    # job still waiting for a macOS runner, and one that waits this long rarely
+    # gets one, so a shorter limit lets a rerun start sooner.
+    timeout-minutes: 10
     strategy:
       # Keep the other shards running so one failure does not hide another.
       fail-fast: false
