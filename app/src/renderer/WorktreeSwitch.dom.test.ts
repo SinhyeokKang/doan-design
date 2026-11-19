@@ -75,3 +75,21 @@ test.each([["cliError", "CLI error"], ["error", "Config error"]] as const)("a %s
     expect(await frame.locator("body").getAttribute("data-action")).toBe(name.toLowerCase() + "/code/next");
   }
 });
+
+test("the sidebar switch keeps clicks, disclosure and typeahead out of the tree and explains a lock", async () => {
+  const frame = await dom.load("<main></main>");
+  await frame.addScriptTag({ content: script });
+  const trigger = frame.getByRole("button", { name: "Worktree: main" });
+  for (const key of ["ArrowLeft", "ArrowRight", "d"]) await trigger.press(key);
+  expect(await frame.locator("body").getAttribute("data-key")).toBeNull();
+  await trigger.click();
+  await frame.getByRole("menu", { name: "Worktrees" }).waitFor();
+  expect(await frame.locator("body").getAttribute("data-click")).toBeNull();
+  await frame.evaluate(() => (window as unknown as { draw(ready: boolean, reason: string): void }).draw(true, "Finish or cancel the current task."));
+  await frame.getByRole("menu").waitFor({ state: "hidden" });
+  expect(await trigger.getAttribute("aria-disabled")).toBe("true");
+  expect(await trigger.getAttribute("tabindex")).toBe("0");
+  expect(await trigger.evaluate(node => node.ownerDocument.getElementById(node.getAttribute("aria-describedby")!)?.textContent)).toBe("Finish or cancel the current task.");
+  await trigger.press("Enter");
+  expect(await trigger.getAttribute("aria-expanded")).toBe("false");
+});
