@@ -16,7 +16,7 @@ export function WorktreeSwitch({ model, reason, tabIndex, onWorktree, recovery, 
   model: WorktreeModel; reason?: string | null; tabIndex?: number; onWorktree(root: string): void;
   recovery?: WorktreeRecovery; handOffFocus?: boolean;
 }) {
-  const description = useId();
+  const description = useId(), heading = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const [tip, setTip] = useState(false);
   const [open, setOpen] = useState(false);
@@ -41,9 +41,9 @@ export function WorktreeSwitch({ model, reason, tabIndex, onWorktree, recovery, 
     </Tooltip>
     {reason && <span className="sr-only" id={description}>{reason}</span>}
     <DropdownMenu.Portal><DropdownMenu.Content className={`doan-floating doan-menu shell-project-menu wt-menu${tabIndex === undefined ? "" : " shell-side-menu"}`}
-      aria-label="Worktrees" align="start" sideOffset={4} collisionPadding={8} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}
+      aria-labelledby={heading} align="start" sideOffset={4} collisionPadding={8} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}
       onCloseAutoFocus={event => { if (moved.current) { event.preventDefault(); moved.current = false; } }}>
-      <DropdownMenu.Label className="doan-menu-head">Worktrees</DropdownMenu.Label>
+      <DropdownMenu.Label id={heading} className="doan-menu-head">Worktrees</DropdownMenu.Label>
       {model.rows.map(row => {
         const marked = repair?.state.kind === "repair" ? repair.root === row.root : row.current;
         return <DropdownMenu.Item key={row.root} className="doan-menu-item shell-worktree" aria-current={marked ? "true" : undefined}

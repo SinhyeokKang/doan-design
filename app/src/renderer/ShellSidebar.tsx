@@ -6,6 +6,8 @@ import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
 import { AlertIcon } from "./AlertIcon";
 import { cardRow, ROW_ACTION_ICONS as icons, ROW_ACTION_LABELS as labels, type HomeCard, type RowAction } from "./homeCards";
+import { worktreeLabel, worktreeSwitchModel } from "./worktreeSwitchModel";
+import { WorktreeSwitch } from "./WorktreeSwitch";
 import { projectExpanded, projectHue, projectInitial } from "./shellNavigation";
 import { sortedCanvases } from "./canvasOrder";
 import { rowProblem, typeaheadNext } from "./canvasTree";
@@ -460,7 +462,7 @@ export function ShellSidebar(props: Props) {
         const expanded = projectExpanded(project, loaded), current = !props.home && card.rows.some(row => row.path === loaded);
         const layout = layouts.get(card.key) ?? { groups: [], items: [], mark: null, state: null };
         const listed = entry.kind === "list", stateId = `${descriptionPrefix}-${index}-state`;
-        const info = cardRow(entry, loaded, null);
+        const worktrees = worktreeSwitchModel(card.rows, entry.path, props.homeDirectory);
         const projectMenu = menu?.kind === "project" && menu.key === card.key;
         const menuEntry = (projectMenu && card.rows.find(row => row.path === repairRoot)) || entry;
         const menuInfo = cardRow(menuEntry, loaded, null);
@@ -473,7 +475,8 @@ export function ShellSidebar(props: Props) {
             <span className="shell-lead"><span className={`shell-thumbnail hue-${projectHue(card.name)}`} aria-hidden="true">{projectInitial(card.name)}</span>
               {listed && <button type="button" className="shell-disclosure" aria-label={`${expanded ? "Collapse" : "Expand"} ${card.name}`} tabIndex={-1} onClick={event => { event.stopPropagation(); props.disclose(card.key); }}><ChevronDown aria-hidden="true" /></button>}</span>
             <NameTip text={card.name}><span className="shell-project-name">{card.name}</span></NameTip>
-            {info.summary?.branch && <span className="doan-chip shell-branch" data-ui-variant="translucent"><GitBranch aria-hidden="true" /><span>{info.summary.branch}</span></span>}
+            {worktrees && <WorktreeSwitch model={worktrees} reason={locked ? props.lockReason ?? "Finish or cancel the current task." : null}
+              tabIndex={active === card.key ? 0 : -1} onWorktree={props.worktree} recovery={{ action: props.action, projectSettings: props.projectSettings }} />}
             <RowSlotMark slot={layout.mark} />
             {layout.state && <span id={stateId} className="sr-only">{layout.state.label}</span>}
             <DropdownMenu.Root open={projectMenu} onOpenChange={open => { setMenu(open ? { kind: "project", key: card.key } : null); if (open) { setRepairRoot(null); menuIndex.current = index; menuRoot.current = entry.path; } }}>
@@ -490,7 +493,7 @@ export function ShellSidebar(props: Props) {
                   if (!current) return;
                   if (current.kind === "list" || current.kind === "loading") props.worktree(current.path);
                   else { event.preventDefault(); setRepairRoot(current.path); menuRoot.current = current.path; }
-                }}><GitBranch aria-hidden="true" /><span><span>{cardRow(row, null, null).summary?.branch ?? row.path.split("/").at(-1)}</span><small>{displayPath(row.path, props.homeDirectory)}</small></span>{row.path === menuEntry.path && <Check aria-hidden="true" />}</DropdownMenu.Item>)}
+                }}><GitBranch aria-hidden="true" /><span><span>{worktreeLabel(row)}</span><small>{displayPath(row.path, props.homeDirectory)}</small></span>{row.path === menuEntry.path && <Check aria-hidden="true" />}</DropdownMenu.Item>)}
                 <DropdownMenu.Separator className="doan-menu-sep" />
                 <DropdownMenu.Item className="doan-menu-item" aria-disabled={locked} onSelect={() => run(() => props.overview(menuEntry.path))}><LayoutGrid />Overview</DropdownMenu.Item>
                 <DropdownMenu.Item className="doan-menu-item" onSelect={() => run(() => props.action("showInFinder", menuEntry.path))}><FolderOpen />Show in Finder</DropdownMenu.Item>

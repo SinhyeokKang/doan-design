@@ -23,7 +23,7 @@ it("renders project to canvas IA, locks current expansion, and makes the branch 
   expect(html).not.toContain("hidden-frame");
   expect(html).not.toContain('aria-label="Overview"');
   expect(html).toContain('data-ui-variant="translucent"');
-  expect(html).toMatch(/<button[^>]*aria-haspopup="menu"[^>]*aria-label="Worktree: main"/);
+  expect(html).toMatch(/<button[^>]*aria-label="Worktree: main"[^>]*tabindex="0"[^>]*aria-haspopup="menu"/);
   expect(html).toContain('aria-label="demo menu"');
 });
 it("shows only the remembered worktree and keeps other projects collapsed", () => {
