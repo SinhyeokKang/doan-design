@@ -58,3 +58,17 @@
 
 - 숨긴 `- ` 위의 캐럿: `- `는 두 글자라 ←·→로 •를 건널 때 캐럿이 보이지 않는 칸에 멈출 수 있다. 화살표 이동이 기호 안쪽을 건너뛰게 할 수 있는지, 그리고 인라인 깊이 span이 캐럿·줄 삭제(ARCHITECTURE §7: "line deletes are computed from segments and drawn rows")를 깨지 않는지 확인되지 않았다. tasks의 첫 항목이 이를 확인한다.
 - 조합 중 다시 그리지 않는 규칙이 목록 span이 늘어도 지켜지는지는 실제 앱의 macOS 한글 IME로만 확인할 수 있다. Playwright는 네이티브 IME를 입력하지 못한다. 사람이 확인하지 못하면 BACKLOG 'Not verified in the real app'에 남긴다(native IME 항목과 같은 한계).
+
+## 초안 요청 (`/design-draft`)
+
+- 캔버스: `.doan/canvases/composer-markdown.html`, id `composer-markdown`, `doan:width` 1600. 새 파일이다.
+- 프레임(id — 내용):
+  - `field-bullets` — 캔버스 대화 패널의 docked composer(박스 모양). `- ` 목록 3단 중첩, •로 그림, 깊이별 들여쓰기, 스킬 단어가 든 항목.
+  - `field-ordered` — 같은 composer. 번호 목록(`1.`·`2.`), 하위 번호 목록이 1부터, `2026. 11. 19. 회의` 줄은 목록이 아님.
+  - `field-wrap` — 같은 composer. 긴 항목이 넘쳐 둘째 줄이 줄 처음부터 이어짐(입력창에는 내어쓰기 없음).
+  - `field-home` — Home 히어로 composer에 같은 목록(네 composer가 같은 field를 쓴다는 확인용 한 장).
+  - `bubble-lists` — 캔버스 대화 패널 스레드의 보낸 버블. `ul`·`ol` 중첩, 넘친 줄 내어쓰기, 적힌 번호 그대로(`1. 1.`), 항목 안의 앵커 칩과 스킬 단어.
+  - `bubble-plain` — 보낸 버블에서 목록 외 Markdown 기호(`**`, 백틱, `#`)가 평문으로 남음.
+  - `title-queue` — 목록으로 시작한 메시지의 대화 제목(사이드바 행·패널 제목)과 큐 행이 기호 없는 평문으로 보임.
+- 키 동작(Shift+Enter, Tab, Ctrl+Tab, Backspace)은 그릴 수 없으므로 각 프레임 옆 노트로 적는다.
+- 그대로 베끼는 출하 화면: docked composer와 스레드는 `docs/design/canvas-conversation.md`, Home composer는 `docs/design/home.md`, 코드는 `ComposerParts.tsx`, `DockedComposer.tsx`, `HomeComposerView.tsx`, `ConversationThread.tsx`.

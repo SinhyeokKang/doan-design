@@ -51,3 +51,17 @@
 ## PoC 의존
 
 없다. 기존 컴포넌트를 모으고 옮기는 일이다.
+
+## 초안 요청 (`/design-draft`)
+
+- 캔버스: `.doan/canvases/header-breadcrumb-worktree.html`, id `header-breadcrumb-worktree`, `doan:width` 1600. 새 파일이다.
+- 프레임(id — 내용):
+  - `canvas-header` — 캔버스 헤더, 워크트리 셋인 Git 프로젝트: `프로젝트 › 워크트리 셀렉트 › 캔버스 › 프레임 서랍`, 줌, Reload, 접힌 패널의 Show 버튼.
+  - `canvas-header-menu` — 같은 헤더에서 셀렉트 메뉴가 열린 상태: 현재 행 체크, 활성 행, 비활성 행 "No <canvas> here", 비활성 행 "Reading…", 문제 워크트리 비활성 행.
+  - `canvas-header-one` — 워크트리 하나: 셀렉트이고 메뉴에 한 행.
+  - `canvas-header-nongit` — Git이 아닌 프로젝트: `프로젝트 › 캔버스 › 프레임 서랍`, 셀렉트 없음.
+  - `canvas-header-unavailable` — 프로젝트 문제·목록에 없는 페이지: 캔버스 이름 없음, 셀렉트 비활성과 이유 툴팁.
+  - `canvas-header-narrow` — 960×600 창 폭에서 줄임 순서(긴 프로젝트·브랜치·캔버스·프레임 이름).
+  - `overview-header` — Overview 헤더: 워크트리 하나여도 셀렉트, 메뉴 열린 모습 하나.
+  - `sidebar-row` — 사이드바 프로젝트 행: 칩 자리에 셀렉트, 메뉴 열린 모습, "…" 버튼과 나란히.
+- 그대로 베끼는 출하 화면: 캔버스 헤더 `docs/design/canvas.md` 'Canvas area and right panel'과 `CanvasHeader.tsx`, Overview 헤더 `docs/design/project.md`와 `ProjectOverview.tsx`, 사이드바 `docs/design/shell.md`와 `ShellSidebar.tsx`, 워크트리 메뉴 `.wt-menu`.

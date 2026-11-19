@@ -58,3 +58,14 @@
 3. 외부 URL 스타일시트(CORS)에서 온 값을 어떻게 보일지.
 4. `file://`로 연 파일에서 클립보드 쓰기가 Safari(WebKit)에서 되는가.
 5. 뷰어 JS가 늘어나는 크기.
+
+## 초안 요청 (`/design-draft`)
+
+- (B) 캔버스: `.doan/canvases/inspector-reach-bubble.html`, id `inspector-reach-bubble`, `doan:width` 1600. 새 파일이다.
+  - `bubble-element` — 요소 선택, inspector 접힘: 크기, Add to message, Show inspector(아이콘).
+  - `bubble-frame-play` — 재생할 수 있는 프레임 선택: Play, 크기, Add to message, Show inspector.
+  - `bubble-yield` — 좁은 창에서 inspector가 물러남: Show inspector 비활성과 이유 툴팁.
+  - `bubble-open` — inspector 열림: 버블에 Show inspector 없음, 오른쪽에 inspector 열.
+  - `bubble-edge` — 선택이 보드 아래 가장자리에 있어 버블이 위로 뒤집힘(버튼이 하나 늘어난 폭).
+  - 그대로 베끼는 출하 화면: 캔버스 페이지와 버블 `docs/design/prototype.md` 'Size bubble with Play'·'Bubble placement', `docs/design/canvas.md` 'Canvas inspector', 코드 `CanvasController.ts`, `BubbleAdd.tsx`, `InspectorPanel.tsx`.
+- (A) 뷰어 초안 `.doan/canvases/inspector-reach-viewer.html`은 PoC 뒤에 요청한다(tasks 7).
