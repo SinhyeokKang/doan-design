@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { parseSync } from "rolldown/utils";
+import { parseSync, transformSync } from "rolldown/utils";
 import { rolldown } from "rolldown";
 
 const app = fileURLToPath(new URL("../", import.meta.url));
@@ -30,6 +30,16 @@ async function canvasReaders() {
     if (!declaration) throw new Error("Missing canvas reader " + name);
     return "const " + source.slice(declaration.start, declaration.end) + ";";
   }).join("\n");
+  // Let the TS transform resolve scopes: a property name, a type, or a shadowing parameter is not
+  // a dependency on the outer closure. Any live reference left after extraction needs a reader.
+  const locals = canvas.body.body.filter(node => ["VariableDeclaration", "FunctionDeclaration", "ClassDeclaration"].includes(node.type))
+    .map(node => "export " + source.slice(node.start, node.end)).join("\n");
+  const bindings = parseSync(path, locals).module.staticExports.flatMap(group => group.entries.map(entry => entry.localName.name));
+  const omitted = bindings.filter(name => !names.includes(name));
+  const imports = `import { ${omitted.join(", ")} } from "canvas-locals";\n`;
+  const checked = transformSync(path, imports + body).code;
+  const dependencies = parseSync(path, checked).module.staticImports.flatMap(group => group.entries.map(entry => entry.localName.value));
+  if (dependencies.length) throw new Error("Unextracted canvas reader dependency: " + dependencies.join(", "));
   return `import * as lib from ${JSON.stringify(path)};\n${body}\nexport { framesOf, textStart, textRects, readText, rectOf };`;
 }
 
