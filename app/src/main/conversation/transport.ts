@@ -6,6 +6,7 @@ import { connectorLabels, serverLabel } from "../mcpConnectors/presets";
 import { codexMcpApproval } from "../mcpConnectors/codexApproval";
 import { CONNECTOR_NAME_PATTERN } from "../mcpConnectors/names";
 import type { BoundaryKind } from "./commandRecords";
+import { clip, quoted, visibleText } from "./cardText";
 import { QUESTION_LIMITS, type Question, type QuestionAnswer, type StoredAnswer } from "./question";
 import type { EventPayload, FailureCode, FastUnused, FastUnusedReason, PendingPermission, PermissionChoice, TransportResult, TransportState, TurnStage } from "./types";
 
@@ -146,25 +147,56 @@ function text(value: unknown): string { return typeof value === "string" ? value
 export const GENERIC_SUMMARY = { edit: "Editing files", read: "Reading files", command: "Running a command", other: "Using a tool" } as const;
 // A permission request leads with what will run (ARCHITECTURE §7: the approval card shows the command), so it keeps far
 // more of it than other one-line summaries; the agent's own words about it (reason) stay short. A cut text ends in "…",
-// so the person sees that more would run than the card shows.
+// so the person sees that more would run than the card shows (clip).
 export const PERMISSION_SUMMARY_MAX = 8192;
 const PERMISSION_REASON_MAX = 512;
-export function clip(value: string, max: number): string { return value.length > max ? `${value.slice(0, max - 1)}…` : value; }
 // The agent's description of a request, unless it only repeats what the card already shows.
 export function permissionReason(reason: string, summary: string): { reason?: string } {
   const trimmed = reason.trim();
-  return trimmed && trimmed !== summary ? { reason: clip(trimmed, PERMISSION_REASON_MAX) } : {};
+  return trimmed && visibleText(trimmed) !== summary ? { reason: clip(trimmed, PERMISSION_REASON_MAX) } : {};
 }
 type ActivityKind = keyof typeof GENERIC_SUMMARY;
 export function displayPath(path: string, root: string): string {
   const relative = posix.relative(root, posix.resolve(root, path));
   return relative && !relative.startsWith("..") && !posix.isAbsolute(relative) ? relative : path;
 }
-// Codex wraps commands in the login shell (`/bin/zsh -c '…'`); a single parsed action is the command as written.
+// Allow answers for `command` whole. Codex's `commandActions` is a best-effort parse for display that can name only part
+// of the line, so it never stands in for the command. Only
+// the login-shell wrapper Codex adds (`/bin/zsh -lc <script>`, a system shell) comes off, and only when the rest decodes
+// as exactly one shell word; anything else shows as sent.
+const SHELL_WRAPPER = /^\/bin\/(?:zsh|bash|sh) -l?c (.+)$/s;
 function commandText(input: Record<string, unknown>): string {
-  const actions = Array.isArray(input.commandActions) ? input.commandActions.filter(object) : [];
-  const [only] = actions;
-  return (actions.length === 1 && only && text(only.command)) || text(input.command);
+  const command = text(input.command);
+  const script = SHELL_WRAPPER.exec(command)?.[1];
+  return (script !== undefined && shellWord(script)) || command;
+}
+// One POSIX shell word, as Codex's quoting writes it: '…' runs, "…" runs with \ escapes, backslash escapes and plain
+// characters. Null for anything a shell would expand or split (an unescaped $ or ` in double quotes, a space, an
+// operator), since the decoded text would then not be the script.
+function shellWord(source: string): string | null {
+  let word = "", i = 0;
+  while (i < source.length) {
+    const char = source.charAt(i);
+    if (char === "'") {
+      const end = source.indexOf("'", i + 1);
+      if (end < 0) return null;
+      word += source.slice(i + 1, end); i = end + 1;
+    } else if (char === '"') {
+      for (i++; ; i++) {
+        const inner = source[i];
+        if (inner === undefined || inner === "$" || inner === "`") return null;
+        if (inner === '"') { i++; break; }
+        if (inner === "\\" && "$`\"\\\n".includes(source[i + 1] ?? "x")) { i++; if (source[i] !== "\n") word += source.charAt(i); continue; }
+        word += inner;
+      }
+    } else if (char === "\\") {
+      if (i + 1 >= source.length) return null;
+      if (source[i + 1] !== "\n") word += source.charAt(i + 1);
+      i += 2;
+    } else if (/[\w@%+=:,./-]/.test(char)) { word += char; i++; }
+    else return null;
+  }
+  return word || null;
 }
 // Codex app-server's RequestPermissionProfile (checked against 0.169.0's generated schema): `network.enabled`, and
 // `fileSystem` paths by access, as the legacy `read`/`write` lists and as `entries`. Each kind reads as one line; a piece
@@ -243,18 +275,20 @@ const DOAN_MCP_TOOL = new RegExp(`^mcp__(${CONNECTOR_NAME_PATTERN})__(.+)$`, "s"
 const PRESET_LABELS = connectorLabels([]);
 function doanToolSummary(tool: string, labels: Readonly<Record<string, string>>): string | null {
   const mcp = tool.match(DOAN_MCP_TOOL);
-  return mcp ? `Run ${mcp[2]} on ${serverLabel(mcp[1]!, { ...PRESET_LABELS, ...labels })}`.slice(0, 512) : null;
+  return mcp ? clip(`Run ${mcp[2]} on ${serverLabel(mcp[1]!, { ...PRESET_LABELS, ...labels })}`, 512) : null;
 }
 // Another MCP server's tool, named by its server as Claude Code names it (mcp__<server>__<tool>).
 const MCP_TOOL = /^mcp__(.+?)__(.+)$/s;
 // What the approval lets run, never the agent's description of it: the command, the file, the pattern or address, or
-// the MCP tool with its server.
+// the MCP tool with its server and then its arguments. An MCP tool's argument named command, path or url is only an
+// argument, so it never leads.
 export function claudePermissionSummary(tool: string, input: Record<string, unknown>, root: string, labels: Readonly<Record<string, string>> = PRESET_LABELS): string {
   const doan = doanToolSummary(tool, labels);
   if (doan) return doan;
-  const path = claudePath(input) || text(input.notebook_path);
   const mcp = tool.match(MCP_TOOL);
-  return clip(text(input.command) || (path && displayPath(path, root)) || text(input.pattern) || text(input.url) || (mcp ? `Run ${mcp[2]} on ${mcp[1]}` : "") || GENERIC_SUMMARY[claudeKind(tool)], PERMISSION_SUMMARY_MAX);
+  if (mcp) return clip(`Run ${mcp[2]} on ${mcp[1]}${Object.keys(input).length ? `\n${JSON.stringify(input)}` : ""}`, PERMISSION_SUMMARY_MAX);
+  const path = claudePath(input) || text(input.notebook_path);
+  return clip(text(input.command) || (path && displayPath(path, root)) || text(input.pattern) || text(input.url) || GENERIC_SUMMARY[claudeKind(tool)], PERMISSION_SUMMARY_MAX);
 }
 function claudeToolSummary(tool: string, input: Record<string, unknown>, root: string, labels: Readonly<Record<string, string>>): string {
   const path = claudePath(input);
@@ -620,19 +654,25 @@ export function codexPermission(raw: unknown, fileSummaries: Readonly<Record<str
   }
   if (raw.method !== "item/fileChange/requestApproval" && raw.method !== "item/commandExecution/requestApproval") return null;
   const response = (decision: unknown) => ({ id: raw.id, result: { decision } });
+  // grantRoot (unstable in Codex's schema) asks for writes under a folder for the rest of the session on top of this change.
+  const grantRoot = raw.method === "item/fileChange/requestApproval" ? text(params.grantRoot) : "";
+  const session = choice("acceptForSession", "Allow for this session", "allowAlways", response("acceptForSession"));
   const choices = [
     choice("accept", "Allow", "allow", response("accept")),
     choice("decline", "Deny", "deny", response("decline")),
-    choice("acceptForSession", "Allow for this session", "allowAlways", response("acceptForSession")),
+    grantRoot ? { ...session, option: { ...session.option, ...savedDetail(`Codex also asks to allow writes anywhere under ${quoted(grantRoot)} for the rest of this session.`) } } : session,
   ];
   if (raw.method === "item/commandExecution/requestApproval") {
     if (Array.isArray(params.proposedExecpolicyAmendment) && params.proposedExecpolicyAmendment.length && params.proposedExecpolicyAmendment.every(p => typeof p === "string")) {
       const rule = choice("execpolicy", "Allow with proposed command rule", "allowAlways", response({ acceptWithExecpolicyAmendment: { execpolicy_amendment: params.proposedExecpolicyAmendment } }));
-      choices.push({ ...rule, option: { ...rule.option, ...savedDetail(`Adds a rule that runs commands starting with “${commandPrefix(params.proposedExecpolicyAmendment)}” without asking.`) } });
+      choices.push({ ...rule, option: { ...rule.option, ...savedDetail(`Adds a rule that runs commands starting with ${quoted(commandPrefix(params.proposedExecpolicyAmendment))} without asking.`) } });
     }
     if (Array.isArray(params.proposedNetworkPolicyAmendments)) for (const [index, amendment] of params.proposedNetworkPolicyAmendments.entries()) {
       if (object(amendment) && typeof amendment.host === "string" && (amendment.action === "allow" || amendment.action === "deny")) {
-        choices.push(choice(`network-${index}`, `${amendment.action === "allow" ? "Allow" : "Deny"} ${amendment.host}`, amendment.action === "allow" ? "allowAlways" : "deny", response({ applyNetworkPolicyAmendment: { network_policy_amendment: amendment } })));
+        const allow = amendment.action === "allow";
+        const rule = choice(`network-${index}`, visibleText(`${allow ? "Allow" : "Deny"} ${amendment.host}`), allow ? "allowAlways" : "deny", response({ applyNetworkPolicyAmendment: { network_policy_amendment: amendment } }));
+        // Either answer saves a rule for later requests, so both say so.
+        choices.push({ ...rule, option: { ...rule.option, ...savedDetail(allow ? `Adds a rule that allows network access to ${quoted(amendment.host)} without asking.` : `Adds a rule that blocks network access to ${quoted(amendment.host)}.`) } });
       }
     }
   }
