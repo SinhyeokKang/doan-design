@@ -59,7 +59,7 @@ beforeEach(() => {
   vi.stubGlobal("document", { get activeElement() { return active; }, body, hasFocus: () => true });
   vi.stubGlobal("CSS", { escape: (value: string) => value });
   props = {
-    conversationId: "c1", items: [], provider: "claude", project: "acme", liveAfter: 0, canvasListed: () => true,
+    conversationId: "c1", items: [], provider: "claude", project: "acme", liveAfter: 0, canvasListed: () => true, visibility: { onWindowVisible: () => () => {} },
     onAnswer: () => new Promise(() => {}), onAnswerQuestion: () => new Promise(() => {}), onFocusComposer: composer,
     onStop: vi.fn(), onEditAndResend: () => {}, onSignIn: () => {}, onRetry: () => {}, onOpenCanvas: () => {}, onOpenLink: () => {}, onCopy: async () => true,
   };

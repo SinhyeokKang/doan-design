@@ -16,7 +16,8 @@ import {
   WHEEL_ZOOM_MAX, WHEEL_ZOOM_SENSITIVITY, wheelAction as appWheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt as appZoomAt,
 } from "../renderer/viewport";
 import { canScrollAxis, canvasScript, clipText, documentHeight, frameBottom, nextHeight } from "./canvasScript";
-import { toolShortcut as appToolShortcut, type ShortcutEvent } from "../renderer/canvasTool";
+import { OPEN_OVERLAY, toolShortcut as appToolShortcut, type ShortcutEvent } from "../renderer/canvasTool";
+import { drawn, NOTHING_OPEN, OPEN_SURFACES } from "../renderer/drawnTarget.test-support";
 import { editableTarget as appEditableTarget } from "../renderer/selection";
 import { panBy as appPanBy } from "../renderer/viewport";
 
@@ -527,6 +528,8 @@ describe("tool keys are the app's", () => {
     ["an input", element("INPUT")], ["a textarea", element("TEXTAREA")], ["a select", element("SELECT")], ["a contenteditable div", element("DIV", {}, true)],
     ["a button", element("BUTTON")], ["a link", element("A", { href: "#x" })], ["an anchor without href", element("A")],
     ...["button", "menuitem", "treeitem", "option", "tab", "switch", "checkbox", "radio", "combobox", "listbox", "dialog"].map((role): [string, unknown] => [`role=${role}`, element("DIV", { role })]),
+    // Targets with closest(), inside and outside an open menu, list, popover or dialog (the app's open-overlay rule).
+    ...[...OPEN_SURFACES, ...NOTHING_OPEN].map(([name, chain]): [string, unknown] => [`inside ${name}`, drawn(chain)]),
   ];
   const keys: [string, string][] = [["KeyV", "v"], ["KeyH", "h"], ["KeyV", "ㅍ"], ["KeyH", "ㅗ"], ["KeyV", "V"], ["Space", " "], ["KeyB", "v"], ["KeyA", "a"], ["Escape", "Escape"], ["Digit1", "!"]];
   const flags: [string, Partial<ShortcutEvent>][] = [
@@ -562,6 +565,21 @@ describe("tool keys are the app's", () => {
     const drifted = load(lib.replace('"combobox"', '"listbox"'));
     const row = press({ code: "Space", key: " ", target: element("DIV", { role: "combobox" }) });
     expect(drifted.toolShortcut(row, { canvasPage: true })).not.toEqual(appToolShortcut(row, { canvasPage: true }));
+  });
+
+  // The open-overlay rule's copy: dropping any one part of it makes a row of the table disagree.
+  test("the comparison fails when the open-overlay rule's copy drifts", () => {
+    const quoted = `'${OPEN_OVERLAY}'`;
+    expect(lib).toContain(quoted);
+    const parts = OPEN_OVERLAY.split(", ");
+    for (const part of parts) {
+      const drifted = load(lib.replace(quoted, `'${parts.filter(other => other !== part).join(", ")}'`));
+      const differs = targets.some(([, target]) => {
+        const row = press({ target });
+        return JSON.stringify(drifted.toolShortcut(row, { canvasPage: true })) !== JSON.stringify(appToolShortcut(row, { canvasPage: true }));
+      });
+      expect(differs, part).toBe(true);
+    }
   });
 });
 

@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from
 import { REPOSITORY_URL } from "../main/repository";
 import type { StarMoment } from "../main/starPrompt";
 import { AlertIcon } from "./AlertIcon";
-import { STAR_IDLE_MS, STAR_OVERLAY_QUERY, starPromptMoment } from "./starPromptMoment";
+import { overlayOpen } from "./canvasTool";
+import { STAR_IDLE_MS, starPromptMoment } from "./starPromptMoment";
 import { FLOATING_EXIT_MS } from "./toastState";
 
 export const STAR_TEXT = "Find Doan useful? It’s open source on GitHub.";
@@ -81,7 +82,7 @@ export function StarPrompt(props: StarPromptProps) {
             idleMs,
             windowActive: nativeVisible.current && !document.hidden && document.hasFocus(),
             onboarding: latest.current.onboarding,
-            overlayOpen: document.querySelector(STAR_OVERLAY_QUERY) !== null,
+            overlayOpen: overlayOpen(document),
             otherTurnBusy: busy,
             pickOrCapture: latest.current.pickOrCapture,
             cardVisible: shown.current !== null,
