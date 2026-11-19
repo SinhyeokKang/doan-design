@@ -14,7 +14,7 @@ import { buildJudgePrompt, checkList, finalResult, fixtureProblem, judgeCommand,
 import { summary, type RoundMeta, type RunRecord } from "./lib/record.ts";
 import { loadScenario, renderPrompt, scenarioIds, selectIds, type LoadedScenario } from "./lib/scenario.ts";
 import type { Check, Checks } from "./lib/types.ts";
-import { copyRepo, keepCodexSessions, keepOnboardingLog, prepareWorkspace, type Workspace } from "./lib/workspace.ts";
+import { copyRepo, keepCodexSessions, keepOnboardingLog, outsideCodexSandbox, prepareWorkspace, type Workspace } from "./lib/workspace.ts";
 
 const ROOT = dirname(import.meta.dirname);
 const SCENARIOS = join(ROOT, "eval/scenarios");
@@ -37,7 +37,8 @@ async function runChecks(scenario: LoadedScenario, ctx: ReturnType<typeof create
 
 async function judge(agent: Agent, prompt: string, dir: string): Promise<{ judgement: Judgement | null; raw: string }> {
   const judgeAgent = judgeFor(agent);
-  const cwd = mkdtempSync("/tmp/doan-eval-judge-");
+  // The judge's Codex home holds links to the user's sign-in while the other lane's Codex agents run.
+  const cwd = outsideCodexSandbox("doan-eval-judge-");
   try {
     const outFile = join(dir, "judge-last-message.txt");
     const { cmd, args } = judgeCommand(judgeAgent, prompt, outFile);
