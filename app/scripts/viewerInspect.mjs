@@ -7,7 +7,7 @@ const app = fileURLToPath(new URL("../", import.meta.url));
 const viewer = new URL("../../cli/internal/export/viewer/", import.meta.url);
 const entries = [
   ["inspect.js", "inspectCanvas", {
-    "main/cssomMatched": "cssomMatched",
+    "main/cssomMatched": "inspectElement",
     "main/canvasScript": "frameStep, escapeTarget, elementSelector, visibleRect, nodeLabel, nodeKind, elementTree, textDragState, textBoundary",
   }],
   ["inspectPanel.js", "inspectPanel", {

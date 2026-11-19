@@ -2,16 +2,13 @@
 // cannot miss `loadingdone`. `assemble` puts lib.js, then this file, in one inline <script> wrapped
 // in a function, so none of the names leak into the canvas's own scripts.
 //
-// The size-reporting half of app/src/main/canvasScript.ts: it tells the viewer page how tall the
-// document is and where its frames are, and hands wheel input the canvas itself cannot scroll to
-// the page. Of the app's key channel only the tool keys are here (Space, V, H, Escape), and of its
-// hover channel only the hand while the board pans; its selection, picking and anchor channels do
-// not exist.
+// Inspection readers and input listeners are enabled by the shell while its column is visible.
 // POSTMORTEM 2026-11-01 (absolutely positioned frames resizing the iframe between 0 and 405 px
 // forever) is why the height comes from lib.js `documentHeight`/`frameBottom`/`nextHeight`
 // unchanged.
 
 const post = (message) => parent.postMessage(message, "*");
+const inspection = canvasInspection(post);
 
 // The canvas is a srcdoc document here, unlike in the app, so it gets the prototype page's handling
 // of the two things that break there; the History retry, sameDocument and linkElement are isolate.js's
@@ -99,6 +96,7 @@ const frames = () => {
 };
 
 const send = () => {
+  inspection.layout();
   const html = document.documentElement;
   const { list, total, bottom } = frames();
   const measured = documentHeight(Math.ceil(html.getBoundingClientRect().height), html.scrollHeight, innerHeight, bottom);
@@ -168,7 +166,8 @@ addEventListener("message", (event) => {
   const data = event.data;
   if (typeof data !== "object" || data === null) return;
   if (data.type === "measure") send();
-  else if (data.type === "pan" && typeof data.pan === "boolean") showHand(data.pan);
+  else if (data.type === "pan" && typeof data.pan === "boolean") { showHand(data.pan); inspection.pan(data.pan); }
+  else inspection.command(data);
 });
 
 // The document's own scroll (before the height fits) is not an inner scroller: a wheel there pans
@@ -225,7 +224,7 @@ addEventListener("keydown", (event) => {
     event.preventDefault();
     return;
   }
-  if (event.key === "Escape" && !event.isComposing && event.keyCode !== 229 && !event.defaultPrevented && !editableTarget(event.target)) post({ type: "key", key: "Escape" });
+  if (event.key === "Escape" && !event.repeat && !event.isComposing && event.keyCode !== 229 && !event.defaultPrevented && !editableTarget(event.target)) post({ type: "key", key: "Escape" });
 });
 
 // Every Space release goes to the page, which ignores one it did not hold: focus and modifiers can

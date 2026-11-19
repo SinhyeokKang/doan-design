@@ -29,6 +29,8 @@ const measure = read("measure.js");
 const shellJs = read("shell.js");
 const shellCss = read("shell.css");
 const shellHtml = read("shell.html");
+const canvasInspectScripts = ["inspect.js", "inspectSelection.js"].map(read).join("\n");
+const shellInspectScripts = ["inspectPanel.js", "inspectMessage.js", "inspectView.js"].map(read).join("\n");
 
 // Every lib.js function and constant the tests reach, loaded in a context with no globals: a
 // reference to `document` or `window` at load time, or a missing name, fails here.
@@ -690,11 +692,11 @@ describe("viewer files", () => {
   });
 
   test("lib.js followed by measure.js or shell.js compiles in one function (no clashing names)", () => {
-    for (const script of [measure, shellJs]) expect(() => new Script(`(function () {\n${lib}\n${script}\n})();`)).not.toThrow();
+    for (const script of [canvasInspectScripts + "\n" + measure, shellInspectScripts + "\n" + shellJs]) expect(() => new Script(`(function () {\n${lib}\n${script}\n})();`)).not.toThrow();
   });
 
   test("the scripts inline safely into <script>", () => {
-    for (const [name, source] of Object.entries({ "lib.js": lib, "measure.js": measure, "shell.js": shellJs })) {
+    for (const [name, source] of Object.entries({ "lib.js": lib, "measure.js": measure, "shell.js": shellJs, canvasInspectScripts, shellInspectScripts })) {
       expect(source, name).not.toMatch(/<\/script/i);
       expect(source, name).not.toContain("<!--");
     }
@@ -708,14 +710,14 @@ describe("viewer files", () => {
   });
 
   test("shell.js takes canvas messages only through acceptMessage with the iframe's window", () => {
-    expect(shellJs).toMatch(/window\.addEventListener\("message", \(event\) => \{\s*const message = acceptMessage\(event, canvas\.contentWindow\);\s*if \(message === null\) return;/);
+    expect(shellJs).toMatch(/window\.addEventListener\("message", \(event\) => \{\s*const message = acceptMessage\(event, canvas\.contentWindow\);\s*if \(message === null\) \{ inspector\.accept\(event\); return; \}/);
     // No second path that parses event data without the source and origin check.
     expect(shellJs).not.toMatch(/\b(parseMessage|parseLayout|parseWheel)\(/);
     expect(shellJs.match(/addEventListener\("message"/g)).toHaveLength(1);
   });
 
   test("page code writes text only with textContent: nothing from the canvas is parsed as HTML", () => {
-    expect(shellJs).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\b|new Function/);
+    expect(shellJs + shellInspectScripts).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\b|new Function/);
     expect(measure).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\b|new Function/);
   });
 
@@ -808,6 +810,16 @@ const declarations = (css: string, selector: string): string[] => {
 };
 
 describe("breadcrumb rules shared with the canvas header", () => {
+  test("exported inspector controls and element tree keep the app declarations", () => {
+    for (const selector of [".doan-canvas-head-sep", ".right", ".right.doan-insp-panel", ".doan-conv-head", ".doan-conv-body", ".doan-conv-empty", ".doan-insp-head", ".doan-insp-title", ".doan-insp-body", ".doan-insp-groups", ".doan-insp-group-title", ".doan-insp-row", ".doan-insp-label", ".doan-insp-value", ".doan-insp-text", ".doan-insp-swatch", ".doan-insp-menu [role=\"tree\"]", '.doan-insp-menu[data-ui-variant="tree"]', '.doan-insp-menu[data-ui-variant="tree"] .doan-menu-item > .name']) {
+      expect(declarations(shellCss, selector), selector).toEqual(declarations(stylesCss, selector));
+    }
+    for (const selector of ['.doan-menu[data-ui-variant="tree"] .doan-menu-item', '.doan-menu[data-ui-variant="tree"] .guide']) {
+      expect(declarations(shellCss, selector), selector).toEqual(declarations(surfacesCss, selector));
+    }
+    expect(declarations(shellCss, ".doan-code")).toEqual(declarations(controlsCss, ".doan-code"));
+  });
+
   test("the trail and its children use the app's layout and typography", () => {
     for (const selector of [
       ".ov-head", ".doan-canvas-head", ".doan-canvas-trail", ".doan-canvas-project-name",
@@ -1177,7 +1189,7 @@ describe("tool wiring", () => {
       document, parent, CSSStyleSheet: FakeSheet, history: { pushState() {}, replaceState() {} },
       addEventListener: (type: string, listener: (event: unknown) => void) => { if (!listeners.has(type)) listeners.set(type, listener); },
     };
-    runInNewContext(`(function () {\n${lib}\n${measure}\n})();`, context);
+    runInNewContext(`(function () {\n${lib}\n${canvasInspectScripts}\n${measure}\n})();`, context);
     const message = (data: unknown, source: unknown = parent) => listeners.get("message")!({ source, data });
     const ours = () => document.adoptedStyleSheets.filter(sheet => sheet !== own).map(sheet => sheet.text);
     message({ type: "pan", pan: true });
@@ -1243,12 +1255,12 @@ describe("tool wiring", () => {
 // `body` at `width`, with lib.js and measure.js at the top of its head; without them (`reports: false`) the canvas never
 // reports a layout, so the page stays before its first view until the timeout.
 const viewerPage = (body: string, { width = 800, reports = true, scripted = true } = {}): string => {
-  const head = reports ? `<script>(function () {\n${lib}\n${measure}\n})();</script>` : "";
+  const head = reports ? `<script>(function () {\n${lib}\n${canvasInspectScripts}\n${measure}\n})();</script>` : "";
   const canvas = `<!doctype html><html><head>${head}</head><body style="margin:0">${body}</body></html>`;
   const values: Record<string, string> = {
     PROJECT: "northwind-customer-portal", INITIAL: "N", HUE: "indigo",
     NAME: "checkout", WIDTH: String(width), META: JSON.stringify({ name: "checkout", width }).replace(/</g, "\\u003c"), STYLE: shellCss,
-    SCRIPT: scripted ? `(function () {\n${lib}\n${shellJs}\n})();` : "", SRCDOC: canvas.replace(/&/g, "&amp;").replace(/"/g, "&quot;"),
+    SCRIPT: scripted ? `(function () {\n${lib}\n${shellInspectScripts}\n${shellJs}\n})();` : "", SRCDOC: canvas.replace(/&/g, "&amp;").replace(/"/g, "&quot;"),
   };
   return shellHtml.replace(/\{\{(PROJECT|INITIAL|HUE|NAME|WIDTH|META|STYLE|SCRIPT|SRCDOC)\}\}/g, (_, key: string) => values[key]!);
 };
@@ -1281,14 +1293,34 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     const panel = frame.getByRole("region", { name: "Inspector", includeHidden: true });
     expect(await panel.isHidden()).toBe(true);
     await show.click();
-    await frame.frameLocator("#canvas").locator("section").click();
+    await frame.frameLocator("#canvas").locator("section").click({ position: { x: 20, y: 20 } });
     await panel.getByRole("button", { name: /<b>Item<\/b>/ }).waitFor();
     expect(await panel.locator("b").count()).toBe(0);
+    for (const target of [panel.locator(".doan-insp-row").first(), panel.getByRole("button", { name: /Elements in this frame/ })]) {
+      await target.focus();
+      await frame.page().keyboard.press("h");
+      expect(await frame.locator('[data-tool="select"]').getAttribute("aria-pressed")).toBe("true");
+    }
+    await panel.getByRole("button", { name: /Elements in this frame/ }).click();
+    await frame.page().keyboard.press("h");
+    expect(await frame.locator('[data-tool="select"]').getAttribute("aria-pressed")).toBe("true");
+    await frame.page().keyboard.press("Escape");
+    expect(await panel.getByRole("tree").count()).toBe(0);
     await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "656px"; });
     await panel.waitFor({ state: "hidden" });
     expect(await show.getAttribute("aria-disabled")).toBe("true");
     await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "657px"; });
     await panel.getByRole("button", { name: /<b>Item<\/b>/ }).waitFor();
+  });
+
+  test("a partially overwritten var shorthand exposes only the applied row", async () => {
+    const frame = await open('<style>:root{--old:3px;--pad:12px;--left:5px}section{padding:var(--old)}.card{padding:var(--pad);padding-left:var(--left)}</style><section class="card" data-doan-frame="card">Card</section>');
+    await frame.getByRole("button", { name: "Show inspector" }).click();
+    await frame.frameLocator("#canvas").locator("section").click({ position: { x: 12, y: 8 } });
+    const padding = frame.locator(".doan-insp-row").filter({ hasText: "Padding" });
+    await padding.focus();
+    expect(await padding.innerText()).toContain("12px 12px 12px 5px");
+    expect(await frame.locator("#inspect-row-tip").textContent()).not.toMatch(/--old|--left/);
   });
 
   test("without scripts the header shows the project and canvas but hides the frame controls", async () => {
@@ -1521,7 +1553,7 @@ describe("measure.js keeps the canvas in its document as isolate.js does", () =>
 
 // The viewer runs lib.js and measure.js in one function at the top of the canvas's <head> (`assemble`).
 const measureDocument = (body: string) =>
-  `<!doctype html><html><head><script>(function () {\n${lib}\n${measure}\n})();</script></head><body>${body}</body></html>`;
+  `<!doctype html><html><head><script>(function () {\n${lib}\n${canvasInspectScripts}\n${measure}\n})();</script></head><body>${body}</body></html>`;
 
 describe("measure.js keeps the canvas in its srcdoc document in a real DOM", { timeout: 60_000 }, () => {
   const page = `<a id="toc" href="#pricing">Pricing</a><div style="height:2000px"></div><h2 id="pricing">Pricing</h2>`;
@@ -2575,7 +2607,7 @@ describe("inspector message boundary", () => {
     expect(parse({ ...selection, seq: 1 })).toBeNull();
   });
   test("rejects malformed rows, oversized arrays, nested values and non-finite marks", () => {
-    for (const rows of [null, Array(257).fill(row), [{ ...row, sides: [null] }], [{ ...row, token: "a".repeat(10001) }], [{ ...row, chain: [false] }]]) {
+    for (const rows of [null, Array(1), Array(257).fill(row), [{ ...row, sides: [null] }], [{ ...row, token: "a".repeat(10001) }], [{ ...row, chain: [false] }]]) {
       expect(parse({ ...selection, rows })).toBeNull();
     }
     expect(parse({ ...selection, nodes: [{ ...selection.nodes[0], depth: 1e12 }] })).toBeNull();

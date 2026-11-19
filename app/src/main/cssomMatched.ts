@@ -1,6 +1,9 @@
 // The sandbox has no debugger. Reconstruct the matched declarations here so both inspectors can use inspectRows.
 import {
+  candidates,
+  cascadeWinner,
   inspectRows,
+  inspectRowDefinitions,
   type CdpProperty,
   type CdpRuleMatch,
   type CdpStyle,
@@ -56,7 +59,9 @@ function styleOf(style: CSSStyleDeclaration | undefined | null): CdpStyle {
       continue;
     }
     if (shorthand === null) {
-      cssProperties.push({ name, value: "", important, text: "" });
+      // A later longhand can erase the shorthand text. Keep its place in the cascade:
+      // otherwise an older declaration would supply a token for the applied value.
+      cssProperties.push({ name, value: "", important, text: "", longhandProperties: [{ name, value: "" }] });
     } else if (!done.has(shorthand)) {
       done.add(shorthand);
       cssProperties.push({
@@ -496,7 +501,7 @@ function containerProbe(doc: Document, conditions: string[]): () => void {
   const probe = new CSSStyleSheet();
   const zero = conditions.map((_, i) => `--doan-cq-${i}: 0`).join(";");
   probe.replaceSync(`:where(*) { ${zero} }\n` + conditions.map((c, i) => `@container ${c} { :where(*) { --doan-cq-${i}: 1 } }`).join("\n"));
-  const before = doc.adoptedStyleSheets;
+  const before = [...doc.adoptedStyleSheets];
   doc.adoptedStyleSheets = [...before, probe];
   return () => {
     doc.adoptedStyleSheets = before;
@@ -588,45 +593,8 @@ function ancestorLabel(el: Element): string {
   return el.getAttribute("data-doan-id") || el.localName;
 }
 
-const ROW_PROPS = [
-  "padding-top",
-  "padding-right",
-  "padding-bottom",
-  "padding-left",
-  "row-gap",
-  "column-gap",
-  "margin-top",
-  "margin-right",
-  "margin-bottom",
-  "margin-left",
-  "width",
-  "height",
-  "font-size",
-  "font-weight",
-  "line-height",
-  "font-family",
-  "color",
-  "background-color",
-  "border-top-color",
-  "border-right-color",
-  "border-bottom-color",
-  "border-left-color",
-  "border-top-width",
-  "border-right-width",
-  "border-bottom-width",
-  "border-left-width",
-  "border-top-left-radius",
-  "border-top-right-radius",
-  "border-bottom-right-radius",
-  "border-bottom-left-radius",
-  "box-shadow",
-  "display",
-  "flex-direction",
-  "grid-template-columns",
-  "flex-wrap",
-  "justify-content",
-  "align-items",
-];
+const ROW_PROPS = [...inspectRowDefinitions.flatMap(row => row.props), ...["top", "right", "bottom", "left"].map(side => `border-${side}-width`)];
+const propsByLabel = new Map(inspectRowDefinitions.map(row => [row.label, row.props]));
 
 function customNames(c: Collected, el: Element): Set<string> {
   const from = (into: Set<string>, style: CSSStyleDeclaration) => {
@@ -647,22 +615,43 @@ function customNames(c: Collected, el: Element): Set<string> {
   return names;
 }
 
-function inspectInput(el: Element, c: Collected): InspectInput {
+function cssomMatched(el: Element, c: Collected, parents: Element[]): MatchedStyles {
   const matched: MatchedStyles = levelOf(el, c);
-  const inherited: NonNullable<MatchedStyles["inherited"]> = [];
-  const ancestors: string[] = [];
-  for (let a = el.parentElement; a; a = a.parentElement) {
-    const l = levelOf(a, c);
-    inherited.push(
-      l.inlineStyle ? { inlineStyle: l.inlineStyle, matchedCSSRules: l.matchedCSSRules } : { matchedCSSRules: l.matchedCSSRules },
-    );
-    ancestors.push(ancestorLabel(a));
-  }
-  matched.inherited = inherited;
+  matched.inherited = parents.map(parent => {
+    const { inlineStyle, matchedCSSRules } = levelOf(parent, c);
+    return inlineStyle ? { inlineStyle, matchedCSSRules } : { matchedCSSRules };
+  });
+  return matched;
+}
+
+function inspectInput(el: Element, c: Collected): InspectInput {
+  const parents: Element[] = [];
+  for (let a = el.parentElement; a; a = a.parentElement) parents.push(a);
   const cs = getComputedStyle(el);
   const computed = ROW_PROPS.map((name) => ({ name, value: cs.getPropertyValue(name) }));
   for (const name of customNames(c, el)) computed.push({ name, value: cs.getPropertyValue(name) });
-  return { matched, computed, ancestors };
+  return { matched: cssomMatched(el, c, parents), computed, ancestors: parents.map(ancestorLabel) };
+}
+
+function valueOnly(row: InspectRow): void {
+  row.state = "hardcoded";
+  delete row.token;
+  delete row.chain;
+  delete row.inheritedFrom;
+  delete row.sides;
+  delete row.hoverState;
+}
+
+function lostShorthand(row: InspectRow, matched: MatchedStyles): boolean {
+  if (row.state !== "unknown") return false;
+  const levels = row.inheritedFrom === undefined ? [matched] : [matched, ...(matched.inherited ?? [])];
+  return propsByLabel.get(row.label)?.some(prop => {
+    for (const level of levels) {
+      const winner = cascadeWinner(candidates(level, prop));
+      if (winner) return winner.unmapped === true && winner.value === "";
+    }
+    return false;
+  }) === true;
 }
 
 // Values a sheet the page cannot read (cross-origin, no CORS) changes: read with those sheets switched off. Such a
@@ -714,44 +703,20 @@ function externalOverride(el: Element, rows: InspectRow[], unreadable: CSSStyleS
       return true;
     }),
   );
-  const ROW_OF: Record<string, string[]> = {
-    Padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
-    Gap: ["row-gap", "column-gap"],
-    Margin: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
-    Width: ["width"],
-    Height: ["height"],
-    Size: ["font-size"],
-    Weight: ["font-weight"],
-    "Line height": ["line-height"],
-    Family: ["font-family"],
-    Text: ["color"],
-    Background: ["background-color"],
-    Border: ["border-top-color", "border-right-color", "border-bottom-color", "border-left-color"],
-    Radius: ["border-top-left-radius", "border-top-right-radius", "border-bottom-right-radius", "border-bottom-left-radius"],
-    Shadow: ["box-shadow"],
-    Display: ["display"],
-    Direction: ["flex-direction"],
-    Columns: ["grid-template-columns"],
-    Wrap: ["flex-wrap"],
-    Justify: ["justify-content"],
-    Align: ["align-items"],
-  };
   for (const row of rows) {
-    if (row.value === "—" || !(ROW_OF[row.label] ?? []).some((p) => changed.has(p))) continue;
-    row.state = "hardcoded";
-    delete row.token;
-    delete row.chain;
-    delete row.inheritedFrom;
-    if (row.sides) row.sides = row.sides.map(({ side, value }) => ({ side, value }));
+    if (row.value === "—" || !propsByLabel.get(row.label)?.some((p) => changed.has(p))) continue;
+    valueOnly(row);
   }
 }
 
-export function cssomMatched(element: Element): InspectRow[] {
+export function inspectElement(element: Element): InspectRow[] {
   const doc = element.ownerDocument;
   const collected = collectRules(doc);
   const restore = containerProbe(doc, collected.conditions);
   try {
-    const rows = inspectRows(inspectInput(element, collected));
+    const input = inspectInput(element, collected);
+    const rows = inspectRows(input);
+    for (const row of rows) if (lostShorthand(row, input.matched)) valueOnly(row);
     externalOverride(element, rows, collected.unreadable);
     return rows;
   } finally {
