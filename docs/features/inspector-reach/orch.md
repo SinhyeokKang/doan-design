@@ -18,6 +18,10 @@
 - tasks 4의 `/design-sync`(버블·element menu 측정)는 B 통합·리뷰 뒤 B 워커에게 새 Task로 보낸다(같은 코드를 안다). `/runtime-test`(tasks 4의 실제 앱 확인)는 conductor가 한다. 로그인은 필요 없다(체인 '로그인').
 - tasks 10(브라우저 확인): 체인 시작 점검 3 승인대로 A 워커가 `.scratch/` Playwright 스크립트(Chromium·WebKit)로 확인한다. 실제 Safari는 실행하지 않고 BACKLOG 'Not verified in the real app'에 남긴다. 뷰어는 앱 화면이 아니라 `/design-sync` 대상이 아니므로 같은 스크립트가 초안 `inspector-reach-viewer.html`과 export 결과를 computed style로 비교하고 `docs/design/canvas.md` 'Canvas row menu and export viewer'에 적는다(링크 2 V의 방식).
 - B 1차는 리뷰 전에 통합했고, A는 B-rev와 병렬로 시작했다: conductor 재량 — A가 받는 B 결과(`treeScrollLeft`, element menu CSS)는 이미 통합되었다. B 고침 라운드는 A가 소유한 파일을 건드리지 않고(`app/src/renderer/**`의 B 파일), B 고침이 `treeScrollLeft`나 element menu CSS를 바꾸면 A의 `--check`와 `exportViewer.test.ts` 고정이 A 통합 때 잡는다. 그때 A 워커에게 맞춤 Task를 보낸다.
+- A-rev ⚪4(export 크기 상한): conductor 재량 — 따로 상한 테스트를 두지 않는다. 출력 고정 테스트(`TestAssembleOutputIsPinned`·`TestExportOutputIsPinned`)가 모든 바이트 변화를 명시적 갱신으로 만들고, 50 MiB 한도와 할당 상한 테스트는 그대로다. 늘어난 양(+81,098 B, 빈 캔버스)은 ARCHITECTURE에 적는다.
+- A-rev ⚪3(`docs/design/canvas.md`가 초안 `inspector-reach-viewer.html`을 이름으로 적음): conductor 재량 — 초안 파일은 남으므로 그대로 둔다. tasks 12의 `grep` 확인은 feature 디렉터리 경로(`docs/features/inspector-reach`)만 대상으로 본다.
+- A-rev ⚪6(생성물이 vite 8에 딸린 `rolldown`에 의존): 받아들인다. 버전이 바뀌면 verify의 `viewer-inspect` 단계가 실패로 드러난다.
+- A-rev 🟡1(외부 시트 판별이 애니메이션을 다시 시작하고 진행 중 transition을 끊음): 먼저 고침을 시도한다. 보이는 부작용이 남으면 사용자에게 묻는다(spec 13과 '외부 시트 판별' 결정에 닿는다).
 - tasks 5(B 승격)와 11(최종 verify), 12(승격)는 conductor가 끝에 한 번에 한다(PRODUCT·ARCHITECTURE 문서별 커밋).
 
 ## 런타임 확인 (B, conductor)
@@ -39,7 +43,7 @@
 | B-rev | B 리뷰 | 없음(보고만) | B | Claude Opus high — 포커스·이벤트 경로가 여러 컴포넌트에 걸친다 | `/code-review` 보고 | 1차 🔴0 🟡1 ⚪4 (`.scratch/evidence/review-B.md`) → B 고침 1차 `21ad93176`·`ee694b8a7`(🟡1, ⚪1·3·4; 수정 전 실패 확인, Vitest 14,858 PASS) → 통합 `fe76350aa`·`64e196a91`(conductor가 diff 확인). ⚪2는 conductor `/runtime-test` 항목 |
 | BDS | tasks 4(`/design-sync`) | B와 같음, `docs/design/prototype.md`, `docs/design/canvas.md` | B, B-rev | Codex Astra(B 워커 후속 Task) — 측정 절차가 정해져 있다 | 측정값 기록, 960×600에서 헤더 도구가 breadcrumb 옆에 들어감, test | 완료 `66c2c312a`·`ebc09b60d` → 통합 `e133f89e3`·`ed1008ca4`(conductor가 diff 확인). 앱 실행 1회, 1,404개 비교 중 1,390개 일치, 남은 14개는 문서화된 편차(툴팁 포털·서브픽셀·상속 자간). 960×600 양쪽 열림에서 breadcrumb와 도구 간격 8px. B 워커 해제, 워크트리 `irb-b` 제거(브랜치 `SinhyeokKang/irb-b` `ebc09b60d` 유지) |
 | A | tasks 8, 9, 10 | `cli/internal/export/**`(뷰어 `shell.*`, `measure.js`, 새 `inspect.js`, `assemble.go`, 테스트와 고정 출력), `app/scripts/viewerInspect.mjs`와 테스트, `app/src/main/exportViewer.test.ts`, 생성 대상 앱 소스의 export 범위(동작 변경 없음), `.agents/skills/verify/scripts/verify.mjs`의 한 단계, AGENTS.md 'Commands' 한 줄, `docs/design/canvas.md` 뷰어 절 | B 통합 | Codex Astra high — 신뢰하지 않는 메시지 검증, CSSOM cascade, 생성 규칙, 두 엔진 | `npm --prefix app test`, typecheck, lint, `go test ./...`, `go vet ./...`, `node app/scripts/viewerInspect.mjs --check`, `node eval/run.ts --self-test --scenarios X1,X2` | 1차 완료 `738f07f27`..`c9f5e2501`(7커밋) → 통합 `4d6ba2da4`..`9f53161e0` (dispatch `ctx_0fb0fca266a4`; Vitest 515 files / 14,861, Go 2,423, X1·X2 self-test, `--check` PASS; Chromium·WebKit 11/11 PASS; 빈 캔버스 export 113,504 → 194,602 B(+81,098)) |
-| A-rev | A 리뷰 | 없음(보고만) | A | Claude Opus high — 보안 경계(postMessage)와 생성 코드 | `/code-review` 보고 | 진행 중 (dispatch `ctx_f3e5c74f56d3`, Claude Opus high) |
+| A-rev | A 리뷰 | 없음(보고만) | A | Claude Opus high — 보안 경계(postMessage)와 생성 코드 | `/code-review` 보고 | 1차 🔴0 🟡4 ⚪7 (`.scratch/evidence/review-A.md`; dispatch `ctx_f3e5c74f56d3`) → A 고침 1차(🟡1~4, ⚪1·2·5·7) 진행 중 (dispatch `ctx_c6ecdf7db5fd`) |
 | conductor | tasks 4(`/runtime-test`), 5, 11, 12 | orch.md, 승격 문서, BACKLOG | 전부 | — | `/runtime-test`, verify, `grep -rn "inspector-reach" docs/ app/ cli/` | `/runtime-test`(B) PASS — 아래 '런타임 확인'. 승격·verify 대기 |
 
 - 겹침: B와 A는 직렬이다. 위 '배치 순서'.
