@@ -10,7 +10,8 @@ import { DockedSupport } from "./dockedSupport";
 import { suggestedPrompts, type PresetSummary, type SuggestedPrompt } from "./homeComposer";
 import { SuggestionButton } from "./ComposerParts";
 import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun";
-import { ProjectOverview, worktreeChoice, type ProjectOverviewProps } from "./ProjectOverview";
+import { worktreeChoice } from "./worktreeSwitchModel";
+import { ProjectOverview, type ProjectOverviewProps } from "./ProjectOverview";
 import { TooltipProvider } from "./components/ui/tooltip";
 
 // The Overview's header and main column as static markup.

@@ -43,6 +43,7 @@ import type { LastRequest } from "./homeConversations";
 import type { StartInput, StartOutcome } from "./HomeComposerView";
 import { projectConversationMenu } from "./overviewConversation";
 import { scrollTarget, type ListView, type OverviewRun } from "./overviewRun";
+import { worktreeChoice, worktreeLabel } from "./worktreeSwitchModel";
 import { displayPath } from "./projectDisplay";
 import { projectHue, projectInitial } from "./shellNavigation";
 import type { SettingsTarget } from "./settingsSections";
@@ -108,14 +109,6 @@ const REPLY_PLACEHOLDER = "Reply, / for presets";
 const NEW = "";
 // One empty list for a project without one, so the thread's memoized chip data keeps its identity across renders.
 const NO_ROWS: readonly CanvasRow[] = [];
-
-// A worktree row in the branch chip's menu does what the sidebar's does: a listed or reading worktree
-// opens its Overview; a problem one turns the menu to its repair actions. Show in Finder and Project Settings are
-// fixed items there, and removing the project stays in the sidebar.
-export function worktreeChoice(row: FolderEntry): { kind: "open" } | { kind: "repair"; actions: RowAction[] } {
-  if (row.kind === "list" || row.kind === "loading") return { kind: "open" };
-  return { kind: "repair", actions: cardRow(row, null, null).actions.filter(action => action !== "remove" && action !== "showInFinder") };
-}
 
 // The canvas a conversation names, as main matches it: an ID on either side matches by ID only, else the path.
 export function sameCanvas(a: Canvas, b: Canvas): boolean {
@@ -357,7 +350,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const [repair, setRepair] = useState<string | null>(null);
   const repairRow = repair ? props.worktrees.find(row => row.path === repair) : undefined;
   const repairChoice = repairRow ? worktreeChoice(repairRow) : null;
-  const chipLabel = branch ?? root.split("/").at(-1) ?? root;
+  const chipLabel = worktreeLabel(props.entry);
 
   // The column shows the new conversation state; a failed first read is one too.
   const showsNew = conversationId === null && !waiting;
@@ -386,7 +379,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
                   if (row.path === root) return;
                   worktreePicked.current = true; props.onWorktree(row.path);
                 }}>
-                <GitBranch aria-hidden="true" /><span><span>{branchOf(row) ?? row.path.split("/").at(-1)}</span><small>{displayPath(row.path, props.homeDirectory)}</small></span>
+                <GitBranch aria-hidden="true" /><span><span>{worktreeLabel(row)}</span><small>{displayPath(row.path, props.homeDirectory)}</small></span>
                 {chip ? <span className={chipClass(chip)}>{chip}</span> : marked && <Check aria-hidden="true" />}
               </DropdownMenu.Item>;
             })}
