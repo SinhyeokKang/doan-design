@@ -25,7 +25,8 @@ beforeAll(async () => {
         window.mountRecovery = (host, kind) => mountRecovery(root, host, kind);
         window.draw = (ready, reason) => {
           const other = ready ? {...main, path: "/code/next", git: {branch: "next"}, canvases: ready === "gone" ? [] : main.canvases} : {kind: "loading", path: "/code/next"};
-          const model = worktreeSwitchModel([main, other], main.path, "/code", row => headerRowState(row, "a.html"));
+          const missing = { kind: "notFound", path: "/code/archived" };
+          const model = worktreeSwitchModel([main, other, missing], main.path, "/code", row => headerRowState(row, "a.html"));
           root.render(<TooltipProvider><div onKeyDown={() => document.body.dataset.key = "bubbled"} onClick={() => document.body.dataset.click = "bubbled"}>
             <WorktreeSwitch model={model} reason={reason} sidebar tabIndex={0} onWorktree={root => document.body.dataset.moved = root} />
           </div></TooltipProvider>);
@@ -48,7 +49,7 @@ test("a reading row becomes selectable under the same focus, and reselecting the
   const next = frame.getByRole("menuitem", { name: /next/ });
   await next.focus();
   expect(await next.getAttribute("aria-disabled")).toBe("true");
-  expect(await next.evaluate(node => document.getElementById(node.getAttribute("aria-describedby")!)?.textContent)).toBe("Reading…");
+  expect(await frame.getByRole("menuitem", { name: "next ~/next", description: "Reading…", exact: true }).count()).toBe(1);
   await next.press("Enter");
   expect(await next.isVisible()).toBe(true);
   await frame.evaluate(() => (window as unknown as { draw(ready: boolean, reason: null): void }).draw(true, null));
@@ -138,6 +139,14 @@ test("the sidebar switch keeps clicks, disclosure and typeahead out of the tree 
   expect(await trigger.getAttribute("aria-expanded")).toBe("false");
 });
 
+test("a disabled worktree with a status chip exposes the chip as its description", async () => {
+  const frame = await dom.load("<main></main>");
+  await frame.addScriptTag({ content: script });
+  await frame.getByRole("button", { name: "Worktree: main" }).press("ArrowDown");
+  await frame.getByRole("menu", { name: "Worktrees" }).waitFor();
+  expect(await frame.getByRole("menuitem", { name: "archived ~/archived", description: "Missing", disabled: true, exact: true }).count()).toBe(1);
+});
+
 test("a canvas which vanishes from a previously offered worktree is rechecked when pressed", async () => {
   const frame = await dom.load("<main></main>");
   await frame.addScriptTag({ content: script });
@@ -145,7 +154,9 @@ test("a canvas which vanishes from a previously offered worktree is rechecked wh
   await draw(true);
   await frame.getByRole("button", { name: "Worktree: main" }).press("ArrowDown");
   await draw("gone");
-  const gone = frame.getByRole("menuitem", { name: /No a here/ });
+  const gone = frame.getByRole("menuitem", { name: "next ~/next", description: "No a here", exact: true });
+  await frame.getByText("No a here", { exact: true }).waitFor();
+  expect(await gone.count()).toBe(1);
   expect(await gone.getAttribute("aria-disabled")).toBe("true");
   await gone.press("Enter");
   expect(await frame.locator("body").getAttribute("data-moved")).toBe("/code/next");
