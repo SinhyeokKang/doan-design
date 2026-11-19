@@ -20,6 +20,21 @@
     "initial": "A"
   },
   {
+    "name": "👩‍💻dev",
+    "hue": "sky",
+    "initial": "👩"
+  },
+  {
+    "name": "éclair",
+    "hue": "teal",
+    "initial": "E"
+  },
+  {
+    "name": "🇰🇷team",
+    "hue": "fuchsia",
+    "initial": "🇰"
+  },
+  {
     "name": ".hidden",
     "hue": "orange",
     "initial": "."
