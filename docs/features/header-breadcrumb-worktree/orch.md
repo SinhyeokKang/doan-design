@@ -15,6 +15,8 @@
 - DS(tasks 6)는 A 통합·리뷰 뒤 A 워커에게 새 Task로 보낸다(같은 코드를 안다). 뷰어 헤더는 앱 화면이 아니라 `/design-sync` 대상이 아니다. conductor 재량 — V가 `.scratch/` probe로 초안 `viewer-header` 프레임과 export 결과를 세 폭(넓음, 720 미만, 600 미만)에서 computed style로 비교한다(더 확실히 검증하는 쪽).
 - V-rev ⚪1(Main 없는 bare 그룹에서 앱 그룹 이름과 export 이름이 다를 수 있다): conductor 재량 — 동작은 spec 9·design대로 두고, 승격 때 PRODUCT·ARCHITECTURE 문장이 "앱과 같은 규칙"이라 주장하지 않게 "Git main 워크트리 폴더 이름, 없으면 내보낸 루트의 폴더 이름"으로 적는다. CLI는 앱의 등록 순서를 모르고, spec이 이미 이 규칙을 정했다.
 - V-rev ⚪5: 승격 때 ARCHITECTURE §8에 `x/text/cases` 용도, §11 공유 fixture 목록에 `project-thumb`을 적는다.
+- A와 V 1차는 리뷰 전에 통합했다: conductor 재량 — 두 배치의 파일이 겹치지 않고 게이트가 통과했다. 리뷰의 고칠 점은 같은 워커가 새 커밋으로 고치고 다시 통합한다.
+- V 2차(⚪2~4 테스트 보강) `39f873a4e`·`c2dba5462`·`757fa623f`: conductor가 diff를 확인했다. 게이트 6개 PASS, Vitest 14,814.
 - tasks 7(`/runtime-test`), 8(최종 `/verify`), 9(승격)는 conductor가 한다. 로그인은 필요 없다(체인 '로그인').
 
 ## Codex 사용
@@ -25,9 +27,9 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| A | tasks 2, 3, 4, 5 | `app/src/renderer/**`: 새 워크트리 셀렉트 모듈·컴포넌트와 테스트, `ProjectOverview.tsx`, `ShellSidebar.tsx`, `CanvasHeader.tsx`, `App.tsx`, `homeCards.ts`, `styles.css`와 각 테스트 | 없음 | Codex Astra high — 세 화면에 걸친 공용 컴포넌트, root를 포함한 캔버스 정체성(postmortem 2026-11-01), roving tabindex·포커스 | `npm --prefix app test`, typecheck, lint | 진행 중 (run `run_638e466a9be2`, dispatch `ctx_ac075375699e`, 워크트리 `hbw-a`) |
+| A | tasks 2, 3, 4, 5 | `app/src/renderer/**`: 새 워크트리 셀렉트 모듈·컴포넌트와 테스트, `ProjectOverview.tsx`, `ShellSidebar.tsx`, `CanvasHeader.tsx`, `App.tsx`, `homeCards.ts`, `styles.css`와 각 테스트 | 없음 | Codex Astra high — 세 화면에 걸친 공용 컴포넌트, root를 포함한 캔버스 정체성(postmortem 2026-11-01), roving tabindex·포커스 | `npm --prefix app test`, typecheck, lint | 1차 완료, 리뷰 전에 통합 `140338d50`..`6614c3323` → 통합 `a5753b69b`까지 (dispatch `ctx_ac075375699e`, 워크트리 `hbw-a`; Vitest 510 files / 14,803 PASS, typecheck·lint PASS) |
 | V | tasks 5a | `cli/**`(export 뷰어 `shell.*`, `assemble.go`, 이름·썸네일 Go 함수와 테스트, 고정 출력), `app/src/main/exportViewer.test.ts`, `schema/fixtures/` 새 fixture, fixture를 읽는 새 TS 테스트 파일 | 없음(최종 CSS 맞춤은 A·DS 뒤 보류 항목) | Codex Astra medium — 명세가 구체적이고 Go·정적 HTML/CSS 범위다 | `go test ./...`, `go vet ./...`, `npm --prefix app test`, `node eval/run.ts --self-test --scenarios X1,X2` | 1차 완료 `f4601f37f`·`05a0fe85d` (dispatch `ctx_63ee87aea3bb`, 워크트리 `hbw-v`; 게이트 전부 PASS, X1·X2 self-test PASS, Vitest 510 files / 14,810) |
-| A-rev | A 리뷰 | 없음(보고만) | A | Claude Opus high — 여러 컴포넌트와 이동 상태에 걸친 변경 | `/code-review` 보고 | 대기 |
+| A-rev | A 리뷰 | 없음(보고만) | A | Claude Opus high — 여러 컴포넌트와 이동 상태에 걸친 변경 | `/code-review` 보고 | 진행 중 (dispatch `ctx_e85d4b00b222`) |
 | V-rev | V 리뷰 | 없음(보고만) | V | Claude Opus medium — 범위가 좁고 고정 테스트가 많다 | `/code-review` 보고 | 🔴0 🟡0 ⚪5 (`.scratch/review-V.md`). ⚪2~4는 V 2차(dispatch `ctx_1a24c13a28ad`), ⚪1·⚪5는 승격 문구 |
 | DS | tasks 6 | A와 같음(`styles.css`·컴포넌트 고침), `docs/design/shell.md`·`project.md`·`canvas.md` | A, A-rev | Codex Astra medium — 측정 절차가 정해져 있고 고침은 CSS 위주다 | 세 문서 측정값, 960×600 겹침 없음, test | 대기 |
 | conductor | tasks 7, 8, 9 | orch.md, 승격 문서 | 전부 | — | `/runtime-test`, verify, `grep` | 대기 |
