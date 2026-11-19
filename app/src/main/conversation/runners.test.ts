@@ -87,6 +87,21 @@ exit 1
     await expect(open("org-uuid-1")).rejects.toThrow("credential_override");
   } finally { rmSync(root, { recursive: true, force: true }); }
 }, 15000);
+// The SDK's own error for an early exit ("Claude Code process exited with code 1") is no code the composers know, so
+// it reached the person as "Couldn't start the conversation".
+it("refuses a Claude start whose CLI exits before initialize answers as process_exited", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-early-claude-")), command = join(root, "claude");
+  writeFileSync(command, `#!/bin/sh
+echo "something went wrong" >&2
+exit 1
+`, { mode: 0o700 });
+  const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c1", accountId: "a1", workspaceId: "org-uuid-1", profile: "claude" };
+  const open = (input: { owner?: typeof owner }) => openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, ...input }, () => {}, () => {}, () => {});
+  try {
+    await expect(open({ owner })).rejects.toThrow(/^process_exited$/);
+    await expect(open({})).rejects.toThrow(/^process_exited$/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+}, 15000);
 it("reports malformed accepted transport immediately instead of waiting for process exit", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-malformed-codex-")), command = join(root, "codex");
   writeFileSync(command, `#!/usr/bin/env node

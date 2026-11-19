@@ -49,6 +49,25 @@ it("passes a provider runtime install failure through as its own code", async ()
     expect(await handle(true, "start", { root: "/repo", mode: "new", runtime: "antigravity", canvas: { path: ".doan/canvases/a.html" }, text: "hello" })).toEqual({ error: "cli_install_failed" });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+// The renderer words unknown and bad_request only as "Couldn't start the conversation", so main's log is the only
+// place a refused start says what refused it.
+it("logs a start refused as unknown or bad_request, with the cause it came from", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-")); const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  const prepare = vi.fn<Prepare>(async () => { throw new Error("Claude Code process exited with code 1"); });
+  try {
+    const service = new ConversationService(new ConversationStore(dir), prepare, vi.fn(), () => {});
+    const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }]);
+    expect(await handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "hello" })).toEqual({ error: "unknown" });
+    expect(await handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "hello", model: "opus" })).toEqual({ error: "bad_request" });
+    expect(log.mock.calls).toEqual([
+      ["doan: conversation start refused: unknown (Claude Code process exited with code 1)"],
+      ["doan: conversation start refused: bad_request"],
+    ]);
+    prepare.mockRejectedValueOnce(new Error("busy"));
+    expect(await handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "hello" })).toEqual({ error: "busy" });
+    expect(log).toHaveBeenCalledTimes(2);
+  } finally { vi.restoreAllMocks(); rmSync(dir, { recursive: true, force: true }); }
+});
 
 function home(dir: string, models?: ModelOption[], canvases: { path: string }[] = []) {
   let session = 0;
