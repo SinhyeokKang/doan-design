@@ -85,7 +85,7 @@ export async function codexMcpAccounts(): Promise<string[] | string> {
     .map(block => block.match(/"acct"<blob>="([^"]*)"/)?.[1] ?? "").sort();
 }
 // Every userData entry the app writes; real-state.test.ts fails when main joins a name to userData that is missing here.
-export const USER_DATA = ["folders.json", "auto-folders.json", "runtime.json", "onboarding.json", "ui-state.json", "preferences.json", "canvas-seen.json", "star-prompt.json",
+export const USER_DATA = ["folders.json", "auto-folders.json", "runtime.json", "conversation-runtime.json", "onboarding.json", "ui-state.json", "preferences.json", "canvas-seen.json", "star-prompt.json",
   "agent-setup.json", "mcp-connectors.json", "mcp-connectors-pending.json", "thumbnails", "sessions.jsonl", "conversations", "attachments", "agent-auth",
   "agent-runtimes", "terminal", "gpu.log"];
 // The Antigravity server install is hundreds of MB: hashing it could outlast the snapshot bound, and an install or update
