@@ -4,7 +4,9 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import { DropdownMenu } from "radix-ui";
-import { AgentPicker, EffortPicker, IconTip, PermissionPicker, useOlderFold, presetBody, PresetsButton, SendButton, SlashPresets, SuggestionButton } from "./ComposerParts";
+import { AgentPicker, ComposerField, EffortPicker, fieldTabKey, IconTip, PermissionPicker, useOlderFold, presetBody, PresetsButton, SendButton, SlashPresets, SuggestionButton } from "./ComposerParts";
+import { moveFocus } from "./chipField";
+import { slashKey, takesSuggestion } from "./homeComposer";
 import type { ModelPickerView } from "./homeComposer";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { LIST_RETRY_IDLE } from "./listRetry";
@@ -21,6 +23,7 @@ vi.mock("react", async original => {
     useId: () => hooks.on ? "fast-id" : react.useId(),
     useEffect: (effect: () => unknown, deps?: unknown[]) => hooks.on ? void hooks.effects.push(effect) : react.useEffect(effect as () => void, deps),
     useLayoutEffect: (effect: () => unknown, deps?: unknown[]) => hooks.on ? void hooks.effects.push(effect) : react.useLayoutEffect(effect as () => void, deps),
+    useImperativeHandle: (ref: never, create: never, deps?: unknown[]) => hooks.on ? undefined : react.useImperativeHandle(ref, create, deps),
     useRef: (value: unknown) => { if (!hooks.on) return react.useRef(value); const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
     useState: (value: unknown) => {
       if (!hooks.on) return react.useState(value);
@@ -103,6 +106,8 @@ test("a popover preset row takes focus from the pointer only when focus is alrea
   move({ currentTarget: node2 });
   expect(focused).toHaveLength(1);
 });
+
+vi.mock("./chipField", async original => ({ ...await original<typeof import("./chipField")>(), moveFocus: vi.fn() }));
 
 // Every element's props in a tree drawn without React, keeping each element's type beside its props.
 function propsOf(node: ReactNode, found: { type: unknown; props: Record<string, unknown> }[] = []) {
@@ -543,4 +548,97 @@ test("a presets Retry answered with the window in the background focuses the sea
     vi.runAllTimers();
     expect(input.focus).toHaveBeenCalledTimes(3);
   } finally { hooks.on = false; vi.useRealTimers(); vi.unstubAllGlobals(); }
+});
+
+// The field's keydown, drawn without React: `onKey` is the host's (a shown suggestion, the `/` list), `indent` the
+// ChipField's list move. Refs are taken in order: the element, the ChipField, the latest props.
+function fieldKeys(onKey: (event: never) => boolean, indent: (dir: 1 | -1) => boolean) {
+  hooks.on = true; hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.cursor = 0; hooks.refCursor = 0;
+  try {
+    const render = (ComposerField as unknown as { render(props: unknown, ref: unknown): ReactNode }).render;
+    const tree = propsOf(render({ value: [], onChange: () => {}, readOnly: false, placeholder: "", combobox: null, onKey, onSubmit: () => {}, onPaste: () => {} }, null));
+    hooks.refs[1]!.current = { indent };
+    return tree.find(item => item.type === "div")!.props.onKeyDown as (event: unknown) => void;
+  } finally { hooks.on = false; }
+}
+function tabEvent(mods: { shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; isComposing?: boolean } = {}) {
+  const event = {
+    key: "Tab", keyCode: 9, shiftKey: false, ctrlKey: false, metaKey: false, altKey: false, ...mods, nativeEvent: { isComposing: mods.isComposing ?? false },
+    currentTarget: { id: "field" }, defaultPrevented: false, preventDefault() { event.defaultPrevented = true; },
+  };
+  return event;
+}
+
+test("Tab and Shift+Tab indent a list item only when the host left the key alone, and move focus when nothing moved", () => {
+  const indent = vi.fn((_dir: 1 | -1) => true);
+  let keys = fieldKeys(() => false, indent);
+  let event = tabEvent();
+  keys(event);
+  expect(indent).toHaveBeenLastCalledWith(1);
+  expect(event.defaultPrevented).toBe(true);
+  event = tabEvent({ shiftKey: true });
+  keys(event);
+  expect(indent).toHaveBeenLastCalledWith(-1);
+  // No item to move: the browser's focus move goes ahead.
+  keys = fieldKeys(() => false, () => false);
+  event = tabEvent();
+  keys(event);
+  expect(event.defaultPrevented).toBe(false);
+  // A held indent during a composition still answers true, so the Tab stays in the field.
+  keys = fieldKeys(() => false, indent);
+  event = tabEvent({ isComposing: true });
+  keys(event);
+  expect(event.defaultPrevented).toBe(true);
+});
+
+test("a shown suggestion and the open `/` list take Tab before the list indent", () => {
+  const indent = vi.fn(() => true);
+  // The docked composer's suggestion: an empty field takes it with Tab.
+  const suggestion = (event: ReturnType<typeof tabEvent>) => {
+    if (!takesSuggestion({ ...event, isComposing: event.nativeEvent.isComposing }, { suggestion: "Next", empty: true, composing: false })) return false;
+    event.preventDefault(); return true;
+  };
+  let event = tabEvent();
+  fieldKeys(suggestion as never, indent)(event);
+  expect(indent).not.toHaveBeenCalled();
+  expect(event.defaultPrevented).toBe(true);
+  // The `/` list closes on Tab and the key goes on to move focus.
+  const slash = (event: ReturnType<typeof tabEvent>) => slashKey(event.key, 0, 2, false)?.kind === "close";
+  event = tabEvent();
+  fieldKeys(slash as never, indent)(event);
+  expect(indent).not.toHaveBeenCalled();
+  expect(event.defaultPrevented).toBe(false);
+});
+
+test("Ctrl+Tab and Ctrl+Shift+Tab always move focus, inside a list too", () => {
+  const indent = vi.fn(() => true);
+  vi.mocked(moveFocus).mockClear();
+  let event = tabEvent({ ctrlKey: true });
+  fieldKeys(() => false, indent)(event);
+  expect(moveFocus).toHaveBeenLastCalledWith({ id: "field" }, false);
+  expect(event.defaultPrevented).toBe(true);
+  event = tabEvent({ ctrlKey: true, shiftKey: true });
+  fieldKeys(() => false, indent)(event);
+  expect(moveFocus).toHaveBeenLastCalledWith({ id: "field" }, true);
+  // The `/` list closes on it as on Tab, and focus still moves.
+  fieldKeys(() => true, indent)(tabEvent({ ctrlKey: true }));
+  expect(moveFocus).toHaveBeenCalledTimes(3);
+  expect(indent).not.toHaveBeenCalled();
+  expect(fieldTabKey({ key: "Tab", ctrlKey: false, metaKey: true, altKey: false })).toBeNull();
+  expect(fieldTabKey({ key: "Tab", ctrlKey: false, metaKey: false, altKey: true })).toBeNull();
+});
+
+// A rule given to composers one at a time misses some of them (POSTMORTEM 2026-10, its 2026-11-17 recurrence in the
+// composers' confirmations), so the list rules live in the one field all four draw: Home and the docked composer draw
+// ComposerField, the Overview and the canvas panel the docked composer, and the prototype window the canvas panel's
+// conversation. None draws an editable field of its own.
+test("the four composers draw the one ComposerField", () => {
+  const source = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
+  const files = { home: "./HomeComposerView.tsx", docked: "./DockedComposer.tsx", overview: "./ProjectOverview.tsx", canvas: "./CanvasConversationPanel.tsx", prototype: "./prototype/PrototypeConversation.tsx" };
+  expect(source(files.home)).toMatch(/<ComposerField\b/);
+  expect(source(files.docked)).toMatch(/<ComposerField\b/);
+  expect(source(files.overview)).toMatch(/<DockedComposer\b/);
+  expect(source(files.canvas)).toMatch(/export function CanvasConversation\([\s\S]*<DockedComposer\b/);
+  expect(source(files.prototype)).toMatch(/<CanvasConversation\b/);
+  for (const path of Object.values(files)) expect(source(path)).not.toMatch(/contentEditable|<textarea\b/);
 });
