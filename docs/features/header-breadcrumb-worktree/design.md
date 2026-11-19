@@ -86,3 +86,4 @@
 - 라벨 최대 폭: 세 곳 모두 84px(출하 사이드바 칩과 같다). 전체 라벨은 메뉴와 툴팁에서 보인다.
 - 줌 컨트롤: 캔버스 헤더 폭 720 미만이면 Zoom out·Zoom in 아이콘 버튼을 숨기고 가운데 % 메뉴만 남긴다(600 미만에서도 숨김). 줌은 메뉴, ⌘ 단축키, 핀치로 계속 된다. 출하 캔버스 헤더를 바꾸는 것이라 승격 때 PRODUCT §5 item 2 'Zoom controller'에 반영한다.
 - 초안 확정: `.doan/canvases/header-breadcrumb-worktree.html`(커밋 `5a060b40a`)을 사용자가 앱에서 확인하고 확정했다(2026-11-19).
+- `viewer-header` 프레임(썸네일 포함, 커밋 `f92e93b9b`)을 사용자가 확정했다(2026-11-19). 구현 때 `shell.css`에 `--identity-project-*` 토큰과 `hue-*` 규칙을 함께 옮긴다.
