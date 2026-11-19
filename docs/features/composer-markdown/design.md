@@ -54,10 +54,19 @@
 - 2026-10 composer confirm dialog 재발(`docs/postmortem/2026-10.md:25`): composer 여러 곳이 같은 컴포넌트를 쓰지 않으면 한쪽만 고쳐진다. 네 composer가 `ComposerField` 하나를 쓰는지 테스트로 고정한다.
 - 2026-11-14 'Closing the prototype window removed an attachment the main window's draft had taken back'(`docs/postmortem/2026-11.md:511-517`): 큐가 초안으로 돌아오는 경로가 창마다 따로 있다. 큐를 초안으로 되돌릴 때도 목록 기호를 포함한 원문이 돌아오는지 프로토타입 창까지 테스트한다.
 
-## PoC 의존
+## PoC 결과 (2026-11-19, `node .scratch/composer-markdown/probe.mjs`, 리드 체크아웃의 `.scratch/composer-markdown/`)
 
-- 숨긴 `- ` 위의 캐럿: `- `는 두 글자라 ←·→로 •를 건널 때 캐럿이 보이지 않는 칸에 멈출 수 있다. 화살표 이동이 기호 안쪽을 건너뛰게 할 수 있는지, 그리고 인라인 깊이 span이 캐럿·줄 삭제(ARCHITECTURE §7: "line deletes are computed from segments and drawn rows")를 깨지 않는지 확인되지 않았다. tasks의 첫 항목이 이를 확인한다.
-- 조합 중 다시 그리지 않는 규칙이 목록 span이 늘어도 지켜지는지는 실제 앱의 macOS 한글 IME로만 확인할 수 있다. Playwright는 네이티브 IME를 입력하지 못한다. 사람이 확인하지 못하면 BACKLOG 'Not verified in the real app'에 남긴다(native IME 항목과 같은 한계).
+- 환경: Playwright Chromium 156.0.8078.4. 실제 `chipField.ts`를 번들하고 목록 그리기 패치를 얹었다. 고른 방식으로 46개 검사 모두 통과(FAIL 0). Electron의 Chromium과 실제 앱, 한글 IME 조합은 확인하지 못했다.
+- 초안 CSS만 두면(`list-mark` inline-block + 투명 글자 + `::before` •, `list-depth` 깊이당 24px) ←·→·↓와 기호 오른쪽 클릭이 기호·깊이 칸 안에 캐럿을 멈추고, 빈 항목의 캐럿은 투명 span 안(x=11)에 놓인다. 본문 맨 앞 Backspace는 Chromium이 `-Title`처럼 기호 반쪽만 지운다.
+- `ChipField`가 다음을 하면 해결된다(구현 방식으로 정한다):
+  1. ←·→(Shift 포함)는 줄 앞 부분(깊이 공백 + 기호)을 한 번에 건너뛰어 줄 맨 앞과 본문 맨 앞에만 멈춘다. 칩은 기존 `arrow()`가 먼저 처리한다.
+  2. `selectionchange`에서 줄 앞 부분 안이나 기호 span 끝에 걸린 캐럿을 본문 맨 앞(본문 텍스트 노드)으로 옮긴다.
+  3. 본문이 비었거나 칩으로 시작하는 항목은 기호 뒤에 기존 `FILLER`를 그린다.
+  4. 본문 맨 앞 Backspace는 `beforeinput`에서 `removeMarker`로 처리한다(깊이 0은 `Title`, 깊이 1은 한 단계 내어쓰기, undo 한 번).
+  5. `misdrawn()`은 목록 run(class, kind, depth)과 기호 뒤 filler까지 비교한다.
+- 그대로 동작하는 것: ⌘⌫ 줄 삭제(넘친 줄은 둘째 줄만), ⌥⌫·Delete·기호 반을 덮은 선택 삭제 뒤 다시 그리기(DOM이 모델과 같다), 여러 줄 ⌘C와 ⌘A ⌘C(`- `와 깊이 공백 포함, 원문과 같다), 목록 붙여넣기.
+- 쓰지 않는 방식: 기호 span을 `contenteditable=false`로 두면 본문 맨 앞 ←가 위 줄 끝으로 뛰고, Backspace가 본문 글자를 지우고, 빈 항목에 친 글자가 사라진다.
+- 남은 점: ⌘←는 줄 맨 앞(기호 앞)으로 가고, 거기서 입력하면 그 줄은 목록이 아니게 된다(텍스트 모델대로다). 한글 IME 조합은 사람이 실제 앱에서 확인한다(spec 완료 조건 7).
 
 ## 초안 요청 (`/design-draft`)
 

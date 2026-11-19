@@ -2,8 +2,8 @@
 
 순서: PoC → 디자인 초안 → 순수 함수 → 셸 → UI → 측정. `/ship`은 커밋 경계를 따른다.
 
-1. **PoC: 숨긴 기호 위의 캐럿.** `.scratch/composer-markdown/`에서 `ChipField`와 같은 평평한 contenteditable에 기호 span(글자 숨김 + •)과 깊이 span을 넣고, ←·→가 기호 안쪽에 캐럿을 멈추지 않게 할 수 있는지, 줄 삭제(⌘⌫ 포함)가 깨지지 않는지 본다. 결과(방식, 통과 여부)는 design.md에 적는다. 한글 IME는 PoC 범위가 아니다(합성 이벤트로는 재현되지 않는다).
-   - 확인: command undecided — needs user confirmation (PoC 스크립트를 정해 사용자 승인을 받는다).
+1. **(완료, 2026-11-19 리드) PoC: 숨긴 기호 위의 캐럿.** 결과는 design.md 'PoC 결과'. `.scratch/composer-markdown/`에서 `ChipField`와 같은 평평한 contenteditable에 기호 span(글자 숨김 + •)과 깊이 span을 넣고, ←·→가 기호 안쪽에 캐럿을 멈추지 않게 할 수 있는지, 줄 삭제(⌘⌫ 포함)가 깨지지 않는지 본다. 결과(방식, 통과 여부)는 design.md에 적는다. 한글 IME는 PoC 범위가 아니다(합성 이벤트로는 재현되지 않는다).
+   - 확인: `node .scratch/composer-markdown/probe.mjs`(리드 체크아웃) 46개 검사 PASS.
    - ── 커밋 경계 (`docs(feature):` PoC 결과) ──
 2. **디자인 초안**: `/design-draft`로 입력창 목록(•, 번호, 깊이)과 버블 목록(내어쓰기) 초안을 새 파일 `.doan/canvases/composer-markdown.html`에 그린 뒤 사용자가 앱에서 확인한다.
    - 확인: `doan check` 통과(`.doan/canvases/composer-markdown.html`), 사용자 확인.
