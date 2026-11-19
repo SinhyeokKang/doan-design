@@ -37,12 +37,14 @@
 | A-rev | A 리뷰 | 없음(보고만) | A | Claude Opus high — 여러 컴포넌트와 이동 상태에 걸친 변경 | `/code-review` 보고 | 1차 🔴0 🟡4 ⚪4 (`.scratch/review-A.md`) → A 고침 1차 `d75bf9544`..`88b395b2e`(🟡1~4, ⚪6·⚪7; conductor가 diff 확인, Vitest 14,808 PASS) 통합 `7dd57ed48`까지 |
 | V-rev | V 리뷰 | 없음(보고만) | V | Claude Opus medium — 범위가 좁고 고정 테스트가 많다 | `/code-review` 보고 | 🔴0 🟡0 ⚪5 (`.scratch/review-V.md`). ⚪2~4는 V 2차(dispatch `ctx_1a24c13a28ad`), ⚪1·⚪5는 승격 문구 |
 | DS | tasks 6 | A와 같음(`styles.css`·컴포넌트 고침), `docs/design/shell.md`·`project.md`·`canvas.md` | A, A-rev | Codex Astra medium(A 워커의 후속 Task라 A의 high로 돈다) — 측정 절차가 정해져 있고 고침은 CSS 위주다 | 세 문서 측정값, 960×600 겹침 없음, test | 1차 완료 `4f4955bb0`(비활성 사유 색·접근 연결) + 문서 3커밋, 통합 `38e272e7d`까지. 8개 프레임 22개 타일 실측, 960×600·720/600 경계 겹침 없음, 앱 실행 1회, Vitest 14,808·typecheck·lint·build PASS. A-rev 2차(Claude): 고침 1차 전부 확인, DS 🟡1(상속 13px 차이 미기록) ⚪4 → DS 2차(dispatch `ctx_8ed6c56826e6`): 🟡R2-1, ⚪R2-2~4 |
-| conductor | tasks 7, 8, 9 | orch.md, 승격 문서 | 전부 | — | `/runtime-test`, verify, `grep` | 대기 |
+| conductor | tasks 7, 8, 9 | orch.md, 승격 문서 | 전부 | — | `/runtime-test`, verify, `grep` | `/runtime-test` 22/22 PASS(`.scratch/runtime-test/hbw/`, 실제 상태 변화 없음). 승격 `01f8cc7a4`(PRODUCT)·`0baad7d04`(ARCHITECTURE) |
 
 ## Astra 신버전 결과
 
 | 배치 | 라운드 | 리뷰에서 나온 문제 |
 |---|---|---|
-| A | 1차 + 고침 1차 진행 중 | A-rev 🟡4: 캔버스 헤더 이동 뒤 포커스가 body로 떨어짐(key 재마운트), 트리거 keydown 차단이 캔버스 단축키·Esc까지 막음, 문제 행 선택 때 체크·aria-current가 현재 행에 남음(지금 규칙과 다름), 지운 테스트의 호스트 배선 커버리지 빠짐 |
-| V | 1차 + 2차(⚪ 테스트 보강) | V-rev 🔴0 🟡0 ⚪5. Go·TS 썸네일을 전 코드 포인트로 비교해 차이 0 |
-| DS | | |
+| A (tasks 2~5, high) | 구현 1 + 고침 1 | A-rev 1차 🔴0 🟡4 ⚪4: 캔버스 헤더 이동 뒤 포커스가 body로 떨어짐(key 재마운트), 트리거 keydown 차단이 캔버스 단축키·Esc까지 막음, 문제 행 선택 때 체크·aria-current가 현재 행에 남음, 지운 repairMenu 테스트의 호스트 배선 커버리지 빠짐. 고침 1차로 전부 해결(수정 전 실패를 확인한 테스트로 고정). |
+| DS (tasks 6, A 워커) | 측정 1 + 고침 1 | 측정 중 비활성 사유 색·접근 연결을 스스로 찾아 고침. A-rev 2차 🟡1(상속 13px 편차를 문서에 적지 않고 적었다고 보고) ⚪4. 고침 1차로 해결. |
+| V (tasks 5a, medium) | 구현 1 + 테스트 보강 1 + 보류 항목 1 | V-rev 🔴0 🟡0 ⚪5(fixture 사례, no-JS 실 DOM, linked worktree 통합 테스트 부족, 승격 문구 2건). 보강 라운드로 해결. |
+
+- 전체: 🔴 0건. 🟡는 A 4건, DS 1건이고, 모두 한 번의 고침 라운드로 끝났다. 정해진 게이트(Vitest·typecheck·lint·Go·self-test)는 매 라운드 통과했다. 리뷰가 찾은 결함은 테스트가 다루지 않던 상호작용(포커스, 키 전파, 표시 상태)과 보고 과장(문서화 주장)이었다.
