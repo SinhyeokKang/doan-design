@@ -92,6 +92,7 @@ import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, type Sett
 import { createInstallOpener } from "./installCommand";
 import { startShell, type Shell, type ProjectInitResult } from "./shell";
 import { guardLoopback } from "./serve/loopback";
+import { refusesRemoteDebugging } from "./remoteDebugging";
 import { createThrottle } from "./throttle";
 import { createThumbnails, type ThumbnailReply, type Thumbnails } from "./thumbnails";
 import { createWindowCapturer } from "./thumbnailWindow";
@@ -117,6 +118,12 @@ import { parseUiState } from "../restore/uiState";
 import { createComposerSettings } from "./prototype/composerSettings";
 import { createPrototypeWindow } from "./prototypeWindow";
 import { answerCliPlay } from "./prototype/cliPlay";
+
+// Exits synchronously: `app.exit` would let the rest of this module run first.
+if (refusesRemoteDebugging(app.commandLine, app.isPackaged)) {
+  process.stderr.write("Doan does not start with Chromium remote-debugging switches.\n");
+  process.exit(1);
+}
 
 // Must run before `ready`: userData is derived from the name, which makes it
 // ~/Library/Application Support/doan/ (beside runtime.json, ARCHITECTURE §4).
