@@ -26,6 +26,7 @@
 - C-rev(🔴1 🟡3, `.scratch/review-C.md`): 🔴 `- /compact` 목록 메시지가 표시 문구 때문에 명령으로 분류된다. 🟡1·2 Overview 큐 행·임시 제목에 기호가 남는다. 🟡3 실제 선택 복사 검증 범위가 좁다. C 2차에서 고친다.
   - 리뷰어의 사용자 결정 항목(칩이 든 메시지의 복사 기준): conductor 재량 — spec 9의 "보낸 원문과 같다"는 목록 기호와 깊이 공백에 대한 말이다. 칩은 지금처럼 이름으로 보이고 복사된다. 승격 때 이 기준을 문장으로 분명히 쓴다.
 - `styles.css` 소유: B 통합 뒤 C 2차(버블 CSS)로 넘겼다. B-rev 고칠 점에 `styles.css`가 있으면 C 2차가 끝난 뒤 보낸다.
+- B-rev(🔴1 🟡3, `.scratch/review-B.md`): 🔴 실제 ⌘C를 보내는 DOM 테스트가 사용자의 macOS 클립보드를 덮어썼다(한 번 실제로 덮어씀, 복원 불가). 🟡1 조합 중 보류 키가 서로 덮어쓰고, 재전달 키의 중복 판정이 타이머 순서에 기댄다. 🟡2 읽기 전용 전환·unmount 뒤에도 보류한 줄바꿈이 초안을 바꿀 수 있다. 🟡3 Ctrl+Tab이 포커스를 받을 수 없는 후보에서 멈춘다. B 고침 1차에서 고친다(`styles.css`는 건드리지 않는다).
 - `/runtime-test`(tasks 9)와 최종 `/verify`(tasks 10), 승격(tasks 11)은 conductor가 한다. IME 확인에 사용자가 필요하고, 승격은 문서 커밋이다.
 
 ## Codex 사용
@@ -40,7 +41,7 @@
 | A | tasks 3, 4 | 새 renderer 모듈(목록 순수 함수)과 테스트, `skillWords.ts`(+test), `messageText.ts`의 `plainTitle`(+test) | 없음 | Opus high — CommonMark 깊이 규칙과 칩이 섞인 segment 위 캐럿 편집이 B·C 전체의 기반이다 | `npm --prefix app test`, typecheck | 통합 `4cab90fa4`·`02617b8ae` (워커 `cm-a`, 507 files / 14,722 tests PASS) |
 | A-rev | A 리뷰 | 없음(보고만) | A | Codex Astra medium — 교차 계열 독립 리뷰, 순수 함수라 범위가 좁다 | `/code-review` 보고 | 1차 🔴0 🟡5 🟢1 → 고침 1차 `8977347c2`·`ef7b29d05` → 2차 🟡1(기호 뒤 탭) → 고침 2차 `a7e99a99f`·`ebb069dff`(conductor가 diff 확인) |
 | B | tasks 5 | `chipField.ts`(+test), `ComposerParts.tsx`(+test), `styles.css`, 네 composer 공유 고정 테스트 | A | Opus high — contenteditable 캐럿·undo·IME 조합, PoC 5가지 처리 | test, typecheck, lint | 통합 `d35bf1952`·`e285dc591`(통합 HEAD 관련 테스트 29 files / 725 PASS) |
-| B-rev | B 리뷰 | 없음 | B | Codex Astra high — 여러 컴포넌트에 걸친 입력 처리, 실수하면 입력이 깨진다 | `/code-review` 보고 | 진행 (`gpt-6.2-astra` high, `cm-b`에서) |
+| B-rev | B 리뷰 | 없음 | B | Codex Astra high — 여러 컴포넌트에 걸친 입력 처리, 실수하면 입력이 깨진다 | `/code-review` 보고 | 1차 🔴1 🟡3 → B 고침 1차 진행 |
 | C | tasks 6, 7 | `homeComposer.ts`(`composeRequest`), `messageText.ts`(`messageLine` 연결), `ConversationThread.tsx`(`UserMessage`)와 테스트, 큐·초안 복원 테스트(프로토타입 포함). 버블 CSS는 보류 항목 | A | Opus medium — 명세가 구체적이고 영향 범위가 B보다 좁다 | test, typecheck, lint | 통합 `79e67ad86`·`1be729481`(통합 HEAD 관련 테스트 23 files / 762 PASS). 버블 CSS 보류 |
 | C-rev | C 리뷰 | 없음 | C | Codex Astra medium — 교차 계열 독립 리뷰 | `/code-review` 보고 | 1차 🔴1 🟡3 → C 2차(고침 + 버블 CSS) 진행 |
 | D | tasks 8 | `styles.css` 측정 수정, `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, 회귀 테스트 | B, C 통합 | Opus medium — 측정 절차가 정해진 작업 | `/design-sync` 기록 | 대기 |
