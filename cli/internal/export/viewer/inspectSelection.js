@@ -155,9 +155,11 @@ function canvasInspection(post) {
           if (press.state === "press") {
             press.state = "drag";
             document.documentElement.setPointerCapture(press.pointerId);
-            cursor = new CSSStyleSheet();
-            cursor.replaceSync("*{cursor:text!important}");
-            document.adoptedStyleSheets = [...document.adoptedStyleSheets, cursor];
+            if (typeof CSSStyleSheet === "function" && CSSStyleSheet.prototype.replaceSync && document.adoptedStyleSheets) {
+              cursor = new CSSStyleSheet();
+              cursor.replaceSync("*{cursor:text!important}");
+              document.adoptedStyleSheets = [...document.adoptedStyleSheets, cursor];
+            }
           }
           extend(event.clientX, event.clientY);
         }

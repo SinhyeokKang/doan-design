@@ -4,7 +4,7 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
   const panel = $("inspector"), show = $("inspector-show"), hide = $("inspector-hide");
   const trigger = $("element-trigger"), wrap = $("element-trigger-wrap"), menu = $("element-menu"), tree = $("element-tree");
   const body = $("inspect-body"), status = $("inspect-status"), rowTip = $("inspect-row-tip"), headTip = $("inspector-tip");
-  const narrow = matchMedia("(width < 657px)");
+  const hasRoom = matchMedia("(min-width: 657px)");
   const noRoom = "No room for the inspector. Widen the browser window.";
   let wanted = false, epoch = 0, seq = 0, selection = 0, nodes = [];
   let text = "", dragging = false, copyAttempt = 0, headTimer = 0, rowTimer = 0, point = null;
@@ -44,11 +44,11 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     $("inspect-title").hidden = false; wrap.hidden = true; wrap.classList.remove("doan-insp-pick");
   }
   function mode(focus, reload = false) {
-    const open = wanted && !narrow.matches;
-    show.setAttribute("aria-disabled", String(narrow.matches));
-    if (narrow.matches) show.setAttribute("aria-description", noRoom);
+    const open = wanted && hasRoom.matches;
+    show.setAttribute("aria-disabled", String(!hasRoom.matches));
+    if (!hasRoom.matches) show.setAttribute("aria-description", noRoom);
     else show.removeAttribute("aria-description");
-    headTip.textContent = narrow.matches ? noRoom : "Show inspector";
+    headTip.textContent = !hasRoom.matches ? noRoom : "Show inspector";
     if (!reload && open === !panel.hidden) return;
     const focusMoved = panel.contains(document.activeElement) || document.activeElement === show;
     headTooltip(false);
@@ -62,9 +62,9 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     if (focus || focusMoved) (open ? hide : show).focus({ preventScroll: true });
   }
   show.addEventListener("mousedown", event => event.preventDefault());
-  show.addEventListener("click", () => { if (!narrow.matches) { wanted = true; mode(true); } });
+  show.addEventListener("click", () => { if (hasRoom.matches) { wanted = true; mode(true); } });
   hide.addEventListener("click", () => { wanted = false; mode(true); });
-  narrow.addEventListener("change", () => mode(false));
+  hasRoom.addEventListener("change", () => mode(false));
   canvas.addEventListener("load", () => { if (wanted) mode(false, true); });
   function headTooltip(on) {
     clearTimeout(headTimer);

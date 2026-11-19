@@ -464,7 +464,7 @@ function collectRules(doc: Document = document): Collected {
         const own = splitTop(sr.selectorText, ",");
         const match = ctx.parent === null ? own : own.map((s) => expandNested(s, ctx.parent!));
         entries.push({ style: sr.style, match, shown: own, layer: ctx.layer, order: order++, containers: ctx.containers });
-        if (sr.cssRules.length > 0) walk(sr.cssRules, { ...ctx, parent: match.join(", ") });
+        if (sr.cssRules?.length > 0) walk(sr.cssRules, { ...ctx, parent: match.join(", ") });
       } else if (kind === "CSSNestedDeclarations") {
         if (ctx.parent !== null)
           entries.push({
@@ -654,6 +654,35 @@ function lostShorthand(row: InspectRow, matched: MatchedStyles): boolean {
   }) === true;
 }
 
+// Disabling a sheet can replace its CSSAnimation objects. Duplicate animation names on one target
+// match from the end of the CSS animation list, including animations on its pseudo-elements.
+function preserveAnimationTimes(doc: Document): () => void {
+  const animations = () => doc.getAnimations().filter((a): a is CSSAnimation => a instanceof CSSAnimation);
+  const snapshots = animations().map(animation => {
+    const effect = animation.effect as KeyframeEffect;
+    return { animation, target: effect.target, pseudo: effect.pseudoElement, name: animation.animationName,
+      time: animation.currentTime, rate: animation.playbackRate, state: animation.playState };
+  });
+  if (!snapshots.length) return () => {};
+  return () => {
+    const restored = animations().reverse();
+    for (const previous of snapshots.reverse()) {
+      const index = restored.findIndex(a => {
+        const effect = a.effect as KeyframeEffect;
+        return effect.target === previous.target && effect.pseudoElement === previous.pseudo && a.animationName === previous.name;
+      });
+      if (index < 0) continue;
+      const next = restored.splice(index, 1)[0]!;
+      if (next === previous.animation) continue;
+      next.playbackRate = previous.rate;
+      if (previous.state === "paused") next.pause();
+      else if (previous.state === "finished") next.finish();
+      else if (previous.state === "running" && next.playState !== "running") next.play();
+      if (previous.time !== null) next.currentTime = previous.time;
+    }
+  };
+}
+
 // Values a sheet the page cannot read (cross-origin, no CORS) changes: read with those sheets switched off. Such a
 // row shows the applied value only (no token): `state` hardcoded.
 function externalOverride(el: Element, rows: InspectRow[], unreadable: CSSStyleSheet[]): void {
@@ -678,8 +707,9 @@ function externalOverride(el: Element, rows: InspectRow[], unreadable: CSSStyleS
   // CSSOM exposes no winning declaration for an opaque sheet. Suppress transitions during the comparison
   // and flush the restored styles before letting transitions run again, all within the selection task.
   const guard = new CSSStyleSheet();
-  guard.replaceSync("*, *::before, *::after { transition-property: none !important; }");
+  guard.replaceSync("*, *::before, *::after { transition-duration: 0s !important; transition-delay: 0s !important; }");
   const doc = el.ownerDocument;
+  const restoreAnimations = preserveAnimationTimes(doc);
   const original = [...doc.adoptedStyleSheets];
   doc.adoptedStyleSheets = [...original, guard];
   let without: string[];
@@ -690,6 +720,7 @@ function externalOverride(el: Element, rows: InspectRow[], unreadable: CSSStyleS
     for (const sheet of unreadable) sheet.disabled = false;
     try {
       void getComputedStyle(el).color;
+      restoreAnimations();
     } finally {
       doc.adoptedStyleSheets = original;
     }
@@ -711,6 +742,13 @@ function externalOverride(el: Element, rows: InspectRow[], unreadable: CSSStyleS
 
 export function inspectElement(element: Element): InspectRow[] {
   const doc = element.ownerDocument;
+  if (typeof CSSStyleSheet !== "function" || typeof CSSStyleSheet.prototype.replaceSync !== "function" || !doc.adoptedStyleSheets) {
+    const style = getComputedStyle(element);
+    const computed = ROW_PROPS.map(name => ({ name, value: style.getPropertyValue(name) }));
+    const rows = inspectRows({ matched: {}, computed, ancestors: [] });
+    for (const row of rows) if (row.value !== "—") valueOnly(row);
+    return rows;
+  }
   const collected = collectRules(doc);
   const restore = containerProbe(doc, collected.conditions);
   try {
