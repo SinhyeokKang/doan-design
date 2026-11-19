@@ -64,7 +64,7 @@
 | 링크 | 세션·워크트리 | 시작 | PR·머지 | 상태 |
 |---|---|---|---|---|
 | 1 composer-markdown | Claude conductor · `/Users/sinhyeok/orca/workspaces/doan-design/composer-markdown-orch` (`feat/composer-markdown`) | 2026-11-19 17:58 (`2b11f18cd`) | [#307](https://github.com/SinhyeokKang/doan-design/pull/307) · `dc07740a4` | 머지 |
-| 2 header-breadcrumb-worktree | Claude conductor(구현 Codex `gpt-6.2-astra`, 리뷰 Claude) · `/Users/sinhyeok/orca/workspaces/doan-design/header-breadcrumb-worktree-orch` (`feat/header-breadcrumb-worktree`) | 2026-11-19 21:07 (`50ecade95`) | | 진행 중 |
+| 2 header-breadcrumb-worktree | Claude conductor(구현 Codex `gpt-6.2-astra`, 리뷰 Claude) · `/Users/sinhyeok/orca/workspaces/doan-design/header-breadcrumb-worktree-orch` (`feat/header-breadcrumb-worktree`) | 2026-11-19 21:07 (`50ecade95`) | [#308](https://github.com/SinhyeokKang/doan-design/pull/308) · `e3d03257d` | 머지 |
 | 3 inspector-reach | | | | 대기 |
 
 ## 인계 기록
@@ -85,3 +85,9 @@
   - 실제 앱에서 확인하지 못한 것(BACKLOG): VoiceOver가 숨은 기호를 읽는 방식, 기호 안에서 시작하는 실제 마우스 드래그, 조합을 끝낸 키를 다시 보내지 않는 입력기.
   - 로그인 프로필은 남겼다. 그 프로필의 Claude Code는 11월 21일 13:00까지 주간 한도에 걸려 있고 Codex는 쓸 수 있다.
   - 전체 verify에서 `src/main/shell.test.ts`가 부하 때문에 20초 타임아웃으로 한 번 실패한 적이 있다(다시 돌리면 통과, 바뀐 영역 아님).
+- 2026-11-19 (리드, 링크 2 머지): PR #308을 `e3d03257d`로 머지하고 conductor 워크트리를 지웠다(브랜치 `feat/header-breadcrumb-worktree`는 남김). Astra 결과: 배치 A(high)는 수정 1라운드, 리뷰에서 🟡 4건(헤더 이동 뒤 포커스 유실, Esc·도구 키 전파 차단, 복구 대상 행 표시, 지운 테스트의 복구 커버리지). 배치 V(medium)는 🟡 없이 테스트 1라운드. 🔴은 없었다. 링크 3이 알아야 할 것:
+  - 캔버스 헤더(`CanvasHeader.tsx`)는 `<nav className="doan-canvas-trail" aria-label="Breadcrumb">`로 시작한다. 도구는 `.doan-canvas-head-tools`에 있고 Show inspector는 그대로다. 헤더 폭 720px 미만(`@container doan-canvas-head (width < 688px)`)에서 Zoom out/in이 숨지만 Show inspector는 숨지 않는다. 960×600(헤더 396–716px)에서 도구가 breadcrumb 옆에 들어가는지 확인한다.
+  - 뷰어 헤더(`cli/internal/export/viewer/shell.html`)는 `<header class="ov-head doan-canvas-head">` 안에 `nav.doan-canvas-trail`과 줌 그룹만 든 `.doan-canvas-head-tools`가 있다. Show inspector는 그 도구 영역에 들어간다. `exportViewer.test.ts`가 `shell.css`와 `styles.css` 규칙을 선언 단위로 맞춰 고정하므로 양쪽을 함께 바꾼다.
+  - `assemble.go`가 `{{PROJECT}}`·`{{INITIAL}}`·`{{HUE}}`를 채운다(`fillShell` 한 번). `TestAssembleOutputIsPinned`·`TestExportOutputIsPinned`를 다시 갱신해야 한다.
+  - `App.tsx`에서 캔버스 헤더가 `navigation` prop을 받고, `CanvasController.openCanvas`에 `keepView`가 생겼다. `useMenuFocus`는 `useMenuFocus.ts`로 옮겨졌다.
+  - 확인하지 못한 것: 캔버스 헤더 스위치의 프로젝트 문제 툴팁은 문제 오버레이가 덮어 실제 앱에서 닿지 않는다(문서화됨). bare repo의 export 헤더 프로젝트 이름이 사이드바와 다를 수 있다(PRODUCT §5 3에 적힘).
