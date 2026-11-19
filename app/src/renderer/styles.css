@@ -750,12 +750,15 @@ body:has(.shell-top) { background: transparent; }
 /* A contenteditable has no placeholder: ChipField marks an empty field and its aria-placeholder is drawn over it, inset
    by the field's padding. */
 .composer-input[data-empty]::before { content: attr(aria-placeholder); position: absolute; inset-inline: 0 var(--space-1); color: var(--text-metadata); pointer-events: none; }
-/* A list item's marker and depth spaces (ChipField): spans over the typed text, which stays text for the caret, deletion
-   and copy. No hanging indent: a wrapped line starts at the line start. The marker column and one depth step are both
-   --space-6, the indent of the agent's Markdown lists; a wider marker ("100. ") widens only its own span. "- " and "* "
-   keep their characters unpainted under a drawn bullet; a number is painted as typed. A depth span is as wide as its
-   depth in steps whatever spaces were typed, so a depth-0 item's typed leading spaces take no width. */
-.list-mark { display: inline-block; position: relative; min-width: var(--space-6); }
+/* A list item's marker and depth spaces (ChipField, and the sent bubble): spans over the typed text, which stays text
+   for the caret, deletion and copy. No hanging indent in the field: a wrapped line starts at the line start. Every
+   marker stands one --space-6 step in, so a depth-0 list reads as indented, and each depth adds one more step. The
+   marker column is --space-3: a bullet then a short gap, a number ("1. ", wider than the column) then its typed space;
+   a wider marker ("100. ") widens only its own span. "- " and "* " keep their characters unpainted under a drawn
+   bullet; a number is painted as typed, in plain figures: the body's tabular "1" is padded to a "0"'s width, which
+   widens the gap after "1." by about 3 px. A depth span is as wide as its depth in steps whatever spaces were typed, so
+   a depth-0 item's typed leading spaces take no width. */
+.list-mark { display: inline-block; position: relative; min-width: var(--space-3); margin-inline-start: var(--space-6); font-variant-numeric: normal; }
 .list-mark[data-kind="ul"] { color: transparent; }
 .list-mark[data-kind="ul"]::before { content: "•"; position: absolute; left: 0; top: 0; color: var(--text-standard); }
 .list-depth { display: inline-block; width: calc(attr(data-depth type(<number>), 0) * var(--space-6)); }
@@ -1180,19 +1183,20 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .bubble-preset { display: inline-flex; align-items: center; gap: var(--space-1h); color: var(--text-accent-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); font-weight: var(--type-weight-medium); }
 .conversation-thread .bubble-preset svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 /* A sent list (UserMessage): role="list" blocks of inline-blocks, not ul/ol and not a grid, because Chromium copies an
-   ul/ol marker and a grid item's edge as line breaks; the person copies what they sent. The depth span and the marker
-   column (data-mark: the list's widest marker in ch, at least --space-6) sit before the body, and the body wraps under
+   ul/ol marker and a grid item's edge as line breaks; the person copies what they sent. The depth span, the marker's
+   one-step margin and the marker column (data-mark: the list's widest marker in ch, at least --space-3) sit before the
+   body, and the body wraps under
    itself (hanging indent). A nested list starts at its parent item's left and moves in by its own depth span. Items
    keep the spacing of plain lines. */
 .conversation-thread .bubble-text { display: block; }
 .conversation-thread .bubble-item { display: block; }
 .conversation-thread .bubble-item > :is(.list-depth, .list-mark, .bubble-item-body) { vertical-align: top; }
-.conversation-thread .bubble-item > .list-mark { min-width: max(var(--space-6), calc(attr(data-mark type(<number>), 0) * 1ch)); }
+.conversation-thread .bubble-item > .list-mark { min-width: max(var(--space-3), calc(attr(data-mark type(<number>), 0) * 1ch)); }
 /* A deep list in a narrow bubble would leave its body no width, so the drawn indentation stops at four steps; the
    depth spaces stay in the text for copy. Not a share of the item: a bubble shrinks to its text, so a short list's
    item is narrow and a share would pull in its first levels too. */
 .conversation-thread .bubble-item > .list-depth { width: calc(min(attr(data-depth type(<number>), 0), 4) * var(--space-6)); }
-.conversation-thread .bubble-item-body { display: inline-block; max-width: calc(100% - min(attr(data-depth type(<number>), 0), 4) * var(--space-6) - max(var(--space-6), calc(attr(data-mark type(<number>), 0) * 1ch))); }
+.conversation-thread .bubble-item-body { display: inline-block; max-width: calc(100% - (min(attr(data-depth type(<number>), 0), 4) + 1) * var(--space-6) - max(var(--space-3), calc(attr(data-mark type(<number>), 0) * 1ch))); }
 .conversation-thread .msg-files { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1h); }
 /* A sent file has no remove button, so the chip keeps its own inline end padding. */
 .conversation-thread .msg-files .attach-chip { gap: var(--space-3); padding: var(--space-1h) var(--space-4) var(--space-1h) var(--space-1h); }

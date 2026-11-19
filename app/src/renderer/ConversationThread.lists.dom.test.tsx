@@ -63,9 +63,10 @@ test("a sent list selects as the text sent, markers and depth spaces included", 
 test("markers step in by depth up to four steps, and a wrapped body hangs under its own start", async () => {
   await open("- d0\n  - d1\n    - d2\n      - d3\n        - d4\n          - d5 a body long enough to wrap in the bubble at the panel width\n            - d6");
   const rows = await items();
-  // One depth step and the marker column are --space-6 (24 px); a nested list starts at its parent item's left.
+  // Every marker stands one --space-6 step (24 px) in and each depth adds a step; a bullet's column is --space-3
+  // (12 px); a nested list starts at its parent item's left.
   expect(rows.map(row => [row.body, row.mark, row.at])).toEqual([
-    ["d0", 0, 24], ["d1", 24, 48], ["d2", 48, 72], ["d3", 72, 96], ["d4", 96, 120], ["d5", 96, 120], ["d6", 96, 120],
+    ["d0", 24, 36], ["d1", 48, 60], ["d2", 72, 84], ["d3", 96, 108], ["d4", 120, 132], ["d5", 120, 132], ["d6", 120, 132],
   ]);
   for (const row of rows) expect(row.top).toBe(row.markTop);
   expect(rows.find(row => row.body === "d5")!.lines).toBeGreaterThan(1);
@@ -76,18 +77,25 @@ test("the bodies of one numbered list line up, past its widest marker", async ()
   const rows = await items();
   expect(new Set(rows.map(row => row.at)).size).toBe(1);
   const widest = await frame.evaluate(() => {
-    const probe = document.createElement("span"); probe.textContent = "100. "; probe.style.whiteSpace = "pre";
+    // The marker as drawn (its figures), without its column minimum and step.
+    const probe = document.createElement("span"); probe.className = "list-mark"; probe.textContent = "100. "; probe.style.cssText = "min-width: 0; margin: 0";
     document.querySelector(".bubble-item")!.append(probe); const width = probe.getBoundingClientRect().width; probe.remove(); return width;
   });
-  expect(rows[0]!.at).toBeGreaterThanOrEqual(widest);
-  // A one-digit list keeps the 24 px column; a two-digit one is 2.6ch, a fraction of a pixel past it in Geist.
+  expect(rows[0]!.at - 24).toBeGreaterThanOrEqual(widest);
+  // A number's text follows its typed space: the column runs past the widest marker by under a pixel.
+  expect(rows[0]!.at - 24 - widest).toBeLessThan(1);
+  // "2." is the wider of the two markers in Geist.
   await open("1. a\n2. b");
-  expect((await items()).map(row => row.at)).toEqual([24, 24]);
-  await open("9. a\n10. b");
-  for (const row of await items()) expect(row.at).toBeCloseTo(24, 0);
+  const one = await items();
+  const marker = await frame.evaluate(() => {
+    // The marker as drawn (its figures), without its column minimum and step.
+    const probe = document.createElement("span"); probe.className = "list-mark"; probe.textContent = "2. "; probe.style.cssText = "min-width: 0; margin: 0";
+    document.querySelector(".bubble-item")!.append(probe); const width = probe.getBoundingClientRect().width; probe.remove(); return width;
+  });
+  for (const row of one) { expect(row.at - 24).toBeGreaterThanOrEqual(marker); expect(row.at - 24 - marker).toBeLessThan(1); }
 });
 
 test("a depth-0 item's typed leading spaces take no width", async () => {
   await open(" - one space\n- none");
-  expect((await items()).map(row => [row.mark, row.at])).toEqual([[0, 24], [0, 24]]);
+  expect((await items()).map(row => [row.mark, row.at])).toEqual([[24, 36], [24, 36]]);
 });

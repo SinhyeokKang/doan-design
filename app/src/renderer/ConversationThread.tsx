@@ -474,11 +474,15 @@ function endsInBlankLine(parts: readonly MessagePart[]): boolean {
   return !last || ("text" in last && last.text.endsWith("\n"));
 }
 
-// The list's marker column, in ch, for the bubble's hanging indent: as wide as its widest marker so the bodies line up.
-// A number counts its digits as 1ch each and ". " as 0.6ch (measured in the app font: "888. " is 3.49ch), which covers
-// the marker without measuring; "- ", "* " and a one or two digit number fit the 24px minimum (0).
+// The list's marker column, in ch, for the bubble's hanging indent: at least as wide as its widest marker so the bodies
+// line up, without measuring. Markers draw in plain figures (styles.css), so each digit counts its own width in Geist,
+// in ch (a "0", the widest, is 1ch; a "1" is 0.58ch), and ". " 0.7ch; each is rounded up, so the column never cuts into
+// the text. "- " and "* " fit the --space-3 minimum (0).
+const DIGIT_CH: Record<string, number> = { "0": 1, "1": 0.58, "2": 0.94, "3": 0.93, "4": 0.93, "5": 0.95, "6": 0.9, "7": 0.79, "8": 0.92, "9": 0.9 };
 function markColumn(block: BubbleList): number {
-  return block.list === "ol" ? Math.max(...block.items.map(item => item.marker.length - 2)) + 0.6 : 0;
+  if (block.list !== "ol") return 0;
+  const width = (marker: string) => [...marker.slice(0, -2)].reduce((sum, digit) => sum + (DIGIT_CH[digit] ?? 1), 0.7);
+  return Math.round(Math.max(...block.items.map(item => width(item.marker))) * 100) / 100;
 }
 
 // A sent message: its bubble, attachments and the chip locate note under the bubble (draft frame `chip-locate`). One

@@ -809,15 +809,15 @@ describe("a sent list", () => {
     const markup = bubble(user("1. a\n1. b\n   - c"));
     expect(markup).not.toMatch(/<(ul|ol|li)\b/);
     expect(markup).toBe('<div class="bubble-list" role="list">'
-      + '<div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ol" data-mark="1.6">1. </span><span class="bubble-item-body" data-depth="0" data-mark="1.6">a</span></div>'
-      + '<div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ol" data-mark="1.6">1. </span><span class="bubble-item-body" data-depth="0" data-mark="1.6">b</span>'
+      + '<div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ol" data-mark="1.28">1. </span><span class="bubble-item-body" data-depth="0" data-mark="1.28">a</span></div>'
+      + '<div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ol" data-mark="1.28">1. </span><span class="bubble-item-body" data-depth="0" data-mark="1.28">b</span>'
       + '<div class="bubble-list" role="list"><div class="bubble-item" role="listitem"><span class="list-depth" data-depth="1">   </span><span class="list-mark" data-kind="ul" data-mark="0">- </span><span class="bubble-item-body" data-depth="1" data-mark="0">c</span></div></div>'
       + '</div></div>');
   });
 
   // The marker column fits the list's widest marker, so "9.", "10." and "100." bodies line up.
   test("a numbered list's marker column counts its widest number", () => {
-    expect(bubble(user("9. a\n10. b\n100. c")).match(/data-mark="[^"]*"/g)).toEqual(Array(6).fill('data-mark="3.6"'));
+    expect(bubble(user("9. a\n10. b\n100. c")).match(/data-mark="[^"]*"/g)).toEqual(Array(6).fill('data-mark="3.28"'));
   });
 
   test("a message without a list draws as plain text, other Markdown included", () => {
