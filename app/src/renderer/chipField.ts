@@ -322,6 +322,9 @@ export class ChipField {
     if (this.composingNow && event.key === "Enter" && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) this.press = { kind: "break" };
     // keyCode 229 is the IME's own key; the composition owns it.
     if (event.isComposing || event.keyCode === 229 || this.composingNow) return;
+    // The remembered press's key came again: whoever takes it (the field, or the host's `/` list or suggestion, which
+    // prevent it), the press is answered and the deferred run must not act on it too.
+    if (this.press && event.key === (this.press.kind === "break" ? "Enter" : "Tab")) this.press = null;
     if (event.metaKey && !event.ctrlKey && !event.altKey && event.key.toLowerCase() === "z") {
       event.preventDefault();
       if (this.readOnly()) return;
@@ -511,14 +514,16 @@ export class ChipField {
 
   // A Shift+Enter or Tab that ends a Korean composition on macOS (Electron 45): keydown (keyCode 229, composing), the
   // syllable's commit and compositionend, an immediate keyup, then the same key again as an ordinary keydown (with its
-  // insertLineBreak) in the same task, before the timer above. That second key does the edit, after compositionend's
-  // sync put the syllable in the segments, and clears `press`. An input method that does not send the key again leaves
-  // `press` for the timer, which does the edit once.
+  // insertLineBreak) in the same task, before the timer above. That second key clears `press` and does what the key
+  // does, after compositionend's sync put the syllable in the segments. An input method that does not send the key
+  // again leaves `press` for the timer, which does it once: a Tab that cannot move the item then moves focus, as the
+  // Tab would have, unless focus already left the field.
   private flushPress(): void {
     const press = this.press;
     this.press = null;
     if (!press || this.composingNow || this.readOnly()) return;
-    if (press.kind === "break") this.lineBreak(); else this.moveItem(press.dir);
+    if (press.kind === "break") this.lineBreak();
+    else if (!this.moveItem(press.dir) && document.activeElement === this.el) moveFocus(this.el, press.dir === -1);
   }
 
   // Browser edits keep the DOM drawn as render() would draw it: a chip that an edit leaves at a line's start gets its
