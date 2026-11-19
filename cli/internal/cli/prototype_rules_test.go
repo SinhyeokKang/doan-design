@@ -95,7 +95,7 @@ func TestPrototypeReply(t *testing.T) {
 	}{
 		{name: "played", line: prototypeReplyFixture(t, "played"), result: played},
 		{name: "v 6.0 reads as 6", line: `{"v":6.0,"ok":true,"played":true}`, result: played},
-		{name: "unregistered root", line: prototypeReplyFixture(t, "error-project-not-open"), code: "project_not_open", exit: 3, inMessage: `"repo"`},
+		{name: "unregistered root", line: prototypeReplyFixture(t, "error-project-not-open"), code: "project_not_open", exit: 3, inMessage: `"/Users/me/repo"`},
 		{name: "canvas not in the list", line: prototypeReplyFixture(t, "error-canvas-not-found"), code: "canvas_not_found", exit: 2, inMessage: ".doan/canvases/home.html"},
 		{name: "busy keeps the app's reason", line: `{"v":6,"ok":false,"error":{"code":"busy","message":"Finish Doan’s first run, then try again."}}`, code: "busy", exit: 5, inMessage: "Finish Doan’s first run"},
 		{name: "busy, empty reason", line: `{"v":6,"ok":false,"error":{"code":"busy","message":" "}}`, code: "busy", exit: 5, inMessage: "cannot play a prototype right now"},
@@ -153,6 +153,8 @@ func TestPrototypeReplyGuidance(t *testing.T) {
 	}
 	for _, tt := range []struct{ line, want string }{
 		{`{"v":6,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "Add Projects"},
+		{`{"v":6,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "Project Settings"},
+		{`{"v":6,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "another checkout or worktree"},
 		{`{"v":6,"ok":false,"error":{"code":"canvas_not_found","message":"m"}}`, "doan ls"},
 		// The app also answers canvas_not_found when two canvases share the canvas id; doan check finds that.
 		{`{"v":6,"ok":false,"error":{"code":"canvas_not_found","message":"m"}}`, "doan check"},
