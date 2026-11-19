@@ -750,6 +750,15 @@ body:has(.shell-top) { background: transparent; }
 /* A contenteditable has no placeholder: ChipField marks an empty field and its aria-placeholder is drawn over it, inset
    by the field's padding. */
 .composer-input[data-empty]::before { content: attr(aria-placeholder); position: absolute; inset-inline: 0 var(--space-1); color: var(--text-metadata); pointer-events: none; }
+/* A list item's marker and depth spaces (ChipField): spans over the typed text, which stays text for the caret, deletion
+   and copy. No hanging indent: a wrapped line starts at the line start. The marker column and one depth step are both
+   --space-6, the indent of the agent's Markdown lists; a wider marker ("100. ") widens only its own span. "- " and "* "
+   keep their characters unpainted under a drawn bullet; a number is painted as typed. A depth span is as wide as its
+   depth in steps whatever spaces were typed, so a depth-0 item's typed leading spaces take no width. */
+.list-mark { display: inline-block; position: relative; min-width: var(--space-6); }
+.list-mark[data-kind="ul"] { color: transparent; }
+.list-mark[data-kind="ul"]::before { content: "•"; position: absolute; left: 0; top: 0; color: var(--text-standard); }
+.list-depth { display: inline-block; width: calc(attr(data-depth type(<number>), 0) * var(--space-6)); }
 /* Inline anchor chips (confirmed draft; 180px and 6px are component constants with no
    token). contenteditable=false keeps the caret before or after a chip, never inside. */
 .anchor-chip { display: inline-flex; align-items: center; gap: var(--space-1); max-width: 180px; margin: 0 var(--space-half); padding: 0 var(--space-1h); border: 0; border-radius: var(--radius-word); background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font: inherit; font-weight: var(--type-weight-medium); vertical-align: bottom; white-space: nowrap; }
