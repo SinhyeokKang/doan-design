@@ -72,3 +72,7 @@
   - `title-queue` — 목록으로 시작한 메시지의 대화 제목(사이드바 행·패널 제목)과 큐 행이 기호 없는 평문으로 보임.
 - 키 동작(Shift+Enter, Tab, Ctrl+Tab, Backspace)은 그릴 수 없으므로 각 프레임 옆 노트로 적는다.
 - 그대로 베끼는 출하 화면: docked composer와 스레드는 `docs/design/canvas-conversation.md`, Home composer는 `docs/design/home.md`, 코드는 `ComposerParts.tsx`, `DockedComposer.tsx`, `HomeComposerView.tsx`, `ConversationThread.tsx`.
+
+## 초안 확정
+
+- `.doan/canvases/composer-markdown.html`(커밋 `6cfa6eb6e`)을 사용자가 앱에서 확인하고 확정했다(2026-11-19).
