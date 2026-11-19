@@ -84,3 +84,4 @@
 - 외부 시트 행: 표시 없이 값만. 브라우저가 적용한 값을 다른 행처럼 보이고, 토큰 이름·출처 표시·목록 위 안내를 두지 않는다. PoC 3은 이런 행에서 토큰을 보일 수 있는지만 확인한다.
 - 뷰어: Show inspector는 줌 뒤 구분선 다음, 툴팁은 버튼 아래. 빈 상태 문구는 "Option-click (Alt-click)"을 함께 쓴다. 복사 실패는 "This browser blocked copying. Open the file in another browser." yield는 창 폭 657px 미만, "No room for the inspector. Widen the browser window.", 열이 돌아오면 선택도 되살린다. 마크는 기본 accent.
 - 버블(B): 리뷰 지적 없음, 초안대로.
+- 버블 초안 확정: `.doan/canvases/inspector-reach-bubble.html`(커밋 `b894096b8`)을 사용자가 앱에서 확인하고 확정했다(2026-11-19).
