@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -193,29 +194,27 @@ func TestScopeSkipsDefaultsUnderLinkedMetadata(t *testing.T) {
 	}
 }
 
+// The cases are shared with the app's withheld test, so the server and doan check cannot drift apart.
 func TestWithheld(t *testing.T) {
-	for p, want := range map[string]bool{
-		".git":                     true,
-		".git/config":              true,
-		"a/.git":                   true,
-		"vendor/lib/.git/HEAD":     true,
-		".GIT":                     true,
-		".env":                     true,
-		".env.local":               true,
-		".envrc":                   true,
-		"web/.ENV.production":      true,
-		".env/x":                   true,
-		".gitignore":               false,
-		".github/workflows/ci.yml": false,
-		"a.git":                    false,
-		"git/x":                    false,
-		"env":                      false,
-		"a.env":                    false,
-		".doan/assets/env.png":     false,
-		"":                         false,
-	} {
-		if got := Withheld(p); got != want {
-			t.Errorf("Withheld(%q) = %v, want %v", p, got, want)
+	var fixture struct {
+		Cases []struct {
+			Path     string
+			Withheld bool
+		}
+	}
+	data, err := os.ReadFile("../../../schema/fixtures/serve-withheld/cases.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if len(fixture.Cases) == 0 {
+		t.Fatal("no fixtures")
+	}
+	for _, tt := range fixture.Cases {
+		if got := Withheld(tt.Path); got != tt.Withheld {
+			t.Errorf("Withheld(%q) = %v, want %v", tt.Path, got, tt.Withheld)
 		}
 	}
 }

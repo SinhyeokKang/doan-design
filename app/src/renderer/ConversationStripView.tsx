@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CircleAlert, CircleCheck, CircleStop } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
+import { useActivationFocus } from "./activationFocus";
 import { AlertIcon } from "./AlertIcon";
 import { answerRefusal } from "./ConversationThread";
 import { focusAfterStop, stripErrorText, stripSendFailed, type StripAction, type StripSendError, type StripState, type StripView } from "./conversationStrip";
@@ -27,12 +28,14 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
     return () => { stopLeftFocused.current = document.activeElement === node; stop.current = null; };
   }).current;
   // A turn that ends while Stop has focus (an answer that finishes it at once, Stop itself, a send's arrival focus)
-  // takes Stop away; focus moves on to Dismiss instead of falling to the page.
+  // takes Stop away; focus moves on to Dismiss instead of falling to the page. The turn can end while the person is in
+  // another app, so the move is made again on activation (POSTMORTEM 2026-11-17).
+  const handFocus = useActivationFocus();
   useEffect(() => {
     if (!stopLeftFocused.current) return;
     stopLeftFocused.current = false;
     const active = document.activeElement;
-    if (!stop.current && focusAfterStop(view.actions) === "dismiss" && (!active || active === document.body)) dismiss.current?.focus();
+    if (!stop.current && focusAfterStop(view.actions) === "dismiss" && (!active || active === document.body)) handFocus(() => dismiss.current?.focus());
   });
   const [sendError, setSendError] = useState<StripSendError | null>(null);
   // Only the latest press's reply speaks: an earlier one's late refusal must not bring the line back.

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import withheldCases from "../../../../schema/fixtures/serve-withheld/cases.json";
 import { inScope, parseServePath, relInside, withheld } from "./path";
 
 const token = "a1b2c3";
@@ -172,16 +173,15 @@ describe("inScope", () => {
   });
 });
 
+// The cases are shared with the CLI's repo.Withheld test, so the server and doan check cannot drift apart.
 describe("withheld", () => {
-  test("holds back a .git segment and a segment starting with .env, in any letter case", () => {
-    for (const rel of [".git", ".git/config", "a/.git", "a/.git/b", ".GIT", ".env", ".env.local", ".envrc", "a/.ENV.production", ".env/x"]) {
-      expect(withheld(rel)).toBe(true);
-    }
+  test("reads cases", () => {
+    expect(withheldCases.cases.length).toBeGreaterThan(0);
   });
 
-  test("keeps similar names", () => {
-    for (const rel of [".gitignore", ".github/workflows/ci.yml", "a.git", "git/x", "env", "a.env", "x/env/.config", ".doan/assets/env.png", ""]) {
-      expect(withheld(rel)).toBe(false);
-    }
-  });
+  for (const item of withheldCases.cases) {
+    test(`${JSON.stringify(item.path)} is ${item.withheld ? "withheld" : "served"}`, () => {
+      expect(withheld(item.path)).toBe(item.withheld);
+    });
+  }
 });

@@ -169,7 +169,7 @@ test("when the turn ends while Stop has focus, focus moves from the vanished Sto
   vi.stubGlobal("window", { doan: { answerConversationPermission: vi.fn(async () => {}), interruptConversation: vi.fn() } });
   const { dismissFocus, draw, effects, attachStop } = strip();
   const { node, detach } = attachStop(draw({ kind: "working", activity: null }));
-  const doc = { activeElement: node as unknown, body: {} };
+  const doc = { activeElement: node as unknown, body: {}, hasFocus: () => true };
   vi.stubGlobal("document", doc);
   // Still running: Stop stays, nothing moves.
   draw({ kind: "working", activity: "Editing" }); effects();
@@ -181,6 +181,26 @@ test("when the turn ends while Stop has focus, focus moves from the vanished Sto
   // Once per loss: a later redraw does not take focus again.
   draw({ kind: "failed", code: "process_exited" }); effects();
   expect(dismissFocus).toHaveBeenCalledTimes(1);
+});
+
+// POSTMORTEM 2026-11-17: a turn ending while the person is in another app takes Stop away in the background;
+// activation would otherwise put focus back on the Stop that went, or on the first focusable control.
+test("a turn that ends with the window in the background moves focus to Dismiss again when the window activates", () => {
+  const win = Object.assign(new EventTarget(), { doan: { answerConversationPermission: vi.fn(async () => {}), interruptConversation: vi.fn() } });
+  vi.stubGlobal("window", win);
+  const { dismissFocus, draw, effects, attachStop } = strip();
+  const { node, detach } = attachStop(draw({ kind: "working", activity: null }));
+  const doc = { activeElement: node as unknown, body: {}, hasFocus: () => false, querySelectorAll: () => [] };
+  vi.stubGlobal("document", doc);
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    detach(); doc.activeElement = doc.body;
+    draw({ kind: "failed", code: "process_exited" }); effects();
+    expect(dismissFocus).toHaveBeenCalledTimes(1);
+    win.dispatchEvent(new Event("focus"));
+    vi.runAllTimers();
+    expect(dismissFocus).toHaveBeenCalledTimes(3);
+  } finally { vi.useRealTimers(); }
 });
 
 test("a person whose focus was elsewhere when Stop went away keeps it", () => {
