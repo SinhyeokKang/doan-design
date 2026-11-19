@@ -464,7 +464,9 @@ function collectRules(doc: Document = document): Collected {
         const own = splitTop(sr.selectorText, ",");
         const match = ctx.parent === null ? own : own.map((s) => expandNested(s, ctx.parent!));
         entries.push({ style: sr.style, match, shown: own, layer: ctx.layer, order: order++, containers: ctx.containers });
-        if (sr.cssRules?.length > 0) walk(sr.cssRules, { ...ctx, parent: match.join(", ") });
+        // CSSStyleRule gained child rules with native nesting; earlier engines expose the style alone.
+        const nested = (sr as Partial<CSSGroupingRule>).cssRules;
+        if (nested?.length) walk(nested, { ...ctx, parent: match.join(", ") });
       } else if (kind === "CSSNestedDeclarations") {
         if (ctx.parent !== null)
           entries.push({
@@ -742,7 +744,7 @@ function externalOverride(el: Element, rows: InspectRow[], unreadable: CSSStyleS
 
 export function inspectElement(element: Element): InspectRow[] {
   const doc = element.ownerDocument;
-  if (typeof CSSStyleSheet !== "function" || typeof CSSStyleSheet.prototype.replaceSync !== "function" || !doc.adoptedStyleSheets) {
+  if (typeof CSSStyleSheet !== "function" || typeof CSSStyleSheet.prototype.replaceSync !== "function" || !(doc as Partial<Document>).adoptedStyleSheets) {
     const style = getComputedStyle(element);
     const computed = ROW_PROPS.map(name => ({ name, value: style.getPropertyValue(name) }));
     const rows = inspectRows({ matched: {}, computed, ancestors: [] });
