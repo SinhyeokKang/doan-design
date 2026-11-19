@@ -30,6 +30,7 @@
 - C 2차: Electron 복사·배치 probe 86/86 PASS(`.scratch/handoff-C.md` Round 2). 칩은 `inline-flex`라 Chromium이 칩 이름을 따로 한 줄로 복사한다(목록이 없어도 같은, 이전부터의 동작). 범위 밖이라 그대로 두고 PR 본문에 적는다. Overview 큐 행도 캔버스 패널처럼 칩을 이름으로 보인다(`messageLine` 공유의 결과).
 - 초안 편차 후보(D가 기록): 3자리 번호 목록의 기호 열이 초안보다 1~2.5px 넓다. 버블 배치가 grid가 아니라 inline-block이다.
 - Codex 재검토 재시작이 update prompt로 막혔다(`orchestration send` 재열기). 같은 모델로 새 `worker-start`를 띄웠다.
+- B 고침 1차: 보류 키를 누름마다 줄에 쌓고 keyup으로 중복을 가린다. 가정한 IME 순서 6가지는 `.scratch/handoff-B.md` 'Fix round 1'에 있다. `/runtime-test`에서 사용자가 macOS 한글 IME로 확인한다.
 - `/runtime-test`(tasks 9)와 최종 `/verify`(tasks 10), 승격(tasks 11)은 conductor가 한다. IME 확인에 사용자가 필요하고, 승격은 문서 커밋이다.
 
 ## Codex 사용
@@ -44,9 +45,9 @@
 | A | tasks 3, 4 | 새 renderer 모듈(목록 순수 함수)과 테스트, `skillWords.ts`(+test), `messageText.ts`의 `plainTitle`(+test) | 없음 | Opus high — CommonMark 깊이 규칙과 칩이 섞인 segment 위 캐럿 편집이 B·C 전체의 기반이다 | `npm --prefix app test`, typecheck | 통합 `4cab90fa4`·`02617b8ae` (워커 `cm-a`, 507 files / 14,722 tests PASS) |
 | A-rev | A 리뷰 | 없음(보고만) | A | Codex Astra medium — 교차 계열 독립 리뷰, 순수 함수라 범위가 좁다 | `/code-review` 보고 | 1차 🔴0 🟡5 🟢1 → 고침 1차 `8977347c2`·`ef7b29d05` → 2차 🟡1(기호 뒤 탭) → 고침 2차 `a7e99a99f`·`ebb069dff`(conductor가 diff 확인) |
 | B | tasks 5 | `chipField.ts`(+test), `ComposerParts.tsx`(+test), `styles.css`, 네 composer 공유 고정 테스트 | A | Opus high — contenteditable 캐럿·undo·IME 조합, PoC 5가지 처리 | test, typecheck, lint | 통합 `d35bf1952`·`e285dc591`(통합 HEAD 관련 테스트 29 files / 725 PASS) |
-| B-rev | B 리뷰 | 없음 | B | Codex Astra high — 여러 컴포넌트에 걸친 입력 처리, 실수하면 입력이 깨진다 | `/code-review` 보고 | 1차 🔴1 🟡3 → B 고침 1차 진행 |
+| B-rev | B 리뷰 | 없음 | B | Codex Astra high — 여러 컴포넌트에 걸친 입력 처리, 실수하면 입력이 깨진다 | `/code-review` 보고 | 1차 🔴1 🟡3 → 고침 1차 `71c2c6964`·`3594ead49`·`d2a3ae2c9` 통합 → 재검토 진행 |
 | C | tasks 6, 7 | `homeComposer.ts`(`composeRequest`), `messageText.ts`(`messageLine` 연결), `ConversationThread.tsx`(`UserMessage`)와 테스트, 큐·초안 복원 테스트(프로토타입 포함). 버블 CSS는 보류 항목 | A | Opus medium — 명세가 구체적이고 영향 범위가 B보다 좁다 | test, typecheck, lint | 통합 `79e67ad86`·`1be729481`(통합 HEAD 관련 테스트 23 files / 762 PASS). 버블 CSS 보류 |
-| C-rev | C 리뷰 | 없음 | C | Codex Astra medium — 교차 계열 독립 리뷰 | `/code-review` 보고 | 1차 🔴1 🟡3 → C 2차 `780bc9f61`·`b6ad82efd`·`8f08d091f` 통합 → 재검토 진행 |
+| C-rev | C 리뷰 | 없음 | C | Codex Astra medium — 교차 계열 독립 리뷰 | `/code-review` 보고 | 1차 🔴1 🟡3 → C 2차 통합 → 재검토 🔴1(명령과 같은 이름의 스킬, 이전부터의 결함) 🟡1(깊은 중첩 본문 폭 0) → C 3차 진행 |
 | D | tasks 8 | `styles.css` 측정 수정, `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, 회귀 테스트 | B, C 통합 | Opus medium — 측정 절차가 정해진 작업 | `/design-sync` 기록 | 대기 |
 | conductor | tasks 9, 10, 11 | BACKLOG, PRODUCT, ARCHITECTURE, DESIGN 색인, feature 디렉터리 삭제 | D | — | `/runtime-test`, verify, grep | 대기 |
 
