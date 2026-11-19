@@ -137,7 +137,7 @@ svg { display: block; flex: none; }
 
 /* ── Header (styles.css .ov-head, .doan-canvas-head and friends) ─────────────── */
 .ov-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); }
-.doan-canvas-head { container: doan-canvas-head / inline-size; flex: none; background: var(--surface-panel); }
+.doan-canvas-head { flex: none; background: var(--surface-panel); container: doan-canvas-head / inline-size; }
 .shell-thumbnail { display: flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: var(--radius-thumbnail); font-size: 10px; font-weight: var(--type-weight-semibold); line-height: 16px; }
 .hue-rose { background: color-mix(in srgb, var(--identity-project-rose) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-rose) 65%, var(--text-standard)); }
 .hue-amber { background: color-mix(in srgb, var(--identity-project-amber) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-amber) 65%, var(--text-standard)); }
@@ -148,15 +148,17 @@ svg { display: block; flex: none; }
 .hue-indigo { background: color-mix(in srgb, var(--identity-project-indigo) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-indigo) 65%, var(--text-standard)); }
 .hue-fuchsia { background: color-mix(in srgb, var(--identity-project-fuchsia) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-fuchsia) 65%, var(--text-standard)); }
 .doan-canvas-trail { display: flex; align-items: center; gap: var(--space-2); flex: 0 1 auto; min-width: 0; }
-.doan-canvas-project { display: inline-flex; align-items: center; gap: var(--space-2); flex: 0 1e8 auto; min-width: calc(var(--space-2) + var(--size-icon)); padding-left: var(--space-2); color: var(--text-subtle); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+/* The static project crumb has a leading inset only, so its thumbnail floor is one inset narrower than the button. */
+.doan-canvas-project { display: inline-flex; align-items: center; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); flex: 0 1e8 auto; min-width: calc(var(--size-icon) + var(--space-2)); gap: var(--space-2); color: var(--text-subtle); font-weight: var(--type-weight-regular); }
 .doan-canvas-project-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .doan-canvas-trail > .ov-title-wrap { flex: 0 10000 auto; min-width: calc(2 * var(--space-2) + var(--space-1h) + var(--size-icon)); }
-.doan-canvas-name { display: inline-flex; align-items: center; gap: var(--space-1h); flex: 0 1 auto; max-width: 40cqi; min-width: calc(var(--space-2) + var(--size-icon)); padding-left: var(--space-2); color: var(--text-subtle); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
-.doan-canvas-name svg { width: var(--size-icon); height: var(--size-icon); }
+.doan-canvas-trail > .doan-canvas-name { flex: 0 1 auto; max-width: 40cqi; min-width: calc(var(--space-2) + var(--size-icon)); }
+.doan-canvas-name { display: inline-flex; align-items: center; gap: var(--space-1h); flex: none; max-width: 40%; min-width: 0; padding-left: var(--space-2); color: var(--text-subtle); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); }
+.doan-canvas-name svg { width: var(--size-icon); height: var(--size-icon); flex: none; }
 .doan-canvas-name span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ov-sep { letter-spacing: var(--type-label-sm-letter-spacing); flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); }
 .ov-title-wrap { position: relative; display: flex; min-width: 0; }
-.ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
 .ov-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chev { width: var(--space-4); height: var(--space-4); flex: none; color: var(--text-metadata); }
 .doan-canvas-head-tools { display: flex; align-items: center; gap: var(--space-1); flex: none; margin-left: auto; }
