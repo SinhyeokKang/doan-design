@@ -65,3 +65,11 @@
   - `overview-header` — Overview 헤더: 워크트리 하나여도 셀렉트, 메뉴 열린 모습 하나.
   - `sidebar-row` — 사이드바 프로젝트 행: 칩 자리에 셀렉트, 메뉴 열린 모습, "…" 버튼과 나란히.
 - 그대로 베끼는 출하 화면: 캔버스 헤더 `docs/design/canvas.md` 'Canvas area and right panel'과 `CanvasHeader.tsx`, Overview 헤더 `docs/design/project.md`와 `ProjectOverview.tsx`, 사이드바 `docs/design/shell.md`와 `ShellSidebar.tsx`, 워크트리 메뉴 `.wt-menu`.
+
+## 초안 리뷰에서 정한 것 (2026-11-19, 사용자)
+
+- 줄임 순서: Overview 헤더는 워크트리 라벨(최대 200px)이 프로젝트 이름보다 먼저 줄어든다. 캔버스 헤더는 워크트리 라벨 → 프로젝트 → 프레임 → 캔버스 이름 순서로 줄어든다(캔버스 이름이 가장 오래 남는다). 사이드바 행의 라벨 상한은 출하 그대로 84px.
+- 폭 단계: 캔버스 헤더 폭 720 미만이면 프로젝트는 썸네일만, 600 미만(960×600 기본)이면 프로젝트와 셀렉트가 캔버스 헤더에서 빠진다. 사이드바 행의 셀렉트가 남는다.
+- 셰브런: 세 곳(사이드바, Overview, 캔버스 헤더) 모두 워크트리 셀렉트에 셰브런을 그리지 않는다. 셀렉트는 여전히 메뉴 버튼이다.
+- 사이드바 메뉴: 셀렉트 시작 끝에서 280 폭으로 열리고 사이드바 밖으로 나간다(다른 두 곳과 같은 위치·폭).
+- 목록에 없는 페이지의 비활성 이유: "Switching worktrees isn’t available on a page that isn’t a listed canvas." 프로젝트 문제: "Switching worktrees isn’t available while the canvas can’t be shown."
