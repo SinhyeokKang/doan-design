@@ -12,7 +12,7 @@
 - tasks 1(버블 초안), 6(PoC), 7(뷰어 초안)은 끝났다: `.doan/canvases/inspector-reach-bubble.html`, `.doan/canvases/inspector-reach-viewer.html` 사용자 확정, PoC 결과와 행 단위 물러서기 결정(design 'PoC 결과', 'PoC 뒤 결정', '초안 리뷰에서 정한 것').
 - 배치 순서: tasks대로 (B) 앱을 먼저, (A) CLI 뷰어를 그 뒤에 직렬로 돌린다. 근거: 사용자 지시와 tasks.md. 뷰어 element menu는 B의 `treeScrollLeft`를 생성 코드로 받고, `exportViewer.test.ts`가 `shell.css`를 `styles.css`에 선언 단위로 고정하므로 A는 B가 통합된 통합 브랜치에서 시작한다.
 - 생성 스크립트 이름: conductor 재량 — `app/scripts/viewerInspect.mjs [--check]`(기존 `doanyGolden.mjs`와 같은 방식). A가 만들고 AGENTS.md 'Commands'에 한 줄 더한다(체인 시작 점검 4 승인). `--check`는 버블 golden처럼 verify gate(`.agents/skills/verify/scripts/verify.mjs`)에 한 단계로 넣는다. 근거: 생성물이 소스와 달라지면 CI에서 잡혀야 한다(design '코드 가져오기').
-- 생성 도구: conductor 재량 — `app/node_modules`에 이미 있는 도구(esbuild는 electron-vite·vite 의존으로 들어 있다)로 TS를 JS로 바꾼다. 새 패키지를 더하지 않는다.
+- 생성 도구: conductor 재량 — `app/node_modules`에 이미 있는 도구(`typescript`, vite 8의 `rolldown`)로 TS를 JS로 바꾼다. 새 패키지를 더하지 않는다.
 - WebKit `@import` `data:` 시트: conductor 재량 — PoC가 검증한 방법(수집기가 data: 텍스트를 풀어 `replaceSync`로 다시 파싱)을 쓴다. Go에서 import를 펼치면 export 출력과 프로토타입 경로까지 바뀐다(design 'PoC 뒤 결정'이 구현 때 고르게 했다).
 - 외부 시트 판별: design 'PoC 결과'는 시트를 잠깐 끄는 방법이 transition을 튀게 할 수 있다고 적었다. 워커가 다른 방법을 먼저 찾고, 없으면 쓰되 transition이 보이지 않게 한다. 어느 쪽이든 결과 행은 사용자 결정대로 토큰 없이 계산된 값만 보인다.
 - tasks 4의 `/design-sync`(버블·element menu 측정)는 B 통합·리뷰 뒤 B 워커에게 새 Task로 보낸다(같은 코드를 안다). `/runtime-test`(tasks 4의 실제 앱 확인)는 conductor가 한다. 로그인은 필요 없다(체인 '로그인').
