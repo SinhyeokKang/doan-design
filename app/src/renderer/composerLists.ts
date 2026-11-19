@@ -8,8 +8,7 @@ import type { MessagePart } from "./threadItems";
 export type ListKind = "ul" | "ol";
 // A list item's line. `lead` and `body` are code units into the line where the marker and what follows its one space
 // start: the marker an edit copies or removes is always the marker and one space. `indent` is the marker's column and
-// `column` the body's column for nesting (CommonMark §5.2): after 1 to 4 spaces the body starts past them; from 5
-// spaces, or with nothing after the marker, it starts one space past the marker.
+// `column` the body's column for nesting (CommonMark §5.2, see bodyColumn).
 export interface ListItem { list: ListKind; marker: string; number: number | null; depth: number; lead: number; body: number; indent: number; column: number }
 export type ListLine = ListItem | null;
 export type FieldListItem = ListItem & { start: number };
@@ -17,10 +16,18 @@ export type FieldEdit = { segments: FieldSegment[]; caret: number };
 
 // A tab advances to the next multiple of 4 columns, not by a fixed 4 (CommonMark §2.2), so " \t" reaches column 4 as
 // Markdown readers count it.
-function columns(lead: string): number {
-  let column = 0;
-  for (const char of lead) column = char === "\t" ? column + 4 - (column % 4) : column + 1;
+function columns(text: string, from = 0): number {
+  let column = from;
+  for (const char of text) column = char === "\t" ? column + 4 - (column % 4) : column + 1;
   return column;
+}
+
+// The body's column for an item whose marker starts at `indent`: 1 to 4 columns of whitespace after the marker put the
+// body past them, 5 or more (or no body) one column past the marker. `rest` is the line after the marker's one space.
+function bodyColumn(indent: number, marker: string, rest: string): number {
+  const end = indent + marker.length - 1, space = /^[ \t]*/.exec(rest)?.[0] ?? "";
+  const width = columns(" " + space, end) - end;
+  return end + (width <= 4 && rest.trim() !== "" ? width : 1);
 }
 
 // CommonMark's rule: an item is the child of the nearest item above whose body starts at or before its marker. Unlike
@@ -33,9 +40,7 @@ export function listLines(lines: readonly string[]): ListLine[] {
     if (!match) { open.length = 0; return null; }
     const lead = match[1] ?? "", marker = match[2] ?? "", indent = columns(lead);
     while (open.length > 0 && indent < open[open.length - 1]!.column) open.pop();
-    const ordered = marker.endsWith(". "), rest = line.slice(lead.length + marker.length);
-    const extra = rest.length - rest.replace(/^ +/, "").length;
-    const column = indent + marker.length + (extra < 4 && rest.trim() !== "" ? extra : 0);
+    const ordered = marker.endsWith(". "), column = bodyColumn(indent, marker, line.slice(lead.length + marker.length));
     const item: ListItem = {
       list: ordered ? "ol" : "ul", marker, number: ordered ? Number(marker.slice(0, -2)) : null, depth: open.length,
       lead: lead.length, body: lead.length + marker.length, indent, column,
@@ -104,8 +109,9 @@ export function indentItem(segments: readonly FieldSegment[], caret: number, dir
   for (let j = i - 1; dir === 1 && j > at; j--) if (items[j]!.depth === item.depth + 1) { previous = items[j]!; break; }
   const marker = item.list === "ul" ? item.marker : numbered(previous?.list === "ol" ? (previous.number ?? 0) + 1 : 1) ?? item.marker;
   const lead = dir === 1 ? " ".repeat(target.column) : lines[at]!.slice(0, target.lead);
-  // The body keeps its spaces after the marker, so its column moves by the lead's change and the marker's.
-  const shift = columns(lead) - item.indent + marker.length - item.marker.length;
+  // The body keeps its whitespace after the marker, but a tab there can reach a different stop from the new place, so the
+  // children move by the body column's actual change.
+  const shift = bodyColumn(columns(lead), marker, lines[i]!.slice(item.body)) - item.column;
   let edit: FieldEdit = { segments: [...segments], caret };
   // Bottom to top, so the units of the lines still to change stay where layout found them.
   let end = i + 1;
