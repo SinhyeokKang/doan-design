@@ -170,18 +170,18 @@ button.anchor-chip{cursor:pointer}
 /* ── New, not in code (composer-markdown) ── */
 /* Field (ChipField render): a list line's marker and depth spaces are wrapped in inline spans; the text inside stays
    ordinary field text, so caret, delete, undo and copy work as on any text. No hanging indent in the field: a wrapped
-   line starts at the line start. Every marker stands one --space-6 step (24 px) in, so a depth-0 list reads as
+   line starts at the line start. Every marker stands one --space-5 step (20 px) in, so a depth-0 list reads as
    indented, and each depth adds one more step. The marker column is --space-3 (12 px): a bullet, then a short gap,
    then the text; a number ("1. ", wider than the column) is followed by its own typed space. A wider marker ("100. ")
    grows its own span, so that item's text starts later: the field has no columns to align. */
-.list-mark{display:inline-block;position:relative;min-width:var(--space-3);margin-inline-start:var(--space-6)}
+.list-mark{display:inline-block;position:relative;min-width:var(--space-3);margin-inline-start:var(--space-5)}
 /* "- " and "* ": the characters stay in the DOM but are not painted; a • is drawn where the "-" was. */
 .list-mark[data-kind="ul"]{color:transparent}
 .list-mark[data-kind="ul"]::before{content:"•";position:absolute;left:0;top:0;color:var(--text-standard)}
 /* Ordered markers ("1. ", "12. ") are painted as typed. */
 .list-depth{display:inline-block}
-.list-depth[data-depth="1"]{width:var(--space-6)}
-.list-depth[data-depth="2"]{width:calc(2 * var(--space-6))}
+.list-depth[data-depth="1"]{width:var(--space-5)}
+.list-depth[data-depth="2"]{width:calc(2 * var(--space-5))}
 /* Sent bubble (UserMessage): list lines become role="list"/"listitem" blocks, not ul/ol, so Chromium copies the marker
    and depth spaces as text. Each item is a grid of depth, marker and body; the body column wraps under itself (hanging
    indent). A nested list spans the whole item, and its own depth span moves it in. No gap between items: lines read as
@@ -225,7 +225,7 @@ button.anchor-chip{cursor:pointer}
 <p>Example data is illustrative: project <b>acme-web</b>, canvas <b>landing</b> (frame <code>hero</code> “Hero”, element <code>cta</code> button “Get started”), a project skill <code>copy-check</code>.</p>
 <h2>Settled in this draft</h2>
 <ol>
-<li>Indent and marker column, in the field and the bubble: every marker stands one <code>--space-6</code> step (24 px) in and each depth adds one more step; the marker column is <code>--space-3</code> (12 px), so a bullet is followed by a short gap and a number by its typed space. In the bubble a list’s marker column grows to its widest marker, so the bodies of one list line up; in the field a wider marker (<code>100. </code>) pushes only its own item’s text (frames 02 and 05, tiles <i>c</i>).</li>
+<li>Indent and marker column, in the field and the bubble: every marker stands one <code>--space-5</code> step (20 px) in and each depth adds one more step; the marker column is <code>--space-3</code> (12 px), so a bullet is followed by a short gap and a number by its typed space. In the bubble a list’s marker column grows to its widest marker, so the bodies of one list line up; in the field a wider marker (<code>100. </code>) pushes only its own item’s text (frames 02 and 05, tiles <i>c</i>).</li>
 <li>Markers take the body ink (<code>--text-standard</code>): the • and the typed numbers. In the field each marker starts at its step; in the bubble the • starts the column and numbers are right-aligned in it, so <code>9.</code> and <code>10.</code> keep the same gap to their text.</li>
 <li>No extra spacing between list items in the bubble or the field: lines keep the spacing they had as plain text.</li>
 </ol>
