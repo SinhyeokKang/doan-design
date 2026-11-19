@@ -2,7 +2,7 @@
 
 ## 영향 받는 구성 요소
 
-- **앱(renderer)만** 바뀐다. CLI, skill, 형식은 바뀌지 않는다.
+- **앱(renderer)과 CLI의 export 뷰어**가 바뀐다. skill, CLI 출력, 형식은 바뀌지 않는다(export 파일 내용만 바뀐다).
 - 새 공용 컴포넌트 `WorktreeSwitch`(이름은 구현 때 정한다): 항상 셀렉트(메뉴 버튼)와 그 메뉴. 행 목록과 각 행의 활성 여부는 호출하는 곳이 정해서 넘긴다(캔버스 헤더만 비활성 행을 만든다). 지금 두 곳의 메뉴 코드(`ShellSidebar.tsx:487-493`, `ProjectOverview.tsx:373-402`)를 이 컴포넌트로 모은다. 문제 행 판정은 이미 있는 `worktreeChoice`(`ProjectOverview.tsx:114`)를 다시 쓴다. Home의 트레이(`HomeComposerView.tsx:658-677`)는 비목표라 그대로 둔다.
 - `CanvasHeader.tsx`: 앞에 프로젝트 조각과 `WorktreeSwitch`를 더한다. 프로젝트 이름과 워크트리 목록은 App의 `cards`(`App.tsx:949`)와 `loadedRoot`에서 받는다. 등록된 root마다 watcher와 읽기가 따로 있고(`shell.ts:214`, `:227`), list 행은 자기 `canvases`를 가진다(`view.ts:65`). 그래서 각 워크트리에 그 캔버스가 있는지 판단할 데이터가 이미 있다.
 - `ShellSidebar.tsx`: 프로젝트 행의 읽기 전용 칩(`shell-branch`, `:476`)을 `WorktreeSwitch`로 바꾼다. 행은 버튼이 아니라 roving tabindex를 쓰는 `div role="treeitem"`(`:467`, 누르면 `toggle`, `:470`)이고 "…" 버튼(`shell-more`, `:480`)이 이미 그 안에 있다. 셀렉트도 "…"와 같은 패턴을 따른다: `tabIndex={active ? 0 : -1}`, click·keydown `stopPropagation`(←/→ 접기와 typeahead가 셀렉트에 걸리지 않게). 잠금 중에는 `aria-disabled`. "…" 메뉴의 Worktrees 구역은 남긴다(문제 오버레이가 Overview를 덮을 때의 복구 경로이고, 그 메뉴의 다른 동작이 선택된 워크트리를 따른다).
@@ -13,6 +13,12 @@
   - 캔버스 헤더: `App.tsx:925-930`의 패턴(행에서 같은 경로를 찾으면 `openShellCanvas`, 없으면 그 자리)을 따른다. `fallbackWorktree`(`shellNavigation.ts:31-38`)는 사라진 워크트리를 대신할 곳을 고르는 함수라 쓰지 않는다. 캔버스가 사라졌으면 `openShellCanvas`의 지금 동작(토스트, 제자리, `App.tsx:838`)을 그대로 쓴다. 줌과 보던 위치는 새 캔버스에 그대로 넘기고, 선택은 해제한다.
 - 같은 캔버스는 경로로 찾는다(사용자 결정). 앱 복원의 `sameCanvas`는 ID를 먼저 보지만(PRODUCT §5 item 1), 이 이동은 "같은 파일의 다른 브랜치 모습"을 보려는 것이라 경로가 맞다.
 
+### export 뷰어 헤더 (CLI)
+
+- 뷰어는 CLI가 만든다(`cli/internal/export/viewer/shell.html`·`shell.css`·`shell.js`, `assemble.go`가 `{{NAME}}` 등을 채운다). 헤더에 프로젝트 조각을 더하고, `assemble`이 프로젝트 이름을 채운다. 이름은 `repo.ReadGit`(`cli/internal/repo/git.go`)의 `Main`이 있으면 그 폴더 이름, 없으면 루트 폴더 이름이다(앱의 그룹 이름 규칙, PRODUCT §5 item 1과 같다).
+- 줄임 순서와 720·600 단계, 줌 −/+ 숨김은 캔버스 헤더와 같은 CSS 규칙을 `shell.css`에 둔다(뷰어는 앱 CSS를 손으로 복사하고 `exportViewer.test.ts`가 고정한다).
+- 출력이 바뀌므로 `TestAssembleOutputIsPinned`를 갱신하고, export를 검사하는 eval 시나리오 X1·X2의 self-test를 돌린다. 프로토타입 파일은 바뀌지 않는다.
+
 ## 순수 함수로 분리할 부분 (`/tdd` 대상)
 
 1. `worktreeLabel(row): string` — 브랜치, 폴더 이름, `detached <sha7>` 규칙. 지금 `ProjectOverview.tsx:359`와 `homeCards.ts:88`에 흩어진 규칙을 하나로 모은다. Home 트레이도 이 함수를 쓰지만 규칙이 같아 보이는 라벨은 바뀌지 않는다.
@@ -20,6 +26,7 @@
 3. `headerRowState(row, canvasPath): RowState` — 캔버스 헤더용: 그 경로가 목록에 있으면 활성, 없으면 "No <canvas> here", 읽는 중이면 "Reading…", 문제면 그 상태. 경로를 문자열로 비교한다.
 4. `headerMove(row, canvasPath): { kind: "canvas"; root; path } | { kind: "stay" }` — 캔버스 헤더 이동 대상.
 5. `canvasCrumbs(card, root, canvas): Crumb[]` — 프로젝트, 워크트리, 캔버스 조각과 각각의 접근 이름·툴팁. 목록에 없는 페이지와 프로젝트 문제일 때는 캔버스 이름 없이(PRODUCT §5 item 2 'Canvas header') 셀렉트 비활성 이유를 담는다.
+6. (Go) `exportProjectName(root, git *GitInfo) string` — export 뷰어의 프로젝트 이름.
 
 ## 형식 변경
 
@@ -55,6 +62,7 @@
 ## 초안 요청 (`/design-draft`)
 
 - 캔버스: `.doan/canvases/header-breadcrumb-worktree.html`, id `header-breadcrumb-worktree`, `doan:width` 1600. 새 파일이다.
+  - (추가) `viewer-header` — export 뷰어 헤더: `프로젝트 › 캔버스 › 프레임 서랍`, 넓은 폭과 720·600 단계, JavaScript 없을 때.
 - 프레임(id — 내용):
   - `canvas-header` — 캔버스 헤더, 워크트리 셋인 Git 프로젝트: `프로젝트 › 워크트리 셀렉트 › 캔버스 › 프레임 서랍`, 줌, Reload, 접힌 패널의 Show 버튼.
   - `canvas-header-menu` — 같은 헤더에서 셀렉트 메뉴가 열린 상태: 현재 행 체크, 활성 행, 비활성 행 "No <canvas> here", 비활성 행 "Reading…", 문제 워크트리 비활성 행.

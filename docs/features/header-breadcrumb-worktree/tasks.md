@@ -16,12 +16,15 @@
 5. **캔버스 헤더 적용**: 브레드크럼 `nav`, 프로젝트 조각(Overview로 이동), `WorktreeSwitch`(비활성 행 포함), 캔버스 이름, 프레임 서랍 순서. 이동은 `headerMove`, 줌·위치 유지, 선택 해제, 사라진 캔버스는 토스트와 제자리. 세 곳이 같은 컴포넌트를 쓰는지, 두 root를 오갈 때 캔버스·대화 패널·Back/Forward가 새 root를 가리키는지 테스트로 고정한다.
    - 확인: `npm --prefix app test` 초록, `npm --prefix app run lint` 통과.
    - ── 커밋 경계 (`feat:`) ──
+5a. **export 뷰어 헤더(CLI)**: `exportProjectName`과 테스트, `shell.html`·`shell.css`의 프로젝트 조각과 반응형 규칙, `assemble`이 이름을 채움. 출력 고정 테스트 갱신.
+   - 확인: `go test ./...` 통과(`TestAssembleOutputIsPinned`, 프로토타입 출력 불변), `go vet ./...` 통과, `npm --prefix app test` 초록(`exportViewer.test.ts`), `node eval/run.ts --self-test --scenarios X1,X2` self-test PASS.
+   - ── 커밋 경계 (`test:` → `feat:`) ──
 6. **`/design-sync`**: 세 화면을 초안과 측정해 맞추고 `docs/design/shell.md`, `docs/design/project.md`, `docs/design/canvas.md`에 기록한다. 960×600에서 캔버스 헤더 조각이 겹치지 않고 초안의 순서대로 줄어드는지 측정한다.
    - 확인: 세 문서에 측정값이 있고, 960×600 측정에서 겹침이 없다.
 7. **실제 앱 확인**: `/runtime-test`로 워크트리 2개 프로젝트에서 세 곳의 셀렉트 이동, 워크트리 1개의 셀렉트, 캔버스 헤더의 비활성 행, 문제 워크트리 행, 문제 오버레이가 Overview 셀렉트를 덮는지, 프로젝트 문제일 때 캔버스 헤더 셀렉트가 비활성인지를 짧게 확인한다.
    - 확인: `/runtime-test` 스크린샷과 PASS 기록.
 8. **최종 게이트**: `node .agents/skills/verify/scripts/verify.mjs`.
    - 확인: verify PASS.
-9. **승격**: PRODUCT §5 item 1(사이드바), item 2('Canvas header', 'Zoom controller'), item 3('Header')을 현재 규칙으로 고쳐 쓴다. 세 곳이 `WorktreeSwitch` 하나를 쓴다는 불변식을 ARCHITECTURE §7 'Renderer primitives'에 적는다. 새 디자인 섹션이 생기면 DESIGN.md 색인도 고친다(근거는 커밋 메시지). `docs/features/header-breadcrumb-worktree/`를 지운다.
+9. **승격**: PRODUCT §5 item 1(사이드바), item 2('Canvas header', 'Zoom controller'), item 3('Header', 'Export and viewer'의 뷰어 헤더)과 ARCHITECTURE §3 'Exported canvas and viewer'를 현재 규칙으로 고쳐 쓴다. 세 곳이 `WorktreeSwitch` 하나를 쓴다는 불변식을 ARCHITECTURE §7 'Renderer primitives'에 적는다. 새 디자인 섹션이 생기면 DESIGN.md 색인도 고친다(근거는 커밋 메시지). `docs/features/header-breadcrumb-worktree/`를 지운다.
    - 확인: `grep -rn "header-breadcrumb-worktree" docs/ app/` 결과 없음.
    - ── 커밋 경계 (`docs(PRODUCT):`, `docs(ARCHITECTURE):` 문서별) ──
