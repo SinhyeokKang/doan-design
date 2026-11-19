@@ -123,6 +123,14 @@ export function queueFiles(store: AttachmentStore): QueueFiles {
     },
   };
 }
+const CODE_SHAPED = /^[a-z][a-z_]{0,63}$/;
+// A refused start's cause for the log: a Doan code as it is, otherwise the error's name and the SDK's error class.
+function startCause(error: unknown, code: string): string {
+  if (CODE_SHAPED.test(code)) return code;
+  const name = error instanceof Error && /^[A-Za-z]{1,64}$/.test(error.name) ? error.name : "unknown";
+  const sdkClass = object(error) && typeof error.errorClass === "string" && CODE_SHAPED.test(error.errorClass) ? `, ${error.errorClass}` : "";
+  return `${name}${sdkClass}`;
+}
 // allowed: the caller judged the sender (the main window, or the prototype window within the playing canvas's scope).
 // rows: what a sender may see of the root's list; the prototype window sees the playing canvas's conversations only.
 export function conversationHandler(service: ConversationService, prepare: Prepare, projects: () => Project[], home: { models?: ModelCatalog; skills?: SkillCatalog; attachments?: AttachmentStore } = {}) {
@@ -291,7 +299,12 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
         return { error: code, missing: error.missing, ...("replaced" in error && Array.isArray(error.replaced) ? { replaced: error.replaced } : {}) };
       }
       if (code === "rate_limited" && error instanceof Error && "resetsAt" in error && typeof error.resetsAt === "string") return { error: code, resetsAt: error.resetsAt };
-      return { error: code === "outside_root" ? "session_unavailable" : known.includes(code) ? code : "unknown" };
+      const answered = code === "outside_root" ? "session_unavailable" : known.includes(code) ? code : "unknown";
+      // No composer explains these two beyond "Couldn't start", so the log keeps what refused the start; a cause that
+      // became unknown is otherwise lost. Only Doan's own code-shaped words are logged: an SDK or provider message can
+      // embed the provider's reply (POSTMORTEM 2026-11-01 'A failed Antigravity sign-in left no evidence of why').
+      if (method === "start" && (answered === "unknown" || answered === "bad_request")) console.error(`doan: conversation start refused: ${answered}${code !== answered ? ` (${startCause(error, code)})` : ""}`);
+      return { error: answered };
     }
   };
 }

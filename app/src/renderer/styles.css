@@ -121,7 +121,7 @@ code, kbd { font-family: var(--type-family); }
 }
 /* With Play the bubble starts with a button too, so both ends take the 4px button inset. */
 .dims.playable { padding-left: var(--space-1); }
-/* App portals Add to message into this host, which takes no box of its own. */
+/* Portal buttons take their places in the bubble without an extra box around them. */
 .dims .bubble-host { display: contents; }
 /* The bubble's buttons: 14px icons whose hit target is the 24px capsule height, the overlay's only pointer targets.
    Their ring is drawn inside so it does not cover the size text. */
@@ -750,6 +750,18 @@ body:has(.shell-top) { background: transparent; }
 /* A contenteditable has no placeholder: ChipField marks an empty field and its aria-placeholder is drawn over it, inset
    by the field's padding. */
 .composer-input[data-empty]::before { content: attr(aria-placeholder); position: absolute; inset-inline: 0 var(--space-1); color: var(--text-metadata); pointer-events: none; }
+/* A list item's marker and depth spaces (ChipField, and the sent bubble): spans over the typed text, which stays text
+   for the caret, deletion and copy. No hanging indent in the field: a wrapped line starts at the line start. Every
+   marker stands one --space-5 step in, so a depth-0 list reads as indented, and each depth adds one more step. The
+   marker column is --space-3: a bullet then a short gap, a number ("1. ", wider than the column) then its typed space;
+   a wider marker ("100. ") widens only its own span. "- " and "* " keep their characters unpainted under a drawn
+   bullet; a number is painted as typed, in plain figures: the body's tabular "1" is padded to a "0"'s width, which
+   widens the gap after "1." by about 3 px. A depth span is as wide as its depth in steps whatever spaces were typed, so
+   a depth-0 item's typed leading spaces take no width. */
+.list-mark { display: inline-block; position: relative; min-width: var(--space-3); margin-inline-start: var(--space-5); font-variant-numeric: normal; }
+.list-mark[data-kind="ul"] { color: transparent; }
+.list-mark[data-kind="ul"]::before { content: "•"; position: absolute; left: 0; top: 0; color: var(--text-standard); }
+.list-depth { display: inline-block; width: calc(attr(data-depth type(<number>), 0) * var(--space-5)); }
 /* Inline anchor chips (confirmed draft; 180px and 6px are component constants with no
    token). contenteditable=false keeps the caret before or after a chip, never inside. */
 .anchor-chip { display: inline-flex; align-items: center; gap: var(--space-1); max-width: 180px; margin: 0 var(--space-half); padding: 0 var(--space-1h); border: 0; border-radius: var(--radius-word); background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font: inherit; font-weight: var(--type-weight-medium); vertical-align: bottom; white-space: nowrap; }
@@ -1170,6 +1182,24 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .bubble { padding: var(--space-2) var(--space-4); border-radius: var(--radius-row); background: var(--surface-accent-subtle); color: var(--text-standard); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; user-select: text; }
 .conversation-thread .bubble-preset { display: inline-flex; align-items: center; gap: var(--space-1h); color: var(--text-accent-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); font-weight: var(--type-weight-medium); }
 .conversation-thread .bubble-preset svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* A sent list (UserMessage): role="list" blocks of inline-blocks, not ul/ol and not a grid, because Chromium copies an
+   ul/ol marker and a grid item's edge as line breaks; the person copies what they sent. The depth span, the marker's
+   one-step margin and the marker column (data-mark: the list's widest marker in ch, at least --space-3) sit before the
+   body, and the body wraps under
+   itself (hanging indent). A nested list starts at its parent item's left and moves in by its own depth span. Items
+   keep the spacing of plain lines. */
+.conversation-thread .bubble-text { display: block; }
+.conversation-thread .bubble-item { display: block; }
+.conversation-thread .bubble-item > :is(.list-depth, .list-mark, .bubble-item-body) { vertical-align: top; }
+.conversation-thread .bubble-item > .list-mark { min-width: max(var(--space-3), calc(attr(data-mark type(<number>), 0) * 1ch)); }
+/* Numbers stand at the column's end, as a native ol draws them, so every "N." keeps the same gap to its text ("1."
+   beside "10." otherwise shows a wider one). */
+.conversation-thread .bubble-item > .list-mark[data-kind="ol"] { text-align: right; }
+/* A deep list in a narrow bubble would leave its body no width, so the drawn indentation stops at four steps; the
+   depth spaces stay in the text for copy. Not a share of the item: a bubble shrinks to its text, so a short list's
+   item is narrow and a share would pull in its first levels too. */
+.conversation-thread .bubble-item > .list-depth { width: calc(min(attr(data-depth type(<number>), 0), 4) * var(--space-5)); }
+.conversation-thread .bubble-item-body { display: inline-block; max-width: calc(100% - (min(attr(data-depth type(<number>), 0), 4) + 1) * var(--space-5) - max(var(--space-3), calc(attr(data-mark type(<number>), 0) * 1ch))); }
 .conversation-thread .msg-files { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1h); }
 /* A sent file has no remove button, so the chip keeps its own inline end padding. */
 .conversation-thread .msg-files .attach-chip { gap: var(--space-3); padding: var(--space-1h) var(--space-4) var(--space-1h) var(--space-1h); }
@@ -1309,11 +1339,15 @@ body:has(.shell-top) { background: transparent; }
 /* A long folder name stops at 40% of the header, as the canvas header's crumb, so New conversation stays in. */
 .ov-project { display: inline-flex; align-items: center; gap: var(--space-2); flex: 0 1 auto; max-width: 40%; min-width: 0; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); }
 .ov-project-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--type-weight-medium); }
-/* The branch chip as a worktree picker: the translucent chip with a chevron, opening the project menu's worktree rows. */
+/* The worktree button stays clickable in the draggable header. */
 .wt-chip { cursor: pointer; -webkit-app-region: no-drag; }
-.wt-chip .chev { width: var(--size-icon-sm); height: var(--size-icon-sm); margin-left: var(--space-half); }
+.ov-project > .wt-chip { flex: 0 1e8 auto; min-width: calc-size(max-content, min(size, 2 * var(--space-chip-inset) + var(--size-icon-xs) + var(--space-1) + var(--space-12))); }
+.wt-tip > span { display: block; }
+.wt-chip[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
+button.wt-chip.doan-chip[aria-disabled="true"]:is(:hover, :active) { background: var(--affordance-backdrop-hover); }
+.shell-worktree .shell-menu-reason { margin-top: var(--space-half); white-space: normal; }
 /* button.doan-chip's open fill (data-state="open", more specific) would otherwise replace the pressed fill. */
-.ov-project button.wt-chip[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
+button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
 .shell-project-menu.wt-menu { width: 280px; }
 .ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); }
 /* The title gives way first in a narrow window. */
@@ -1456,7 +1490,21 @@ body:has(.shell-top) { background: transparent; }
 .doan-canvas-panel > .area:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 /* The Overview header box (.ov-head) reading canvas / frame: the canvas is the quieter parent (subtle, regular, its
    sidebar icon, up to 40%), the frame the current item; the frame name gives way first. */
-.doan-canvas-head { flex: none; background: var(--surface-panel); }
+.doan-canvas-head { flex: none; background: var(--surface-panel); container: doan-canvas-head / inline-size; }
+.doan-canvas-trail { display: flex; align-items: center; gap: var(--space-2); flex: 0 1 auto; min-width: 0; }
+/* The switch yields to its label floor first, then the project, then the frame and finally the canvas name. */
+.doan-canvas-trail > .wt-chip { flex: 0 1e12 auto; min-width: calc-size(max-content, min(size, 2 * var(--space-chip-inset) + var(--size-icon-xs) + var(--space-1) + var(--space-12))); }
+.doan-canvas-project.doan-button { flex: 0 1e8 auto; min-width: calc(var(--size-icon) + 2 * var(--space-2)); gap: var(--space-2); color: var(--text-subtle); font-weight: var(--type-weight-regular); }
+.doan-canvas-project-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doan-canvas-trail > .ov-title-wrap { flex: 0 10000 auto; min-width: calc(2 * var(--space-2) + var(--space-1h) + var(--size-icon)); }
+.doan-canvas-trail > .doan-canvas-name { flex: 0 1 auto; max-width: 40cqi; min-width: calc(var(--space-2) + var(--size-icon)); }
+/* Container queries read the content box, 32px narrower than the full header. */
+@container doan-canvas-head (width < 688px) {
+  .doan-canvas-project-name, .doan-canvas-zoom > .doan-icon-button { display: none; }
+}
+@container doan-canvas-head (width < 568px) {
+  .doan-canvas-trail > :is(.doan-canvas-project, .wt-chip, .doan-canvas-sep-root) { display: none; }
+}
 .doan-canvas-name { display: inline-flex; align-items: center; gap: var(--space-1h); flex: none; max-width: 40%; min-width: 0; padding-left: var(--space-2); color: var(--text-subtle); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); }
 .doan-canvas-name svg { width: var(--size-icon); height: var(--size-icon); flex: none; }
 .doan-canvas-name span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1559,6 +1607,9 @@ body:has(.shell-top) { background: transparent; }
 /* The element menu spans the panel less --space-2 a side, not its rows' width, however wide the column is made: it
    reads as part of the panel, so the shared menu's 320 cap does not apply. */
 .doan-floating.doan-insp-menu { width: calc(var(--doan-insp-panel-width) - 2 * var(--space-2)); max-width: none; }
+.doan-insp-menu[data-ui-variant="tree"] { overflow-x: auto; }
+.doan-insp-menu [role="tree"] { width: max-content; min-width: 100%; }
+.doan-insp-menu[data-ui-variant="tree"] .doan-menu-item > .name { flex: none; overflow: visible; text-overflow: clip; }
 /* The row's tooltip: one line per fact. */
 .doan-insp-tip > span { display: block; }
 /* A new selection's read: the spinner line after the delay. */

@@ -1,4 +1,5 @@
 import { normalize, sliceUnits, spliceUnits, textSegments, unitLength, type FieldSegment } from "./anchorField";
+import { fieldListItems, type ListKind } from "./composerLists";
 
 export interface SkillRun { start: number; end: number; name: string }
 const SPACE = /\p{White_Space}/u;
@@ -47,6 +48,21 @@ export function fieldHighlightRuns(segments: readonly FieldSegment[], skills: Re
   const word = /[^\p{White_Space}]/u.exec(first.text);
   if (!lead || lead.start !== word?.index || runs.some(run => run.start === lead.start)) return runs;
   return [lead, ...runs];
+}
+
+// What the field draws apart from plain text: the highlighted words, and for each list item its marker and the depth
+// spaces before it (a depth-0 item's leading spaces are a depth run of depth 0). The text under every run stays text.
+export type FieldRun =
+  | ({ kind: "skill" } & SkillRun)
+  | { kind: "mark"; start: number; end: number; list: ListKind; depth: number }
+  | { kind: "depth"; start: number; end: number; depth: number };
+export function fieldRuns(segments: readonly FieldSegment[], skills: ReadonlySet<string>, commands: ReadonlySet<string>): FieldRun[] {
+  const runs: FieldRun[] = fieldHighlightRuns(segments, skills, commands).map(run => ({ kind: "skill", ...run }));
+  for (const item of fieldListItems(segments)) {
+    if (item.lead > 0) runs.push({ kind: "depth", start: item.start, end: item.start + item.lead, depth: item.depth });
+    runs.push({ kind: "mark", start: item.start + item.lead, end: item.start + item.body, list: item.list, depth: item.depth });
+  }
+  return runs.sort((a, b) => a.start - b.start);
 }
 
 export function insertSkillText(segments: readonly FieldSegment[], caret: number | null, name: string): { segments: FieldSegment[]; caret: number } {

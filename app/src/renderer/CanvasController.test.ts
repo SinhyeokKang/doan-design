@@ -187,11 +187,14 @@ function selectionHarness() {
     createElement: (tag: string) => {
       if (tag !== "iframe") {
         const captured = new Set<number>();
+        const attributes = new Map<string, string>();
         // Children know their parent, so moving or removing one takes it out of the old parent's list as the DOM does.
         const mark: FakeMark = Object.assign(new EventTarget(), { className: "", hidden: false, textContent: "", style: {}, children: [] as FakeMark[],
           append: (...children: FakeMark[]) => { for (const child of children) detach(child); for (const child of children) parents.set(child, mark); mark.children.push(...children); },
           prepend: (...children: FakeMark[]) => { for (const child of children) detach(child); for (const child of children) parents.set(child, mark); mark.children.unshift(...children); },
-          setAttribute: vi.fn(), remove: vi.fn(() => detach(mark)), focus: vi.fn(() => { doc.activeElement = mark; }),
+          setAttribute: vi.fn((key: string, value: string) => attributes.set(key, value)), getAttribute: (key: string) => attributes.get(key) ?? null,
+          closest: (selector: string) => selector === "[data-bubble-action]" && attributes.has("data-bubble-action") ? mark : null,
+          remove: vi.fn(() => detach(mark)), focus: vi.fn(() => { doc.activeElement = mark; }),
           captured, setPointerCapture: (id: number) => { captured.add(id); }, releasePointerCapture: (id: number) => { captured.delete(id); }, hasPointerCapture: (id: number) => captured.has(id) });
 
         marks.push(mark);
@@ -397,11 +400,14 @@ describe("selection", () => {
       // Where App's onFocusLost puts focus: the toolbar's Picker.
       const holder = { name: "Picker" };
       const play = { onPlay: vi.fn(), onFocusLost: vi.fn() };
+      const inspectButton = { focus: vi.fn(() => { h.doc.activeElement = inspectButton; }) };
+      const inspect = { onInspect: vi.fn(), restoreFocus: vi.fn(() => inspectButton.focus()), button: () => inspectButton as unknown as HTMLElement, onFocusLost: vi.fn(() => { h.doc.activeElement = holder; }) };
+      h.controller.bubbleInspect = inspect;
       h.controller.bubbleAdd = add;
       h.controller.bubblePlay = play;
       h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }] });
       const dims = () => h.markOf("dims")!;
-      return { h, add, addButton, holder, play, dims, host: () => h.markOf("bubble-host")!, label: () => dims().children.find(child => child.className === "")!, playButton: () => h.marks.find(mark => mark.className.includes("bubble-play")) };
+      return { h, add, addButton, inspect, inspectButton, holder, play, dims, host: () => h.markOf("bubble-host")!, label: () => dims().children.find(child => child.className === "")!, playButton: () => h.marks.find(mark => mark.className.includes("bubble-play")) };
     };
 
     it("ends the bubble after the size, hands its host to App once, and keeps the same host as Play comes and goes", () => {
@@ -421,22 +427,43 @@ describe("selection", () => {
       } finally { h.controller.dispose(); }
     });
 
-    it("presses on a click in its host, and keeps the press and click from reaching the canvas or the board", () => {
-      const { h, add, host } = setup();
+    it("isolates each host button's click and keeps an inspector press from moving focus", () => {
+      const { h, add, inspect, play, host } = setup();
+      const press = (type: string, action: string | null) => {
+        const event = new Event(type, { bubbles: true, cancelable: true });
+        Object.defineProperty(event, "target", { value: { closest: () => action ? { getAttribute: () => action } : null } });
+        (host() as unknown as EventTarget).dispatchEvent(event);
+        return event;
+      };
       try {
         h.select(1);
-        for (const type of ["pointerdown", "mousedown", "click"]) {
-          const event = new Event(type, { bubbles: true });
-          (host() as unknown as EventTarget).dispatchEvent(event);
-          expect(event.cancelBubble, type).toBe(true);
-        }
+        expect(press("pointerdown", "inspect").cancelBubble).toBe(true);
+        expect(press("mousedown", "inspect").defaultPrevented).toBe(true);
+        expect(press("click", "inspect").cancelBubble).toBe(true);
+        expect(inspect.onInspect).toHaveBeenCalledOnce();
+        expect(add.onAdd).not.toHaveBeenCalled();
+        expect(play.onPlay).not.toHaveBeenCalled();
+        press("click", "add");
+        press("click", null);
         expect(add.onAdd).toHaveBeenCalledOnce();
-        // A selection is never touched by the press.
         expect(h.state().selection).not.toBeNull();
-        // Without a selection the bubble is hidden, and a click that still reaches it does nothing.
         h.receive({ type: "clear", seq: 2 });
-        (host() as unknown as EventTarget).dispatchEvent(new Event("click", { bubbles: true }));
+        press("click", "inspect");
+        press("click", "add");
+        expect(inspect.onInspect).toHaveBeenCalledOnce();
         expect(add.onAdd).toHaveBeenCalledOnce();
+      } finally { h.controller.dispose(); }
+    });
+
+    it.each(["clear", "hand"])("hands inspector focus to the header when %s hides the bubble", cause => {
+      const { h, inspect, inspectButton, holder } = setup();
+      try {
+        h.select(1);
+        h.doc.activeElement = inspectButton;
+        if (cause === "clear") h.receive({ type: "clear", seq: 2 });
+        else h.controller.setTool("hand");
+        expect(inspect.onFocusLost).toHaveBeenCalledOnce();
+        expect(h.doc.activeElement).toBe(holder);
       } finally { h.controller.dispose(); }
     });
 
@@ -478,8 +505,8 @@ describe("selection", () => {
     // ARCHITECTURE §3: a waiting focus move ends for good the moment focus goes anywhere else, even if it comes back.
     it("gives up bringing focus back for good once focus went elsewhere during the reload, even back to the holder", () => {
       const frames = [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }];
-      for (const which of ["add", "play"] as const) {
-        const { h, addButton, holder, play, playButton } = setup();
+      for (const which of ["add", "play", "inspect"] as const) {
+        const { h, addButton, inspectButton, holder, play, playButton } = setup();
         play.onFocusLost.mockImplementation(() => { h.doc.activeElement = holder; });
         const focusin = (target: unknown) => {
           h.doc.activeElement = target;
@@ -490,7 +517,7 @@ describe("selection", () => {
         try {
           const target = which === "play" ? frameTarget("intro") : h.target;
           h.select(1, { target });
-          const button = which === "play" ? playButton()! : addButton;
+          const button = which === "play" ? playButton()! : which === "inspect" ? inspectButton : addButton;
           h.doc.activeElement = button;
           h.controller.command("reload");
           expect(h.doc.activeElement, which).toBe(holder);
@@ -526,20 +553,21 @@ describe("selection", () => {
     });
 
     it("brings focus back to the same button once a reload finds the selection again, unless it moved meanwhile", () => {
-      for (const which of ["add", "play"] as const) {
-        const { h, add, addButton, holder, play, playButton } = setup();
+      for (const which of ["add", "play", "inspect"] as const) {
+        const { h, add, addButton, inspect, inspectButton, holder, play, playButton } = setup();
         play.onFocusLost.mockImplementation(() => { h.doc.activeElement = holder; });
         try {
           const target = which === "play" ? frameTarget("intro") : h.target;
           h.select(1, { target });
-          const button = which === "play" ? playButton()! : addButton;
+          const button = which === "play" ? playButton()! : which === "inspect" ? inspectButton : addButton;
           h.doc.activeElement = button;
           h.controller.command("reload");
-          expect((which === "play" ? play : add).onFocusLost, which).toHaveBeenCalledOnce();
+          expect((which === "play" ? play : which === "inspect" ? inspect : add).onFocusLost, which).toHaveBeenCalledOnce();
           expect(h.doc.activeElement, which).toBe(holder);
           h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }] });
           h.select(1, { target });
           expect(h.doc.activeElement, which).toBe(button);
+          expect(inspect.restoreFocus).toHaveBeenCalledTimes(which === "inspect" ? 1 : 0);
           // Moved meanwhile: focus stays where the person put it.
           h.controller.command("reload");
           h.doc.activeElement = { name: "sidebar row" };
@@ -2333,6 +2361,25 @@ it("remembers the source view when an explicit canvas opens in another workspace
     controller.openCanvas("/other", row);
     expect(controller.memory()["/repo"]).toEqual({ canvas: row.path, view });
   } finally { controller.dispose(); }
+});
+
+it("keeps pan and zoom across a header worktree move and clears the source selection", () => {
+  const h = selectionHarness();
+  try {
+    const other = { ...h.row, url: "http://localhost/other/a.html", id: "branch-copy" };
+    h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [h.row] }, { path: "/other", kind: "list", servedRev: 0, canvases: [other] }]);
+    h.select(1);
+    expect(h.state().selection).not.toBeNull();
+    h.controller.zoomTo(1.5);
+    h.controller.wheel({ dx: 18, dy: 32, ctrl: false, meta: false, deltaMode: 0 }, { x: 100, y: 100 });
+    const view = h.controller.currentView();
+    h.controller.openCanvas("/other", other, undefined, { keepView: true });
+    h.layout({ href: other.url });
+    h.controller.settleFit();
+    expect(h.controller.currentView()).toEqual(view);
+    expect(h.state().selection).toBeNull();
+    expect(h.state().open).toMatchObject({ folder: "/other", row: other });
+  } finally { h.controller.dispose(); }
 });
 
 it("repicking the current canvas cancels an older waiting worktree selection", () => {

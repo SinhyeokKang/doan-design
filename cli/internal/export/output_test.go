@@ -30,7 +30,7 @@ func exportPage(t *testing.T, root string, config repo.Config, canvasPath string
 	if len(res.Refused) > 0 || res.TooLarge {
 		t.Fatalf("%s: refused %v, too large %v", canvasPath, res.Refused, res.TooLarge)
 	}
-	page, err := Assemble(Meta{Name: "pinned", Width: model.Width}, res.HTML)
+	page, err := Assemble(Meta{Project: "Store", Name: "pinned", Width: model.Width}, res.HTML)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,12 +67,12 @@ func TestExportOutputIsPinned(t *testing.T) {
 		config             repo.Config
 		want               string
 	}{
-		{"full", seed, exporttest.Full, seedConfig(t, seed), "6e58c3fc867f70468743a7bfdad9e2c121533f3475fe846d06f6fff424de0792"},
-		{"empty", seed, exporttest.Empty, seedConfig(t, seed), "9691919918ddc1f688aafc126afb99ea946dcecb1f935245a0a952bbe469f7da"},
-		{"nested", seed, exporttest.Nested, seedConfig(t, seed), "323b3dd27aee28e7dd8be7081a25170858fbdd190b4cfaeccb659c33c1221682"},
-		{"linked", linked, exporttest.Linked, repo.Config{V: 1, Serve: []string{".doan/assets"}}, "013c188ada8bb6edd162b7d1b1fcab35a045b8de9753cdfb986de742865d1af9"},
-		{"mixed", mixed, mixedCanvas, repo.Config{V: 1, Serve: []string{}}, "1db2ad4acdbab1bc3820b66dff4db46c0bf606e6e73e72da2f58dd909ed81dba"},
-		{"stylesheet", small, largeCanvas, repo.Config{V: 1, Serve: []string{}}, "21af22109db857f62200d8f9819be6730755fee8f6e2e05e72eadf5ee6471d38"},
+		{"full", seed, exporttest.Full, seedConfig(t, seed), "260b2c5b8ce8231414e48cb6f0125af178186c8506ace85efc966eda6780e2b8"},
+		{"empty", seed, exporttest.Empty, seedConfig(t, seed), "f5fdc7673f73a1ebe4866bac6fa3b61a93cd89329b468e22a53c7b4b0fce8d7e"},
+		{"nested", seed, exporttest.Nested, seedConfig(t, seed), "58ce8dab82165d55aa0a4b0684a9e5db0b3b58be66b3dc01c94df7b1b9b85d68"},
+		{"linked", linked, exporttest.Linked, repo.Config{V: 1, Serve: []string{".doan/assets"}}, "3be9cc17931e5a46112f38f1bc1ebb6389b889475c3f8c924355baa88e35f895"},
+		{"mixed", mixed, mixedCanvas, repo.Config{V: 1, Serve: []string{}}, "f6d8d9cf1e688dbe8b31ac7904dcb9be5b48295421a531e90ce769f14fb00406"},
+		{"stylesheet", small, largeCanvas, repo.Config{V: 1, Serve: []string{}}, "fbf440bfad0b5f264f6f11c8483d70b4e1df9113659d7834520f0ba3e6d244d3"},
 	} {
 		if got := pageDigest(exportPage(t, c.root, c.config, c.canvas)); got != c.want {
 			t.Errorf("%s: page sha256 = %s, want %s", c.name, got, c.want)
@@ -103,11 +103,11 @@ var mixedRepo = map[string]string{
 // mark, and no <head> or <html> to place the measure script after.
 func TestAssembleOutputIsPinned(t *testing.T) {
 	for _, c := range []struct{ name, canvas, want string }{
-		{"bom", "\xef\xbb\xbf<!doctype html><p title='\"&amp;'>{{NAME}}</p>", "779f10d2f2ad9071b74649f60437dd3c35feedfe4d58a21f9a61a4b15a851a54"},
-		{"bare", "<p>a & \"b\"</p>", "3dc2eb6bb77e4323e5781b1ce4e51462a3afc2cdd5d883da21ed30b8985abe7b"},
-		{"empty", "", "5ec703df6fb17b014082e9cadf72350f0ecd811bfc36b5cbed798dd0634d17a9"},
+		{"bom", "\xef\xbb\xbf<!doctype html><p title='\"&amp;'>{{NAME}}</p>", "e6fb943eb94b148450e4dce3e66b76884c6f16768c381e1850d9bcba432c8a90"},
+		{"bare", "<p>a & \"b\"</p>", "7294184b903b2f67764fc0da840d5d0cc061a3c24463c2c6fc1fa6f95bfc45cc"},
+		{"empty", "", "2c8fe6f795464e92a25bf60ccf87683945a53290f5cfe2f2524a17c05dfcfeb6"},
 	} {
-		page, err := Assemble(Meta{Name: `a "&" <b>`, Width: 320}, []byte(c.canvas))
+		page, err := Assemble(Meta{Project: "Store", Name: `a "&" <b>`, Width: 320}, []byte(c.canvas))
 		if err != nil {
 			t.Fatal(err)
 		}

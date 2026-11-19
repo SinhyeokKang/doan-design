@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { chipLabel, LIMITS, messageLine, splitMarkers } from "./messageText";
+import { chipLabel, LIMITS, messageLine, plainTitle, splitMarkers } from "./messageText";
 import { LIMITS as PROMPT_LIMITS } from "./prompt";
 import type { Anchor } from "./types";
 
@@ -68,8 +68,43 @@ describe("messageLine", () => {
     expect(messageLine("Fix {{1}}", [{ frame: { id: "f", title: " \n " } }])).toBe("Fix f");
   });
 
+  // New titles and queue rows read the words; the sent text keeps its markers (the caller passes it unchanged).
+  test("list markers and their depth spaces go from every line; a year or a chip-led line stays", () => {
+    expect(messageLine("- Hero\n  - shorter {{1}}\n    1. keep it\n* Footer", [payment])).toBe("Hero shorter Payment keep it Footer");
+    expect(messageLine("  10. Steps", [])).toBe("Steps");
+    expect(messageLine("2026. 11. 19. review\n{{1}} - stays", [payment])).toBe("2026. 11. 19. review Payment - stays");
+    expect(messageLine("**bold** and `code`", [])).toBe("**bold** and `code`");
+  });
+
   test("cut to the label limit", () => {
     expect(messageLine(`${"x".repeat(600)}{{1}}`, [payment])).toHaveLength(LIMITS.label);
     expect(messageLine(`${"a\n".repeat(300)}`, [])).toHaveLength(LIMITS.label);
+  });
+});
+
+describe("plainTitle", () => {
+  test.each([
+    ["- a\n- b", "a\nb"],
+    ["  - child", "child"],
+    ["12. step\n   1. sub", "step\nsub"],
+    ["\t* x", "x"],
+    ["- {{1}} here", "{{1}} here"],
+    ["Intro\n- a", "Intro\na"],
+    ["- ", ""],
+  ])("drops leading list markers and depth spaces from %j", (text, plain) => {
+    expect(plainTitle(text)).toBe(plain);
+  });
+
+  test.each(["2026. 11. 19. 회의", "1000. a", "-a", "**bold**", "---", "{{1}} - a", "a - b", "  plain", "1) a"])("leaves a line that is not an item as typed: %j", text => {
+    expect(plainTitle(text)).toBe(text);
+  });
+
+  test("only a line feed separates lines, as in the field and the bubble", () => {
+    expect(plainTitle("A\u2028- B")).toBe("A\u2028- B");
+    expect(plainTitle("- A\u2029- B")).toBe("A\u2029- B");
+  });
+
+  test("a long text is not cut", () => {
+    expect(plainTitle(`- ${"x".repeat(LIMITS.text)}`)).toHaveLength(LIMITS.text);
   });
 });

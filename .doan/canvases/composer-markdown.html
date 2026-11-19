@@ -1,0 +1,401 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="composer-markdown"><meta name="doan:width" content="1600"><title>composer-markdown — Lists in the composer and the sent bubble</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><style>
+@font-face{font-family:Geist;src:url('../../app/src/renderer/public/fonts/geist/Geist.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
+@layer base{*,::before,::after{box-sizing:border-box;border:0 solid;margin:0;padding:0}h1,h2,h3{font-size:inherit;font-weight:inherit}img,svg{display:block;vertical-align:middle}button{font:inherit;letter-spacing:inherit;color:inherit;background-color:transparent}ul,ol{list-style:none}}
+/* Radix sets these at runtime; the shared surfaces read them. */
+:root{--radix-popper-available-height:384px;--radix-tooltip-content-transform-origin:center}
+:where(svg){width:var(--size-icon);height:var(--size-icon);flex:none}
+body{padding:var(--space-8);width:1600px;background:var(--surface-inset);color:var(--text-standard);font-family:var(--type-family);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);-webkit-font-smoothing:antialiased}
+code{font-size:var(--type-caption-size)}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}
+
+/* ── Board (canvas only, not compared) ── */
+.intro{max-width:1240px;padding:var(--space-4) 0 var(--space-10)}
+.intro h1{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.intro p{margin-top:var(--space-4);color:var(--text-subtle)}
+.intro h2{margin-top:var(--space-8);font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);letter-spacing:var(--type-body-lg-letter-spacing);font-weight:var(--type-weight-medium)}
+.intro .doan-chip{margin-bottom:var(--space-4)}
+.intro :is(ol,ul){margin-top:var(--space-2);padding-left:var(--space-5);color:var(--text-subtle)}
+.intro ol{list-style:decimal}
+.intro ul{list-style:disc}
+.intro li{margin-top:var(--space-2)}
+.board{margin-bottom:var(--space-16)}
+.caption{display:grid;grid-template-columns:var(--space-10) 1fr;gap:var(--space-1) var(--space-2);margin-bottom:var(--space-4)}
+.caption>span{color:var(--text-metadata);padding-top:var(--space-1)}
+.caption h2{font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);letter-spacing:var(--type-body-lg-letter-spacing);font-weight:var(--type-weight-medium)}
+.caption p{grid-column:2;color:var(--text-subtle);max-width:1240px}
+.caption .doan-chip{margin-left:var(--space-2);vertical-align:var(--space-half)}
+.tiles{display:flex;flex-wrap:wrap;gap:var(--space-6) var(--space-8);align-items:flex-start}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-2);min-width:0}
+.tile>h3{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.note{color:var(--text-subtle);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);max-width:420px}
+.stage{position:relative;padding:var(--space-8) var(--space-6);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.stage.w296>*{width:296px}
+.stage.w680{padding:var(--space-8) var(--space-10)}
+.stage.w680>*{width:680px}
+/* The text the field holds, sends and copies; spaces are real spaces. Board only. */
+pre.sent{max-width:440px;padding:var(--space-3) var(--space-4);border-radius:var(--radius-row);background:var(--surface-panel);color:var(--text-subtle);font-family:var(--type-family-mono);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);white-space:pre-wrap;overflow-wrap:anywhere}
+pre.sent::before{content:attr(data-label);display:block;margin-bottom:var(--space-1);font-family:var(--type-family);color:var(--text-metadata)}
+/* Key notes beside each frame: keys cannot be drawn. Board only. */
+.keys{display:flex;flex-direction:column;gap:var(--space-3);width:440px;padding:var(--space-4) var(--space-5);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.keys h3{font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);letter-spacing:var(--type-label-sm-letter-spacing);font-weight:var(--type-weight-medium)}
+.keys dl{display:grid;grid-template-columns:auto 1fr;gap:var(--space-2) var(--space-3);color:var(--text-subtle)}
+.keys dt{white-space:nowrap}
+.keys kbd{display:inline-block;padding:0 var(--space-1h);border-radius:var(--radius-inline);background:var(--surface-inset);color:var(--text-standard);font-family:var(--type-family);font-size:var(--type-caption-size);line-height:var(--type-body-sm-line-height)}
+.keys p{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+/* Stand-ins for what the browser draws itself: the field caret. */
+.caret{display:inline-block;width:1px;height:var(--type-label-line-height);margin:0 1px calc(-1 * var(--space-1h));background:var(--text-standard)}
+/* A slice of the canvas conversation panel at its 320 px minimum default (960 × 600), cut where the tile ends. */
+.panel-tile{display:flex;width:320px;border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel);overflow:hidden}
+.panel-tile>.right{border-left:0;border-radius:var(--radius-container)}
+/* A slice of the sidebar column on the shell's background. */
+.side-tile{width:236px;padding:var(--space-2) var(--space-2) var(--space-3);border-radius:var(--radius-container);background:var(--bg-app);box-shadow:var(--shadow-panel)}
+
+/* ── Copied from app/src/renderer/styles.css as shipped (develop fc50b992f): Home composer, docked composer, chips, tray ── */
+.shell-thumbnail{display:flex;align-items:center;justify-content:center;flex:none;width:var(--size-icon);height:var(--size-icon);border-radius:var(--radius-thumbnail);font-size:10px;font-weight:var(--type-weight-semibold);line-height:var(--size-icon)}
+.hue-amber{background:color-mix(in srgb,var(--identity-project-amber) 14%,var(--surface-panel));color:color-mix(in srgb,var(--identity-project-amber) 65%,var(--text-standard))}
+.home-composer{position:relative;width:min(680px,100%)}
+.home-project{gap:var(--space-2);margin:0 0 var(--space-2) var(--space-2);font-weight:var(--type-weight-medium)}
+.home-project .shell-thumbnail{width:var(--size-icon-lg);height:var(--size-icon-lg);font-size:11px;line-height:var(--size-icon-lg)}
+.chev{width:var(--space-4);height:var(--space-4);color:var(--text-metadata)}
+.logo{width:var(--size-icon);height:var(--size-icon);object-fit:contain;flex:none}
+.composer{position:relative;border-radius:var(--radius-container);background:var(--surface-inset);box-shadow:var(--shadow-panel)}
+.home-composer .composer{box-shadow:var(--shadow-panel),0 0 var(--space-6) 2px color-mix(in srgb,var(--affordance-accent) 27%,transparent),0 0 calc(var(--space-8) * 2) var(--space-2) color-mix(in srgb,var(--affordance-accent) 7%,transparent)}
+.composer-card{display:flex;flex-direction:column;gap:var(--space-2);padding:var(--space-4) var(--space-3) var(--space-3) var(--space-4);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-xs),0 0 0 1px var(--border-standard)}
+/* Static stand-in for :focus-within. */
+.composer-card.is-focus-within{box-shadow:var(--shadow-sm),0 0 0 1px var(--border-field-focus)}
+.composer-chips{display:flex;flex-wrap:wrap;gap:var(--space-1h)}
+.composer-input{display:block;width:100%;min-height:calc(2 * var(--type-label-line-height));max-height:calc(8 * var(--type-label-line-height));padding:0 var(--space-1) 0 0;border:0;outline:none;position:relative;overflow-y:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:transparent;font-family:var(--type-family);font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing);color:var(--text-standard);scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb-quiet) transparent}
+.composer-input[data-empty]::before{content:attr(aria-placeholder);position:absolute;inset-inline:0 var(--space-1);color:var(--text-metadata);pointer-events:none}
+.anchor-chip{display:inline-flex;align-items:center;gap:var(--space-1);max-width:180px;margin:0 var(--space-half);padding:0 var(--space-1h);border:0;border-radius:var(--radius-word);background:var(--surface-accent-subtle);color:var(--text-accent-subtle);font:inherit;font-weight:var(--type-weight-medium);vertical-align:bottom;white-space:nowrap}
+.anchor-chip svg{width:var(--size-icon-sm);height:var(--size-icon-sm);flex:none}
+.anchor-chip span:not(.sr-only){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bubble .anchor-chip{background:var(--surface-panel)}
+button.anchor-chip{cursor:pointer}
+.skill-word{padding:0 var(--space-1h);border-radius:var(--radius-word);background:var(--surface-accent-subtle);color:var(--text-accent-subtle);font-weight:var(--type-weight-medium);-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.bubble .skill-word{background:var(--surface-panel)}
+.composer-tools{position:relative;display:flex;align-items:center;gap:var(--space-1);margin-left:calc(-1 * var(--space-1))}
+.composer-tools .grow{flex:1}
+.composer-tools>.doan-icon-button:not(.composer-send){color:var(--text-standard)}
+.composer-agent{gap:var(--space-1h);font-weight:var(--type-weight-regular)}
+.composer-effort{gap:var(--space-1h);font-weight:var(--type-weight-regular)}
+.composer-effort svg{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.composer-permission{gap:var(--space-1h);font-weight:var(--type-weight-regular)}
+.composer-permission svg:not(.chev){width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.composer-stop svg{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.composer-tray{position:relative;display:flex;align-items:center;gap:var(--space-3);min-height:var(--size-control);padding:var(--space-1) var(--space-4);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);color:var(--text-subtle)}
+.composer-tray .doan-button{margin-left:calc(-1 * var(--space-2));font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);font-weight:var(--type-weight-regular);color:var(--text-subtle)}
+.composer-tray :is(.doan-button,.tray-branch) svg{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.tray-branch{display:inline-flex;align-items:center;gap:var(--space-1h)}
+.tray-path{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-metadata)}
+.docked{position:relative}
+.docked .composer-card{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:var(--space-1)}
+.docked .composer-tools{display:contents}
+.docked .composer-tools .grow{display:none}
+.docked .composer-presets{grid-area:presets}
+.docked .composer-send{grid-area:send}
+.docked .composer-chips{grid-area:chips}
+.docked .composer-input{grid-area:field;min-height:var(--type-label-line-height)}
+.docked[data-shape="capsule"] .composer-card{grid-template-areas:"presets field send";padding:var(--space-2);border-radius:var(--radius-pill)}
+.docked[data-shape="capsule"] .composer-input{padding-inline:var(--space-2) var(--space-1)}
+.docked[data-shape="capsule"] .composer-input[data-empty]::before{inset-inline:var(--space-2) var(--space-1);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.docked[data-shape="box"] .composer-card{grid-template-areas:"field field field" "presets . send";row-gap:var(--space-2);padding:var(--space-4) var(--space-3) var(--space-3) var(--space-4)}
+.docked[data-shape="box"] .composer-presets{margin-left:calc(-1 * var(--space-1))}
+.docked .composer-tray{justify-content:flex-end;gap:var(--space-half);min-height:var(--size-control-sm);padding:var(--space-1) var(--space-3) 0;container-type:inline-size}
+.docked .composer-tray .doan-button{margin-left:0}
+.docked .composer-tray .logo{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.composer-tray .doan-button .label{white-space:nowrap}
+.docked .composer-tray .composer-agent{flex-shrink:1;min-width:0;margin-left:auto}
+.docked .composer-agent .label{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.docked .composer-tray :is(.composer-attach,.composer-pick){color:var(--text-subtle)}
+.docked .composer-tray :is(.composer-agent,.composer-effort,.composer-permission:not([data-mode="bypass"])):not(:disabled){color:var(--text-standard)}
+@container (max-width: 431px){.docked .composer-permission .label{display:none}}
+@container (max-width: 383px){.docked .composer-effort .label{display:none}}
+.docked>.queue{position:relative;z-index:3}
+.queue{display:flex;flex-direction:column;gap:var(--space-1);margin-bottom:var(--space-2);container-type:inline-size}
+.queue-item{display:flex;align-items:center;gap:var(--space-2);min-width:0;padding:var(--space-2) var(--space-2) var(--space-2) var(--space-4);border-radius:var(--radius-pill);background:var(--surface-panel);box-shadow:inset 0 0 0 1px var(--border-standard);font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing)}
+.queue-item>svg{flex:none;width:var(--size-icon);height:var(--size-icon);color:var(--text-metadata)}
+.queue-item .queue-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.queue-item .queue-send{color:var(--text-standard)}
+.queue-entry{display:flex;flex-direction:column;min-width:0}
+.chip-remove.doan-icon-button{color:var(--text-metadata)}
+
+/* ── Copied from app/src/renderer/styles.css as shipped: canvas conversation panel head, thread, person message ── */
+.right{background:var(--surface-panel);border-left:1px solid var(--border-standard)}
+.right.doan-conv-panel{flex:1;min-width:0;display:flex;flex-direction:column;border-radius:0 var(--radius-container) var(--radius-container) 0;overflow:hidden}
+.doan-conv-head{display:flex;align-items:center;min-height:var(--size-chrome);padding-right:var(--space-2)}
+.doan-conv-head .doan-icon-button{color:var(--text-standard)}
+.doan-conv-title{flex:1;min-width:0;padding:var(--space-2) 0 var(--space-2) var(--space-2)}
+.doan-conv-title .ov-title.doan-button{max-width:100%}
+.ov-title-wrap{display:flex;min-width:0}
+.ov-title.doan-button{min-width:0;flex-shrink:1;gap:var(--space-1h);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);letter-spacing:var(--type-label-sm-letter-spacing);font-weight:var(--type-weight-medium)}
+.ov-title span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doan-conv-body{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:var(--space-4)}
+.doan-conv-body:has(>.doan-conv-content){padding:0;align-items:stretch;justify-content:stretch}
+.doan-conv-content{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}
+.cp-scroll{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;padding:var(--space-2) var(--space-4) 0}
+.cp-scroll:has(>.conversation-thread){padding:0}
+.cp-scroll>.conversation-thread{flex:1;min-height:0}
+.cp-foot{flex:none;padding:var(--space-3)}
+.conversation-thread{position:relative;display:flex;flex-direction:column;min-height:0}
+.conversation-thread .thread-scroll{flex:1;min-height:0;overflow-y:auto}
+.conversation-thread .thread{display:flex;flex-direction:column;gap:var(--space-6)}
+.conversation-thread .thread-item{display:flex;flex-direction:column;min-width:0}
+.conversation-thread .msg-user{align-self:flex-end;display:flex;flex-direction:column;align-items:flex-end;gap:var(--space-1h);max-width:80%;min-width:0}
+.conversation-thread .bubble{padding:var(--space-2) var(--space-4);border-radius:var(--radius-row);background:var(--surface-accent-subtle);color:var(--text-standard);font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing);white-space:pre-wrap;overflow-wrap:anywhere;min-width:0;user-select:text}
+.conversation-thread .ti-reply{display:flex;align-items:center;gap:var(--space-2);min-width:0;color:var(--text-subtle);font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing)}
+.conversation-thread .ti-reply .ti-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conversation-thread .ti-reply .ti-time{flex:none;color:var(--text-metadata);font-variant-numeric:tabular-nums}
+/* The shimmer is drawn static (its reduced-motion form). */
+.conversation-thread .ti-shimmer{color:var(--text-metadata)}
+.doan-conv-panel .thread-scroll{padding:var(--space-2) var(--space-4) var(--space-8)}
+.doan-conv-panel .conversation-thread .thread{gap:var(--space-5)}
+.doan-conv-panel .msg-user{max-width:92%}
+.doan-conv-panel :is(.md,.msg-agent p,.bubble){font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
+.doan-conv-panel .conversation-thread .ti-reply{font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
+
+/* ── Copied from app/src/renderer/styles.css as shipped: sidebar canvas and conversation rows (exact-token literals as tokens; the row's
+   8px corner stays the shipped literal, since a spacing token is never a corner) ── */
+.shell-side .row{display:flex;align-items:center;gap:var(--space-2);height:var(--size-control-sm);min-height:var(--size-control-sm);padding:0 var(--space-2);border-radius:8px;font:var(--type-weight-regular) var(--type-body-sm-size)/var(--type-body-sm-line-height) var(--type-family);color:var(--text-subtle);position:relative;white-space:nowrap;cursor:pointer}
+.shell-side .row[aria-current="location"]{background:var(--affordance-backdrop-pressed);color:var(--text-standard)}
+.shell-side .shell-canvas-row{padding-inline:10px;letter-spacing:var(--type-body-sm-letter-spacing)}
+.shell-canvas-row svg{width:var(--size-icon);height:var(--size-icon);flex:none}
+.shell-canvas-row>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shell-lead{position:relative;display:grid;flex:none;width:var(--size-icon);height:var(--size-icon)}
+.shell-lead>*{grid-area:1/1}
+.shell-side .shell-conv-row{position:relative;padding-left:calc(10px + 2 * (var(--size-icon) + var(--space-2)));padding-right:10px;letter-spacing:var(--type-body-sm-letter-spacing)}
+.shell-conv-check{position:absolute;left:calc(10px + var(--size-icon) + var(--space-2));top:50%;display:grid;place-items:center;width:var(--size-icon);height:var(--size-icon);transform:translateY(-50%)}
+.shell-conv-check svg{width:var(--size-icon);height:var(--size-icon)}
+.shell-conv-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── New, not in code (composer-markdown) ── */
+/* Field (ChipField render): a list line's marker and depth spaces are wrapped in inline spans; the text inside stays
+   ordinary field text, so caret, delete, undo and copy work as on any text. No hanging indent in the field: a wrapped
+   line starts at the line start. Every marker stands one --space-5 step (20 px) in, so a depth-0 list reads as
+   indented, and each depth adds one more step. The marker column is --space-3 (12 px): a bullet, then a short gap,
+   then the text; a number ("1. ", wider than the column) is followed by its own typed space. A wider marker ("100. ")
+   grows its own span, so that item's text starts later: the field has no columns to align. */
+.list-mark{display:inline-block;position:relative;min-width:var(--space-3);margin-inline-start:var(--space-5)}
+/* "- " and "* ": the characters stay in the DOM but are not painted; a • is drawn where the "-" was. */
+.list-mark[data-kind="ul"]{color:transparent}
+.list-mark[data-kind="ul"]::before{content:"•";position:absolute;left:0;top:0;color:var(--text-standard)}
+/* Ordered markers ("1. ", "12. ") are painted as typed. */
+.list-depth{display:inline-block}
+.list-depth[data-depth="1"]{width:var(--space-5)}
+.list-depth[data-depth="2"]{width:calc(2 * var(--space-5))}
+/* Sent bubble (UserMessage): list lines become role="list"/"listitem" blocks, not ul/ol, so Chromium copies the marker
+   and depth spaces as text. Each item is a grid of depth, marker and body; the body column wraps under itself (hanging
+   indent). A nested list spans the whole item, and its own depth span moves it in. No gap between items: lines read as
+   typed. Each list is one grid and its items are subgrids, so the marker column is as wide as the list's widest marker
+   (at least 12 px, after the marker's one-step margin) and the bodies of one list line up ("9.", "10.", "100."); a nested list sizes its own column. */
+.bubble-text{display:block}
+.bubble-list{display:grid;grid-template-columns:auto auto minmax(0,1fr)}
+.bubble-item{display:grid;grid-column:1 / -1;grid-template-columns:subgrid}
+.bubble-item>.list-depth{grid-column:1}
+.bubble-item>.list-mark{grid-column:2}
+/* Numbers stand at the column's end, as a native ol draws them, so every "N." keeps the same gap to its text. */
+.bubble-item>.list-mark[data-kind="ol"]{text-align:right}
+.bubble-item>.bubble-item-body{grid-column:3;min-width:0}
+.bubble-item>.bubble-list{grid-column:1 / -1}
+</style></head><body><svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+<symbol id="i-presets" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3H8"/><path d="m15.007 5.008 3.987 3.986"/><path d="M20 15v4"/><path d="M21.174 6.813a2.82 2.82 0 0 0-3.986-3.987L3.842 16.175a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="M22 17h-4"/><path d="M4 5v4"/><path d="M6 7H2"/><path d="M9 2v2"/></symbol>
+<symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></symbol>
+<symbol id="i-stop" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" fill="currentColor"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-gauge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+<symbol id="i-branch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></symbol>
+<symbol id="i-pick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+<symbol id="i-frame" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" x2="2" y1="6" y2="6"/><line x1="22" x2="2" y1="18" y2="18"/><line x1="6" x2="6" y1="2" y2="22"/><line x1="18" x2="18" y1="2" y2="22"/></symbol>
+<symbol id="i-element" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.034 12.681a.498.498 0 0 1 .647-.647l9 3.5a.5.5 0 0 1-.033.943l-3.444 1.068a1 1 0 0 0-.66.66l-1.067 3.443a.5.5 0 0 1-.943.033z"/><path d="M21 11V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"/></symbol>
+<symbol id="i-msg-dashed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17H7l-4 4v-7"/><path d="M14 17h1"/><path d="M14 3h1"/><path d="M19 3a2 2 0 0 1 2 2"/><path d="M21 14v1a2 2 0 0 1-2 2"/><path d="M21 9v1"/><path d="M3 9v1"/><path d="M5 3a2 2 0 0 0-2 2"/><path d="M9 3h1"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-canvas" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></symbol>
+<symbol id="i-new" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></symbol>
+<symbol id="i-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/><path d="m8 9 3 3-3 3"/></symbol>
+</svg>
+
+<header class="intro"><span class="doan-chip">Draft · composer-markdown</span> <span class="doan-chip">Every frame new · not in code</span>
+<h1>Lists in the composer and the sent bubble</h1>
+<p>Scope: <code>docs/features/composer-markdown/</code> (spec ‘완료 조건’ 1–12, design ‘입력창 목록 그리기’ and ‘초안 요청’). The field draws lines that start with <code>- </code>, <code>* </code> or a 1–3 digit <code>N. </code> as list items; the sent bubble draws them as nested lists with a hanging indent; new conversation titles and queue rows drop the markers. Nothing else in Markdown is drawn: <code>**</code>, backticks, <code>#</code> and <code>---</code> stay plain text. The text the field holds, sends and copies is unchanged (grey boxes under the tiles show it, spaces included).</p>
+<p><b>/design-sync</b> compares all seven frames, except board annotations (captions, tile labels, the grey text boxes and the key notes). Elements to pair carry <code>data-doan-id</code>; the new spans are <code>.list-mark</code> (with <code>data-kind="ul"</code> or <code>"ol"</code>) and <code>.list-depth</code> (<code>data-depth</code>), the bubble blocks <code>.bubble-list</code>, <code>.bubble-item</code>, <code>.bubble-item-body</code> and <code>.bubble-text</code>.</p>
+<p>Copied from shipped code, not redesigned (develop <code>fc50b992f</code>, read in this session): the docked composer (box and capsule), its tray and queue rows (<code>DockedComposer.tsx</code>, <code>ComposerParts.tsx</code>, <code>docs/design/canvas-conversation.md</code>), the Home composer (<code>HomeComposerView.tsx</code>, <code>docs/design/home.md</code>), the panel head, thread, bubble, anchor chip and skill word (<code>ConversationThread.tsx</code>, <code>CanvasConversationPanel.tsx</code>), and the sidebar canvas and conversation rows (<code>ShellSidebar.tsx</code>); rules restated from <code>app/src/renderer/styles.css</code>, markup from <code>.doan/canvases/provider-commands.html</code>, <code>agent-reply-chips.html</code> and <code>sidebar-canvas-conversations.html</code>. Field states are drawn at the docked composer’s 296 px (panel 320, the default at 960 × 600) and Home’s 680 px.</p>
+<p>References: the Claude desktop app composer, from the user’s screenshots (spec ‘범위 근거’, 2026-11-19 conversation): <code>- </code> drawn as •, ordered numbers shown as typed, one indent step per depth, <code>**bold**</code> and <code>---</code> left as text. Not checked by me in that app. Depth by the parent item’s body column follows CommonMark’s list item rule, recalled, not re-read. Icons: lucide paths as used in the canvases above.</p>
+<p>Example data is illustrative: project <b>acme-web</b>, canvas <b>landing</b> (frame <code>hero</code> “Hero”, element <code>cta</code> button “Get started”), a project skill <code>copy-check</code>.</p>
+<h2>Settled in this draft</h2>
+<ol>
+<li>Indent and marker column, in the field and the bubble: every marker stands one <code>--space-5</code> step (20 px) in and each depth adds one more step; the marker column is <code>--space-3</code> (12 px), so a bullet is followed by a short gap and a number by its typed space. In the bubble a list’s marker column grows to its widest marker, so the bodies of one list line up; in the field a wider marker (<code>100. </code>) pushes only its own item’s text (frames 02 and 05, tiles <i>c</i>).</li>
+<li>Markers take the body ink (<code>--text-standard</code>): the • and the typed numbers. In the field each marker starts at its step; in the bubble the • starts the column and numbers are right-aligned in it, so <code>9.</code> and <code>10.</code> keep the same gap to their text.</li>
+<li>No extra spacing between list items in the bubble or the field: lines keep the spacing they had as plain text.</li>
+</ol>
+<p>The person’s list differs from the agent’s Markdown list on purpose: the agent’s replies keep 4 px between items and a circle at the second bullet level (<code>.md</code> lists in <code>styles.css</code>); the person’s bubble keeps the lines as typed and draws • at every level.</p>
+<h2>Keys</h2>
+<p>Shift+Enter, Tab, Shift+Tab, Ctrl+Tab and Backspace cannot be drawn; the notes beside <code>field-bullets</code> and <code>field-ordered</code> give each rule, and tiles <i>b</i> show the field right after a Shift+Enter. The rules are the same in all four composers (Home, the Overview’s docked composer, the canvas panel and the prototype window), which share one field.</p>
+</header>
+
+<section class="board" data-doan-frame="field-bullets" data-doan-title="01 · Field · bullet list, three levels" data-doan-implements="app/src/renderer/chipField.ts"><div class="caption"><span>01</span><h2>Field · bullet list, three levels<span class="doan-chip">New · not in code</span></h2><p>The canvas panel’s docked composer in the box shape. Each <code>- </code> and <code>* </code> is drawn as • (“Buttons” starts with <code>* </code>) and each depth moves in one step; the skill word keeps its highlight inside an item. The field keeps the typed text: the <code>-</code> or <code>*</code> and the depth spaces are still there, only not painted.</p></div>
+<div class="tiles">
+<div class="tile"><h3>a · A three-level list</h3><div class="stage w296"><div class="docked" data-shape="box" data-doan-id="fb-a"><div class="composer-card is-focus-within"><div class="composer-input" role="textbox" aria-multiline="true" aria-label="Message" data-doan-id="fb-a-field">Polish the hero:
+<span class="list-mark" data-kind="ul" data-doan-id="fb-a-mark0">- </span>Title
+<span class="list-depth" data-depth="1" data-doan-id="fb-a-depth1">  </span><span class="list-mark" data-kind="ul">- </span>Run <span class="skill-word" data-doan-id="fb-a-skill">/copy-check</span> on it
+<span class="list-depth" data-depth="2" data-doan-id="fb-a-depth2">    </span><span class="list-mark" data-kind="ul">- </span>Under 40 characters
+<span class="list-mark" data-kind="ul" data-doan-id="fb-a-star">* </span>Buttons<span class="caret" aria-hidden="true"></span></div><div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send"><svg aria-hidden="true"><use href="#i-up"/></svg></button></div></div><div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"><svg aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"><svg aria-hidden="true"><use href="#i-pick"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Agent: Claude Code, model Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High"><svg aria-hidden="true"><use href="#i-gauge"/></svg><span class="label">High</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Default"><svg aria-hidden="true"><use href="#i-shield"/></svg><span class="label">Default</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div></div>
+<pre class="sent" data-label="Field text (sent and copied as is)">Polish the hero:
+- Title
+  - Run /copy-check on it
+    - Under 40 characters
+* Buttons</pre></div>
+<div class="tile"><h3>b · Shift+Enter at the end of “Buttons”</h3><div class="stage w296"><div class="docked" data-shape="box" data-doan-id="fb-b"><div class="composer-card is-focus-within"><div class="composer-input" role="textbox" aria-multiline="true" aria-label="Message" data-doan-id="fb-b-field">Polish the hero:
+<span class="list-mark" data-kind="ul">- </span>Title
+<span class="list-depth" data-depth="1">  </span><span class="list-mark" data-kind="ul">- </span>Run <span class="skill-word">/copy-check</span> on it
+<span class="list-depth" data-depth="2">    </span><span class="list-mark" data-kind="ul">- </span>Under 40 characters
+<span class="list-mark" data-kind="ul">* </span>Buttons
+<span class="list-mark" data-kind="ul" data-doan-id="fb-b-new">* </span><span class="caret" aria-hidden="true"></span></div><div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send"><svg aria-hidden="true"><use href="#i-up"/></svg></button></div></div><div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"><svg aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"><svg aria-hidden="true"><use href="#i-pick"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Agent: Claude Code, model Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High"><svg aria-hidden="true"><use href="#i-gauge"/></svg><span class="label">High</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Default"><svg aria-hidden="true"><use href="#i-shield"/></svg><span class="label">Default</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div></div>
+<p class="note">A new item at the same depth with the same marker (<code>* </code> after <code>* </code>); the caret sits after the •. Shift+Enter again on this empty item removes the marker and ends the list, since it is at depth 0.</p></div>
+<aside class="keys" aria-label="Keys in a list item"><h3>Keys in a list item</h3><dl>
+<dt><kbd>Enter</kbd></dt><dd>Sends, as today.</dd>
+<dt><kbd>Shift</kbd>+<kbd>Enter</kbd></dt><dd>New line with the same depth and marker (<code>- </code> after <code>- </code>, <code>* </code> after <code>* </code>). On an empty item: one level out at depth 1 or more; at depth 0 the marker goes and the list ends.</dd>
+<dt><kbd>Tab</kbd></dt><dd>Moves the item one level in. If there is no item above to nest under, focus moves as today.</dd>
+<dt><kbd>Shift</kbd>+<kbd>Tab</kbd></dt><dd>Moves the item one level out. At depth 0, focus moves as today.</dd>
+<dt><kbd>Ctrl</kbd>+<kbd>Tab</kbd></dt><dd>Always moves focus, with or without Shift, inside a list too.</dd>
+<dt><kbd>Backspace</kbd></dt><dd>At the start of an item’s text with nothing selected: one level out at depth 1 or more; at depth 0 the whole marker goes and the line becomes plain text.</dd>
+<dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Never stop inside the hidden <code>- </code> or <code>* </code>.</dd>
+</dl>
+<p>Tab and Shift+Tab act only when the field does not already use Tab: the next-message suggestion in an empty field and the open <code>/</code> list keep it. Each list edit is one undo step. While a Korean or other IME is composing, the field is not redrawn, and Shift+Enter or Tab waits until the composition ends. Copy gives plain text with the markers and depth spaces, never a •. On a line that is not a list item, every key works as today.</p></aside>
+</div></section>
+
+<section class="board" data-doan-frame="field-ordered" data-doan-title="02 · Field · numbered list" data-doan-implements="app/src/renderer/chipField.ts"><div class="caption"><span>02</span><h2>Field · numbered list<span class="doan-chip">New · not in code</span></h2><p>Numbers stay as typed and are painted. A nested numbered list starts again at 1. Only 1–3 digit numbers make an item, so a line that starts with a year (<code>2026. 11. 19.</code>) stays a plain line.</p></div>
+<div class="tiles">
+<div class="tile"><h3>a · A nested numbered list and a dated line</h3><div class="stage w296"><div class="docked" data-shape="box" data-doan-id="fo-a"><div class="composer-card is-focus-within"><div class="composer-input" role="textbox" aria-multiline="true" aria-label="Message" data-doan-id="fo-a-field">Agenda for the review
+<span class="list-mark" data-kind="ol" data-doan-id="fo-a-mark0">1. </span>Header
+<span class="list-depth" data-depth="1" data-doan-id="fo-a-depth1">   </span><span class="list-mark" data-kind="ol" data-doan-id="fo-a-sub1">1. </span>Logo size
+<span class="list-depth" data-depth="1">   </span><span class="list-mark" data-kind="ol">2. </span>Nav spacing
+<span class="list-mark" data-kind="ol">2. </span>Footer
+<span data-doan-id="fo-a-date">2026. 11. 19. review with the team</span><span class="caret" aria-hidden="true"></span></div><div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send"><svg aria-hidden="true"><use href="#i-up"/></svg></button></div></div><div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"><svg aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"><svg aria-hidden="true"><use href="#i-pick"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Agent: Claude Code, model Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High"><svg aria-hidden="true"><use href="#i-gauge"/></svg><span class="label">High</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Default"><svg aria-hidden="true"><use href="#i-shield"/></svg><span class="label">Default</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div></div>
+<pre class="sent" data-label="Field text (sent and copied as is)">Agenda for the review
+1. Header
+   1. Logo size
+   2. Nav spacing
+2. Footer
+2026. 11. 19. review with the team</pre></div>
+<div class="tile"><h3>b · Shift+Enter at the end of “Nav spacing”</h3><div class="stage w296"><div class="docked" data-shape="box" data-doan-id="fo-b"><div class="composer-card is-focus-within"><div class="composer-input" role="textbox" aria-multiline="true" aria-label="Message" data-doan-id="fo-b-field">Agenda for the review
+<span class="list-mark" data-kind="ol">1. </span>Header
+<span class="list-depth" data-depth="1">   </span><span class="list-mark" data-kind="ol">1. </span>Logo size
+<span class="list-depth" data-depth="1">   </span><span class="list-mark" data-kind="ol">2. </span>Nav spacing
+<span class="list-depth" data-depth="1">   </span><span class="list-mark" data-kind="ol" data-doan-id="fo-b-new">3. </span><span class="caret" aria-hidden="true"></span>
+<span class="list-mark" data-kind="ol">2. </span>Footer
+2026. 11. 19. review with the team</div><div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send"><svg aria-hidden="true"><use href="#i-up"/></svg></button></div></div><div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"><svg aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"><svg aria-hidden="true"><use href="#i-pick"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Agent: Claude Code, model Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High"><svg aria-hidden="true"><use href="#i-gauge"/></svg><span class="label">High</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Default"><svg aria-hidden="true"><use href="#i-shield"/></svg><span class="label">Default</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div></div>
+<p class="note">The next number at the same depth: <code>3. </code> after <code>2. </code>. The items below are not renumbered.</p></div>
+<div class="tile"><h3>c · One-, two- and three-digit numbers</h3><div class="stage w296"><div class="docked" data-shape="box" data-doan-id="fo-c"><div class="composer-card is-focus-within"><div class="composer-input" role="textbox" aria-multiline="true" aria-label="Message" data-doan-id="fo-c-field">Steps
+<span class="list-mark" data-kind="ol" data-doan-id="fo-c-mark9">9. </span>Hero spacing
+<span class="list-mark" data-kind="ol" data-doan-id="fo-c-mark10">10. </span>Pricing cards
+<span class="list-mark" data-kind="ol" data-doan-id="fo-c-mark100">100. </span>Footer links<span class="caret" aria-hidden="true"></span></div><div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send"><svg aria-hidden="true"><use href="#i-up"/></svg></button></div></div><div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"><svg aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"><svg aria-hidden="true"><use href="#i-pick"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Agent: Claude Code, model Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High"><svg aria-hidden="true"><use href="#i-gauge"/></svg><span class="label">High</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Default"><svg aria-hidden="true"><use href="#i-shield"/></svg><span class="label">Default</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div></div>
+<p class="note">The marker is at least 12 px; numbers are wider, and <code>100. </code> widest, so only that item’s text starts later. The field draws no columns, so the bodies are not aligned here; the sent bubble aligns them (frame 05, tile <i>c</i>).</p></div>
+<aside class="keys" aria-label="Keys in a numbered item"><h3>Keys in a numbered item</h3><dl>
+<dt><kbd>Shift</kbd>+<kbd>Enter</kbd></dt><dd>Adds the next number at the same depth. If that number would have four digits (after <code>999. </code>), it is an ordinary line break.</dd>
+<dt><kbd>Tab</kbd></dt><dd>Moves the item under the one above and renumbers it <code>1. </code>, the first item of a nested numbered list.</dd>
+<dt><kbd>Shift</kbd>+<kbd>Tab</kbd>, <kbd>Backspace</kbd></dt><dd>As in a bullet item (frame 01). Backspace at depth 0 removes the whole <code>12. </code>.</dd>
+</dl>
+<p>A depth is the parent item’s text column in spaces (3 under <code>1. </code>, 2 under <code>- </code>; a tab counts as 4). Drawn, every depth is one step.</p></aside>
+</div></section>
+
+<section class="board" data-doan-frame="field-wrap" data-doan-title="03 · Field · a long item wraps to the line start" data-doan-implements="app/src/renderer/chipField.ts"><div class="caption"><span>03</span><h2>Field · a long item wraps to the line start<span class="doan-chip">New · not in code</span></h2><p>The field has no hanging indent: the second line of a long item starts at the field’s left edge, not under the item’s text, at any depth. Only the sent bubble hangs its lines (tile <i>b</i>, the same text after Send).</p></div>
+<div class="tiles">
+<div class="tile"><h3>a · Docked box, 296</h3><div class="stage w296"><div class="docked" data-shape="box" data-doan-id="fw-a"><div class="composer-card is-focus-within"><div class="composer-input" role="textbox" aria-multiline="true" aria-label="Message" data-doan-id="fw-a-field"><span class="list-mark" data-kind="ul" data-doan-id="fw-a-mark0">- </span><span data-doan-id="fw-a-long">Make the hero headline shorter so it fits on one line at the narrowest window width</span>
+<span class="list-depth" data-depth="1">  </span><span class="list-mark" data-kind="ul">- </span><span data-doan-id="fw-a-long2">Keep the subtitle, but move the price note under the button</span><span class="caret" aria-hidden="true"></span></div><div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send"><svg aria-hidden="true"><use href="#i-up"/></svg></button></div></div><div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"><svg aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"><svg aria-hidden="true"><use href="#i-pick"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Agent: Claude Code, model Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High"><svg aria-hidden="true"><use href="#i-gauge"/></svg><span class="label">High</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Default"><svg aria-hidden="true"><use href="#i-shield"/></svg><span class="label">Default</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div></div>
+<pre class="sent" data-label="Field text">- Make the hero headline shorter so it fits on one line at the narrowest window width
+  - Keep the subtitle, but move the price note under the button</pre></div>
+<div class="tile"><h3>b · The same text sent: the bubble hangs its lines</h3><div class="panel-tile"><aside class="right doan-conv-panel" role="region" aria-label="Conversation"><div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble" data-doan-id="fw-b-bubble"><div class="bubble-list" role="list"><div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ul">- </span><span class="bubble-item-body">Make the hero headline shorter so it fits on one line at the narrowest window width</span><div class="bubble-list" role="list"><div class="bubble-item" role="listitem"><span class="list-depth" data-depth="1">  </span><span class="list-mark" data-kind="ul">- </span><span class="bubble-item-body">Keep the subtitle, but move the price note under the button</span></div></div></div></div></div></div></div>
+</div></div></div></div></div></div></aside></div><p class="note">Panel 320, cut under the thread. Frame 05 draws the bubble in full.</p></div>
+</div></section>
+
+<section class="board" data-doan-frame="field-home" data-doan-title="04 · Field · the Home composer" data-doan-implements="app/src/renderer/HomeComposerView.tsx"><div class="caption"><span>04</span><h2>Field · the Home composer<span class="doan-chip">New · not in code</span></h2><p>Home, the Overview’s docked composer, the canvas panel and the prototype window all use one field (<code>ComposerField</code>), so the list is drawn and edited the same way in each. Home’s field is 16/24 like the docked one; only its width differs.</p></div>
+<div class="tiles">
+<div class="tile"><h3>a · Home, 680, the list from frame 01</h3><div class="stage w680"><div class="home-composer" data-doan-id="fh-a"><button type="button" class="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Project: acme-web"><span class="shell-thumbnail hue-amber" aria-hidden="true">A</span><span class="home-project-name">acme-web</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><div class="composer"><div class="composer-card is-focus-within"><div class="composer-input" role="textbox" aria-multiline="true" aria-label="Message" data-doan-id="fh-a-field">Polish the hero:
+<span class="list-mark" data-kind="ul" data-doan-id="fh-a-mark0">- </span>Title
+<span class="list-depth" data-depth="1" data-doan-id="fh-a-depth1">  </span><span class="list-mark" data-kind="ul">- </span>Run <span class="skill-word">/copy-check</span> on it
+<span class="list-depth" data-depth="2">    </span><span class="list-mark" data-kind="ul">- </span>Under 40 characters
+<span class="list-mark" data-kind="ul" data-doan-id="fh-a-star">* </span>Buttons<span class="caret" aria-hidden="true"></span></div><div class="composer-tools"><button type="button" class="doan-icon-button" aria-label="Attach files or folders"><svg aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-agent doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Agent: Claude Code, model Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-effort doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Effort: High"><svg aria-hidden="true"><use href="#i-gauge"/></svg><span class="label">High</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-permission doan-button" data-ui-size="sm" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Default"><svg aria-hidden="true"><use href="#i-shield"/></svg><span class="label">Default</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send"><svg aria-hidden="true"><use href="#i-up"/></svg></button></div></div><div class="composer-tray"><span class="tray-branch"><svg aria-hidden="true"><use href="#i-branch"/></svg><span>main</span></span><span class="tray-path">~/code/acme-web</span></div></div></div></div>
+<p class="note">Same spans, same widths as in the docked field. Keys as in frames 01 and 02.</p></div>
+</div></section>
+
+<section class="board" data-doan-frame="bubble-lists" data-doan-title="05 · Sent bubble · nested lists" data-doan-implements="app/src/renderer/ConversationThread.tsx"><div class="caption"><span>05</span><h2>Sent bubble · nested lists<span class="doan-chip">New · not in code</span></h2><p>The person’s bubble in the canvas panel’s thread draws list lines as nested lists: one step per depth and a hanging indent, so a wrapped line starts under the item’s text. Numbers are shown as typed, so two items typed <code>1.</code> both read <code>1.</code>. Anchor chips and skill words stay where they were typed inside an item. A line that starts with a chip is not a list item, and neither is a line that starts with a year. Selecting the bubble and pressing ⌘C copies the sent text exactly, markers and depth spaces included; no Copy button.</p></div>
+<div class="tiles">
+<div class="tile"><h3>a · Bullets, three levels, a chip and a skill word</h3><div class="panel-tile"><aside class="right doan-conv-panel" role="region" aria-label="Conversation">
+<div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="menu" aria-expanded="false"><span>Tighten Hero before review: Headline Shorten it so it fits on one line at the narrowest width Keep “Design faster” Align button cta with the grid Run /copy-check on the footer</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span><button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation"><svg aria-hidden="true"><use href="#i-new"/></svg></button><button type="button" class="doan-icon-button doan-panel-hide" aria-label="Hide conversation" aria-expanded="true"><svg aria-hidden="true"><use href="#i-hide"/></svg></button></div>
+<div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble" data-doan-id="bl-a-bubble"><span class="bubble-text">Tighten <button type="button" class="anchor-chip" data-kind="frame" aria-label="Show Hero on canvas" data-doan-id="bl-a-chip-frame"><svg aria-hidden="true"><use href="#i-frame"/></svg><span>Hero</span></button> before review:</span><div class="bubble-list" role="list" data-doan-id="bl-a-list"><div class="bubble-item" role="listitem" data-doan-id="bl-a-item0"><span class="list-mark" data-kind="ul" data-doan-id="bl-a-mark0">- </span><span class="bubble-item-body">Headline</span><div class="bubble-list" role="list"><div class="bubble-item" role="listitem" data-doan-id="bl-a-item1"><span class="list-depth" data-depth="1" data-doan-id="bl-a-depth1">  </span><span class="list-mark" data-kind="ul">- </span><span class="bubble-item-body" data-doan-id="bl-a-wrap">Shorten it so it fits on one line at the narrowest width</span><div class="bubble-list" role="list"><div class="bubble-item" role="listitem" data-doan-id="bl-a-item2"><span class="list-depth" data-depth="2" data-doan-id="bl-a-depth2">    </span><span class="list-mark" data-kind="ul">- </span><span class="bubble-item-body">Keep “Design faster”</span></div></div></div></div></div><div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ul">- </span><span class="bubble-item-body">Align <button type="button" class="anchor-chip" data-kind="element" aria-label="Show button cta on canvas" data-doan-id="bl-a-chip-element"><svg aria-hidden="true"><use href="#i-element"/></svg><span>button cta</span></button> with the grid</span></div><div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ul">- </span><span class="bubble-item-body">Run <span class="skill-word" data-doan-id="bl-a-skill">/copy-check</span> on the footer</span></div></div></div></div></div>
+</div></div></div></div></div></div></aside></div>
+<pre class="sent" data-label="Sent text (what ⌘C copies; chips as {{n}})">Tighten {{1}} before review:
+- Headline
+  - Shorten it so it fits on one line at the narrowest width
+    - Keep “Design faster”
+- Align {{2}} with the grid
+- Run /copy-check on the footer</pre></div>
+<div class="tile"><h3>b · Numbers as typed, mixed nesting, lines that are not items</h3><div class="panel-tile"><aside class="right doan-conv-panel" role="region" aria-label="Conversation">
+<div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="menu" aria-expanded="false"><span>Order of work: Header Footer Links in one row Contact form Name and email only Pricing Hero - stays as it is 2026. 11. 19. review with the team</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span><button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation"><svg aria-hidden="true"><use href="#i-new"/></svg></button><button type="button" class="doan-icon-button doan-panel-hide" aria-label="Hide conversation" aria-expanded="true"><svg aria-hidden="true"><use href="#i-hide"/></svg></button></div>
+<div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble" data-doan-id="bl-b-bubble"><span class="bubble-text">Order of work:</span><div class="bubble-list" role="list" data-doan-id="bl-b-list"><div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ol" data-doan-id="bl-b-mark0">1. </span><span class="bubble-item-body">Header</span></div><div class="bubble-item" role="listitem" data-doan-id="bl-b-item1"><span class="list-mark" data-kind="ol" data-doan-id="bl-b-mark1">1. </span><span class="bubble-item-body">Footer</span><div class="bubble-list" role="list"><div class="bubble-item" role="listitem"><span class="list-depth" data-depth="1" data-doan-id="bl-b-depth1">   </span><span class="list-mark" data-kind="ul">- </span><span class="bubble-item-body">Links in one row</span></div><div class="bubble-item" role="listitem"><span class="list-depth" data-depth="1">   </span><span class="list-mark" data-kind="ul">- </span><span class="bubble-item-body">Contact form</span><div class="bubble-list" role="list"><div class="bubble-item" role="listitem"><span class="list-depth" data-depth="2">     </span><span class="list-mark" data-kind="ol" data-doan-id="bl-b-sub1">1. </span><span class="bubble-item-body">Name and email only</span></div></div></div></div></div><div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ol">2. </span><span class="bubble-item-body">Pricing</span></div></div><span class="bubble-text" data-doan-id="bl-b-chipline"><button type="button" class="anchor-chip" data-kind="frame" aria-label="Show Hero on canvas"><svg aria-hidden="true"><use href="#i-frame"/></svg><span>Hero</span></button> - stays as it is
+<span data-doan-id="bl-b-date">2026. 11. 19. review with the team</span></span></div></div></div>
+</div></div></div></div></div></div></aside></div>
+<pre class="sent" data-label="Sent text (what ⌘C copies; chips as {{n}})">Order of work:
+1. Header
+1. Footer
+   - Links in one row
+   - Contact form
+     1. Name and email only
+2. Pricing
+{{1}} - stays as it is
+2026. 11. 19. review with the team</pre></div>
+<div class="tile"><h3>c · One-, two- and three-digit numbers line up</h3><div class="panel-tile"><aside class="right doan-conv-panel" role="region" aria-label="Conversation"><div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble" data-doan-id="bl-c-bubble"><span class="bubble-text">Steps</span><div class="bubble-list" role="list" data-doan-id="bl-c-list"><div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ol" data-doan-id="bl-c-mark9">9. </span><span class="bubble-item-body" data-doan-id="bl-c-body9">Hero spacing</span></div><div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ol">10. </span><span class="bubble-item-body">Pricing cards</span></div><div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ol" data-doan-id="bl-c-mark100">100. </span><span class="bubble-item-body" data-doan-id="bl-c-body100">Footer links and the contact form below them</span></div></div></div></div></div>
+</div></div></div></div></div></div></aside></div>
+<pre class="sent" data-label="Sent text">Steps
+9. Hero spacing
+10. Pricing cards
+100. Footer links and the contact form below them</pre>
+<p class="note">The list’s marker column takes the width of <code>100. </code>, its widest marker, so all three bodies start at the same x and wrapped lines hang under them. Another list in the same bubble, or a nested one, sizes its own column.</p></div>
+<aside class="keys" aria-label="Bubble rules"><h3>What the bubble draws</h3><dl>
+<dt>Items</dt><dd>Lines that start with <code>- </code>, <code>* </code> or a 1–3 digit <code>N. </code>, and their depth by the parent item’s text column.</dd>
+<dt>Numbers</dt><dd>As typed, never renumbered: two items typed <code>1.</code> both read <code>1.</code>, as in tile <i>b</i>.</dd>
+<dt>Wrapping</dt><dd>Under the item’s text (hanging indent), in the bubble only.</dd>
+<dt>Columns</dt><dd>One marker column per list, as wide as its widest marker (at least 12 px), so <code>9.</code>, <code>10.</code> and <code>100.</code> items start their text together.</dd>
+<dt>Not items</dt><dd>A line that starts with a chip, a 4-digit number or anything else; it keeps its spaces as plain text.</dd>
+<dt>Copy</dt><dd>⌘C on a selection copies the sent text, markers and depth spaces included.</dd>
+</dl>
+<p>Panel heads show each message’s new title, markers stripped at every line start (frame 07). The Overview draws the same bubble at its 16/24 text.</p></aside>
+</div></section>
+
+<section class="board" data-doan-frame="bubble-plain" data-doan-title="06 · Sent bubble · other Markdown stays text" data-doan-implements="app/src/renderer/ConversationThread.tsx"><div class="caption"><span>06</span><h2>Sent bubble · other Markdown stays text<span class="doan-chip">New · not in code</span></h2><p>Only lists are drawn. <code>**bold**</code>, backticks, <code>#</code> headings and <code>---</code> stay as typed, also inside a list item. The agent’s replies keep their full Markdown (unchanged).</p></div>
+<div class="tiles">
+<div class="tile"><h3>a · Bold, code, a heading and a rule, as typed</h3><div class="panel-tile"><aside class="right doan-conv-panel" role="region" aria-label="Conversation">
+<div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="menu" aria-expanded="false"><span>Make the **title** bold and use `--space-4` for the gap. # Pricing --- Keep **Pro** first Rename `Free` to Starter</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span><button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation"><svg aria-hidden="true"><use href="#i-new"/></svg></button><button type="button" class="doan-icon-button doan-panel-hide" aria-label="Hide conversation" aria-expanded="true"><svg aria-hidden="true"><use href="#i-hide"/></svg></button></div>
+<div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble" data-doan-id="bp-a-bubble"><span class="bubble-text" data-doan-id="bp-a-text">Make the **title** bold and use `--space-4` for the gap.
+# Pricing
+---</span><div class="bubble-list" role="list" data-doan-id="bp-a-list"><div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ul">- </span><span class="bubble-item-body" data-doan-id="bp-a-item">Keep **Pro** first</span></div><div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ul">- </span><span class="bubble-item-body">Rename `Free` to Starter</span></div></div></div></div></div>
+</div></div></div></div></div></div></aside></div>
+<pre class="sent" data-label="Sent text">Make the **title** bold and use `--space-4` for the gap.
+# Pricing
+---
+- Keep **Pro** first
+- Rename `Free` to Starter</pre></div>
+</div></section>
+
+<section class="board" data-doan-frame="title-queue" data-doan-title="07 · Titles and queue rows drop list markers" data-doan-implements="app/src/main/conversation/messageText.ts"><div class="caption"><span>07</span><h2>Titles and queue rows drop list markers<span class="doan-chip">New · not in code</span></h2><p>A conversation started by a message that begins with a list is titled with its text only: the markers and depth spaces at line starts go, and lines join with one space, as today. The same rule reads a queued message in its row. Titles saved before this change keep their markers; nothing rewrites them. Edit and resend, a restored draft and a queued message taken back into the field bring back the text as sent, markers included.</p></div>
+<div class="tiles">
+<div class="tile"><h3>a · Sidebar: the viewed canvas and its conversations</h3><div class="side-tile"><div class="shell-side"><div role="tree" aria-label="Projects and canvases"><div class="shell-canvas-row row" role="treeitem" aria-label="landing" aria-level="3" aria-current="location" aria-expanded="true"><span class="shell-lead canvas-lead"><svg aria-hidden="true" class="canvas-icon"><use href="#i-canvas"/></svg></span><span>landing</span></div><div role="group" class="shell-conv-list" aria-label="Conversations"><div class="shell-conv-row row" role="treeitem" aria-level="4" aria-label="Tighten the hero spacing Shorten the subtitle" aria-current="true" data-doan-id="tq-a-new"><span class="shell-conv-check" aria-hidden="true"><svg aria-hidden="true"><use href="#i-check"/></svg></span><span class="shell-conv-title">Tighten the hero spacing Shorten the subtitle</span></div><div class="shell-conv-row row" role="treeitem" aria-level="4" aria-label="- Fix the footer - Add a contact link" data-doan-id="tq-a-old"><span class="shell-conv-title">- Fix the footer - Add a contact link</span></div></div></div></div></div>
+<p class="note">The first row is new, from <code>- Tighten the hero spacing↵- Shorten the subtitle</code>. The second was saved before this change and keeps its hyphens.</p></div>
+<div class="tile"><h3>b · Panel head, thread and a queued numbered list</h3><div class="panel-tile"><aside class="right doan-conv-panel" role="region" aria-label="Conversation">
+<div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="menu" aria-expanded="false" data-doan-id="tq-b-title"><span>Tighten the hero spacing Shorten the subtitle</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span><button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation"><svg aria-hidden="true"><use href="#i-new"/></svg></button><button type="button" class="doan-icon-button doan-panel-hide" aria-label="Hide conversation" aria-expanded="true"><svg aria-hidden="true"><use href="#i-hide"/></svg></button></div>
+<div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble"><div class="bubble-list" role="list"><div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ul">- </span><span class="bubble-item-body">Tighten the hero spacing</span></div><div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ul">- </span><span class="bubble-item-body">Shorten the subtitle</span></div></div></div></div></div>
+<div class="thread-item"><div class="ti ti-reply"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="ti-text ti-shimmer">Editing landing.html</span><span class="ti-time" aria-hidden="true">12s</span></div></div>
+</div></div></div></div>
+<div class="cp-foot"><div class="docked" data-shape="capsule" data-doan-id="tq-b-docked"><div class="queue" role="list" aria-label="Queued messages"><div class="queue-entry" role="listitem"><div class="queue-item"><svg aria-hidden="true"><use href="#i-msg-dashed"/></svg><span class="queue-text" data-doan-id="tq-b-queue">Check the footer links Then the contact form</span><button type="button" class="doan-button queue-send" data-ui-size="xs" data-ui-variant="subtle">Send now</button><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message"><svg aria-hidden="true"><use href="#i-x"/></svg></button></div></div></div><div class="composer-card"><div class="composer-input" role="textbox" aria-multiline="true" aria-label="Message" aria-placeholder="Reply, / for presets" data-empty=""></div><div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button composer-stop" data-ui-variant="accent" aria-label="Stop"><svg aria-hidden="true"><use href="#i-stop"/></svg></button></div></div><div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"><svg aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"><svg aria-hidden="true"><use href="#i-pick"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Agent: Claude Code, model Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High"><svg aria-hidden="true"><use href="#i-gauge"/></svg><span class="label">High</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Default"><svg aria-hidden="true"><use href="#i-shield"/></svg><span class="label">Default</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div></div>
+</div></div></aside></div>
+<p class="note">Queued while the turn runs: <code>1. Check the footer links↵2. Then the contact form</code>. The row reads it without the numbers; taken back into the field, it returns with them.</p></div>
+</div></section>
+</body></html>

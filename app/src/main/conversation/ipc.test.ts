@@ -49,6 +49,33 @@ it("passes a provider runtime install failure through as its own code", async ()
     expect(await handle(true, "start", { root: "/repo", mode: "new", runtime: "antigravity", canvas: { path: ".doan/canvases/a.html" }, text: "hello" })).toEqual({ error: "cli_install_failed" });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+// The renderer words unknown and bad_request only as "Couldn't start the conversation", so main's log is the only
+// place a refused start says what refused it. A message that is not one of Doan's codes may carry provider text
+// (POSTMORTEM 2026-11-01 'A failed Antigravity sign-in left no evidence of why'), so only its error name and SDK class are logged.
+it("logs a start refused as unknown or bad_request, with the cause it came from in Doan's own words", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-")); const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  const prepare = vi.fn<Prepare>(async () => { throw new Error("fence_unbuilt"); });
+  try {
+    const service = new ConversationService(new ConversationStore(dir), prepare, vi.fn(), () => {});
+    const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }]);
+    const start = (over: Record<string, unknown> = {}) => handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "hello", ...over });
+    expect(await start()).toEqual({ error: "unknown" });
+    prepare.mockRejectedValueOnce(new Error("API Error: 400 {\"error\":\"the provider's reply\"}"));
+    expect(await start()).toEqual({ error: "unknown" });
+    prepare.mockRejectedValueOnce(Object.assign(new TypeError("Claude Code process exited with code 1: secret stderr"), { errorClass: "process_exited_nonzero" }));
+    expect(await start()).toEqual({ error: "unknown" });
+    expect(await start({ model: "opus" })).toEqual({ error: "bad_request" });
+    expect(log.mock.calls).toEqual([
+      ["doan: conversation start refused: unknown (fence_unbuilt)"],
+      ["doan: conversation start refused: unknown (Error)"],
+      ["doan: conversation start refused: unknown (TypeError, process_exited_nonzero)"],
+      ["doan: conversation start refused: bad_request"],
+    ]);
+    prepare.mockRejectedValueOnce(new Error("busy"));
+    expect(await start()).toEqual({ error: "busy" });
+    expect(log).toHaveBeenCalledTimes(4);
+  } finally { vi.restoreAllMocks(); rmSync(dir, { recursive: true, force: true }); }
+});
 
 function home(dir: string, models?: ModelOption[], canvases: { path: string }[] = []) {
   let session = 0;

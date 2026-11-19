@@ -237,7 +237,7 @@ function snapshot(dir: string): Record<string, string> {
 
 // pac-full D7b-codex stopped on "Say “구현 시작해”" from the user's $CODEX_HOME/AGENTS.md: a run must not inherit the
 // user's own instructions, while it still signs in as the user and keeps the user's model settings.
-test("a Codex run gets its own CODEX_HOME that links only sign-in and config from the user's", () => {
+test("a Codex run gets its own CODEX_HOME that links only sign-in from the user's and copies the user's config", () => {
   const dir = mkdtempSync("/tmp/doan-eval-test-");
   try {
     const real = join(dir, "real");
@@ -255,11 +255,42 @@ test("a Codex run gets its own CODEX_HOME that links only sign-in and config fro
     assert.deepEqual(readdirSync(home).sort(), ["auth.json", "auth.json.lock", "auth.lock", "config.toml"]);
     // Links, not copies: Codex writes refreshed tokens through auth.json in place and coordinates with the user's own
     // Codex through auth.lock and auth.json.lock, so a copy would leave the user's sign-in behind.
-    for (const name of ["auth.json", "auth.json.lock", "auth.lock", "config.toml"]) {
+    for (const name of ["auth.json", "auth.json.lock", "auth.lock"]) {
       assert.ok(lstatSync(join(home, name)).isSymbolicLink(), name);
       assert.equal(readlinkSync(join(home, name)), join(real, name));
     }
+    // A copy: Codex saves project trust into $CODEX_HOME/config.toml (`codex exec --trust`, codex-cli 0.169.0), so a
+    // link would carry a run's writes into the user's config.
+    assert.ok(lstatSync(join(home, "config.toml")).isFile());
+    assert.equal(readFileSync(join(home, "config.toml"), "utf8"), "model = \"m\"\n");
+    writeFileSync(join(home, "config.toml"), "written by the run\n");
     assert.deepEqual(snapshot(real), before);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+// Codex 0.169.0 loads a project's .codex/ layer (the eval's doan rule) only for a project trusted in
+// $CODEX_HOME/config.toml; `-c projects."<path>".trust_level=...` does not count, and without trust `codex exec` warns
+// "Untrusted project-local configuration is disabled" and runs without the rule.
+test("a Codex run's config trusts exactly the given folders on top of the user's settings", () => {
+  const dir = mkdtempSync("/tmp/doan-eval-test-");
+  try {
+    const real = join(dir, "real");
+    mkdirSync(real);
+    writeFileSync(join(real, "auth.json"), "{}\n");
+    writeFileSync(join(real, "config.toml"), "model = \"m\"\n\n[projects.\"/elsewhere\"]\ntrust_level = \"untrusted\"");
+    const before = snapshot(real);
+    const repo = join(dir, "run/repo");
+    const worktree = join(dir, "run/worktree");
+    const home = isolateUserInstructions("codex", { CODEX_HOME: real, HOME: dir }, join(dir, "run/codex-home"), [repo, worktree]).CODEX_HOME!;
+    assert.equal(readFileSync(join(home, "config.toml"), "utf8"),
+      `model = "m"\n\n[projects."/elsewhere"]\ntrust_level = "untrusted"\n\n[projects.${JSON.stringify(repo)}]\ntrust_level = "trusted"\n\n[projects.${JSON.stringify(worktree)}]\ntrust_level = "trusted"\n`);
+    assert.deepEqual(snapshot(real), before);
+    // With no user config, the run's config holds only the trust.
+    const bare = join(dir, "bare");
+    mkdirSync(bare);
+    const bareHome = isolateUserInstructions("codex", { CODEX_HOME: bare, HOME: dir }, join(dir, "run2"), [repo]).CODEX_HOME!;
+    assert.equal(readFileSync(join(bareHome, "config.toml"), "utf8"), `[projects.${JSON.stringify(repo)}]\ntrust_level = "trusted"\n`);
+    assert.deepEqual(readdirSync(bare), []);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

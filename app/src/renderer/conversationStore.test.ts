@@ -390,6 +390,15 @@ describe("scheduled rows", () => {
     expect(doan.scheduledMessages).toHaveBeenCalledTimes(1);
   });
 
+  // The row reads the words; the message it sends, and returns to the draft, keeps the list as typed.
+  test("a list's row drops its markers, while its message keeps them", async () => {
+    doan.scheduledMessages = vi.fn(async () => [item("s1", "- Fix {{1}}\n  - then the footer", { anchors: [CTA] })]);
+    const h = scheduledHarness(scheduled());
+    h.store.readScheduled(ROOT, A);
+    await flush();
+    expect(h.store.queue(A)).toEqual([{ id: "s1", text: "Fix element hero-cta then the footer", message: { text: "- Fix {{1}}\n  - then the footer", anchors: [CTA], attachments: [] } }]);
+  });
+
   test("a new time or count reads again and replaces the rows; no schedule reads nothing", async () => {
     doan.scheduledMessages = vi.fn(async () => [item("s1", "First")]);
     const h = scheduledHarness(summary({ phase: "ended", working: false, queued: 0 }));
@@ -592,4 +601,32 @@ test("a send main has not answered shows as sending until its turn's own message
   expect(h.store.sending(A).map(item => item.id)).toEqual(["send-2"]);
   refused();
   expect(h.store.sending(A)).toEqual([]);
+});
+
+// Every way a sent message comes back into a draft brings the text as sent, list markers and depth spaces included
+// (the field draws them again); only titles and queue rows drop them.
+describe("a sent list comes back as typed", () => {
+  const LIST = "- Fix {{1}}\n  - shorter\n1. then\n1. footer";
+  const typed = (segments: readonly { kind: string; text?: string }[] | undefined) => segments?.map(segment => (segment.kind === "text" ? segment.text : "◆")).join("");
+  test("Edit and resend", async () => {
+    history = [event({ type: "user.message", text: LIST, anchors: [CTA] }), event({ type: "turn.started" }), event({ type: "turn.done" })];
+    const h = harness();
+    h.store.track(A);
+    await flush();
+    expect(await h.store.editAndResend(A)).toBe(true);
+    expect(typed(h.store.drafts.get(`conversation:${A}`)?.segments)).toBe("- Fix ◆\n  - shorter\n1. then\n1. footer");
+  });
+  test("a returned queue", async () => {
+    doan.takeConversationDraft = vi.fn(async () => ({ text: LIST, anchors: [CTA], attachments: [], ids: [], reason: "stopped" }));
+    const h = harness();
+    h.read([summary({ returnedDraft: true })]);
+    h.store.takeDraft(ROOT, A);
+    await vi.waitFor(() => expect(typed(h.store.drafts.get(`conversation:${A}`)?.segments)).toBe("- Fix ◆\n  - shorter\n1. then\n1. footer"));
+  });
+  test("a restored start draft", async () => {
+    doan.takeStartDraft = vi.fn(async () => ({ text: `  ${LIST}`, anchors: [CTA], attachments: [], reason: "restarted" }));
+    const h = harness();
+    h.store.takeStartDraft(ROOT);
+    await vi.waitFor(() => expect(typed(h.store.drafts.get(`root:${ROOT}`)?.segments)).toBe("  - Fix ◆\n  - shorter\n1. then\n1. footer"));
+  });
 });

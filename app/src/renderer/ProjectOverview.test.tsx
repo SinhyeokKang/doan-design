@@ -10,7 +10,8 @@ import { DockedSupport } from "./dockedSupport";
 import { suggestedPrompts, type PresetSummary, type SuggestedPrompt } from "./homeComposer";
 import { SuggestionButton } from "./ComposerParts";
 import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun";
-import { ProjectOverview, worktreeChoice, type ProjectOverviewProps } from "./ProjectOverview";
+import { worktreeChoice } from "./worktreeSwitchModel";
+import { ProjectOverview, type ProjectOverviewProps } from "./ProjectOverview";
 import { TooltipProvider } from "./components/ui/tooltip";
 
 // The Overview's header and main column as static markup.
@@ -54,11 +55,11 @@ function render(list: ListView, patch: Partial<ProjectOverviewProps> = {}, setup
   return renderToStaticMarkup(<TooltipProvider><ProjectOverview {...props} /></TooltipProvider>);
 }
 
-test("the header names the project, its branch read-only for one worktree, and the conversation's title", () => {
+test("the header names the project, its selector for one worktree, and the conversation's title", () => {
   const html = render([summary()]);
   expect(html).toContain('<span class="ov-project-name" data-state="closed" data-slot="tooltip-trigger">doan</span>');
-  expect(html).toMatch(/<span class="doan-chip shell-branch" data-ui-variant="translucent">.*<span>main<\/span><\/span>/);
-  expect(html).not.toContain("wt-chip");
+  expect(html).toMatch(/<button[^>]*aria-label="Worktree: main"/);
+  expect(html).toMatch(/<button[^>]*aria-haspopup="menu"[^>]*><svg[^>]*class="[^"]*git-branch/);
   expect(html).toContain('<span class="ov-sep" aria-hidden="true">/</span>');
   expect(html).toMatch(/class="ov-title doan-button"[^>]*>.*<span>What should the checkout empty state say when a cart has expired\?<\/span>/);
   expect(html).toContain('placeholder="Reply, / for presets"');
@@ -207,7 +208,7 @@ test("the Overview's surfaces take plain numerals, the open chip its pressed fil
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(".ov-main, .right.ov-right, .conv-menu, .wt-menu, .doan-insp-menu, .doan-insp-tip { font-variant-numeric: normal; }");
-  expect(css).toContain('.ov-project button.wt-chip[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }');
+  expect(css).toContain('button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }');
   expect(css).toContain(".doan-notice.moved > svg { width: var(--size-icon); height: var(--size-icon); }");
   expect(css).toContain(".moved-text { display: flex; min-width: 0; white-space: nowrap; }");
   expect(css).toContain(".moved-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }");
@@ -215,15 +216,6 @@ test("the Overview's surfaces take plain numerals, the open chip its pressed fil
   // The canvas panel's notices above its composer read the same.
   expect(css).toContain(".conversation-thread .thread-notice > svg, :is(.cp-scroll, .ov-new) > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }");
   expect(css).toMatch(/\.conversation-thread \.thread-notice \.strip-text span, :is\(\.cp-scroll, \.ov-new\) > \.thread-notice \.strip-text span \{[^}]*overflow: visible; text-overflow: clip; \}/);
-});
-
-// The worktree menu's problem states read as Home's toned status chips (caption 12/16), not 11px plain text.
-test("the Overview worktree menu shows a problem as the toned status chip", async () => {
-  const { readFileSync } = await import("node:fs");
-  const source = readFileSync(new URL("./ProjectOverview.tsx", import.meta.url), "utf8");
-  expect(source).toContain('{chip ? <span className={chipClass(chip)}>{chip}</span> : marked && <Check aria-hidden="true" />}');
-  expect(source).not.toContain("shell-problem");
-  expect(readFileSync(new URL("./styles.css", import.meta.url), "utf8")).not.toContain(".shell-problem");
 });
 
 // runtime-test: the worktree row's label span grows (flex: 1), and the chip is a span too, so it stretched to 115px

@@ -1,5 +1,6 @@
 import { requestLines, splitRequestLines } from "../main/conversation/requestLines";
 import { skillWords } from "./skillWords";
+import { trimBlankLines } from "./composerLists";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { PROVIDERS, type AuthStatusDto, type Provider, type ReadinessCause } from "../main/agentAuth/types";
 import type { AcpModes, PermissionModeId } from "../main/conversation/permissionMode";
@@ -37,7 +38,7 @@ const ATTACHMENTS_ONLY = "Look at the attached files.";
 
 // The attachment list and main's Home paragraph travel outside this text, so neither counts toward the limit.
 export function composeRequest(text: string, preset: PresetRef | null, skills: readonly string[], attachments: number): string {
-  const body = text.trim(), header = requestLines(preset, skills).join("\n");
+  const body = trimBlankLines(text), header = requestLines(preset, skills).join("\n");
   if (header) return body ? `${header}\n\n${body}` : header;
   return body || (attachments > 0 ? ATTACHMENTS_ONLY : "");
 }

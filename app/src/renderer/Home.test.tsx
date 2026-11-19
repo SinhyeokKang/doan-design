@@ -132,7 +132,9 @@ test("a preset chip and attachments sit above the request; Send is enabled; the 
 test("Tab order is project, chip ×, field, toolbar, Send, worktree, suggestions, then the reason line's Open", () => {
   const worktrees: FolderEntry[] = ["/code/doan-design", "/code/doan-wt"].map((path, i) => ({ ...project(path), git: { common: "/code/doan-design/.git", main: "/code/doan-design", branch: i ? "feat" : "main", worktrees: [] } }));
   const html = render(worktrees, { preset: PRESETS[3]!, text: "" }, { running: new Map([["/code/doan-design", { conversationId: "c1", waiting: false }]]) });
-  const order = [...html.matchAll(/<(button|div class="composer-input doan-scroll")[^>]*?(aria-label="([^"]*)"|>([^<]*))/g)].map(m => m[3] ?? m[4] ?? "");
+  // The sidebar also has a worktree selector. This order is the Home composer's.
+  const stage = html.slice(html.indexOf('class="home-stage"'));
+  const order = [...stage.matchAll(/<(button|div class="composer-input doan-scroll")[^>]*?(aria-label="([^"]*)"|>([^<]*))/g)].map(m => m[3] ?? m[4] ?? "");
   const at = (label: string) => order.findIndex(item => item.startsWith(label));
   const sequence = ["Project:", "Remove preset", "Message", "Attach files or folders", "Design presets", "Agent:", "Send", "Worktree:", "Open"].map(at);
   expect(sequence.every(index => index >= 0)).toBe(true);

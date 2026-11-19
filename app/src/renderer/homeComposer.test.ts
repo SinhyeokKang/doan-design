@@ -56,8 +56,14 @@ const base = (over: Partial<SendInput> = {}): SendInput => ({
 
 // composeRequest
 
-test("a request without a preset is the user's text, trimmed", () => {
-  expect(composeRequest("  Draw a pricing page.\n\n", null, [], 0)).toBe("Draw a pricing page.");
+test("a request without a preset is the user's text without the blank lines around it", () => {
+  expect(composeRequest("\n \n Draw a pricing page.\n\n", null, [], 0)).toBe(" Draw a pricing page.");
+});
+
+// The first line's indentation may be a list's depth, so only blank lines (whitespace-only ones too) go.
+test("a list keeps its markers, its depth spaces and the first line's indentation", () => {
+  expect(composeRequest("\t\n  - a\n    - b\n1. c  \n \u3000\n", null, [], 0)).toBe("  - a\n    - b\n1. c  ");
+  expect(composeRequest("- a\n\n- b", preset("document"), [], 0)).toBe("Use the Doan design preset `document` (Document the design system).\n\n- a\n\n- b");
 });
 
 test("a preset adds its one-line header, a blank line, then the user's text", () => {
@@ -72,6 +78,7 @@ test("a preset alone sends only its header line, even with attachments", () => {
 
 test("attachments alone send the fixed sentence; nothing at all sends nothing", () => {
   expect(composeRequest(" \n ", null, [], 1)).toBe("Look at the attached files.");
+  expect(composeRequest(" \n\t\n ", null, [], 0)).toBe("");
   expect(composeRequest("", null, [], 0)).toBe("");
 });
 

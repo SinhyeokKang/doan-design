@@ -25,6 +25,7 @@ export function plan(flags) {
     // The buddy goldens are generated from their drafts; a draft changed without regenerating fails here.
     node("buddy-golden", ["app/scripts/doanyGolden.mjs", "--check"]),
     node("docked-buddy-golden", ["app/scripts/dockedBuddyGolden.mjs", "--check"]),
+    node("viewer-inspect", ["app/scripts/viewerInspect.mjs", "--check"]),
     { name: "go-test", command: "go", args: ["test", "./..."] },
     { name: "go-vet", command: "go", args: ["vet", "./..."] },
     npm("typecheck", ["run", "typecheck"]),

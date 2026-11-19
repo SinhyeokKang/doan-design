@@ -22,8 +22,9 @@ var viewerFS embed.FS
 // header, the CSS-only iframe width, and the JSON shell.js reads all come from
 // these two values.
 type Meta struct {
-	Name  string // file stem
-	Width int    // doan:width
+	Project string // project folder name (canvas viewer only)
+	Name    string // file stem
+	Width   int    // doan:width
 }
 
 var byteOrderMark = []byte("\xef\xbb\xbf")
@@ -37,7 +38,7 @@ func Assemble(m Meta, canvasHTML []byte) ([]byte, error) {
 		return nil, errors.New("canvas width must be a positive integer")
 	}
 	files := map[string]string{}
-	for _, name := range []string{"shell.html", "shell.css", "lib.js", "shell.js", "measure.js"} {
+	for _, name := range []string{"shell.html", "shell.css", "lib.js", "shell.js", "measure.js", "inspect.js", "inspectSelection.js", "inspectPanel.js", "inspectMessage.js", "inspectView.js"} {
 		b, err := viewerFS.ReadFile("viewer/" + name)
 		if err != nil {
 			return nil, err
@@ -54,8 +55,8 @@ func Assemble(m Meta, canvasHTML []byte) ([]byte, error) {
 	}
 	// Both scripts are wrapped in a function: lib.js and the other files declare
 	// top-level names that must not become globals of the canvas.
-	shellScript := "(function () {\n" + lib + "\n" + shellJS + "\n})();"
-	measureScript := "<script>(function () {\n" + lib + "\n" + measure + "\n})();</script>"
+	shellScript := "(function () {\n" + lib + "\n" + files["inspectPanel.js"] + "\n" + files["inspectMessage.js"] + "\n" + files["inspectView.js"] + "\n" + shellJS + "\n})();"
+	measureScript := "<script>(function () {\n" + lib + "\n" + files["inspect.js"] + "\n" + files["inspectSelection.js"] + "\n" + measure + "\n})();</script>"
 
 	// A browser drops a byte order mark; in a srcdoc string it would be text and
 	// put the canvas into quirks mode.
@@ -64,8 +65,11 @@ func Assemble(m Meta, canvasHTML []byte) ([]byte, error) {
 	srcdoc := [][]byte{canvas[:at], []byte(measureScript), canvas[at:]}
 
 	values := map[string]string{
-		"{{NAME}}":  html.EscapeString(m.Name),
-		"{{WIDTH}}": strconv.Itoa(m.Width),
+		"{{NAME}}":    html.EscapeString(m.Name),
+		"{{WIDTH}}":   strconv.Itoa(m.Width),
+		"{{PROJECT}}": html.EscapeString(m.Project),
+		"{{INITIAL}}": html.EscapeString(projectInitial(m.Project)),
+		"{{HUE}}":     projectHue(m.Project),
 		// json.Marshal writes every "<" as <, so the value can neither end the
 		// script element nor open an HTML comment.
 		"{{META}}":   string(meta),
@@ -179,7 +183,7 @@ func fillPage(shell string, values map[string]string, srcdoc [][]byte) []byte {
 
 const srcdocKey = "{{SRCDOC}}"
 
-var placeholders = []string{"{{NAME}}", "{{WIDTH}}", "{{META}}", "{{STYLE}}", "{{SCRIPT}}", srcdocKey}
+var placeholders = []string{"{{PROJECT}}", "{{INITIAL}}", "{{HUE}}", "{{NAME}}", "{{WIDTH}}", "{{META}}", "{{STYLE}}", "{{SCRIPT}}", srcdocKey}
 
 // fillShell walks shell once, passing the text between placeholders to text
 // and each placeholder to value. Like a strings.Replacer, it never looks at

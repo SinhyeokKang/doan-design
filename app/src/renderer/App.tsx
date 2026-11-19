@@ -35,7 +35,8 @@ import { announcedAgain } from "./listRetry";
 import { useVisibleClock } from "./visibleClock";
 import { useActivationFocus } from "./activationFocus";
 import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, routeCanvasPublish, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
-import { CanvasHeader } from "./CanvasHeader";
+import { headerMove } from "./worktreeSwitchModel";
+import { CanvasHeader, type CanvasHeaderNavigation } from "./CanvasHeader";
 import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool, type PlayTool } from "./CanvasTools";
 import { canvasPlayability, drawerPlayRequest, playDrawer, playRequest, playTooltip } from "./prototypePlay";
 import { canvasBubbleRoom } from "./sizeBubble";
@@ -71,6 +72,7 @@ import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT, sidebarRowRequest } from "./
 import { canvasStrongestSignal, panelOpenFor, type CanvasSignal, type PanelArrival, type PanelFocus, type PanelTrigger } from "./rightPanelOpen";
 import { HANDOFF_WAIT_MS, handoffArrival, handoffGoneText, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
 import { bubbleAddAvailability, PICKER_UNAVAILABLE, pickerAvailability, targetAnchor, type CanvasLoad, type Rect } from "./canvasPicker";
+import { bubbleItems } from "./bubbleItems";
 import { BubbleAdd } from "./BubbleAdd";
 import type { DockedFieldLink } from "./DockedComposer";
 import type { LocateOutcome } from "./ConversationThread";
@@ -212,6 +214,8 @@ export function validHistoryVisit(entries: readonly FolderEntry[], visit: Visit)
   return !!entry && entry.kind !== "notFound" && (entry.kind !== "list" || !visit.canvas || entry.canvases.some(row => row.path === visit.canvas));
 }
 
+const HEADER_SHOW_INSPECTOR = '.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]';
+
 // paint: the renderer entry's first-paint buddy and how to apply another; without it (tests) nothing is painted.
 export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const [homeDirectory, setHomeDirectory] = useState<string | null>(null);
@@ -311,6 +315,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // the toolbar's Picker that focus goes to when the bubble goes, and the chip waiting for a folded panel to unfold.
   const [bubbleHost, setBubbleHost] = useState<HTMLElement | null>(null);
   const bubbleAddButton = useRef<HTMLButtonElement | null>(null);
+  const bubbleInspectButton = useRef<HTMLButtonElement | null>(null);
   const pickerButton = useRef<HTMLButtonElement | null>(null);
   const waitingChip = useRef<WaitingChip | null>(null);
   const [reroot, setReroot] = useState<(FolderFocus & { seq: number }) | null>(null);
@@ -635,6 +640,16 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       // The bubble went while Add to message had focus: the toolbar's Picker is the visible control that adds a chip.
       onFocusLost: () => { (pickerButton.current?.isConnected ? pickerButton.current : viewport.current)?.focus({ preventScroll: true }); },
     };
+    instance.bubbleInspect = {
+      onInspect: () => live.current.showBubbleInspector(),
+      button: () => bubbleInspectButton.current,
+      onFocusLost: () => handInspectorFocus(HEADER_SHOW_INSPECTOR),
+      restoreFocus: () => {
+        // A background reload can restore DOM focus before the window delivers focusin.
+        inspectorActivation.current();
+        bubbleInspectButton.current?.focus({ preventScroll: true });
+      },
+    };
     // The overlay covers the canvas, so its view commands do nothing meanwhile (ARCHITECTURE §7 'Problem overlay').
     const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace" && !overlaidRef.current) instance.command(name); });
     return () => { navigationIntent.current++; stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
@@ -833,10 +848,17 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     else controller.current?.openWorkspace(root, next => completeNavigation(next), false);
   };
   // opened: after the canvas shows, for a caller that records something only once the open went through.
-  const openShellCanvas = (root: string, row: CanvasRow, cursor?: number, opened?: () => void) => {
+  const openShellCanvas = (root: string, row: CanvasRow, cursor?: number, opened?: () => void, keepView = false) => {
     if (locked()) return;
     cancelRestore();
-    controller.current?.openCanvas(root, row, undefined, { opened: () => { completeNavigation(root, cursor); opened?.(); }, unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path, live.current.projectLabel(root))) });
+    controller.current?.openCanvas(root, row, undefined, { ...(keepView ? { keepView } : {}), opened: () => { completeNavigation(root, cursor); opened?.(); }, unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path, live.current.projectLabel(root))) });
+  };
+  const switchCanvasWorktree = (root: string, path: string) => {
+    const entry = entriesRef.current.find(entry => entry.path === root);
+    const move = headerMove(entry, path);
+    const row = move.kind === "canvas" && entry?.kind === "list" ? entry.canvases.find(row => row.path === move.path) : undefined;
+    if (row) openShellCanvas(root, row, undefined, undefined, true);
+    else toast.show(unavailableCanvasMessage(entry, path, projectLabel(root)));
   };
   // arrived: after the move commits, for an entry point that asks the Overview for a conversation.
   const showShellOverview = (root: string, cursor?: number, arrived?: () => void) => {
@@ -1079,8 +1101,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // renderer-only lifetime checks').
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
   useLayoutEffect(() => { toast.setModal(toastHeld); }, [toastHeld]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, addToMessage: () => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {}, prototypeReveal: (_request: PrototypeReveal) => {}, prototypeLastUsed: (_choice: ComposerChoice) => {}, conversationHandoff: (_notice: ConversationHandoffNotice) => {}, handoffCheck: () => {}, forgetRemoved: (_paths: readonly string[]) => {} });
-  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, addToMessage, captured, followMode, openLink, openCanvasRequest, prototypeReveal, prototypeLastUsed, conversationHandoff, handoffCheck, forgetRemoved };
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, addToMessage: () => {}, showBubbleInspector: () => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {}, prototypeReveal: (_request: PrototypeReveal) => {}, prototypeLastUsed: (_choice: ComposerChoice) => {}, conversationHandoff: (_notice: ConversationHandoffNotice) => {}, handoffCheck: () => {}, forgetRemoved: (_paths: readonly string[]) => {} });
+  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, addToMessage, showBubbleInspector, captured, followMode, openLink, openCanvasRequest, prototypeReveal, prototypeLastUsed, conversationHandoff, handoffCheck, forgetRemoved };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -1632,7 +1654,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     else if (name === "setUp") { rememberFocus(); setupSeq.current = rerootSeq.current; setSetup(root); }
     else if (name === "remove") void remove([root]);
     else if (name === "showInFinder") void window.doan.revealProject(root).catch(console.error);
-    else if (name === "retry") void window.doan.reopenFolder(root).catch(console.error).finally(() => settled?.());
+    else if (name === "retry") return window.doan.reopenFolder(root).catch(console.error).finally(() => settled?.());
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- keeps a new RowAction from falling into the locate branch
     else if (name === "locate") {
       const workspace = loadedRoot === root && currentScreen.current === "workspace";
@@ -1946,7 +1968,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     // 1): every registered worktree of the group, not only the open one.
     if (name === "remove") { void removeProject([root]); return; }
     if (name === "retry" || name === "locate" || name === "setUp") setPressed({ root, name });
-    action(name, root, undefined, () => pressEnded(root, name));
+    void action(name, root, undefined, () => pressEnded(root, name));
   };
   // The polite live region's text: the heading, when a scene shows or comes back from a read without taking focus.
   // Alternating a trailing no-break space makes the same heading read again.
@@ -2077,9 +2099,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (picking) { pressedCancel(); instance.cancelPick(); return; }
     if (!pickerReady) return;
     const from = document.activeElement, field = composerLink.current?.element() ?? null;
-    const bubble = from !== null && (from === bubbleAddButton.current || from === instance.bubblePlayButton());
+    const fromInspect = from !== null && from === bubbleInspectButton.current;
+    const bubble = fromInspect || (from !== null && (from === bubbleAddButton.current || from === instance.bubblePlayButton()));
     // The picker, the page, the canvas and the field itself are where a pick leaves focus; anything else ends it.
     const focus = new FocusIntent(target => !target || target === from || target === document.body || target === field
+      || (fromInspect && target === document.querySelector(HEADER_SHOW_INSPECTOR))
       || (target instanceof Node && !!viewport.current?.contains(target)));
     pickIntent.current?.focus.end();
     pickIntent.current = { field, from, focus, bubble };
@@ -2383,21 +2407,32 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     setInspectorMotion(true);
     changeInspector(previous => ({ ...previous, open }));
   };
+  function showBubbleInspector() {
+    if (canvasPage && !overlaidRef.current && canvasPanels.inspectorFits && !inspectorPanel.open) foldInspector(true);
+  }
   const previewInspector = (width: number) => shellRoot.current?.style.setProperty("--doan-inspector-width", `${width}px`);
   const resizeInspector = (width: number | undefined) => changeInspector(previous => width === undefined ? { open: previous.open } : { ...previous, width });
   useEffect(() => {
     const to = inspectorFocus.current;
     inspectorFocus.current = null;
-    if (to) document.querySelector<HTMLElement>(to === "show" ? '.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]' : ".doan-insp-panel .doan-panel-hide")?.focus();
+    if (to) document.querySelector<HTMLElement>(to === "show" ? HEADER_SHOW_INSPECTOR : ".doan-insp-panel .doan-panel-hide")?.focus();
   }, [inspectorPanel.open]);
   // Whether the control that last took focus was in the inspector column: the column turns inert in the same commit that
   // hides it, so by the time an effect runs focus has already fallen to the page, and only this says it was there. Read
   // when focus arrives, since the control itself may have been redrawn since (a row list read again).
+  const inspectorActivation = useRef<() => void>(() => {});
+  const inspectorShowFocused = useRef<Element | null>(null);
   const focusInInspector = useRef(false);
   useEffect(() => {
     // focusin targets an element (focus on the page itself fires none).
     // The element menu is portalled out of the column, and it closes with it, so focus in it counts as in the inspector.
-    const focusin = (event: FocusEvent) => { focusInInspector.current = (event.target as Element | null)?.closest(".doan-insp-column, .doan-insp-menu") != null; };
+    const focusin = (event: FocusEvent) => {
+      // A later destination in the background supersedes the pending hand-off. Once active, the platform's own
+      // restore can move focus between the immediate hand-off and its deferred repeat.
+      if (!document.hasFocus()) inspectorActivation.current();
+      if (event.target !== inspectorShowFocused.current) inspectorShowFocused.current = null;
+      focusInInspector.current = (event.target as Element | null)?.closest(".doan-insp-column, .doan-insp-menu") != null;
+    };
     document.addEventListener("focusin", focusin);
     return () => document.removeEventListener("focusin", focusin);
   }, []);
@@ -2405,11 +2440,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // which now says why, rather than falling to the page.
   // Widening again removes Show inspector; if focus was on it, it goes on to Hide inspector, as unfolding does.
   const inspectorWasShown = useRef(inspectorShown);
-  // The Show inspector button that last took focus (the header reports it).
-  const inspectorShowFocused = useRef<Element | null>(null);
   // A hand-off made while the window is in the background is made again on activation (POSTMORTEM 2026-11-17): the
   // platform restores focus to the control it remembered, here one the column took away, and lands on Hide sidebar.
-  const inspectorActivation = useRef<() => void>(() => {});
   useEffect(() => () => inspectorActivation.current(), []);
   const handInspectorFocus = (selector: string) => {
     const target = () => document.querySelector<HTMLElement>(selector);
@@ -2429,7 +2461,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       // Still inside the column or its element menu (closing, it stays mounted for its exit animation), or already on
       // the page.
       const fell = active === null || active === document.body || (active instanceof HTMLElement && active.closest(".doan-insp-column, .doan-insp-menu") !== null);
-      if (fell && focusInInspector.current) handInspectorFocus('.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]');
+      if (fell && focusInInspector.current) handInspectorFocus(HEADER_SHOW_INSPECTOR);
       return;
     }
     const show = inspectorShowFocused.current;
@@ -2599,7 +2631,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     mcp={{ watch: mcpWatch.current, openAgents: provider => openSettings({ section: "agents", provider }) }} announcement={settingsAnnouncement} />}
   {onProjectSettings && <ProjectSettingsPage key={projectSettings.key} header={topBar(true)} sidebar={sidebar(true)} root={projectSettings.root} entries={entries} reroot={reroot}
     origin={page.origin} homeDirectory={homeDirectory} arrival={projectSettings.arrival} onState={projectSettingsReport} onGone={() => leavePage({ kind: "gone" })}
-    onRerooted={projectSettingsRerooted} onAction={(name, root, notice) => action(name, root, notice)}
+    onRerooted={projectSettingsRerooted} onAction={(name, root, notice) => void action(name, root, notice)}
     onRemove={() => void removeProject([projectSettings.root])} />}
   {onPage && <AddProjectsPage key={page.seq} header={topBar(true)} sidebar={sidebar(true)} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)} choose={page.chooseSeq} onState={pageReport} onCancel={() => leavePage({ kind: "cancel" })} onAdded={pageAdded} />}
@@ -2610,14 +2642,17 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     {topBar(false)}
     {sidebar(false)}
     {strip}
-    <CanvasPane viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} view={canvasView.current} command={command} covered={overview !== null || overlaid} overlaid={overlaid}
+    <CanvasPane navigation={card && loadedRoot ? { card, root: loadedRoot, homeDirectory, overview: () => showShellOverview(loadedRoot), worktree: switchCanvasWorktree } : null}
+      viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} view={canvasView.current} command={command} covered={overview !== null || overlaid} overlaid={overlaid}
       zoomTo={scale => controller.current?.zoomTo(scale)} onToolbarEscape={event => controller.current?.toolbarEscape(event)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: showPanel, badge: panelBadge }}
       inspector={{ open: inspectorPanel.open, fits: canvasPanels.inspectorFits, show: () => foldInspector(true), focused: node => { inspectorShowFocused.current = node; } }}
       agent={{ list: state.open ? run.listState(state.open.folder) : undefined, shown: canvasRun.current!.showing()?.conversationId ?? null, canvas: workingCanvas(state.open, state.unlisted, entry), buddy: buddySelection.shown, running: screen === "workspace" && overview === null, work, entries,
         conversationWork, frames: state.layout?.frames ?? null, onWork: target => controller.current?.setWork(target),
         onOpen: openRequest, onOpenSibling }}
       picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas, button: pickerButton }} capture={capture} player={player} exporter={exporter} />
-    {bubbleHost && <BubbleAdd host={bubbleHost} enabled={bubbleAddView.enabled} reason={bubbleAddView.reason} button={bubbleAddButton} onEscape={event => controller.current?.toolbarEscape(event)} />}
+    {bubbleHost && <BubbleAdd host={bubbleHost} enabled={bubbleAddView.enabled} reason={bubbleAddView.reason} button={bubbleAddButton}
+      items={bubbleItems({ play: false, inspectorOpen: inspectorPanel.open, inspectorFits: canvasPanels.inspectorFits })}
+      inspectButton={bubbleInspectButton} focused={node => { inspectorShowFocused.current = node; }} onEscape={event => controller.current?.toolbarEscape(event)} />}
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
       unavailable={null}
@@ -2740,8 +2775,8 @@ export function CanvasLoading() {
 // The window draws one canvas pane, so the failure line's id is fixed.
 const CANVAS_FAILED_ID = "doan-canvas-failed";
 
-function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, inspector, agent, picking, capturing, tool, onTool, picker, capture, player, exporter }: {
-  viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
+function CanvasPane({ navigation, viewport, board, overlay, dragLayer, state, view, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, inspector, agent, picking, capturing, tool, onTool, picker, capture, player, exporter }: {
+  navigation: CanvasHeaderNavigation | null; viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   // covered: the Overview or a problem's overlay is over the pane. overlaid: the overlay, which names the problem itself.
   state: CanvasState; view: CanvasViewStore; command: (name: ViewCommand) => void; covered: boolean; overlaid: boolean;
   zoomTo(scale: number): void; onToolbarEscape(event: KeyboardEvent): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: CanvasSignal | null }; inspector: { open: boolean; fits: boolean; show(): void; focused(node: Element): void }; agent: AgentProps;
@@ -2755,7 +2790,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
   if (retry !== pressedRetry) setRetry(retry);
   // Stays laid out under the Overview: opening a canvas fits it to this size at once.
   return <div className="doan-canvas-panel" ref={panel} inert={covered}>
-    <CanvasHeader state={state} view={view} canvasKey={canvasKey} command={command} zoomTo={zoomTo} selectFrame={selectFrame} fallbackFocus={() => viewport.current?.focus()} panel={conversation} inspector={inspector} />
+    <CanvasHeader navigation={navigation} state={state} view={view} canvasKey={canvasKey} command={command} zoomTo={zoomTo} selectFrame={selectFrame} fallbackFocus={() => viewport.current?.focus()} panel={conversation} inspector={inspector} />
     <section className="area" role="region" aria-label="Canvas" tabIndex={-1} ref={viewport} data-picking={picking ? "" : undefined}>
     <div className="board" ref={board} hidden />
     <div className="overlay" ref={overlay} />

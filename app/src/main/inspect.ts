@@ -569,6 +569,8 @@ const ROWS: { group: InspectGroup; label: string; props: string[]; color?: boole
   { group: "layout", label: "Align", props: ["align-items"], layout: ["flex", "grid"] },
 ];
 
+export { ROWS as inspectRowDefinitions, candidates, cascadeWinner };
+
 function combine(values: string[]): string {
   if (values.length === 4) return collapseBox(values);
   if (values.length === 2) return values[0] === values[1] ? values[0] ?? "" : values.join(" ");

@@ -1,5 +1,6 @@
-import { expect, test } from "vitest";
-import { fieldSkillRuns, insertSkillText, replaceSlashSkill, skillAnnouncements, skillWords, skillTextParts, sameSkillRanges, sameSkillNames } from "./skillWords";
+import { describe, expect, test } from "vitest";
+import type { Anchor } from "../main/conversation/types";
+import { fieldHighlightRuns, fieldRuns, fieldSkillRuns, insertSkillText, replaceSlashSkill, skillAnnouncements, skillWords, skillTextParts, sameSkillRanges, sameSkillNames } from "./skillWords";
 import { textSegments, type FieldSegment } from "./anchorField";
 
 const names = new Set(["deploy", "db-migrate"]);
@@ -73,4 +74,58 @@ test("name equality ignores Set identity and order but detects additions and rem
   expect(sameSkillNames(names, new Set(["db-migrate", "deploy"]))).toBe(true);
   expect(sameSkillNames(names, new Set(["deploy"]))).toBe(false);
   expect(sameSkillNames(names, new Set(["deploy", "review"]))).toBe(false);
+});
+
+describe("fieldRuns", () => {
+  const anchor: Anchor = { frame: { id: "payment" } };
+  const commands = new Set(["review"]);
+
+  test("adds the list marker and depth-space runs to the skill runs, in field order", () => {
+    expect(fieldRuns(textSegments("- a\n  - /deploy b\n12. c"), names, commands)).toEqual([
+      { kind: "mark", start: 0, end: 2, list: "ul", depth: 0 },
+      { kind: "depth", start: 4, end: 6, depth: 1 },
+      { kind: "mark", start: 6, end: 8, list: "ul", depth: 1 },
+      { kind: "skill", start: 8, end: 15, name: "deploy" },
+      { kind: "mark", start: 18, end: 22, list: "ol", depth: 0 },
+    ]);
+  });
+
+  test("a leading command stays the field's first word ahead of a list", () => {
+    expect(fieldRuns(textSegments("/review\n- /deploy"), names, commands)).toEqual([
+      { kind: "skill", start: 0, end: 7, name: "review" },
+      { kind: "mark", start: 8, end: 10, list: "ul", depth: 0 },
+      { kind: "skill", start: 10, end: 17, name: "deploy" },
+    ]);
+    // A marker before it makes the command no longer the first word, as fieldHighlightRuns already decides.
+    expect(fieldRuns(textSegments("- /review"), names, commands)).toEqual([{ kind: "mark", start: 0, end: 2, list: "ul", depth: 0 }]);
+  });
+
+  test("leading spaces of a depth-0 item are a depth run of depth 0", () => {
+    expect(fieldRuns(textSegments("  - a"), names, commands)).toEqual([
+      { kind: "depth", start: 0, end: 2, depth: 0 },
+      { kind: "mark", start: 2, end: 4, list: "ul", depth: 0 },
+    ]);
+  });
+
+  test("chips count one unit, and a line that starts with a chip has no marker", () => {
+    const segments: FieldSegment[] = [{ kind: "chip", anchor }, { kind: "text", text: " - a\n- " }, { kind: "chip", anchor }, { kind: "text", text: " /deploy" }];
+    expect(fieldRuns(segments, names, commands)).toEqual([
+      { kind: "mark", start: 6, end: 8, list: "ul", depth: 0 },
+      { kind: "skill", start: 10, end: 17, name: "deploy" },
+    ]);
+  });
+
+  test("a year and other plain lines get no runs", () => {
+    expect(fieldRuns(textSegments("2026. 11. 19. 회의\n-a\n**b**"), names, commands)).toEqual([]);
+  });
+
+  test("a pasted list in several segments is marked like a typed one", () => {
+    expect(fieldRuns([{ kind: "text", text: "intro\n- a\n" }, { kind: "text", text: "- b" }], names, commands).map(run => [run.kind, run.start])).toEqual([["mark", 6], ["mark", 10]]);
+  });
+
+  test("fieldHighlightRuns still returns only the highlighted words", () => {
+    expect(fieldHighlightRuns(textSegments("/review\n- /deploy"), names, commands)).toEqual([
+      { start: 0, end: 7, name: "review" }, { start: 10, end: 17, name: "deploy" },
+    ]);
+  });
 });

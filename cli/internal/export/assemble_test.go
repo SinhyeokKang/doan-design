@@ -196,10 +196,10 @@ func TestAssembleInjectsLibAndMeasureInOneFunction(t *testing.T) {
 		t.Fatal(err)
 	}
 	script := injectedScript(t, parseShell(t, page).srcdoc)
-	lib, measure := viewerFile(t, "lib.js"), viewerFile(t, "measure.js")
-	want := "<script>(function () {\n" + lib + "\n" + measure + "\n})();</script>"
+	source := strings.Join([]string{viewerFile(t, "lib.js"), viewerFile(t, "inspect.js"), viewerFile(t, "inspectSelection.js"), viewerFile(t, "measure.js")}, "\n")
+	want := "<script>(function () {\n" + source + "\n})();</script>"
 	if script != want {
-		t.Fatalf("injected script is not lib.js + measure.js in one function (%d bytes, want %d)", len(script), len(want))
+		t.Fatalf("canvas readers and measurement must share one function (%d bytes, want %d)", len(script), len(want))
 	}
 	if strings.Count(script, "</script") != 1 || strings.Contains(script, "<!--") {
 		t.Fatal("the injected script could end early")
@@ -211,9 +211,10 @@ func TestAssembleShellScriptIsLibAndShellInOneFunction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "(function () {\n" + viewerFile(t, "lib.js") + "\n" + viewerFile(t, "shell.js") + "\n})();"
+	source := strings.Join([]string{viewerFile(t, "lib.js"), viewerFile(t, "inspectPanel.js"), viewerFile(t, "inspectMessage.js"), viewerFile(t, "inspectView.js"), viewerFile(t, "shell.js")}, "\n")
+	want := "(function () {\n" + source + "\n})();"
 	if !strings.Contains(string(page), "<script>\n"+want+"\n</script>") {
-		t.Fatal("the shell script is not lib.js + shell.js in one function")
+		t.Fatal("shell controls and inspection must share one function")
 	}
 	if !strings.Contains(string(page), "<style>\n"+viewerFile(t, "shell.css")+"\n</style>") {
 		t.Fatal("the shell style is not shell.css")

@@ -10,7 +10,7 @@ import { pickerAction, pickerFooter, providerShortStatus } from "./agentAuthView
 import { useActivationFocus } from "./activationFocus";
 import { AlertIcon } from "./AlertIcon";
 import type { FieldSegment } from "./anchorField";
-import { ChipField, type ChipInsert } from "./chipField";
+import { ChipField, moveFocus, type ChipInsert } from "./chipField";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import type { ComposerAction } from "./composerRules";
 import { outsidePresetList } from "./presetOutside";
@@ -131,6 +131,8 @@ export interface ComposerFieldHandle {
   insertChip(anchor: Anchor): ChipInsert;
   insertText(text: string): void;
   insertSkill(name: string, fromSlash?: boolean): void;
+  // Tab (1) or Shift+Tab (-1) on a list item; false when nothing moved and the key should move focus.
+  indent(dir: 1 | -1): boolean;
   composing(): boolean;
   element(): HTMLElement | null;
 }
@@ -185,6 +187,7 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
     insertChip: anchor => field.current?.insertChip(anchor) ?? "refused",
     insertText: text => field.current?.insertText(text),
     insertSkill: (name, fromSlash) => field.current?.insertSkill(name, fromSlash),
+    indent: dir => field.current?.indent(dir) ?? false,
     composing: () => field.current?.composing() ?? false,
     element: () => node.current,
   }), []);
@@ -193,7 +196,11 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
     role={combobox ? "combobox" : "textbox"} aria-multiline={combobox ? undefined : true} aria-expanded={combobox ? true : undefined} aria-controls={combobox ? combobox.listId : undefined}
     aria-autocomplete={combobox ? "list" : undefined} aria-activedescendant={combobox?.activeId}
     onKeyDown={event => {
-      if (props.onKey(event)) return;
+      const handled = props.onKey(event);
+      const tab = fieldTabKey(event);
+      if (tab === "focus" && !event.defaultPrevented) { event.preventDefault(); moveFocus(event.currentTarget, event.shiftKey); }
+      if (handled) return;
+      if (tab === "indent" && field.current?.indent(event.shiftKey ? -1 : 1)) { event.preventDefault(); return; }
       if (props.onSteerKey && steerKey({ key: event.key, ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, shiftKey: event.shiftKey, isComposing: event.nativeEvent.isComposing, keyCode: event.keyCode })) {
         event.preventDefault(); props.onSteerKey(); return;
       }
@@ -202,6 +209,14 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
     onPaste={event => { props.onPaste(event); if (!event.defaultPrevented) field.current?.paste(event.nativeEvent); }} />
     <FieldChipTip field={node} /></>;
 });
+
+// Tab and Shift+Tab indent a list item when the host left the key alone (a shown suggestion and the `/` list take Tab
+// first). Ctrl+Tab and Ctrl+Shift+Tab always move focus, as in a macOS text view; Chromium moves focus only on a Tab
+// without Ctrl, so the field moves it itself.
+export function fieldTabKey(event: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean }): "indent" | "focus" | null {
+  if (event.key !== "Tab" || event.metaKey || event.altKey) return null;
+  return event.ctrlKey ? "focus" : "indent";
+}
 
 // A chip's detail in the field. The chips are DOM the field draws, so no React trigger can wrap them: the tooltip
 // anchors to a box portalled to the body over the chip under the pointer (the body has no transform, so a fixed box
