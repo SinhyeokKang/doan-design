@@ -224,7 +224,7 @@ addEventListener("keydown", (event) => {
     event.preventDefault();
     return;
   }
-  if (event.key === "Escape" && !event.repeat && !event.isComposing && event.keyCode !== 229 && !event.defaultPrevented && !editableTarget(event.target)) post({ type: "key", key: "Escape" });
+  if (event.key === "Escape" && !(event.repeat && inspection.isOpen()) && !event.isComposing && event.keyCode !== 229 && !event.defaultPrevented && !editableTarget(event.target)) post({ type: "key", key: "Escape" });
 });
 
 // Every Space release goes to the page, which ignores one it did not hold: focus and modifiers can

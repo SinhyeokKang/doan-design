@@ -198,6 +198,7 @@ function canvasInspection(post) {
   }
   listen();
   return {
+    isOpen: () => open,
     command(data) {
       if (data.type === "inspect-mode" && Number.isSafeInteger(data.epoch) && data.epoch > epoch) {
         if (open) clearText();

@@ -458,7 +458,7 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     return;
   }
-  if (event.key !== "Escape" || event.repeat || event.isComposing || event.keyCode === 229) return;
+  if (event.key !== "Escape" || (event.repeat && !$("inspector").hidden) || event.isComposing || event.keyCode === 229) return;
   if (escapeKey(editableTarget(event.target), event.defaultPrevented)) event.preventDefault();
 });
 
