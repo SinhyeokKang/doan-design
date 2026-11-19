@@ -1,0 +1,77 @@
+[
+  {
+    "name": "northwind-customer-portal",
+    "hue": "indigo",
+    "initial": "N"
+  },
+  {
+    "name": "도안 작업실",
+    "hue": "orange",
+    "initial": "도"
+  },
+  {
+    "name": "🪄draw",
+    "hue": "orange",
+    "initial": "🪄"
+  },
+  {
+    "name": "a😀z",
+    "hue": "indigo",
+    "initial": "A"
+  },
+  {
+    "name": ".hidden",
+    "hue": "orange",
+    "initial": "."
+  },
+  {
+    "name": "9lives",
+    "hue": "orange",
+    "initial": "9"
+  },
+  {
+    "name": "",
+    "hue": "sky",
+    "initial": "?"
+  },
+  {
+    "name": " \t\n",
+    "hue": "sky",
+    "initial": "?"
+  },
+  {
+    "name": "﻿ßeta ",
+    "hue": "amber",
+    "initial": "SS"
+  },
+  {
+    "name": "alpha",
+    "hue": "teal",
+    "initial": ""
+  },
+  {
+    "name": "very-long-project-name-very-long-project-name-very-long-project-name-very-long-project-name-very-long-project-name-very-long-project-name-very-long-project-name-very-long-project-name-",
+    "hue": "sky",
+    "initial": "V"
+  },
+  {
+    "name": "b",
+    "hue": "fuchsia",
+    "initial": "B"
+  },
+  {
+    "name": "f",
+    "hue": "emerald",
+    "initial": "F"
+  },
+  {
+    "name": "c",
+    "hue": "indigo",
+    "initial": "C"
+  },
+  {
+    "name": "e",
+    "hue": "rose",
+    "initial": "E"
+  }
+]

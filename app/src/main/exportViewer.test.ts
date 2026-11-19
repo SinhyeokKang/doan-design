@@ -726,7 +726,7 @@ describe("viewer files", () => {
     const body = shellHtml.replace(/<!--[\s\S]*?-->/, "");
     const counts = new Map<string, number>();
     for (const m of body.matchAll(/\{\{([A-Za-z_]+)\}\}/g)) counts.set(m[1]!, (counts.get(m[1]!) ?? 0) + 1);
-    expect(Object.fromEntries(counts)).toEqual({ NAME: 2, WIDTH: 1, META: 1, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
+    expect(Object.fromEntries(counts)).toEqual({ PROJECT: 1, INITIAL: 1, HUE: 1, NAME: 2, WIDTH: 1, META: 1, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
     // The comment documents the placeholders by name: a brace form in it would be replaced too.
     expect(shellHtml.match(/<!--[\s\S]*?-->/)?.[0]).not.toContain("{{");
     for (const name of ["lib.js", "measure.js", "shell.js", "shell.css"]) expect(files[name], name).not.toContain("{{");
@@ -771,7 +771,7 @@ describe("without JavaScript", () => {
     expect(noscript.replace(/<[^>]*>/g, "")).toBe("This preview shows the top of the canvas. Open the file in a web browser to see all of it and its frames.");
   });
 
-  test("the header shows the canvas name alone until shell.js marks the page as scripted", () => {
+  test("the header shows the project and canvas names until shell.js marks the page as scripted", () => {
     // Hidden by default, shown only under `.js`.
     expect(shellCss).toMatch(/^\.ov-sep, \.ov-title-wrap, \.doan-canvas-head-tools \{ display: none; \}$/m);
     expect(shellCss).toMatch(/^\.js \.ov-sep, \.js \.ov-title-wrap, \.js \.doan-canvas-head-tools \{ display: flex; \}$/m);
@@ -779,6 +779,7 @@ describe("without JavaScript", () => {
     expect(shellJs.split("\n").filter(line => !line.startsWith("//") && line.trim() !== "")[0]).toBe('document.documentElement.classList.add("js");');
     // The drawer, zoom controls and the separator are all inside the hidden parts.
     const header = /<header[\s\S]*?<\/header>/.exec(shellHtml)?.[0] ?? "";
+    expect(header).toMatch(/<nav class="doan-canvas-trail" aria-label="Breadcrumb">[\s\S]*?<span class="doan-canvas-project"[\s\S]*?hue-\{\{HUE\}\}[\s\S]*?\{\{INITIAL\}\}[\s\S]*?\{\{PROJECT\}\}[\s\S]*?doan-canvas-sep-root[\s\S]*?id="name"/);
     expect(header.indexOf('class="ov-sep"')).toBeGreaterThan(header.indexOf('id="name"'));
     expect(header.indexOf('class="ov-title-wrap"')).toBeGreaterThan(header.indexOf('class="ov-sep"'));
     expect(header.indexOf('class="doan-canvas-head-tools"')).toBeGreaterThan(header.indexOf('class="ov-title-wrap"'));
@@ -821,6 +822,14 @@ describe("tokens are the app's", () => {
   }).replace(/\s+/g, " ");
   const app = roots(tokensCss);
   const viewer = roots(shellCss);
+
+  test("project thumbnail colors and shape match the sidebar", () => {
+    expect(declarations(shellCss, ".shell-thumbnail")).toEqual(declarations(stylesCss, ".shell-thumbnail"));
+    for (const hue of ["rose", "orange", "amber", "emerald", "teal", "sky", "indigo", "fuchsia"]) {
+      expect(viewer.has(`--identity-project-${hue}`)).toBe(true);
+      expect(declarations(shellCss, `.hue-${hue}`)).toEqual(declarations(stylesCss, `.hue-${hue}`));
+    }
+  });
 
   test("every token the viewer copies resolves to the app's value", () => {
     expect(viewer.size).toBeGreaterThan(50);
