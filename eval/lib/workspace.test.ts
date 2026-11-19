@@ -246,7 +246,9 @@ test("worktree runs the agent in a second worktree of the seed commit while the 
   assert.equal(existsSync(ws.base), false);
 });
 
-test("a Codex run in a second worktree trusts that worktree and the first, and nothing else", async () => {
+// Codex 0.169.0 loads a linked worktree's project config when the first worktree is trusted (probe), so the second one
+// is not trusted on its own.
+test("a Codex run in a second worktree trusts only the first", async () => {
   const saved = process.env.CODEX_HOME;
   const fake = mkdtempSync("/tmp/doan-eval-codex-home-");
   try {
@@ -254,7 +256,7 @@ test("a Codex run in a second worktree trusts that worktree and the first, and n
     const ws = await prepareWorkspace({ scenario: { ...seeded(), worktree: { branch: "feat-plan-copy" } }, agent: "codex", cli, stub: "stub\n" });
     try {
       assert.equal(readFileSync(join(ws.env.CODEX_HOME!, "config.toml"), "utf8"),
-        `[projects.${JSON.stringify(ws.repo)}]\ntrust_level = "trusted"\n\n[projects.${JSON.stringify(ws.cwd)}]\ntrust_level = "trusted"\n`);
+        `[projects.${JSON.stringify(ws.repo)}]\ntrust_level = "trusted"\n`);
     } finally { await ws.dispose(); }
   } finally {
     if (saved === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = saved;
