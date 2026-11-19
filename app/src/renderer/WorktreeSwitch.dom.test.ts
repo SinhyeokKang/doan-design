@@ -1,0 +1,59 @@
+import { fileURLToPath } from "node:url";
+import { afterAll, beforeAll, expect, test } from "vitest";
+import { build, type Rolldown } from "vite";
+import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
+
+let dom: ElectronDom;
+let script: string;
+
+beforeAll(async () => {
+  const entry = fileURLToPath(new URL("./worktree-probe.tsx", import.meta.url));
+  const result = await build({ configFile: false, logLevel: "silent", plugins: [{
+    name: "worktree-probe",
+    resolveId(id) { if (id === entry) return entry; },
+    load(id) {
+      if (id !== entry) return;
+      return `
+        import { createRoot } from "react-dom/client";
+        import { WorktreeSwitch } from "./WorktreeSwitch";
+        import { TooltipProvider } from "./components/ui/tooltip";
+        import { headerRowState, worktreeSwitchModel } from "./worktreeSwitchModel";
+        const main = { path: "/code/demo", kind: "list", git: { branch: "main" }, canvases: [{path: "a.html"}] };
+        const root = createRoot(document.querySelector("main"));
+        window.draw = (ready, reason) => {
+          const other = ready ? {...main, path: "/code/next", git: {branch: "next"}} : {kind: "loading", path: "/code/next"};
+          const model = worktreeSwitchModel([main, other], main.path, "/code", row => headerRowState(row, "a.html"));
+          root.render(<TooltipProvider><div onKeyDown={() => document.body.dataset.key = "bubbled"} onClick={() => document.body.dataset.click = "bubbled"}>
+            <WorktreeSwitch model={model} reason={reason} tabIndex={0} onWorktree={root => document.body.dataset.moved = root} />
+          </div></TooltipProvider>);
+        };
+        window.draw(false, null);
+      `;
+    },
+  }], build: { write: false, lib: { entry, formats: ["iife"], name: "Probe" } } });
+  script = ((Array.isArray(result) ? result[0] : result) as Rolldown.RolldownOutput).output[0].code;
+  dom = await launchElectronDom();
+}, 60_000);
+afterAll(async () => { await dom?.close(); }, 30_000);
+
+test("a reading row becomes selectable under the same focus, and reselecting the current row only closes", async () => {
+  const frame = await dom.load("<main></main>");
+  await frame.addScriptTag({ content: script });
+  const trigger = frame.getByRole("button", { name: "Worktree: main" });
+  await trigger.press("ArrowDown");
+  const next = frame.getByRole("menuitem", { name: /next/ });
+  await next.focus();
+  expect(await next.getAttribute("aria-disabled")).toBe("true");
+  await next.press("Enter");
+  expect(await next.isVisible()).toBe(true);
+  await frame.evaluate(() => (window as unknown as { draw(ready: boolean, reason: null): void }).draw(true, null));
+  await next.locator("small").waitFor();
+  await expect.poll(() => next.getAttribute("aria-disabled")).toBeNull();
+  expect(await next.evaluate(node => document.activeElement === node)).toBe(true);
+  await frame.getByRole("menuitem", { name: /main/ }).click();
+  await next.waitFor({ state: "hidden" });
+  expect(await frame.locator("body").getAttribute("data-moved")).toBeNull();
+  await trigger.press("ArrowDown");
+  await next.click();
+  expect(await frame.locator("body").getAttribute("data-moved")).toBe("/code/next");
+});
