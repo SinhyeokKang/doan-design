@@ -536,7 +536,7 @@ export class ChipField {
   }
 
   private flushHeld(): void {
-    if (this.composingNow) return;
+    if (this.composingNow || this.held.length === 0) return;
     // A field the host locked meanwhile takes no held edit.
     if (this.readOnly()) { this.held = []; return; }
     for (const entry of this.held) {
