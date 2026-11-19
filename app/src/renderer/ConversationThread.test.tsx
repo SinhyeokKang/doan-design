@@ -745,3 +745,96 @@ describe("the read error's Retry", () => {
     expect(html("error", { retry: { running: false, failures: 1 } })).toContain("Try again. If it keeps failing, start a new conversation. </span>");
   });
 });
+
+// The person's lists in the bubble (spec: sent bubble lists). Blocks carry role="list"/"listitem", never ul/ol, so the
+// marker and depth spaces are text Chromium copies.
+describe("a sent list", () => {
+  const user = (text: string, extra: Partial<Extract<ThreadItem, { kind: "user" }>> = {}): ThreadItem =>
+    ({ kind: "user", key: "u1", seq: 1, anchors: [], preset: null, attachments: [], parts: [{ text }], ...extra });
+  // The bubble's inner markup, up to its own closing tag.
+  function bubble(item: ThreadItem): string {
+    const out = html([item]), start = out.indexOf('<div class="bubble">') + '<div class="bubble">'.length;
+    let depth = 1;
+    for (const tag of out.slice(start).matchAll(/<(\/?)div\b/g)) {
+      depth += tag[1] ? -1 : 1;
+      if (depth === 0) return out.slice(start, start + tag.index);
+    }
+    throw new Error("no bubble");
+  }
+  const decode = (text: string) => text.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#x27;/g, "'").replace(/&amp;/g, "&");
+  // Chromium's copy of a selection over the bubble, as measured in Electron for this markup: a block element (div, or
+  // the display:block .bubble-text) starts a new line once, and a block's own last line break is neither drawn nor
+  // copied. Inline spans (marker, depth, body, skill word, chip label) add no break.
+  function copied(markup: string): string {
+    let out = "", lineBreak = false, sinceBreak = "";
+    const blocks: boolean[] = [];
+    const boundary = () => { if (sinceBreak.endsWith("\n")) out = out.slice(0, -1); sinceBreak = ""; if (out) lineBreak = true; };
+    for (const [, close, tag, attrs, text] of markup.matchAll(/<(\/?)([a-z]+)([^>]*)>|([^<]+)/g)) {
+      if (text !== undefined) {
+        if (lineBreak) { out += "\n"; lineBreak = false; }
+        const value = decode(text);
+        out += value; sinceBreak += value;
+        continue;
+      }
+      if (close) { if (blocks.pop()) boundary(); continue; }
+      const block = tag === "div" || /class="bubble-text"/.test(attrs!);
+      if (/\/$/.test(attrs!) || ["path", "circle", "rect", "line", "polyline"].includes(tag!)) { if (!/\/$/.test(attrs!)) blocks.push(false); continue; }
+      blocks.push(block);
+      if (block) boundary();
+    }
+    return out;
+  }
+
+  test.each([
+    "- a\n- b",
+    "Before:\n- a\n  - b\n    - c\n- d\nAfter",
+    "1. a\n1. b\n   - c\n2. d",
+    "- a\n\n- b",
+    "Intro\n\n- a\n\n\nOutro",
+    "- \n- b\n*  three spaces",
+    "\t- tab\n  - two",
+    "  - indented first line\nplain **bold** `code`\n# heading\n---",
+    "9. a\n10. b\n100. c",
+  ])("copying the bubble gives back the sent text: %j", text => {
+    const markup = bubble(user(text));
+    expect(markup).toContain('role="list"');
+    expect(copied(markup)).toBe(text);
+  });
+
+  test("the copy model reads a plain message as before", () => {
+    expect(copied(bubble(user("One\ntwo\n\nthree")))).toBe("One\ntwo\n\nthree");
+  });
+
+  test("items are role list blocks with the marker and depth as text spans; numbers as typed", () => {
+    const markup = bubble(user("1. a\n1. b\n   - c"));
+    expect(markup).not.toMatch(/<(ul|ol|li)\b/);
+    expect(markup).toBe('<div class="bubble-list" role="list">'
+      + '<div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ol">1. </span><span class="bubble-item-body">a</span></div>'
+      + '<div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ol">1. </span><span class="bubble-item-body">b</span>'
+      + '<div class="bubble-list" role="list"><div class="bubble-item" role="listitem"><span class="list-depth" data-depth="1">   </span><span class="list-mark" data-kind="ul">- </span><span class="bubble-item-body">c</span></div></div>'
+      + '</div></div>');
+  });
+
+  test("a message without a list draws as plain text, other Markdown included", () => {
+    const markup = bubble(user("**bold** `code`\n# heading\n2026. 11. 19. review"));
+    expect(markup).toBe("**bold** `code`\n# heading\n2026. 11. 19. review");
+  });
+
+  test("chips and skill words stay in place inside items; a chip-led line is not an item", () => {
+    const markup = bubble(user("", { skills: ["copy-check"], anchors: [{ frame: { id: "hero", title: "Hero" } }],
+      parts: [{ text: "- Align " }, { anchor: 1 }, { text: " /copy-check\n" }, { anchor: 1 }, { text: " - stays" }] }));
+    expect(markup).toMatch(/^<div class="bubble-list" role="list"><div class="bubble-item" role="listitem"><span class="list-mark" data-kind="ul">- <\/span><span class="bubble-item-body">Align <span class="anchor-chip"[^>]*>.*?<span>Hero<\/span><\/span> <span class="skill-word">\/copy-check<\/span><\/span><\/div><\/div><span class="bubble-text"><span class="anchor-chip"[^>]*>.*?<span>Hero<\/span><\/span> - stays<\/span>$/);
+    expect(copied(markup)).toBe("- Align Hero /copy-check\nHero - stays");
+  });
+
+  test("a chip right before an item's skill word still ends no word", () => {
+    const markup = bubble(user("", { skills: ["deploy"], anchors: [{ frame: { id: "cart", title: "Cart" } }], parts: [{ text: "- /deploy" }, { anchor: 1 }, { text: "/deploy /deploy" }] }));
+    expect(markup.match(/class="skill-word"/g)).toHaveLength(2);
+  });
+
+  test("the preset line keeps its own line before a list, and the bubble has no Copy button", () => {
+    const out = html([user("- a", { preset: { id: "shape", title: "Shape" } })]);
+    expect(out).toMatch(/Shape<\/span><div class="bubble-list" role="list">/);
+    expect(bubble(user("- a"))).not.toMatch(/<button/);
+  });
+});

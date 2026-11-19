@@ -68,6 +68,14 @@ describe("messageLine", () => {
     expect(messageLine("Fix {{1}}", [{ frame: { id: "f", title: " \n " } }])).toBe("Fix f");
   });
 
+  // New titles and queue rows read the words; the sent text keeps its markers (the caller passes it unchanged).
+  test("list markers and their depth spaces go from every line; a year or a chip-led line stays", () => {
+    expect(messageLine("- Hero\n  - shorter {{1}}\n    1. keep it\n* Footer", [payment])).toBe("Hero shorter Payment keep it Footer");
+    expect(messageLine("  10. Steps", [])).toBe("Steps");
+    expect(messageLine("2026. 11. 19. review\n{{1}} - stays", [payment])).toBe("2026. 11. 19. review Payment - stays");
+    expect(messageLine("**bold** and `code`", [])).toBe("**bold** and `code`");
+  });
+
   test("cut to the label limit", () => {
     expect(messageLine(`${"x".repeat(600)}{{1}}`, [payment])).toHaveLength(LIMITS.label);
     expect(messageLine(`${"a\n".repeat(300)}`, [])).toHaveLength(LIMITS.label);
