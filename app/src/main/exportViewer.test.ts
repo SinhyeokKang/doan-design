@@ -1301,8 +1301,16 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     await frame.waitForFunction(() => document.documentElement.classList.contains("ready"));
     return frame;
   };
+
+  const openCanvas = async (body: string, width = 800): Promise<Frame> => {
+    const frame = await open(body, width);
+    // Playwright uses unscaled coordinates for pointer actions inside the canvas iframe.
+    await frame.locator("#board").press("Shift+Digit0");
+    return frame;
+  };
+
   test("the inspector opens folded, renders canvas labels as text and restores the selection after yielding", async () => {
-    const frame = await open('<section data-doan-frame="item" data-doan-title="&lt;b&gt;Item&lt;/b&gt;" style="height:300px;color:blue">Item</section>');
+    const frame = await openCanvas('<section data-doan-frame="item" data-doan-title="&lt;b&gt;Item&lt;/b&gt;" style="height:300px;color:blue">Item</section>');
     const show = frame.getByRole("button", { name: "Show inspector" });
     expect(await show.count()).toBe(1);
     const panel = frame.getByRole("region", { name: "Inspector", includeHidden: true });
@@ -1329,7 +1337,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
   });
 
   test("a folded viewer leaves canvas clicks and hover alone", async () => {
-    const frame = await open('<section data-doan-frame="f" style="height:250px;padding:12px"><button onclick="this.textContent=\'Clicked\'">Click</button></section>', 320);
+    const frame = await openCanvas('<section data-doan-frame="f" style="height:250px;padding:12px"><button onclick="this.textContent=\'Clicked\'">Click</button></section>', 320);
     const button = frame.frameLocator("#canvas").getByRole("button");
     await button.hover();
     await button.click();
@@ -1338,7 +1346,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
   });
 
   test("frame steps, direct selection, Option-click and forwarded Escape keep the selected level", async () => {
-    const frame = await open('<section style="height:250px;padding:12px" data-doan-frame="outer" data-doan-title="Outer"><section style="height:180px;padding:12px" data-doan-frame="inner" data-doan-title="Inner"><button style="height:70px;width:140px" data-doan-id="item" onclick="this.textContent=\'Clicked\'">Pick</button></section></section>', 320);
+    const frame = await openCanvas('<section style="height:250px;padding:12px" data-doan-frame="outer" data-doan-title="Outer"><section style="height:180px;padding:12px" data-doan-frame="inner" data-doan-title="Inner"><button style="height:70px;width:140px" data-doan-id="item" onclick="this.textContent=\'Clicked\'">Pick</button></section></section>', 320);
     await frame.getByRole("button", { name: "Show inspector" }).click();
     const button = frame.frameLocator("#canvas").getByRole("button");
     const selected = () => frame.locator("#element-trigger").textContent();
@@ -1358,7 +1366,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
   });
 
   test("direct hover and selection clip to the visible box and removal clears its panel", async () => {
-    const frame = await open('<section data-doan-frame="f" style="height:250px;padding:12px"><div style="overflow:hidden;width:120px"><div data-doan-id="wide" style="width:420px;height:40px">Wide</div></div></section>', 320);
+    const frame = await openCanvas('<section data-doan-frame="f" style="height:250px;padding:12px"><div style="overflow:hidden;width:120px"><div data-doan-id="wide" style="width:420px;height:40px">Wide</div></div></section>', 320);
     await frame.getByRole("button", { name: "Show inspector" }).click();
     const wide = frame.frameLocator("#canvas").locator('[data-doan-id="wide"]');
     const point = { x: 10, y: 8 };
@@ -1376,7 +1384,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
   });
 
   test("copy uses the selected fallback text and returns focus to the row", async () => {
-    const frame = await open('<section data-doan-frame="f" style="height:250px;--bg:red;background:var(--bg)">Frame</section>', 320);
+    const frame = await openCanvas('<section data-doan-frame="f" style="height:250px;--bg:red;background:var(--bg)">Frame</section>', 320);
     await frame.getByRole("button", { name: "Show inspector" }).click();
     await frame.frameLocator("#canvas").locator("section").click({ position: { x: 15, y: 15 } });
     const row = frame.locator(".doan-insp-row").filter({ hasText: "Background" });
@@ -1397,7 +1405,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
   });
 
   test("a canvas press arriving after focus moved to the drawer leaves the drawer open", async () => {
-    const frame = await open(twoFrames);
+    const frame = await openCanvas(twoFrames);
     await frame.getByRole("button", { name: "Show inspector" }).click();
     await frame.evaluate(() => {
       window.addEventListener("message", event => {
@@ -1410,7 +1418,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
   });
 
   test.each(["focus", "pointerup", "blur"])("shell %s releases the tool keys during text drag", async end => {
-    const frame = await open('<section data-doan-frame="f" style="height:250px;padding:12px"><span style="font:32px/40px sans-serif;user-select:none">Drag these words</span></section>', 320);
+    const frame = await openCanvas('<section data-doan-frame="f" style="height:250px;padding:12px"><span style="font:32px/40px sans-serif;user-select:none">Drag these words</span></section>', 320);
     await frame.getByRole("button", { name: "Show inspector" }).click();
     await frame.evaluate(end => {
       const board = document.getElementById("board")!;
@@ -1437,7 +1445,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
   });
 
   test("a folded inspector preserves repeated Escape in the page and in the canvas", async () => {
-    const frame = await open(twoFrames);
+    const frame = await openCanvas(twoFrames);
     for (const target of [frame.locator("body"), frame.frameLocator("#canvas").locator("body")]) {
       await frame.locator('[data-tool="hand"]').evaluate(el => (el as HTMLButtonElement).click());
       await target.dispatchEvent("keydown", { key: "Escape", code: "Escape", bubbles: true, repeat: true });
@@ -1446,7 +1454,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
   });
 
   test("a partially overwritten var shorthand exposes only the applied row", async () => {
-    const frame = await open('<style>:root{--old:3px;--pad:12px;--left:5px}section{padding:var(--old)}.card{padding:var(--pad);padding-left:var(--left)}</style><section class="card" data-doan-frame="card">Card</section>');
+    const frame = await openCanvas('<style>:root{--old:3px;--pad:12px;--left:5px}section{padding:var(--old)}.card{padding:var(--pad);padding-left:var(--left)}</style><section class="card" data-doan-frame="card">Card</section>');
     await frame.getByRole("button", { name: "Show inspector" }).click();
     await frame.frameLocator("#canvas").locator("section").click({ position: { x: 12, y: 8 } });
     const padding = frame.locator(".doan-insp-row").filter({ hasText: "Padding" });
