@@ -1338,7 +1338,7 @@ describe("the inspector column", () => {
     expect(focus.mock.calls.length).toBeGreaterThan(restored);
   });
 
-  test("activating the window after reload returns focus to the inspector bubble leaves it there", async () => {
+  test.each(["reload return", "focusin"] as const)("activating the window preserves later inspector bubble focus (%s)", async move => {
     await canvasPage();
     folders([listed("/w/a")]);
     const win = new EventTarget();
@@ -1347,22 +1347,24 @@ describe("the inspector column", () => {
     Object.assign(document, { hasFocus: () => activeWindow });
     const focused = (target: unknown) => {
       Object.assign(document, { activeElement: target });
+      if (move === "reload return") return;
       for (const [type, listener] of vi.mocked(document.addEventListener).mock.calls) {
         if (type === "focusin") (listener as (event: unknown) => void)({ target });
       }
     };
-    const header = { closest: () => null, isConnected: true, focus: () => focused(header) };
-    const bubble = { closest: () => null, isConnected: true, focus: () => focused(bubble) };
+    const header = { name: "header", closest: () => null, isConnected: true, focus: () => focused(header) };
+    const bubble = { name: "bubble", closest: () => null, isConnected: true, focus: () => focused(bubble) };
     Object.assign(document, { querySelector: (selector: string) => selector === SHOW ? header : null });
-    const controller = harness.controller as unknown as { bubbleAdd: { host(node: unknown): void }; bubbleInspect: { onFocusLost(): void; button(): HTMLElement } };
+    const controller = harness.controller as unknown as { bubbleAdd: { host(node: unknown): void }; bubbleInspect: { onFocusLost(): void; restoreFocus(): void } };
     controller.bubbleAdd.host({}); render();
     const portal = find<Parameters<typeof BubbleAdd>[0]>(BubbleAdd)[0]!.props;
     portal.inspectButton.current = bubble as unknown as HTMLButtonElement;
     focused(bubble);
     controller.bubbleInspect.onFocusLost();
     expect(document.activeElement).toBe(header);
-    // The controller found the same selection and its focus holder still holds.
-    controller.bubbleInspect.button().focus({ preventScroll: true });
+    // A reload can restore DOM focus silently in the background. A separate focus move can also end the hold.
+    if (move === "reload return") controller.bubbleInspect.restoreFocus();
+    else bubble.focus();
     expect(document.activeElement).toBe(bubble);
     activeWindow = true;
     win.dispatchEvent(new Event("focus"));

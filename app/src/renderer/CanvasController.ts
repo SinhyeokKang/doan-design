@@ -591,7 +591,7 @@ export class CanvasController {
   // press while the bubble shows, available or not (App checks). `button`: App's button, to read and move focus.
   // `onFocusLost` as Play's.
   bubbleAdd: { host(element: HTMLElement): void; onAdd(): void; button(): HTMLElement | null; onFocusLost(): void } | null = null;
-  bubbleInspect: { onInspect(): void; button(): HTMLElement | null; onFocusLost(): void } | null = null;
+  bubbleInspect: { onInspect(): void; button(): HTMLElement | null; onFocusLost(): void; restoreFocus(): void } | null = null;
   // The band the size bubble may sit in, in the canvas area's coordinates: from its top to the floating tools' top.
   // Without it the whole area counts.
   bubbleRoom: (() => BubbleRoom | null) | null = null;
@@ -2303,7 +2303,8 @@ export class CanvasController {
     if (back === null) return;
     this.dropBubbleReturn();
     if (document.activeElement !== back.holder) return;
-    (back.button === "inspect" ? this.bubbleInspect?.button() : back.button === "play" && bubble.playShown ? bubble.play : this.bubbleAdd?.button())?.focus({ preventScroll: true });
+    if (back.button === "inspect") this.bubbleInspect?.restoreFocus();
+    else (back.button === "play" && bubble.playShown ? bubble.play : this.bubbleAdd?.button())?.focus({ preventScroll: true });
   }
 
   private awaitBubbleReturn(button: BubbleAction, holder: Element | null): void {

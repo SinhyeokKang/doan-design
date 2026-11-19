@@ -644,6 +644,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       onInspect: () => live.current.showBubbleInspector(),
       button: () => bubbleInspectButton.current,
       onFocusLost: () => handInspectorFocus(HEADER_SHOW_INSPECTOR),
+      restoreFocus: () => {
+        // A background reload can restore DOM focus before the window delivers focusin.
+        inspectorActivation.current();
+        bubbleInspectButton.current?.focus({ preventScroll: true });
+      },
     };
     // The overlay covers the canvas, so its view commands do nothing meanwhile (ARCHITECTURE §7 'Problem overlay').
     const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace" && !overlaidRef.current) instance.command(name); });
@@ -2415,12 +2420,16 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // Whether the control that last took focus was in the inspector column: the column turns inert in the same commit that
   // hides it, so by the time an effect runs focus has already fallen to the page, and only this says it was there. Read
   // when focus arrives, since the control itself may have been redrawn since (a row list read again).
+  const inspectorActivation = useRef<() => void>(() => {});
   const inspectorShowFocused = useRef<Element | null>(null);
   const focusInInspector = useRef(false);
   useEffect(() => {
     // focusin targets an element (focus on the page itself fires none).
     // The element menu is portalled out of the column, and it closes with it, so focus in it counts as in the inspector.
     const focusin = (event: FocusEvent) => {
+      // A later destination in the background supersedes the pending hand-off. Once active, the platform's own
+      // restore can move focus between the immediate hand-off and its deferred repeat.
+      if (!document.hasFocus()) inspectorActivation.current();
       if (event.target !== inspectorShowFocused.current) inspectorShowFocused.current = null;
       focusInInspector.current = (event.target as Element | null)?.closest(".doan-insp-column, .doan-insp-menu") != null;
     };
@@ -2433,7 +2442,6 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const inspectorWasShown = useRef(inspectorShown);
   // A hand-off made while the window is in the background is made again on activation (POSTMORTEM 2026-11-17): the
   // platform restores focus to the control it remembered, here one the column took away, and lands on Hide sidebar.
-  const inspectorActivation = useRef<() => void>(() => {});
   useEffect(() => () => inspectorActivation.current(), []);
   const handInspectorFocus = (selector: string) => {
     const target = () => document.querySelector<HTMLElement>(selector);
@@ -2643,7 +2651,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
         onOpen: openRequest, onOpenSibling }}
       picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas, button: pickerButton }} capture={capture} player={player} exporter={exporter} />
     {bubbleHost && <BubbleAdd host={bubbleHost} enabled={bubbleAddView.enabled} reason={bubbleAddView.reason} button={bubbleAddButton}
-      items={bubbleItems({ play: controller.current?.bubblePlayButton() != null, inspectorOpen: inspectorPanel.open, inspectorFits: canvasPanels.inspectorFits })}
+      items={bubbleItems({ play: false, inspectorOpen: inspectorPanel.open, inspectorFits: canvasPanels.inspectorFits })}
       inspectButton={bubbleInspectButton} focused={node => { inspectorShowFocused.current = node; }} onEscape={event => controller.current?.toolbarEscape(event)} />}
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}

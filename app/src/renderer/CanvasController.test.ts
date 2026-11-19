@@ -401,7 +401,7 @@ describe("selection", () => {
       const holder = { name: "Picker" };
       const play = { onPlay: vi.fn(), onFocusLost: vi.fn() };
       const inspectButton = { focus: vi.fn(() => { h.doc.activeElement = inspectButton; }) };
-      const inspect = { onInspect: vi.fn(), button: () => inspectButton as unknown as HTMLElement, onFocusLost: vi.fn(() => { h.doc.activeElement = holder; }) };
+      const inspect = { onInspect: vi.fn(), restoreFocus: vi.fn(() => inspectButton.focus()), button: () => inspectButton as unknown as HTMLElement, onFocusLost: vi.fn(() => { h.doc.activeElement = holder; }) };
       h.controller.bubbleInspect = inspect;
       h.controller.bubbleAdd = add;
       h.controller.bubblePlay = play;
@@ -567,6 +567,7 @@ describe("selection", () => {
           h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }] });
           h.select(1, { target });
           expect(h.doc.activeElement, which).toBe(button);
+          expect(inspect.restoreFocus).toHaveBeenCalledTimes(which === "inspect" ? 1 : 0);
           // Moved meanwhile: focus stays where the person put it.
           h.controller.command("reload");
           h.doc.activeElement = { name: "sidebar row" };

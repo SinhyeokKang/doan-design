@@ -141,7 +141,9 @@ describe("the element menu", () => {
   });
 
   test("ArrowDown reveals the next row's name after a one-level increase in depth", () => {
-    const nodes = NODES.slice(0, 2).map((node, index) => ({ ...node, depth: 5 + index, selected: index === 0 }));
+    const nodes: ElementTreeNode[] = Array.from({ length: 7 }, (_, depth) => ({
+      ...NODES[depth ? 1 : 0]!, depth, anchor: { selector: `#level-${depth}` }, ...(depth === 5 && { selected: true }),
+    }));
     const rendered = run(ElementMenu, { view: VIEW, nodes, tree: source(), shown: true, onEscape: noop });
     const menu = { clientWidth: 224, scrollLeft: 0 };
     const content = rendered.find(element => element.type === Popover.Content)!;
