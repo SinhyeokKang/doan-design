@@ -45,9 +45,10 @@ function all(node: ReactNode): El[] {
 // The component leaves the page: React runs every effect's cleanup.
 const unmount = () => { for (const slot of hooks.effects) slot?.cleanup?.(); hooks.effects = []; };
 const reset = () => { hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = []; };
-function run<P>(component: (props: P) => ReactNode, props: P): El[] {
+function run<P>(component: (props: P) => ReactNode, props: P, attach?: (tree: El[]) => void): El[] {
   hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0;
   const tree = all(component(props));
+  attach?.(tree);
   for (const pending of hooks.pending.splice(0)) pending();
   return tree;
 }
@@ -119,6 +120,46 @@ describe("the element menu", () => {
     expect(inner(rows[2]!).filter(element => element.props.className === "guide").map(element => (element.props.style as Record<string, number>)["--tree-level"])).toEqual([0, 1]);
     expect(rows.map(row => inner(row).find(element => typeof element.type === "object")?.type)).toEqual([Frame, Columns3, Type, RectangleHorizontal]);
     expect(rows.map(row => inner(row).find(element => element.props.className === "name")?.props.children)).toEqual(["Payment", "order-total", "span “Order total”", "pay-button"]);
+  });
+
+  test("opening reveals the selected name, and Home and End follow the focused row horizontally", () => {
+    const props = { view: VIEW, nodes: NODES.map(node => node.selected ? { ...node, depth: 12 } : node), tree: source(), shown: true, onEscape: noop };
+    const rendered = run(ElementMenu, props);
+    const menu = { clientWidth: 260, scrollLeft: 0 };
+    const content = rendered.find(element => element.type === Popover.Content)!;
+    (content.props.ref as { current: unknown }).current = menu;
+    for (const row of items(rendered)) {
+      (row.props.ref as (node: unknown) => void)({ focus: vi.fn(), querySelector: () => ({ offsetWidth: 80 }) });
+    }
+    (content.props.onOpenAutoFocus as (event: unknown) => void)({ preventDefault: vi.fn() });
+    expect(menu.scrollLeft).toBeGreaterThan(0);
+    const keydown = rendered.find(element => element.props.role === "tree")!.props.onKeyDown as (event: unknown) => void;
+    keydown(key("Home"));
+    expect(menu.scrollLeft).toBe(0);
+    keydown(key("End"));
+    expect(menu.scrollLeft).toBeGreaterThan(0);
+  });
+
+  test("an initial tree reply replaces the focused fallback with the selected deep row", () => {
+    const props = { view: VIEW, tree: source(), shown: true, onEscape: noop };
+    const menu = { clientWidth: 260, scrollLeft: 0 };
+    const focus = vi.fn();
+    const attach = (tree: El[]) => {
+      const content = tree.find(element => element.type === Popover.Content)!;
+      (content.props.ref as { current: unknown }).current = menu;
+      for (const row of items(tree)) (row.props.ref as (node: unknown) => void)({
+        focus: row.props["aria-selected"] ? focus : vi.fn(), querySelector: () => ({ offsetWidth: 80 }),
+      });
+    };
+    open(run(ElementMenu, { ...props, nodes: null }));
+    const fallback = run(ElementMenu, { ...props, nodes: null }, attach);
+    (fallback.find(element => element.type === Popover.Content)!.props.onOpenAutoFocus as (event: unknown) => void)({ preventDefault: vi.fn() });
+    focus.mockClear();
+    const body = {};
+    Object.assign(document, { body, activeElement: body });
+    run(ElementMenu, { ...props, nodes: NODES.map(node => node.selected ? { ...node, depth: 12 } : node) }, attach);
+    expect(focus).toHaveBeenCalledOnce();
+    expect(menu.scrollLeft).toBeGreaterThan(0);
   });
 
   test("arrows, Home and End move focus; focus marks that node on the board, the selection's own row marks none", () => {

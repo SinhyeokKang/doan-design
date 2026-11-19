@@ -1,6 +1,8 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { describe, expect, test, vi } from "vitest";
-import { BubbleAddButton } from "./BubbleAdd";
+import { NO_ROOM_FOR_INSPECTOR } from "./headerShowButtons";
+import { INSPECTOR_PANEL_ID } from "./InspectorPanel";
+import { BubbleAddButton, BubbleInspectButton } from "./BubbleAdd";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 
 // The size bubble's Add to message, as App portals it into the controller's host. There is no DOM in these tests: the
@@ -20,7 +22,7 @@ describe("BubbleAddButton", () => {
   test("an xs icon button named Add to message, with a Crosshair, whose tooltip names it", () => {
     const ref = { current: null };
     const nodes = tree({ button: ref });
-    expect(button(nodes).props).toMatchObject({ type: "button", className: "doan-icon-button bubble-button", "data-ui-size": "xs", "aria-label": "Add to message" });
+    expect(button(nodes).props).toMatchObject({ type: "button", className: "doan-icon-button bubble-button", "data-ui-size": "xs", "aria-label": "Add to message", "data-bubble-action": "add" });
     expect(button(nodes).props["aria-disabled"]).toBeUndefined();
     expect(button(nodes).props["aria-describedby"]).toBeUndefined();
     expect(button(nodes).props.ref).toBe(ref);
@@ -64,4 +66,14 @@ describe("BubbleAddButton", () => {
     expect(isValidElement(root({}).props.children[0])).toBe(true);
     expect((root({}).props.children[0] as ReactElement).type).toBe((root({ enabled: false, reason: "x" }).props.children[0] as ReactElement).type);
   });
+});
+
+test.each([undefined, NO_ROOM_FOR_INSPECTOR])("the inspector action names and describes its availability (%s)", disabled => {
+  const nodes = all(BubbleInspectButton({ disabled, button: { current: null }, focused: vi.fn(), onEscape: vi.fn() }));
+  const props = button(nodes).props;
+  expect(props).toMatchObject({ "data-bubble-action": "inspect", "aria-label": "Show inspector", "aria-controls": INSPECTOR_PANEL_ID, "aria-expanded": false, "data-ui-size": "xs" });
+  expect(props["aria-disabled"]).toBe(disabled && true);
+  expect(nodes.some(node => (node.type as { displayName?: string }).displayName === "SlidersHorizontal")).toBe(true);
+  expect(text(content(nodes).props.children as ReactNode)).toBe(disabled ?? "Show inspector");
+  if (disabled) expect(text(nodes.find(node => node.props.id === props["aria-describedby"])!.props.children as ReactNode)).toBe(disabled);
 });
