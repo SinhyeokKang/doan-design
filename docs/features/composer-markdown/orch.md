@@ -20,6 +20,9 @@
   - Tab·Shift+Tab이 자손을 함께 옮기고 번호를 같은 깊이 앞 항목 + 1(없으면 1)로 다시 쓰는 동작: 유지한다. conductor 재량 — 새 하위 목록은 1부터라는 spec 2와 맞고, 내어쓴 뒤에도 번호가 이어진다.
   - 탭 문자 폭: 다음 4열 경계까지로 센다(CommonMark §2.2). 승격 때 ARCHITECTURE에 그렇게 적는다.
 - C 측정(Electron): 초안의 버블 grid/subgrid CSS는 복사를 깨뜨린다(`- \na`, 9/9 실패). inline-block 배치는 9/9 원문과 같다. 버블 CSS 보류 항목은 grid 없이 쓰고, 한 목록 안 본문을 가장 넓은 기호에 맞추는 초안 동작은 다른 방법으로 맞추거나 편차로 기록한다.
+- B 측정: Electron 45에서 contenteditable의 Ctrl+Tab은 스스로 포커스를 옮기지 않는다. 그래서 `ComposerField`가 직접 옮긴다(`moveFocus`). 실제 앱의 포커스 순서는 `/runtime-test`에서 확인한다.
+- B: 조합 중 Shift+Enter·Tab은 하나만 보류하고 compositionend 뒤에 처리한다. macOS가 키를 다시 보내는 시점에 기대므로 사용자의 실제 IME 확인이 필요하다.
+- C의 버블 CSS 보류 항목과 C-rev 고칠 점은 C-rev가 끝난 뒤 한 번에 C에 보낸다(C는 먼저 `feat/composer-markdown`으로 rebase한다).
 - `/runtime-test`(tasks 9)와 최종 `/verify`(tasks 10), 승격(tasks 11)은 conductor가 한다. IME 확인에 사용자가 필요하고, 승격은 문서 커밋이다.
 
 ## Codex 사용
@@ -33,8 +36,8 @@
 |---|---|---|---|---|---|---|
 | A | tasks 3, 4 | 새 renderer 모듈(목록 순수 함수)과 테스트, `skillWords.ts`(+test), `messageText.ts`의 `plainTitle`(+test) | 없음 | Opus high — CommonMark 깊이 규칙과 칩이 섞인 segment 위 캐럿 편집이 B·C 전체의 기반이다 | `npm --prefix app test`, typecheck | 통합 `4cab90fa4`·`02617b8ae` (워커 `cm-a`, 507 files / 14,722 tests PASS) |
 | A-rev | A 리뷰 | 없음(보고만) | A | Codex Astra medium — 교차 계열 독립 리뷰, 순수 함수라 범위가 좁다 | `/code-review` 보고 | 1차 🔴0 🟡5 🟢1 → 고침 1차 `8977347c2`·`ef7b29d05` → 2차 🟡1(기호 뒤 탭) → 고침 2차 `a7e99a99f`·`ebb069dff`(conductor가 diff 확인) |
-| B | tasks 5 | `chipField.ts`(+test), `ComposerParts.tsx`(+test), `styles.css`, 네 composer 공유 고정 테스트 | A | Opus high — contenteditable 캐럿·undo·IME 조합, PoC 5가지 처리 | test, typecheck, lint | 진행 (`cm-b`) |
-| B-rev | B 리뷰 | 없음 | B | Codex Astra high — 여러 컴포넌트에 걸친 입력 처리, 실수하면 입력이 깨진다 | `/code-review` 보고 | 대기 |
+| B | tasks 5 | `chipField.ts`(+test), `ComposerParts.tsx`(+test), `styles.css`, 네 composer 공유 고정 테스트 | A | Opus high — contenteditable 캐럿·undo·IME 조합, PoC 5가지 처리 | test, typecheck, lint | 통합 `d35bf1952`·`e285dc591`(통합 HEAD 관련 테스트 29 files / 725 PASS) |
+| B-rev | B 리뷰 | 없음 | B | Codex Astra high — 여러 컴포넌트에 걸친 입력 처리, 실수하면 입력이 깨진다 | `/code-review` 보고 | 진행 (`gpt-6.2-astra` high, `cm-b`에서) |
 | C | tasks 6, 7 | `homeComposer.ts`(`composeRequest`), `messageText.ts`(`messageLine` 연결), `ConversationThread.tsx`(`UserMessage`)와 테스트, 큐·초안 복원 테스트(프로토타입 포함). 버블 CSS는 보류 항목 | A | Opus medium — 명세가 구체적이고 영향 범위가 B보다 좁다 | test, typecheck, lint | 통합 `79e67ad86`·`1be729481`(통합 HEAD 관련 테스트 23 files / 762 PASS). 버블 CSS 보류 |
 | C-rev | C 리뷰 | 없음 | C | Codex Astra medium — 교차 계열 독립 리뷰 | `/code-review` 보고 | 진행 (`cm-c`에서) |
 | D | tasks 8 | `styles.css` 측정 수정, `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, 회귀 테스트 | B, C 통합 | Opus medium — 측정 절차가 정해진 작업 | `/design-sync` 기록 | 대기 |
