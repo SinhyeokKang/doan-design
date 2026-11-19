@@ -15,6 +15,7 @@ import {
   FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, FIT_SCALE_MAX, fitFrame as appFitFrame, fitWidth as appFitWidth, LINE_PX, MAX_SCALE, MIN_SCALE, PAGE_PX,
   WHEEL_ZOOM_MAX, WHEEL_ZOOM_SENSITIVITY, wheelAction as appWheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt as appZoomAt,
 } from "../renderer/viewport";
+import { inspectRowDefinitions } from "./inspect";
 import { canScrollAxis, canvasScript, clipText, documentHeight, frameBottom, nextHeight } from "./canvasScript";
 import { OPEN_OVERLAY, toolShortcut as appToolShortcut, type ShortcutEvent } from "../renderer/canvasTool";
 import { drawn, NOTHING_OPEN, OPEN_SURFACES } from "../renderer/drawnTarget.test-support";
@@ -811,13 +812,27 @@ const declarations = (css: string, selector: string): string[] => {
 
 describe("breadcrumb rules shared with the canvas header", () => {
   test("exported inspector controls and element tree keep the app declarations", () => {
-    for (const selector of [".doan-canvas-head-sep", ".right", ".right.doan-insp-panel", ".doan-conv-head", ".doan-conv-body", ".doan-conv-empty", ".doan-insp-head", ".doan-insp-title", ".doan-insp-body", ".doan-insp-groups", ".doan-insp-group-title", ".doan-insp-row", ".doan-insp-label", ".doan-insp-value", ".doan-insp-text", ".doan-insp-swatch", ".doan-insp-menu [role=\"tree\"]", '.doan-insp-menu[data-ui-variant="tree"]', '.doan-insp-menu[data-ui-variant="tree"] .doan-menu-item > .name']) {
-      expect(declarations(shellCss, selector), selector).toEqual(declarations(stylesCss, selector));
+    for (const selector of [
+      ".doan-canvas-head-sep", ".right", ".right.doan-insp-panel", ".doan-conv-head", ".doan-conv-body", ".doan-conv-empty",
+      ".doan-conv-title", ".doan-conv-head .doan-icon-button", ".doan-insp-head", ".doan-insp-head:has(.doan-insp-pick)",
+      ".doan-insp-title", ".doan-insp-body", ".doan-insp-groups", ".doan-insp-group-title", ".doan-insp-row",
+      "@media (hover: hover) { .doan-insp-row:hover", ".doan-insp-row:active", ".doan-insp-row:focus-visible", ".doan-insp-none",
+      ".doan-insp-label", ".doan-insp-value", ".doan-insp-text", ".doan-insp-swatch", ".doan-insp-swatch.transparent",
+      ".doan-floating.doan-insp-menu", '.doan-insp-menu [role="tree"]', '.doan-insp-menu[data-ui-variant="tree"]',
+      '.doan-insp-menu[data-ui-variant="tree"] .doan-menu-item > .name', ".doan-insp-tip > span",
+      '.doan-canvas-head .doan-panel-show[aria-disabled="true"]',
+    ]) expect(declarations(shellCss, selector), selector).toEqual(declarations(stylesCss, selector));
+    const tree = '.doan-menu[data-ui-variant="tree"]';
+    for (const selector of [
+      tree + " .doan-menu-item", tree + " .guide", tree + " .doan-menu-item > svg", tree + " .doan-menu-item > .name",
+      tree + ' .doan-menu-item[aria-selected="true"]', tree + ' .doan-menu-item[aria-selected="true"] > svg',
+      tree + ' .doan-menu-item[role="treeitem"]:focus:not([aria-selected="true"]),\n' +
+        tree + ' [role="tree"]:not(:has(:focus)) > .doan-menu-item[role="treeitem"]:hover:not([aria-selected="true"])',
+      ".doan-notice.error",
+    ]) expect(declarations(shellCss, selector), selector).toEqual(declarations(surfacesCss, selector));
+    for (const selector of [".doan-code", ".doan-code > span", ".doan-code > i"]) {
+      expect(declarations(shellCss, selector), selector).toEqual(declarations(controlsCss, selector));
     }
-    for (const selector of ['.doan-menu[data-ui-variant="tree"] .doan-menu-item', '.doan-menu[data-ui-variant="tree"] .guide']) {
-      expect(declarations(shellCss, selector), selector).toEqual(declarations(surfacesCss, selector));
-    }
-    expect(declarations(shellCss, ".doan-code")).toEqual(declarations(controlsCss, ".doan-code"));
   });
 
   test("the trail and its children use the app's layout and typography", () => {
@@ -1276,8 +1291,8 @@ afterAll(async () => { await dom?.close(); }, 30_000);
 describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
 
   // The viewer at 800 × 500 inside the test window, once its first view is drawn.
-  const open = async (body: string): Promise<Frame> => {
-    const frame = await dom.load(viewerPage(body));
+  const open = async (body: string, width = 800): Promise<Frame> => {
+    const frame = await dom.load(viewerPage(body, { width }));
     await frame.evaluate(() => {
       const host = window.frameElement as HTMLElement;
       host.style.width = "800px";
@@ -1311,6 +1326,114 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     expect(await show.getAttribute("aria-disabled")).toBe("true");
     await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "657px"; });
     await panel.getByRole("button", { name: /<b>Item<\/b>/ }).waitFor();
+  });
+
+  test("a folded viewer leaves canvas clicks and hover alone", async () => {
+    const frame = await open('<section data-doan-frame="f" style="height:250px;padding:12px"><button onclick="this.textContent=\'Clicked\'">Click</button></section>', 320);
+    const button = frame.frameLocator("#canvas").getByRole("button");
+    await button.hover();
+    await button.click();
+    expect(await button.textContent()).toBe("Clicked");
+    expect(await frame.locator("#hover-mark").isHidden()).toBe(true);
+  });
+
+  test("frame steps, direct selection, Option-click and forwarded Escape keep the selected level", async () => {
+    const frame = await open('<section style="height:250px;padding:12px" data-doan-frame="outer" data-doan-title="Outer"><section style="height:180px;padding:12px" data-doan-frame="inner" data-doan-title="Inner"><button style="height:70px;width:140px" data-doan-id="item" onclick="this.textContent=\'Clicked\'">Pick</button></section></section>', 320);
+    await frame.getByRole("button", { name: "Show inspector" }).click();
+    const button = frame.frameLocator("#canvas").getByRole("button");
+    const selected = () => frame.locator("#element-trigger").textContent();
+    for (const title of ["Outer", "Inner"]) {
+      await button.click();
+      await expect.poll(selected).toBe(title);
+    }
+    await button.press("Escape");
+    await expect.poll(selected).toBe("Outer");
+    await button.click({ modifiers: ["Meta"] });
+    await expect.poll(selected).toBe("item");
+    expect(await button.textContent()).toBe("Pick");
+    await button.click({ modifiers: ["Alt"] });
+    expect(await button.textContent()).toBe("Clicked");
+    await button.press("Escape");
+    await expect.poll(selected).toBe("Inner");
+  });
+
+  test("direct hover and selection clip to the visible box and removal clears its panel", async () => {
+    const frame = await open('<section data-doan-frame="f" style="height:250px;padding:12px"><div style="overflow:hidden;width:120px"><div data-doan-id="wide" style="width:420px;height:40px">Wide</div></div></section>', 320);
+    await frame.getByRole("button", { name: "Show inspector" }).click();
+    const wide = frame.frameLocator("#canvas").locator('[data-doan-id="wide"]');
+    const point = { x: 10, y: 8 };
+    await frame.page().keyboard.down("Meta");
+    try {
+      await wide.hover({ position: point });
+      await expect.poll(() => frame.locator("#hover-mark").evaluate(el => (el as HTMLElement).style.width)).toBe("120px");
+      await wide.click({ position: point });
+    } finally { await frame.page().keyboard.up("Meta"); }
+    await expect.poll(() => frame.locator("#selected-mark").evaluate(el => (el as HTMLElement).style.width)).toBe("120px");
+    await expect.poll(() => frame.locator("#element-trigger").textContent()).toBe("wide");
+    await wide.evaluate(el => el.remove());
+    await frame.locator("#inspect-empty").waitFor();
+    expect(await frame.locator("#selected-mark").isHidden()).toBe(true);
+  });
+
+  test("copy uses the selected fallback text and returns focus to the row", async () => {
+    const frame = await open('<section data-doan-frame="f" style="height:250px;--bg:red;background:var(--bg)">Frame</section>', 320);
+    await frame.getByRole("button", { name: "Show inspector" }).click();
+    await frame.frameLocator("#canvas").locator("section").click({ position: { x: 15, y: 15 } });
+    const row = frame.locator(".doan-insp-row").filter({ hasText: "Background" });
+    await frame.evaluate(() => {
+      Object.defineProperty(navigator, "clipboard", { value: { writeText: () => Promise.reject(new Error("denied")) } });
+      document.execCommand = command => {
+        const field = document.activeElement;
+        if (command !== "copy" || !(field instanceof HTMLTextAreaElement)) return false;
+        document.body.dataset.copied = field.value.slice(field.selectionStart, field.selectionEnd);
+        return true;
+      };
+    });
+    await row.focus();
+    await row.press("Enter");
+    await expect.poll(() => frame.locator("#inspect-status").textContent()).toBe("Copied --bg");
+    expect(await frame.locator("body").getAttribute("data-copied")).toBe("--bg");
+    expect(await row.evaluate(el => document.activeElement === el)).toBe(true);
+  });
+
+  test("a canvas press arriving after focus moved to the drawer leaves the drawer open", async () => {
+    const frame = await open(twoFrames);
+    await frame.getByRole("button", { name: "Show inspector" }).click();
+    await frame.evaluate(() => {
+      window.addEventListener("message", event => {
+        if (event.data?.type === "inspect-press") document.querySelector<HTMLButtonElement>("#drawer-button")!.click();
+      }, { capture: true });
+    });
+    await frame.frameLocator("#canvas").locator("section").first().click({ position: { x: 25, y: 10 } });
+    await expect.poll(() => frame.locator("#element-trigger").textContent()).toBe("Cart");
+    expect(await frame.locator("#drawer").isVisible()).toBe(true);
+  });
+
+  test.each(["focus", "pointerup", "blur"])("shell %s releases the tool keys during text drag", async end => {
+    const frame = await open('<section data-doan-frame="f" style="height:250px;padding:12px"><span style="font:32px/40px sans-serif;user-select:none">Drag these words</span></section>', 320);
+    await frame.getByRole("button", { name: "Show inspector" }).click();
+    await frame.evaluate(end => {
+      const board = document.getElementById("board")!;
+      if (end === "focus") window.addEventListener("message", e => {
+        if (e.data?.type === "inspect-text" && e.data.dragging) board.focus();
+      }, true);
+      window.addEventListener("message", e => {
+        if (e.data?.type !== "inspect-text" || !e.data.dragging || board.hasAttribute("data-keys")) return;
+        if (end === "pointerup") window.dispatchEvent(new PointerEvent("pointerup"));
+        if (end === "blur") window.dispatchEvent(new Event("blur"));
+        const keys = [["h", "KeyH"], ["v", "KeyV"], [" ", "Space"]] as const;
+        board.dataset.keys = keys.map(([key, code]) => !board.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key, code }))).join(",");
+      });
+    }, end);
+    const span = frame.frameLocator("#canvas").locator("span");
+    const box = (await span.boundingBox())!;
+    const mouse = frame.page().mouse;
+    await mouse.move(box.x + 2, box.y + box.height / 2);
+    await mouse.down();
+    try {
+      await mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 6 });
+      await expect.poll(() => frame.locator("#board").getAttribute("data-keys")).toBe("true,true,true");
+    } finally { await mouse.up(); }
   });
 
   test("a folded inspector preserves repeated Escape in the page and in the canvas", async () => {
@@ -2623,6 +2746,44 @@ describe("inspector message boundary", () => {
       expect(parse(message, sender, "null", false)).toBeNull();
     }
     expect(parse({ ...drag, dragging: false }, sender, "null", false)).not.toBeNull();
+  });
+
+  test("every bounded payload accepts the producer limit and rejects one more", () => {
+    const source = (file: string) => readFileSync(new URL(file, import.meta.url), "utf8");
+    const canvas = source("./canvasScript.ts"), inspect = source("./inspect.ts");
+    const number = (text: string, pattern: RegExp) => {
+      const found = pattern.exec(text);
+      if (!found) throw new Error("Missing producer cap " + pattern);
+      return Number(found[1]!.replaceAll("_", ""));
+    };
+    const cap = (text: string, name: string) => number(text, new RegExp("const " + name + " = ([0-9_]+);"));
+    const boundary = (limit: number, data: (size: number) => unknown) => {
+      expect(parse(data(limit)), "at " + limit).not.toBeNull();
+      expect(parse(data(limit + 1)), "over " + limit).toBeNull();
+    };
+    const one = selection.nodes[0]!;
+    const rows = (fields: object) => ({ ...selection, rows: [{ ...row, ...fields }] });
+    const nodes = (fields: object) => ({ ...selection, nodes: [{ ...one, ...fields }] });
+    const range = { type: "inspect-text", epoch: 3, seq: 2, dragging: false, rects: [], text: "" };
+    const value = cap(inspect, "VALUE_LIMIT");
+    for (const key of ["value", "token", "inheritedFrom"]) boundary(value, n => rows({ [key]: "x".repeat(n) }));
+    boundary(value, n => rows({ chain: ["x".repeat(n)] }));
+    for (const key of ["value", "token"]) boundary(value, n => rows({ sides: [{ side: "top", value: "0", [key]: "x".repeat(n) }] }));
+    boundary(number(inspect, /while \(chain\.length < (\d+)\)/), n => rows({ chain: Array(n).fill("--a") }));
+    boundary(Math.max(...inspectRowDefinitions.map(row => row.sides?.length ?? 0)), n => rows({ sides: Array(n).fill({ side: "top", value: "0" }) }));
+    // 32 is the protocol envelope. Every row the producer can return must still fit.
+    expect(inspectRowDefinitions.length).toBeLessThanOrEqual(32);
+    boundary(32, n => ({ ...selection, rows: Array(n).fill(row) }));
+    expect(inspectRowDefinitions.every(def => def.label.length <= 32 && def.sides?.some(side => side.length > 32) !== true)).toBe(true);
+    boundary(32, n => rows({ label: "x".repeat(n) }));
+    boundary(32, n => rows({ sides: [{ side: "x".repeat(n), value: "0" }] }));
+    const tree = cap(canvas, "MAX_TREE_NODES");
+    expect(number(read("inspectSelection.js"), /elementTree\(depths, elements\.indexOf\(selected\), (\d+)\)/)).toBe(tree);
+    boundary(tree, n => ({ ...selection, nodes: Array.from({ length: n }, (_, depth) => ({ ...one, depth, selected: depth === 0 })) }));
+    boundary(cap(canvas, "MAX_STRING"), n => nodes({ name: "x".repeat(n) }));
+    boundary(cap(canvas, "MAX_SELECTOR"), n => nodes({ selector: "x".repeat(n) }));
+    boundary(cap(canvas, "MAX_COPY_TEXT"), n => ({ ...range, text: "x".repeat(n) }));
+    boundary(cap(canvas, "MAX_TEXT_RECTS"), n => ({ ...range, rects: Array(n).fill({ x: 0, y: 0, width: 1, height: 1 }) }));
   });
 
   test("rejects malformed rows, oversized arrays, nested values and non-finite marks", () => {
