@@ -75,3 +75,4 @@
 - 목록에 없는 페이지의 비활성 이유: "Switching worktrees isn’t available on a page that isn’t a listed canvas." 프로젝트 문제: "Switching worktrees isn’t available while the canvas can’t be shown."
 - 라벨 최소 폭: 워크트리 라벨은 먼저 줄되 브랜치 아이콘과 줄임표가 붙은 몇 글자(라벨 약 48px)에서 멈춘다. 셀렉트가 아이콘만 남아 버튼으로 읽히지 않는 것을 막는다. 그다음 프로젝트, 프레임, 캔버스 이름 순서로 준다(캔버스 헤더·Overview 헤더).
 - 라벨 최대 폭: 세 곳 모두 84px(출하 사이드바 칩과 같다). 전체 라벨은 메뉴와 툴팁에서 보인다.
+- 줌 컨트롤: 캔버스 헤더 폭 720 미만이면 Zoom out·Zoom in 아이콘 버튼을 숨기고 가운데 % 메뉴만 남긴다(600 미만에서도 숨김). 줌은 메뉴, ⌘ 단축키, 핀치로 계속 된다. 출하 캔버스 헤더를 바꾸는 것이라 승격 때 PRODUCT §5 item 2 'Zoom controller'에 반영한다.

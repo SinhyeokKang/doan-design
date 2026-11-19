@@ -22,6 +22,6 @@
    - 확인: `/runtime-test` 스크린샷과 PASS 기록.
 8. **최종 게이트**: `node .agents/skills/verify/scripts/verify.mjs`.
    - 확인: verify PASS.
-9. **승격**: PRODUCT §5 item 1(사이드바), item 2('Canvas header'), item 3('Header')을 현재 규칙으로 고쳐 쓴다. 세 곳이 `WorktreeSwitch` 하나를 쓴다는 불변식을 ARCHITECTURE §7 'Renderer primitives'에 적는다. 새 디자인 섹션이 생기면 DESIGN.md 색인도 고친다(근거는 커밋 메시지). `docs/features/header-breadcrumb-worktree/`를 지운다.
+9. **승격**: PRODUCT §5 item 1(사이드바), item 2('Canvas header', 'Zoom controller'), item 3('Header')을 현재 규칙으로 고쳐 쓴다. 세 곳이 `WorktreeSwitch` 하나를 쓴다는 불변식을 ARCHITECTURE §7 'Renderer primitives'에 적는다. 새 디자인 섹션이 생기면 DESIGN.md 색인도 고친다(근거는 커밋 메시지). `docs/features/header-breadcrumb-worktree/`를 지운다.
    - 확인: `grep -rn "header-breadcrumb-worktree" docs/ app/` 결과 없음.
    - ── 커밋 경계 (`docs(PRODUCT):`, `docs(ARCHITECTURE):` 문서별) ──
