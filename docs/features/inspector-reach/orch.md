@@ -21,7 +21,7 @@
 - A-rev ⚪4(export 크기 상한): conductor 재량 — 따로 상한 테스트를 두지 않는다. 출력 고정 테스트(`TestAssembleOutputIsPinned`·`TestExportOutputIsPinned`)가 모든 바이트 변화를 명시적 갱신으로 만들고, 50 MiB 한도와 할당 상한 테스트는 그대로다. 늘어난 양(+81,098 B, 빈 캔버스)은 ARCHITECTURE에 적는다.
 - A-rev ⚪3(`docs/design/canvas.md`가 초안 `inspector-reach-viewer.html`을 이름으로 적음): conductor 재량 — 초안 파일은 남으므로 그대로 둔다. tasks 12의 `grep` 확인은 feature 디렉터리 경로(`docs/features/inspector-reach`)만 대상으로 본다.
 - A-rev ⚪6(생성물이 vite 8에 딸린 `rolldown`에 의존): 받아들인다. 버전이 바뀌면 verify의 `viewer-inspect` 단계가 실패로 드러난다.
-- A-rev 🟡1(외부 시트 판별이 애니메이션을 다시 시작하고 진행 중 transition을 끊음): 먼저 고침을 시도한다. 보이는 부작용이 남으면 사용자에게 묻는다(spec 13과 '외부 시트 판별' 결정에 닿는다).
+- A-rev 🟡1(외부 시트 판별이 애니메이션을 다시 시작하고 진행 중 transition을 끊음): A 고침 1차가 애니메이션 시간·재생 상태 복원과 인라인·읽을 수 있는 시트 transition 유지를 고쳤다(`7abe053cb`·`0ecfd1a52`, 두 엔진). 읽지 못하는 외부 시트가 transition과 끝값을 함께 선언하면 inspector가 열린 채 요소를 누를 때 진행 중 transition이 끝값으로 건너뛰는 것이 남았다. 사용자 결정(2026-11-20): 판별을 유지하고 알려진 한계로 ARCHITECTURE와 BACKLOG에 적는다.
 - tasks 5(B 승격)와 11(최종 verify), 12(승격)는 conductor가 끝에 한 번에 한다(PRODUCT·ARCHITECTURE 문서별 커밋).
 
 ## 런타임 확인 (B, conductor)
