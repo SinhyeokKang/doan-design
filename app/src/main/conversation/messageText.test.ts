@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { chipLabel, LIMITS, messageLine, splitMarkers } from "./messageText";
+import { chipLabel, LIMITS, messageLine, plainTitle, splitMarkers } from "./messageText";
 import { LIMITS as PROMPT_LIMITS } from "./prompt";
 import type { Anchor } from "./types";
 
@@ -71,5 +71,27 @@ describe("messageLine", () => {
   test("cut to the label limit", () => {
     expect(messageLine(`${"x".repeat(600)}{{1}}`, [payment])).toHaveLength(LIMITS.label);
     expect(messageLine(`${"a\n".repeat(300)}`, [])).toHaveLength(LIMITS.label);
+  });
+});
+
+describe("plainTitle", () => {
+  test.each([
+    ["- a\n- b", "a\nb"],
+    ["  - child", "child"],
+    ["12. step\n   1. sub", "step\nsub"],
+    ["\t* x", "x"],
+    ["- {{1}} here", "{{1}} here"],
+    ["Intro\n- a", "Intro\na"],
+    ["- ", ""],
+  ])("drops leading list markers and depth spaces from %j", (text, plain) => {
+    expect(plainTitle(text)).toBe(plain);
+  });
+
+  test.each(["2026. 11. 19. 회의", "1000. a", "-a", "**bold**", "---", "{{1}} - a", "a - b", "  plain", "1) a"])("leaves a line that is not an item as typed: %j", text => {
+    expect(plainTitle(text)).toBe(text);
+  });
+
+  test("a long text is not cut", () => {
+    expect(plainTitle(`- ${"x".repeat(LIMITS.text)}`)).toHaveLength(LIMITS.text);
   });
 });
