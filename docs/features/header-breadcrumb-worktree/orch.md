@@ -30,9 +30,9 @@
 |---|---|---|---|---|---|---|
 | A | tasks 2, 3, 4, 5 | `app/src/renderer/**`: 새 워크트리 셀렉트 모듈·컴포넌트와 테스트, `ProjectOverview.tsx`, `ShellSidebar.tsx`, `CanvasHeader.tsx`, `App.tsx`, `homeCards.ts`, `styles.css`와 각 테스트 | 없음 | Codex Astra high — 세 화면에 걸친 공용 컴포넌트, root를 포함한 캔버스 정체성(postmortem 2026-11-01), roving tabindex·포커스 | `npm --prefix app test`, typecheck, lint | 1차 완료, 리뷰 전에 통합 `140338d50`..`6614c3323` → 통합 `a5753b69b`까지 (dispatch `ctx_ac075375699e`, 워크트리 `hbw-a`; Vitest 510 files / 14,803 PASS, typecheck·lint PASS) |
 | V | tasks 5a | `cli/**`(export 뷰어 `shell.*`, `assemble.go`, 이름·썸네일 Go 함수와 테스트, 고정 출력), `app/src/main/exportViewer.test.ts`, `schema/fixtures/` 새 fixture, fixture를 읽는 새 TS 테스트 파일 | 없음(최종 CSS 맞춤은 A·DS 뒤 보류 항목) | Codex Astra medium — 명세가 구체적이고 Go·정적 HTML/CSS 범위다 | `go test ./...`, `go vet ./...`, `npm --prefix app test`, `node eval/run.ts --self-test --scenarios X1,X2` | 1차 완료 `f4601f37f`·`05a0fe85d` (dispatch `ctx_63ee87aea3bb`, 워크트리 `hbw-v`; 게이트 전부 PASS, X1·X2 self-test PASS, Vitest 510 files / 14,810) |
-| A-rev | A 리뷰 | 없음(보고만) | A | Claude Opus high — 여러 컴포넌트와 이동 상태에 걸친 변경 | `/code-review` 보고 | 1차 🔴0 🟡4 ⚪4 (`.scratch/review-A.md`) → A 고침 1차(dispatch `ctx_cf5114a9b430`): 🟡1~4, ⚪6·⚪7 |
+| A-rev | A 리뷰 | 없음(보고만) | A | Claude Opus high — 여러 컴포넌트와 이동 상태에 걸친 변경 | `/code-review` 보고 | 1차 🔴0 🟡4 ⚪4 (`.scratch/review-A.md`) → A 고침 1차 `d75bf9544`..`88b395b2e`(🟡1~4, ⚪6·⚪7; conductor가 diff 확인, Vitest 14,808 PASS) 통합 `7dd57ed48`까지 |
 | V-rev | V 리뷰 | 없음(보고만) | V | Claude Opus medium — 범위가 좁고 고정 테스트가 많다 | `/code-review` 보고 | 🔴0 🟡0 ⚪5 (`.scratch/review-V.md`). ⚪2~4는 V 2차(dispatch `ctx_1a24c13a28ad`), ⚪1·⚪5는 승격 문구 |
-| DS | tasks 6 | A와 같음(`styles.css`·컴포넌트 고침), `docs/design/shell.md`·`project.md`·`canvas.md` | A, A-rev | Codex Astra medium — 측정 절차가 정해져 있고 고침은 CSS 위주다 | 세 문서 측정값, 960×600 겹침 없음, test | 대기 |
+| DS | tasks 6 | A와 같음(`styles.css`·컴포넌트 고침), `docs/design/shell.md`·`project.md`·`canvas.md` | A, A-rev | Codex Astra medium(A 워커의 후속 Task라 A의 high로 돈다) — 측정 절차가 정해져 있고 고침은 CSS 위주다 | 세 문서 측정값, 960×600 겹침 없음, test | 진행 중 (dispatch `ctx_54cd99455e5c`). 스킬의 리뷰 단계는 conductor가 Claude 리뷰로 대신한다 |
 | conductor | tasks 7, 8, 9 | orch.md, 승격 문서 | 전부 | — | `/runtime-test`, verify, `grep` | 대기 |
 
 ## Astra 신버전 결과
