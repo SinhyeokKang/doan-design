@@ -187,8 +187,8 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	pos, err := SplitArgs(args, fs)
 	o := Outcome{}
 	var failure *Error
-	// Codex prefix rules compare tokens with argv in order (ARCHITECTURE §7 'Agent setup'), so a flag or `--` before the
-	// command would hide it from them. A help flag runs no command, so `doan --help` still prints usage.
+	// Doan's Codex rules name the command as the first argument, so the CLI accepts it only there (ARCHITECTURE §7
+	// 'Agent setup'). A help flag runs no command, so `doan --help` still prints usage.
 	if len(args) > 1 && strings.HasPrefix(args[0], "-") && !errors.Is(err, flag.ErrHelp) {
 		failure = usageError("The command must come first: doan <command> [flags]; put flags and -- after it")
 	} else if errors.Is(err, flag.ErrHelp) {
