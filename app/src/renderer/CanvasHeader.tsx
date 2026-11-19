@@ -3,11 +3,14 @@ import { DropdownMenu, Popover } from "radix-ui";
 import { ChevronDown, Minus, MessageSquare, PanelsTopLeft, Plus, RotateCw, SlidersHorizontal } from "lucide-react";
 import type { ViewCommand } from "../main/index";
 import type { CanvasState, CanvasViewStore } from "./CanvasController";
-import { canvasLabel } from "./canvasTree";
+import type { HomeCard } from "./homeCards";
+import { projectHue, projectInitial } from "./shellNavigation";
+import { canvasCrumbs } from "./worktreeSwitchModel";
+import { WorktreeSwitch } from "./WorktreeSwitch";
 import { frameDrawerView, type FrameDrawerRow, type FrameDrawerView } from "./frameDrawer";
 import { drawerKey, focusedRowAfter } from "./frameDrawerList";
 import { FrameName, FrameRowMarks } from "./FrameListBody";
-import { NameTip } from "./NameTip";
+import { isCut, NameTip } from "./NameTip";
 import { menuCloseFocus, menuCloseNow } from "./canvasFocus";
 import { zoomControlView, type ZoomControlView } from "./zoomControl";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
@@ -16,7 +19,13 @@ import type { CanvasSignal } from "./rightPanelOpen";
 import { headerShowButtons } from "./headerShowButtons";
 import { INSPECTOR_PANEL_ID } from "./InspectorPanel";
 
-// The canvas page's header above the board: canvas / frame drawer on the left,
+export interface CanvasHeaderNavigation {
+  card: HomeCard; root: string; homeDirectory: string | null;
+  overview(): void;
+  worktree(root: string, canvasPath: string): void;
+}
+
+// The canvas page's header above the board: project, worktree, canvas and frame drawer on the left,
 // the zoom controller and Reload on the right. It reuses the Overview header box (.ov-head), so the two headers line up.
 // `canvasKey` names the open canvas: an open menu closes when it changes. `fallbackFocus` takes focus a closing menu
 // cannot hand back to its trigger (the canvas region). `panel`: the conversation panel, whose open button sits last in
@@ -25,24 +34,31 @@ import { INSPECTOR_PANEL_ID } from "./InspectorPanel";
 // before it while folded, or while it yields to a narrow window (then unavailable, saying why). Each Show button names
 // its panel in `data-panel-target`, which App's focus return reads.
 // `view`: the zoom and current frame, which change without an App render; `state` may hold older ones.
-export function CanvasHeader({ state, view, canvasKey = null, command, zoomTo, selectFrame, fallbackFocus = () => {}, panel, inspector }: {
-  state: CanvasState; view: CanvasViewStore; canvasKey?: string | null; command(name: ViewCommand): void; zoomTo(scale: number): void; selectFrame(index: number, id: string): void;
+export function CanvasHeader({ navigation, state, view, canvasKey = null, command, zoomTo, selectFrame, fallbackFocus = () => {}, panel, inspector }: {
+  navigation: CanvasHeaderNavigation | null; state: CanvasState; view: CanvasViewStore; canvasKey?: string | null; command(name: ViewCommand): void; zoomTo(scale: number): void; selectFrame(index: number, id: string): void;
   fallbackFocus?: () => void; panel?: { open: boolean; show(): void; badge?: Pick<CanvasSignal, "kind" | "label"> | null };
   inspector?: { open: boolean; fits: boolean; show(): void; focused?(node: Element): void };
 }) {
   const reasonId = useId();
   const shown = useSyncExternalStore(view.subscribe, view.get, view.get);
-  const board = { layout: state.layout, currentFrame: shown.currentFrame, status: state.status, unlisted: state.unlisted };
-  // An unlisted page or a canvas that left the list names no canvas; only the disabled drawer stays.
-  const canvas = state.open && !state.unlisted ? state.open.row : null;
-  const name = canvas ? canvasLabel(canvas) : null;
+  const crumbs = navigation ? canvasCrumbs(navigation.card, navigation.root, !state.unlisted && state.open?.folder === navigation.root ? state.open.row : null, navigation.homeDirectory) : [];
+  const canvas = crumbs.find(crumb => crumb.kind === "canvas");
+  const board = { layout: state.layout, currentFrame: shown.currentFrame, status: state.status, unlisted: !canvas };
   // Without a panel prop that panel has no button here (open, as far as the header knows).
   const shows = headerShowButtons({ inspectorOpen: inspector?.open ?? true, conversationOpen: panel?.open ?? true, inspectorFits: inspector?.fits ?? true });
   return <header className="ov-head doan-canvas-head">
-    {/* The path is information only the tooltip carries, so it shows whether or not the name is cut. */}
-    {canvas && <><Tooltip><TooltipTrigger asChild><span className="doan-canvas-name"><PanelsTopLeft aria-hidden="true" /><span>{name}</span></span></TooltipTrigger>
-      <TooltipContent>{canvas.path}</TooltipContent></Tooltip><span className="ov-sep" aria-hidden="true">/</span></>}
-    <span className="ov-title-wrap"><FrameDrawer view={frameDrawerView(board)} label={name ? `Frames in ${name}` : "Frames"} canvasKey={canvasKey} fallbackFocus={fallbackFocus} select={selectFrame} /></span>
+    <nav className="doan-canvas-trail" aria-label="Breadcrumb">
+      {navigation && crumbs.map(crumb => {
+        if (crumb.kind === "project") return <ProjectCrumb key="project" label={crumb.label} name={crumb.name} overview={navigation.overview} />;
+        if (crumb.kind === "worktree") return <WorktreeSwitch key={canvasKey} model={crumb.model} reason={crumb.reason}
+          onWorktree={root => { if (canvas) navigation.worktree(root, canvas.path); }} />;
+        return <Fragment key="canvas"><span className="ov-sep doan-canvas-sep-root" aria-hidden="true">/</span>
+          <Tooltip><TooltipTrigger asChild><span className="doan-canvas-name"><PanelsTopLeft aria-hidden="true" /><span>{crumb.label}</span></span></TooltipTrigger>
+            <TooltipContent>{crumb.path}</TooltipContent></Tooltip></Fragment>;
+      })}
+      {crumbs.length > 0 && <span className={canvas ? "ov-sep" : "ov-sep doan-canvas-sep-root"} aria-hidden="true">/</span>}
+      <span className="ov-title-wrap"><FrameDrawer view={frameDrawerView(board)} label={canvas ? `Frames in ${canvas.label}` : "Frames"} canvasKey={canvasKey} fallbackFocus={fallbackFocus} select={selectFrame} /></span>
+    </nav>
     <div className="doan-canvas-head-tools"><ZoomControl view={zoomControlView({ ...board, scale: shown.scale })} canvasKey={canvasKey} fallbackFocus={fallbackFocus} command={command} zoomTo={zoomTo} />
       {/* Like ⌘R, Reload stays available whenever a canvas is open, including while it loads or after it failed. */}
       <IconTip label="Reload canvas" shortcut="⌘R"><button type="button" className="doan-icon-button" aria-label="Reload canvas" disabled={!state.open} onClick={() => command("reload")}><RotateCw aria-hidden="true" /></button></IconTip>
@@ -59,6 +75,16 @@ export function CanvasHeader({ state, view, canvasKey = null, command, zoomTo, s
           {panel.badge?.kind === "working" && <span className="badge-working" aria-hidden="true"><span className="doan-spinner" /></span>}</button></IconTip>)}
     </div>
   </header>;
+}
+
+function ProjectCrumb({ label, name, overview }: { label: string; name: string; overview(): void }) {
+  const text = useRef<HTMLSpanElement>(null);
+  const [tip, setTip] = useState(false);
+  return <Tooltip open={tip} onOpenChange={open => setTip(open && (text.current?.offsetWidth === 0 || isCut(text.current)))}>
+    <TooltipTrigger asChild><button type="button" className="doan-button doan-canvas-project" data-ui-variant="trigger" data-ui-size="sm" aria-label={name} onClick={overview}>
+      <span className={`shell-thumbnail hue-${projectHue(label)}`} aria-hidden="true">{projectInitial(label)}</span><span className="doan-canvas-project-name" ref={text}>{label}</span>
+    </button></TooltipTrigger><TooltipContent side="bottom">{name}</TooltipContent>
+  </Tooltip>;
 }
 
 // A header menu's closing and focus rules (canvasFocus.ts), applied to its trigger and Radix's close.

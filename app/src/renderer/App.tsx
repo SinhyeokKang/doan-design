@@ -35,7 +35,8 @@ import { announcedAgain } from "./listRetry";
 import { useVisibleClock } from "./visibleClock";
 import { useActivationFocus } from "./activationFocus";
 import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, routeCanvasPublish, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
-import { CanvasHeader } from "./CanvasHeader";
+import { headerMove } from "./worktreeSwitchModel";
+import { CanvasHeader, type CanvasHeaderNavigation } from "./CanvasHeader";
 import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool, type PlayTool } from "./CanvasTools";
 import { canvasPlayability, drawerPlayRequest, playDrawer, playRequest, playTooltip } from "./prototypePlay";
 import { canvasBubbleRoom } from "./sizeBubble";
@@ -833,10 +834,17 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     else controller.current?.openWorkspace(root, next => completeNavigation(next), false);
   };
   // opened: after the canvas shows, for a caller that records something only once the open went through.
-  const openShellCanvas = (root: string, row: CanvasRow, cursor?: number, opened?: () => void) => {
+  const openShellCanvas = (root: string, row: CanvasRow, cursor?: number, opened?: () => void, keepView = false) => {
     if (locked()) return;
     cancelRestore();
-    controller.current?.openCanvas(root, row, undefined, { opened: () => { completeNavigation(root, cursor); opened?.(); }, unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path, live.current.projectLabel(root))) });
+    controller.current?.openCanvas(root, row, undefined, { ...(keepView ? { keepView } : {}), opened: () => { completeNavigation(root, cursor); opened?.(); }, unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path, live.current.projectLabel(root))) });
+  };
+  const switchCanvasWorktree = (root: string, path: string) => {
+    const entry = entriesRef.current.find(entry => entry.path === root);
+    const move = headerMove(entry, path);
+    const row = move.kind === "canvas" && entry?.kind === "list" ? entry.canvases.find(row => row.path === move.path) : undefined;
+    if (row) openShellCanvas(root, row, undefined, undefined, true);
+    else toast.show(unavailableCanvasMessage(entry, path, projectLabel(root)));
   };
   // arrived: after the move commits, for an entry point that asks the Overview for a conversation.
   const showShellOverview = (root: string, cursor?: number, arrived?: () => void) => {
@@ -2610,7 +2618,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     {topBar(false)}
     {sidebar(false)}
     {strip}
-    <CanvasPane viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} view={canvasView.current} command={command} covered={overview !== null || overlaid} overlaid={overlaid}
+    <CanvasPane navigation={card && loadedRoot ? { card, root: loadedRoot, homeDirectory, overview: () => showShellOverview(loadedRoot), worktree: switchCanvasWorktree } : null}
+      viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} view={canvasView.current} command={command} covered={overview !== null || overlaid} overlaid={overlaid}
       zoomTo={scale => controller.current?.zoomTo(scale)} onToolbarEscape={event => controller.current?.toolbarEscape(event)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: showPanel, badge: panelBadge }}
       inspector={{ open: inspectorPanel.open, fits: canvasPanels.inspectorFits, show: () => foldInspector(true), focused: node => { inspectorShowFocused.current = node; } }}
       agent={{ list: state.open ? run.listState(state.open.folder) : undefined, shown: canvasRun.current!.showing()?.conversationId ?? null, canvas: workingCanvas(state.open, state.unlisted, entry), buddy: buddySelection.shown, running: screen === "workspace" && overview === null, work, entries,
@@ -2740,8 +2749,8 @@ export function CanvasLoading() {
 // The window draws one canvas pane, so the failure line's id is fixed.
 const CANVAS_FAILED_ID = "doan-canvas-failed";
 
-function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, inspector, agent, picking, capturing, tool, onTool, picker, capture, player, exporter }: {
-  viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
+function CanvasPane({ navigation, viewport, board, overlay, dragLayer, state, view, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, inspector, agent, picking, capturing, tool, onTool, picker, capture, player, exporter }: {
+  navigation: CanvasHeaderNavigation | null; viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   // covered: the Overview or a problem's overlay is over the pane. overlaid: the overlay, which names the problem itself.
   state: CanvasState; view: CanvasViewStore; command: (name: ViewCommand) => void; covered: boolean; overlaid: boolean;
   zoomTo(scale: number): void; onToolbarEscape(event: KeyboardEvent): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: CanvasSignal | null }; inspector: { open: boolean; fits: boolean; show(): void; focused(node: Element): void }; agent: AgentProps;
@@ -2755,7 +2764,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
   if (retry !== pressedRetry) setRetry(retry);
   // Stays laid out under the Overview: opening a canvas fits it to this size at once.
   return <div className="doan-canvas-panel" ref={panel} inert={covered}>
-    <CanvasHeader state={state} view={view} canvasKey={canvasKey} command={command} zoomTo={zoomTo} selectFrame={selectFrame} fallbackFocus={() => viewport.current?.focus()} panel={conversation} inspector={inspector} />
+    <CanvasHeader navigation={navigation} state={state} view={view} canvasKey={canvasKey} command={command} zoomTo={zoomTo} selectFrame={selectFrame} fallbackFocus={() => viewport.current?.focus()} panel={conversation} inspector={inspector} />
     <section className="area" role="region" aria-label="Canvas" tabIndex={-1} ref={viewport} data-picking={picking ? "" : undefined}>
     <div className="board" ref={board} hidden />
     <div className="overlay" ref={overlay} />

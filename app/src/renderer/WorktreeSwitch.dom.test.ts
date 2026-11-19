@@ -21,7 +21,7 @@ beforeAll(async () => {
         const main = { path: "/code/demo", kind: "list", git: { branch: "main" }, canvases: [{path: "a.html"}] };
         const root = createRoot(document.querySelector("main"));
         window.draw = (ready, reason, problem) => {
-          const other = ready ? {...main, path: "/code/next", git: {branch: "next"}} : {kind: "loading", path: "/code/next"};
+          const other = ready ? {...main, path: "/code/next", git: {branch: "next"}, canvases: ready === "gone" ? [] : main.canvases} : {kind: "loading", path: "/code/next"};
           const rows = [main, problem ? {kind: problem, path: other.path} : other];
           const model = worktreeSwitchModel(rows, main.path, "/code", problem ? undefined : row => headerRowState(row, "a.html"));
           root.render(<TooltipProvider><div onKeyDown={() => document.body.dataset.key = "bubbled"} onClick={() => document.body.dataset.click = "bubbled"}>
@@ -68,6 +68,7 @@ test.each([["cliError", "CLI error"], ["error", "Config error"]] as const)("a %s
   await frame.evaluate(kind => (window as unknown as { draw(ready: boolean, reason: null, problem: string): void }).draw(false, null, kind), kind);
   await frame.getByRole("button", { name: "Worktree: main" }).press("ArrowDown");
   await frame.getByRole("menuitem", { name: new RegExp(label) }).click();
+  expect(await frame.getByRole("menuitem", { name: /main/ }).getAttribute("aria-current")).toBe("true");
   for (const [name, icon] of [["Retry", "rotate-cw"], ["Details", "info"]] as const) {
     const action = frame.getByRole("menuitem", { name, exact: true });
     expect(await action.locator(`svg.lucide-${icon}`).getAttribute("aria-hidden")).toBe("true");
@@ -92,4 +93,17 @@ test("the sidebar switch keeps clicks, disclosure and typeahead out of the tree 
   expect(await trigger.evaluate(node => node.ownerDocument.getElementById(node.getAttribute("aria-describedby")!)?.textContent)).toBe("Finish or cancel the current task.");
   await trigger.press("Enter");
   expect(await trigger.getAttribute("aria-expanded")).toBe("false");
+});
+
+test("a canvas which vanishes from a previously offered worktree is rechecked when pressed", async () => {
+  const frame = await dom.load("<main></main>");
+  await frame.addScriptTag({ content: script });
+  const draw = (state: boolean | string) => frame.evaluate(state => (window as unknown as { draw(ready: boolean | string, reason: null): void }).draw(state, null), state);
+  await draw(true);
+  await frame.getByRole("button", { name: "Worktree: main" }).press("ArrowDown");
+  await draw("gone");
+  const gone = frame.getByRole("menuitem", { name: /No a here/ });
+  expect(await gone.getAttribute("aria-disabled")).toBe("true");
+  await gone.press("Enter");
+  expect(await frame.locator("body").getAttribute("data-moved")).toBe("/code/next");
 });

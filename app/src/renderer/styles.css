@@ -1490,7 +1490,21 @@ button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-ba
 .doan-canvas-panel > .area:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 /* The Overview header box (.ov-head) reading canvas / frame: the canvas is the quieter parent (subtle, regular, its
    sidebar icon, up to 40%), the frame the current item; the frame name gives way first. */
-.doan-canvas-head { flex: none; background: var(--surface-panel); }
+.doan-canvas-head { flex: none; background: var(--surface-panel); container: doan-canvas-head / inline-size; }
+.doan-canvas-trail { display: flex; align-items: center; gap: var(--space-2); flex: 0 1 auto; min-width: 0; }
+/* The switch yields to its label floor first, then the project, then the frame and finally the canvas name. */
+.doan-canvas-trail > .wt-chip { flex: 0 1e12 auto; min-width: calc-size(max-content, min(size, 2 * var(--space-chip-inset) + var(--size-icon-xs) + var(--space-1) + var(--space-12))); }
+.doan-canvas-project.doan-button { flex: 0 1e8 auto; min-width: calc(var(--size-icon) + 2 * var(--space-2)); gap: var(--space-2); color: var(--text-subtle); font-weight: var(--type-weight-regular); }
+.doan-canvas-project-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doan-canvas-trail > .ov-title-wrap { flex: 0 10000 auto; min-width: calc(2 * var(--space-2) + var(--space-1h) + var(--size-icon)); }
+.doan-canvas-trail > .doan-canvas-name { flex: 0 1 auto; max-width: 40cqi; min-width: calc(var(--space-2) + var(--size-icon)); }
+/* Container queries read the content box, 32px narrower than the full header. */
+@container doan-canvas-head (width < 688px) {
+  .doan-canvas-project-name, .doan-canvas-zoom > .doan-icon-button { display: none; }
+}
+@container doan-canvas-head (width < 568px) {
+  .doan-canvas-trail > :is(.doan-canvas-project, .wt-chip, .doan-canvas-sep-root) { display: none; }
+}
 .doan-canvas-name { display: inline-flex; align-items: center; gap: var(--space-1h); flex: none; max-width: 40%; min-width: 0; padding-left: var(--space-2); color: var(--text-subtle); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); }
 .doan-canvas-name svg { width: var(--size-icon); height: var(--size-icon); flex: none; }
 .doan-canvas-name span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

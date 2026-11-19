@@ -52,7 +52,7 @@ interface Props {
   // act as an empty slot's. Only the sidebar knows where the list shows (it can hold it under a previous canvas).
   open(root: string, row: CanvasRow, listed?: boolean): void;
   overview(root: string): void;
-  action(action: RowAction, root: string): void;
+  action(action: RowAction, root: string): void | Promise<void>;
   remove(roots: string[]): Promise<void>;
   // The project menu's Project Settings: the page for the worktree the menu shows. It is a move, so a locked page shows
   // it unavailable.
@@ -496,11 +496,11 @@ export function ShellSidebar(props: Props) {
                 }}><GitBranch aria-hidden="true" /><span><span>{worktreeLabel(row)}</span><small>{displayPath(row.path, props.homeDirectory)}</small></span>{row.path === menuEntry.path && <Check aria-hidden="true" />}</DropdownMenu.Item>)}
                 <DropdownMenu.Separator className="doan-menu-sep" />
                 <DropdownMenu.Item className="doan-menu-item" aria-disabled={locked} onSelect={() => run(() => props.overview(menuEntry.path))}><LayoutGrid />Overview</DropdownMenu.Item>
-                <DropdownMenu.Item className="doan-menu-item" onSelect={() => run(() => props.action("showInFinder", menuEntry.path))}><FolderOpen />Show in Finder</DropdownMenu.Item>
+                <DropdownMenu.Item className="doan-menu-item" onSelect={() => run(() => void props.action("showInFinder", menuEntry.path))}><FolderOpen />Show in Finder</DropdownMenu.Item>
                 <DropdownMenu.Item className="doan-menu-item" aria-disabled={locked} onSelect={() => run(() => props.projectSettings(menuEntry.path))}><Settings />Project Settings</DropdownMenu.Item>
                 {menuInfo.actions.filter(action => action !== "remove" && action !== "showInFinder").map(action => {
                   const Icon = icons[action];
-                  return <DropdownMenu.Item className="doan-menu-item" key={action} onSelect={() => run(() => props.action(action, menuEntry.path))}>{Icon && <Icon />}{labels[action]}</DropdownMenu.Item>;
+                  return <DropdownMenu.Item className="doan-menu-item" key={action} onSelect={() => run(() => void props.action(action, menuEntry.path))}>{Icon && <Icon />}{labels[action]}</DropdownMenu.Item>;
                 })}
                 <DropdownMenu.Item className="doan-menu-item" onSelect={() => {
                   const current = live.current.cards.find(item => item.key === card.key);

@@ -22,6 +22,8 @@ export function WorktreeSwitch({ model, reason, tabIndex, onWorktree, recovery, 
   const [open, setOpen] = useState(false);
   const [repairRoot, setRepairRoot] = useState<string | null>(null);
   const repair = model.rows.find(row => row.root === repairRoot);
+  // If the list changed under an open menu, a press on a formerly available canvas reports the failed move.
+  const offered = useRef(new Set<string>());
   const moved = useRef(false);
   const retry = useRetry();
   if (reason && open) setOpen(false);
@@ -29,12 +31,15 @@ export function WorktreeSwitch({ model, reason, tabIndex, onWorktree, recovery, 
     if (next && reason) return;
     setOpen(next);
     setTip(false);
-    if (next) setRepairRoot(null);
+    if (next) {
+      setRepairRoot(null);
+      offered.current = new Set(model.rows.filter(row => row.state.kind === "open" && !row.current).map(row => row.root));
+    }
   };
   return <DropdownMenu.Root open={open && !reason} onOpenChange={changeOpen}>
     <Tooltip open={tip && !open} onOpenChange={next => setTip(next && (!!reason || isCut(trigger.current)))}>
       <TooltipTrigger asChild><DropdownMenu.Trigger asChild aria-disabled={reason ? true : undefined} aria-describedby={reason ? description : undefined}><button ref={trigger} type="button" className="doan-chip shell-branch wt-chip" data-ui-variant="translucent"
-        aria-label={`Worktree: ${model.label}`} aria-disabled={reason ? true : undefined} aria-describedby={reason ? description : undefined}
+        aria-label={`Worktree: ${model.label}`}
         tabIndex={tabIndex} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
         <GitBranch aria-hidden="true" /><span>{model.label}</span></button></DropdownMenu.Trigger></TooltipTrigger>
       <TooltipContent side="bottom" className="hbw-tip">{reason ?? <><span>{model.label}</span><span>{model.path}</span></>}</TooltipContent>
@@ -45,10 +50,13 @@ export function WorktreeSwitch({ model, reason, tabIndex, onWorktree, recovery, 
       onCloseAutoFocus={event => { if (moved.current) { event.preventDefault(); moved.current = false; } }}>
       <DropdownMenu.Label id={heading} className="doan-menu-head">Worktrees</DropdownMenu.Label>
       {model.rows.map(row => {
-        const marked = repair?.state.kind === "repair" ? repair.root === row.root : row.current;
-        return <DropdownMenu.Item key={row.root} className="doan-menu-item shell-worktree" aria-current={marked ? "true" : undefined}
+        return <DropdownMenu.Item key={row.root} className="doan-menu-item shell-worktree" aria-current={row.current ? "true" : undefined}
           aria-disabled={row.state.kind === "disabled" || undefined} onSelect={event => {
-            if (row.state.kind === "disabled") { event.preventDefault(); return; }
+            if (row.state.kind === "disabled") {
+              event.preventDefault();
+              if (offered.current.has(row.root)) onWorktree(row.root);
+              return;
+            }
             if (row.state.kind === "repair") { event.preventDefault(); setRepairRoot(row.root); return; }
             if (row.current) return;
             moved.current = handOffFocus;
@@ -56,7 +64,8 @@ export function WorktreeSwitch({ model, reason, tabIndex, onWorktree, recovery, 
           }}>
           <GitBranch aria-hidden="true" /><span><span>{row.label}</span><small>{row.path}</small>
             {row.state.kind === "disabled" && !row.chip && <small className="shell-menu-reason">{row.state.reason}</small>}</span>
-          {row.chip ? <span className={chipClass(row.chip)}>{row.chip}</span> : marked && <Check aria-hidden="true" />}
+          {row.chip && <span className={chipClass(row.chip)}>{row.chip}</span>}
+          {row.current && <Check aria-hidden="true" />}
         </DropdownMenu.Item>;
       })}
       {recovery && repair?.state.kind === "repair" && <>

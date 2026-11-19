@@ -748,7 +748,7 @@ export class CanvasController {
 
   // `opened`: told once the canvas is the open one. A frame or element target replaces any earlier one still waiting
   // for the first layout: the last request wins.
-  openCanvas(folder: string, row: CanvasRow, to?: OpenTarget, target?: { index?: number; found?: (found: boolean) => void; unavailable?: (entry: FolderEntry | undefined) => void; opened?: () => void; located?: (result: LocateResult) => void }): void {
+  openCanvas(folder: string, row: CanvasRow, to?: OpenTarget, target?: { keepView?: boolean; index?: number; found?: (found: boolean) => void; unavailable?: (entry: FolderEntry | undefined) => void; opened?: () => void; located?: (result: LocateResult) => void }): void {
     const frameId = to && "frame" in to ? to.frame : undefined;
     const element: Anchor | undefined = to && "element" in to ? { element: { doanId: to.element } } : to && "anchor" in to ? to.anchor : undefined;
     const located = target?.located ? { located: target.located } : {};
@@ -776,7 +776,7 @@ export class CanvasController {
     };
     this.transition(() => {
       const opening = current() ?? row;
-      this.openCanvasNow(folder, opening);
+      this.openCanvasNow(folder, opening, target?.keepView ? this.currentView() : undefined);
       this.pendingFrame = frameId === undefined ? null : { id: frameId, ...target };
       this.pendingLocate = element === undefined ? null : { folder, path: opening.path, anchor: element, ...located };
       if (this.state.status === "noWidth") { this.pendingFrame?.found?.(false); this.pendingFrame = null; this.pendingLocate = null; }
@@ -799,7 +799,7 @@ export class CanvasController {
     this.locate(pending.anchor, pending.located ?? (() => {}));
   }
 
-  private openCanvasNow(folder: string, row: CanvasRow): void {
+  private openCanvasNow(folder: string, row: CanvasRow, view?: View): void {
     const previous = this.state.open;
     if (previous && previous.folder !== folder) this.workspaceMemory.set(previous.folder, { path: previous.canvas, view: { ...this.view } });
     this.state.open = { folder, canvas: row.path, row };
@@ -807,11 +807,11 @@ export class CanvasController {
     this.state.error = "";
     // Opening a canvas is the person's moment: following waits a full rest after it.
     this.lastPersonMove = Date.now();
-    this.load(row, true);
+    this.load(row, true, view);
   }
 
   // A new element ends the old document before resetting its measurement viewport.
-  private load(row: CanvasRow, fresh: boolean): void {
+  private load(row: CanvasRow, fresh: boolean, view?: View): void {
     // The document under a drag or a held Space goes away; neither carries over to the next one.
     this.stopDrag();
     this.spaceHeld = false;
@@ -851,8 +851,8 @@ export class CanvasController {
       this.board.hidden = false;
       this.board.style.visibility = "hidden";
       this.state.status = "loading";
-      this.view = fitWidth(row.width, this.viewportSize(), FIT_INSET);
-      this.firstFit = this.view;
+      this.view = view ?? fitWidth(row.width, this.viewportSize(), FIT_INSET);
+      this.firstFit = view ? null : this.view;
       this.applyView("app");
     } else {
       this.frame.replaceWith(next);
