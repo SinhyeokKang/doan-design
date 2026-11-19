@@ -38,6 +38,7 @@ Reference: `.doan/canvases/doan-project.html` (nine frames: `overview-thread`, `
 
 - **Streaming caret height.** The drafts draw the caret 24 high with a −6 px bottom margin in every type size; the app draws it one line tall (20 in the canvas panel's 14/20 text), because the drafts' caret makes a 14/20 line 23 high.
 - **Conversation menu width.** 360 px is the menu's component constant; the draft's own rule asks for 360 but the shared `.doan-menu` `max-width` caps its render at 320.
+- The Overview header, New conversation button and worktree menu share the [inherited header type](canvas.md#worktree-header-type).
 - **Current worktree check.** The worktree menu marks the current row with a check. Opening recovery actions moves the check and `aria-current` to the worktree being repaired.
 - **Worktree status.** A problem worktree carries Home’s toned status chip. Its status stays visible when that row is checked for repair (see Home, “Status chips in menus”).
 - **Moved line alignment.** The draft centres the moved line's icon and text on the Open button's row; the app uses the shared notice, whose inline action centres vertically in the notice while the icon stays on the first line (screens set only outer margins on a notice, `ds/controls.test.ts`). The line never wraps, so its first line is the whole notice and both render the same 44 px row (measured).
