@@ -63,7 +63,7 @@
 
 | 링크 | 세션·워크트리 | 시작 | PR·머지 | 상태 |
 |---|---|---|---|---|
-| 1 composer-markdown | Claude conductor · `/Users/sinhyeok/orca/workspaces/doan-design/composer-markdown-orch` (`feat/composer-markdown`) | 2026-11-19 17:58 (`2b11f18cd`) | | 진행 중 |
+| 1 composer-markdown | Claude conductor · `/Users/sinhyeok/orca/workspaces/doan-design/composer-markdown-orch` (`feat/composer-markdown`) | 2026-11-19 17:58 (`2b11f18cd`) | [#307](https://github.com/SinhyeokKang/doan-design/pull/307) · `dc07740a4` | 머지 |
 | 2 header-breadcrumb-worktree | | | | 대기 |
 | 3 inspector-reach | | | | 대기 |
 
@@ -78,3 +78,9 @@
   5. 로그인 프로필은 체인이 끝난 뒤에도 남긴다. 로그아웃하지 않고 지우지 않는다(chain skill 기본과 다름).
   - Codex: 사용자가 18:16 무렵 토큰 초기화를 알렸다. conductor는 배치 계획 전에 Codex 남은 사용량을 확인하고, 사용할 수 있을 때만 Codex 워커를 띄운다('상시 권한').
   - 링크 2: 사용자가 Astra 신버전을 시험하려고 구현은 Codex `gpt-6.2-astra`, 리뷰는 Claude Code로 하자고 했다('상시 권한').
+- 2026-11-19 (리드, 링크 1 머지): PR #307을 `dc07740a4`로 머지하고 conductor 워크트리를 지웠다(브랜치 `feat/composer-markdown`은 남김). 다음 링크가 알아야 할 것:
+  - `app/src/renderer/styles.css`에 전역 `.list-mark`·`.list-depth` 규칙과 `.conversation-thread .bubble-*` 목록 규칙이 생겼다. design check가 커스텀 속성을 `:root`에만 허용해서 `attr(... type(<number>))`를 쓴다.
+  - 사용자 결정: 목록 한 단계 20px(`--space-5`), 모든 기호를 한 단계 안쪽에 둔다, 기호 열 12px(`--space-3`), 버블 번호는 오른쪽 정렬.
+  - 실제 앱에서 확인하지 못한 것(BACKLOG): VoiceOver가 숨은 기호를 읽는 방식, 기호 안에서 시작하는 실제 마우스 드래그, 조합을 끝낸 키를 다시 보내지 않는 입력기.
+  - 로그인 프로필은 남겼다. 그 프로필의 Claude Code는 11월 21일 13:00까지 주간 한도에 걸려 있고 Codex는 쓸 수 있다.
+  - 전체 verify에서 `src/main/shell.test.ts`가 부하 때문에 20초 타임아웃으로 한 번 실패한 적이 있다(다시 돌리면 통과, 바뀐 영역 아님).
