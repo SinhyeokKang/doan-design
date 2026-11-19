@@ -31,6 +31,8 @@
 - 초안 편차 후보(D가 기록): 3자리 번호 목록의 기호 열이 초안보다 1~2.5px 넓다. 버블 배치가 grid가 아니라 inline-block이다.
 - Codex 재검토 재시작이 update prompt로 막혔다(`orchestration send` 재열기). 같은 모델로 새 `worker-start`를 띄웠다.
 - B 고침 1차: 보류 키를 누름마다 줄에 쌓고 keyup으로 중복을 가린다. 가정한 IME 순서 6가지는 `.scratch/handoff-B.md` 'Fix round 1'에 있다. `/runtime-test`에서 사용자가 macOS 한글 IME로 확인한다.
+- B 재검토(Round 2): 보류 키 처리의 경계 결함 3건. 가정을 더 쌓지 않고 실제 순서를 쟀다: 사용자가 macOS 한글 IME로 Electron 45 이벤트 기록 창에 입력했다(`.scratch/runtime-test/ime-events/events-macos-korean.log`). Shift+Enter·Tab·Enter 모두 같은 순서다: 조합 중 keydown(229) → 같은 음절 확정 → compositionend → 즉시 합성 keyup → 같은 키 keydown 재전달(조합 아님) → (Enter면) insertLineBreak/insertParagraph → compositionend의 0ms 타이머 → 실제 keyup. 조합 중에는 insertLineBreak가 오지 않는다. 지금 코드는 Tab을 두 번 들여쓴다(합성 keyup이 보류를 풀고, 재전달과 타이머가 각각 실행). B 고침 2차: 조합 중 키는 기억만 하고 재전달된 키에서 편집한다. 재전달이 없으면 타이머에서 한 번 한다.
+- C 3차: 깊은 중첩 버블의 그린 들여쓰기는 4단계에서 멈춘다(편차 3, D가 기록).
 - `/runtime-test`(tasks 9)와 최종 `/verify`(tasks 10), 승격(tasks 11)은 conductor가 한다. IME 확인에 사용자가 필요하고, 승격은 문서 커밋이다.
 
 ## Codex 사용
@@ -47,8 +49,8 @@
 | B | tasks 5 | `chipField.ts`(+test), `ComposerParts.tsx`(+test), `styles.css`, 네 composer 공유 고정 테스트 | A | Opus high — contenteditable 캐럿·undo·IME 조합, PoC 5가지 처리 | test, typecheck, lint | 통합 `d35bf1952`·`e285dc591`(통합 HEAD 관련 테스트 29 files / 725 PASS) |
 | B-rev | B 리뷰 | 없음 | B | Codex Astra high — 여러 컴포넌트에 걸친 입력 처리, 실수하면 입력이 깨진다 | `/code-review` 보고 | 1차 🔴1 🟡3 → 고침 1차 `71c2c6964`·`3594ead49`·`d2a3ae2c9` 통합 → 재검토 진행 |
 | C | tasks 6, 7 | `homeComposer.ts`(`composeRequest`), `messageText.ts`(`messageLine` 연결), `ConversationThread.tsx`(`UserMessage`)와 테스트, 큐·초안 복원 테스트(프로토타입 포함). 버블 CSS는 보류 항목 | A | Opus medium — 명세가 구체적이고 영향 범위가 B보다 좁다 | test, typecheck, lint | 통합 `79e67ad86`·`1be729481`(통합 HEAD 관련 테스트 23 files / 762 PASS). 버블 CSS 보류 |
-| C-rev | C 리뷰 | 없음 | C | Codex Astra medium — 교차 계열 독립 리뷰 | `/code-review` 보고 | 1차 🔴1 🟡3 → C 2차 통합 → 재검토 🔴1(명령과 같은 이름의 스킬, 이전부터의 결함) 🟡1(깊은 중첩 본문 폭 0) → C 3차 진행 |
-| D | tasks 8 | `styles.css` 측정 수정, `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, 회귀 테스트 | B, C 통합 | Opus medium — 측정 절차가 정해진 작업 | `/design-sync` 기록 | 대기 |
+| C-rev | C 리뷰 | 없음 | C | Codex Astra medium — 교차 계열 독립 리뷰 | `/code-review` 보고 | 1차 🔴1 🟡3 → C 2차 통합 → 재검토 🔴1(명령과 같은 이름의 스킬, 이전부터의 결함) 🟡1(깊은 중첩 본문 폭 0) → C 3차 `56ac1586a`·`ed5916ae7` 통합(conductor가 diff 확인) |
+| D | tasks 8 | `styles.css` 측정 수정, `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, 회귀 테스트 | B, C 통합 | Opus medium — 측정 절차가 정해진 작업 | `/design-sync` 기록 | 진행 (`cm-d`, B 고침 2차와 파일이 겹치지 않아 병렬) |
 | conductor | tasks 9, 10, 11 | BACKLOG, PRODUCT, ARCHITECTURE, DESIGN 색인, feature 디렉터리 삭제 | D | — | `/runtime-test`, verify, grep | 대기 |
 
 ## 파일 겹침과 순서
