@@ -156,7 +156,8 @@ func TestOpenReply(t *testing.T) {
 		{name: "missing for no frame", line: string(replyFixture(t, "opened-missing")), code: "internal_error", exit: 1},
 		{name: "none for a frame", line: string(replyFixture(t, "opened-none")), code: "internal_error", exit: 1, asked: true},
 		{name: "opened, no frame asked", line: string(replyFixture(t, "opened-none")), result: map[string]any{"opened": true, "frame": "none"}},
-		{name: "unregistered root", line: string(replyFixture(t, "error-project-not-open")), code: "project_not_open", exit: 3, inMessage: `"repo"`},
+		// The full root, not its base name: another checkout of the same name differs only in its path.
+		{name: "unregistered root", line: string(replyFixture(t, "error-project-not-open")), code: "project_not_open", exit: 3, inMessage: `"/Users/me/repo"`},
 		{name: "canvas not in the list", line: string(replyFixture(t, "error-canvas-not-found")), code: "canvas_not_found", exit: 2, inMessage: ".doan/canvases/home.html"},
 		{name: "busy keeps the app's reason", line: `{"v":4,"ok":false,"error":{"code":"busy","message":"Finish Doan's first run"}}`, code: "busy", exit: 5, inMessage: "Finish Doan's first run"},
 		{name: "busy, locked page", line: `{"v":4,"ok":false,"error":{"code":"busy","message":"The Project Settings page has unsaved work"}}`, code: "busy", exit: 5, inMessage: "Project Settings"},
@@ -211,6 +212,9 @@ func TestOpenReplyGuidance(t *testing.T) {
 	}
 	for _, tt := range []struct{ line, want string }{
 		{`{"v":4,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "Add Projects"},
+		// A project of the same name already in Doan may be another checkout or worktree at another path.
+		{`{"v":4,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "Project Settings"},
+		{`{"v":4,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "another checkout or worktree"},
 		{`{"v":4,"ok":false,"error":{"code":"canvas_not_found","message":"m"}}`, "doan ls"},
 		{`{"v":4,"ok":false,"error":{"code":"busy","message":"m"}}`, "finish it"},
 		{`{"v":1,"ok":false,"error":{"code":"bad_request","message":"m"}}`, "update Doan"},
@@ -405,7 +409,7 @@ func TestOpenAppRefusals(t *testing.T) {
 		reply, code, in string
 		exit            int
 	}{
-		{`{"v":4,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "project_not_open", `"` + filepath.Base(root) + `"`, 3},
+		{`{"v":4,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "project_not_open", `"` + root + `"`, 3},
 		{`{"v":4,"ok":false,"error":{"code":"canvas_not_found","message":"m"}}`, "canvas_not_found", ".doan/canvases/home.html", 2},
 		{`{"v":4,"ok":false,"error":{"code":"busy","message":"Finish Doan's first run"}}`, "busy", "Finish Doan's first run", 5},
 		{`{"v":4,"ok":false,"error":{"code":"bad_request","message":"m"}}`, "internal_error", "malformed", 1},
@@ -726,6 +730,32 @@ func TestRunOpenRuntimeEnvironment(t *testing.T) {
 	}
 }
 
+// The person compares the root with the paths Doan lists, so the JSON message keeps it exactly as Find resolved
+// it, while the text line still escapes control characters a folder name can hold.
+func TestRunOpenNotOpenNamesTheRoot(t *testing.T) {
+	root := filepath.Join(realPath(t, t.TempDir()), "subway\x1b[2J-mong")
+	if e := os.Mkdir(root, 0o755); e != nil {
+		t.Fatal(e)
+	}
+	result(t, root, 0, "init")
+	putFile(t, root, ".doan/canvases/home.html", validCanvas)
+	app := startOnboardingApp(t, shortTempDir(t), func(map[string]any) string {
+		return `{"v":4,"ok":false,"error":{"code":"project_not_open","message":"m"}}`
+	})
+	want := `Doan does not have the folder "` + root + `" open`
+	code, out, _ := runOpen(t, app.runtime, ".doan/canvases/home.html", "--repo", root, "--json")
+	var envelope struct {
+		Error struct{ Message string }
+	}
+	if code != 3 || json.Unmarshal([]byte(out), &envelope) != nil || envelope.Error.Message != want {
+		t.Fatal(code, out)
+	}
+	code, out, errout := runOpen(t, app.runtime, ".doan/canvases/home.html", "--repo", root)
+	if code != 3 || out != "" || strings.Contains(errout, "\x1b") || !strings.HasPrefix(errout, "error: "+EscapeControl(want)+"\n") {
+		t.Fatal(code, out, errout)
+	}
+}
+
 func TestRunOpenOutput(t *testing.T) {
 	root := openProject(t)
 	app := openedApp(t, shortTempDir(t), "found")
@@ -742,7 +772,7 @@ func TestRunOpenOutput(t *testing.T) {
 		return `{"v":4,"ok":false,"error":{"code":"project_not_open","message":"m"}}`
 	})
 	code, out, errout = runOpen(t, missing.runtime, ".doan/canvases/home.html", "--repo", root)
-	if code != 3 || out != "" || !strings.HasPrefix(errout, "error: Doan does not have the folder ") || !strings.Contains(errout, "Add Projects") {
+	if code != 3 || out != "" || !strings.HasPrefix(errout, `error: Doan does not have the folder "`+root+`" open`+"\n") || !strings.Contains(errout, "Add Projects") || !strings.Contains(errout, "another checkout or worktree") {
 		t.Fatal(code, out, errout)
 	}
 	code, out, _ = runOpen(t, app.runtime, ".doan/canvases/home.html", "--frame", "hero", "--repo", root, "--json")
@@ -950,7 +980,7 @@ func TestOpenPrototypeAppRefusals(t *testing.T) {
 		reply, code, in string
 		exit            int
 	}{
-		{`{"v":6,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "project_not_open", `"` + filepath.Base(root) + `"`, 3},
+		{`{"v":6,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "project_not_open", `"` + root + `"`, 3},
 		{`{"v":6,"ok":false,"error":{"code":"canvas_not_found","message":"m"}}`, "canvas_not_found", ".doan/canvases/proto.html", 2},
 		{`{"v":6,"ok":false,"error":{"code":"busy","message":"Finish Doan’s first run, then try again."}}`, "busy", "Finish Doan’s first run", 5},
 		{`{"v":6,"ok":false,"error":{"code":"bad_request","message":"m"}}`, "internal_error", "malformed", 1},

@@ -239,8 +239,8 @@ func handoffFixture(t *testing.T, kind, name string) []byte {
 }
 
 func TestHandoffReply(t *testing.T) {
-	const canvas = ".doan/canvases/checkout.html"
-	got, failure := handoffReply(handoffFixture(t, "valid", "requested.json"), canvas)
+	const root, canvas = "/Users/me/repo", ".doan/canvases/checkout.html"
+	got, failure := handoffReply(handoffFixture(t, "valid", "requested.json"), root, canvas)
 	if failure != nil || !reflect.DeepEqual(got, map[string]any{"requested": true, "canvas": canvas}) {
 		t.Fatal(got, failure)
 	}
@@ -261,7 +261,7 @@ func TestHandoffReply(t *testing.T) {
 		{"error-same-canvas.json", "same_canvas", 5},
 	} {
 		line := handoffFixture(t, "valid", tt.file)
-		got, failure := handoffReply(line, canvas)
+		got, failure := handoffReply(line, root, canvas)
 		if failure == nil || failure.Code != tt.code || ExitCode(failure.Code) != tt.exit || got != nil {
 			t.Errorf("%s: %v %v", tt.file, got, failure)
 			continue
@@ -276,12 +276,12 @@ func TestHandoffReply(t *testing.T) {
 	}
 	// An older app does not know v5 and answers on its v1 path.
 	for _, line := range []string{`{"v":1,"ok":false,"error":{"code":"bad_request","message":"Unsupported version"}}`, `{"v":4,"ok":true,"frame":"none"}`, `{"v":6,"ok":true,"requested":true}`} {
-		if _, failure := handoffReply([]byte(line), canvas); failure == nil || failure.Code != "app_protocol_mismatch" || ExitCode(failure.Code) != 3 {
+		if _, failure := handoffReply([]byte(line), root, canvas); failure == nil || failure.Code != "app_protocol_mismatch" || ExitCode(failure.Code) != 3 {
 			t.Errorf("%s: %v", line, failure)
 		}
 	}
 	for _, line := range []string{``, `not json`, `[]`, `{"v":5,"ok":true,"requested":true} {}`, `{"v":5,"ok":true}`, `{"v":5,"ok":false,"error":{"code":"busy","message":"m"}}`} {
-		if _, failure := handoffReply([]byte(line), canvas); failure == nil || failure.Code != "internal_error" {
+		if _, failure := handoffReply([]byte(line), root, canvas); failure == nil || failure.Code != "internal_error" {
 			t.Errorf("%q: %v", line, failure)
 		}
 	}
@@ -295,7 +295,7 @@ func TestHandoffReplyInvalidFixtures(t *testing.T) {
 	}
 	for _, file := range files {
 		name := filepath.Base(file)
-		got, failure := handoffReply(handoffFixture(t, "invalid", name), ".doan/canvases/a.html")
+		got, failure := handoffReply(handoffFixture(t, "invalid", name), "/Users/me/repo", ".doan/canvases/a.html")
 		if failure == nil || got != nil {
 			t.Errorf("%s: accepted %v", name, got)
 		}
@@ -313,6 +313,8 @@ func TestHandoffFailureSteps(t *testing.T) {
 		"root_mismatch":        {"without --repo"},
 		"canvas_not_found":     {"`doan ls`"},
 		"already_requested":    {"This turn already requested a handoff to this canvas; hand off each other new canvas once"},
+		// A project of the same name already in Doan may be another checkout or worktree at another path.
+		"project_not_open": {"Add Projects", "Project Settings", "another checkout or worktree"},
 	} {
 		steps := strings.Join(handoffFailure(code, "m").NextSteps, "\n")
 		for _, word := range words {
@@ -329,8 +331,20 @@ func TestHandoffFailureSteps(t *testing.T) {
 }
 
 func TestHandoffDuplicateCanvasMessage(t *testing.T) {
-	_, failure := handoffReply(handoffFixture(t, "valid", "error-already-requested.json"), ".doan/canvases/checkout.html")
+	_, failure := handoffReply(handoffFixture(t, "valid", "error-already-requested.json"), "/Users/me/repo", ".doan/canvases/checkout.html")
 	if failure == nil || failure.Message != "This turn already requested a handoff to this canvas" {
 		t.Fatalf("unexpected duplicate canvas message: %v", failure)
+	}
+}
+
+// The same message as doan open: the full root, so the person can tell another checkout of the same name apart.
+func TestHandoffNotOpenNamesTheRoot(t *testing.T) {
+	_, failure := handoffReply(handoffFixture(t, "valid", "error-project-not-open.json"), "/Users/me/repo", ".doan/canvases/checkout.html")
+	if failure == nil || failure.Message != `Doan does not have the folder "/Users/me/repo" open` {
+		t.Fatal(failure)
+	}
+	// A handoff is not repeated on request, so its steps never ask the user to ask again.
+	if strings.Contains(strings.Join(failure.NextSteps, "\n"), "ask again") {
+		t.Fatal(failure.NextSteps)
 	}
 }

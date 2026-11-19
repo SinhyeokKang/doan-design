@@ -82,7 +82,7 @@ func handoffFailure(code, message string) *Error {
 	steps := map[string][]string{
 		"app_not_running":         unreachableSteps("`doan handoff`"),
 		"app_protocol_mismatch":   {"Ask the user to update Doan and the doan CLI to matching versions"},
-		"project_not_open":        {"Tell the user which folder Doan does not have open and ask them to add it in Doan (Add Projects)"},
+		"project_not_open":        notOpenSteps(""),
 		"canvas_not_found":        {"Write the canvas first, then run `doan handoff` with its path; check the path with `doan ls`"},
 		"not_app_conversation":    {"`doan handoff` works only in a canvas conversation in the Doan app; tell the user to open the new canvas in Doan and start a conversation there"},
 		"root_mismatch":           {"Run `doan handoff` from the conversation's working directory without --repo"},
@@ -98,7 +98,7 @@ func handoffFailure(code, message string) *Error {
 
 // handoffReply turns one v5 reply line into the command result. Any numeric v other than 5, including an older
 // app's v1 bad_request for a version it does not know, is another protocol.
-func handoffReply(line []byte, path string) (map[string]any, *Error) {
+func handoffReply(line []byte, root, path string) (map[string]any, *Error) {
 	decoder := json.NewDecoder(bytes.NewReader(line))
 	decoder.UseNumber()
 	var value, extra any
@@ -129,7 +129,7 @@ func handoffReply(line []byte, path string) (map[string]any, *Error) {
 		return nil, internal(errors.New("Doan rejected the handoff request as malformed"))
 	default:
 		return nil, handoffFailure(code, map[string]string{
-			"project_not_open":        "Doan does not have this project open",
+			"project_not_open":        notOpenMessage(root),
 			"not_app_conversation":    "Doan does not know this conversation",
 			"root_mismatch":           "This project is not the conversation's project",
 			"not_running":             "The conversation has no running turn",

@@ -60,7 +60,7 @@ func Handoff(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	if failure != nil {
 		return Outcome{}, failure
 	}
-	reply, failure := handoffReply(line, resolved)
+	reply, failure := handoffReply(line, r.Root, resolved)
 	if failure != nil {
 		return Outcome{}, failure
 	}
