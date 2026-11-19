@@ -62,7 +62,7 @@
 
 | 링크 | 세션·워크트리 | 시작 | PR·머지 | 상태 |
 |---|---|---|---|---|
-| 1 composer-markdown | | | | 대기 |
+| 1 composer-markdown | Claude conductor · `/Users/sinhyeok/orca/workspaces/doan-design/composer-markdown-orch` (`feat/composer-markdown`) | 2026-11-19 17:58 (`2b11f18cd`) | | 진행 중 |
 | 2 header-breadcrumb-worktree | | | | 대기 |
 | 3 inspector-reach | | | | 대기 |
 
