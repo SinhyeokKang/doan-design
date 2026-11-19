@@ -18,7 +18,7 @@ const tokens = readFileSync(here("./tokens.css"), "utf8");
 const token = (name: string) => new RegExp(`${name}:\\s*([^;]+);`).exec(tokens)?.[1] ?? "";
 // The field's own rules from styles.css, over the tokens they read.
 const css = [
-  `:root { ${["--space-1", "--space-1h", "--space-3", "--space-6", "--type-label-size", "--type-label-line-height", "--radius-word"].map(name => `${name}: ${token(name)};`).join(" ")} --text-standard: #1a1a1a; }`,
+  `:root { ${["--space-1", "--space-1h", "--space-3", "--space-5", "--type-label-size", "--type-label-line-height", "--radius-word"].map(name => `${name}: ${token(name)};`).join(" ")} --text-standard: #1a1a1a; }`,
   "body { margin: 24px; font-family: -apple-system, sans-serif; }",
   ...styles.split("\n").filter(line => /^\.(composer-input|list-mark|list-depth|skill-word|anchor-chip) /.test(line) || /^\.list-mark\[/.test(line)),
   ".composer-input { width: 296px; max-height: none; }",
@@ -135,13 +135,13 @@ test("list lines draw marker and depth spans over the typed text, without a hang
     'list-mark:ul "* "', 'list-mark:ol "1. "', 'list-depth:1 "   "', 'list-mark:ol "1. "',
   ]);
   expect(await consistent()).toBe(true);
-  // Every marker stands one --space-6 step (24 px) in and each depth adds a step; the marker column is --space-3
+  // Every marker stands one --space-5 step (20 px) in and each depth adds a step; the marker column is --space-3
   // (12 px), wider for a number; the bullet's characters are not painted.
-  expect(await call("box", ".list-depth", 0)).toMatchObject({ x: 0, w: 24 });
-  expect(await call("box", ".list-depth", 1)).toMatchObject({ x: 0, w: 48 });
-  expect(await call("box", ".list-mark", 0)).toMatchObject({ x: 24, w: 12 });
-  expect(await call("box", ".list-mark", 1)).toMatchObject({ x: 48, w: 12 });
-  expect(await call("box", ".list-mark", 2)).toMatchObject({ x: 72, w: 12 });
+  expect(await call("box", ".list-depth", 0)).toMatchObject({ x: 0, w: 20 });
+  expect(await call("box", ".list-depth", 1)).toMatchObject({ x: 0, w: 40 });
+  expect(await call("box", ".list-mark", 0)).toMatchObject({ x: 20, w: 12 });
+  expect(await call("box", ".list-mark", 1)).toMatchObject({ x: 40, w: 12 });
+  expect(await call("box", ".list-mark", 2)).toMatchObject({ x: 60, w: 12 });
   expect(await frame.evaluate(() => getComputedStyle(document.querySelector(".list-mark")!).color)).toBe("rgba(0, 0, 0, 0)");
   expect(await frame.evaluate(() => getComputedStyle(document.querySelector(".list-mark")!, "::before").content)).toBe('"•"');
   expect(await frame.evaluate(() => getComputedStyle(document.querySelector('.list-mark[data-kind="ol"]')!).color)).toBe("rgb(26, 26, 26)");
@@ -150,7 +150,7 @@ test("list lines draw marker and depth spans over the typed text, without a hang
 test("a depth-0 item's typed leading spaces take no width; a long item wraps to the line start", async () => {
   await open("  - Make the hero headline shorter so it fits on one line at the narrowest window width");
   expect(await call("spans")).toEqual(['list-depth:0 "  "', 'list-mark:ul "- "']);
-  expect(await call("box", ".list-mark")).toMatchObject({ x: 24, y: 0 });
+  expect(await call("box", ".list-mark")).toMatchObject({ x: 20, y: 0 });
   expect(await call("box", ".list-depth")).toMatchObject({ w: 0, h: 24 });
   const rows = await frame.evaluate(() => {
     const field = document.getElementById("f")!, range = document.createRange();
@@ -174,8 +174,8 @@ test("← and → skip an item's prefix, stopping only at the line start and the
   // "- Title": line start 6, body start 8. "    - Under 40": line start 40, body start 46.
   await call("place", 8); await press("ArrowLeft");
   expect(await sel()).toEqual({ anchor: 6, focus: 6 });
-  // A depth-0 line start paints at the marker, not at the line's left edge 24 px before it.
-  expect((await call<{ x: number }>("caret")).x).toBe(24);
+  // A depth-0 line start paints at the marker, not at the line's left edge 20 px before it.
+  expect((await call<{ x: number }>("caret")).x).toBe(20);
   await press("ArrowRight");
   expect(await sel()).toEqual({ anchor: 8, focus: 8 });
   await call("place", 46); await press("ArrowLeft");
@@ -223,7 +223,7 @@ test("a caret left inside a prefix or at the marker span's end moves to the body
 test("an empty item's caret stands after the marker, outside it, and typing fills the body", async () => {
   await open("a\n- ");
   const caret = await call<{ x: number; y: number }>("caret");
-  expect(caret.x).toBe(36);
+  expect(caret.x).toBe(32);
   expect(caret.y).toBeGreaterThanOrEqual(24);
   expect(caret.y).toBeLessThan(48);
   expect(await call("host")).not.toMatch(/list-/);

@@ -63,10 +63,10 @@ test("a sent list selects as the text sent, markers and depth spaces included", 
 test("markers step in by depth up to four steps, and a wrapped body hangs under its own start", async () => {
   await open("- d0\n  - d1\n    - d2\n      - d3\n        - d4\n          - d5 a body long enough to wrap in the bubble at the panel width\n            - d6");
   const rows = await items();
-  // Every marker stands one --space-6 step (24 px) in and each depth adds a step; a bullet's column is --space-3
+  // Every marker stands one --space-5 step (20 px) in and each depth adds a step; a bullet's column is --space-3
   // (12 px); a nested list starts at its parent item's left.
   expect(rows.map(row => [row.body, row.mark, row.at])).toEqual([
-    ["d0", 24, 36], ["d1", 48, 60], ["d2", 72, 84], ["d3", 96, 108], ["d4", 120, 132], ["d5", 120, 132], ["d6", 120, 132],
+    ["d0", 20, 32], ["d1", 40, 52], ["d2", 60, 72], ["d3", 80, 92], ["d4", 100, 112], ["d5", 100, 112], ["d6", 100, 112],
   ]);
   for (const row of rows) expect(row.top).toBe(row.markTop);
   expect(rows.find(row => row.body === "d5")!.lines).toBeGreaterThan(1);
@@ -81,9 +81,9 @@ test("the bodies of one numbered list line up, past its widest marker", async ()
     const probe = document.createElement("span"); probe.className = "list-mark"; probe.textContent = "100. "; probe.style.cssText = "min-width: 0; margin: 0";
     document.querySelector(".bubble-item")!.append(probe); const width = probe.getBoundingClientRect().width; probe.remove(); return width;
   });
-  expect(rows[0]!.at - 24).toBeGreaterThanOrEqual(widest);
+  expect(rows[0]!.at - 20).toBeGreaterThanOrEqual(widest);
   // A number's text follows its typed space: the column runs past the widest marker by under a pixel.
-  expect(rows[0]!.at - 24 - widest).toBeLessThan(1);
+  expect(rows[0]!.at - 20 - widest).toBeLessThan(1);
   // "2." is the wider of the two markers in Geist.
   await open("1. a\n2. b");
   const one = await items();
@@ -92,7 +92,7 @@ test("the bodies of one numbered list line up, past its widest marker", async ()
     const probe = document.createElement("span"); probe.className = "list-mark"; probe.textContent = "2. "; probe.style.cssText = "min-width: 0; margin: 0";
     document.querySelector(".bubble-item")!.append(probe); const width = probe.getBoundingClientRect().width; probe.remove(); return width;
   });
-  for (const row of one) { expect(row.at - 24).toBeGreaterThanOrEqual(marker); expect(row.at - 24 - marker).toBeLessThan(1); }
+  for (const row of one) { expect(row.at - 20).toBeGreaterThanOrEqual(marker); expect(row.at - 20 - marker).toBeLessThan(1); }
 });
 
 // Each "N."'s "." ends at the same x, so its text follows after the same gap: the typed space.
@@ -117,5 +117,5 @@ test("numbers stand right-aligned in the column, each followed by the same gap",
 
 test("a depth-0 item's typed leading spaces take no width", async () => {
   await open(" - one space\n- none");
-  expect((await items()).map(row => [row.mark, row.at])).toEqual([[24, 36], [24, 36]]);
+  expect((await items()).map(row => [row.mark, row.at])).toEqual([[20, 32], [20, 32]]);
 });

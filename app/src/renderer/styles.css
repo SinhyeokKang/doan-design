@@ -752,16 +752,16 @@ body:has(.shell-top) { background: transparent; }
 .composer-input[data-empty]::before { content: attr(aria-placeholder); position: absolute; inset-inline: 0 var(--space-1); color: var(--text-metadata); pointer-events: none; }
 /* A list item's marker and depth spaces (ChipField, and the sent bubble): spans over the typed text, which stays text
    for the caret, deletion and copy. No hanging indent in the field: a wrapped line starts at the line start. Every
-   marker stands one --space-6 step in, so a depth-0 list reads as indented, and each depth adds one more step. The
+   marker stands one --space-5 step in, so a depth-0 list reads as indented, and each depth adds one more step. The
    marker column is --space-3: a bullet then a short gap, a number ("1. ", wider than the column) then its typed space;
    a wider marker ("100. ") widens only its own span. "- " and "* " keep their characters unpainted under a drawn
    bullet; a number is painted as typed, in plain figures: the body's tabular "1" is padded to a "0"'s width, which
    widens the gap after "1." by about 3 px. A depth span is as wide as its depth in steps whatever spaces were typed, so
    a depth-0 item's typed leading spaces take no width. */
-.list-mark { display: inline-block; position: relative; min-width: var(--space-3); margin-inline-start: var(--space-6); font-variant-numeric: normal; }
+.list-mark { display: inline-block; position: relative; min-width: var(--space-3); margin-inline-start: var(--space-5); font-variant-numeric: normal; }
 .list-mark[data-kind="ul"] { color: transparent; }
 .list-mark[data-kind="ul"]::before { content: "•"; position: absolute; left: 0; top: 0; color: var(--text-standard); }
-.list-depth { display: inline-block; width: calc(attr(data-depth type(<number>), 0) * var(--space-6)); }
+.list-depth { display: inline-block; width: calc(attr(data-depth type(<number>), 0) * var(--space-5)); }
 /* Inline anchor chips (confirmed draft; 180px and 6px are component constants with no
    token). contenteditable=false keeps the caret before or after a chip, never inside. */
 .anchor-chip { display: inline-flex; align-items: center; gap: var(--space-1); max-width: 180px; margin: 0 var(--space-half); padding: 0 var(--space-1h); border: 0; border-radius: var(--radius-word); background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font: inherit; font-weight: var(--type-weight-medium); vertical-align: bottom; white-space: nowrap; }
@@ -1198,8 +1198,8 @@ body:has(.shell-top) { background: transparent; }
 /* A deep list in a narrow bubble would leave its body no width, so the drawn indentation stops at four steps; the
    depth spaces stay in the text for copy. Not a share of the item: a bubble shrinks to its text, so a short list's
    item is narrow and a share would pull in its first levels too. */
-.conversation-thread .bubble-item > .list-depth { width: calc(min(attr(data-depth type(<number>), 0), 4) * var(--space-6)); }
-.conversation-thread .bubble-item-body { display: inline-block; max-width: calc(100% - (min(attr(data-depth type(<number>), 0), 4) + 1) * var(--space-6) - max(var(--space-3), calc(attr(data-mark type(<number>), 0) * 1ch))); }
+.conversation-thread .bubble-item > .list-depth { width: calc(min(attr(data-depth type(<number>), 0), 4) * var(--space-5)); }
+.conversation-thread .bubble-item-body { display: inline-block; max-width: calc(100% - (min(attr(data-depth type(<number>), 0), 4) + 1) * var(--space-5) - max(var(--space-3), calc(attr(data-mark type(<number>), 0) * 1ch))); }
 .conversation-thread .msg-files { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1h); }
 /* A sent file has no remove button, so the chip keeps its own inline end padding. */
 .conversation-thread .msg-files .attach-chip { gap: var(--space-3); padding: var(--space-1h) var(--space-4) var(--space-1h) var(--space-1h); }
