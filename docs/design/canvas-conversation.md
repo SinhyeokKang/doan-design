@@ -236,9 +236,10 @@ Reference: `.doan/canvases/composer-markdown.html` frames `field-bullets`, `fiel
 
 | Element | Measured contract | Reason |
 |---|---|---|
-| Marker | A line starting with `- `, `* ` or a 1–3 digit `N. ` has its marker in `.list-mark` (`data-kind` `ul` or `ol`): `inline-block`, `position: relative`, `min-width: 24px` (`--space-6`), so a marker of up to 24 px is 24 wide and the body starts 24 after it | The marker column is the indent of the agent's Markdown lists. |
-| Bullet | `ul` markers keep their characters in `color: transparent`; `::before` draws "•" at left 0 / top 0 in `--text-standard` rgb(15,15,15). `ol` markers are painted as typed in the field's ink | The text the field holds, sends and copies keeps the typed characters. |
-| Depth | Leading spaces before a nested marker are `.list-depth` (`data-depth`), `inline-block`, `data-depth` × 24 wide: depth 1 = 24 and depth 2 = 48, markers at 24 and 48, bodies at 48 and 72; equal to the draft in all four frames | A child's marker sits under its parent's body. |
+| Marker | A line starting with `- `, `* ` or a 1–3 digit `N. ` has its marker in `.list-mark` (`data-kind` `ul` or `ol`): `inline-block`, `position: relative`, `margin-inline-start: 24px` (`--space-6`), `min-width: 12px` (`--space-3`): every marker stands one step in, a bullet's body starts 12 after it, and a number is followed by its own typed space ("1. " is 13.37 wide, its body at 37.37). Measured in all four frames: depth-0 markers at 24, bullet bodies at 36, equal to the draft | The person found a depth-0 list too shallow and the gap after the marker too wide; the step keeps its 24 px, and 12 px leaves a short gap after the 5 px "•". |
+| Bullet | `ul` markers keep their characters in `color: transparent`; `::before` draws "•" at left 0 / top 0 in `--text-standard` rgb(15,15,15). `ol` markers are painted as typed in the field's ink, in plain figures (`font-variant-numeric: normal`) | The text the field holds, sends and copies keeps the typed characters. The body's tabular "1" would add about 3 px of gap after "1.". |
+| Depth | Leading spaces before a nested marker are `.list-depth` (`data-depth`), `inline-block`, `data-depth` × 24 wide: depth 1 = 24 and depth 2 = 48, markers at 48 and 72, bullet bodies at 60 and 84; equal to the draft in all four frames | Each depth keeps the 24 px step; a child's marker sits 12 px past its parent's body. |
+| Line-start caret | At a depth-0 item's line start the caret paints at the marker (x 24), not at the line's left edge; a nested item's line start is before its depth span, at x 0 | The prefix-skipping caret keeps its line-start stop. |
 | No hanging indent | A wrapped item's next line starts at the field's left edge (`field-wrap` a: field height 120 for its five rows, equal to the draft); the field has no columns | The field is plain editable text; the bubble hangs its lines instead. |
 | New item | Shift+Enter's new empty item (`field-bullets` b, `field-ordered` b) draws its marker like any other; the field adds a zero-width filler after it so the caret has a place, a U+200B that the accessible value carries after "* " but the field's text does not | |
 | Lines that are not items | "2026. 11. 19. review with the team" (a four-digit number) draws no marker; positions equal the draft | |
@@ -246,15 +247,15 @@ Reference: `.doan/canvases/composer-markdown.html` frames `field-bullets`, `fiel
 
 ### Documented deviations from the draft
 
-- **Leading spaces at depth 0.** Leading spaces before an item with no parent item (a first line " - one space") take no width: its `.list-depth` span is 0 px wide and its marker sits at 0, like an item typed without them. Depth follows the parent rule, so spaces under an item are a depth step ("   - three spaces" after "- none": depth 1, 24 px). The draft draws no such item.
+- **Leading spaces at depth 0.** Leading spaces before an item with no parent item (a first line " - one space") take no width: its `.list-depth` span is 0 px wide and its marker sits at 24, like an item typed without them. Depth follows the parent rule, so spaces under an item are a depth step ("   - three spaces" after "- none": depth 1, marker at 48). The draft draws no such item.
 
-Context, not deviations: numbered markers of two or three digits are wider in a field that inherits the app body's tabular figures (the canvas panel's docked composer, Home, the prototype window): "10. " is 26.42 px against the draft's 24 and "100. " 36.02 against 34.58 (`field-ordered` c), so those items' bodies start 2.42 and 1.44 px further right. With plain figures, as the Overview's main column sets them ('Project overview' Numerals in `project.md`), all three markers equal the draft (measured with `font-variant-numeric: normal` on the field). Every list part inherits `tabular-nums`; containers' inherited 13 px / `normal` type.
+Context, not deviations: every list part but the marker inherits the app body's `tabular-nums`; containers' inherited 13 px / `normal` type.
 
 ### Not verified
 
-- The running app: the field was drawn by `ChipField` on the built CSS, not inside a composer of the running app, and the Overview's docked composer was not opened (its plain figures were set on the field by hand). The prototype window's composer was not measured.
+- The running app: the field was drawn by `ChipField` on the built CSS, not inside a composer of the running app. The Overview's docked composer and the prototype window's composer were not measured.
 - Keys, caret and IME over the spans belong to the field's behaviour, not this measurement (`chipField.dom.test.ts`).
 
 ### Regression pointers
 
-`chipField.dom.test.ts` (Electron: spans over the typed text, depth and marker widths 24 / 48, the bullet's transparent characters and "•", leading spaces of a depth-0 item 0 wide, a wrapped line back at x 0), `chipField.test.ts`, `composerLists.test.ts`. Probe: `.scratch/design-sync/composer-markdown/measure.mjs`, `compare.mjs`.
+`chipField.dom.test.ts` (Electron: spans over the typed text, depth widths 24 / 48, markers at 24 / 48 / 72 and 12 wide, the empty item's caret at 36 and a depth-0 line start's at 24, the bullet's transparent characters and "•", leading spaces of a depth-0 item 0 wide, a wrapped line back at x 0), `chipField.test.ts`, `composerLists.test.ts`. Probe: `.scratch/design-sync/composer-markdown/measure.mjs`, `compare.mjs`.
