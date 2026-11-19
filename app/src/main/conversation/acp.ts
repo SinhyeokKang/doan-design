@@ -2,7 +2,8 @@ import { posix } from "node:path";
 import { canvasDir } from "../../formats/canvasPath";
 import { object } from "./sessions";
 import { QUESTION_LIMITS } from "./question";
-import { contextBefore, contextValue, displayPath, GENERAL_STAGE, GENERIC_SUMMARY, transportError } from "./transport";
+import { contextBefore, contextValue, displayPath, GENERAL_STAGE, GENERIC_SUMMARY, PERMISSION_SUMMARY_MAX, permissionReason, transportError } from "./transport";
+import { clip, quoted } from "./cardText";
 import type { EventPayload, PermissionOption, TransportResult, TransportState, TurnStage } from "./types";
 
 // Agent Client Protocol (https://agentclientprotocol.com) over newline-delimited JSON-RPC 2.0 on stdio, as Cursor
@@ -83,19 +84,36 @@ export function acpErrorText(error: Record<string, unknown>): string {
 export interface AcpChoice { option: PermissionOption; optionId: string }
 // ACP option kinds are allow_once | allow_always | reject_once | reject_always; doan offers allow, deny and, only when
 // the agent offers one, allow always. A one-time choice is preferred so a deny never becomes a standing rule.
-export function acpPermission(params: Record<string, unknown>, requestId: string): { event: Extract<EventPayload, { type: "permission.request" }>; choices: AcpChoice[] } | null {
+export function acpPermission(params: Record<string, unknown>, requestId: string, root: string): { event: Extract<EventPayload, { type: "permission.request" }>; choices: AcpChoice[] } | null {
   if (!Array.isArray(params.options)) return null;
   const options = params.options.filter(object).filter(o => typeof o.optionId === "string" && o.optionId.length <= 512 && typeof o.kind === "string");
   const pick = (...kinds: string[]) => { for (const kind of kinds) { const found = options.find(o => o.kind === kind); if (found) return String(found.optionId); } return null; };
   const allow = pick("allow_once"), always = pick("allow_always"), deny = pick("reject_once", "reject_always");
   const choices: AcpChoice[] = [];
   if (allow) choices.push({ optionId: allow, option: { id: "allow", label: "Allow", kind: "allow" } });
-  if (always) choices.push({ optionId: always, option: { id: "always", label: "Always allow", kind: "allowAlways" } });
+  // The agent keeps this choice itself, and the protocol does not say what it covers, so the card says only that.
+  if (always) {
+    const name = str(options.find(o => o.optionId === always)?.name).trim();
+    const detail = name ? `The agent saves this choice as ${quoted(name)} and decides what it covers.` : "The agent saves this choice and decides what it covers.";
+    choices.push({ optionId: always, option: { id: "always", label: "Always allow", kind: "allowAlways", detail: clip(detail, PERMISSION_SUMMARY_MAX) } });
+  }
   if (deny) choices.push({ optionId: deny, option: { id: "deny", label: "Deny", kind: "deny" } });
   if (!allow && !always) return null;
   const tool = object(params.toolCall) ? params.toolCall : {};
-  const title = typeof tool.title === "string" && tool.title ? tool.title.slice(0, 512) : GENERIC_SUMMARY[ACTIVITY[str(tool.kind)] ?? "other"];
-  return { event: { type: "permission.request", requestId, tool: typeof tool.kind === "string" ? tool.kind : "other", summary: title, options: choices.map(c => c.option) }, choices };
+  const title = str(tool.title);
+  const summary = clip(acpOperation(tool, root) || title || GENERIC_SUMMARY[ACTIVITY[str(tool.kind)] ?? "other"], PERMISSION_SUMMARY_MAX);
+  return { event: { type: "permission.request", requestId, tool: typeof tool.kind === "string" ? tool.kind : "other", summary, ...permissionReason(title, summary), options: choices.map(c => c.option) }, choices };
+}
+// What an ACP request lets run, when its tool call names it: the command (Copilot's title is a fixed phrase and the
+// command is only in rawInput), else every path it touches. Cursor's requests carry neither; their title is the command.
+function acpOperation(tool: Record<string, unknown>, root: string): string {
+  const input = object(tool.rawInput) ? tool.rawInput : {};
+  const commands = Array.isArray(input.commands) ? input.commands.filter(c => typeof c === "string" && c) : [];
+  const command = str(input.command) || commands.join("\n");
+  if (command) return command;
+  const located = Array.isArray(tool.locations) ? tool.locations.filter(object).map(l => str(l.path)) : [];
+  const paths = [...new Set([...located, str(input.fileName) || str(input.path) || str(input.file_path)].filter(Boolean))];
+  return paths.map(path => displayPath(path, root)).join(", ");
 }
 
 // Antigravity asks the person through a standard permission request whose options are the answers:

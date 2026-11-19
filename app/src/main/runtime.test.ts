@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { OnboardingRequest, OnboardingResponse, OpenResponse, Selection } from "../formats/types";
 import { validateOnboardingResponse, validateRuntimeFile, validateSocketResponse } from "../formats/validate";
-import { answerRequest, parseSocketRequest, runtimeFile, socketResponse, startRuntime, tokenMatches, type Runtime } from "./runtime";
+import { answerRequest, CONVERSATION_RUNTIME, parseSocketRequest, runtimeFile, socketResponse, startRuntime, tokenMatches, type Runtime } from "./runtime";
 import type { FolderState } from "./folderState";
 
 const TOKEN = "a".repeat(64);
@@ -142,8 +142,22 @@ test("startRuntime writes runtime.json 0600 and a socket in a 0700 temp dir", as
   expect(dir.slice(tmpdir().length + 1)).toMatch(/^doan-/);
   expect((await stat(dir)).mode & 0o777).toBe(0o700);
   expect((await stat(started.socket)).isSocket()).toBe(true);
-  // No temp file left beside runtime.json.
-  expect(await readdir(userData ?? "")).toEqual(["runtime.json"]);
+  // App conversations read their own file: the same socket under another token (ARCHITECTURE §4 'App-socket credentials').
+  const conversationFile = join(userData ?? "", CONVERSATION_RUNTIME);
+  expect(started.conversationFile).toBe(conversationFile);
+  expect(JSON.parse(await readFile(conversationFile, "utf8"))).toEqual({ v: 1, socket: started.socket, token: started.conversationToken });
+  expect(started.conversationToken).toMatch(/^[0-9a-f]{64}$/);
+  expect(started.conversationToken).not.toBe(started.token);
+  expect((await stat(conversationFile)).mode & 0o777).toBe(0o600);
+  // No temp file left beside the runtime files.
+  expect((await readdir(userData ?? "")).sort()).toEqual([CONVERSATION_RUNTIME, "runtime.json"]);
+});
+
+test("a real round trip refuses onboarding under the conversation credential", async () => {
+  const { socket, token, conversationToken } = await start();
+  expect(await ask(socket, `${request(conversationToken)}\n`)).toEqual({ v: 1, ok: true, result: { selection: SELECTION } });
+  expect(await askV2(socket, v2(conversationToken))).toMatchObject({ v: 2, ok: false, error: { code: "bad_token" } });
+  expect(await askV2(socket, v2(token))).toEqual(STARTED);
 });
 
 test("each start uses a new token", async () => {
@@ -180,7 +194,7 @@ test("startRuntime replaces an older 0644 runtime.json and a stale temp file", a
   runtime = await startRuntime(userData, { isOpen: () => true, selection: () => null, work: () => {}, conversationWork: () => {}, workOthers: () => [], ...NO_AUTO, onboarding: noOnboarding, open: noOpen, handoff: () => null, playPrototype: () => ({ v: 6, ok: false, error: { code: "not_ready", message: "unused" } }), remove: async () => ({ v: 7 as const, ok: false as const, error: { code: "bad_request" as const, message: "unused" } }) });
   expect((await stat(file)).mode & 0o777).toBe(0o600);
   expect(JSON.parse(await readFile(file, "utf8"))).toEqual(runtimeFile(runtime.socket, runtime.token));
-  expect(await readdir(userData)).toEqual(["runtime.json"]);
+  expect((await readdir(userData)).sort()).toEqual([CONVERSATION_RUNTIME, "runtime.json"]);
 });
 
 test("only the first line of a connection is answered", async () => {
@@ -265,28 +279,32 @@ test("a peer that keeps its side open after the reply is still cut off after 2 s
   expect(errors.length).toBeGreaterThan(0);
 });
 
-test("disposeSync removes the socket, its dir and our runtime.json", async () => {
+test("disposeSync removes the socket, its dir and our runtime files", async () => {
   const started = await start();
   started.disposeSync();
   runtime = undefined;
   expect(existsSync(started.socket)).toBe(false);
   expect(existsSync(dirname(started.socket))).toBe(false);
   expect(existsSync(started.file)).toBe(false);
+  expect(existsSync(started.conversationFile)).toBe(false);
 });
 
 test("disposeSync keeps a runtime.json another instance wrote", async () => {
   const started = await start();
   const other = JSON.stringify(runtimeFile("/tmp/doan-other/app.sock", "b".repeat(64)));
   await writeFile(started.file, other);
+  await writeFile(started.conversationFile, other);
   started.disposeSync();
   runtime = undefined;
   expect(await readFile(started.file, "utf8")).toBe(other);
+  expect(await readFile(started.conversationFile, "utf8")).toBe(other);
   expect(existsSync(dirname(started.socket))).toBe(false);
 });
 
 test("disposeSync tolerates files already gone", async () => {
   const started = await start();
   await rm(started.file);
+  await rm(started.conversationFile);
   await rm(dirname(started.socket), { recursive: true });
   expect(() => started.disposeSync()).not.toThrow();
   runtime = undefined;

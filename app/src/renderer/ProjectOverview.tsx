@@ -35,7 +35,7 @@ import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedBusy, type 
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import { cardRow, chipClass, ROW_ACTION_ICONS, ROW_ACTION_LABELS, type RowAction } from "./homeCards";
 import {
-  attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, modelOption, modelPickerView,
+  attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, MAX_PASTED_BYTES, modelOption, modelPickerView,
   selectableProvider, sendRefusal, suggestedPresets, suggestedPrompts, type AttachmentDraft, type ModelsState, type NewConversationDefault,
 } from "./homeComposer";
 import type { LastRequest } from "./homeConversations";
@@ -252,7 +252,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
       const final = await Promise.all(results.map(async (result, i) => {
         const file = accepted[i]!;
         if (!pasted || result.ok || result.error !== "not_found" || !file.type.startsWith("image/") || window.doan.droppedPath(file) !== null) return result;
-        if (file.size > 50 * 1024 * 1024) return { ok: false as const, name: "Pasted image", error: "too_large" as const };
+        if (file.size > MAX_PASTED_BYTES) return { ok: false as const, name: "Pasted image", error: "too_large" as const };
         // A page-made image whose bytes can't be read settles with the rest of its batch.
         const bytes = await file.arrayBuffer().catch(() => null);
         if (!bytes) return result;
@@ -439,7 +439,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     </header>
     {props.notice && <div className="doan-notice ov-notice" role="status"><AlertIcon /><span className="grow-text selectable">{props.notice}</span></div>}
     <div className="ov-scroll">
-      {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project} homeDirectory={props.homeDirectory}
+      {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project} visibility={window.doan} homeDirectory={props.homeDirectory}
         liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} turn={thread && Array.isArray(items) ? threadTurn(thread.events, items, live, run.store.stageOf(conversationId), root, summary?.stopping === true, turnId => commands && commandTurnLabel(provider, commands, turnId)) : null}
         card={card} onCardAction={cardAction} onCardDismiss={dismissCard}
         background={summary?.background ?? null} onStopBackground={turnId => stopBackground({ conversationId, turnId }, request => window.doan.interruptConversation(request)).then(failed => { if (failed) props.onNotice?.(failed); return failed === null; })} canvasListed={canvasListed}

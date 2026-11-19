@@ -152,6 +152,9 @@ export type Prepare = (request: StartRequest, stored?: ConversationMetadata, use
 // disappearance as OpenRunner does; it never releases the lease itself.
 export type ReadListing<T> = (input: Prepared, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<T>;
 export type ReadModels = ReadListing<ModelList>;
+// A start's composer: Home's for its root, or a canvas's (by path, which a start pressed during the quit names before
+// any listing resolves its id).
+function startComposer(request: { root: string; canvas?: Canvas }): string { return `start\0${request.root}\0${request.canvas?.path ?? ""}`; }
 function freeLease(input: Prepared | undefined): void {
   void input?.release?.().catch(error => console.error("doan: account lease release failed", error));
 }
@@ -208,6 +211,8 @@ interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runn
   // loop inside the CLI's 2 s deadline. A conversation's root never changes; every save of a new canvas (promoteTo,
   // refreshCanvas) updates it here too, since a running turn keeps this entry across a send refused as busy.
   turnOf?: TurnOf;
+  // A start's root and canvas until acceptance, when the conversation joins the index (startingCanvases, pendingRoots).
+  starting?: { root: string; canvas?: Canvas };
   // A Stop came while this send was prepared, before acceptance: the send is refused at its next check and never runs.
   cancelled?: true;
   // The accepted turn's provider command (providerCommands.ts commandName), absent for a message.
@@ -267,6 +272,10 @@ export class ConversationService {
   private reservations: Reservation[] = [];
   private live = new Map<string, Live>();
   private quitting = false;
+  // After a quit that aborted, the service stays quitting while the composers stay open, and the busy refusal invites
+  // another press: each composer holds one message, its last, under one key (a start's root and canvas, a send's
+  // conversation), rather than one copy per press for the next launch to return.
+  private quitHolds = new Map<string, string>();
   // appQuit interruptions a quit still has to write (conversation id → turn id, and whether a quit already failed it):
   // a failure a retry could fix cancels that quit and is written again by the next, since the conversation already
   // counts as ended. A refusal no retry fixes, or a second failure, is a known refusal like a failedPersistence
@@ -341,6 +350,11 @@ export class ConversationService {
     // The deletions an earlier run recorded finish here, their drafts included (store.ts finishDeletions).
     store.finishDeletions(id => this.drafts.discard(id));
   }
+  private quitHold(composer: string): string {
+    const key = this.quitHolds.get(composer) ?? randomUUID();
+    this.quitHolds.set(composer, key);
+    return key;
+  }
   private reserve(id: string, input?: Prepared, reuse = false): void {
     const key = input?.sessionId ? { runtime: input.runtime, configDir: input.configDir, sessionId: input.sessionId } : null;
     const result = reserveSession(this.reservations, id, key, reuse);
@@ -359,7 +373,7 @@ export class ConversationService {
   async start(request: StartRequest, attached?: StartAttachments, handoff?: HandoffStart): Promise<{ conversationId: string }> {
     // No composer outlives the quit, so the message is kept for the next start as one held below would be.
     if (this.quitting) {
-      if (!handoff) this.drafts.hold(randomUUID(), { root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), text: request.text, anchors: request.anchors, attachments: request.attachments ?? [] });
+      if (!handoff) this.drafts.hold(this.quitHold(startComposer(request)), { root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), text: request.text, anchors: request.anchors, attachments: request.attachments ?? [] });
       throw new Error("busy");
     }
     const admitted = this.admit(request.root, request.canvas);
@@ -375,7 +389,8 @@ export class ConversationService {
     // A new conversation's thread was told no mode yet, so its /review is refused before anything opens.
     if (request.runtime && !handoff) { checkCommand(request.runtime, request.text, request.anchors, request.attachments?.length || attached ? 1 : 0, !!commandName(request.runtime, request.text)); checkReview(request.runtime, request.text, true, undefined, undefined); }
     const id = randomUUID(); this.reserve(id);
-    const live: Live = { turnId: randomUUID(), busy: true, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: this.stops, ...(project ? { project } : {}) }; this.live.set(id, live);
+    const live: Live = { turnId: randomUUID(), busy: true, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: this.stops, ...(project ? { project } : {}),
+      starting: { root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}) } }; this.live.set(id, live);
     // The composer let the message go: until acceptance only drafts.json has it, so a quit returns it after the restart.
     // A handoff's message is the agent's, which a refused handoff reports instead.
     if (!handoff) this.drafts.hold(id, { root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), text: request.text, anchors: request.anchors, attachments: request.attachments ?? [] });
@@ -437,7 +452,7 @@ export class ConversationService {
       attached?.sent();
       const saved = this.store.acceptStart([...entries, metadata], id, writes);
       this.drafts.release(id);
-      live.accepted = true; live.turnOf = turnOf(metadata); this.noteTranscript(live, input, runner.sessionId); this.noteCommand(id, live, command);
+      live.accepted = true; live.turnOf = turnOf(metadata); delete live.starting; this.noteTranscript(live, input, runner.sessionId); this.noteCommand(id, live, command);
       this.noteMode(live, input.runtime, !!input.owner, command, input.permissionMode ?? "default");
       if (project) this.evidence.set(id, { root: project, turnId: live.turnId, snapshot: base.canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
       if (metadata.owner.kind === "doan") this.handoffTurns.set(id, { root: request.root, turnId: live.turnId, snapshot: this.snapshot(request.root), requests: [], guided, edits: new Set(), waiters: [], ...(handoff ? { startedBy: "handoff" as const } : {}) });
@@ -457,6 +472,7 @@ export class ConversationService {
       delete live.project; live.busy = false;
       // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the turn runs
       if (!this.quitting) this.drafts.release(id);
+      else if (!handoff && !this.quitHolds.has(startComposer(request))) this.quitHolds.set(startComposer(request), id);
       this.changed(request.root);
       if (!opening) { this.reservations = releaseReservation(this.reservations, id, "not_spawned"); this.live.delete(id); freeLease(input); }
       else { void live.runner?.close(); }
@@ -470,10 +486,11 @@ export class ConversationService {
   send(id: string, text: string, anchors: Anchor[], extras: SendExtras = {}, attached?: StartAttachments): Promise<void> {
     if (this.live.get(id)?.holding) return Promise.reject(new Error("busy"));
     // Held from here, through the waits before the turn, until accepted or refused, as a start's message is (start).
-    const held = randomUUID();
+    const held = this.quitting ? this.quitHold(`send\0${id}`) : randomUUID();
     this.drafts.hold(held, { conversationId: id, text, anchors, attachments: extras.attachments ?? [] });
     return this.submit(id, text, anchors, extras, attached, held).catch((error: unknown) => {
       if (!this.quitting) this.drafts.release(held);
+      else if (!this.quitHolds.has(`send\0${id}`)) this.quitHolds.set(`send\0${id}`, held);
       throw error;
     });
   }
@@ -770,6 +787,27 @@ export class ConversationService {
     }
     return turns;
   }
+  // Starts main has not accepted yet on this root's canvases: the index names a conversation only from acceptance, so
+  // Move to Trash's busy check (canvasTrash.ts trashBusy) reads these beside the list. A later send needs none: its
+  // conversation is listed, and working while prepared.
+  startingCanvases(root: string): Canvas[] {
+    const canvases: Canvas[] = [];
+    for (const live of this.live.values()) if (this.preparing(live) && live.starting?.root === root && live.starting.canvas) canvases.push(live.starting.canvas);
+    return canvases;
+  }
+  // Roots with a start or send main has not accepted yet, or a send waiting for its previous turn's judgement or process:
+  // running for the person though liveTurns counts only accepted turns, so `doan remove` (cliRemove.ts) refuses for
+  // them as restartHolds holds the restart (POSTMORTEM 2026-11-17 'A quit before main accepted a send…').
+  pendingRoots(): ReadonlySet<string> {
+    const roots = new Set<string>(), indexed = new Map(this.store.list().map(m => [m.conversationId, m.root]));
+    for (const [id, live] of this.live) {
+      const root = live.starting?.root ?? indexed.get(id);
+      if (this.preparing(live) && root !== undefined) roots.add(root);
+    }
+    for (const id of [...this.waits.keys(), ...this.judging.keys()]) { const root = indexed.get(id); if (root !== undefined) roots.add(root); }
+    return roots;
+  }
+  private preparing(live: Live): boolean { return live.busy && !live.accepted && !live.terminal && !live.closed && !live.failedPersistence; }
   // What holds Restart to Update back (update installGate): turns running as liveTurns counts them, and the permission
   // requests and questions they wait on, of every conversation, several of one canvas included. Memory only, since main
   // asks on every conversation event. A history that stopped taking writes ends a turn without clearing `asking`, so
@@ -794,7 +832,7 @@ export class ConversationService {
     const pendingPermission = [...events].reverse().find(e => e.type === "permission.request" && state.permissions[e.requestId] === "pending");
     // The running turn's last stage, so a renderer that reads again need not wait for the next one; absent otherwise.
     const live = this.live.get(id), stage = live && this.staging(id, live) ? live.stage : undefined;
-    // commands: the command turns and their boundaries, which the record alone does not draw (commandTurns.ts).
+    // commands: the command boundaries, which the record alone does not draw (commandTurns.ts).
     const commands = commandTurns(this.metadata(id).session.runtime, events, this.commandRuns.get(id));
     return { events, lastSeq: state.lastSeq, turn: state.turn, commands, ...(pendingPermission ? { pendingPermission } : {}), ...(stage ? { stage } : {}) };
   }
@@ -1379,7 +1417,10 @@ export class ConversationService {
       if (left) for (const other of others) if (!other.snapshot.some(old => sameCanvas(old, left))) other.taken.push(left);
     } catch (error) { console.error("doan: conversation promotion failed", error); }
     const live = this.live.get(id);
-    if (live?.holding) this.flush(id, live);
+    // A turn the usage limit stopped keeps its queue for the reset, as queueAfterEnd does: the usage read still running
+    // (limitEnded) or the schedule armed for the reset (sendDue) takes it.
+    if (live?.holding && (live.limitLookup || this.schedules.has(id))) this.release(id, live, live.holding);
+    else if (live?.holding) this.flush(id, live);
     else if (live && !live.busy) delete live.project;
     for (const wake of evidence.waiters.splice(0)) wake();
     this.changedOf(id);

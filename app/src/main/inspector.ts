@@ -95,6 +95,10 @@ export function createInspector(deps: InspectorDeps): Inspector {
   // Requests run one at a time: each one turns DOM and CSS off when it ends, which would break another request still
   // reading the same session.
   let queue: Promise<unknown> = Promise.resolve();
+  // The newest request and the newest run started, by arrival. Arrival, not the renderer's seq: a reloaded renderer
+  // counts from 1 again.
+  let latest = 0;
+  let started = 0;
 
   const shownNow = (main: string, canvas: InspectRequest["canvas"]): LoadedDocument | null => {
     const url = deps.canvasUrl(canvas);
@@ -118,7 +122,11 @@ export function createInspector(deps: InspectorDeps): Inspector {
     finally { off(); }
   };
 
-  const run = async ({ selector, canvas }: InspectRequest, end: Promise<void>): Promise<InspectResult> => {
+  const run = async ({ selector, canvas }: InspectRequest, end: Promise<void>, ticket: number): Promise<InspectResult> => {
+    started = ticket;
+    // A run past its budget sends no further command: its answer is already given.
+    let spent = false;
+    void end.then(() => { spent = true; });
     const main = await deps.window.mainFrame();
     if (main === null) return failed("unavailable");
     // No proof yet (a load still finishing, or one lost to a debugger detach) is judged again on each bindings change,
@@ -137,7 +145,8 @@ export function createInspector(deps: InspectorDeps): Inspector {
       const now = shownNow(main, canvas);
       return now !== null && now.frame === shown.frame && now.generation === shown.generation && deps.window.sessionOf(shown.frame) === session;
     };
-    const send = (method: string, params: object = {}) => deps.debugger.sendCommand(method, params, session);
+    const command = (method: string, params: object = {}) => deps.debugger.sendCommand(method, params, session);
+    const send = (method: string, params: object = {}) => (spent ? Promise.reject(new Error("over budget")) : command(method, params));
     try {
       await send("DOM.enable");
       await send("CSS.enable");
@@ -154,22 +163,26 @@ export function createInspector(deps: InspectorDeps): Inspector {
       return failed(still() ? "unavailable" : "not-shown");
     } finally {
       // Left on, the whole tree known from `getDocument` turns every later DOM mutation of the canvas into an event to
-      // main: about 6,300 a second on a canvas with a 60 fps counter and a rebuilt list.
-      await send("CSS.disable").catch(() => undefined);
-      await send("DOM.disable").catch(() => undefined);
+      // main: about 6,300 a second on a canvas with a 60 fps counter and a rebuilt list. A run that timed out and a
+      // later one has started since leaves them to that run, which needs them on and turns them off when it ends. A run
+      // can start while CSS.disable is in flight, so DOM.disable checks again.
+      if (started === ticket) await command("CSS.disable").catch(() => undefined);
+      if (started === ticket) await command("DOM.disable").catch(() => undefined);
     }
   };
 
   return {
     inspect(request) {
       // The budget counts from the call, so time spent waiting in the queue counts too. A timeout does not cancel the
-      // CDP commands already sent; their late answers are dropped.
+      // CDP commands already sent; their late answers are dropped. A request a newer one overtook while it waited runs
+      // nothing: the renderer drops its answer anyway, and its CDP work would eat into the newer one's budget.
+      const ticket = ++latest;
       let timer: ReturnType<typeof setTimeout> | undefined;
       const end = new Promise<void>((resolve) => {
         timer = setTimeout(resolve, BUDGET_MS);
       });
       const late = end.then(() => failed("unavailable"));
-      const result = Promise.race([queue.then(() => run(request, end)), late]).finally(() => clearTimeout(timer));
+      const result = Promise.race([queue.then(() => (ticket === latest ? run(request, end, ticket) : failed("unavailable"))), late]).finally(() => clearTimeout(timer));
       // A request that ran out of time releases the queue, so one stuck call cannot block later ones.
       queue = result;
       return result;

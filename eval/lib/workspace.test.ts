@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import { CODEX_RULE, codexRuleText } from "./codex-rule.ts";
+import { CODEX_RULE, codexRuleText, evalCodexRuleText } from "./codex-rule.ts";
 import { createContext, judgeMaterial, sh } from "./context.ts";
 import { loadScenario } from "./scenario.ts";
-import { keepCodexSessions, keepOnboardingLog, prepareWorkspace } from "./workspace.ts";
+import { keepCodexSessions, keepOnboardingLog, outsideCodexSandbox, prepareWorkspace } from "./workspace.ts";
 
 const { CLAUDE_ALLOW_RULES } = await import("../../app/src/main/agentSetup/plan.ts");
 
@@ -111,12 +111,12 @@ test("git false leaves the folder outside any repository and keeps the baseline 
     assert.equal(existsSync(join(ws.repo, ".git")), false);
     assert.notEqual(sh("git", ["rev-parse", "--git-dir"], ws.repo, ws.env).code, 0);
     // The agent still gets what a Git workspace commits, in the same place.
-    assert.equal(readFileSync(join(ws.repo, CODEX_RULE), "utf8"), codexRuleText());
+    assert.equal(readFileSync(join(ws.repo, CODEX_RULE), "utf8"), evalCodexRuleText());
     assert.deepEqual(JSON.parse(readFileSync(join(ws.repo, ".claude/settings.json"), "utf8")).permissions.allow, CLAUDE_ALLOW_RULES);
     assert.equal(readFileSync(join(ws.repo, ".agents/skills/doan/SKILL.md"), "utf8"), "stub\n");
     const ctx = createContext({ repo: ws.repo, agent: "fixture", transcript: "", cli, env: ws.env, seedCommit: ws.seedCommit, gitDir: ws.gitDir });
     assert.deepEqual(ctx.changedFiles(), []);
-    assert.equal(ctx.seed(CODEX_RULE), codexRuleText());
+    assert.equal(ctx.seed(CODEX_RULE), evalCodexRuleText());
     // A repository the agent creates does not take over the baseline.
     assert.equal(sh("git", ["init", "-q"], ws.repo, ws.env).code, 0);
     writeFileSync(join(ws.repo, "notes.md"), "agent\n");
@@ -141,12 +141,12 @@ test("Git workspaces have no separate Git directory", async () => {
 
 // Codex reaches the app socket through this rule; a Claude run gets the same baseline,
 // so neither agent's diff or judge sees it as the agent's work.
-test("every agent's baseline commits the project Codex rule Doan's agent setup writes", async () => {
+test("every agent's baseline commits the eval's project Codex rule", async () => {
   assert.equal(CODEX_RULE, ".codex/rules/doan.rules");
   for (const agent of ["claude", "codex"] as const) {
     const ws = await prepareWorkspace({ scenario: seeded(), agent, cli, stub: "stub\n" });
     try {
-      assert.equal(execFileSync("git", ["-C", ws.repo, "show", `${ws.seedCommit}:${CODEX_RULE}`], { encoding: "utf8" }), codexRuleText(), agent);
+      assert.equal(execFileSync("git", ["-C", ws.repo, "show", `${ws.seedCommit}:${CODEX_RULE}`], { encoding: "utf8" }), evalCodexRuleText(), agent);
       assert.equal(git(ws.repo, ["status", "--porcelain"]), "", agent);
     } finally {
       await ws.dispose();
@@ -279,6 +279,17 @@ test("canvas-only seeds are initialized even though .doan already exists", async
   } finally { await ws.dispose(); }
 });
 
+// The Codex judge of a Claude run lives while the Codex lane's agents run under workspace-write, so its home, with links
+// to the user's sign-in and its instruction files, must be out of their reach as the agents' homes are.
+test("a directory made outside the Codex sandbox is in none of the folders workspace-write opens", () => {
+  const dir = outsideCodexSandbox("doan-eval-judge-");
+  try {
+    assert.ok(statSync(dir).isDirectory());
+    for (const writable of ["/tmp", "/private/tmp", realpathSync(tmpdir())])
+      assert.ok(!`${dir}/`.startsWith(`${writable}/`), `${dir} is inside ${writable}`);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 test("each real agent's environment leaves out the user's own instruction files; the fixture agent's is unchanged", async () => {
   const saved = process.env.CODEX_HOME;
   const fake = mkdtempSync("/tmp/doan-eval-codex-home-");
@@ -288,13 +299,20 @@ test("each real agent's environment leaves out the user's own instruction files;
     writeFileSync(join(fake, "AGENTS.md"), "global\n");
     process.env.CODEX_HOME = fake;
     const codex = await prepareWorkspace({ scenario: seeded(), agent: "codex", cli, stub: "stub\n" });
+    const home = codex.env.CODEX_HOME!;
     try {
-      assert.ok(codex.env.CODEX_HOME?.startsWith(`${codex.base}/`), codex.env.CODEX_HOME);
-      assert.ok(!codex.env.CODEX_HOME!.startsWith(`${codex.repo}/`));
-      assert.equal(existsSync(join(codex.env.CODEX_HOME!, "AGENTS.md")), false);
-      assert.equal(readFileSync(join(codex.env.CODEX_HOME!, "auth.json"), "utf8"), "{}\n");
+      // Codex's workspace-write sandbox opens the agent's folder, /tmp and $TMPDIR to the agent's shell (codex-cli 0.169.0
+      // `codex sandbox -P :workspace`), while Codex itself, outside that sandbox, writes refreshed tokens through the
+      // home's links and keeps the rollout read as evidence there.
+      for (const writable of ["/tmp", "/private/tmp", realpathSync(tmpdir()), codex.base])
+        assert.ok(!`${home}/`.startsWith(`${writable}/`), `${home} is inside ${writable}`);
+      assert.equal(codex.codexHome, home);
+      assert.equal(existsSync(join(home, "AGENTS.md")), false);
+      assert.equal(readFileSync(join(home, "auth.json"), "utf8"), "{}\n");
       assert.equal(git(codex.repo, ["status", "--porcelain"]), "");
     } finally { await codex.dispose(); }
+    // The links to the user's sign-in do not outlive the run.
+    assert.equal(existsSync(home), false);
     assert.equal(readFileSync(join(fake, "AGENTS.md"), "utf8"), "global\n");
     const claude = await prepareWorkspace({ scenario: seeded(), agent: "claude", cli, stub: "stub\n" });
     try {
@@ -346,4 +364,15 @@ test("a Codex run's own sessions are kept in the run directory when its rollout 
     rmSync(fake, { recursive: true, force: true });
     rmSync(out, { recursive: true, force: true });
   }
+});
+
+// Codex runs with approval_policy="never", where a command that needs to leave the sandbox is refused outright. The eval
+// measures how agents use the guide, not the person's approvals, so its rule is agent setup's rule plus an allow rule
+// for each command agent setup leaves to the person's Codex settings: every `doan` command runs outside the sandbox.
+test("the eval's Codex rule is agent setup's rule plus allow rules for every other command", () => {
+  assert.ok(evalCodexRuleText().startsWith(codexRuleText()));
+  const allowed = [...evalCodexRuleText().matchAll(/^prefix_rule\(pattern=\["doan", "([a-z-]+)"\], decision="allow"\)$/gm)].map(([, command]) => command).sort();
+  assert.deepEqual(allowed, ["active", "check", "config", "design-skill", "export", "handoff", "help", "init", "ls", "onboarding", "open", "remove", "skill", "work"]);
+  assert.doesNotMatch(evalCodexRuleText(), /decision="(prompt|forbidden)"/);
+  assert.doesNotMatch(evalCodexRuleText(), /^prefix_rule\(pattern=\["doan"\]/m);
 });

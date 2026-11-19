@@ -226,7 +226,7 @@ test("a clone that landed but whose storage failed says so on the clone screen",
   }
 });
 
-// Decision 8: a failure after a sheet goes to its notice, not back to the button that opened the sheet; a sheet opened
+// A failure after a sheet goes to its notice, not back to the button that opened the sheet; a sheet opened
 // from a notice's button and cancelled returns to that button while the notice stays, else to the card's Choose folder.
 test("focus: an error after a sheet goes to the notice; a cancelled sheet from a notice's button returns to it, else to Choose folder", () => {
   const opener = node(), heading = node(), alert = node(), card = node(), action = node();

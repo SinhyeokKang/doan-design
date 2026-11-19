@@ -13,6 +13,7 @@ import { AlertIcon } from "./AlertIcon";
 import { isCut, NameTip } from "./NameTip";
 import { LOADING_DELAY_MS } from "./ConversationThread";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { useActivationFocus } from "./activationFocus";
 
 // The id the Show and Hide inspector buttons point at with aria-controls.
 export const INSPECTOR_PANEL_ID = "doan-inspector-panel";
@@ -61,14 +62,16 @@ export function InspectorPanel({ shown, onHide, selection, document: shownDocume
   // The control in the panel that last took focus, until focus moves on to another control.
   const lastFocus = useRef<Element | null>(null);
   // After every commit: a focused control that left the page (Retry once it succeeded, a row an Esc step or a new read
-  // replaced, the trigger of a selection that cleared) hands focus on instead of letting it fall to the page.
+  // replaced, the trigger of a selection that cleared) hands focus on instead of letting it fall to the page. In the
+  // background (`doan open` of another canvas from a terminal) it is handed again on activation.
+  const handFocus = useActivationFocus();
   useLayoutEffect(() => {
     const lost = lastFocus.current, aside = panel.current;
     if (lost === null || lost.isConnected || aside === null) return;
     lastFocus.current = null;
     const active = document.activeElement;
     if (active !== null && active !== document.body) return;
-    focusAfterLoss(lost, aside)?.focus({ preventScroll: true });
+    handFocus(() => focusAfterLoss(lost, aside)?.focus({ preventScroll: true }));
   });
   const view = selection?.view ?? null;
   const nodes = useElementTree(shown, view, tree);

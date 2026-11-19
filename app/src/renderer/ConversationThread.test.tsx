@@ -12,7 +12,7 @@ import { TooltipProvider } from "./components/ui/tooltip";
 
 const noop = () => {};
 const props = (items: ConversationThreadProps["items"], patch: Partial<ConversationThreadProps> = {}): ConversationThreadProps => ({
-  items, conversationId: "c1", provider: "claude", project: "doan-design", liveAfter: 0, canvasListed: () => true,
+  items, conversationId: "c1", provider: "claude", project: "doan-design", liveAfter: 0, canvasListed: () => true, visibility: { onWindowVisible: () => () => {} },
   onAnswer: noop, onStop: noop, onEditAndResend: noop, onSignIn: noop, onRetry: noop, onOpenCanvas: noop, onOpenHandoff: noop, onOpenLink: noop, onCopy: async () => true, ...patch,
 });
 const html = (items: ConversationThreadProps["items"], patch: Partial<ConversationThreadProps> = {}) => renderToStaticMarkup(<TooltipProvider><ConversationThread {...props(items, patch)} /></TooltipProvider>);
@@ -141,10 +141,18 @@ describe("thread items", () => {
     const live = html([ask(5)], { liveAfter: 4 }), history = html([ask(5)], { liveAfter: 5 });
     expect(live).toContain('<div class="doan-notice thread-notice" role="alert">');
     expect(history).toContain('<div class="doan-notice thread-notice">');
-    expect(live).toContain("<b>Claude Code needs your answer</b><span>Run doan check</span>");
+    expect(live).toContain('<b>Claude Code needs your answer</b><span class="ask-command">Run doan check</span></span>');
     expect(live).toContain('data-ui-variant="prominent" data-request="r1">Allow once</button>');
     expect(live).not.toContain("autofocus");
     expect(live).toMatch(/<button type="button" class="doan-button" data-ui-size="sm"><svg[^>]*lucide-circle-stop[^>]*>.*<\/svg>Stop<\/button>/);
+  });
+
+  // What will run comes first; the agent's own words follow on their own line, and a choice that saves a rule says which.
+  test("a pending permission request shows the command, then the agent's reason, then what a saving choice adds", () => {
+    const out = html([{ kind: "permission", key: "pr1", seq: 5, requestId: "r1", summary: "npm test", reason: "Run the tests", status: "pending", answer: null,
+      options: [{ id: "allow", label: "Allow", kind: "allow" }, { id: "always", label: "Allow with suggested permissions", kind: "allowAlways", detail: "Adds the allow rule Bash(npm test:*) in .claude/settings.local.json." }] }]);
+    expect(out).toContain('<b>Claude Code needs your answer</b><span class="ask-command">npm test</span><span class="ask-reason">Run the tests</span>'
+      + '<span class="ask-saves">Allow with suggested permissions: Adds the allow rule Bash(npm test:*) in .claude/settings.local.json.</span></span>');
   });
 
   test("answered and expired requests shrink to one line", () => {
@@ -264,10 +272,10 @@ describe("thread items", () => {
     expect(out).toContain(">Edit and resend</button>");
   });
 
-  test("markers: promotion with Open, turned off once the canvas is gone", () => {
+  test("markers: promotion named by the canvas file stem, with Open turned off once the canvas is gone", () => {
     const bound: ThreadItem = { kind: "marker", key: "k5", seq: 5, marker: "bound", canvas: { path: ".doan/canvases/doan-settings.html", id: "s" } };
-    expect(html([bound])).toMatch(/Moved to doan-settings.html<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger">Open<\/button>/);
-    expect(html([bound], { canvasListed: () => false })).toMatch(/Moved to doan-settings.html · No longer in doan-design<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger" disabled="">Open<\/button>/);
+    expect(html([bound])).toMatch(/Moved to doan-settings<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger">Open<\/button>/);
+    expect(html([bound], { canvasListed: () => false })).toMatch(/Moved to doan-settings · No longer in doan-design<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger" disabled="">Open<\/button>/);
   });
 
   // On the canvas it moved to, the thread is already there: the line says where it came from, with nothing to open.
@@ -276,7 +284,7 @@ describe("thread items", () => {
     const here = html([bound], { openCanvasId: "s" });
     expect(here).toMatch(/Moved here from doan-design Overview<\/span><\/div>/);
     expect(here).not.toContain(">Open</button>");
-    expect(html([bound], { openCanvasId: "other" })).toMatch(/Moved to doan-settings.html<\/span><button[^>]*>Open<\/button>/);
+    expect(html([bound], { openCanvasId: "other" })).toMatch(/Moved to doan-settings<\/span><button[^>]*>Open<\/button>/);
   });
 
   test("two messages with footnotes never share an id", () => {

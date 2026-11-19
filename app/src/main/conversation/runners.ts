@@ -15,7 +15,7 @@ import { claudeBoundary } from "./commandRecords";
 import { commandName, commandRequest } from "./providerCommands";
 import { CodexStartupWatch, codexProfileServers } from "./mcpStartup";
 import { connectorLabels } from "../mcpConnectors/presets";
-import { backgroundTasks, claudeSessionLost, CLAUDE_QUESTION_TOOL, claudePermissionSummary, claudeQuestion, claudeQuestionResult, claudeReportedMode, claudeUnansweredSupport, endPromptWait, endSteerWait, endTransport, initialTransport, normalizeClaude, promptTransport, steerTransport, storedAnswers, transportError, type ClaudeQuestion } from "./transport";
+import { backgroundTasks, claudeSessionLost, CLAUDE_QUESTION_TOOL, claudePermissionRequest, claudeQuestion, claudeQuestionResult, claudeReportedMode, claudeUnansweredSupport, endPromptWait, endSteerWait, endTransport, initialTransport, normalizeClaude, promptTransport, steerTransport, storedAnswers, transportError, type ClaudeQuestion } from "./transport";
 import { questionAnswer } from "./questionAnswer";
 import { promptSuggestionText } from "./promptSuggestion";
 import { claudePermission, codexDefaults, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
@@ -53,9 +53,12 @@ export function claudeFastSettings(fast: boolean | undefined): { settings?: { fa
   return fast ? { settings: { fastMode: true } } : {};
 }
 // The run's flag-tier settings: Fast, and for a fenced run Claude's own sandbox off, whatever a user, project or local
-// source says: it cannot start inside the outer fence (exit 71).
-function claudeRunSettings(fast: boolean | undefined, fence: Prepared["fence"]): { settings?: { fastMode?: true; sandbox?: { enabled: false } } } {
-  const settings = { ...claudeFastSettings(fast).settings, ...fence ? { sandbox: { enabled: false as const } } : {} };
+// source says: it cannot start inside the outer fence (exit 71). A fenced run also has auto memory off: its files sit
+// under projects/, which the fence leaves writable for the CLI's transcripts, and a turn's tools write with the CLI's
+// rights, so a memory one turn wrote would be read by every later turn in the profile (Claude Code 2.1.327: off, a
+// planted MEMORY.md was not loaded).
+function claudeRunSettings(fast: boolean | undefined, fence: Prepared["fence"]): { settings?: { fastMode?: true; sandbox?: { enabled: false }; autoMemoryEnabled?: false } } {
+  const settings = { ...claudeFastSettings(fast).settings, ...fence ? { sandbox: { enabled: false as const }, autoMemoryEnabled: false as const } : {} };
   return Object.keys(settings).length ? { settings } : {};
 }
 // Fast for a Codex turn: a doan turn always names its tier, standard included, so a model whose catalog default is Fast
@@ -419,7 +422,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       return new Promise<PermissionResult>(resolve => {
         pending.set(requestId, { input: toolInput, suggestions, resolve });
         expireOnAbort(options.signal, () => pending.delete(requestId) && resolveExpired(resolve, { type: "permission.resolved", requestId, optionId: "expired" }));
-        emit({ type: "permission.request", requestId, tool, summary: claudePermissionSummary(tool, toolInput, input.cwd, labels), options: [{ id: "allow", label: "Allow", kind: "allow" }, { id: "deny", label: "Deny", kind: "deny" }, ...(suggestions.length ? [{ id: "always", label: "Allow with suggested permissions", kind: "allowAlways" as const }] : [])] });
+        emit(claudePermissionRequest(requestId, tool, toolInput, suggestions, input.cwd, labels));
       });
     },
   } });

@@ -14,7 +14,7 @@ import { AlertIcon } from "./AlertIcon";
 import { retryButton } from "./ListRetryButton";
 import { announcedAgain, LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
 import { canvasCardText, middleCut, newCanvasesText, trailingCards } from "./canvasCardText";
-import { canvasLabel } from "./canvasTree";
+import { canvasLabel, canvasStem } from "./canvasTree";
 import { SKIP_FAILED_TEXT } from "./conversationStrip";
 import { focusAfter, type FocusAction } from "./composerRules";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
@@ -25,6 +25,8 @@ import { handoffCardHead } from "./handoffView";
 import { providerLogo, sentFileView } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
 import { canSend, EMPTY_QUESTION_DRAFT, questionInput, sendBlockedText, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
+import { useActivationFocus } from "./activationFocus";
+import type { VisibleCalls } from "./visibleClock";
 import { pendingAsks, questionLines, sameItem, scrollFollow, threadScroll, waitsForPerson, type ActivityStep, type ThreadItem, type TurnEnd } from "./threadItems";
 import { activityRun, backgroundLine, drawingCards, elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
 
@@ -39,6 +41,8 @@ export interface ConversationThreadProps {
   items: readonly ThreadItem[] | null | "error";
   provider: Provider;
   project: string;
+  // The window's native visibility (`window.doan`, or the prototype window's calls), which pauses the turn timer.
+  visibility: VisibleCalls;
   // Requests with a later seq arrived while the thread was open. Only those are announced as alerts; drawing history
   // announces nothing.
   liveAfter: number;
@@ -611,25 +615,28 @@ function phaseText(items: readonly ThreadItem[], ended: readonly ThreadItem[], p
 // The turn indicator (draft frame `states`): in the reply's place at the thread's end, one
 // line of the stage's words under a sweep and the time since the turn started. It is no live region and takes no
 // focus; the time is hidden from screen readers. Its own timer redraws only this line each second, so the thread's
-// items and scroll effect do not run every second. The timer stops while the window is hidden and the time is counted
-// again from `at` once it shows (POSTMORTEM 2026-10-25).
-export function TurnIndicator({ text, at, provider }: { text: string; at: string; provider: Provider }) {
+// items and scroll effect do not run every second. The timer stops while the document is hidden or the window is closed
+// or the app hidden, and the time is counted again from `at` once it shows (POSTMORTEM 2026-10-25: document visibility
+// is not native visibility). It differs from useVisibleClock only in waking on the turn's whole seconds.
+export function TurnIndicator({ text, at, provider, visibility }: { text: string; at: string; provider: Provider; visibility: VisibleCalls }) {
   const [, tick] = useState(0);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let nativeVisible = true;
     const stop = () => { if (timer !== null) clearTimeout(timer); timer = null; };
     // Wakes on the next whole second of the turn's time, so the shown second never lags behind it.
     const schedule = () => {
       stop();
-      if (document.hidden) return;
+      if (document.hidden || !nativeVisible) return;
       const since = Date.now() - Date.parse(at);
       timer = setTimeout(() => { tick(n => n + 1); schedule(); }, Number.isFinite(since) && since > 0 ? 1000 - since % 1000 : 1000);
     };
-    const visibility = () => { if (document.hidden) stop(); else { tick(n => n + 1); schedule(); } };
+    const shown = () => { if (document.hidden || !nativeVisible) stop(); else { tick(n => n + 1); schedule(); } };
     schedule();
-    document.addEventListener("visibilitychange", visibility);
-    return () => { stop(); document.removeEventListener("visibilitychange", visibility); };
-  }, [at]);
+    document.addEventListener("visibilitychange", shown);
+    const off = visibility.onWindowVisible(visible => { nativeVisible = visible; shown(); });
+    return () => { stop(); off(); document.removeEventListener("visibilitychange", shown); };
+  }, [at, visibility]);
   return <div className="ti ti-reply"><img className="logo" src={providerLogo(provider)} alt="" />
     <span className="ti-text ti-shimmer">{text}</span><span className="ti-time" aria-hidden="true">{elapsedText(Date.now() - Date.parse(at))}</span></div>;
 }
@@ -750,10 +757,13 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   // The line went while its Stop held focus (read as this render began): the button left the page, and focus goes to
   // the composer field instead of the page body. Stopping keeps the button, so focus stays on it.
   const lineFocused = focusedKey === BACKGROUND_KEY;
+  // These recoveries can run with the window in the background (a turn ended or stopped from a terminal), so they are
+  // made again when the window activates (POSTMORTEM 2026-11-17).
+  const handFocus = useActivationFocus();
   useLayoutEffect(() => {
     if (line || !lineFocused) return;
     if (document.activeElement && document.activeElement !== document.body) return;
-    props.onFocusComposer?.();
+    handFocus(() => props.onFocusComposer?.());
   });
 
   useEffect(() => {
@@ -788,8 +798,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     folding.current = null;
     if (document.activeElement && document.activeElement !== document.body) return;
     const target = focusAfter(fold.action, { pending: asks.map(ask => ask.requestId) });
-    if (target.kind === "option") focusIn(asks.find(ask => ask.requestId === target.requestId)!.key);
-    else props.onFocusComposer?.();
+    const key = target.kind === "option" ? asks.find(ask => ask.requestId === target.requestId)!.key : null;
+    handFocus(() => { if (key !== null) focusIn(key); else props.onFocusComposer?.(); });
   }, [items]);
   // A turn's cards sit above a request still waiting and below it once it folds, so React moves the card stack past
   // the request; moving a focused control's ancestor drops its focus to the page. Focus goes back to the same card's
@@ -797,7 +807,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const cardFocused = focusedKey !== null && Array.isArray(items) && items.some(item => item.kind === "canvasCard" && item.key === focusedKey) ? focusedKey : null;
   useLayoutEffect(() => {
     if (cardFocused === null || (document.activeElement && document.activeElement !== document.body)) return;
-    scroller.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(cardFocused)}"] .cc-open`)?.focus({ preventScroll: true });
+    handFocus(() => scroller.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(cardFocused)}"] .cc-open`)?.focus({ preventScroll: true }));
   });
   useLayoutEffect(() => {
     shown.current = Array.isArray(items) ? pendingAsks(items).map(ask => ({ ...ask, unsent: Object.values(draftOf(ask.requestId).choices).some(choice => choice.text.trim() !== "") })) : [];
@@ -893,7 +903,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         const live = entry.seq > props.liveAfter;
         return <div className="doan-notice thread-notice" role={live ? "alert" : undefined}>
           <span className="strip-agent doan-alert-icon"><img className="logo" src={providerLogo(provider)} alt="" /></span>
-          <span className="strip-text selectable"><b>{`${p} needs your answer`}</b><span>{entry.summary}</span></span>
+          {/* What will run leads; the agent's words about it and what a saving choice adds follow (ARCHITECTURE §7). */}
+          <span className="strip-text selectable"><b>{`${p} needs your answer`}</b><span className="ask-command">{entry.summary}</span>
+            {entry.reason && <span className="ask-reason">{entry.reason}</span>}
+            {entry.options.flatMap(option => option.detail ? [<span key={option.id} className="ask-saves">{`${option.label}: ${option.detail}`}</span>] : [])}</span>
           <span className="strip-actions">
             {entry.options.map(option => <button key={option.id} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={option.kind === "allow" ? "prominent" : "panel"}
               data-request={entry.requestId} onClick={() => answer(entry.requestId, option.id)}>{option.label}</button>)}
@@ -925,7 +938,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       case "handoffCard": return <HandoffCard entry={entry} headId={`${base}-${entry.key}-head`} project={props.project} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
       case "boundary": return <div className="context-boundary" role="separator" aria-label={entry.label}><span>{entry.label}</span></div>;
       case "marker": {
-        const canvas = entry.canvas, listed = props.canvasListed(canvas), name = canvas.path.split("/").at(-1) ?? canvas.path;
+        const canvas = entry.canvas, listed = props.canvasListed(canvas), name = canvasStem(canvas.path);
         // On the panel of the canvas it moved to, "Moved to" and Open would point at the screen already shown.
         if (openCanvasId !== null && canvas.id === openCanvasId) return <div className="marker"><span><ArrowUpRight aria-hidden="true" />{`Moved here from ${props.project} Overview`}</span></div>;
         return <div className="marker"><span><ArrowUpRight aria-hidden="true" />{listed ? `Moved to ${name}` : `Moved to ${name} · No longer in ${props.project}`}</span>
@@ -941,7 +954,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         // A run of cards stacks closer than thread items do (the draft's gap); each card stays its own item.
         : <div key={`stack:${run[0]!.key}`} className="thread-item"><div className="canvas-cards">{run.map(card => <ThreadEntry key={card.key} entry={card} deps={depsOf(card)} draw={item} />)}</div></div>)}
         {props.turn && settled.shown.kind !== "none" && settled.shown.kind !== "waiting" &&
-          <div className="thread-item"><TurnIndicator text={props.turn.label ?? turnText(settled.shown, p)} at={props.turn.at} provider={provider} /></div>}
+          <div className="thread-item"><TurnIndicator text={props.turn.label ?? turnText(settled.shown, p)} at={props.turn.at} provider={provider} visibility={props.visibility} /></div>}
         {props.card && <div className="thread-item"><CommandCardNotice card={props.card} onAction={target => latest.current.onCardAction?.(target)} onDismiss={() => latest.current.onCardDismiss?.()} /></div>}
         {line && <div className="thread-item" data-item={BACKGROUND_KEY}><div className="bg-line">
           <Terminal className="bg-icon" aria-hidden="true" /><span className="bg-text">Background work is still running. It stops when you send your next message or press Stop.</span>

@@ -6,6 +6,7 @@ import { Eye, Hand, MousePointer2 } from "lucide-react";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import type { Frame } from "playwright";
 import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
+import { bounded } from "../../runtime/harness";
 import { MAX_FRAMES, MAX_HREF, MAX_STRING, parseCanvasMessage } from "../renderer/canvasMessage";
 import { INITIAL_HEIGHT, layoutHeight as appLayoutHeight, MAX_HEIGHT } from "../renderer/canvasView";
 import { frameLabel } from "../renderer/canvasTree";
@@ -14,8 +15,9 @@ import {
   FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, FIT_SCALE_MAX, fitFrame as appFitFrame, fitWidth as appFitWidth, LINE_PX, MAX_SCALE, MIN_SCALE, PAGE_PX,
   WHEEL_ZOOM_MAX, WHEEL_ZOOM_SENSITIVITY, wheelAction as appWheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt as appZoomAt,
 } from "../renderer/viewport";
-import { canScrollAxis, clipText, documentHeight, frameBottom, nextHeight } from "./canvasScript";
-import { toolShortcut as appToolShortcut, type ShortcutEvent } from "../renderer/canvasTool";
+import { canScrollAxis, canvasScript, clipText, documentHeight, frameBottom, nextHeight } from "./canvasScript";
+import { OPEN_OVERLAY, toolShortcut as appToolShortcut, type ShortcutEvent } from "../renderer/canvasTool";
+import { drawn, NOTHING_OPEN, OPEN_SURFACES } from "../renderer/drawnTarget.test-support";
 import { editableTarget as appEditableTarget } from "../renderer/selection";
 import { panBy as appPanBy } from "../renderer/viewport";
 
@@ -108,6 +110,48 @@ describe("lib.js height and scroll rules", () => {
     expect(fitted.sent).toBe(405);
     state = fitted;
     expect(v.nextHeight(state, v.documentHeight(0, 405, 405, 405), 405, 0).sent).toBe(405);
+  });
+});
+
+// The text of the statement `const name = ...;` in a source, ending at the first `;` outside brackets, strings and
+// comments, so an arrow function's block body is taken whole.
+function extractConst(source: string, name: string): string {
+  const start = source.search(new RegExp(`\\bconst ${name} = `));
+  if (start < 0) throw new Error(`const ${name} not found`);
+  let depth = 0;
+  for (let i = start; i < source.length; i++) {
+    const rest = source.slice(i);
+    if (rest.startsWith("//")) { i = source.indexOf("\n", i); continue; }
+    if (rest.startsWith("/*")) { i = source.indexOf("*/", i) + 1; continue; }
+    const ch = source[i]!;
+    if (ch === '"' || ch === "'" || ch === "`") {
+      for (i++; source[i] !== ch; i++) if (source[i] === "\\") i++;
+      continue;
+    }
+    if ("([{".includes(ch)) depth++;
+    if (")]}".includes(ch)) depth--;
+    if (ch === ";" && depth === 0) return source.slice(start, i + 1);
+  }
+  throw new Error(`const ${name} is not closed`);
+}
+
+// measure.js copies these from the function canvasScript.ts injects, not from lib.js; the app calls the lib.js
+// functions through its `lib` argument.
+describe("measure.js frame walk and wheel hand-off", () => {
+  const app = canvasScript.toString();
+  const appConst = (name: string) => normalize(extractConst(app, name).replace(/\blib\./g, ""));
+  test.each(["bodyClips", "ancestors", "scrollsFurther"])("%s is the same as in canvasScript.ts", (name) => {
+    expect(appConst(name).length).toBeGreaterThan(40);
+    expect(normalize(extractConst(measure, name))).toBe(appConst(name));
+  });
+
+  test("the comparison fails when a copy drifts", () => {
+    const drifted = measure.replace('rootStyle.overflowX !== "visible"', 'rootStyle.overflowX !== "hidden"');
+    expect(normalize(extractConst(drifted, "bodyClips"))).not.toBe(appConst("bodyClips"));
+    const walk = measure.replace("node !== null && node !== html", "node !== null");
+    expect(normalize(extractConst(walk, "ancestors"))).not.toBe(appConst("ancestors"));
+    const wheel = measure.replace("node !== document.body;", "node !== null;");
+    expect(normalize(extractConst(wheel, "scrollsFurther"))).not.toBe(appConst("scrollsFurther"));
   });
 });
 
@@ -484,6 +528,8 @@ describe("tool keys are the app's", () => {
     ["an input", element("INPUT")], ["a textarea", element("TEXTAREA")], ["a select", element("SELECT")], ["a contenteditable div", element("DIV", {}, true)],
     ["a button", element("BUTTON")], ["a link", element("A", { href: "#x" })], ["an anchor without href", element("A")],
     ...["button", "menuitem", "treeitem", "option", "tab", "switch", "checkbox", "radio", "combobox", "listbox", "dialog"].map((role): [string, unknown] => [`role=${role}`, element("DIV", { role })]),
+    // Targets with closest(), inside and outside an open menu, list, popover or dialog (the app's open-overlay rule).
+    ...[...OPEN_SURFACES, ...NOTHING_OPEN].map(([name, chain]): [string, unknown] => [`inside ${name}`, drawn(chain)]),
   ];
   const keys: [string, string][] = [["KeyV", "v"], ["KeyH", "h"], ["KeyV", "ㅍ"], ["KeyH", "ㅗ"], ["KeyV", "V"], ["Space", " "], ["KeyB", "v"], ["KeyA", "a"], ["Escape", "Escape"], ["Digit1", "!"]];
   const flags: [string, Partial<ShortcutEvent>][] = [
@@ -519,6 +565,21 @@ describe("tool keys are the app's", () => {
     const drifted = load(lib.replace('"combobox"', '"listbox"'));
     const row = press({ code: "Space", key: " ", target: element("DIV", { role: "combobox" }) });
     expect(drifted.toolShortcut(row, { canvasPage: true })).not.toEqual(appToolShortcut(row, { canvasPage: true }));
+  });
+
+  // The open-overlay rule's copy: dropping any one part of it makes a row of the table disagree.
+  test("the comparison fails when the open-overlay rule's copy drifts", () => {
+    const quoted = `'${OPEN_OVERLAY}'`;
+    expect(lib).toContain(quoted);
+    const parts = OPEN_OVERLAY.split(", ");
+    for (const part of parts) {
+      const drifted = load(lib.replace(quoted, `'${parts.filter(other => other !== part).join(", ")}'`));
+      const differs = targets.some(([, target]) => {
+        const row = press({ target });
+        return JSON.stringify(drifted.toolShortcut(row, { canvasPage: true })) !== JSON.stringify(appToolShortcut(row, { canvasPage: true }));
+      });
+      expect(differs, part).toBe(true);
+    }
   });
 });
 
@@ -930,7 +991,10 @@ describe("the board iframe's ancestors never clip with four equal radii", () => 
 describe("the toolbar", () => {
   // The app's tooltips wait 700ms and skip the wait within 300ms of the last one (components/ui/tooltip.tsx).
   test("a pointer tooltip waits as the app's, and opens at once right after another one closed", () => {
-    expect([v.TIP_DELAY_MS, v.TIP_SKIP_MS]).toEqual([700, 300]);
+    const tooltip = readFileSync(new URL("../renderer/components/ui/tooltip.tsx", import.meta.url), "utf8");
+    const appTip = [/\bdelayDuration = (\d+),/, /\bskipDelayDuration = (\d+),/].map(re => Number(re.exec(tooltip)?.[1]));
+    expect([v.TIP_DELAY_MS, v.TIP_SKIP_MS]).toEqual(appTip);
+    expect(appTip).toEqual([700, 300]);
     expect(v.tipWait(10_000, null)).toBe(700);
     expect(v.tipWait(10_000, 9_800)).toBe(0);
     expect(v.tipWait(10_000, 9_700)).toBe(700);
@@ -1072,7 +1136,7 @@ describe("tool wiring", () => {
       addEventListener() {}, fonts: { addEventListener() {} },
     };
     const context = {
-      document, parent, CSSStyleSheet: FakeSheet,
+      document, parent, CSSStyleSheet: FakeSheet, history: { pushState() {}, replaceState() {} },
       addEventListener: (type: string, listener: (event: unknown) => void) => { if (!listeners.has(type)) listeners.set(type, listener); },
     };
     runInNewContext(`(function () {\n${lib}\n${measure}\n})();`, context);
@@ -1151,10 +1215,14 @@ const viewerPage = (body: string, { width = 800, reports = true } = {}): string 
 };
 const twoFrames = '<section data-doan-frame="cart" data-doan-title="Cart" style="height:600px">Cart</section><section data-doan-frame="pay" data-doan-title="Payment" style="height:600px">Payment</section>';
 
-describe("the viewer header in a real DOM", () => {
-  let dom: ElectronDom;
-  beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
-  afterAll(async () => { await dom?.close(); }, 30_000);
+// One Electron serves every real-DOM block in this file, so these hooks are the file's, wherever they sit.
+// Real-DOM blocks allow 60 s a test: each helper step is bounded at 15 s, so a step that hangs fails by its own name
+// before the test limit.
+let dom: ElectronDom;
+beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
+afterAll(async () => { await dom?.close(); }, 30_000);
+
+describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
 
   // The viewer at 800 × 500 inside the test window, once its first view is drawn.
   const open = async (body: string): Promise<Frame> => {
@@ -1339,6 +1407,59 @@ describe("isolate.js is the prototype window's isolation", () => {
     const { sameDocument } = loadFunctions(isolateJs, ["sameDocument"]);
     for (const href of ["#", "#pl-target", "#a b"]) expect(sameDocument(href), href).toBe(true);
     for (const href of ["", " #a", "/#a", "?q#a", "other.html", "other.html#a", "https://x/#a", "javascript:void(0)"]) expect(sameDocument(href), href).toBe(false);
+  });
+});
+
+// The canvas in the exported viewer is a srcdoc document too, so measure.js takes isolate.js's History retry and its
+// # link handling as they are.
+const historyRetry = (source: string): string => {
+  const start = source.indexOf('for (const name of ["pushState", "replaceState"]) {');
+  if (start < 0) throw new Error("no History retry");
+  const end = source.indexOf("\n}\n", start);
+  return normalize(source.slice(start, end + 2));
+};
+
+describe("measure.js keeps the canvas in its document as isolate.js does", () => {
+  test("the History retry, sameDocument and linkElement are isolate.js's, as text", () => {
+    expect(historyRetry(isolateJs).length).toBeGreaterThan(200);
+    expect(historyRetry(measure)).toBe(historyRetry(isolateJs));
+    for (const name of ["sameDocument", "linkElement"]) expect(normalize(extractFunction(measure, name)), name).toBe(normalize(extractFunction(isolateJs, name)));
+  });
+
+  test("the comparison fails when a copy drifts", () => {
+    const drifted = isolateJs.replace('error?.name !== "SecurityError"', 'error?.name !== "TypeError"');
+    expect(historyRetry(drifted)).not.toBe(historyRetry(isolateJs));
+  });
+});
+
+// The viewer runs lib.js and measure.js in one function at the top of the canvas's <head> (`assemble`).
+const measureDocument = (body: string) =>
+  `<!doctype html><html><head><script>(function () {\n${lib}\n${measure}\n})();</script></head><body>${body}</body></html>`;
+
+describe("measure.js keeps the canvas in its srcdoc document in a real DOM", { timeout: 60_000 }, () => {
+  const page = `<a id="toc" href="#pricing">Pricing</a><div style="height:2000px"></div><h2 id="pricing">Pricing</h2>`;
+
+  test("a # link moves within the document", async () => {
+    const frame = await dom.load(measureDocument(page));
+    await frame.evaluate(() => document.getElementById("toc")!.click());
+    await dom.flush(frame);
+    expect(await frame.evaluate(() => [location.href, location.hash, !!document.getElementById("toc")])).toEqual(["about:srcdoc#pricing", "#pricing", true]);
+  });
+
+  test("a # link the canvas cancelled stays where it is", async () => {
+    const frame = await dom.load(measureDocument(`${page}<script>document.getElementById("toc").addEventListener("click", e => e.preventDefault());</script>`));
+    await frame.evaluate(() => document.getElementById("toc")!.click());
+    await dom.flush(frame);
+    expect(await frame.evaluate(() => location.hash)).toBe("");
+  });
+
+  test("a History call with a URL keeps its state and the script going", async () => {
+    const frame = await dom.load(measureDocument(""));
+    expect(await frame.evaluate(() => {
+      history.pushState({ tab: 1 }, "", "#tab");
+      history.replaceState({ tab: 2 }, "", "/x");
+      return history.state;
+    })).toEqual({ tab: 2 });
   });
 });
 
@@ -1603,10 +1724,7 @@ const clicks = JSON.parse(readFileSync(new URL("../../../schema/fixtures/prototy
 const isolateDocument = (frame: string, body: string) =>
   `<!doctype html><html><head><script>window.name = ${JSON.stringify(frame)};</script><script>(function () {\n${isolateJs}\n})();</script></head><body>${body}</body></html>`;
 
-describe("isolate.js follows links in a real DOM", () => {
-  let dom: ElectronDom;
-  beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
-  afterAll(async () => { await dom?.close(); }, 30_000);
+describe("isolate.js follows links in a real DOM", { timeout: 60_000 }, () => {
 
   // Loads the document, checks the frame played, clicks `selector` and returns what the click posted.
   const clickIn = async (frameId: string, html: string, selector: string, host: string | null = null, iframe?: string) => {
@@ -1828,23 +1946,30 @@ describe("isolate.js follows links in a real DOM", () => {
 
   // A documented limit: a listener the canvas adds during the click that runs after ours and sets the href again gives
   // the browser something to follow, so the frame navigates while the link is still followed. The document is gone by
-  // then, so the page around it (the test's top window) reads what happened.
-  test("an href the canvas sets again after ours came off is followed by the browser too", async () => {
+  // then, so the page around it (the test's top window) reads what happened. A document kept busy after the click lets
+  // the navigation commit before a 0 ms timer's message reaches the page, which then arrives with no source.
+  test.each([[0], [300]])("an href the canvas sets again after ours came off is followed by the browser too (busy %i ms after the click)", async busy => {
     const script = `<script>document.getElementById("x").addEventListener("click", () =>
       window.addEventListener("click", () => document.getElementById("x").setAttribute("href", "#new"), { once: true }));</script>`;
     const frame = await dom.load(isolateDocument("a", frames(`<a id="x" href="#sec" data-doan-goto="b">Next</a>`, script)));
     const top = frame.parentFrame()!;
     await dom.flush(frame);
-    await frame.evaluate(() => (document.getElementById("x") as HTMLElement).click());
-    const seen = await top.evaluate(() => new Promise<{ posted: unknown[]; url: string }>(resolve => {
+    await bounded(frame.evaluate(busy => {
+      if (busy > 0) setTimeout(() => { for (const end = Date.now() + busy; Date.now() < end;); }, 0);
+      (document.getElementById("x") as HTMLElement).click();
+    }, busy), 15_000, "click");
+    // The poll gives up on its own and returns what it saw, so a missing goto or navigation shows in the expectations
+    // below instead of as a bare test timeout; `bounded` names the poll if the page itself stops answering.
+    const seen = await bounded(top.evaluate(() => new Promise<{ posted: unknown[]; url: string }>(resolve => {
       const w = window as unknown as { doanPosted: unknown[]; doanFrame: HTMLIFrameElement };
+      const end = Date.now() + 10_000;
       const check = () => {
         const url = w.doanFrame.contentWindow!.location.href;
-        if (url !== "about:srcdoc" && w.doanPosted.some(m => (m as { goto?: string }).goto !== undefined)) resolve({ posted: w.doanPosted, url });
+        if ((url !== "about:srcdoc" && w.doanPosted.some(m => (m as { goto?: string }).goto !== undefined)) || Date.now() >= end) resolve({ posted: w.doanPosted, url });
         else setTimeout(check, 10);
       };
       check();
-    }));
+    })), 15_000, "goto and navigation poll");
     expect(seen.posted.filter(m => (m as { goto?: string }).goto !== undefined)).toEqual([{ type: "doan-prototype", goto: "b" }]);
     expect(seen.url).not.toBe("about:srcdoc");
     expect(seen.url.endsWith("#new")).toBe(true);

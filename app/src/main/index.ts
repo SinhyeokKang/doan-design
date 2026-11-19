@@ -34,9 +34,11 @@ import { readGitRemotes } from "./onboarding/gitConfig";
 import { canonicalFolder, cloneDestination, cloneProject, confirmProject, inspectPath, leftoverPresent, inspectUrl, newFolderTarget, selectProject, type NewFolderTarget, type ProjectDeps } from "./onboarding/projects";
 import { groupRoots, projectKeepsLocal } from "./storage";
 import { DocumentBindings } from "./document/bindings";
+import { restoreLaunchdCaCerts, trustExtraCaCerts } from "./launchEnv";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, powerMonitor, screen, session, shell as electronShell, systemPreferences, webContents, webFrameMain, type BaseWindow, type IpcMainInvokeEvent, type MenuItemConstructorOptions, type Session } from "electron";
+import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { accessSync, constants as fsConstants, lstatSync, readlinkSync, realpathSync, statSync } from "node:fs";
+import { accessSync, constants as fsConstants, lstatSync, readFileSync, readlinkSync, realpathSync, statSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -76,7 +78,7 @@ import { folderState, realHome } from "./folderState";
 import { revealTarget, type FolderEntry } from "./view";
 import { createWindowDebugger, type WindowDebugger } from "./windowDebugger";
 import { createInspector, parseInspectRequest, type InspectRefused, type InspectReply, type Inspector } from "./inspector";
-import { startRuntime, type Runtime } from "./runtime";
+import { CONVERSATION_RUNTIME, startRuntime, type Runtime } from "./runtime";
 import { menuState, updateMenu, type Screen } from "./menuState";
 import { electronUpdater, hasFeedConfig, releaseNotesUrl, UpdateService } from "./update/service";
 import { updateEligibility } from "./update/eligibility";
@@ -89,6 +91,8 @@ import { usagePublisher, usageVisible } from "./usageWindows";
 import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, type SettingsPageTarget } from "./settings";
 import { createInstallOpener } from "./installCommand";
 import { startShell, type Shell, type ProjectInitResult } from "./shell";
+import { guardLoopback } from "./serve/loopback";
+import { refusesRemoteDebugging } from "./remoteDebugging";
 import { createThrottle } from "./throttle";
 import { createThumbnails, type ThumbnailReply, type Thumbnails } from "./thumbnails";
 import { createWindowCapturer } from "./thumbnailWindow";
@@ -114,6 +118,12 @@ import { parseUiState } from "../restore/uiState";
 import { createComposerSettings } from "./prototype/composerSettings";
 import { createPrototypeWindow } from "./prototypeWindow";
 import { answerCliPlay } from "./prototype/cliPlay";
+
+// Exits synchronously: `app.exit` would let the rest of this module run first.
+if (refusesRemoteDebugging(app.commandLine, app.isPackaged)) {
+  process.stderr.write("Doan does not start with Chromium remote-debugging switches.\n");
+  process.exit(1);
+}
 
 // Must run before `ready`: userData is derived from the name, which makes it
 // ~/Library/Application Support/doan/ (beside runtime.json, ARCHITECTURE §4).
@@ -363,14 +373,15 @@ const prototype = createPrototypeWindow({
   entries: () => shell?.entries() ?? [],
   vibrancyWindow: window => opaqueFallback.adopt(window),
   mainWindow: () => win,
-  closed: contents => {
+  closed: (contents, replaced) => {
+    prototypeAttachmentsClosed(`prototype:${contents}`);
+    if (replaced) return;
     prototypeShowing.closed();
     prototypeDrawing.closed();
     prototypePromoted.closed();
     prototypeResume = null;
     prototypeWorkSent = "[]";
     prototypeEntrySent = null;
-    prototypeAttachmentsClosed(`prototype:${contents}`);
     send(PROTOTYPE_CHANNELS.closed);
     prototypeRelay.changed();
   },
@@ -614,14 +625,23 @@ function parseMenuInputs(value: unknown): MenuInputs | null {
 
 // Without handlers Electron grants permissions to the app's own main frame.
 // Canvas iframes are already stopped by Permissions Policy, so this guards the app.
-// The prototype window's own session gets the same.
+// The prototype window's own session gets the same, and both keep canvases off other local listeners.
 function denyPermissions(target: Session = session.defaultSession): void {
+  guardLoopback(target, loopbackHosts);
   target.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   target.setPermissionCheckHandler(() => false);
   target.setDevicePermissionHandler(() => false);
   // Chromium turns an ⌥-clicked canvas link into a download, and the iframe
   // sandbox without `allow-downloads` does not stop it.
   target.on("will-download", (event) => event.preventDefault());
+}
+
+// The loopback origins the app's sessions may reach: the canvas server and, in a dev run, the renderer's dev server.
+function loopbackHosts(): string[] {
+  const hosts = shell ? [new URL(shell.tokenBase).host] : [];
+  const devUrl = process.env.ELECTRON_RENDERER_URL;
+  if (!app.isPackaged && devUrl && URL.canParse(devUrl)) hosts.push(new URL(devUrl).host);
+  return hosts;
 }
 
 function systemClockHour12(): boolean {
@@ -876,6 +896,23 @@ async function start(): Promise<void> {
   documents.onChange(() => seen.documentsChanged());
   // One login-shell probe at a time, shared by agent facts, clone and the CLI's git (read only when first needed).
   const shellForFacts = sharedShell(() => probeShell(process.env));
+  // Before startShell: its first folder reads can find a vanished auto-registered worktree and call rootsLeft, which
+  // must reach the drafts' starts.
+  const conversationStore = new ConversationStore(userData);
+  // After the store, which made and checked the conversations directory.
+  const conversationDrafts = new DraftStore(join(userData, "conversations"));
+  conversationDraftStore = conversationDrafts;
+  // What main keeps for roots that left the list, by Remove (removeRoots) or because a vanished auto-registered worktree
+  // left on its own (shell.ts autoRemoved): one list, so a store keyed by root is wired into both at once (POSTMORTEM
+  // 2026-11-17 'Removing a project or trashing a canvas left state keyed by it behind'). `before`: the list before.
+  function rootsLeft(paths: string[], before: FolderEntry[]): void {
+    if (selection && paths.includes(selection.root)) selection = null;
+    // Background work a done turn left in a removed project stops without asking, as on sign-out.
+    conversations?.stopBackground(paths);
+    prototype.controller.rootsRemoved(paths);
+    conversationDraftStore?.discardRootStarts(paths);
+    void thumbnails?.removed(paths, before);
+  }
   // The CLI's git for Keep out of Git outside Git is found as clone finds its git (cli.ts CliEnv).
   const gitEnv = async (): Promise<CliEnv> => { const probe = await shellForFacts(); return cliEnv(probe.ok ? probe.path : null, process.env); };
   const ready = await startShell(join(userData, "folders.json"), cliCommand(process.env, app.isPackaged, process.resourcesPath), (entries, focus) => {
@@ -910,12 +947,9 @@ async function start(): Promise<void> {
     response: record => documents.response(record),
     git: root => seen.gitChanged(root),
     saveFailed: () => send("folders:save-failed"),
-    // A vanished auto-registered worktree is cleaned up like Remove (folders:remove); its work items go with the
+    // A vanished auto-registered worktree is cleaned up as Remove's roots are (rootsLeft); its work items go with the
     // list's retainWorkRoots above.
-    autoRemoved(paths, before) {
-      if (selection && paths.includes(selection.root)) selection = null;
-      void thumbnails?.removed(paths, before);
-    },
+    autoRemoved: rootsLeft,
     // A root saved through a symlink is read as its real path once its seen canvases and UI memory have moved to it,
     // in this order and before the renderer reads ui-state.json (folderStore RootMigration).
     migrate: async aliases => seenStore.copyRoots(aliases) && await moveUiStateRoots(join(userData, "ui-state.json"), aliases),
@@ -975,7 +1009,7 @@ async function start(): Promise<void> {
   // this root's conversations, its unjudged project turns and terminal work.
   const canvasTrash = createCanvasTrash({
     entries: () => ready.entries(),
-    busy: target => trashBusy(target, conversations?.list(target.root) ?? [], conversations?.projectEvidence(target.root) ?? [], workItems(workState)),
+    busy: target => trashBusy(target, conversations?.list(target.root) ?? [], conversations?.projectEvidence(target.root) ?? [], workItems(workState), conversations?.startingCanvases(target.root) ?? []),
     trashItem: path => electronShell.trashItem(path),
     trashed: (root, canvas) => conversationDraftStore?.discardCanvasStarts(root, canvas),
   });
@@ -1037,6 +1071,7 @@ async function start(): Promise<void> {
       entries: () => ready.entries(),
       menu: () => menuInputs,
       liveTurns: () => conversations?.liveTurns() ?? new Map(),
+      pendingRoots: () => conversations?.pendingRoots() ?? new Set(),
       async removeRoots(roots) {
         const removed = await removeRoots(roots);
         if (removed.kind === "removed") send("folders:removed", { paths: removed.paths });
@@ -1056,7 +1091,7 @@ async function start(): Promise<void> {
   });
 
   removeStaleLinkDirs();
-  const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, "runtime.json"), fence: { userData }, locate: shellLocator(process.env, PROVIDER_AUTH, { antigravity: signal => antigravityServer(join(userData, "agent-runtimes", "antigravity-acp"), signal ? { signal } : {}) }),
+  const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, CONVERSATION_RUNTIME), fence: { userData }, locate: shellLocator(process.env, PROVIDER_AUTH, { antigravity: signal => antigravityServer(join(userData, "agent-runtimes", "antigravity-acp"), signal ? { signal } : {}) }),
     // The onboarding tap comes after AuthIpc stored the link, so the link it opens is this prompt's.
     onChange: () => authIpc?.changed(), onPrompt: prompt => { authIpc?.prompted(prompt); onboarding?.prompted(prompt); },
     // A sign-out or replacement also stops the provider's usage read, whose lease it waits for like a run's.
@@ -1245,12 +1280,8 @@ async function start(): Promise<void> {
   // Runs read the MCP connectors' generation and names when they ask.
   const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc, connectorFacts(() => mcp), { userData, socket: () => runtime?.socket });
   // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
-  const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),
+  const prepareConversation = routePrepare(createPrepare(userData, join(userData, CONVERSATION_RUNTIME), process.env),
     wireAccountPrepare(accountPrepare, () => !!agentAuth, prepared => usage ? withTurnUsage(prepared, usage) : prepared));
-  const conversationStore = new ConversationStore(userData);
-  // After the store, which made and checked the conversations directory.
-  const conversationDrafts = new DraftStore(join(userData, "conversations"));
-  conversationDraftStore = conversationDrafts;
   const preferences = createPreferencesStore(join(userData, "preferences.json"));
   const notify = createNotifyService({
     preferences: () => preferences.current().notifications,
@@ -1453,11 +1484,7 @@ async function start(): Promise<void> {
     if (selection && roots.includes(selection.root)) selection = null;
     const removed = await ready.remove(roots);
     if (removed.paths.length === 0) return { kind: "unavailable" };
-    // Background work a done turn left in a removed project stops without asking, as on sign-out.
-    conversations?.stopBackground(removed.paths);
-    prototype.controller.rootsRemoved(removed.paths);
-    conversationDraftStore?.discardRootStarts(removed.paths);
-    void thumbs.removed(removed.paths, before);
+    rootsLeft(removed.paths, before);
     return { kind: "removed", paths: removed.paths };
   }
   // A row or a whole card.
@@ -1763,6 +1790,8 @@ async function start(): Promise<void> {
 // overwrite each other's runtime.json.
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
+  restoreLaunchdCaCerts(process.env, name => execFileSync("/bin/launchctl", ["getenv", name], { encoding: "utf8", timeout: 2000, maxBuffer: 64 * 1024 }));
+  trustExtraCaCerts(process.env.NODE_EXTRA_CA_CERTS, path => readFileSync(path, "utf8"));
   app.whenReady().then(start).catch((error: unknown) => {
     console.error("doan: failed to start", error);
     app.exit(1);

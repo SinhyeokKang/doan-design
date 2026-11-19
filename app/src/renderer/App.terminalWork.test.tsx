@@ -101,7 +101,7 @@ function reset() {
     onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => { calls.push("openLinksReady"); }), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}),
   };
   vi.stubGlobal("window", { doan, addEventListener: vi.fn(), removeEventListener: vi.fn() });
-  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
+  vi.stubGlobal("document", { hasFocus: () => true, documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
   vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
   vi.stubGlobal("HTMLElement", class {});
 }
@@ -285,7 +285,7 @@ function openDialog(closes: boolean) {
     if (closes) { dialog.open = false; (all(tree).find(element => element.type === ProjectSetupDialog)!.props as unknown as { onClose(): void }).onClose(); }
     return false;
   } };
-  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector: () => null, querySelectorAll: (selector: string) => selector === "dialog[open]" && dialog.open ? [dialog] : [] });
+  vi.stubGlobal("document", { hasFocus: () => true, documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector: () => null, querySelectorAll: (selector: string) => selector === "dialog[open]" && dialog.open ? [dialog] : [] });
   return dialog;
 }
 // The Set Up dialog stands for any dialog here (Project Settings is a page now).

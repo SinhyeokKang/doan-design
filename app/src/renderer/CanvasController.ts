@@ -13,7 +13,7 @@ import { boardRectToScreen, boardToScreen, screenToBoard, elementView, FIRST_LAY
 import { scaleFactor } from "./zoomControl";
 import { currentFrame } from "./currentFrame";
 import { pointAnchor, resolveChipTarget, targetAnchor } from "./canvasPicker";
-import { escapeStep, toolShortcut, type CanvasTool, type ToolShortcut } from "./canvasTool";
+import { escapeStep, overlayOpen as pageOverlayOpen, toolShortcut, type CanvasTool, type ToolShortcut } from "./canvasTool";
 import { textCopy } from "./canvasTextCopy";
 import { captureRect } from "./canvasCapture";
 import type { Rect } from "./canvasPicker";
@@ -253,10 +253,9 @@ export class CanvasController {
   private snapshots = 0;
   private snapshotFrames = new Set<number>();
   private canvasPage = true;
-  // The page's menus and dialogs (frame drawer, zoom menu, the inspector's element menu, Quick Open, any dialog), which
-  // hold following off. Their React owners live outside the controller, so it reads the document. Radix menus and
-  // popovers exist only while open; a native <dialog> may stay mounted closed, so only an open one counts.
-  overlayOpen: () => boolean = () => document.querySelector('.doan-frame-list, .doan-zoom-menu, .doan-insp-menu, [role="menu"], dialog[open], [role="dialog"]:not(dialog), [role="alertdialog"]:not(dialog)') !== null;
+  // The page's open menus, lists, popovers and dialogs, which hold following off, by the tool keys' rule. Their React
+  // owners live outside the controller, so it reads the document.
+  overlayOpen: () => boolean = () => pageOverlayOpen(document);
   // The newest canvas click waiting for main's cursor reading; an older reading does not move focus.
   private clickTag = 0;
   // The composer's preset lists, which close on a press in the canvas (the app's document never sees one).

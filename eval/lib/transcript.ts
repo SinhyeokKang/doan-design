@@ -165,6 +165,11 @@ function execCalls(source: string): ExtractedCall[] {
     }
     calls.push({ name, command: command ?? UNREADABLE_EXEC });
   }
+  // exec_command reached any other way (`tools?.exec_command`, `tools["exec_command"]`, an alias) runs a command the
+  // loop above does not see.
+  for (let i = 0; i < tokens.length; i++)
+    if ((tokens[i] === "exec_command" || literal(tokens[i]) === "exec_command") && !(tokens[i - 2] === "tools" && tokens[i - 1] === "." && tokens[i + 1] === "("))
+      calls.push({ name: "exec_command", command: UNREADABLE_EXEC });
   return calls;
 }
 
@@ -304,13 +309,18 @@ function execHeaderEnd(lines: string[], first: number): number {
 // names doan and starts a process leaves NAMES_DOAN_BODY after its tag, since an interpreter that reads it as its
 // script may run doan; agents also feed interpreters long document-editing scripts whose text only mentions doan.
 // When pythonDoanCalls can read every doan in that body, the tag gets PYTHON_CALLS and the index in `calls` of what it
-// read instead, for runGroups to take when Python is the program reading the body.
+// read instead, for runGroups to take when Python is the program reading the body. A body that names doan and holds a
+// backtick but starts no process otherwise gets BACKTICK_BODY: Perl and Ruby run a backtick string as a command, while
+// Python document-editing scripts quote "`doan check`" in Markdown, so only those two interpreters count it.
 function withoutHeredocsAndComments(command: string, calls: string[][][]): { text: string; unread: boolean } {
   let out = "", quote: string | null = null, unread = false;
   const pending: { tag: string; indented: boolean; quoted: boolean; at: number }[] = [];
   for (let i = 0; i < command.length; i++) {
     const c = command[i]!;
-    if (quote) {
+    // The shell drops a backslash-newline outside single quotes before it splits words, so it joins the lines.
+    if (c === "\\" && command[i + 1] === "\n" && quote !== "'") {
+      i++;
+    } else if (quote) {
       out += c;
       if (c === "\\" && quote === '"') out += command[++i] ?? "";
       else if (c === quote) quote = null;
@@ -349,6 +359,9 @@ function withoutHeredocsAndComments(command: string, calls: string[][][]): { tex
           const mark = read ? `${PYTHON_CALLS}${calls.push(read) - 1}` : NAMES_DOAN_BODY;
           out = out.slice(0, at + marked) + mark + out.slice(at + marked);
           marked += mark.length;
+        } else if (NAMES_DOAN.test(body) && body.includes("`")) {
+          out = out.slice(0, at + marked) + BACKTICK_BODY + out.slice(at + marked);
+          marked += BACKTICK_BODY.length;
         }
       }
     } else out += c;
@@ -368,6 +381,8 @@ const STARTS_PROCESS = /\b(?:subprocess|child_process|execa|commands\.getoutput|
 const NAMES_DOAN_BODY = "\u0004";
 // Where it marked one whose doan calls pythonDoanCalls read, before their index; U+0005 never occurs in a shell command.
 const PYTHON_CALLS = "\u0005";
+// Where it marked one whose body names doan and holds a backtick; U+0006 never occurs in a shell command.
+const BACKTICK_BODY = "\u0006";
 // A single-line Python string with nothing to decode and nothing the shell expands in an unquoted heredoc.
 const PY_STRING = String.raw`(?:'[^'\\\n$` + "`" + String.raw`]*'|"[^"\\\n$` + "`" + String.raw`]*")`;
 // A subprocess call whose whole first argument is a list of string literals (not one it extends or slices), with the
@@ -536,15 +551,17 @@ const REDIRECT_OPERATOR = /^\d*(?:&>>?|<<<|<<-?|<>|<&|>&|>>|>\||<|>)$/;
 
 // One raw token (quotes still on) to the words the shell makes of it. Single quotes and a backslash keep the next
 // character literal. A variable that is not known here, or a command substitution, is left as written and marks the
-// token unresolved: what the shell would pass there is unknown. A bare `$name` holding several words splits into them,
-// as an unquoted expansion does. The home directory is an unquoted leading `~` (before `/` or the end), `$HOME` outside
-// single quotes while the command line has not assigned HOME, or a variable assigned just one of those.
+// token unresolved: what the shell would pass there is unknown. A bare `$name` holding whitespace is unresolved too:
+// bash and sh split it into words, dropping the whitespace, and zsh, which agents run, passes it whole as one word. The
+// home directory is an unquoted leading `~` (before `/` or the end), `$HOME` outside single quotes while the command
+// line has not assigned HOME, or a variable assigned just one of those.
 function expandToken(raw: string, env: ReadonlyMap<string, string>): Expanded {
   const whole = /^\$(?:(\w+)|\{(\w+)\})$/.exec(raw);
   const name = whole ? whole[1] ?? whole[2]! : undefined;
   const held = name !== undefined ? env.get(name) : undefined;
   if (held !== undefined) {
-    const words = held.split(/\s+/).filter(Boolean);
+    if (/\s/.test(held)) return { words: [raw], unresolved: true, homePath: undefined, onlyHome: undefined };
+    const words = held === "" ? [] : [held];
     const home = words.length === 1 ? env.get(HOME_OF + name) : undefined;
     return { words, unresolved: false, homePath: home, onlyHome: home };
   }
@@ -578,12 +595,19 @@ function expandToken(raw: string, env: ReadonlyMap<string, string>): Expanded {
 // A program that runs another command it is given: doan itself, a shell, or a wrapper that may run one.
 const RUNNER = /^(?:.*\/)?(?:doan|(?:ba|z|da)?sh|env|timeout|nohup|nice|time|command|exec|eval|xargs)$/;
 const INTERPRETER = /^(?:node|python[\d.]*|perl|ruby|osascript|deno|bun)$/;
-// The switches that give each interpreter its script inline, as a word this reader sees.
+// The switches that give each interpreter its script inline, as a word this reader sees. Python's `-m` names a module
+// whose code the transcript does not show, so only a module that runs no program counts (json.tool, which agents pipe
+// doan's output through).
 const INLINE: [RegExp, RegExp][] = [
-  [/^python/, /^-[A-Za-z]*[cm]$/],
+  [/^python/, /^-[A-Za-z]*c$/],
   [/^(?:node|bun|deno)$/, /^(?:-[ep]+|--eval|--print)(?:=|$)/],
   [/^(?:perl|ruby)$/, /^-[\w]*[eE]$/],
   [/^osascript$/, /^-e$/],
+];
+// The switches that take their value as the next word, which is then not the script.
+const VALUED: [RegExp, RegExp][] = [
+  [/^python/, /^-[A-Za-z]*[WX]$/],
+  [/^(?:node|bun)$/, /^(?:-r|--require|--import|--loader|--experimental-loader)$/],
 ];
 
 // Whether an interpreter may run doan where this reader cannot see it: an argument (an inline script among them) that
@@ -593,8 +617,13 @@ const INLINE: [RegExp, RegExp][] = [
 function interpreterMayRunDoan(program: string, args: string[], redirects: Redirect[], heredocNamesDoan: boolean, pythonCalls: boolean): boolean | "heredoc" {
   if (args.some(word => NAMES_DOAN.test(word))) return true;
   const inline = INLINE.find(([name]) => name.test(program))?.[1];
-  if (inline && args.some(word => inline.test(word))) return false;
-  const script = args.find(word => word === "-" || !word.startsWith("-"));
+  // Only a switch before the script is the interpreter's; one after it is the script's own argument.
+  const valued = VALUED.find(([name]) => name.test(program))?.[1];
+  const at = args.findIndex((word, k) => (word === "-" || !word.startsWith("-")) && !(k > 0 && valued?.test(args[k - 1]!)));
+  const switches = at < 0 ? args : args.slice(0, at);
+  if (inline && switches.some(word => inline.test(word))) return false;
+  if (/^python/.test(program) && /^-[A-Za-z]*m$/.test(switches.at(-1) ?? "") && args[at] === "json.tool") return false;
+  const script = args[at];
   if (script !== undefined && script !== "-") return true;
   if (script === undefined && args.some(word => /^(?:-[vVh]|--version|--help)$/.test(word))) return false;
   const input = redirects.filter(redirect => /^0?(?:<<<|<<-?|<)$/.test(redirect.op)).at(-1);
@@ -654,7 +683,7 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
   };
   const redirectsOf = (tokens: string[]): Redirect[] => tokens.filter(token => token.startsWith(MARK)).map(token => {
     const [, op = "", target = ""] = token.split(MARK);
-    const expanded = expandToken(target.replace(NAMES_DOAN_BODY, ""), vars);
+    const expanded = expandToken(target.replace(NAMES_DOAN_BODY, "").replace(BACKTICK_BODY, ""), vars);
     return { op, target: expanded.words.join(" "), unresolved: expanded.unresolved, homePath: expanded.homePath };
   });
   for (let i = 0; i < groups.length; i++) {
@@ -821,7 +850,7 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
     const input = raw.filter(token => /^\u00010?(?:<<<|<<-?|<)\u0001/.test(token)).at(-1);
     const read = input === undefined || !/^\u00010?<<-?\u0001/.test(input) ? undefined : new RegExp(`${PYTHON_CALLS}(\\d+)`).exec(input)?.[1];
     const interpreted = INTERPRETER.test(program) && interpreterMayRunDoan(program, words.slice(1), redirects,
-      raw.some(token => token.startsWith(MARK) && (token.includes(NAMES_DOAN_BODY) || token.includes(PYTHON_CALLS))), read !== undefined);
+      raw.some(token => token.startsWith(MARK) && (token.includes(NAMES_DOAN_BODY) || token.includes(PYTHON_CALLS) || (/^(?:perl|ruby)$/.test(program) && token.includes(BACKTICK_BODY)))), read !== undefined);
     if (/^(?:ba|z|da)?sh$/.test(program) || ["source", "."].includes(program) || /\.(?:ba|z)?sh$/.test(program) || interpreted === true) { state.incomplete = true; continue; }
     if (interpreted === "heredoc") {
       out.push({ words, homePaths, redirects });
@@ -868,7 +897,7 @@ function parse(command: string, state: ReadState, vars = new Map<string, string>
   // An unquoted redirection operator is a token of its own (`2>&1` is not a background `&`), joined with the word
   // after it, its target; heredoc bodies are already gone, so a `<<` takes its tag.
   let operator: string | undefined;
-  // A backslash quotes the next character (`\>` is a word), except a newline, which it joins to the next line.
+  // A backslash quotes the next character (`\>` is a word); withoutHeredocsAndComments has already joined continued lines.
   for (const token of taken.text.matchAll(/\d*(?:&>>?|<<<|<<-?|<>|<&|>&|>>|>\||<|>)|[;&|\n]+|(?:"(?:\\.|[^"\\])*"|'[^']*'|\\[^\n]?|[^\s;&|"'<>\\])+/g)) {
     const value = token[0];
     const separator = /^[;&|\n]+$/.test(value);

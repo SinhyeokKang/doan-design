@@ -77,6 +77,11 @@ export function commandName(provider: Provider, text: string): string | null {
   const name = COMMAND_ALIASES[provider][match[1]!] ?? match[1]!;
   return COMMAND_ALLOWLIST[provider].commands.some(c => c.name === name) ? name : null;
 }
+// A stored message's command, as main sent it: a handoff's first message (origin) is the agent's text, which a handoff
+// start sends as written and never as a command, whatever word it starts with.
+export function messageCommand(provider: Provider, message: { text: string; origin?: unknown }): string | null {
+  return message.origin === undefined ? commandName(provider, message.text) : null;
+}
 
 // The first word's command name as the composer's highlight cuts it (renderer skillWords.ts): the word itself, without
 // trailing punctuation, or up to attached Hangul. Main guards with the same cut, so it never refuses text the composer

@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { MAX_COPY_TEXT, MAX_FRAMES, MAX_GOTOS, MAX_HTML, MAX_SELECTOR, MAX_STRING, MAX_TEXT, MAX_TEXT_RECTS, MAX_TREE_NODES, MAX_VALUE, parseCanvasMessage, type ElementTreeMessage } from "../renderer/canvasMessage";
 import { MAX_PROTOTYPE_MARK } from "./prototype/mark";
 import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
-import { ancestorPath, canScrollAxis, canvasScriptSource, clipHtml, clipText, documentHeight, elementSelector, elementTree, escapeTarget, frameBottom, frameStep, nextHeight, nodeKind, nodeLabel, textBoundary, textDragState, textQuote, type ChainLink } from "./canvasScript";
+import { ancestorPath, canScrollAxis, canvasScriptSource, clipHtml, clipText, documentHeight, elementSelector, elementTree, escapeTarget, frameBottom, frameStep, nextHeight, nodeKind, nodeLabel, textBoundary, textDragState, textQuote, visibleRect, type ChainLink } from "./canvasScript";
 
 describe("nextHeight", () => {
   test("sends the first measurement as is", () => {
@@ -251,6 +251,71 @@ describe("frameBottom", () => {
     expect(frameBottom(500, "fixed", [clipper(100, "hidden", "relative")])).toBe(500);
     expect(frameBottom(500, "static", [plain("fixed"), clipper(100, "hidden", "relative")])).toBe(500);
     expect(frameBottom(500, "static", [clipper(300, "auto", "fixed"), clipper(100, "hidden", "relative")])).toBe(300);
+  });
+});
+
+// An element's ancestors, nearest first, up to body: position, overflow on each
+// axis, display and the box that clips on that ancestor's overflow, all in the
+// viewport. The same ancestors clip as for frameBottom, on both axes.
+describe("visibleRect", () => {
+  const box = (x: number, y: number, width: number, height: number) => ({ x, y, width, height });
+  const clipper = (clip: ReturnType<typeof box>, overflow = "hidden", position = "static", display = "block") => ({ position, overflowX: overflow, overflowY: overflow, display, box: clip });
+  const plain = (position = "static") => ({ position, overflowX: "visible", overflowY: "visible", display: "block", box: box(0, 0, 0, 0) });
+  const strip = box(0, 50, 600, 80);
+
+  test("keeps the box of an element no ancestor clips", () => {
+    expect(visibleRect(strip, "static", [])).toEqual(strip);
+    expect(visibleRect(strip, "static", [plain(), plain("relative")])).toEqual(strip);
+  });
+
+  test("cuts an element to a box that clips or scrolls it, on both axes", () => {
+    expect(visibleRect(strip, "static", [clipper(box(50, 60, 100, 40)), plain()])).toEqual(box(50, 60, 100, 40));
+    expect(visibleRect(strip, "static", [clipper(box(50, 0, 100, 400), "auto")])).toEqual(box(50, 50, 100, 80));
+    expect(visibleRect(strip, "static", [clipper(box(-10, 70, 1000, 20), "clip")])).toEqual(box(0, 70, 600, 20));
+  });
+
+  test("cuts only the axes the box clips", () => {
+    const xOnly = { position: "static", overflowX: "clip", overflowY: "visible", display: "block", box: box(50, 60, 100, 40) };
+    expect(visibleRect(strip, "static", [xOnly])).toEqual(box(50, 50, 100, 80));
+    const yOnly = { position: "static", overflowX: "visible", overflowY: "hidden", display: "block", box: box(50, 60, 100, 40) };
+    expect(visibleRect(strip, "static", [yOnly])).toEqual(box(0, 60, 600, 40));
+  });
+
+  test("intersects every clipping ancestor", () => {
+    expect(visibleRect(strip, "static", [clipper(box(50, 0, 300, 400)), plain(), clipper(box(0, 60, 120, 400))])).toEqual(box(50, 60, 70, 70));
+  });
+
+  test("an element clipped away entirely keeps no size", () => {
+    const gone = visibleRect(box(500, 50, 100, 80), "static", [clipper(box(0, 0, 200, 200))]);
+    expect(gone.width).toBe(0);
+    expect(gone.height).toBe(80);
+    expect(visibleRect(box(0, 500, 100, 80), "static", [clipper(box(0, 0, 200, 200))]).height).toBe(0);
+  });
+
+  test("lets an absolutely positioned element escape clipping boxes below its containing block", () => {
+    expect(visibleRect(strip, "absolute", [clipper(box(50, 60, 100, 40)), plain()])).toEqual(strip);
+    expect(visibleRect(strip, "absolute", [clipper(box(50, 60, 100, 40), "hidden", "relative")])).toEqual(box(50, 60, 100, 40));
+    expect(visibleRect(strip, "absolute", [plain("relative"), clipper(box(50, 60, 100, 40))])).toEqual(box(50, 60, 100, 40));
+  });
+
+  test("passes the escape on through an absolutely positioned ancestor", () => {
+    expect(visibleRect(strip, "static", [plain("absolute"), clipper(box(50, 60, 100, 40))])).toEqual(strip);
+    expect(visibleRect(strip, "static", [plain("absolute"), clipper(box(50, 60, 100, 40), "hidden", "relative")])).toEqual(box(50, 60, 100, 40));
+  });
+
+  test("ignores overflow on boxes it does not apply to", () => {
+    for (const display of ["inline", "contents", "table-row", "table-row-group", "table-column", "ruby"]) {
+      expect(visibleRect(strip, "static", [clipper(box(50, 60, 100, 40), "hidden", "static", display)])).toEqual(strip);
+    }
+    for (const display of ["block", "inline-block", "flow-root", "flex", "inline-flex", "grid", "list-item", "table-cell"]) {
+      expect(visibleRect(strip, "static", [clipper(box(50, 60, 100, 40), "hidden", "static", display)])).toEqual(box(50, 60, 100, 40));
+    }
+  });
+
+  test("no ancestor clips a fixed element, and nothing above a fixed ancestor clips", () => {
+    expect(visibleRect(strip, "fixed", [clipper(box(50, 60, 100, 40), "hidden", "relative")])).toEqual(strip);
+    expect(visibleRect(strip, "static", [plain("fixed"), clipper(box(50, 60, 100, 40), "hidden", "relative")])).toEqual(strip);
+    expect(visibleRect(strip, "static", [clipper(box(0, 60, 300, 400), "auto", "fixed"), clipper(box(50, 60, 100, 40), "hidden", "relative")])).toEqual(box(0, 60, 300, 70));
   });
 });
 
@@ -3047,11 +3112,15 @@ const links = JSON.parse(readFileSync(new URL("../../../schema/fixtures/prototyp
 type BoardFrame = { id: string; prototype?: string; cut?: true; parent?: number };
 type BoardLayout = { type: "layout"; frames: BoardFrame[]; gotos: { value: string; frame?: number }[]; truncated: boolean };
 
+// One Electron serves every real-DOM block in this file, so these hooks are the file's, wherever they sit.
+// Real-DOM blocks allow 60 s a test: each helper step is bounded at 15 s, so a step that hangs fails by its own name
+// before the test limit.
+let dom: ElectronDom;
+beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
+afterAll(async () => { await dom?.close(); }, 30_000);
+
 // The board's frames and links in a real DOM, the script running first as the board's injection puts it.
-describe("layout frames and links in a real DOM", () => {
-  let dom: ElectronDom;
-  beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
-  afterAll(async () => { await dom?.close(); }, 30_000);
+describe("layout frames and links in a real DOM", { timeout: 60_000 }, () => {
 
   const layoutOf = async (body: string): Promise<BoardLayout> => {
     const frame = await dom.load(`<!doctype html><html><head><script>${canvasScriptSource()}</script></head><body>${body}</body></html>`);
@@ -3107,6 +3176,48 @@ describe("layout frames and links in a real DOM", () => {
     expect(layout.frames).toHaveLength(1000);
     expect(layout.truncated).toBe(true);
     expect(layout.gotos).toEqual([{ value: "x", frame: 0 }]);
+  });
+});
+
+// Overlay marks in a real DOM: an element wider than the box that clips it (a scenery strip in a phone's door
+// window, moved by a transform) is marked as far as it shows, not by its whole box.
+describe("overlay marks of a clipped element in a real DOM", { timeout: 60_000 }, () => {
+  type Frame = Awaited<ReturnType<ElectronDom["load"]>>;
+  type Rect = { x: number; y: number; width: number; height: number };
+  const toCanvas = (frame: Frame, data: unknown) =>
+    frame.parentFrame()!.evaluate(message => (window as unknown as { doanFrame: HTMLIFrameElement }).doanFrame.contentWindow!.postMessage(message, "*"), data);
+  // The window's padding box is 100 × 80 at (52, 52): a 2 px border around it, the strip 600 px wide inside.
+  const phone = `
+    <div data-doan-frame="phone" style="position:absolute;left:0;top:0;width:300px;height:400px">
+      <div style="position:absolute;left:50px;top:50px;width:100px;height:80px;border:2px solid;overflow:hidden">
+        <div data-doan-id="strip" style="width:600px;height:120px;transform:translateX(-100px)"></div>
+      </div>
+    </div>`;
+  const windowBox = { x: 52, y: 52, width: 100, height: 80 };
+  const open = async () => {
+    const frame = await dom.load(`<!doctype html><html><head><script>${canvasScriptSource()}</script></head><body style="margin:0">${phone}</body></html>`);
+    await dom.flush(frame);
+    return frame;
+  };
+  const ofType = (messages: unknown[], type: string) => messages.filter(message => (message as { type?: unknown }).type === type);
+
+  test("the hover outline is the part of the element its window shows", async () => {
+    const frame = await open();
+    await toCanvas(frame, { type: "hover-meta", seq: 1, meta: true });
+    await toCanvas(frame, { type: "hover-at", seq: 2, x: 100, y: 100 });
+    const hovers = ofType(await dom.flush(frame), "hover") as { rect: Rect | null }[];
+    expect(hovers.at(-1)?.rect).toEqual(windowBox);
+  });
+
+  test("the selection outline, in the select answer and in each layout, is the part its window shows", async () => {
+    const frame = await open();
+    await toCanvas(frame, { type: "select-anchor", seq: 1, doanId: "strip" });
+    await toCanvas(frame, { type: "measure" });
+    const messages = await dom.flush(frame);
+    const selects = ofType(messages, "select") as { target: { rect: Rect } | null }[];
+    expect(selects.at(-1)?.target?.rect).toEqual(windowBox);
+    const layouts = ofType(messages, "layout") as { selected?: Rect | null }[];
+    expect(layouts.at(-1)?.selected).toEqual(windowBox);
   });
 });
 
@@ -3219,10 +3330,7 @@ describe("elementTree", () => {
 });
 
 // The element tree in a real DOM: computed display and direction, own text nodes and the selection channel.
-describe("canvasScript element-tree in a real DOM", () => {
-  let dom: ElectronDom;
-  beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
-  afterAll(async () => { await dom?.close(); }, 30_000);
+describe("canvasScript element-tree in a real DOM", { timeout: 60_000 }, () => {
 
   type Frame = Awaited<ReturnType<ElectronDom["load"]>>;
   const toCanvas = (frame: Frame, data: unknown) =>

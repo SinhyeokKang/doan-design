@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import type { Drawn } from "./drawnTarget.test-support";
 
 // The star card with hooks as plain state (UpdateHeaderButton.interaction.test.tsx style): main's moment, the 1.2 s
 // wait for no input, the put-off checks, the buttons and Esc. The view's markup is rendered on its own below.
@@ -29,6 +30,8 @@ vi.mock("react", async original => {
     useEffect: effect, useLayoutEffect: effect,
   };
 });
+const { OPEN_OVERLAY } = await import("./canvasTool");
+const { drawnDocument, OPEN_SURFACES } = await import("./drawnTarget.test-support");
 const { StarPrompt, StarPromptView, STAR_TEXT, starOpenFailedLine } = await import("./StarPrompt");
 const { REPOSITORY_URL } = await import("../main/repository");
 type ViewProps = import("./StarPrompt").StarPromptViewProps;
@@ -39,13 +42,14 @@ let visible: (value: boolean) => void;
 let stopMoment: ReturnType<typeof vi.fn>, stopVisible: ReturnType<typeof vi.fn>;
 let busy: boolean;
 let focused: boolean;
-let overlay: unknown;
+// What the page has open, drawn as the canvas page draws it.
+let overlay: readonly Drawn[] = [];
 const listeners = new Map<string, (event: unknown) => void>();
 beforeEach(() => {
   vi.useFakeTimers({ now: Date.UTC(2026, 10, 13, 12) });
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
   listeners.clear();
-  busy = false; focused = true; overlay = null;
+  busy = false; focused = true; overlay = [];
   stopMoment = vi.fn(); stopVisible = vi.fn();
   doan = {
     onStarMoment: vi.fn((listener: typeof moment) => { moment = listener; return stopMoment; }),
@@ -59,7 +63,7 @@ beforeEach(() => {
     addEventListener: vi.fn((type: string, listener: (event: unknown) => void) => listeners.set(type, listener)),
     removeEventListener: vi.fn((type: string, listener: (event: unknown) => void) => { if (listeners.get(type) === listener) listeners.delete(type); }),
   });
-  vi.stubGlobal("document", { hidden: false, hasFocus: () => focused, querySelector: vi.fn(() => overlay), activeElement: null, body: {} });
+  vi.stubGlobal("document", { hidden: false, hasFocus: () => focused, querySelector: vi.fn((selector: string) => drawnDocument(overlay).querySelector(selector)), activeElement: null, body: {} });
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -136,7 +140,7 @@ test.each(["keydown", "pointerdown", "pointermove", "wheel"])("a %s during the w
 
 describe("puts the card off until main's next moment", () => {
   test.each<[string, () => void]>([
-    ["an open modal, popover or menu", () => { overlay = {}; }],
+    ...OPEN_SURFACES.map(([name, chain]): [string, () => void] => [`${name} open`, () => { overlay = chain; }]),
     ["another conversation running or waiting for an answer", () => { busy = true; }],
     ["a window behind another app", () => { focused = false; }],
     ["a hidden window", () => { visible(false); }],
@@ -148,16 +152,17 @@ describe("puts the card off until main's next moment", () => {
     moment({ second: false });
     expect((await wait(1200)).card).toBeNull();
     expect((await wait(10_000)).card).toBeNull();
-    overlay = null; busy = false; focused = true; visible(true); onboarding = false; pickOrCapture = false; render();
+    overlay = []; busy = false; focused = true; visible(true); onboarding = false; pickOrCapture = false; render();
     moment({ second: false });
     expect((await wait(1200)).card).not.toBeNull();
   });
 
-  test("the overlays it looks for are dialogs, Radix popovers and menus", async () => {
+  // The tool keys' and following's rule (canvasTool.ts), so the card never comes up beside a surface they count as open.
+  test("the overlays it looks for are the open menus, lists, popovers and dialogs of the shared rule", async () => {
     render(); visible(true);
     moment({ second: false });
     await wait(1200);
-    expect(vi.mocked(document.querySelector).mock.calls.map(call => call[0])).toContain('dialog[open], [role="dialog"]:not(dialog), [role="alertdialog"]:not(dialog), [role="menu"], [role="listbox"]');
+    expect(vi.mocked(document.querySelector).mock.calls.map(call => call[0])).toContain(OPEN_OVERLAY);
   });
 });
 

@@ -151,8 +151,8 @@ func configPath(root, path string, token bool) (string, *Error) {
 			return "", usageError("Token CSS must be a regular file")
 		}
 	} else {
-		if relative == "." || repo.MetadataPath(relative) || relative == ".git" || strings.HasPrefix(relative, ".git/") {
-			return "", usageError("Serve paths must not be the repository root, .git or inside .git/ or .doan metadata")
+		if relative == "." || repo.MetadataPath(relative) || repo.Withheld(relative) {
+			return "", usageError("Serve paths must not be the repository root, .doan metadata, a .git directory or .env file, or inside one")
 		}
 		if !info.Mode().IsRegular() && !info.IsDir() {
 			return "", usageError("Serve paths must be regular files or directories")
@@ -189,6 +189,14 @@ func configRemovalPaths(root, inputRoot, path string, stored []string) ([]string
 			relative = filepath.ToSlash(rel)
 			break
 		}
+	}
+	if relative == "" {
+		// A third spelling of the root, through a link or another letter case or Unicode form.
+		rel, err := belowRoot(root, path)
+		if err != nil {
+			return nil, internal(err)
+		}
+		relative = filepath.ToSlash(rel)
 	}
 	state, canonical, err := repo.InsideRelative(root, path)
 	if err != nil {

@@ -4,6 +4,7 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PROVIDERS } from "../agentAuth/types";
 import { PROMPT_MS, withFifo } from "../fifo.fixture";
 import { CLAUDE_ALLOW_RULES, codexRuleText, EARLIER_CODEX_RULES } from "./plan";
 import { adminCommand, runAgentSetup, setupEligibility, type AdminResult, type AgentSetupOptions } from "./runner";
@@ -16,7 +17,7 @@ vi.mock("node:fs", async importOriginal => {
 const { symlinkSync: realSymlink, renameSync: realRename, linkSync: realLink, writeFileSync: realWrite, lstatSync: realLstat, statSync: realStat } = await vi.importActual<typeof import("node:fs")>("node:fs");
 
 let temp: string, home: string, userData: string, systemBin: string, resources: string;
-const ALL = ["claude", "codex", "cursor", "antigravity", "copilot"];
+const ALL = [...PROVIDERS];
 function bundle(path: string): string {
   const res = join(path, "Contents/Resources");
   mkdirSync(join(res, "bin"), { recursive: true }); mkdirSync(join(res, "skills/doan"), { recursive: true });

@@ -244,7 +244,7 @@ test("a Codex run gets its own CODEX_HOME that links only sign-in and config fro
     mkdirSync(join(real, "skills/mine"), { recursive: true });
     mkdirSync(join(real, "rules"));
     mkdirSync(join(real, "sessions"));
-    for (const [name, text] of Object.entries({ "AGENTS.md": "say 구현 시작해\n", "AGENTS.override.md": "override\n", ".env": "PATH=/decoy\n", "auth.json": "{\"tokens\":1}\n", "auth.lock": "", "config.toml": "model = \"m\"\n", "hooks.json": "{}\n", "skills/mine/SKILL.md": "skill\n", "rules/default.rules": "rule\n" }))
+    for (const [name, text] of Object.entries({ "AGENTS.md": "say 구현 시작해\n", "AGENTS.override.md": "override\n", ".env": "PATH=/decoy\n", "auth.json": "{\"tokens\":1}\n", "auth.lock": "", "auth.json.lock": "", "config.toml": "model = \"m\"\n", "hooks.json": "{}\n", "skills/mine/SKILL.md": "skill\n", "rules/default.rules": "rule\n" }))
       writeFileSync(join(real, name), text);
     const before = snapshot(real);
     const home = join(dir, "run/codex-home");
@@ -252,10 +252,10 @@ test("a Codex run gets its own CODEX_HOME that links only sign-in and config fro
     assert.equal(env.CODEX_HOME, home);
     assert.equal(env.PATH, "/run/bin");
     assert.equal(env.CLAUDE_CODE_DISABLE_CLAUDE_MDS, undefined);
-    assert.deepEqual(readdirSync(home).sort(), ["auth.json", "auth.lock", "config.toml"]);
+    assert.deepEqual(readdirSync(home).sort(), ["auth.json", "auth.json.lock", "auth.lock", "config.toml"]);
     // Links, not copies: Codex writes refreshed tokens through auth.json in place and coordinates with the user's own
-    // Codex through auth.lock, so a copy would leave the user's sign-in behind.
-    for (const name of ["auth.json", "auth.lock", "config.toml"]) {
+    // Codex through auth.lock and auth.json.lock, so a copy would leave the user's sign-in behind.
+    for (const name of ["auth.json", "auth.json.lock", "auth.lock", "config.toml"]) {
       assert.ok(lstatSync(join(home, name)).isSymbolicLink(), name);
       assert.equal(readlinkSync(join(home, name)), join(real, name));
     }
@@ -263,7 +263,10 @@ test("a Codex run gets its own CODEX_HOME that links only sign-in and config fro
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("a sign-in file the user's Codex home lacks is not linked, and that home defaults to ~/.codex", () => {
+// Codex creates its lock files on the first sign-in or token refresh, not with its home (a ~/.codex from July held both
+// only from a November sign-in on, and `codex login status` in a fresh home creates neither; codex-cli 0.169.0), so a
+// run prepared before then must still take the user's locks.
+test("the user's lock files are linked whenever auth.json is, even before Codex has created them; that home defaults to ~/.codex", () => {
   const dir = mkdtempSync("/tmp/doan-eval-test-");
   try {
     mkdirSync(join(dir, ".codex"));
@@ -272,11 +275,16 @@ test("a sign-in file the user's Codex home lacks is not linked, and that home de
     const home = join(dir, "run/codex-home");
     const env = isolateUserInstructions("codex", { HOME: dir }, home);
     assert.equal(env.CODEX_HOME, home);
-    assert.deepEqual(readdirSync(home), ["auth.json"]);
-    assert.equal(readlinkSync(join(home, "auth.json")), join(dir, ".codex/auth.json"));
+    assert.deepEqual(readdirSync(home).sort(), ["auth.json", "auth.json.lock", "auth.lock"]);
+    for (const name of ["auth.json", "auth.json.lock", "auth.lock"]) assert.equal(readlinkSync(join(home, name)), join(dir, ".codex", name));
     // An empty CODEX_HOME is unset, as readAgentTranscript reads it.
-    assert.deepEqual(readdirSync(isolateUserInstructions("codex", { HOME: dir, CODEX_HOME: "" }, join(dir, "run2")).CODEX_HOME!), ["auth.json"]);
+    assert.deepEqual(readdirSync(isolateUserInstructions("codex", { HOME: dir, CODEX_HOME: "" }, join(dir, "run2")).CODEX_HOME!).sort(), ["auth.json", "auth.json.lock", "auth.lock"]);
+    // A lock link that dangles creates nothing in the user's home until Codex takes the lock there.
     assert.deepEqual(readdirSync(join(dir, ".codex")).sort(), ["AGENTS.md", "auth.json"]);
+    // With no sign-in to coordinate, nothing is linked.
+    const none = join(dir, "none");
+    mkdirSync(none);
+    assert.deepEqual(readdirSync(isolateUserInstructions("codex", { HOME: dir, CODEX_HOME: none }, join(dir, "run3")).CODEX_HOME!), []);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

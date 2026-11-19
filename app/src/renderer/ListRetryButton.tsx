@@ -1,5 +1,6 @@
 import { useRef, useState, type MouseEvent } from "react";
 import { DropdownMenu } from "radix-ui";
+import { useActivationFocus } from "./activationFocus";
 import { AlertIcon } from "./AlertIcon";
 import { announcedAgain, LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
 
@@ -28,6 +29,8 @@ const CONTROLS = 'button:not(:disabled):not([aria-disabled="true"]), [role="swit
 export function useRetry(): ListRetry & { run(work: () => Promise<boolean>, pressed?: HTMLElement | null): void } {
   const [state, setState] = useState(LIST_RETRY_IDLE);
   const running = useRef(false);
+  // A slow read can answer after the person left the window; the move is made again on activation (POSTMORTEM 2026-11-17).
+  const handFocus = useActivationFocus();
   const run = (work: () => Promise<boolean>, pressed: HTMLElement | null = null) => {
     if (running.current) return;
     running.current = true;
@@ -40,10 +43,12 @@ export function useRetry(): ListRetry & { run(work: () => Promise<boolean>, pres
       requestAnimationFrame(() => {
         if (pressed?.isConnected && document.activeElement === pressed) return;
         if (document.activeElement && document.activeElement !== document.body) return;
-        for (const scope of scopes) {
-          const control = scope.isConnected ? scope.querySelector<HTMLElement>(CONTROLS) : null;
-          if (control) { control.focus(); return; }
-        }
+        handFocus(() => {
+          for (const scope of scopes) {
+            const control = scope.isConnected ? scope.querySelector<HTMLElement>(CONTROLS) : null;
+            if (control) { control.focus(); return; }
+          }
+        });
       });
     });
   };

@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -190,5 +191,63 @@ func TestScopeSkipsDefaultsUnderLinkedMetadata(t *testing.T) {
 	}
 	if got := scopeOf(t, root, Config{Serve: []string{"src/ds"}}); !reflect.DeepEqual(got, []string{"src/ds"}) {
 		t.Fatalf("configured: %#v", got)
+	}
+}
+
+// The cases are shared with the app's withheld test, so the server and doan check cannot drift apart.
+func TestWithheld(t *testing.T) {
+	var fixture struct {
+		Cases []struct {
+			Path     string
+			Withheld bool
+		}
+	}
+	data, err := os.ReadFile("../../../schema/fixtures/serve-withheld/cases.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if len(fixture.Cases) == 0 {
+		t.Fatal("no fixtures")
+	}
+	for _, tt := range fixture.Cases {
+		if got := Withheld(tt.Path); got != tt.Withheld {
+			t.Errorf("Withheld(%q) = %v, want %v", tt.Path, got, tt.Withheld)
+		}
+	}
+}
+
+// .git and .env paths are never served, whatever the config lists (ARCHITECTURE §3 'Never served').
+func TestScopeWithholdsGitAndEnv(t *testing.T) {
+	root := real(t, t.TempDir())
+	put(t, root, ".doan/canvases/a.html", "")
+	put(t, root, ".env", "SECRET=1")
+	put(t, root, ".env.local", "SECRET=1")
+	put(t, root, ".git/config", "")
+	put(t, root, "web/.env", "SECRET=1")
+	put(t, root, "web/page.css", "")
+	put(t, root, "vendor/x/.git/HEAD", "")
+	put(t, root, ".env.css", "")
+	if err := os.Symlink(".env", filepath.Join(root, "settings")); err != nil {
+		t.Fatal(err)
+	}
+	config := Config{TokenCSS: ".env.css", Serve: []string{".env", ".env.local", ".git", ".git/config", "web/.env", "vendor/x/.git", "settings", "web"}}
+	if got := scopeOf(t, root, config); !reflect.DeepEqual(got, []string{".doan/canvases", "web"}) {
+		t.Fatalf("scope: %#v", got)
+	}
+}
+
+// A serve entry withheld by its written name stays out even when it links to a
+// path that is not withheld, so the scope agrees with `serve_withheld`.
+func TestScopeDropsEntryWithheldByWrittenName(t *testing.T) {
+	root := real(t, t.TempDir())
+	put(t, root, "docs/public/a.css", "")
+	link(t, "docs/public", filepath.Join(root, ".env-docs"))
+	link(t, "docs/public", filepath.Join(root, "web/.git"))
+	config := Config{Serve: []string{".env-docs", "./.ENV-docs/", "web/.git"}}
+	if got := scopeOf(t, root, config); len(got) != 0 {
+		t.Fatalf("scope: %#v", got)
 	}
 }

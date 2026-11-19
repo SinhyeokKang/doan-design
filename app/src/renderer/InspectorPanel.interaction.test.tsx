@@ -32,6 +32,8 @@ const { ElementMenu, RowList, InspectorPanel, COPY_FAILED } = await import("./In
 const { TooltipContent } = await import("./components/ui/tooltip");
 const { rowDisplay } = await import("./inspectorRows");
 const { Popover } = await import("radix-ui");
+const { toolShortcut } = await import("./canvasTool");
+const { drawn, keydownOn } = await import("./drawnTarget.test-support");
 const { Columns3, Frame, RectangleHorizontal, Type } = await import("lucide-react");
 
 type El = ReactElement<Record<string, unknown>>;
@@ -95,6 +97,14 @@ describe("the element menu", () => {
     expect(content.props).toMatchObject({ side: "bottom", align: "start", sideOffset: 4, "data-ui-variant": "tree" });
     // Radix's own Esc closes it, preventing the default so the selection is not stepped back.
     expect(content.props.onEscapeKeyDown).toBeUndefined();
+  });
+
+  // PRODUCT §5 item 2 'Canvas header': an open menu keeps every printable key, so V, H and Space from a row never
+  // reach the canvas tools.
+  test("V, H and Space pressed on an open menu's row never switch the canvas tool", () => {
+    const rendered = run(ElementMenu, { shown: true, onEscape: noop, view: VIEW, nodes: NODES, tree: source() });
+    const row = drawn([rendered.find(element => element.type === Popover.Content)!, rendered.find(element => element.props.role === "tree")!, items(rendered)[1]!].map(element => element.props));
+    for (const code of ["KeyV", "KeyH", "Space"]) expect(toolShortcut(keydownOn(code, row), { canvasPage: true }), code).toBeNull();
   });
 
   test("rows: depth, guides, kind icons, names, the selection pressed and the one Tab stop", () => {
@@ -365,7 +375,7 @@ describe("focus that was in the inspector", () => {
   const fake = (inside: string | null = null) => ({ isConnected: true, focus: vi.fn(), closest: (selector: string) => inside !== null && selector.includes(inside) ? {} : null });
   function setup(nodes: { row?: unknown; trigger?: unknown; area?: unknown }) {
     const body = {};
-    const doc = { activeElement: null as unknown, body, querySelector: (selector: string) => selector.includes(".area") ? nodes.area ?? null : null, addEventListener: vi.fn(), removeEventListener: vi.fn() };
+    const doc = { activeElement: null as unknown, body, querySelector: (selector: string) => selector.includes(".area") ? nodes.area ?? null : null, querySelectorAll: () => [], hasFocus: () => true, addEventListener: vi.fn(), removeEventListener: vi.fn() };
     vi.stubGlobal("document", doc);
     const aside = { querySelector: (selector: string) => selector.includes("doan-insp-row") ? nodes.row ?? null : selector.includes("ov-title") ? nodes.trigger ?? null : null };
     return { doc, body, aside };
@@ -409,6 +419,25 @@ describe("focus that was in the inspector", () => {
     lose(panel, fake(".doan-insp-row"), doc);
     render(aside, { selection: null });
     expect(area.focus).toHaveBeenCalled();
+  });
+
+  test("a recovery made with the window in the background is made again when the window activates", () => {
+    // POSTMORTEM 2026-11-17: activation restores focus to the row that went, and with it gone to Hide sidebar.
+    const area = fake();
+    const { doc, aside } = setup({ area });
+    doc.hasFocus = () => false;
+    const win = new EventTarget();
+    vi.stubGlobal("window", win);
+    vi.useFakeTimers();
+    try {
+      const panel = render(aside);
+      lose(panel, fake(".doan-insp-row"), doc);
+      render(aside, { selection: null });
+      expect(area.focus).toHaveBeenCalledTimes(1);
+      win.dispatchEvent(new Event("focus"));
+      vi.runAllTimers();
+      expect(area.focus).toHaveBeenCalledTimes(3);
+    } finally { vi.useRealTimers(); }
   });
 
   test("focus that moved on to another control is left where it is", () => {

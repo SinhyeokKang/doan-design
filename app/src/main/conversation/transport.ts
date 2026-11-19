@@ -4,7 +4,9 @@ import { object } from "./sessions";
 import { claudeModeAfterPlan, type PermissionModeId } from "./permissionMode";
 import { connectorLabels, serverLabel } from "../mcpConnectors/presets";
 import { codexMcpApproval } from "../mcpConnectors/codexApproval";
+import { CONNECTOR_NAME_PATTERN } from "../mcpConnectors/names";
 import type { BoundaryKind } from "./commandRecords";
+import { clip, quoted, visibleText } from "./cardText";
 import { QUESTION_LIMITS, type Question, type QuestionAnswer, type StoredAnswer } from "./question";
 import type { EventPayload, FailureCode, FastUnused, FastUnusedReason, PendingPermission, PermissionChoice, TransportResult, TransportState, TurnStage } from "./types";
 
@@ -143,16 +145,58 @@ function text(value: unknown): string { return typeof value === "string" ? value
 // Fallbacks when an item carries nothing readable: provider item types (commandExecution, fileChange, Bash) are wire
 // vocabulary, not words for the strip.
 export const GENERIC_SUMMARY = { edit: "Editing files", read: "Reading files", command: "Running a command", other: "Using a tool" } as const;
+// A permission request leads with what will run (ARCHITECTURE §7: the approval card shows the command), so it keeps far
+// more of it than other one-line summaries; the agent's own words about it (reason) stay short. A cut text ends in "…",
+// so the person sees that more would run than the card shows (clip).
+export const PERMISSION_SUMMARY_MAX = 8192;
+const PERMISSION_REASON_MAX = 512;
+// The agent's description of a request, unless it only repeats what the card already shows.
+export function permissionReason(reason: string, summary: string): { reason?: string } {
+  const trimmed = reason.trim();
+  return trimmed && visibleText(trimmed) !== summary ? { reason: clip(trimmed, PERMISSION_REASON_MAX) } : {};
+}
 type ActivityKind = keyof typeof GENERIC_SUMMARY;
 export function displayPath(path: string, root: string): string {
   const relative = posix.relative(root, posix.resolve(root, path));
   return relative && !relative.startsWith("..") && !posix.isAbsolute(relative) ? relative : path;
 }
-// Codex wraps commands in the login shell (`/bin/zsh -c '…'`); a single parsed action is the command as written.
+// Allow answers for `command` whole. Codex's `commandActions` is a best-effort parse for display that can name only part
+// of the line, so it never stands in for the command. Only
+// the login-shell wrapper Codex adds (`/bin/zsh -lc <script>`, a system shell) comes off, and only when the rest decodes
+// as exactly one shell word; anything else shows as sent.
+const SHELL_WRAPPER = /^\/bin\/(?:zsh|bash|sh) -l?c (.+)$/s;
 function commandText(input: Record<string, unknown>): string {
-  const actions = Array.isArray(input.commandActions) ? input.commandActions.filter(object) : [];
-  const [only] = actions;
-  return (actions.length === 1 && only && text(only.command)) || text(input.command);
+  const command = text(input.command);
+  const script = SHELL_WRAPPER.exec(command)?.[1];
+  return (script !== undefined && shellWord(script)) || command;
+}
+// One POSIX shell word, as Codex's quoting writes it: '…' runs, "…" runs with \ escapes, backslash escapes and plain
+// characters. Null for anything a shell would expand or split (an unescaped $ or ` in double quotes, a space, an
+// operator), since the decoded text would then not be the script.
+function shellWord(source: string): string | null {
+  let word = "", i = 0;
+  while (i < source.length) {
+    const char = source.charAt(i);
+    if (char === "'") {
+      const end = source.indexOf("'", i + 1);
+      if (end < 0) return null;
+      word += source.slice(i + 1, end); i = end + 1;
+    } else if (char === '"') {
+      for (i++; ; i++) {
+        const inner = source[i];
+        if (inner === undefined || inner === "$" || inner === "`") return null;
+        if (inner === '"') { i++; break; }
+        if (inner === "\\" && "$`\"\\\n".includes(source[i + 1] ?? "x")) { i++; if (source[i] !== "\n") word += source.charAt(i); continue; }
+        word += inner;
+      }
+    } else if (char === "\\") {
+      if (i + 1 >= source.length) return null;
+      if (source[i + 1] !== "\n") word += source.charAt(i + 1);
+      i += 2;
+    } else if (/[\w@%+=:,./-]/.test(char)) { word += char; i++; }
+    else return null;
+  }
+  return word || null;
 }
 // Codex app-server's RequestPermissionProfile (checked against 0.169.0's generated schema): `network.enabled`, and
 // `fileSystem` paths by access, as the legacy `read`/`write` lists and as `entries`. Each kind reads as one line; a piece
@@ -196,12 +240,11 @@ function codexPermissionSummary(permissions: Record<string, unknown>, root: stri
     ...(["read", "write", "deny"] as const).filter(access => paths[access].length).map(access => `${ACCESS_LINES[access]} ${filesSummary(paths[access], root)}`),
     ...unknown.map(shortJson),
   ];
-  return (lines.length ? lines.join("; ") : shortJson(permissions)).slice(0, 512);
+  return clip(lines.length ? lines.join("; ") : shortJson(permissions), PERMISSION_SUMMARY_MAX);
 }
+// Every path an approval covers: one it left out could be the one that matters.
 function filesSummary(paths: string[], root: string): string {
-  const [first] = paths;
-  if (!first) return "";
-  return (paths.length === 1 ? displayPath(first, root) : `${displayPath(first, root)} and ${paths.length - 1} more`).slice(0, 512);
+  return clip(paths.map(path => displayPath(path, root)).join(", "), PERMISSION_SUMMARY_MAX);
 }
 // Only an approval still to come needs its item's paths; an evicted entry falls back to the generic phrase.
 const FILE_SUMMARY_LIMIT = 32;
@@ -228,20 +271,35 @@ function claudePath(input: Record<string, unknown>): string { return text(input.
 // A Doan connector's tool (`mcp__doan-<slug>__<tool>`) is named with its connector, and its input never reaches the
 // summary: it can hold page ids, queries and bodies. labels maps doan- names to
 // connector names; the presets are always known.
-const DOAN_MCP_TOOL = /^mcp__(doan-[a-z0-9][a-z0-9-]{0,15})__(.+)$/s;
+const DOAN_MCP_TOOL = new RegExp(`^mcp__(${CONNECTOR_NAME_PATTERN})__(.+)$`, "s");
 const PRESET_LABELS = connectorLabels([]);
-export function claudePermissionSummary(tool: string, input: Record<string, unknown>, root: string, labels: Readonly<Record<string, string>> = PRESET_LABELS): string {
+function doanToolSummary(tool: string, labels: Readonly<Record<string, string>>): string | null {
   const mcp = tool.match(DOAN_MCP_TOOL);
-  if (mcp) return `Run ${mcp[2]} on ${serverLabel(mcp[1]!, { ...PRESET_LABELS, ...labels })}`.slice(0, 512);
+  return mcp ? clip(`Run ${mcp[2]} on ${serverLabel(mcp[1]!, { ...PRESET_LABELS, ...labels })}`, 512) : null;
+}
+// Another MCP server's tool, named by its server as Claude Code names it (mcp__<server>__<tool>).
+const MCP_TOOL = /^mcp__(.+?)__(.+)$/s;
+// What the approval lets run, never the agent's description of it: the command, the file, the pattern or address, or
+// the MCP tool with its server and then its arguments. An MCP tool's argument named command, path or url is only an
+// argument, so it never leads.
+export function claudePermissionSummary(tool: string, input: Record<string, unknown>, root: string, labels: Readonly<Record<string, string>> = PRESET_LABELS): string {
+  const doan = doanToolSummary(tool, labels);
+  if (doan) return doan;
+  const mcp = tool.match(MCP_TOOL);
+  if (mcp) return clip(`Run ${mcp[2]} on ${mcp[1]}${Object.keys(input).length ? `\n${JSON.stringify(input)}` : ""}`, PERMISSION_SUMMARY_MAX);
+  const path = claudePath(input) || text(input.notebook_path);
+  return clip(text(input.command) || (path && displayPath(path, root)) || text(input.pattern) || text(input.url) || GENERIC_SUMMARY[claudeKind(tool)], PERMISSION_SUMMARY_MAX);
+}
+function claudeToolSummary(tool: string, input: Record<string, unknown>, root: string, labels: Readonly<Record<string, string>>): string {
   const path = claudePath(input);
-  return (text(input.description) || text(input.command) || (path && displayPath(path, root)) || text(input.pattern) || GENERIC_SUMMARY[claudeKind(tool)]).slice(0, 512);
+  return doanToolSummary(tool, labels) ?? (text(input.description) || text(input.command) || (path && displayPath(path, root)) || text(input.pattern) || GENERIC_SUMMARY[claudeKind(tool)]).slice(0, 512);
 }
 // Activity is stored and published for every call, so a shell command's text, description or arguments never go in it
 // (user decision 2026-10-30); only the permission request shows the command being approved.
 // A Doan connector's tool input is the connector's (a page id, a query), never a file of the repo, so it gives no path.
-function claudeActivity(tool: string, input: Record<string, unknown>, root: string, labels?: Readonly<Record<string, string>>): EventPayload {
+function claudeActivity(tool: string, input: Record<string, unknown>, root: string, labels: Readonly<Record<string, string>> = PRESET_LABELS): EventPayload {
   const kind = claudeKind(tool);
-  return activity(kind, DOAN_MCP_TOOL.test(tool) ? "" : claudePath(input), kind === "command" ? GENERIC_SUMMARY.command : claudePermissionSummary(tool, input, root, labels), root);
+  return activity(kind, DOAN_MCP_TOOL.test(tool) ? "" : claudePath(input), kind === "command" ? GENERIC_SUMMARY.command : claudeToolSummary(tool, input, root, labels), root);
 }
 // A command Codex parsed into one read-only action reads files; the turn indicator says so, while its activity stays a
 // command. Anything else (unknown, several actions, none) gives no stage. The command text never
@@ -533,14 +591,53 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
 function choice(id: string, label: string, kind: "allow" | "allowAlways" | "deny", response: unknown): PermissionChoice {
   return { option: { id, label, kind }, response };
 }
-export function claudePermission(requestId: string, tool: string, input: Record<string, unknown>, suggestions: readonly unknown[], root: string, labels?: Readonly<Record<string, string>>): PendingPermission {
-  const choices = [
-    choice("allow", "Allow", "allow", { behavior: "allow", updatedInput: input }),
-    choice("deny", "Deny", "deny", { behavior: "deny", message: "Denied by the user." }),
-  ];
-  if (suggestions.length) choices.push(choice("always", "Allow with suggested permissions", "allowAlways", { behavior: "allow", updatedInput: input, updatedPermissions: [...suggestions] }));
-  return { event: { type: "permission.request", requestId, tool, summary: claudePermissionSummary(tool, input, root, labels), options: choices.map(c => c.option) }, choices };
+// What a choice that saves something saves, in a sentence the card shows beside the request.
+function savedDetail(detail: string): { detail: string } { return { detail: clip(detail, PERMISSION_SUMMARY_MAX) }; }
+// Claude Code's PermissionUpdate (SDK 0.3.x): where it lands, and what it adds, replaces or removes there. A shape this
+// build does not know stays as short JSON, so nothing it saves goes unshown.
+const CLAUDE_DESTINATIONS: Readonly<Record<string, string>> = {
+  localSettings: ".claude/settings.local.json", projectSettings: ".claude/settings.json", userSettings: "your Claude Code user settings", session: "this session", cliArg: "this run",
+};
+function claudeRule(rule: unknown): string {
+  if (!object(rule) || !text(rule.toolName)) return shortJson(rule);
+  return text(rule.ruleContent) ? `${text(rule.toolName)}(${text(rule.ruleContent)})` : text(rule.toolName);
 }
+function claudeUpdateLine(update: unknown): string {
+  if (!object(update)) return shortJson(update);
+  const where = `in ${CLAUDE_DESTINATIONS[text(update.destination)] ?? text(update.destination)}`;
+  const rules = Array.isArray(update.rules) ? update.rules.map(claudeRule) : [];
+  const directories = Array.isArray(update.directories) ? update.directories.map(d => text(d) || shortJson(d)) : [];
+  const ruleWord = `the ${text(update.behavior)} rule${rules.length === 1 ? "" : "s"} ${rules.join(", ")}`;
+  if (update.type === "addRules" && rules.length) return `Adds ${ruleWord} ${where}.`;
+  if (update.type === "replaceRules" && rules.length) return `Replaces the ${text(update.behavior)} rules with ${rules.join(", ")} ${where}.`;
+  if (update.type === "removeRules" && rules.length) return `Removes ${ruleWord} ${where}.`;
+  if (update.type === "addDirectories" && directories.length) return `Allows access to ${directories.join(", ")} ${where}.`;
+  if (update.type === "removeDirectories" && directories.length) return `Removes access to ${directories.join(", ")} ${where}.`;
+  if (update.type === "setMode" && text(update.mode)) return `Switches to the ${text(update.mode)} mode ${where}.`;
+  return shortJson(update);
+}
+function claudeSuggestionsDetail(suggestions: readonly unknown[]): string { return suggestions.map(claudeUpdateLine).join(" "); }
+export function claudePermissionRequest(requestId: string, tool: string, input: Record<string, unknown>, suggestions: readonly unknown[], root: string, labels?: Readonly<Record<string, string>>): Extract<EventPayload, { type: "permission.request" }> {
+  const summary = claudePermissionSummary(tool, input, root, labels);
+  return {
+    // A Doan connector's input, its description included, stays out (claudePermissionSummary).
+    type: "permission.request", requestId, tool, summary, ...(DOAN_MCP_TOOL.test(tool) ? {} : permissionReason(text(input.description), summary)),
+    options: [
+      { id: "allow", label: "Allow", kind: "allow" }, { id: "deny", label: "Deny", kind: "deny" },
+      ...(suggestions.length ? [{ id: "always", label: "Allow with suggested permissions", kind: "allowAlways" as const, ...savedDetail(claudeSuggestionsDetail(suggestions)) }] : []),
+    ],
+  };
+}
+export function claudePermission(requestId: string, tool: string, input: Record<string, unknown>, suggestions: readonly unknown[], root: string, labels?: Readonly<Record<string, string>>): PendingPermission {
+  const event = claudePermissionRequest(requestId, tool, input, suggestions, root, labels);
+  const responses: Record<string, unknown> = {
+    allow: { behavior: "allow", updatedInput: input }, deny: { behavior: "deny", message: "Denied by the user." },
+    always: { behavior: "allow", updatedInput: input, updatedPermissions: [...suggestions] },
+  };
+  return { event, choices: event.options.map(option => ({ option, response: responses[option.id] })) };
+}
+// Codex's execpolicy prefix as one command line; a word with a space or a quote keeps its JSON quotes.
+function commandPrefix(words: readonly string[]): string { return words.map(word => /[\s"'\\]/.test(word) ? JSON.stringify(word) : word).join(" "); }
 export function codexPermission(raw: unknown, fileSummaries: Readonly<Record<string, string>> = {}, labels: Readonly<Record<string, string>> = PRESET_LABELS): PendingPermission | null {
   if (!object(raw) || (typeof raw.id !== "number" && typeof raw.id !== "string") || !object(raw.params)) return null;
   const params = raw.params;
@@ -552,28 +649,36 @@ export function codexPermission(raw: unknown, fileSummaries: Readonly<Record<str
       choice("deny", "Deny", "deny", response({}, "turn")),
       choice("always", "Allow for this session", "allowAlways", response(params.permissions, "session")),
     ];
-    return { event: { type: "permission.request", requestId: `${typeof raw.id}:${raw.id}`, tool: "permissions", summary: text(params.reason).slice(0, 512) || codexPermissionSummary(params.permissions, text(params.cwd)), options: choices.map(c => c.option) }, choices };
+    const summary = codexPermissionSummary(params.permissions, text(params.cwd));
+    return { event: { type: "permission.request", requestId: `${typeof raw.id}:${raw.id}`, tool: "permissions", summary, ...permissionReason(text(params.reason), summary), options: choices.map(c => c.option) }, choices };
   }
   if (raw.method !== "item/fileChange/requestApproval" && raw.method !== "item/commandExecution/requestApproval") return null;
   const response = (decision: unknown) => ({ id: raw.id, result: { decision } });
+  // grantRoot (unstable in Codex's schema) asks for writes under a folder for the rest of the session on top of this change.
+  const grantRoot = raw.method === "item/fileChange/requestApproval" ? text(params.grantRoot) : "";
+  const session = choice("acceptForSession", "Allow for this session", "allowAlways", response("acceptForSession"));
   const choices = [
     choice("accept", "Allow", "allow", response("accept")),
     choice("decline", "Deny", "deny", response("decline")),
-    choice("acceptForSession", "Allow for this session", "allowAlways", response("acceptForSession")),
+    grantRoot ? { ...session, option: { ...session.option, ...savedDetail(`Codex also asks to allow writes anywhere under ${quoted(grantRoot)} for the rest of this session.`) } } : session,
   ];
   if (raw.method === "item/commandExecution/requestApproval") {
     if (Array.isArray(params.proposedExecpolicyAmendment) && params.proposedExecpolicyAmendment.length && params.proposedExecpolicyAmendment.every(p => typeof p === "string")) {
-      choices.push(choice("execpolicy", "Allow with proposed command rule", "allowAlways", response({ acceptWithExecpolicyAmendment: { execpolicy_amendment: params.proposedExecpolicyAmendment } })));
+      const rule = choice("execpolicy", "Allow with proposed command rule", "allowAlways", response({ acceptWithExecpolicyAmendment: { execpolicy_amendment: params.proposedExecpolicyAmendment } }));
+      choices.push({ ...rule, option: { ...rule.option, ...savedDetail(`Adds a rule that runs commands starting with ${quoted(commandPrefix(params.proposedExecpolicyAmendment))} without asking.`) } });
     }
     if (Array.isArray(params.proposedNetworkPolicyAmendments)) for (const [index, amendment] of params.proposedNetworkPolicyAmendments.entries()) {
       if (object(amendment) && typeof amendment.host === "string" && (amendment.action === "allow" || amendment.action === "deny")) {
-        choices.push(choice(`network-${index}`, `${amendment.action === "allow" ? "Allow" : "Deny"} ${amendment.host}`, amendment.action === "allow" ? "allowAlways" : "deny", response({ applyNetworkPolicyAmendment: { network_policy_amendment: amendment } })));
+        const allow = amendment.action === "allow";
+        const rule = choice(`network-${index}`, visibleText(`${allow ? "Allow" : "Deny"} ${amendment.host}`), allow ? "allowAlways" : "deny", response({ applyNetworkPolicyAmendment: { network_policy_amendment: amendment } }));
+        // Either answer saves a rule for later requests, so both say so.
+        choices.push({ ...rule, option: { ...rule.option, ...savedDetail(allow ? `Adds a rule that allows network access to ${quoted(amendment.host)} without asking.` : `Adds a rule that blocks network access to ${quoted(amendment.host)}.`) } });
       }
     }
   }
   const files = raw.method === "item/fileChange/requestApproval";
-  const summary = text(params.reason) || (files ? fileSummaries[text(params.itemId)] || GENERIC_SUMMARY.edit : commandText(params) || GENERIC_SUMMARY.command);
-  return { event: { type: "permission.request", requestId: `${typeof raw.id}:${raw.id}`, tool: files ? "fileChange" : "commandExecution", summary: summary.slice(0, 512), options: choices.map(c => c.option) }, choices };
+  const summary = clip((files ? fileSummaries[text(params.itemId)] || GENERIC_SUMMARY.edit : commandText(params) || GENERIC_SUMMARY.command), PERMISSION_SUMMARY_MAX);
+  return { event: { type: "permission.request", requestId: `${typeof raw.id}:${raw.id}`, tool: files ? "fileChange" : "commandExecution", summary, ...permissionReason(text(params.reason), summary), options: choices.map(c => c.option) }, choices };
 }
 export function permissionAnswer(request: PendingPermission, optionId: string): { response: unknown; event: EventPayload } | null {
   const chosen = request.choices.find(c => c.option.id === optionId);

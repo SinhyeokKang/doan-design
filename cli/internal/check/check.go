@@ -41,6 +41,10 @@ type Input struct {
 
 	// MiscasedCanvases are files under a canvas directory whose .html is in another case; they are not canvases.
 	MiscasedCanvases []string
+
+	// WithheldServe holds the config's serve entries, as written, that name a
+	// .git directory or .env file; the serving scope leaves them out.
+	WithheldServe []string
 }
 type Finding struct {
 	Severity string `json:"severity"`
@@ -116,6 +120,11 @@ func Run(in Input) []Finding {
 	}
 	if in.TokenCSS.Configured && in.TokenCSS.State != In {
 		add(Finding{Code: "token_css_not_found", Path: ".doan/config.json", Target: in.TokenCSS.Path})
+	}
+	withheld := append([]string(nil), in.WithheldServe...)
+	sort.Strings(withheld)
+	for _, entry := range withheld {
+		add(Finding{Severity: "warning", Code: "serve_withheld", Path: ".doan/config.json", Target: entry, Message: "Doan never serves a .git directory or .env files, so this serve entry is ignored. Ask the user before removing it with doan config --remove-serve."})
 	}
 	// CSS findings are shared across canvases; the first unresolved canvas wins.
 	cssSeen := map[[3]string]bool{}
@@ -402,7 +411,8 @@ func ambiguousURLs(c canvas.Canvas, in Input, add func(Finding), cssSeen map[[3]
 	}
 	report := func(file string, shared bool, urls []canvas.CSSRef) {
 		for _, r := range urls {
-			key := [3]string{file, "ambiguous_custom_url", r.Value}
+			// Per property as well as url: each property holding the url needs its own fix.
+			key := [3]string{file, "ambiguous_custom_url", r.Custom + "\x00" + r.Value}
 			if cssSeen[key] || !users.Ambiguous(r.Custom, r.Value) {
 				continue
 			}

@@ -109,6 +109,13 @@ Storage: repo = Include in Git; local = Keep out of Git (this Mac only).
 --git-init: with --storage local, create a Git repository in a folder outside one; only after the user agrees.
 `
 
+// appConversation reports a shell inside a Doan app conversation, whose agent cannot use onboarding or remove projects
+// (PRODUCT §3 'Resume and permissions'). Refusing before dialling says so; the app would answer the conversation
+// credential bad_token, which reads as an app that is not running.
+func appConversation() bool { return os.Getenv("DOAN_APP_CONVERSATION") == "1" }
+func conversationRefused(command string) *Error {
+	return &Error{Code: "conversation_refused", Message: "`doan " + command + "` cannot run from a Doan app conversation", NextSteps: []string{"Ask the user to run `doan " + command + "` in a terminal, outside Doan's conversations"}}
+}
 func internal(err error) *Error { return &Error{Code: "internal_error", Message: err.Error()} }
 func usageError(message string) *Error {
 	return &Error{Code: "usage_error", Message: message, NextSteps: []string{"Run `doan help`"}}
@@ -180,7 +187,11 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	pos, err := SplitArgs(args, fs)
 	o := Outcome{}
 	var failure *Error
-	if errors.Is(err, flag.ErrHelp) {
+	// Doan's Codex rules name the command as the first argument, so the CLI accepts it only there (ARCHITECTURE §7
+	// 'Agent setup'). A help flag runs no command, so `doan --help` still prints usage.
+	if len(args) > 1 && strings.HasPrefix(args[0], "-") && !errors.Is(err, flag.ErrHelp) {
+		failure = usageError("The command must come first: doan <command> [flags]; put flags and -- after it")
+	} else if errors.Is(err, flag.ErrHelp) {
 		o.Result = map[string]any{"usage": usage}
 	} else if err != nil {
 		if !errors.As(err, &failure) {
@@ -243,6 +254,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 					failure = internal(e)
 				} else {
 					ctx := Context{Start: start, Now: time.Now, Random: rand.Reader, Dial: func(socket string, deadline time.Time) (net.Conn, error) {
+						if e := ownSocket(socket, os.Geteuid()); e != nil {
+							return nil, e
+						}
 						return (&net.Dialer{Deadline: deadline}).Dial("unix", socket)
 					}, Executable: os.Executable, Launch: launchBundle, Sleep: time.Sleep}
 					if home, err := os.UserHomeDir(); err == nil {
@@ -290,7 +304,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 							o, failure = Active(ctx, f, pos[1:])
 						}
 					case "onboarding":
-						if ctx.RuntimePath, ctx.RuntimeExplicit, failure = onboardingRuntime(); failure == nil {
+						if appConversation() {
+							failure = conversationRefused("onboarding")
+						} else if ctx.RuntimePath, ctx.RuntimeExplicit, failure = onboardingRuntime(); failure == nil {
 							o, failure = Onboarding(ctx, f, pos[1:])
 						}
 					case "open":
@@ -304,7 +320,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 							o, failure = Handoff(ctx, f, pos[1:])
 						}
 					case "remove":
-						if ctx.RuntimePath, failure = runtimePath(); failure == nil {
+						if appConversation() {
+							failure = conversationRefused("remove")
+						} else if ctx.RuntimePath, failure = runtimePath(); failure == nil {
 							o, failure = Remove(ctx, f, pos[1:])
 						}
 					case "export":

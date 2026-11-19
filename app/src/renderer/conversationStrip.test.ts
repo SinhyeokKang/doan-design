@@ -40,6 +40,12 @@ test("a permission request shows its summary and the provider's own choices in t
   });
 });
 
+test("a choice that saves a rule keeps what it adds, so the strip can name it", () => {
+  const ask: EventPayload = { ...ASK, options: [{ id: "always", label: "Allow with suggested permissions", kind: "allowAlways", detail: "Adds the allow rule Edit in this session." }] } as EventPayload;
+  const view = stripView(stripState(events(...started, ask)), CTX);
+  expect(view.actions[0]).toEqual({ command: "answer", label: "Allow with suggested permissions", optionId: "always", kind: "allowAlways", detail: "Adds the allow rule Edit in this session." });
+});
+
 test("an answered request returns to working; a second open request is shown after the first is answered", () => {
   expect(stripState(events(...started, { type: "activity", kind: "edit", summary: "Editing a" }, ASK, { type: "permission.resolved", requestId: "r1", optionId: "a" }))).toEqual({ kind: "working", activity: "Editing a" });
   const second: EventPayload = { ...ASK, requestId: "r2", summary: "Run npm test" } as EventPayload;

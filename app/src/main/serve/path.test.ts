@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { inScope, parseServePath, relInside } from "./path";
+import withheldCases from "../../../../schema/fixtures/serve-withheld/cases.json";
+import { inScope, parseServePath, relInside, withheld } from "./path";
 
 const token = "a1b2c3";
 const prefix = `/t/${token}/k9`;
@@ -161,4 +162,26 @@ describe("inScope", () => {
   test("the root itself is never in scope", () => {
     expect(inScope("", [".doan/canvases"])).toBe(false);
   });
+
+  test("never serves a .git directory or .env files, whatever the scope lists", () => {
+    for (const rel of [".git", ".git/config", ".env", ".env.local", "web/.env", "web/.envrc", "vendor/lib/.git/HEAD", "web/.ENV", "web/.Git/config", ".env.d/key"]) {
+      expect(inScope(rel, [rel, "web", "vendor", ".git", ".env.d"])).toBe(false);
+    }
+    expect(inScope("web/.gitignore", ["web"])).toBe(true);
+    expect(inScope("web/env.css", ["web"])).toBe(true);
+    expect(inScope("web/a.env", ["web"])).toBe(true);
+  });
+});
+
+// The cases are shared with the CLI's repo.Withheld test, so the server and doan check cannot drift apart.
+describe("withheld", () => {
+  test("reads cases", () => {
+    expect(withheldCases.cases.length).toBeGreaterThan(0);
+  });
+
+  for (const item of withheldCases.cases) {
+    test(`${JSON.stringify(item.path)} is ${item.withheld ? "withheld" : "served"}`, () => {
+      expect(withheld(item.path)).toBe(item.withheld);
+    });
+  }
 });

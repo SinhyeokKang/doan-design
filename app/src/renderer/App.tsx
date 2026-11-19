@@ -29,7 +29,11 @@ import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
 import type { ConversationHandoffNotice, HandoffNotice } from "../main/conversation/handoff";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { useControlFocusRecovery } from "./canvasControlFocus";
+import { CANVAS_RETRY_IDLE, canvasFailedShown, canvasRetryPressed, canvasRetrySettled } from "./canvasRetry";
+import { retryButton } from "./ListRetryButton";
+import { announcedAgain } from "./listRetry";
 import { useVisibleClock } from "./visibleClock";
+import { useActivationFocus } from "./activationFocus";
 import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, routeCanvasPublish, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
 import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool, type PlayTool } from "./CanvasTools";
@@ -536,11 +540,14 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   function focusResolved() {
     if (live.current.modal || document.querySelector("dialog[open]")) return;
     const to = resolvedFocus(bodyRef.current === "canvas" ? "canvas" : "overview");
-    const target = document.querySelector<HTMLElement>(to === "composer" ? ".workspace .ov-main .composer-input" : ".workspace .doan-canvas-panel .area");
-    if (target?.isConnected && !target.closest("[inert]")) target.focus();
-    else focusCurrent();
+    handFocus.current(() => {
+      const target = document.querySelector<HTMLElement>(to === "composer" ? ".workspace .ov-main .composer-input" : ".workspace .doan-canvas-panel .area");
+      if (target?.isConnected && !target.closest("[inert]")) target.focus();
+      else focusCurrentNow();
+    });
   }
-  function focusCurrent(previous: HTMLElement | null = null) {
+  function focusCurrent(previous: HTMLElement | null = null) { handFocus.current(() => focusCurrentNow(previous)); }
+  function focusCurrentNow(previous: HTMLElement | null = null) {
     if (document.querySelector("dialog[open]")) return;
     // The Project Settings page is drawn in the Settings page's shell.
     const settingsShell = currentScreen.current === "settings" || currentScreen.current === "projectSettings";
@@ -634,6 +641,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   }, []);
   // After the effect above, which makes the controller: the inspector's element menu subscribes before it exists.
   useEffect(() => controller.current?.onElementTree(message => treeListener.current?.(message)), []);
+  // App's own focus hand-offs also run with the window in the background (an agent's CLI call closes a dialog or ends
+  // first run, a toast expires), so each is made again on activation (POSTMORTEM 2026-11-17). The hand is stable; held
+  // in a ref, it keeps App's focus functions out of every effect's dependencies.
+  const activationFocus = useActivationFocus();
+  const handFocus = useRef(activationFocus);
   const inspectCall = useCallback((request: InspectRequest) => window.doan.inspect(request), []);
   const elementTree = useMemo<ElementTreeSource>(() => ({
     request: () => controller.current?.requestElementTree() ?? false,
@@ -657,7 +669,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     return () => { current = false; };
   }, []);
   useEffect(() => {
-    if (wizard === null && focusComposer.current) { focusComposer.current = false; document.querySelector<HTMLElement>(".home-shell .composer-input")?.focus(); return; }
+    if (wizard === null && focusComposer.current) { focusComposer.current = false; handFocus.current(() => document.querySelector<HTMLElement>(".home-shell .composer-input")?.focus()); return; }
     if (wizard !== null || !restoreFocus.current) return;
     restoreFocus.current = false;
     const previous = beforeWizard.current;
@@ -783,7 +795,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     // or a canvas deleted outside Doan, and the map would grow toward UI_STATE_MAX_BYTES.
     conversationByCanvas.current = withoutUnlisted(conversationByCanvas.current, root => {
       const entry = entriesRef.current.find(item => item.path === root), list = homeRun.current.listState(root);
-      return { canvases: entry?.kind === "list" ? entry.canvases : null, conversations: Array.isArray(list) ? list.map(c => c.conversationId) : null };
+      return { canvases: entry?.kind === "list" ? entry.canvases : null, conversations: Array.isArray(list) ? list : null };
     });
     const state = savedUiState({ ...persisted.current, view: instance.currentView(), memory: instance.memory(), conversationByRoot: conversationByRoot.current, conversationByCanvas: conversationByCanvas.current });
     if (state) void window.doan.saveUiState(state).then(saved => { if (!saved) console.error("doan: UI state was not saved"); }).catch(console.error);
@@ -931,6 +943,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     conversationByRoot.current = withoutRoots(conversationByRoot.current, roots);
     conversationByCanvas.current = withoutRoots(conversationByCanvas.current, roots); setMemoryTick(tick => tick + 1);
     overviewRun.current?.forgetRoots(roots);
+    canvasRun.current?.forgetRoots(roots);
+    homeRun.current.forgetRoots(roots);
   }
   const cards = groupProjects(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])));
   const card = cards.find(card => card.rows.some(row => row.path === loadedRoot));
@@ -1561,7 +1575,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // What keeps Move to Trash unavailable, for the menu and the open dialog alike (main judges again).
   function trashWorking(root: string, row: CanvasRow) {
     const list = homeRun.current.listState(root);
-    return trashBlock({ root, path: row.path, ...(row.id ? { id: row.id } : {}) }, Array.isArray(list) ? list : null, work, (at, canvas) => homeRun.current.drawing(at, canvas)) !== null;
+    return trashBlock({ root, path: row.path, ...(row.id ? { id: row.id } : {}) }, Array.isArray(list) ? list : null, work, (at, canvas) => homeRun.current.drawing(at, canvas),
+      (at, canvas) => canvasRun.current!.startingOn({ root: at, canvas })) !== null;
   }
   // ARCHITECTURE §7 'Canvas row menu IPC': main shows the save panel, runs the CLI and answers once; the item stays
   // unavailable from main's running event to the reply. A refusal of a second request leaves the first one's state.
@@ -2722,6 +2737,9 @@ export function CanvasLoading() {
   return slow ? <p><span className="doan-spinner" aria-hidden="true" />Loading</p> : null;
 }
 
+// The window draws one canvas pane, so the failure line's id is fixed.
+const CANVAS_FAILED_ID = "doan-canvas-failed";
+
 function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, inspector, agent, picking, capturing, tool, onTool, picker, capture, player, exporter }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   // covered: the Overview or a problem's overlay is over the pane. overlaid: the overlay, which names the problem itself.
@@ -2732,6 +2750,9 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
   const panel = useRef<HTMLDivElement>(null);
   useControlFocusRecovery(panel, viewport, covered, view);
   const canvasKey = state.open ? JSON.stringify([state.open.folder, state.open.canvas]) : null;
+  const [pressedRetry, setRetry] = useState(CANVAS_RETRY_IDLE);
+  const retry = canvasRetrySettled(pressedRetry, canvasKey, state.status);
+  if (retry !== pressedRetry) setRetry(retry);
   // Stays laid out under the Overview: opening a canvas fits it to this size at once.
   return <div className="doan-canvas-panel" ref={panel} inert={covered}>
     <CanvasHeader state={state} view={view} canvasKey={canvasKey} command={command} zoomTo={zoomTo} selectFrame={selectFrame} fallbackFocus={() => viewport.current?.focus()} panel={conversation} inspector={inspector} />
@@ -2747,9 +2768,11 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
     </CanvasAgent>
     {/* A canvas closed for a missing or not set up root leaves no message: the overlay names the problem. */}
     {state.status && (state.status !== "missing" || state.message) && <div className="canvas-status" role="status">
-      {state.status === "loading" ? <CanvasLoading />
-        : state.status === "failed" ? <div className="canvas-status-block"><AlertIcon size={20} /><h2>Couldn’t load the canvas</h2><p>Run doan check in a terminal.</p>
-          <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => command("reload")}>Retry</button></div>
+      {/* Through a reload its Retry started, the failure and the busy Retry stay; once the line goes, focus that was
+          on the Retry goes to the canvas region (useControlFocusRecovery). */}
+      {canvasFailedShown(retry, canvasKey, state.status) ? <div className="canvas-status-block"><AlertIcon size={20} /><h2 id={CANVAS_FAILED_ID}>{announcedAgain("Couldn’t load the canvas", retry.failures)}</h2><p>Run doan check in a terminal.</p>
+          {retryButton({ running: retry.running, variant: "subtle", describedBy: CANVAS_FAILED_ID, onRetry: () => { setRetry(current => canvasRetryPressed(current, canvasKey)); command("reload"); } })}</div>
+        : state.status === "loading" ? <CanvasLoading />
         : state.status === "noWidth" ? <p className="selectable"><b>Couldn’t read a valid board width.</b>{state.message.slice("Couldn’t read a valid board width.".length)}</p>
         : <p className="selectable">{state.message}</p>}
     </div>}

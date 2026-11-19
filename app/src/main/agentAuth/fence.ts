@@ -1,5 +1,6 @@
 import { realpathSync } from "node:fs";
 import { codexPermission, type CodexDefaults, type CodexWorkspace, type PermissionModeId } from "../conversation/permissionMode";
+import { CONVERSATION_RUNTIME } from "../runtime";
 import type { Provider } from "./types";
 
 // How a Doan-connection run is kept out of the rest of Doan's userData (the other providers' profiles, Doan's own
@@ -31,42 +32,78 @@ const BASE = `(version 1)
 // The $BROWSER hook Claude and the Antigravity server run.
 const HOOK = `(allow file-read* (literal (param "BROWSER_HOOK")))
 `;
-// The pinned Antigravity server lives under userData. Its own profile's skill paths are closed to writes: the server
-// hands them to the agent as workspace roots, and an agent writing there changes the next conversation's skills.
+// The pinned Antigravity server lives under userData.
 const ANTIGRAVITY = `(allow file-read-metadata (literal (param "AGENT_RUNTIMES")))
 (allow file-read* (subpath (param "AGENT_RUNTIME")))
-(deny file-write* (subpath (param "SKILLS_CONFIG")) (subpath (param "SKILLS_CLI")))
-`;
-// Claude's and Codex's own settings in the profile: settings files, and the skills, subagents and plugins that can carry
-// hooks and MCP servers (Claude skill and subagent frontmatter hooks, skills-dir plugins; a Codex skill's MCP
-// dependencies, Codex plugins). A later process reads them, and some start without this outer fence (Codex outside
-// Full access; Claude's sign-in, status and sign-out commands): hooks, MCP servers and notify named there then run
-// outside any sandbox (Codex MCP servers and notify do even inside its own, probe), so the agent must not plant them.
-// Doan writes the doan skill stub before spawning, so it stays readable. Neither CLI writes these files during a run (Claude Code 2.1.319: suggested permissions go
-// to the project's local settings or the session; codex-cli 0.166.0 wrote no config.toml). Doan main writes them from
-// outside the fence. The ACP providers' profiles get no such line: every Copilot and Cursor process and every ACP list read
-// runs in this fence. Of the processes left outside it, Antigravity's status check started none of the hooks and MCP
-// servers planted in its profile and loaded no user site-packages (probe); its sign-in was not probed.
-const CLAUDE_SETTINGS = `(deny file-write* (literal (param "PROVIDER_SETTINGS")) (subpath (param "PROVIDER_SKILLS")) (subpath (param "PROVIDER_AGENTS")) (subpath (param "PROVIDER_PLUGINS")) (subpath (param "PROVIDER_COMMANDS")) (subpath (param "PROVIDER_PROJECT")) (literal (param "PROVIDER_MCP")))
-`;
-const CODEX_SETTINGS = `(deny file-write* (literal (param "CODEX_CONFIG")) (literal (param "CODEX_HOOKS")) (literal (param "CODEX_MANAGED")) (literal (param "CODEX_ENV")) (subpath (param "CODEX_RULES")) (subpath (param "CODEX_SKILLS")) (subpath (param "CODEX_PLUGINS")))
 `;
 const hooked = (provider: Provider) => provider === "claude" || provider === "antigravity";
+
+// The agent's own folder: the profile for Claude (CLAUDE_CONFIG_DIR) and Codex (CODEX_HOME), the CLI's folder in the
+// dedicated HOME for the others. A later process reads its instructions, settings, rules, skills, subagents, plugins,
+// hooks and MCP servers there, some outside this fence (Codex outside Full access; Claude's sign-in, status and
+// sign-out), so the fence closes the folder to writes and reopens only what the CLI itself writes during a run, its
+// sign-in and its status: an allowlist, so a store a new CLI version adds is closed until a probe opens it. The rest of
+// a dedicated HOME stays writable but for other agents' folders (HOME_STORES): it is the HOME the agent's own commands
+// use (npm, pip and build caches).
+// dirs are reopened with everything under them, files by prefix, which covers each file's lock, temporary, backup and
+// write-ahead names. pattern: a constant regex for names a list cannot hold, applied inside the folder only.
+// Doan writes the doan skill stub, the Codex rules and Claude's and Copilot's settings from outside the fence.
+interface AgentWrites { folder: string; dirs: readonly string[]; files: readonly string[]; pattern?: string }
+const AGENT_WRITES: Record<Provider, AgentWrites> = {
+  // Claude Code 2.1.327 (isolated CLAUDE_CONFIG_DIR, a turn with a tool call) and a signed-in profile's entries. Auto
+  // memory under projects/ is turned off for fenced runs instead (claudeRunSettings in runners.ts), because the CLI
+  // writes its transcripts beside it. session-env/ stays closed: it holds the environment files hooks leave for a
+  // session, which that session's commands source again on a resume (probe); the CLI runs without it.
+  claude: { folder: "", dirs: ["projects", "sessions", "shell-snapshots", "file-history", "todos", "plans", "tasks", "backups", "cache", "statsig", "debug", "paste-cache", "image-cache", "telemetry"],
+    files: [".claude.json", ".credentials.json", "history.jsonl", "stats-cache.json", "mcp-needs-auth-cache.json", ".last-cleanup"] },
+  // codex-cli 0.169.0 (isolated CODEX_HOME): the Codex process itself writes these, and runs inside this fence only in
+  // Full access; tmp/ holds its runtime helpers, and .tmp both a folder and the temporary files it renames onto a root
+  // file (.sandbox_migration). Its SQLite databases carry a version in their names. Its login lives in the
+  // keyring (providers.ts), so only auth.json's locks are written.
+  codex: { folder: "", dirs: ["sessions", "archived_sessions", "shell_snapshots", "memories", "tmp", "cache", "log", "thread-writer-locks"],
+    files: [".tmp", "installation_id", ".sandbox_migration", "models_cache.json", "auth.json.lock", "auth.lock"], pattern: "\\.sqlite[^/]*$" },
+  // Copilot 1.0.105 (dedicated HOME: version, status and an ACP session) and a signed-in profile's entries.
+  copilot: { folder: ".copilot", dirs: ["session-state", "logs", "plugin-data"], files: ["config.json", "settings.json", "session-store.db"] },
+  // Cursor 2026.10.22 (dedicated HOME: version, status and an ACP session) and a signed-in profile's entries. Its
+  // cli-config.json stays closed: it holds the permission allow list a later conversation runs under, which Cursor's own
+  // sandbox protects as well, and Cursor runs without writing it (probe).
+  cursor: { folder: ".cursor", dirs: ["acp-sessions", "ai-tracking"], files: ["statsig-cache.json", "agent-cli-state.json", "auth.json"] },
+  // The Antigravity ACP server 1.3.0, from a signed-in profile's entries and their times (no isolated probe: the server
+  // runs only signed in). Its config/ holds per-conversation databases named by a UUID beside the memory, skills,
+  // workflows and MCP and hook files.
+  antigravity: { folder: ".gemini", dirs: ["antigravity-acp/conversations", "antigravity-acp/brain", "antigravity"], files: ["antigravity-acp/acp_token.json", "antigravity-acp/acp_business_token.json"],
+    pattern: "/config/[0-9a-f-]+\\.(db|meta)[^/]*$" },
+};
+// Other agents' folders in a dedicated HOME, read there as the person's own: Copilot 1.0.105 loads personal skills from
+// ~/.agents/skills, and Cursor 2026.10.22 skills from .agents, .claude, .codex and .grok and hooks, permissions and
+// commands from .claude. Each whole folder is closed, so none can be moved into place either.
+const HOME_STORES = [".agents", ".claude", ".codex", ".grok"];
+function agentRule(provider: Provider): string {
+  const { folder, dirs, files, pattern } = AGENT_WRITES[provider];
+  const reopen = [...dirs.map((_, i) => ` (subpath (param "AGENT_DIR_${i + 1}"))`), ...files.map((_, i) => ` (prefix (param "AGENT_FILE_${i + 1}"))`)].join("");
+  const stores = folder ? `(deny file-write*${HOME_STORES.map((_, i) => ` (subpath (param "HOME_STORE_${i + 1}"))`).join("")})\n` : "";
+  return `(deny file-write* (subpath (param "AGENT_FOLDER")))
+${stores}(allow file-write*${reopen})
+${pattern ? `(allow file-write* (require-all (subpath (param "AGENT_FOLDER")) (regex #"${pattern}")))\n` : ""}`;
+}
+function agentParams(provider: Provider, profile: string): [string, string][] {
+  const { folder: name, dirs, files } = AGENT_WRITES[provider];
+  const folder = name ? `${profile}/${name}` : profile;
+  return [["AGENT_FOLDER", folder], ...(name ? HOME_STORES.map((store, i): [string, string] => [`HOME_STORE_${i + 1}`, `${profile}/${store}`]) : []), ...dirs.map((dir, i): [string, string] => [`AGENT_DIR_${i + 1}`, `${folder}/${dir}`]), ...files.map((file, i): [string, string] => [`AGENT_FILE_${i + 1}`, `${folder}/${file}`])];
+}
 // Every Codex process loads <CODEX_HOME>/.env into its own environment (codex-cli 0.169.0, probe): a PATH there decides
 // what the harness's unsandboxed children (git) run, so the agent must not write it, and AuthManager removes one before
 // any Codex process starts.
 export const CODEX_DOTENV = ".env";
-const codexSettingsFiles = (profile: string) => [`${profile}/config.toml`, `${profile}/hooks.json`, `${profile}/managed_config.toml`, `${profile}/${CODEX_DOTENV}`, `${profile}/rules`];
-const codexSettingsDirs = (profile: string) => [`${profile}/skills`, `${profile}/plugins`];
-// commands/ is the older skill format and takes the same frontmatter, hooks included. .claude/ and .mcp.json are the
-// profile's project settings and project MCP servers for a process Doan starts with the profile as its folder (the
-// usage read and the MCP connector commands, which health-check project servers).
-const claudeSettingsDirs = (profile: string) => [`${profile}/skills`, `${profile}/agents`, `${profile}/plugins`, `${profile}/commands`, `${profile}/.claude`];
-const claudeSettingsFiles = (profile: string) => [`${profile}/settings.json`, `${profile}/.mcp.json`];
+// Codex's settings and instruction files, denied in its permission profiles so that an approved escalated command, which
+// keeps only deny entries, cannot write them either. AGENTS.md and AGENTS.override.md are the person's own instructions
+// to every later Codex thread in this profile.
+const codexSettingsFiles = (profile: string) => [`${profile}/config.toml`, `${profile}/hooks.json`, `${profile}/managed_config.toml`, `${profile}/${CODEX_DOTENV}`, `${profile}/rules`,
+  `${profile}/AGENTS.md`, `${profile}/AGENTS.override.md`];
 
 // attachments: the number of attachment directories; each one past the first gets its own parameter and rule.
 export function fencePolicy(provider: Provider, attachments = 0): string {
-  let text = BASE + (hooked(provider) ? HOOK : "") + (provider === "claude" ? CLAUDE_SETTINGS : provider === "codex" ? CODEX_SETTINGS : "") + (provider === "antigravity" ? ANTIGRAVITY : "");
+  let text = BASE + agentRule(provider) + (hooked(provider) ? HOOK : "") + (provider === "antigravity" ? ANTIGRAVITY : "");
   for (let n = 2; n <= attachments; n++) text += `(allow file-read* (subpath (param "ATTACHMENTS_${n}")))\n`;
   return text;
 }
@@ -74,19 +111,10 @@ export function fenceArgs(provider: Provider, paths: FencePaths): string[] {
   const { userData: u, profile: p, attachments } = paths;
   // No pasted image: the profile, already open for reading and writing, so the rule opens nothing new.
   const params: [string, string][] = [["USERDATA", u], ["AGENT_AUTH", `${u}/agent-auth`], ["PROFILES", `${u}/agent-auth/profiles`], ["PROFILE", p],
-    ["RUNTIME", `${u}/runtime.json`], ["ATTACHMENTS", attachments[0] ?? p]];
+    ["RUNTIME", `${u}/${CONVERSATION_RUNTIME}`], ["ATTACHMENTS", attachments[0] ?? p]];
   if (hooked(provider)) params.push(["BROWSER_HOOK", `${u}/agent-auth/browser-hook`]);
-  if (provider === "claude") {
-    const [skills, agents, plugins, commands, project] = claudeSettingsDirs(p), [settings, mcp] = claudeSettingsFiles(p);
-    params.push(["PROVIDER_SETTINGS", settings!], ["PROVIDER_SKILLS", skills!], ["PROVIDER_AGENTS", agents!], ["PROVIDER_PLUGINS", plugins!], ["PROVIDER_COMMANDS", commands!],
-      ["PROVIDER_PROJECT", project!], ["PROVIDER_MCP", mcp!]);
-  }
-  if (provider === "codex") {
-    const [config, hooks, managed, dotenv, rules] = codexSettingsFiles(p), [skills, plugins] = codexSettingsDirs(p);
-    params.push(["CODEX_CONFIG", config!], ["CODEX_HOOKS", hooks!], ["CODEX_MANAGED", managed!], ["CODEX_ENV", dotenv!], ["CODEX_RULES", rules!], ["CODEX_SKILLS", skills!], ["CODEX_PLUGINS", plugins!]);
-  }
-  if (provider === "antigravity") params.push(["AGENT_RUNTIMES", `${u}/agent-runtimes`], ["AGENT_RUNTIME", `${u}/agent-runtimes/antigravity-acp`],
-    ["SKILLS_CONFIG", `${p}/.gemini/config/skills`], ["SKILLS_CLI", `${p}/.gemini/antigravity-cli/skills`]);
+  params.push(...agentParams(provider, p));
+  if (provider === "antigravity") params.push(["AGENT_RUNTIMES", `${u}/agent-runtimes`], ["AGENT_RUNTIME", `${u}/agent-runtimes/antigravity-acp`]);
   attachments.slice(1).forEach((dir, i) => params.push([`ATTACHMENTS_${i + 2}`, dir]));
   // Paths go in -D, never into the policy text, so quotes or parentheses in a path cannot change the policy.
   return ["-p", fencePolicy(provider, attachments.length), ...params.flatMap(([name, value]) => ["-D", `${name}=${value}`])];
@@ -148,7 +176,7 @@ export type FenceListing = ReadonlyMap<string, readonly { name: string; director
 export interface FenceEntry { path: string; directory: boolean }
 // What Codex's permission profiles reopen: its whole attachment store (paths.attachments) and no hook.
 function allowedPaths(paths: FencePaths): string[] {
-  return [paths.profile, `${paths.userData}/runtime.json`, ...paths.attachments];
+  return [paths.profile, `${paths.userData}/${CONVERSATION_RUNTIME}`, ...paths.attachments];
 }
 function ancestors(paths: FencePaths, allowed: readonly string[]): string[] {
   const u = paths.userData, found = new Set<string>([u]);
@@ -163,7 +191,7 @@ export function fenceListingDirs(paths: FencePaths): string[] {
 const PATTERN = /[*?[\]{}\\()]/;
 // Every entry off the way to an allowed path, denied by name. A deny over userData as a whole would beat what the
 // profile reopens inside it: Codex applies a profile's deny entries but not the narrower read and write entries under
-// them to an approved escalated command (so `doan handoff` lost runtime.json). The cost: an entry made after the
+// them to an approved escalated command (so `doan handoff` lost its runtime file). The cost: an entry made after the
 // listing is not denied.
 export function fenceDenied(paths: FencePaths, listing: FenceListing): FenceEntry[] | null {
   const allowed = allowedPaths(paths), dirs = ancestors(paths, allowed);
@@ -184,16 +212,19 @@ export function fenceDenied(paths: FencePaths, listing: FenceListing): FenceEntr
 // one; a Doan profile records no project trust, so Codex's own default there is read-only too. denied: listed when the
 // server starts, which lives across turns, so an entry made later (another provider's new profile, a new staging
 // profile) is not denied for that server's life.
-// The profile's settings files are denied, not read-only: an escalated command keeps only deny entries. Its skills and
-// plugins are read-only instead: the model opens a skill's SKILL.md (the doan stub included) with shell tools, and a deny
-// would hide it; an approved escalated command can therefore write there (a known limit).
+// The profile is read-only to sandboxed commands: Codex writes its rollouts, databases, caches and runtime helpers
+// (tmp/) from its own process, outside the command sandbox, and the commands need no write there (codex-cli 0.169.0
+// probe: a turn's commands, apply_patch included, ran and its rollout was recorded). The settings files are
+// also denied: an escalated command keeps only deny entries. The rest stays readable, since the model opens a skill's
+// SKILL.md (the doan stub included) with shell tools; an approved escalated command can therefore write there (a known
+// limit).
 // socketDir: the app socket's directory. Codex opens no unix socket without network, for a sandboxed or an approved
 // escalated command alike, so `doan` could not reach the app; network goes on with only that socket directory allowed
 // (sandboxed commands in these modes now reach the network without approval).
 export function codexProfileArgs(paths: FencePaths, denied: readonly FenceEntry[], socketDir: string): string[] {
   // TOML basic strings take JSON's escapes.
   const q = (text: string) => JSON.stringify(text);
-  const entries = `{${[...denied.map(entry => entry.path), ...codexSettingsFiles(paths.profile)].map(path => `${q(path)}="deny"`).concat(`${q(paths.profile)}="write"`, `${q(`${paths.userData}/runtime.json`)}="read"`, `${q(`${paths.userData}/attachments`)}="read"`, ...codexSettingsDirs(paths.profile).map(dir => `${q(dir)}="read"`)).join(",")}}`;
+  const entries = `{${[...denied.map(entry => entry.path), ...codexSettingsFiles(paths.profile)].map(path => `${q(path)}="deny"`).concat(`${q(paths.profile)}="read"`, `${q(`${paths.userData}/${CONVERSATION_RUNTIME}`)}="read"`, `${q(`${paths.userData}/attachments`)}="read"`).join(",")}}`;
   const network = `network={enabled=true,unix_sockets={${q(socketDir)}="allow"}}`;
   return ["-c", 'default_permissions="doan"', "-c", `permissions.doan={extends=":read-only",filesystem=${entries},${network}}`,
     "-c", `permissions.doan-workspace={extends=":workspace",filesystem=${entries},${network}}`];

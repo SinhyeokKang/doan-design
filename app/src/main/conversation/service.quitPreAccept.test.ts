@@ -132,6 +132,41 @@ describe("a quit before acceptance keeps the message", () => {
   });
 });
 
+// A quit whose appQuit write failed aborts, and the service stays quitting while the composers stay open: the person
+// may press Send again on the busy refusal. Each composer keeps one held copy, its last, not one per press.
+describe("after an aborted quit", () => {
+  it("keeps one copy of a start pressed again on the same composer", async () => {
+    const h = fixture();
+    void h.service.quit();
+    await expect(h.service.start(homeStart)).rejects.toThrow("busy");
+    await expect(h.service.start({ ...homeStart, text: "Make a pricing page with FAQ" })).rejects.toThrow("busy");
+    await expect(h.service.start(canvasStart)).rejects.toThrow("busy");
+    await expect(h.service.start(canvasStart)).rejects.toThrow("busy");
+    const restarted = h.restart();
+    expect(restarted.takeStartDraft("/repo")).toMatchObject({ text: "Make a pricing page with FAQ" });
+    expect(restarted.takeStartDraft("/repo", canvas)).toMatchObject({ text: "Draw the hero" });
+  });
+  it("replaces a start the quit refused when its composer presses it again", async () => {
+    const h = fixture(); h.hold();
+    const pending = h.service.start(homeStart);
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledOnce());
+    await h.service.quit(); h.release(); await expect(pending).rejects.toThrow("busy");
+    await expect(h.service.start(homeStart)).rejects.toThrow("busy");
+    expect(h.restart().takeStartDraft("/repo")).toMatchObject({ text: "Make a pricing page" });
+  });
+  it("keeps one copy of a send pressed again in the same conversation", async () => {
+    const h = fixture();
+    const id = (await h.service.start(canvasStart)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    h.hold(); const pending = h.service.send(id, "make it darker", []);
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(2));
+    await h.service.quit(); h.release(); await expect(pending).rejects.toThrow("busy");
+    await expect(h.service.send(id, "make it darker", [])).rejects.toThrow("busy");
+    await expect(h.service.send(id, "make it darker", [])).rejects.toThrow("busy");
+    expect(h.restart().takeDraft(id)).toMatchObject({ text: "make it darker", reason: "restarted" });
+  });
+});
+
 describe("no draft is left by a start or send that settled", () => {
   it("leaves nothing for an accepted start or send", async () => {
     const h = fixture();
@@ -163,5 +198,51 @@ describe("no draft is left by a start or send that settled", () => {
     await vi.waitFor(() => expect(h.open).toHaveBeenCalledOnce());
     expect(h.service.takeStartDraft("/repo")).toBeNull();
     h.release(); await pending;
+  });
+});
+
+// Move to Trash and `doan remove` ask whether a conversation runs: a start is listed only once accepted, and liveTurns
+// counts only accepted turns, so both read these (POSTMORTEM 2026-11-17 'A quit before main accepted a send…').
+describe("starts and sends before acceptance, for the trash and remove gates", () => {
+  it("names a canvas start's canvas and root from its press until acceptance", async () => {
+    const h = fixture(); h.hold();
+    const pending = h.service.start(canvasStart);
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledOnce());
+    expect(h.service.startingCanvases("/repo")).toEqual([canvas]);
+    expect(h.service.startingCanvases("/other")).toEqual([]);
+    expect([...h.service.pendingRoots()]).toEqual(["/repo"]);
+    h.release(); await pending;
+    expect(h.service.startingCanvases("/repo")).toEqual([]);
+    expect([...h.service.pendingRoots()]).toEqual([]);
+  });
+  it("counts a Home start's root but names no canvas for it", async () => {
+    const h = fixture(); h.hold();
+    const pending = h.service.start(homeStart);
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledOnce());
+    expect(h.service.startingCanvases("/repo")).toEqual([]);
+    expect([...h.service.pendingRoots()]).toEqual(["/repo"]);
+    h.release(); await pending;
+  });
+  it("forgets a start refused before acceptance", async () => {
+    const h = fixture();
+    let fail!: (error: Error) => void;
+    h.prepare.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+    const pending = h.service.start(canvasStart);
+    await vi.waitFor(() => expect(h.prepare).toHaveBeenCalledOnce());
+    expect(h.service.startingCanvases("/repo")).toEqual([canvas]);
+    fail(new Error("not_logged_in")); await expect(pending).rejects.toThrow("not_logged_in");
+    expect(h.service.startingCanvases("/repo")).toEqual([]);
+    expect([...h.service.pendingRoots()]).toEqual([]);
+  });
+  it("counts a follow-up send's root while it is prepared, not its canvas (the list already has the conversation)", async () => {
+    const h = fixture();
+    const id = (await h.service.start(canvasStart)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    h.hold(); const pending = h.service.send(id, "make it darker", []);
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(2));
+    expect(h.service.startingCanvases("/repo")).toEqual([]);
+    expect([...h.service.pendingRoots()]).toEqual(["/repo"]);
+    h.release(); await pending;
+    expect([...h.service.pendingRoots()]).toEqual([]);
   });
 });

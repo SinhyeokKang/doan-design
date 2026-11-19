@@ -9,11 +9,11 @@ import type { AuthState, Provider, Readiness } from "../agentAuth/types";
 import { readRegularFileSync } from "../regularFile";
 import { mcpAuthLink } from "./authLink";
 import { CONNECTOR_NAME, connectorName, connectorWithUrl, parseConnectorUrl, type UrlRejection } from "./names";
-import { codexServerToml, mcpLogoutOutcome, mcpLogoutPlan, plaintextLeftovers, reconcilePlan, type McpLogoutInput } from "./plans";
+import { codexServerToml, mcpLogoutOutcome, mcpLogoutPlan, plaintextLeftovers, reconcilePlan, staleUrl, type McpLogoutInput } from "./plans";
 import { connectorLabel, connectorLabels, MCP_PROVIDERS, PRESETS, type ConnectorServer, type McpProvider } from "./presets";
 import { claudeConfigServers, codexConfigServers } from "./profileConfig";
 import { connectorState, type CheckOutcome, type ConnectorView, type McpFacts } from "./state";
-import { codexMcpServers, parseClaudeMcpGet, parseClaudeMcpList, parseCodexMcpList, type ListedServer } from "./status";
+import { claudeMcpGetUrl, codexMcpServers, parseClaudeMcpGet, parseClaudeMcpList, parseCodexMcpList, type ListedServer } from "./status";
 import type { ConnectorStore } from "./store";
 
 // Why an attempt failed, kept on its row until that row's next Connect, Retry or Cancel.
@@ -102,7 +102,9 @@ const COMMANDS = {
 
 // Settings > MCP Connectors in main (ARCHITECTURE §7 'MCP connectors'): Doan keeps the server list; each provider CLI
 // registers, signs in and stores tokens in the provider's Doan profile. One attempt per provider at a time, and every
-// command chain on a profile runs in that provider's queue, so two CLI processes never rewrite one profile's config.
+// command chain that can change a profile's registrations (attempts, retries, reconciles, the sign-out step) runs in
+// that provider's queue, so two of them never rewrite one profile's config. Status reads run beside the queue: neither
+// `claude mcp get` nor `codex mcp list` rewrites the config (checked at Claude Code 2.1.327 and Codex 0.169.0).
 export class McpService implements McpConversationFacts {
   private revision = 0;
   private attempts = new Map<McpProvider, Attempt>();
@@ -375,9 +377,12 @@ export class McpService implements McpConversationFacts {
   }
 
   private async claudeConnect(attempt: Attempt, lease: Lease, server: ConnectorServer): Promise<void> {
-    const registered = await this.registered(attempt, lease, "claude", server.name);
+    let registered = await this.registered(attempt, lease, "claude", server.name);
     if (attempt.stopped) return;
     if (registered === null) throw new Failure("failed", "the registration could not be read");
+    if (registered && staleUrl(registered.url, server.url)) { await this.dropStale(attempt, lease, "claude", server.name); registered = false; }
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
+    if (attempt.stopped) return;
     if (!registered) await this.must(attempt, lease, "claude", COMMANDS.claude.add(server));
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
     if (attempt.stopped) return;
@@ -417,7 +422,11 @@ export class McpService implements McpConversationFacts {
     const listed = await this.codexList(attempt, lease);
     if (attempt.stopped) return;
     if (!listed) throw new Failure("failed", "the server list could not be read");
-    const args = listed.some(each => each.name === server.name) ? COMMANDS.codex.login(server.name) : COMMANDS.codex.add(server);
+    let registered = listed.find(each => each.name === server.name) ?? false;
+    if (registered && staleUrl(registered.url, server.url)) { await this.dropStale(attempt, lease, "codex", server.name); registered = false; }
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
+    if (attempt.stopped) return;
+    const args = registered ? COMMANDS.codex.login(server.name) : COMMANDS.codex.add(server);
     const login = await this.run(attempt, lease, "codex", args, { timeoutMs: this.limits.approvalMs });
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
     if (attempt.stopped) return;
@@ -427,6 +436,12 @@ export class McpService implements McpConversationFacts {
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
     if (attempt.stopped) return;
     if (after?.find(each => each.name === server.name)?.authenticated !== true) throw new Failure("failed", "status after sign-in is not connected");
+  }
+
+  // A registration under the server's name at another URL (its reconcile failed or has not run yet) would sign in to
+  // the old server while the row names the new one: it is logged out and removed first, and the Connect registers anew.
+  private async dropStale(attempt: Attempt, lease: Lease, provider: McpProvider, name: string): Promise<void> {
+    await this.unregister(attempt, lease, provider, name, true);
   }
 
   private async disconnectFlow(provider: McpProvider, server: ConnectorServer, attempt: Attempt): Promise<void> {
@@ -439,7 +454,7 @@ export class McpService implements McpConversationFacts {
       } finally { await lease.release(); }
       // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() or quit() can set these while the awaited call runs
       if (attempt.stopped || this.closed) return;
-      // A disconnected row is Not connected, not Reconnect needed (user decision, orch.md).
+      // A disconnected row is Not connected, not Reconnect needed (PRODUCT §5 item 0 'Settings page', MCP Connectors).
       this.options.store.patch({ everConnected: { name: server.name, provider, value: false } });
       this.succeeded(provider, server.name, { registered: true, authenticated: false });
     } catch (error) {
@@ -517,7 +532,7 @@ export class McpService implements McpConversationFacts {
         // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() or quit() can set these while the awaited call runs
         if (owner.stopped || this.closed) return;
         if (!listed) throw new Error("the server list could not be read");
-        for (const name of reconcilePlan(listed.map(server => server.name), this.options.store.connectors())) {
+        for (const name of reconcilePlan(listed, this.options.store.connectors())) {
           // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() or quit() can set these while the awaited call runs
           if (owner.stopped || this.closed) return;
           await this.unregister(owner, lease, provider, name, false);
@@ -602,13 +617,15 @@ export class McpService implements McpConversationFacts {
   }
 
   // Whether a server is registered, whatever its sign-in reads as: an unreachable server's health check gives Claude
-  // no status Doan knows, and it must still be removable. null: unreadable.
-  private async registered(owner: Owner, lease: Lease, provider: McpProvider, name: string): Promise<boolean | null> {
-    if (provider === "codex") { const listed = await this.codexList(owner, lease); return listed ? listed.some(server => server.name === name) : null; }
+  // no status Doan knows, and it must still be removable. A registration carries its URL (null when the output names
+  // none). false: not registered; null: unreadable.
+  private async registered(owner: Owner, lease: Lease, provider: McpProvider, name: string): Promise<{ url: string | null } | false | null> {
+    if (provider === "codex") { const listed = await this.codexList(owner, lease); return listed ? listed.find(server => server.name === name) ?? false : null; }
     const run = await this.run(owner, lease, "claude", COMMANDS.claude.get(name), { timeoutMs: this.limits.commandMs });
     const facts = run.timedOut ? null : parseClaudeMcpGet(name, run.output, run.code ?? -1);
-    if (facts) return facts.registered;
-    return run.code === 0 && run.output.split("\n")[0]?.trim() === `${name}:` ? true : null;
+    const registration = { url: claudeMcpGetUrl(name, run.output) };
+    if (facts) return facts.registered && registration;
+    return run.code === 0 && run.output.split("\n")[0]?.trim() === `${name}:` ? registration : null;
   }
 
   // One server's status: `claude mcp get <name>`, or its entry in `codex mcp list --json`.
@@ -634,9 +651,9 @@ export class McpService implements McpConversationFacts {
     if (facts) return { ok: true, facts };
     return { ok: false, reason: run.code === 0 || run.code === 1 ? "unparsable" : "failed" };
   }
-  private async codexList(owner: Owner, lease: Lease): Promise<{ name: string; authenticated: boolean | null }[] | null> {
+  private async codexList(owner: Owner, lease: Lease): Promise<ListedServer[] | null> {
     const run = await this.run(owner, lease, "codex", [...COMMANDS.codex.list], { timeoutMs: this.limits.commandMs });
-    return run.code === 0 ? parseCodexMcpList(run.output) : null;
+    return run.code === 0 ? codexMcpServers(run.output) : null;
   }
   private async claudeList(owner: Owner, lease: Lease): Promise<ListedServer[] | null> {
     const run = await this.run(owner, lease, "claude", [...COMMANDS.claude.list], { timeoutMs: this.limits.commandMs });

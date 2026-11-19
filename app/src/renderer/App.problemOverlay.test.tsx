@@ -74,6 +74,7 @@ const { KeyedConversationStrip, ConversationStrip } = await import("./Conversati
 const { HomeRun } = await import("./homeRun");
 const { OverviewRun } = await import("./overviewRun");
 const { Home } = await import("./Home");
+const { Wizard } = await import("./Onboarding");
 const { initialCanvasState } = await import("./CanvasController");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
@@ -124,9 +125,16 @@ function element(name: string, inside: string[] = [], connected = true) {
   });
 }
 // The document as App reads it: the focused element and the nodes its selectors find (heading, composer, canvas area).
-function dom(active: unknown, extra: Record<string, unknown> = {}) {
+// `windowFocused` false: the window is in the background, as when an agent's CLI call changes the project.
+function dom(active: unknown, extra: Record<string, unknown> = {}, windowFocused = true) {
   const nodes: Record<string, unknown> = { [HEADING]: element("heading", ["problem-overlay", "workspace"]), [COMPOSER]: element("composer", ["ov-main", "workspace"]), [AREA]: element("area", ["doan-canvas-panel", "workspace"]), ...extra };
-  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: active ?? BODY, body: BODY, hasFocus: () => true, querySelector: (selector: string) => nodes[selector] ?? null, querySelectorAll: () => [] });
+  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: active ?? BODY, body: BODY, hasFocus: () => windowFocused, querySelector: (selector: string) => nodes[selector] ?? null, querySelectorAll: () => [] });
+}
+// A window whose `focus` events can be sent, for focus handed over while it is in the background.
+function activatableWindow(): EventTarget {
+  const win = Object.assign(new EventTarget(), { doan });
+  vi.stubGlobal("window", win);
+  return win;
 }
 
 function render(): ReactNode {
@@ -295,6 +303,61 @@ test("a Set Up from the overlay that succeeds removes the overlay and puts focus
   expect(find(ProjectSetupDialog)).toHaveLength(0);
   expect(overlay()).toBeUndefined();
   expect(focused.at(-1)).toBe("composer");
+});
+
+test("a Set Up closed by an outside change with the window in the background focuses the composer again on activation", () => {
+  // POSTMORTEM 2026-11-17: activation restores focus to the Set Up button that went, and with it gone to Hide sidebar.
+  render(); folders([uninitialized()]);
+  toOverview();
+  const button = element("setUp", ["problem-overlay", "workspace"]);
+  dom(button);
+  overlay()!.onAction("setUp"); render();
+  const win = activatableWindow();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  Object.assign(button, { isConnected: false });
+  dom(BODY, {}, false);
+  focused.length = 0;
+  folders([listed("/w/a")]);
+  expect(focused.at(-1)).toBe("composer");
+  focused.length = 0;
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(focused).toEqual(["composer", "composer"]);
+});
+
+test("a Set Up closed by an outside change hands focus back to the control it came from again on activation", () => {
+  render(); folders([uninitialized()]);
+  toOverview();
+  const row = element("row", ["side", "workspace"]);
+  dom(row);
+  overlay()!.onAction("setUp"); render();
+  const win = activatableWindow();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  dom(BODY, {}, false);
+  focused.length = 0;
+  folders([listed("/w/a")]);
+  expect(focused.at(-1)).toBe("row");
+  focused.length = 0;
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(focused).toEqual(["row", "row"]);
+});
+
+test("first run finished by an agent's CLI with the window in the background focuses the Home composer again on activation", async () => {
+  doan.startOnboardingSession!.mockResolvedValue({ ok: true, result: { sessionId: "s", completed: false } });
+  render(); folders([listed("/w/a")]);
+  await flush();
+  const wizard = find<{ onClose(root: string | null): void }>(Wizard)[0]!;
+  const win = activatableWindow();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  dom(BODY, { ".home-shell .composer-input": element("homeComposer", ["home-shell"]) }, false);
+  focused.length = 0;
+  wizard.props.onClose("/w/a"); render();
+  expect(focused).toEqual(["homeComposer"]);
+  focused.length = 0;
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(focused).toEqual(["homeComposer", "homeComposer"]);
 });
 
 test("Remove from Doan on the overlay asks first, then goes Home from the Overview and from the canvas page", async () => {
@@ -713,6 +776,33 @@ test("a canvas that failed to load shows the status block with the alert icon, i
   expect(inside.find(element => element.type === "p")?.props.children).toBe("Run doan check in a terminal.");
   const reload = inside.find(element => element.type === "button")!;
   expect(reload.props).toMatchObject({ "data-ui-variant": "subtle", "data-ui-size": "sm", children: "Retry" });
+});
+
+// DESIGN 'Busy action': the reload Retry starts turns the status to loading at once; the line and a busy Retry stay
+// until it answers, and only a load that succeeds clears them (POSTMORTEM 2026-11-17 'Retry cleared its own failure line').
+test("the canvas load failure's Retry keeps its line and itself, busy, while the reload runs", () => {
+  render(); folders([listed("/w/a")]);
+  canvasOpen();
+  const failed = { ...initialCanvasState(), open: { folder: "/w/a", canvas: ".doan/canvases/a.html", row: { path: ".doan/canvases/a.html", url: "u", width: 1280 } }, status: "failed" as const, message: "" };
+  harness.setState!(failed); render();
+  // The pane's own hooks follow App's; each draw starts them where App's render left off, so its Retry state carries.
+  const appHooks = { cursor: hooks.cursor, refCursor: hooks.refCursor, effectCursor: hooks.effectCursor };
+  const block = () => {
+    hooks.cursor = appHooks.cursor; hooks.refCursor = appHooks.refCursor; hooks.effectCursor = appHooks.effectCursor;
+    const inside = all((pane()!.type as (props: unknown) => ReactNode)(pane()!.props));
+    return inside.find(element => element.props.className === "canvas-status-block");
+  };
+  const retry = () => all(block()).find(element => element.type === "button")!;
+  expect(retry().props["aria-describedby"]).toBe(all(block()).find(element => element.type === "h2")!.props.id);
+  (retry().props.onClick as (event?: unknown) => void)();
+  expect(harness.controller!.command).toHaveBeenCalledWith("reload");
+  harness.setState!({ ...failed, status: "loading" }); render();
+  expect(block()).toBeDefined();
+  expect(retry().props).toMatchObject({ "aria-busy": true, "aria-disabled": true });
+  harness.setState!({ ...failed, status: "failed" }); render();
+  expect(retry().props["aria-busy"]).toBeUndefined();
+  harness.setState!({ ...failed, status: null }); render();
+  expect(block()).toBeUndefined();
 });
 
 // D12: the status region is drawn at once, so its live region exists before Loading is written into it 300 ms later.

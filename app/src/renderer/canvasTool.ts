@@ -21,15 +21,35 @@ function interactiveTarget(target: unknown): boolean {
   return typeof role === "string" && CONTROL_ROLES.has(role);
 }
 
+// One rule for "a menu, list, popover or dialog is open" on the page: the tool keys ask it of the key's target, following
+// the working frame and the star card of the document (PRODUCT §5 item 2 'Canvas header', 'Following'). Every app menu's
+// content carries `doan-menu`, every app list (a frame drawer, the `/` list, Quick Open's results) is a listbox, and the
+// design presets popover and the `/` list hold their list beside group tabs and a Retry. Radix menus and popovers
+// (role="menu", role="dialog") exist only while open; a native <dialog> may stay mounted closed, so only an open one
+// counts. Radix's typeahead prevents nothing, so `defaultPrevented` alone does not catch a key in an open menu;
+// preventing for it would skip that typeahead.
+export const OPEN_OVERLAY = '.doan-menu, [role="menu"], [role="listbox"], .preset-popover, dialog[open], [role="dialog"]:not(dialog), [role="alertdialog"]:not(dialog)';
+
+function inOpenOverlay(target: unknown): boolean {
+  if (typeof target !== "object" || target === null || !("closest" in target) || typeof target.closest !== "function") return false;
+  return (target as { closest(selector: string): unknown }).closest(OPEN_OVERLAY) !== null;
+}
+
+export function overlayOpen(root: { querySelector(selector: string): unknown }): boolean {
+  return root.querySelector(OPEN_OVERLAY) !== null;
+}
+
 // By key position (`code`), so a Korean layout's ㅍ and ㅗ still switch tools. A Space release always counts: one
-// pressed on the canvas may be released over the composer, and a held Space must not outlive the key.
+// pressed on the canvas may be released over the composer, and a held Space must not outlive the key. An open menu,
+// list, popover or dialog keeps every printable key (PRODUCT §5 item 2 'Canvas header'); a sidebar row that only has
+// focus does not.
 export function toolShortcut(event: ShortcutEvent, context: { canvasPage: boolean }): ToolShortcut | null {
   if (event.type === "keyup") return event.code === "Space" ? { kind: "space", down: false } : null;
   if (event.type !== "keydown") return null;
   const tool = TOOL_KEYS[event.code];
   if (tool === undefined && event.code !== "Space") return null;
   if (!context.canvasPage || event.repeat || event.isComposing || event.keyCode === 229 || event.defaultPrevented) return null;
-  if (event.metaKey || event.ctrlKey || event.altKey || editableTarget(event.target)) return null;
+  if (event.metaKey || event.ctrlKey || event.altKey || editableTarget(event.target) || inOpenOverlay(event.target)) return null;
   if (tool !== undefined) return { kind: "tool", tool };
   return interactiveTarget(event.target) ? null : { kind: "space", down: true };
 }

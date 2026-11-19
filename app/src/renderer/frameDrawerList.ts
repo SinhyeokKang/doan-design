@@ -80,6 +80,11 @@ export function drawerOrder(groups: readonly DrawerGroup[]): DrawerRow[] {
 }
 
 export interface Typed { text: string; at: number }
+
+// An unmodified printable key, which an open list keeps from the window's shortcuts.
+function listTakesKey(event: { key: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean }): boolean {
+  return event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey;
+}
 export interface DrawerKey { prevent: boolean; pick?: string; move?: string; typed: Typed }
 
 // The open list's answer to a key. Every unmodified printable key is the list's, even one the typeahead cannot match,
@@ -93,7 +98,7 @@ export function drawerKey(rows: readonly DrawerListRow[], focusedKey: string | n
   }
   const target = drawerKeyTarget(rows, focusedKey, key);
   if (target !== null) return { prevent: true, move: target, typed };
-  if (key.length !== 1 || event.metaKey || event.ctrlKey || event.altKey) return { prevent: false, typed };
+  if (!listTakesKey(event)) return { prevent: false, typed };
   const next = { text: (now - typed.at < 500 ? typed.text : "") + key.toLowerCase(), at: now };
   const match = drawerTypeahead(rows, focusedKey, next.text);
   return match === null ? { prevent: true, typed: next } : { prevent: true, move: match, typed: next };

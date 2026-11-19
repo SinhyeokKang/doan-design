@@ -5,7 +5,7 @@ import type { ViewCommand } from "../main/index";
 import type { CanvasState, CanvasViewStore } from "./CanvasController";
 import { canvasLabel } from "./canvasTree";
 import { frameDrawerView, type FrameDrawerRow, type FrameDrawerView } from "./frameDrawer";
-import { drawerKeyTarget, drawerTypeahead, focusedRowAfter } from "./frameDrawerList";
+import { drawerKey, focusedRowAfter } from "./frameDrawerList";
 import { FrameName, FrameRowMarks } from "./FrameListBody";
 import { NameTip } from "./NameTip";
 import { menuCloseFocus, menuCloseNow } from "./canvasFocus";
@@ -129,22 +129,14 @@ function FrameDrawer({ view, label, canvasKey, fallbackFocus, select }: { view: 
   });
 
   const pick = (row: FrameDrawerRow) => { setOpen(false); select(row.index, row.id); };
+  // The Play drawer's keys (drawerKey): every printable key is the list's, so V and H never switch the tool from here.
   const keydown = (event: KeyboardEvent<HTMLDivElement>) => {
-    // Like a menu, Tab does not walk out of the open list into the page.
-    if (event.key === "Tab") { event.preventDefault(); return; }
-    if (event.key === "Enter" || event.key === " ") {
-      const row = view.rows.find(row => row.key === active);
-      if (row) { event.preventDefault(); pick(row); }
-      return;
-    }
-    const target = drawerKeyTarget(view.rows, active, event.key);
-    if (target !== null) { event.preventDefault(); move(target); return; }
-    if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
-      const now = Date.now();
-      typed.current = { text: (now - typed.current.at < 500 ? typed.current.text : "") + event.key.toLowerCase(), at: now };
-      const match = drawerTypeahead(view.rows, active, typed.current.text);
-      if (match !== null) { event.preventDefault(); move(match); }
-    }
+    const result = drawerKey(view.rows, active, event, typed.current, Date.now());
+    typed.current = result.typed;
+    if (result.prevent) event.preventDefault();
+    const picked = result.pick === undefined ? undefined : view.rows.find(row => row.key === result.pick);
+    if (picked) pick(picked);
+    else if (result.move !== undefined) move(result.move);
   };
 
   return <Popover.Root open={shown} onOpenChange={next => { setOpen(next); if (next) setFocused(null); }}>

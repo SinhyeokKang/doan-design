@@ -50,6 +50,11 @@ class FakeDebugger extends EventEmitter implements DebuggerLike {
   fail: string | null = null;
   // Runs inside a command, to move the window's state while a read is in flight.
   during: { method: string; run: () => void } | null = null;
+  // Commands of these methods wait for `release()` before the session handles them.
+  holdOn = new Set<string>();
+  held: { method: string; go: () => void }[] = [];
+  // The session's DOM agent: reads fail while it is off, as CDP's do after `DOM.disable`.
+  domOn = false;
   attach(): void {
     if (this.attachError) throw this.attachError;
     this.attached = true;
@@ -65,7 +70,11 @@ class FakeDebugger extends EventEmitter implements DebuggerLike {
       run();
     }
     if (this.hang && method === "CSS.getMatchedStylesForNode") return new Promise(() => undefined);
+    if (this.holdOn.has(method)) await new Promise<void>((go) => this.held.push({ method, go }));
     if (method === this.fail) throw new Error(`${method} failed`);
+    if (method === "DOM.enable") this.domOn = true;
+    if (method === "DOM.disable") this.domOn = false;
+    if (/^(DOM\.(getDocument|querySelector)|CSS\.get)/.test(method) && !this.domOn) throw new Error(`${method}: DOM agent is not enabled`);
     switch (method) {
       case "Page.getFrameTree":
         return { frameTree: { frame: { id: "MAIN", url: "file:///app/index.html" } } };
@@ -80,6 +89,11 @@ class FakeDebugger extends EventEmitter implements DebuggerLike {
       default:
         return {};
     }
+  }
+  release(method: string): void {
+    const index = this.held.findIndex((entry) => entry.method === method);
+    if (index < 0) throw new Error(`no held ${method}`);
+    this.held.splice(index, 1)[0]!.go();
   }
   sent(method: string): [string, unknown, string | undefined][] {
     return this.calls.filter(([name]) => name === method);
@@ -136,9 +150,14 @@ test("DOM and CSS are on only during a request", async () => {
 test("overlapping requests run one after another", async () => {
   const { dbg, docs, inspector } = setup();
   show(dbg, docs, "S1", "loader");
-  const [first, second] = await Promise.all([inspector.inspect(request()), inspector.inspect(request())]);
-  expect(first).toMatchObject({ ok: true });
-  expect(second).toMatchObject({ ok: true });
+  dbg.holdOn.add("DOM.getDocument");
+  const first = inspector.inspect(request());
+  await vi.waitFor(() => expect(dbg.held).toHaveLength(1));
+  dbg.holdOn.clear();
+  const second = inspector.inspect(request());
+  dbg.release("DOM.getDocument");
+  expect(await first).toMatchObject({ ok: true });
+  expect(await second).toMatchObject({ ok: true });
   const methods = dbg.calls.map(([method]) => method);
   expect(methods.filter((m) => m === "DOM.disable")).toHaveLength(2);
   // The second request enables only after the first has disabled.
@@ -302,6 +321,86 @@ test("gives up as unavailable after 2 seconds, and the next request runs", async
   const next = inspector.inspect(request());
   await vi.advanceTimersByTimeAsync(0);
   expect(await next).toMatchObject({ ok: true });
+});
+
+test("a queued request that a newer one overtook runs no command and answers unavailable", async () => {
+  const { dbg, docs, inspector } = setup();
+  show(dbg, docs, "S1", "loader");
+  dbg.holdOn.add("CSS.getMatchedStylesForNode");
+  const first = inspector.inspect({ ...request(), seq: 1 });
+  await vi.waitFor(() => expect(dbg.held).toHaveLength(1));
+  const second = inspector.inspect({ ...request(), seq: 2 });
+  const third = inspector.inspect({ ...request(), seq: 3 });
+  dbg.holdOn.clear();
+  dbg.release("CSS.getMatchedStylesForNode");
+  expect(await first).toMatchObject({ ok: true });
+  expect(await second).toEqual({ ok: false, reason: "unavailable" });
+  expect(await third).toMatchObject({ ok: true });
+  expect(dbg.sent("DOM.enable")).toHaveLength(2);
+});
+
+test("a timed-out read that answers late leaves DOM and CSS on for the read that started after it", async () => {
+  vi.useFakeTimers();
+  const { dbg, docs, inspector } = setup();
+  show(dbg, docs, "S1", "loader");
+  dbg.holdOn.add("CSS.getMatchedStylesForNode");
+  const first = inspector.inspect(request());
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(await first).toEqual({ ok: false, reason: "unavailable" });
+  dbg.holdOn = new Set(["DOM.querySelector"]);
+  const second = inspector.inspect(request());
+  await vi.advanceTimersByTimeAsync(0);
+  expect(dbg.held.map((entry) => entry.method)).toEqual(["CSS.getMatchedStylesForNode", "DOM.querySelector"]);
+  // The first read's command answers while the second is mid-read.
+  dbg.release("CSS.getMatchedStylesForNode");
+  await vi.advanceTimersByTimeAsync(0);
+  dbg.release("DOM.querySelector");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(await second).toMatchObject({ ok: true });
+  const methods = dbg.calls.map(([method]) => method).filter((m) => /^(DOM|CSS)\.(enable|disable)$/.test(m));
+  expect(methods).toEqual(["DOM.enable", "CSS.enable", "DOM.enable", "CSS.enable", "CSS.disable", "DOM.disable"]);
+});
+
+// The late cleanup awaits CSS.disable; a read that starts during that wait needs DOM on, so DOM.disable is checked again.
+test("a timed-out read's late cleanup leaves DOM on for a read that started while its CSS.disable was in flight", async () => {
+  vi.useFakeTimers();
+  const { dbg, docs, inspector } = setup();
+  show(dbg, docs, "S1", "loader");
+  dbg.holdOn.add("CSS.getMatchedStylesForNode");
+  const first = inspector.inspect(request());
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(await first).toEqual({ ok: false, reason: "unavailable" });
+  dbg.holdOn = new Set(["CSS.disable"]);
+  dbg.release("CSS.getMatchedStylesForNode");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(dbg.held.map((entry) => entry.method)).toEqual(["CSS.disable"]);
+  dbg.holdOn = new Set(["DOM.querySelector"]);
+  const second = inspector.inspect(request());
+  await vi.advanceTimersByTimeAsync(0);
+  expect(dbg.held.map((entry) => entry.method)).toEqual(["CSS.disable", "DOM.querySelector"]);
+  dbg.holdOn.clear();
+  // The first read's CSS.disable answers while the second is mid-read.
+  dbg.release("CSS.disable");
+  await vi.advanceTimersByTimeAsync(0);
+  dbg.release("DOM.querySelector");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(await second).toMatchObject({ ok: true });
+  const methods = dbg.calls.map(([method]) => method).filter((m) => /^(DOM|CSS)\.(enable|disable)$/.test(m));
+  expect(methods).toEqual(["DOM.enable", "CSS.enable", "CSS.disable", "DOM.enable", "CSS.enable", "CSS.disable", "DOM.disable"]);
+});
+
+test("a timed-out read sends no further read once its budget is spent, and with no later read turns DOM and CSS off", async () => {
+  vi.useFakeTimers();
+  const { dbg, docs, inspector } = setup();
+  show(dbg, docs, "S1", "loader");
+  dbg.holdOn.add("DOM.getDocument");
+  const first = inspector.inspect(request());
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(await first).toEqual({ ok: false, reason: "unavailable" });
+  dbg.release("DOM.getDocument");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(dbg.sent("DOM.querySelector")).toHaveLength(0);
+  expect(dbg.calls.map(([method]) => method).slice(-2)).toEqual(["CSS.disable", "DOM.disable"]);
 });
 
 test("inheritedFrom names the ancestor from the document tree", async () => {

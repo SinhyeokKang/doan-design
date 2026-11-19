@@ -2,8 +2,10 @@ import { PRESETS, type ConnectorServer } from "./presets";
 
 const MAX_URL = 2048;
 const MAX_SLUG = 16;
-// `mcp__doan-<slug>__` leaves room for the tool name within the providers' tool-name limits.
-export const CONNECTOR_NAME = /^doan-[a-z0-9][a-z0-9-]{0,15}$/;
+// `mcp__doan-<slug>__` leaves room for the tool name within the providers' tool-name limits. The pattern without anchors
+// is shared with the readers of a provider's tool names and config headers, so a name Doan writes is one they match.
+export const CONNECTOR_NAME_PATTERN = `doan-[a-z0-9][a-z0-9-]{0,${MAX_SLUG - 1}}`;
+export const CONNECTOR_NAME = new RegExp(`^${CONNECTOR_NAME_PATTERN}$`);
 
 export type UrlRejection = "empty" | "too_long" | "invalid" | "not_https" | "credentials" | "fragment";
 export type ConnectorUrlRead = { ok: true; url: string } | { ok: false; reason: UrlRejection };

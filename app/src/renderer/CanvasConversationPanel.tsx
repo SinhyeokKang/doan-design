@@ -40,7 +40,7 @@ import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPi
 import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedMode, type DockedRefusal } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import {
-  attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, modelOption, modelPickerView,
+  attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, MAX_PASTED_BYTES, modelOption, modelPickerView,
   selectableProvider, sendRefusal, suggestedPresets, suggestedPrompts, type AttachmentDraft, type NewConversationDefault, type ModelsState,
 } from "./homeComposer";
 import { PROVIDER_NAMES } from "./agentAuthView";
@@ -64,7 +64,7 @@ import { NameTip } from "./NameTip";
 export type ConversationCalls = SkillsCalls & Pick<DoanApi, "onAgentAuth" | "startConversation" | "sendConversation" | "queueConversation" |
   "removeQueuedMessage" | "interruptConversation" | "answerConversationPermission" | "answerConversationQuestion" | "openLink" |
   "chooseAttachments" | "addAttachmentFiles" | "addPastedImage" | "droppedPath" | "removeAttachment" | "releaseAttachments" |
-  "readAgentUsage" | "onAgentUsage">;
+  "readAgentUsage" | "onAgentUsage" | "onWindowVisible">;
 
 export interface CanvasConversationProps {
   calls: ConversationCalls;
@@ -400,7 +400,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
       const final = await Promise.all(results.map(async (result, i) => {
         const file = accepted[i]!;
         if (!pasted || result.ok || result.error !== "not_found" || !file.type.startsWith("image/") || calls.droppedPath(file) !== null) return result;
-        if (file.size > 50 * 1024 * 1024) return { ok: false as const, name: "Pasted image", error: "too_large" as const };
+        if (file.size > MAX_PASTED_BYTES) return { ok: false as const, name: "Pasted image", error: "too_large" as const };
         // A page-made image whose bytes can't be read settles with the rest of its batch.
         const bytes = await file.arrayBuffer().catch(() => null);
         if (!bytes) return result;
@@ -504,7 +504,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
 
   return <div className="doan-conv-content" ref={body}>
     <div className={`cp-scroll${conversationId ? "" : " end"}`}>
-      {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project}
+      {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project} visibility={calls}
         liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} turn={thread && Array.isArray(items) ? threadTurn(thread.events, items, live, store.stageOf(conversationId), root, summary?.stopping === true, turnId => commands && commandTurnLabel(provider, commands, turnId)) : null}
         card={card} onCardAction={cardAction} onCardDismiss={dismissCard}
         background={summary?.background ?? null} onStopBackground={turnId => stopBackground({ conversationId, turnId }, request => calls.interruptConversation(request)).then(failed => { if (failed) props.onNotice(failed); return failed === null; })} canvasListed={canvas => props.entry.kind === "list" && props.entry.canvases.some(row => sameCanvas(canvas, row))}

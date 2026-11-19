@@ -1,5 +1,6 @@
 import type { PendingPermission, PermissionChoice } from "../conversation/types";
 import { serverLabel } from "./presets";
+import { clip } from "../conversation/cardText";
 
 // Codex asks before a tool without a read-only hint with mcpServer/elicitation/request, _meta.codex_approval_kind
 // "mcp_tool_call" (ARCHITECTURE §7 'MCP connectors'). It becomes the conversation's permission request.
@@ -25,6 +26,6 @@ export function codexMcpApproval(raw: unknown, labels: Readonly<Record<string, s
   ];
   // "always" would write a lasting approval into the provider's config, so only the session approval is offered.
   if (Array.isArray(meta.persist) && meta.persist.includes("session")) choices.push(choice("acceptForSession", "Allow for this session", "allowAlways", { action: "accept", content: {}, _meta: { persist: "session" } }));
-  const summary = (tool ? `Run ${tool} on ${server}` : `Run a tool on ${server}`).slice(0, 512);
+  const summary = clip(tool ? `Run ${tool} on ${server}` : `Run a tool on ${server}`, 512);
   return { kind: "permission", permission: { event: { type: "permission.request", requestId: `${typeof id}:${id}`, tool: "mcpToolCall", summary, options: choices.map(c => c.option) }, choices } };
 }

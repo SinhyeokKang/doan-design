@@ -315,12 +315,17 @@ export function withoutConversation(map: Record<string, Record<string, string>>,
 // The same memory without what a read list no longer names: a canvas missing from its root's canvas list, or a
 // conversation missing from its root's conversation list. Nothing else forgets a conversation deleted in the prototype
 // window or a canvas deleted outside Doan. A list not read (null: still reading, or failed) drops nothing, since an
-// unread list says nothing about what is gone. The same map when unchanged.
-export function withoutUnlisted(map: Record<string, Record<string, string>>, listed: (root: string) => { canvases: readonly { path: string; id?: string }[] | null; conversations: readonly string[] | null }): Record<string, Record<string, string>> {
+// unread list says nothing about what is gone. A canvas an agent is rewriting can be listed for a moment without its ID
+// (unparsable or unreadable); it is still listed at its path, so an entry whose conversation's canvas is such a row
+// stays; without a read conversation list such an entry cannot be told from one whose canvas is gone, so then the canvas
+// list drops nothing. The same map when unchanged.
+export function withoutUnlisted(map: Record<string, Record<string, string>>, listed: (root: string) => { canvases: readonly { path: string; id?: string }[] | null; conversations: readonly { conversationId: string; canvas?: { path: string } }[] | null }): Record<string, Record<string, string>> {
   const next = Object.fromEntries(Object.entries(map).map(([root, canvases]) => {
     const { canvases: rows, conversations } = listed(root);
-    const keys = rows ? new Set(rows.map(conversationCanvasKey)) : null, ids = conversations ? new Set(conversations) : null;
-    return [root, Object.fromEntries(Object.entries(canvases).filter(([key, id]) => (!keys || keys.has(key)) && (!ids || ids.has(id))))];
+    const keys = rows && (conversations || rows.every(row => row.id !== undefined)) ? new Set(rows.map(conversationCanvasKey)) : null, ids = conversations ? new Set(conversations.map(c => c.conversationId)) : null;
+    const withoutId = new Set(rows?.filter(row => row.id === undefined).map(row => row.path));
+    const atRowWithoutId = (id: string) => { const path = conversations?.find(c => c.conversationId === id)?.canvas?.path; return path !== undefined && withoutId.has(path); };
+    return [root, Object.fromEntries(Object.entries(canvases).filter(([key, id]) => (!keys || keys.has(key) || atRowWithoutId(id)) && (!ids || ids.has(id))))];
   }));
   const count = (memory: Record<string, Record<string, string>>) => Object.values(memory).reduce((sum, canvases) => sum + Object.keys(canvases).length, 0);
   return count(next) === count(map) ? map : withoutEmpty(next);

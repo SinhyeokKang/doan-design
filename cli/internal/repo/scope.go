@@ -32,7 +32,7 @@ func Scope(root string, config Config) ([]string, error) {
 				protected = protected || MetadataPath(".doan"+strings.TrimPrefix(p, metadataRoot))
 			}
 		}
-		if p == "." || protected || seen[p] {
+		if p == "." || protected || Withheld(p) || seen[p] {
 			return
 		}
 		seen[p] = true
@@ -43,6 +43,11 @@ func Scope(root string, config Config) ([]string, error) {
 		return nil, err
 	}
 	for _, p := range append(defaults, config.Serve...) {
+		// `doan check` reports an entry withheld by its written name too
+		// (`serve_withheld`), so a link named `.env-docs` stays out whatever it points to.
+		if Withheld(filepath.ToSlash(filepath.Clean(p))) {
+			continue
+		}
 		state, real, err := Resolve(root, root, p)
 		if err != nil {
 			return nil, err
@@ -98,6 +103,20 @@ func defaultServeDirs(root string) ([]string, error) {
 		}
 	}
 	return dirs, nil
+}
+
+// Withheld reports whether a real repo-relative path is a .git directory or a
+// .env file, or lies under one. These are never served, whatever
+// .doan/config.json lists (ARCHITECTURE §3 'Never served').
+// Letter case is ignored because the volume usually ignores it.
+func Withheld(p string) bool {
+	for _, segment := range strings.Split(p, "/") {
+		segment = strings.ToLower(segment)
+		if segment == ".git" || strings.HasPrefix(segment, ".env") {
+			return true
+		}
+	}
+	return false
 }
 
 // MetadataPath keeps project settings and other .doan/ metadata out of the serving scope.

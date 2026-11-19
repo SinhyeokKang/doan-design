@@ -55,14 +55,24 @@ function underNamespace(value: string, home: string): boolean {
 }
 
 // Codex runs a command an `allow` rule matches outside the sandbox without asking (Codex docs 'Rules'); the app socket
-// needs that. Doan's own file, not default.rules, where the Codex TUI saves the person's approvals.
+// needs that. Only the read and signal commands the guide has agents run unasked are allowed; every other `doan`
+// command (export, config, init, onboarding, remove, handoff) matches no rule here and follows the person's Codex
+// settings, so a writing command never leaves the sandbox unasked. Codex compares a rule's tokens with argv in order,
+// which is why the CLI refuses any argument before the command. Doan's own file, not default.rules, where the Codex
+// TUI saves the person's approvals.
+const CODEX_ALLOWED_COMMANDS = ["ls", "check", "active", "work", "open", "skill", "design-skill", "help"];
 export function codexRuleText(): string {
-  return '# Written by Doan so Codex runs `doan` outside its sandbox without asking. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan"], decision="allow")\n';
+  return '# Written by Doan so Codex runs `doan ls`, `check`, `active`, `work`, `open`, `skill`, `design-skill` and `help` outside its sandbox without asking; every other `doan` command follows your Codex settings. If you edit this file, Doan leaves it alone.\n' +
+    CODEX_ALLOWED_COMMANDS.map(command => `prefix_rule(pattern=["doan", "${command}"], decision="allow")\n`).join("");
 }
 // Every text an earlier release wrote as doan.rules, matched exactly like the current one. Without them a release that
-// changes the text would leave each machine's earlier file as someone else's and never update it. Empty until the
-// text first changes; plan.test.ts pins the current text so a change fails until its old text is added here.
-export const EARLIER_CODEX_RULES: readonly string[] = [];
+// changes the text would leave each machine's earlier file as someone else's and never update it; plan.test.ts pins
+// the current text so a change fails until its old text is added here.
+export const EARLIER_CODEX_RULES: readonly string[] = [
+  '# Written by Doan so Codex runs `doan` outside its sandbox without asking. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan"], decision="allow")\n',
+  '# Written by Doan so Codex runs `doan` outside its sandbox without asking, and asks first for `doan export`, `config`, `onboarding` and `remove`. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan"], decision="allow")\n' +
+    ["export", "config", "onboarding", "remove"].map(command => `prefix_rule(pattern=["doan", "${command}"], decision="prompt")\n`).join(""),
+];
 
 // Claude Code Bash rules (Claude Code docs 'Configure permissions', 'Wildcard patterns'): a trailing ` *` matches any
 // arguments and the bare command, and `&&`, `;`, `|` split a command so each part needs its own rule. Only the three
