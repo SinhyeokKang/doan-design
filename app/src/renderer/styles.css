@@ -1192,6 +1192,9 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .bubble-item { display: block; }
 .conversation-thread .bubble-item > :is(.list-depth, .list-mark, .bubble-item-body) { vertical-align: top; }
 .conversation-thread .bubble-item > .list-mark { min-width: max(var(--space-3), calc(attr(data-mark type(<number>), 0) * 1ch)); }
+/* Numbers stand at the column's end, as a native ol draws them, so every "N." keeps the same gap to its text ("1."
+   beside "10." otherwise shows a wider one). */
+.conversation-thread .bubble-item > .list-mark[data-kind="ol"] { text-align: right; }
 /* A deep list in a narrow bubble would leave its body no width, so the drawn indentation stops at four steps; the
    depth spaces stay in the text for copy. Not a share of the item: a bubble shrinks to its text, so a short list's
    item is narrow and a share would pull in its first levels too. */

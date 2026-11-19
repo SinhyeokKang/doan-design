@@ -95,6 +95,26 @@ test("the bodies of one numbered list line up, past its widest marker", async ()
   for (const row of one) { expect(row.at - 24).toBeGreaterThanOrEqual(marker); expect(row.at - 24 - marker).toBeLessThan(1); }
 });
 
+// Each "N."'s "." ends at the same x, so its text follows after the same gap: the typed space.
+const dots = () => frame.evaluate(() => [...document.querySelectorAll('.bubble-item > .list-mark[data-kind="ol"]')].map(mark => {
+  const text = mark.firstChild as Text, dot = document.createRange(), body = document.createRange();
+  dot.setStart(text, text.data.indexOf(".")); dot.setEnd(text, text.data.indexOf(".") + 1); body.selectNodeContents(mark.nextElementSibling!);
+  const end = dot.getBoundingClientRect().right;
+  return { end: Math.round(end * 100) / 100, gap: Math.round((body.getClientRects()[0]!.left - end) * 100) / 100 };
+}));
+
+test("numbers stand right-aligned in the column, each followed by the same gap", async () => {
+  for (const text of ["1. a\n2. b", "9. a\n10. b\n11. c", "8. a\n88. b\n100. c"]) {
+    await open(text);
+    const rows = await dots();
+    const ends = rows.map(row => row.end);
+    expect(Math.max(...ends) - Math.min(...ends)).toBeLessThan(0.1);
+    // One typed space in Geist at 14 px, whatever the marker's width.
+    for (const row of rows) expect(row.gap).toBeCloseTo(3.47, 1);
+    expect(await selected()).toBe(text);
+  }
+});
+
 test("a depth-0 item's typed leading spaces take no width", async () => {
   await open(" - one space\n- none");
   expect((await items()).map(row => [row.mark, row.at])).toEqual([[24, 36], [24, 36]]);
