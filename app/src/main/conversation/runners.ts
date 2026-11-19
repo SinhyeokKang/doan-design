@@ -93,11 +93,6 @@ function verdicts(input: Prepared): (verdict: HandshakeVerdict) => void {
 // (SIGKILL after 0.5 s) otherwise. This cap plus that stop stays inside the wait, so a CLI that never answers delays the
 // next send by at most this, never refuses it as busy. An answer took 0.2-1 s (PoC).
 const TURN_USAGE_MS = 3000;
-// The supported SDK's error classes for a CLI that exited or was killed (POSTMORTEM 2026-10-27 'SDK process death
-// reached failure classification before group release').
-function sdkExit(error: unknown): boolean {
-  return object(error) && (error.errorClass === "process_exited_nonzero" || error.errorClass === "process_killed_by_signal");
-}
 function timeout<T>(promise: Promise<T>, ms = 10000): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("process_exited")), ms);
@@ -461,14 +456,11 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     if (input.owner) { await Promise.race([stderrDone, new Promise(resolve => setTimeout(resolve, 1000).unref())]); if (PIN_REFUSED.test(stderr)) throw new Error("credential_override"); }
     // A fenced start that could not run is a process failure, never the SDK's message about the CLI binary, which names
     // a missing CLI: sandbox-exec missing (a spawn error), or sandbox-exec itself refusing (65 for a policy error, 71 for
-    // an exec failure, with its own "sandbox-exec:" message). The CLI's own early exit is one too, judged as a turn's is
-    // (an observed exit with the SDK's exit class): the SDK's message for it is no code a composer can explain.
+    // an exec failure, with its own "sandbox-exec:" message). The CLI's own early exit keeps the SDK's error.
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the child exit callback sets this while the SDK starts
     const refused = childExited && sandboxRefused({ exitCode, stderr });
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the spawn error and exit callbacks set these while the SDK starts
     if (input.fence && (spawnFailed || refused)) throw new Error("process_exited");
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the child exit callback sets this while the SDK starts
-    if (childExited && sdkExit(error)) throw new Error("process_exited");
     throw error;
   }
   // The session the run is on: the one it opened, or the one the person's /clear moved it to.
@@ -571,7 +563,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
           if (!state.terminal) emit({ type: "turn.failed", code: "process_exited" });
         } catch (error) {
           // SDK exit errors can precede group disappearance; neither cleanup nor provider errors prove process death.
-          if (!readExpired && (!childExited || !sdkExit(error))) throw error;
+          if (!readExpired && (!childExited || !object(error) || (error.errorClass !== "process_exited_nonzero" && error.errorClass !== "process_killed_by_signal"))) throw error;
           const result = endTransport(state); state = result.state;
           for (const event of result.events) emit(event);
         } finally { finished = true; endReadWait(); closeInput(); expire(); void group?.stop(); }
