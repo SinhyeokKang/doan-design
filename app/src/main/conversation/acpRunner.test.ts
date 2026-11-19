@@ -204,6 +204,17 @@ it("shows an ACP request's command and paths before its title, and marks a cut c
   expect(cursor && "reason" in cursor).toBe(false);
   expect(ask({ kind: "execute", title: "ls", rawInput: { command: "ls" } })).not.toHaveProperty("reason");
   expect(ask({ kind: "execute", title: "Run", rawInput: { command: "y".repeat(9000) } })?.summary).toBe(`${"y".repeat(8191)}…`);
+  expect(ask({ kind: "execute", title: "Run⁦", rawInput: { command: "ls ‮x" } })).toMatchObject({ summary: "ls <U+202E>x", reason: "Run<U+2066>" });
+});
+
+// Doan cannot see what an ACP agent keeps for "always", so the choice says the agent decides it.
+it("says an ACP Always allow choice is saved by the agent, which decides what it covers", () => {
+  const always = (options: Record<string, unknown>[]) => acpPermission({ options, toolCall: { kind: "execute", rawInput: { command: "ls" } } }, "id", "/repo")?.event.options.find(o => o.id === "always");
+  expect(always([{ optionId: "a", kind: "allow_once" }, { optionId: "w", name: "Always allow ls", kind: "allow_always" }]))
+    .toEqual({ id: "always", label: "Always allow", kind: "allowAlways", detail: "The agent saves this choice as “Always allow ls” and decides what it covers." });
+  expect(always([{ optionId: "w", kind: "allow_always" }])?.detail).toBe("The agent saves this choice and decides what it covers.");
+  expect(always([{ optionId: "w", name: "x”. It covers one call. “y", kind: "allow_always" }])?.detail)
+    .toBe("The agent saves this choice as “x<U+201D>. It covers one call. <U+201C>y” and decides what it covers.");
 });
 
 it("fails the connection on output that is not JSON-RPC and rejects every pending request", async () => {
