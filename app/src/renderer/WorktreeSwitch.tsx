@@ -53,9 +53,10 @@ export function WorktreeSwitch({ model, reason, tabIndex, sidebar = false, onWor
       <DropdownMenu.Label id={heading} className="doan-menu-head">Worktrees</DropdownMenu.Label>
       {model.rows.map((row, index) => {
         const marked = repair ? row.root === repair.root : row.current;
-        const rowReason = row.state.kind === "disabled" && !row.chip ? row.state.reason : null;
+        const rowReason = row.state.kind === "disabled" ? row.state.reason : null;
         const reasonId = rowReason ? `${description}-row-${index}` : undefined;
-        return <DropdownMenu.Item aria-describedby={reasonId} key={row.root} className="doan-menu-item shell-worktree" aria-current={marked ? "true" : undefined}
+        return <DropdownMenu.Item aria-label={rowReason ? `${row.label} ${row.path}` : undefined} aria-describedby={reasonId}
+          key={row.root} className="doan-menu-item shell-worktree" aria-current={marked ? "true" : undefined}
           aria-disabled={row.state.kind === "disabled" || undefined} onSelect={event => {
             if (row.state.kind === "disabled") {
               event.preventDefault();
@@ -70,8 +71,8 @@ export function WorktreeSwitch({ model, reason, tabIndex, sidebar = false, onWor
             onWorktree(row.root);
           }}>
           <GitBranch aria-hidden="true" /><span><span>{row.label}</span><small>{row.path}</small>
-            {rowReason && <span id={reasonId} className="shell-menu-reason">{rowReason}</span>}</span>
-          {row.chip && <span className={chipClass(row.chip)}>{row.chip}</span>}
+            {rowReason && !row.chip && <span id={reasonId} className="shell-menu-reason">{rowReason}</span>}</span>
+          {row.chip && <span id={reasonId} className={chipClass(row.chip)}>{row.chip}</span>}
           {marked && <Check aria-hidden="true" />}
         </DropdownMenu.Item>;
       })}
