@@ -52,12 +52,13 @@ interface AgentWrites { folder: string; dirs: readonly string[]; files: readonly
 const AGENT_WRITES: Record<Provider, AgentWrites> = {
   // Claude Code 2.1.327 (isolated CLAUDE_CONFIG_DIR, a turn with a tool call) and a signed-in profile's entries. Auto
   // memory under projects/ is turned off for fenced runs instead (claudeRunSettings in runners.ts), because the CLI
-  // writes its transcripts beside it.
-  claude: { folder: "", dirs: ["projects", "sessions", "session-env", "shell-snapshots", "file-history", "todos", "plans", "tasks", "backups", "cache", "statsig", "debug", "paste-cache", "image-cache", "telemetry"],
+  // writes its transcripts beside it. session-env/ stays closed: it holds the environment files hooks leave for a
+  // session, which that session's commands source again on a resume (probe); the CLI runs without it.
+  claude: { folder: "", dirs: ["projects", "sessions", "shell-snapshots", "file-history", "todos", "plans", "tasks", "backups", "cache", "statsig", "debug", "paste-cache", "image-cache", "telemetry"],
     files: [".claude.json", ".credentials.json", "history.jsonl", "stats-cache.json", "mcp-needs-auth-cache.json", ".last-cleanup"] },
   // codex-cli 0.169.0 (isolated CODEX_HOME): the Codex process itself writes these, and runs inside this fence only in
-  // Full access; tmp/ holds the arg0 aliases it puts on PATH, and .tmp both a folder and the temporary files it renames
-  // onto a root file (.sandbox_migration). Its SQLite databases carry a version in their names. Its login lives in the
+  // Full access; tmp/ holds its runtime helpers, and .tmp both a folder and the temporary files it renames onto a root
+  // file (.sandbox_migration). Its SQLite databases carry a version in their names. Its login lives in the
   // keyring (providers.ts), so only auth.json's locks are written.
   codex: { folder: "", dirs: ["sessions", "archived_sessions", "shell_snapshots", "memories", "tmp", "cache", "log", "thread-writer-locks"],
     files: [".tmp", "installation_id", ".sandbox_migration", "models_cache.json", "auth.json.lock", "auth.lock"], pattern: "\\.sqlite[^/]*$" },
@@ -211,9 +212,9 @@ export function fenceDenied(paths: FencePaths, listing: FenceListing): FenceEntr
 // one; a Doan profile records no project trust, so Codex's own default there is read-only too. denied: listed when the
 // server starts, which lives across turns, so an entry made later (another provider's new profile, a new staging
 // profile) is not denied for that server's life.
-// The profile is read-only to sandboxed commands: Codex writes its rollouts, databases, caches and the arg0 aliases it
-// puts on PATH (tmp/) from its own process, outside the command sandbox, and the commands need no write there (codex-cli
-// 0.169.0 probe: a turn's commands, apply_patch included, ran and its rollout was recorded). The settings files are
+// The profile is read-only to sandboxed commands: Codex writes its rollouts, databases, caches and runtime helpers
+// (tmp/) from its own process, outside the command sandbox, and the commands need no write there (codex-cli 0.169.0
+// probe: a turn's commands, apply_patch included, ran and its rollout was recorded). The settings files are
 // also denied: an escalated command keeps only deny entries. The rest stays readable, since the model opens a skill's
 // SKILL.md (the doan stub included) with shell tools; an approved escalated command can therefore write there (a known
 // limit).
