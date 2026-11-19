@@ -56,6 +56,45 @@ func TestWorkTarget(t *testing.T) {
 	}
 }
 
+// otherSpellings makes an initialized repo whose directory name has a Hangul syllable, and returns its disk
+// spelling with the same directory spelled in upper case and in NFD. It skips on a volume that tells them apart.
+func otherSpellings(t *testing.T) (root, upper, nfd string) {
+	t.Helper()
+	parent := realPath(t, t.TempDir())
+	root = filepath.Join(parent, "Repo\uD55C")
+	if err := os.Mkdir(root, 0755); err != nil {
+		t.Fatal(err)
+	}
+	result(t, root, 0, "init")
+	upper = filepath.Join(strings.ToUpper(parent), "REPO\uD55C")
+	nfd = filepath.Join(parent, "Repo\u1112\u1161\u11AB")
+	for _, p := range []string{upper, nfd} {
+		if _, err := os.Stat(p); os.IsNotExist(err) {
+			t.Skip("temporary filesystem is case-sensitive or does not normalize names")
+		} else if err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root, upper, nfd
+}
+
+// A shell's logical $PWD keeps the root as the person typed it, so an absolute canvas path may spell the root
+// in another letter case or Unicode form than the disk does; it is still the repo's canvas.
+func TestWorkTargetRootInOtherSpelling(t *testing.T) {
+	root, upper, nfd := otherSpellings(t)
+	putFile(t, root, ".doan/canvases/existing.html", "canvas")
+	for _, spelled := range []string{upper, nfd} {
+		for _, path := range []string{".doan/canvases/existing.html", ".doan/canvases/new.html", ".doan/ds/new.html"} {
+			if got, err := workTarget(root, filepath.Join(spelled, path)); err != nil || got != path {
+				t.Errorf("%s: %q %v", filepath.Join(spelled, path), got, err)
+			}
+		}
+		if got, err := workTarget(root, filepath.Join(filepath.Dir(spelled), "other", ".doan/canvases/a.html")); err == nil {
+			t.Errorf("accepted a sibling of %s as %q", spelled, got)
+		}
+	}
+}
+
 func TestWorkSession(t *testing.T) {
 	for _, tt := range []struct{ claude, thread, legacy, provider, id string }{
 		{"c", "", "", "claude", "c"}, {"", "t", "", "codex", "t"}, {"", "", "l", "codex", "l"}, {"", "t", "t", "codex", "t"},
