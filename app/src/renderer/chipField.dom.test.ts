@@ -34,6 +34,7 @@ beforeAll(async () => {
     const entry = join(dir, "entry.ts");
     await writeFile(entry, [
       `export { ChipField, moveFocus } from ${JSON.stringify(here("./chipField.ts"))};`,
+      `export { slashKey } from ${JSON.stringify(here("./homeComposer.ts"))};`,
     ].join("\n"));
     const result = await build({ configFile: false, logLevel: "silent", root: dir, build: { write: false, minify: false, lib: { entry, formats: ["iife"], name: "Probe", fileName: "probe" } } });
     bundle = ((Array.isArray(result) ? result[0] : result) as Rolldown.RolldownOutput).output[0].code;
@@ -47,8 +48,20 @@ const el = document.getElementById("f");
 let changes = 0;
 const field = new Probe.ChipField(el, { onChange() { changes++; }, onInput() {}, onAnnounce() {}, scope: () => "canvas", skillNames: () => new Set(["copy-check"]), commandNames: () => new Set() }, []);
 let draft = 0;
-// ComposerField's Tab: the field's indent, preventing the key's focus move only when it answers true.
-el.addEventListener("keydown", e => { if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey && field.indent(e.shiftKey ? -1 : 1)) e.preventDefault(); });
+// ComposerField's keydown, registered after the field's own as React's is: the host's onKey first (Home's \`/\` list
+// through slashKey, or a host that takes a key as the next-message suggestion does), then Tab's indent, preventing the
+// key's focus move only when it answers true.
+const host = { slash: false, takes: null };
+el.addEventListener("keydown", e => {
+  const composing = e.isComposing || e.keyCode === 229;
+  if (host.slash) {
+    const action = Probe.slashKey(e.key, 0, 1, composing, { query: "", row: { kind: "skill", id: "demo" } });
+    if (action?.kind === "pick") { e.preventDefault(); field.insertSkill("demo", true); return; }
+    if (action?.kind === "close") { host.slash = false; return; }
+  }
+  if (host.takes === e.key && !composing) { e.preventDefault(); field.insertText("Next"); return; }
+  if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey && field.indent(e.shiftKey ? -1 : 1)) e.preventDefault();
+});
 const probe = window.probe = {
   field,
   set(segments) { el.focus(); field.setValue(segments, String(++draft)); },
@@ -83,11 +96,14 @@ const probe = window.probe = {
     el.dispatchEvent(new KeyboardEvent("keyup", { key, code: key, keyCode: code, shiftKey: shift, bubbles: true }));
     if (!resend) return [first, null];
     const second = down(code, false);
-    if (key === "Enter") probe.input("insertLineBreak");
+    // A prevented keydown has no input of its own.
+    if (key === "Enter" && !second) probe.input("insertLineBreak");
     return [first, second];
   },
   keydown(key, shift) { const e = new KeyboardEvent("keydown", { key, code: key, shiftKey: shift, bubbles: true, cancelable: true }); el.dispatchEvent(e); return e.defaultPrevented; },
   indent: dir => field.indent(dir),
+  setHost(patch) { Object.assign(host, patch); },
+  focused: () => document.activeElement?.id,
   lock() { el.contentEditable = "false"; },
   dispose() { field.dispose(); },
   // A copy event with its own DataTransfer: what the field puts on the clipboard, without the system clipboard.
@@ -260,9 +276,10 @@ test("Tab's indent moves an item under the one above as one undo step, and refus
 // the text before the key acts on it.
 type Step = [string, ...unknown[]];
 const run = (...steps: Step[]) => call<unknown[]>("run", steps);
-async function composeThenPress(start: string, caret: number, key: "Enter" | "Tab", shift: boolean, resend = true): Promise<unknown> {
+async function composeThenPress(start: string, caret: number, key: "Enter" | "Tab", shift: boolean, resend = true, host?: Record<string, unknown>): Promise<unknown> {
   await open(start);
   await call("place", caret);
+  if (host) await call("setHost", host);
   const [, , pressed] = await run(["compose", "compositionstart"], ["composeText", "나"], ["endWith", key, shift, resend]);
   await dom.flush(frame);
   return pressed;
@@ -303,6 +320,30 @@ test("an input method that does not send the key again gets the edit once from c
   expect(await text()).toBe("- a나\n- ");
   expect(await composeThenPress("- a\n- b", 7, "Tab", false, false)).toEqual([true, null]);
   expect(await text()).toBe("- a\n  - b나");
+});
+
+test("a resent key the host takes answers the press: no line break or indent comes after it", async () => {
+  // Home's \`/\` list picks the skill on the resent Enter (slashKey ignores Shift) and prevents it.
+  expect(await composeThenPress("/", 1, "Enter", true, true, { slash: true })).toEqual([false, true]);
+  expect(await text()).toBe("/demo ");
+  // The \`/\` list closes on the composing Tab, so no press is kept; the resent Tab is an ordinary one off a list.
+  expect(await composeThenPress("/", 1, "Tab", false, true, { slash: true })).toEqual([false, false]);
+  expect(await text()).toBe("/나");
+  // A host that takes the resent Tab itself, as the next-message suggestion takes Tab on an empty field.
+  expect(await composeThenPress("- a\n- b", 7, "Tab", false, true, { takes: "Tab" })).toEqual([true, true]);
+  expect(await text()).toBe("- a\n- b나Next");
+});
+
+test("without a resent Tab, one that cannot move the item moves focus from the deferred run", async () => {
+  await composeThenPress("- a", 3, "Tab", false, false);
+  expect(await text()).toBe("- a나");
+  expect(await call("focused")).toBe("after");
+  await composeThenPress("- a", 3, "Tab", true, false);
+  expect(await call("focused")).toBe("before");
+  // A Tab that can move the item does not also move focus.
+  await composeThenPress("- a\n- b", 7, "Tab", false, false);
+  expect(await text()).toBe("- a\n  - b나");
+  expect(await call("focused")).toBe("f");
 });
 
 test("a pending Shift+Enter or Tab does not edit a field locked or removed before the deferred run", async () => {
