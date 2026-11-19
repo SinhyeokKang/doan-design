@@ -3,6 +3,7 @@ import { DropdownMenu } from "radix-ui";
 import { Check, FolderOpen, GitBranch, Settings } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { chipClass, ROW_ACTION_ICONS, ROW_ACTION_LABELS, type RowAction } from "./homeCards";
+import { useMenuFocus } from "./useMenuFocus";
 import { useRetry } from "./ListRetryButton";
 import { isCut } from "./NameTip";
 import type { WorktreeModel } from "./worktreeSwitchModel";
@@ -12,19 +13,19 @@ export interface WorktreeRecovery {
   projectSettings(root: string): void;
 }
 
-export function WorktreeSwitch({ model, reason, tabIndex, onWorktree, recovery, handOffFocus = false }: {
+export function WorktreeSwitch({ model, reason, tabIndex, onWorktree, recovery, handOffFocus = false, canvasKey = null, fallbackFocus }: {
   model: WorktreeModel; reason?: string | null; tabIndex?: number; onWorktree(root: string): void;
-  recovery?: WorktreeRecovery; handOffFocus?: boolean;
+  recovery?: WorktreeRecovery; handOffFocus?: boolean; canvasKey?: string | null; fallbackFocus?(): void;
 }) {
   const description = useId(), heading = useId();
-  const trigger = useRef<HTMLButtonElement>(null);
   const [tip, setTip] = useState(false);
   const [open, setOpen] = useState(false);
   const [repairRoot, setRepairRoot] = useState<string | null>(null);
   const repair = model.rows.find(row => row.root === repairRoot);
   // If the list changed under an open menu, a press on a formerly available canvas reports the failed move.
   const offered = useRef(new Set<string>());
-  const moved = useRef(false);
+  const handOff = useRef(false);
+  const { trigger, onCloseAutoFocus } = useMenuFocus(canvasKey, open, !reason, () => setOpen(false), fallbackFocus);
   const retry = useRetry();
   if (reason && open) setOpen(false);
   const changeOpen = (next: boolean) => {
@@ -47,7 +48,7 @@ export function WorktreeSwitch({ model, reason, tabIndex, onWorktree, recovery, 
     {reason && <span className="sr-only" id={description}>{reason}</span>}
     <DropdownMenu.Portal><DropdownMenu.Content className={`doan-floating doan-menu shell-project-menu wt-menu${tabIndex === undefined ? "" : " shell-side-menu"}`}
       aria-labelledby={heading} align="start" sideOffset={4} collisionPadding={8} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}
-      onCloseAutoFocus={event => { if (moved.current) { event.preventDefault(); moved.current = false; } }}>
+      onCloseAutoFocus={event => { if (handOff.current) { event.preventDefault(); handOff.current = false; } else onCloseAutoFocus(event); }}>
       <DropdownMenu.Label id={heading} className="doan-menu-head">Worktrees</DropdownMenu.Label>
       {model.rows.map(row => {
         return <DropdownMenu.Item key={row.root} className="doan-menu-item shell-worktree" aria-current={row.current ? "true" : undefined}
@@ -59,7 +60,9 @@ export function WorktreeSwitch({ model, reason, tabIndex, onWorktree, recovery, 
             }
             if (row.state.kind === "repair") { event.preventDefault(); setRepairRoot(row.root); return; }
             if (row.current) return;
-            moved.current = handOffFocus;
+            // Close before navigation so this pick returns to the trigger like a normal menu selection.
+            changeOpen(false);
+            handOff.current = handOffFocus;
             onWorktree(row.root);
           }}>
           <GitBranch aria-hidden="true" /><span><span>{row.label}</span><small>{row.path}</small>

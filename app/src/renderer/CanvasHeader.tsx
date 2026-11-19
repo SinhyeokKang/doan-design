@@ -11,7 +11,7 @@ import { frameDrawerView, type FrameDrawerRow, type FrameDrawerView } from "./fr
 import { drawerKey, focusedRowAfter } from "./frameDrawerList";
 import { FrameName, FrameRowMarks } from "./FrameListBody";
 import { isCut, NameTip } from "./NameTip";
-import { menuCloseFocus, menuCloseNow } from "./canvasFocus";
+import { useMenuFocus } from "./useMenuFocus";
 import { zoomControlView, type ZoomControlView } from "./zoomControl";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import { CONVERSATION_PANEL_ID } from "./ConversationPanel";
@@ -50,7 +50,7 @@ export function CanvasHeader({ navigation, state, view, canvasKey = null, comman
     <nav className="doan-canvas-trail" aria-label="Breadcrumb">
       {navigation && crumbs.map(crumb => {
         if (crumb.kind === "project") return <ProjectCrumb key="project" label={crumb.label} name={crumb.name} overview={navigation.overview} />;
-        if (crumb.kind === "worktree") return <WorktreeSwitch key={canvasKey} model={crumb.model} reason={crumb.reason}
+        if (crumb.kind === "worktree") return <WorktreeSwitch key="worktree" canvasKey={canvasKey} fallbackFocus={fallbackFocus} model={crumb.model} reason={crumb.reason}
           onWorktree={root => { if (canvas) navigation.worktree(root, canvas.path); }} />;
         return <Fragment key="canvas"><span className="ov-sep doan-canvas-sep-root" aria-hidden="true">/</span>
           <Tooltip><TooltipTrigger asChild><span className="doan-canvas-name"><PanelsTopLeft aria-hidden="true" /><span>{crumb.label}</span></span></TooltipTrigger>
@@ -85,30 +85,6 @@ function ProjectCrumb({ label, name, overview }: { label: string; name: string; 
       <span className={`shell-thumbnail hue-${projectHue(label)}`} aria-hidden="true">{projectInitial(label)}</span><span className="doan-canvas-project-name" ref={text}>{label}</span>
     </button></TooltipTrigger><TooltipContent side="bottom">{name}</TooltipContent>
   </Tooltip>;
-}
-
-// A header menu's closing and focus rules (canvasFocus.ts), applied to its trigger and Radix's close.
-function useMenuFocus(canvasKey: string | null, open: boolean, enabled: boolean, close: () => void, fallbackFocus: () => void) {
-  const trigger = useRef<HTMLButtonElement>(null);
-  const moved = useRef(false);
-  const shown = useRef(canvasKey);
-  useEffect(() => {
-    const canvasChanged = shown.current !== canvasKey;
-    shown.current = canvasKey;
-    const now = menuCloseNow({ open, enabled, canvasChanged });
-    if (now.moved) moved.current = true;
-    if (now.close) close();
-  });
-  const onCloseAutoFocus = (event: Event) => {
-    const active = document.activeElement;
-    const to = menuCloseFocus({ moved: moved.current, triggerUsable: !!trigger.current?.isConnected && !trigger.current.disabled,
-      focusLost: !active || active === document.body || !active.isConnected });
-    moved.current = false;
-    if (to === "trigger") return;
-    event.preventDefault();
-    if (to === "fallback") fallbackFocus();
-  };
-  return { trigger, onCloseAutoFocus };
 }
 
 // A shortcut is a key chip after the label, as on the canvas toolbar (DESIGN 'Tooltip').
