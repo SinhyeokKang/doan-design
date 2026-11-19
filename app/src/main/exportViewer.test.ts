@@ -1274,6 +1274,23 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     await frame.waitForFunction(() => document.documentElement.classList.contains("ready"));
     return frame;
   };
+  test("the inspector opens folded, renders canvas labels as text and restores the selection after yielding", async () => {
+    const frame = await open('<section data-doan-frame="item" data-doan-title="&lt;b&gt;Item&lt;/b&gt;" style="height:300px;color:blue">Item</section>');
+    const show = frame.getByRole("button", { name: "Show inspector" });
+    expect(await show.count()).toBe(1);
+    const panel = frame.getByRole("region", { name: "Inspector", includeHidden: true });
+    expect(await panel.isHidden()).toBe(true);
+    await show.click();
+    await frame.frameLocator("#canvas").locator("section").click();
+    await panel.getByRole("button", { name: /<b>Item<\/b>/ }).waitFor();
+    expect(await panel.locator("b").count()).toBe(0);
+    await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "656px"; });
+    await panel.waitFor({ state: "hidden" });
+    expect(await show.getAttribute("aria-disabled")).toBe("true");
+    await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "657px"; });
+    await panel.getByRole("button", { name: /<b>Item<\/b>/ }).waitFor();
+  });
+
   test("without scripts the header shows the project and canvas but hides the frame controls", async () => {
     const frame = await dom.load(viewerPage(twoFrames, { reports: false, scripted: false }));
     await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "960px"; });
