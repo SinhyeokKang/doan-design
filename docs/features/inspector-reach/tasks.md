@@ -13,9 +13,11 @@
 3. **버블 연결**: `data-bubble-action` 분배, App portal, `foldInspector` 호출, 포커스(`moveBubbleFocus`, `awaitBubbleReturn`에 `"inspect"`, 버블이 사라지면 헤더 Show inspector, inspector가 돌아오면 Hide inspector), `mousedown` `preventDefault`.
    - 테스트: Show inspector를 눌러도 Add to message가 실행되지 않음, Hand 전환·선택 해제·Reload 중 버블이 사라질 때 포커스.
    - 확인: `npm --prefix app test` 초록, `npm --prefix app run typecheck` 통과.
+3a. **element menu 가로 스크롤**: `treeScrollLeft` 순수 함수와 테스트(얕은 행은 0, 깊은 행은 아이콘 시작이 보이게, 이미 보이면 그대로), `ElementMenu`의 `overflow-x`와 열기·키보드 이동 때 `scrollLeft`.
+   - 확인: `npm --prefix app test` 초록.
 4. **`/design-sync`, `/runtime-test`**: 버블 측정을 `docs/design/prototype.md` 'Size bubble with Play'에 기록하고, 실제 앱에서 열기·포커스·yield·Hand 전환을 확인한다.
    - 확인: `docs/design/prototype.md` 'Size bubble with Play'에 새 버튼 값이 있다, `/runtime-test` PASS.
-5. **최종 게이트와 승격(B)**: `node .agents/skills/verify/scripts/verify.mjs`, PRODUCT §5 item 2('Size bubble')와 item 4('Inspector'의 열기 문장)를 현재 규칙으로 고친다.
+5. **최종 게이트와 승격(B)**: `node .agents/skills/verify/scripts/verify.mjs`, PRODUCT §5 item 2('Size bubble')와 item 4('Inspector'의 열기 문장, element menu 가로 스크롤)와 `docs/design/canvas.md` 'Element menu'를 현재 규칙으로 고친다.
    - 확인: verify PASS.
    - ── 커밋 경계 (`feat:`, `docs(PRODUCT):`) ──
 

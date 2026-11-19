@@ -8,6 +8,7 @@
 - `.bubble-host`의 click 리스너 하나가 host 안의 어떤 클릭이든 `bubbleAdd.onAdd()`를 부른다(`CanvasController.ts:2329`). 새 버튼을 같은 host에 넣으면 누를 때 Add to message가 실행된다. 그래서 버튼마다 `data-bubble-action`을 달고 리스너가 `closest("[data-bubble-action]")`로 나눠 보낸다.
 - 열기는 `foldInspector`(`App.tsx:2381`)를 그대로 부른다. 보임 조건은 열이 보이지 않는 것이다(`inspectorShown`, `App.tsx:2243`의 반대). yield일 때의 비활성 이유는 `headerShowButtons.ts:13`(순수)의 Show inspector와 같은 값을 쓴다.
 - 포커스: `moveBubbleFocus`(`CanvasController.ts:2290`)와 `awaitBubbleReturn`(`:2309`)의 `"play" | "add"`에 `"inspect"`를 더한다. 버블이 사라질 때의 `onFocusLost`는 헤더의 Show inspector로 보낸다. 포인터 누름은 `mousedown` `preventDefault`로 포커스를 가져가지 않는다(툴바와 같은 규칙).
+- element menu 가로 스크롤: `InspectorPanel.tsx`의 `ElementMenu`(`:140`)는 `data-ui-variant="tree"` 메뉴이고 행이 깊이마다 24px 들여쓴다(`docs/design/canvas.md` 'Element menu'). 행 이름을 자르지 않고 메뉴 안쪽에 `overflow-x: auto`를 두며, 열 때와 키보드 이동 때 선택·포커스 행의 아이콘 시작이 보이도록 `scrollLeft`를 맞춘다. 가로 위치 계산은 순수 함수 `treeScrollLeft(depth, viewport, current)`로 뺀다. 뷰어의 element menu는 같은 규칙을 생성 코드로 받는다.
 - 측정값: `docs/design/prototype.md:64-65`('Size bubble with Play', 'Bubble placement'), inspector 열기 규칙은 `docs/design/canvas.md:219-223`.
 
 ## (A) export 파일의 inspector — CLI(Go) + 뷰어 JS
@@ -85,3 +86,4 @@
 - 뷰어: Show inspector는 줌 뒤 구분선 다음, 툴팁은 버튼 아래. 빈 상태 문구는 "Option-click (Alt-click)"을 함께 쓴다. 복사 실패는 "This browser blocked copying. Open the file in another browser." yield는 창 폭 657px 미만, "No room for the inspector. Widen the browser window.", 열이 돌아오면 선택도 되살린다. 마크는 기본 accent.
 - 버블(B): 리뷰 지적 없음, 초안대로.
 - 버블 초안 확정: `.doan/canvases/inspector-reach-bubble.html`(커밋 `b894096b8`)을 사용자가 앱에서 확인하고 확정했다(2026-11-19).
+- 뷰어 초안 확정(2026-11-19, 사용자): 앱과 같은 모양. element menu 가로 스크롤은 앱에도 넣는다(B).
