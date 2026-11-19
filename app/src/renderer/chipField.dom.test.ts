@@ -44,7 +44,8 @@ afterAll(async () => { await dom?.close(); }, 30_000);
 
 const PAGE = `
 const el = document.getElementById("f");
-const field = new Probe.ChipField(el, { onChange() {}, onInput() {}, onAnnounce() {}, scope: () => "canvas", skillNames: () => new Set(["copy-check"]), commandNames: () => new Set() }, []);
+let changes = 0;
+const field = new Probe.ChipField(el, { onChange() { changes++; }, onInput() {}, onAnnounce() {}, scope: () => "canvas", skillNames: () => new Set(["copy-check"]), commandNames: () => new Set() }, []);
 let draft = 0;
 window.probe = {
   field,
@@ -57,12 +58,28 @@ window.probe = {
   box(selector, i = 0) { const n = el.querySelectorAll(selector)[i].getBoundingClientRect(), b = el.getBoundingClientRect(); return { x: Math.round(n.left - b.left), y: Math.round(n.top - b.top), w: Math.round(n.width), h: Math.round(n.height) }; },
   caret() { const r = document.getSelection().getRangeAt(0).getClientRects()[0], b = el.getBoundingClientRect(); return r ? { x: Math.round(r.left - b.left), y: Math.round(r.top - b.top) } : null; },
   host: () => document.getSelection().anchorNode?.parentElement?.className ?? "",
+  changes: () => changes,
   compose(type) { el.dispatchEvent(new CompositionEvent(type, { data: "" })); },
+  // What an input method does while composing: the marked text goes into the DOM at the caret, and input follows.
+  composeText(data) {
+    const s = document.getSelection(), node = s.focusNode, at = s.focusOffset;
+    node.insertData(at, data);
+    s.setBaseAndExtent(node, at + data.length, node, at + data.length);
+    el.dispatchEvent(new InputEvent("input", { inputType: "insertCompositionText", data, isComposing: true }));
+  },
+  keyup(key) { el.dispatchEvent(new KeyboardEvent("keyup", { key, code: key, bubbles: true })); },
+  indent: dir => field.indent(dir),
+  lock() { el.contentEditable = "false"; },
+  dispose() { field.dispose(); },
+  // A copy event with its own DataTransfer: what the field puts on the clipboard, without the system clipboard.
+  copy() { const data = new DataTransfer(); el.dispatchEvent(new ClipboardEvent("copy", { clipboardData: data, bubbles: true, cancelable: true })); return data.getData("text/plain"); },
+  // Several page steps in one task, so nothing the field schedules runs between them.
+  run(steps) { return steps.map(([name, ...args]) => window.probe[name](...args)); },
   input(inputType) { const e = new InputEvent("beforeinput", { inputType, bubbles: true, cancelable: true }); el.dispatchEvent(e); return e.defaultPrevented; },
 };`;
 
-async function open(segments: FieldSegment[] | string): Promise<void> {
-  frame = await dom.load(`<!doctype html><meta charset="utf-8"><style>${css}</style><button id="before">before</button><div id="f" class="composer-input" contenteditable="true" tabindex="0"></div><button id="after">after</button><script>${bundle}</script><script>${PAGE}</script>`);
+async function open(segments: FieldSegment[] | string, around = { before: '<button id="before">before</button>', after: '<button id="after">after</button>' }): Promise<void> {
+  frame = await dom.load(`<!doctype html><meta charset="utf-8"><style>${css}</style>${around.before}<div id="f" class="composer-input" contenteditable="true" tabindex="0"></div>${around.after}<script>${bundle}</script><script>${PAGE}</script>`);
   await call("set", typeof segments === "string" ? [{ kind: "text", text: segments }] : segments);
 }
 // The page's probe object, called by name.
@@ -220,34 +237,78 @@ test("Tab's indent moves an item under the one above as one undo step, and refus
   expect(await text()).toBe("- a\n- b");
 });
 
-test("Shift+Enter and Tab during a composition wait for its end, and a key sent again after it acts once", async () => {
-  const indent = (dir: number) => frame.evaluate(d => (window as unknown as { probe: { field: { indent(dir: number): boolean } } }).probe.field.indent(d), dir);
+// Each composition below leaves a syllable in the DOM, as the Korean input method does, and that syllable must reach
+// the text before any held key acts on it. The order of the events macOS really sends is checked in the real app.
+type Step = [string, ...unknown[]];
+const run = (...steps: Step[]) => call<unknown[]>("run", steps);
+
+test("Shift+Enter and Tab pressed during a composition act after it ends, in the order pressed", async () => {
   await open("- a\n- b");
-  await call("compose", "compositionstart");
-  expect(await call("input", "insertLineBreak")).toBe(true);
+  await call("place", 7);
+  expect(await run(["compose", "compositionstart"], ["composeText", "나"], ["input", "insertLineBreak"], ["indent", 1])).toEqual([undefined, undefined, true, true]);
   expect(await text()).toBe("- a\n- b");
   await call("compose", "compositionend");
   await dom.flush(frame);
-  expect(await text()).toBe("- a\n- b\n- ");
+  expect(await text()).toBe("- a\n- b나\n  - ");
   expect(await consistent()).toBe(true);
-
-  await open("- a\n- b");
-  await call("compose", "compositionstart");
-  expect(await indent(1)).toBe(true);
-  expect(await text()).toBe("- a\n- b");
-  await call("compose", "compositionend");
-  await dom.flush(frame);
-  expect(await text()).toBe("- a\n  - b");
-
-  // The input method sends the line break again right after compositionend: one new item, not two.
-  await open("- a");
-  await call("compose", "compositionstart");
-  await call("input", "insertLineBreak");
-  await frame.evaluate(() => { const p = (window as unknown as { probe: { compose(t: string): void; input(t: string): boolean } }).probe; p.compose("compositionend"); p.input("insertLineBreak"); });
-  await dom.flush(frame);
-  expect(await text()).toBe("- a\n- ");
+  await run(["keyup", "Enter"], ["keyup", "Tab"]);
+  // Each held key is its own undo step, after the composed text's.
   await press("Meta+z");
-  expect(await text()).toBe("- a");
+  expect(await text()).toBe("- a\n- b나\n- ");
+  await press("Meta+z");
+  expect(await text()).toBe("- a\n- b나");
+});
+
+test("a Shift+Enter sent again after compositionend acts once, whether it comes before or after the deferred run", async () => {
+  // Before: the second delivery runs the held press at once and does nothing itself.
+  await open("- a");
+  await run(["compose", "compositionstart"], ["composeText", "나"], ["input", "insertLineBreak"]);
+  expect(await run(["compose", "compositionend"], ["input", "insertLineBreak"])).toEqual([undefined, true]);
+  await dom.flush(frame);
+  expect(await text()).toBe("- a나\n- ");
+  await call("keyup", "Enter");
+  await press("Meta+z");
+  expect(await text()).toBe("- a나");
+
+  // After: the deferred run already acted, so the second delivery of the still-held key is dropped.
+  await open("- a");
+  await run(["compose", "compositionstart"], ["composeText", "나"], ["input", "insertLineBreak"], ["compose", "compositionend"]);
+  await dom.flush(frame);
+  expect(await text()).toBe("- a나\n- ");
+  expect(await call("input", "insertLineBreak")).toBe(true);
+  await dom.flush(frame);
+  expect(await text()).toBe("- a나\n- ");
+  // Once the key is released, the next Shift+Enter is a new press: on the empty item it ends the list.
+  await call("keyup", "Enter");
+  await call("input", "insertLineBreak");
+  expect(await text()).toBe("- a나\n");
+});
+
+test("a Tab sent again after the deferred run moves the item once and keeps focus in the field", async () => {
+  await open("- a\n- b");
+  await call("place", 7);
+  await run(["compose", "compositionstart"], ["composeText", "나"], ["indent", 1], ["compose", "compositionend"]);
+  await dom.flush(frame);
+  expect(await text()).toBe("- a\n  - b나");
+  expect(await call("indent", 1)).toBe(true);
+  expect(await text()).toBe("- a\n  - b나");
+  await call("keyup", "Tab");
+  // A new press with nothing to move under: Tab goes on to move focus.
+  expect(await call("indent", 1)).toBe(false);
+});
+
+test("a held Shift+Enter does not edit a field locked or removed before the deferred run", async () => {
+  for (const close of ["lock", "dispose"]) {
+    await open("- a");
+    await run(["compose", "compositionstart"], ["composeText", "나"], ["input", "insertLineBreak"]);
+    const changes = await call<number>("changes");
+    // In the same task as compositionend, before its deferred run.
+    await run(["compose", "compositionend"], [close]);
+    await dom.flush(frame);
+    expect(await text()).toBe("- a나");
+    // Only the composed text's own commit reached the host.
+    expect(await call("changes")).toBe(changes + 1);
+  }
 });
 
 test("deletions the browser makes across the spans leave the field drawn as its text", async () => {
@@ -264,18 +325,26 @@ test("deletions the browser makes across the spans leave the field drawn as its 
 
 test("copy keeps the markers and depth spaces as typed", async () => {
   await open(NESTED);
-  await frame.evaluate(() => { (window as unknown as { copied: string }).copied = ""; document.addEventListener("copy", e => { (window as unknown as { copied: string }).copied = e.clipboardData!.getData("text/plain"); }); });
   await call("place", 0, NESTED.length);
-  await frame.press("#f", "Meta+c");
-  expect(await frame.evaluate(() => (window as unknown as { copied: string }).copied)).toBe(NESTED);
+  // A real ⌘C would overwrite the person's system clipboard (POSTMORTEM 2026-10-27, runtime clipboard): the field's own copy handler
+  // writes to the event's DataTransfer instead.
+  expect(await call("copy")).toBe(NESTED);
 });
 
-test("Ctrl+Tab's focus move reaches the next and previous stop around the field", async () => {
-  await open("- a\n  - b");
-  await call("place", 8);
-  await frame.evaluate(() => (window as unknown as { Probe: { moveFocus(from: HTMLElement, back: boolean): void } }).Probe.moveFocus(document.getElementById("f")!, false));
-  expect(await frame.evaluate(() => document.activeElement?.id)).toBe("after");
-  await frame.focus("#f");
-  await frame.evaluate(() => (window as unknown as { Probe: { moveFocus(from: HTMLElement, back: boolean): void } }).Probe.moveFocus(document.getElementById("f")!, true));
-  expect(await frame.evaluate(() => document.activeElement?.id)).toBe("before");
+const focused = () => frame.evaluate(() => document.activeElement?.id);
+const moveFocus = (backward: boolean) => frame.evaluate(back => (window as unknown as { Probe: { moveFocus(from: HTMLElement, back: boolean): void } }).Probe.moveFocus(document.getElementById("f")!, back), backward);
+
+test("Ctrl+Tab's focus move reaches the same stop as native Tab, passing over a disabled button with a tabindex", async () => {
+  await open("- a\n  - b", {
+    before: '<button id="before">before</button><button id="off-before" disabled tabindex="0">off</button>',
+    after: '<button id="off-after" disabled tabindex="0">off</button><button id="after">after</button>',
+  });
+  for (const [backward, key, expected] of [[false, "Tab", "after"], [true, "Shift+Tab", "before"]] as const) {
+    await call("place", 8);
+    await frame.press("#f", key);
+    expect(await focused()).toBe(expected);
+    await call("place", 8);
+    await moveFocus(backward);
+    expect(await focused()).toBe(expected);
+  }
 });
