@@ -99,7 +99,7 @@ for (const host of ["overview", "sidebar"] as const) {
     const frame = await dom.load("<main></main>");
     frame.page().setDefaultTimeout(4_000);
     await frame.addScriptTag({ content: script });
-    await frame.evaluate(([host, kind]) => (window as unknown as { mountRecovery(host: string, kind: string): void }).mountRecovery(host, kind), [host, kind]);
+    await frame.evaluate(({ host, kind }) => (window as unknown as { mountRecovery(host: string, kind: string): void }).mountRecovery(host, kind), { host, kind });
     await frame.getByRole("button", { name: "Worktree: main" }).press("ArrowDown");
     const current = frame.getByRole("menuitem", { name: /main/ });
     const problem = frame.getByRole("menuitem", { name: new RegExp(label) });

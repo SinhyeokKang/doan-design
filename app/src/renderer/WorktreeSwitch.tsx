@@ -52,7 +52,8 @@ export function WorktreeSwitch({ model, reason, tabIndex, sidebar = false, onWor
       onCloseAutoFocus={event => { if (handOff.current) { event.preventDefault(); handOff.current = false; } else onCloseAutoFocus(event); }}>
       <DropdownMenu.Label id={heading} className="doan-menu-head">Worktrees</DropdownMenu.Label>
       {model.rows.map(row => {
-        return <DropdownMenu.Item key={row.root} className="doan-menu-item shell-worktree" aria-current={row.current ? "true" : undefined}
+        const marked = repair ? row.root === repair.root : row.current;
+        return <DropdownMenu.Item key={row.root} className="doan-menu-item shell-worktree" aria-current={marked ? "true" : undefined}
           aria-disabled={row.state.kind === "disabled" || undefined} onSelect={event => {
             if (row.state.kind === "disabled") {
               event.preventDefault();
@@ -69,7 +70,7 @@ export function WorktreeSwitch({ model, reason, tabIndex, sidebar = false, onWor
           <GitBranch aria-hidden="true" /><span><span>{row.label}</span><small>{row.path}</small>
             {row.state.kind === "disabled" && !row.chip && <small className="shell-menu-reason">{row.state.reason}</small>}</span>
           {row.chip && <span className={chipClass(row.chip)}>{row.chip}</span>}
-          {row.current && <Check aria-hidden="true" />}
+          {marked && <Check aria-hidden="true" />}
         </DropdownMenu.Item>;
       })}
       {recovery && repair?.state.kind === "repair" && <>
