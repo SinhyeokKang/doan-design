@@ -213,19 +213,21 @@ test("Control+Enter sends the message rows now and leaves a command row queued",
 const LIST_ROWS = [
   { id: "q1", text: "/compact", message: { text: "- /compact", attachments: [] } },
   { id: "q2", text: "/compact", message: { text: "/compact", attachments: [] } },
+  // A project skill named like a command: main sends it as a message (its request starts with the skill line).
+  { id: "q3", text: "/compact", message: { text: "Use the project skill `compact`.\n\n/compact", attachments: [] } },
 ];
-test("a list item that reads like a command keeps Send now; the real command has none", () => {
+test("a list item or a skill that reads like a command keeps Send now; the real command has none", () => {
   const { render } = setup({ turn: "running", sendNow: true, onSendQueuedNow: async () => {}, queued: LIST_ROWS });
   const sendNow = render(true).filter(props => props.className === "doan-button queue-send");
-  expect(sendNow.map(props => props["aria-describedby"])).toEqual(["id-0"]);
+  expect(sendNow.map(props => props["aria-describedby"])).toEqual(["id-0", "id-2"]);
 });
-test("Control+Enter sends a list item that reads like a command and leaves the real command queued", async () => {
+test("Control+Enter sends a list item or a skill that reads like a command and leaves the real command queued", async () => {
   vi.stubGlobal("document", { body: {}, activeElement: null });
   const onSendQueuedNow = vi.fn(async () => {});
   const { render } = setup({ turn: "running", sendNow: true, onSendQueuedNow, queued: LIST_ROWS });
   (input(render(true)).onSteerKey as () => void)();
   await flush();
-  expect(onSendQueuedNow.mock.calls.map(call => (call as unknown[])[0])).toEqual(["q1"]);
+  expect(onSendQueuedNow.mock.calls.map(call => (call as unknown[])[0])).toEqual(["q1", "q3"]);
 });
 
 const runEffects = () => { for (const effect of [...hooks.effects]) effect(); };

@@ -13,7 +13,6 @@ import { ContextRing, type RingUsage } from "./ContextRing";
 import type { ContextUsage } from "./contextWindow";
 import { distinctTargets, plainText, typedText } from "./anchorField";
 import { LIMITS } from "../main/conversation/messageText";
-import { stripRequestLines } from "../main/conversation/requestLines";
 import {
   AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, PermissionPicker, PresetsButton,
   SendButton, SlashPresets, TriggerLabel, useComposerDrop, usePresetListOutside, type CanvasPress, type ComposerFieldHandle,
@@ -623,10 +622,11 @@ export interface QueueRowsHandle {
 
 // command: main sends it alone and takes no Send now for it (a provider command is never steered into a turn).
 export interface QueuedRow { id: string; text: string; message?: { text?: string; attachments: readonly SentFile[] }; command?: boolean }
-// A row's text is for reading (list markers dropped), so `- /compact` would read as a command there; whether a row is
-// a command comes from the request it sends.
+// A row's text is for reading (list markers and request lines dropped), so `- /compact`, or a project skill named
+// like a command ("Use the project skill `compact`.\n\n/compact"), would read as a command there. main decides from
+// the request as sent (service flush), so the row does too.
 function queuedRequest(item: QueuedRow): string {
-  return item.message?.text === undefined ? item.text : stripRequestLines(item.message.text);
+  return item.message?.text ?? item.text;
 }
 export interface QueueRowsProps {
   handle?: MutableRefObject<QueueRowsHandle | null>;
