@@ -1632,7 +1632,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     else if (name === "setUp") { rememberFocus(); setupSeq.current = rerootSeq.current; setSetup(root); }
     else if (name === "remove") void remove([root]);
     else if (name === "showInFinder") void window.doan.revealProject(root).catch(console.error);
-    else if (name === "retry") void window.doan.reopenFolder(root).catch(console.error).finally(() => settled?.());
+    else if (name === "retry") return window.doan.reopenFolder(root).catch(console.error).finally(() => settled?.());
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- keeps a new RowAction from falling into the locate branch
     else if (name === "locate") {
       const workspace = loadedRoot === root && currentScreen.current === "workspace";
@@ -1946,7 +1946,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     // 1): every registered worktree of the group, not only the open one.
     if (name === "remove") { void removeProject([root]); return; }
     if (name === "retry" || name === "locate" || name === "setUp") setPressed({ root, name });
-    action(name, root, undefined, () => pressEnded(root, name));
+    void action(name, root, undefined, () => pressEnded(root, name));
   };
   // The polite live region's text: the heading, when a scene shows or comes back from a read without taking focus.
   // Alternating a trailing no-break space makes the same heading read again.
@@ -2599,7 +2599,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     mcp={{ watch: mcpWatch.current, openAgents: provider => openSettings({ section: "agents", provider }) }} announcement={settingsAnnouncement} />}
   {onProjectSettings && <ProjectSettingsPage key={projectSettings.key} header={topBar(true)} sidebar={sidebar(true)} root={projectSettings.root} entries={entries} reroot={reroot}
     origin={page.origin} homeDirectory={homeDirectory} arrival={projectSettings.arrival} onState={projectSettingsReport} onGone={() => leavePage({ kind: "gone" })}
-    onRerooted={projectSettingsRerooted} onAction={(name, root, notice) => action(name, root, notice)}
+    onRerooted={projectSettingsRerooted} onAction={(name, root, notice) => void action(name, root, notice)}
     onRemove={() => void removeProject([projectSettings.root])} />}
   {onPage && <AddProjectsPage key={page.seq} header={topBar(true)} sidebar={sidebar(true)} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)} choose={page.chooseSeq} onState={pageReport} onCancel={() => leavePage({ kind: "cancel" })} onAdded={pageAdded} />}
