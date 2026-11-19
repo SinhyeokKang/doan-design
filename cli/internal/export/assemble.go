@@ -22,8 +22,9 @@ var viewerFS embed.FS
 // header, the CSS-only iframe width, and the JSON shell.js reads all come from
 // these two values.
 type Meta struct {
-	Name  string // file stem
-	Width int    // doan:width
+	Project string // project folder name (canvas viewer only)
+	Name    string // file stem
+	Width   int    // doan:width
 }
 
 var byteOrderMark = []byte("\xef\xbb\xbf")
@@ -64,8 +65,11 @@ func Assemble(m Meta, canvasHTML []byte) ([]byte, error) {
 	srcdoc := [][]byte{canvas[:at], []byte(measureScript), canvas[at:]}
 
 	values := map[string]string{
-		"{{NAME}}":  html.EscapeString(m.Name),
-		"{{WIDTH}}": strconv.Itoa(m.Width),
+		"{{NAME}}":    html.EscapeString(m.Name),
+		"{{WIDTH}}":   strconv.Itoa(m.Width),
+		"{{PROJECT}}": html.EscapeString(m.Project),
+		"{{INITIAL}}": html.EscapeString(projectInitial(m.Project)),
+		"{{HUE}}":     projectHue(m.Project),
 		// json.Marshal writes every "<" as <, so the value can neither end the
 		// script element nor open an HTML comment.
 		"{{META}}":   string(meta),
@@ -179,7 +183,7 @@ func fillPage(shell string, values map[string]string, srcdoc [][]byte) []byte {
 
 const srcdocKey = "{{SRCDOC}}"
 
-var placeholders = []string{"{{NAME}}", "{{WIDTH}}", "{{META}}", "{{STYLE}}", "{{SCRIPT}}", srcdocKey}
+var placeholders = []string{"{{PROJECT}}", "{{INITIAL}}", "{{HUE}}", "{{NAME}}", "{{WIDTH}}", "{{META}}", "{{STYLE}}", "{{SCRIPT}}", srcdocKey}
 
 // fillShell walks shell once, passing the text between placeholders to text
 // and each placeholder to value. Like a strings.Replacer, it never looks at
