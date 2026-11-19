@@ -8,7 +8,7 @@ let script: string;
 
 beforeAll(async () => {
   const entry = fileURLToPath(new URL("./worktree-probe.tsx", import.meta.url));
-  const result = await build({ configFile: false, logLevel: "silent", define: { "process.env.NODE_ENV": JSON.stringify("development") }, plugins: [{
+  const result = await build({ configFile: false, logLevel: "silent", define: { __DOAN_BUILD_YEAR__: JSON.stringify(new Date().getFullYear()), "process.env.NODE_ENV": JSON.stringify("development") }, plugins: [{
     name: "worktree-probe",
     resolveId(id) { if (id === entry) return entry; },
     load(id) {
@@ -18,15 +18,16 @@ beforeAll(async () => {
         import { WorktreeSwitch } from "./WorktreeSwitch";
         import { TooltipProvider } from "./components/ui/tooltip";
         import { headerRowState, worktreeSwitchModel } from "./worktreeSwitchModel";
+        import { mountCanvas, mountRecovery } from "./WorktreeSwitch.dom.fixture";
         const main = { path: "/code/demo", kind: "list", git: { branch: "main" }, canvases: [{path: "a.html"}] };
         const root = createRoot(document.querySelector("main"));
-        window.draw = (ready, reason, problem) => {
+        window.mountCanvas = () => { window.pick = mountCanvas(root); };
+        window.mountRecovery = (host, kind) => mountRecovery(root, host, kind);
+        window.draw = (ready, reason) => {
           const other = ready ? {...main, path: "/code/next", git: {branch: "next"}, canvases: ready === "gone" ? [] : main.canvases} : {kind: "loading", path: "/code/next"};
-          const rows = [main, problem ? {kind: problem, path: other.path} : other];
-          const model = worktreeSwitchModel(rows, main.path, "/code", problem ? undefined : row => headerRowState(row, "a.html"));
+          const model = worktreeSwitchModel([main, other], main.path, "/code", row => headerRowState(row, "a.html"));
           root.render(<TooltipProvider><div onKeyDown={() => document.body.dataset.key = "bubbled"} onClick={() => document.body.dataset.click = "bubbled"}>
-            <WorktreeSwitch model={model} reason={reason} tabIndex={0} onWorktree={root => document.body.dataset.moved = root}
-              recovery={{action: (name, root) => document.body.dataset.action = name + root, projectSettings: () => {}}} />
+            <WorktreeSwitch model={model} reason={reason} sidebar tabIndex={0} onWorktree={root => document.body.dataset.moved = root} />
           </div></TooltipProvider>);
         };
         window.draw(false, null);
@@ -50,7 +51,6 @@ test("a reading row becomes selectable under the same focus, and reselecting the
   await next.press("Enter");
   expect(await next.isVisible()).toBe(true);
   await frame.evaluate(() => (window as unknown as { draw(ready: boolean, reason: null): void }).draw(true, null));
-  await next.locator("small").waitFor();
   await expect.poll(() => next.getAttribute("aria-disabled")).toBeNull();
   expect(await next.evaluate(node => document.activeElement === node)).toBe(true);
   await frame.getByRole("menuitem", { name: /main/ }).click();
@@ -61,21 +61,63 @@ test("a reading row becomes selectable under the same focus, and reselecting the
   expect(await frame.locator("body").getAttribute("data-moved")).toBe("/code/next");
 });
 
-test.each([["cliError", "CLI error"], ["error", "Config error"]] as const)("a %s row shows its status, repair icons and actions for its root", async (kind, label) => {
+async function canvas() {
   const frame = await dom.load("<main></main>");
   frame.page().setDefaultTimeout(4_000);
   await frame.addScriptTag({ content: script });
-  await frame.evaluate(kind => (window as unknown as { draw(ready: boolean, reason: null, problem: string): void }).draw(false, null, kind), kind);
+  await frame.evaluate(() => (window as unknown as { mountCanvas(): void }).mountCanvas());
+  return frame;
+}
+
+test("choosing a worktree from the canvas header with the keyboard returns focus to its trigger", async () => {
+  const frame = await canvas();
   await frame.getByRole("button", { name: "Worktree: main" }).press("ArrowDown");
-  await frame.getByRole("menuitem", { name: new RegExp(label) }).click();
-  expect(await frame.getByRole("menuitem", { name: /main/ }).getAttribute("aria-current")).toBe("true");
-  for (const [name, icon] of [["Retry", "rotate-cw"], ["Details", "info"]] as const) {
-    const action = frame.getByRole("menuitem", { name, exact: true });
-    expect(await action.locator(`svg.lucide-${icon}`).getAttribute("aria-hidden")).toBe("true");
-    await action.press("Enter");
-    expect(await frame.locator("body").getAttribute("data-action")).toBe(name.toLowerCase() + "/code/next");
-  }
+  await frame.getByRole("menuitem", { name: /next/ }).press("Enter");
+  const trigger = frame.getByRole("button", { name: "Worktree: next" });
+  await trigger.waitFor();
+  await expect.poll(() => trigger.evaluate(node => document.activeElement === node)).toBe(true);
 });
+
+test("Escape cancels a pick while the canvas worktree trigger has focus", async () => {
+  const frame = await canvas();
+  const trigger = frame.getByRole("button", { name: "Worktree: main" });
+  await trigger.focus();
+  expect(await frame.evaluate(() => (window as unknown as { pick(): boolean }).pick())).toBe(true);
+  await trigger.press("Escape");
+  expect(await frame.locator("body").getAttribute("data-picking")).toBe("false");
+});
+
+test("H switches tools while the canvas worktree trigger has focus", async () => {
+  const frame = await canvas();
+  const trigger = frame.getByRole("button", { name: "Worktree: main" });
+  await trigger.press("h");
+  expect(await frame.locator("body").getAttribute("data-tool")).toBe("hand");
+});
+
+for (const host of ["overview", "sidebar"] as const) {
+  test.each([["cliError", "CLI error", "warn"], ["error", "Config error", "err"]] as const)(host + " routes the %s row's repair actions to its root", async (kind, label, tone) => {
+    const frame = await dom.load("<main></main>");
+    frame.page().setDefaultTimeout(4_000);
+    await frame.addScriptTag({ content: script });
+    await frame.evaluate(([host, kind]) => (window as unknown as { mountRecovery(host: string, kind: string): void }).mountRecovery(host, kind), [host, kind]);
+    await frame.getByRole("button", { name: "Worktree: main" }).press("ArrowDown");
+    const current = frame.getByRole("menuitem", { name: /main/ });
+    const problem = frame.getByRole("menuitem", { name: new RegExp(label) });
+    await problem.click();
+    expect(await problem.getByText(label, { exact: true }).evaluate((node, tone) => node.matches(".ob-chip." + tone), tone)).toBe(true);
+    expect(await problem.locator(".shell-problem").count()).toBe(0);
+    expect.soft(await current.getAttribute("aria-current")).toBeNull();
+    expect.soft(await current.locator(".lucide-check").count()).toBe(0);
+    expect.soft(await problem.getAttribute("aria-current")).toBe("true");
+    expect.soft(await problem.locator(".lucide-check").count()).toBe(1);
+    for (const [name, icon] of [["Retry", "rotate-cw"], ["Details", "info"]] as const) {
+      const action = frame.getByRole("menuitem", { name, exact: true });
+      expect(await action.locator(`svg.lucide-${icon}`).getAttribute("aria-hidden")).toBe("true");
+      await action.press("Enter");
+      expect(await frame.locator("body").getAttribute("data-action")).toBe(name.toLowerCase() + "/code/next");
+    }
+  });
+}
 
 test("the sidebar switch keeps clicks, disclosure and typeahead out of the tree and explains a lock", async () => {
   const frame = await dom.load("<main></main>");
