@@ -68,4 +68,13 @@
   - `bubble-open` — inspector 열림: 버블에 Show inspector 없음, 오른쪽에 inspector 열.
   - `bubble-edge` — 선택이 보드 아래 가장자리에 있어 버블이 위로 뒤집힘(버튼이 하나 늘어난 폭).
   - 그대로 베끼는 출하 화면: 캔버스 페이지와 버블 `docs/design/prototype.md` 'Size bubble with Play'·'Bubble placement', `docs/design/canvas.md` 'Canvas inspector', 코드 `CanvasController.ts`, `BubbleAdd.tsx`, `InspectorPanel.tsx`.
-- (A) 뷰어 초안 `.doan/canvases/inspector-reach-viewer.html`은 PoC 뒤에 요청한다(tasks 7).
+- (A) 캔버스: `.doan/canvases/inspector-reach-viewer.html`, id `inspector-reach-viewer`, `doan:width` 1600. 새 파일이다. PoC보다 먼저 그리고(2026-11-19 사용자 결정), PoC 결과로 바뀌면 `--revise`로 고친다.
+  - `viewer-folded` — inspector 접힘: 지금 뷰어 그대로에 헤더의 Show inspector만 더함.
+  - `viewer-open-empty` — inspector 열림, 선택 없음: 빈 상태 문구(요소를 누르면 값이 나오고 Option-click은 캔버스로 간다는 안내).
+  - `viewer-selected` — 요소 선택과 다른 요소 hover, inspector 열에 값(변수 이름·출처), element menu 트리거.
+  - `viewer-element-menu` — element menu(요소 트리)가 열린 상태.
+  - `viewer-external-row` — 외부 스타일시트에서 온 값의 행(읽지 못함 표시)이 섞인 inspector.
+  - `viewer-copy-status` — 행을 눌러 복사한 뒤 상태 줄(성공, 실패 두 타일).
+  - `viewer-text-select` — inspector가 열린 Select에서 캔버스 텍스트를 드래그해 고른 상태.
+  - `viewer-yield` — 좁은 브라우저 창: inspector가 물러나고 Show inspector가 이유와 함께 비활성.
+  - 그대로 베끼는 출하 화면: export 뷰어 `docs/design/canvas.md` 'Canvas row menu and export viewer'와 `cli/internal/export/viewer/shell.html`·`shell.css`(초안 `.doan/canvases/export-viewer-chrome.html`은 고치지 않는다), inspector 열 `docs/design/canvas.md` 'Canvas inspector'와 `InspectorPanel.tsx`.

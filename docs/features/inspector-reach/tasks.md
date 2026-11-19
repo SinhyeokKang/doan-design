@@ -24,7 +24,7 @@
 6. **PoC**: `.scratch/inspector-reach/`에서 design.md 'PoC 의존'의 다섯 항목을 확인한다. 통과 기준은 fixture 캔버스들에서 CSSOM 경로와 CDP 경로의 `inspectRows` 출력이 같은 것이다. 결과는 design.md에 적는다. 일부만 같거나 WebKit이 규칙을 읽지 못하면 계산된 값으로 물러설지(행 단위인지 전체인지) 사용자에게 묻는다.
    - 확인: command undecided — needs user confirmation (예: `node .scratch/inspector-reach/probe.mjs`를 정해 사용자 승인을 받는다).
    - ── 커밋 경계 (`docs(feature):` PoC 결과) ──
-7. **디자인 초안**: `/design-draft`로 export 뷰어의 Show inspector, inspector 열(빈 상태, 값, 외부 시트 행, 복사 상태 줄, element menu), 선택·hover, yield를 새 파일 `.doan/canvases/inspector-reach-viewer.html`에 그린다(`.doan/canvases/export-viewer-chrome.html`은 고치지 않는다).
+7. **디자인 초안**(PoC 전에 먼저 그려 두었다. PoC 결과로 바뀌면 `--revise`): `/design-draft`로 export 뷰어의 Show inspector, inspector 열(빈 상태, 값, 외부 시트 행, 복사 상태 줄, element menu), 선택·hover, yield를 새 파일 `.doan/canvases/inspector-reach-viewer.html`에 그린다(`.doan/canvases/export-viewer-chrome.html`은 고치지 않는다).
    - 확인: `doan check` 통과(`.doan/canvases/inspector-reach-viewer.html`), 사용자 확인.
    - ── 커밋 경계 (`docs(design):` 초안) ──
 8. **생성 스크립트와 순수 함수**: TS 소스에서 `viewer/inspect.js`를 만드는 스크립트(`--check` 포함), `cssomMatched`, shell 메시지 검증.
