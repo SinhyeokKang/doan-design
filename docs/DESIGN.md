@@ -255,6 +255,7 @@ Each screen's measured values, documented differences and Not verified list are 
 | Terminal work in another worktree | [design/canvas.md](design/canvas.md) |
 | Permission mode picker | [design/canvas-conversation.md](design/canvas-conversation.md) |
 | Picker default labels | [design/canvas-conversation.md](design/canvas-conversation.md) |
+| Composer field lists | [design/canvas-conversation.md](design/canvas-conversation.md) |
 | Canvas text range | [design/canvas.md](design/canvas.md) |
 | Canvas inspector | [design/canvas.md](design/canvas.md) |
 | Canvas distance measurement | [design/canvas.md](design/canvas.md) |
@@ -268,6 +269,7 @@ Each screen's measured values, documented differences and Not verified list are 
 | Agent question card | [design/conversation.md](design/conversation.md) |
 | Canvas handoff | [design/conversation.md](design/conversation.md) |
 | Fast switch | [design/conversation.md](design/conversation.md) |
+| Sent bubble lists | [design/conversation.md](design/conversation.md) |
 | Turn indicator | [design/conversation.md](design/conversation.md) |
 | Older model disclosure | [design/conversation.md](design/conversation.md) |
 | Project skill drawer | [design/conversation.md](design/conversation.md) |
