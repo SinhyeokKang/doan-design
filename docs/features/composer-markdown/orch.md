@@ -23,6 +23,9 @@
 - B 측정: Electron 45에서 contenteditable의 Ctrl+Tab은 스스로 포커스를 옮기지 않는다. 그래서 `ComposerField`가 직접 옮긴다(`moveFocus`). 실제 앱의 포커스 순서는 `/runtime-test`에서 확인한다.
 - B: 조합 중 Shift+Enter·Tab은 하나만 보류하고 compositionend 뒤에 처리한다. macOS가 키를 다시 보내는 시점에 기대므로 사용자의 실제 IME 확인이 필요하다.
 - C의 버블 CSS 보류 항목과 C-rev 고칠 점은 C-rev가 끝난 뒤 한 번에 C에 보낸다(C는 먼저 `feat/composer-markdown`으로 rebase한다).
+- C-rev(🔴1 🟡3, `.scratch/review-C.md`): 🔴 `- /compact` 목록 메시지가 표시 문구 때문에 명령으로 분류된다. 🟡1·2 Overview 큐 행·임시 제목에 기호가 남는다. 🟡3 실제 선택 복사 검증 범위가 좁다. C 2차에서 고친다.
+  - 리뷰어의 사용자 결정 항목(칩이 든 메시지의 복사 기준): conductor 재량 — spec 9의 "보낸 원문과 같다"는 목록 기호와 깊이 공백에 대한 말이다. 칩은 지금처럼 이름으로 보이고 복사된다. 승격 때 이 기준을 문장으로 분명히 쓴다.
+- `styles.css` 소유: B 통합 뒤 C 2차(버블 CSS)로 넘겼다. B-rev 고칠 점에 `styles.css`가 있으면 C 2차가 끝난 뒤 보낸다.
 - `/runtime-test`(tasks 9)와 최종 `/verify`(tasks 10), 승격(tasks 11)은 conductor가 한다. IME 확인에 사용자가 필요하고, 승격은 문서 커밋이다.
 
 ## Codex 사용
@@ -39,7 +42,7 @@
 | B | tasks 5 | `chipField.ts`(+test), `ComposerParts.tsx`(+test), `styles.css`, 네 composer 공유 고정 테스트 | A | Opus high — contenteditable 캐럿·undo·IME 조합, PoC 5가지 처리 | test, typecheck, lint | 통합 `d35bf1952`·`e285dc591`(통합 HEAD 관련 테스트 29 files / 725 PASS) |
 | B-rev | B 리뷰 | 없음 | B | Codex Astra high — 여러 컴포넌트에 걸친 입력 처리, 실수하면 입력이 깨진다 | `/code-review` 보고 | 진행 (`gpt-6.2-astra` high, `cm-b`에서) |
 | C | tasks 6, 7 | `homeComposer.ts`(`composeRequest`), `messageText.ts`(`messageLine` 연결), `ConversationThread.tsx`(`UserMessage`)와 테스트, 큐·초안 복원 테스트(프로토타입 포함). 버블 CSS는 보류 항목 | A | Opus medium — 명세가 구체적이고 영향 범위가 B보다 좁다 | test, typecheck, lint | 통합 `79e67ad86`·`1be729481`(통합 HEAD 관련 테스트 23 files / 762 PASS). 버블 CSS 보류 |
-| C-rev | C 리뷰 | 없음 | C | Codex Astra medium — 교차 계열 독립 리뷰 | `/code-review` 보고 | 진행 (`cm-c`에서) |
+| C-rev | C 리뷰 | 없음 | C | Codex Astra medium — 교차 계열 독립 리뷰 | `/code-review` 보고 | 1차 🔴1 🟡3 → C 2차(고침 + 버블 CSS) 진행 |
 | D | tasks 8 | `styles.css` 측정 수정, `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, 회귀 테스트 | B, C 통합 | Opus medium — 측정 절차가 정해진 작업 | `/design-sync` 기록 | 대기 |
 | conductor | tasks 9, 10, 11 | BACKLOG, PRODUCT, ARCHITECTURE, DESIGN 색인, feature 디렉터리 삭제 | D | — | `/runtime-test`, verify, grep | 대기 |
 
