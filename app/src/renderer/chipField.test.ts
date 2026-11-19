@@ -7,7 +7,7 @@ import { textSegments } from "./anchorField";
 function field() {
   const value = Object.create(ChipField.prototype);
   Object.assign(value, { segments: textSegments("/deploy"), names: new Set(["deploy"]), composingNow: false,
-    compositionRepairPending: false, hooks: { skillNames: () => new Set(["deploy"]) }, repair: vi.fn(), reset: vi.fn(), announced: [], held: [] });
+    compositionRepairPending: false, hooks: { skillNames: () => new Set(["deploy"]) }, repair: vi.fn(), reset: vi.fn(), announced: [] });
   return value;
 }
 test("equal segments and equal skill names from a new Set do not redraw", () => {

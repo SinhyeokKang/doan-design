@@ -44,7 +44,8 @@ export interface ChipFieldHooks {
 }
 
 interface Selection { anchor: number; focus: number }
-interface HeldKey { kind: "break" | "indent"; dir: 1 | -1; done: boolean; released: boolean }
+// A Shift+Enter or Tab pressed while a composition was open.
+type Press = { kind: "break" } | { kind: "indent"; dir: 1 | -1 };
 interface Step { segments: FieldSegment[]; before: Selection; after: Selection; kind: string; at: number }
 // A <br> is never a unit: line breaks live in text as "\n". The field draws one only to show a trailing empty line, and
 // Chromium adds its own when an edit leaves a line holding nothing but a chip; neither is read.
@@ -72,9 +73,8 @@ export class ChipField {
   private names: ReadonlySet<string> = new Set();
   private compositionRepairPending = false;
   private pending: Anchor[] = [];
-  // Shift+Enter and Tab presses that came while a composition was open, in order, one entry per physical press: each is
-  // done once the composition ends and kept until its key is released, so the same press sent again is recognised.
-  private held: HeldKey[] = [];
+  // The Shift+Enter or Tab press that ended the open composition, until the same key comes again as an ordinary key.
+  private press: Press | null = null;
   private compositionTimer: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
   private selection: Selection = { anchor: 0, focus: 0 };
@@ -95,7 +95,6 @@ export class ChipField {
     // main's Edit > Undo and Redo look for this mark on the focused element (app/src/main/index.ts editHistory).
     el.setAttribute("data-chip-field", "");
     on("keydown", event => this.onKeyDown(event));
-    on("keyup", event => this.release(event));
     on("beforeinput", event => this.onBeforeInput(event));
     on("input", () => this.onInput());
     on("compositionstart", () => this.onCompositionStart());
@@ -109,20 +108,19 @@ export class ChipField {
     // A focus from the keyboard or from code (App and Overview call focus() on the element) puts the caret back where
     // it was; a click places its own caret.
     on("focus", () => { if (!this.pointer) this.placeCaret(this.selection); this.pointer = false; });
-    // Focus leaving takes the keys' releases elsewhere: a done press can no longer be told from a new one.
-    on("blur", () => { this.pointer = false; this.held = this.held.filter(entry => !entry.done).map(entry => ({ ...entry, released: true })); });
+    on("blur", () => { this.pointer = false; });
     const selectionChange = () => this.onSelectionChange();
     document.addEventListener("selectionchange", selectionChange);
     this.cleanups.push(() => document.removeEventListener("selectionchange", selectionChange));
     this.reset(normalize(initial));
   }
 
-  // A held key's deferred run must not reach the host's draft after the field is gone.
+  // The deferred run after compositionend must not reach the host's draft once the field is gone.
   dispose(): void {
     for (const cleanup of this.cleanups) cleanup();
     this.el.removeAttribute("data-chip-field");
     this.disposed = true;
-    this.held = [];
+    this.press = null;
     clearTimeout(this.compositionTimer);
   }
 
@@ -181,7 +179,7 @@ export class ChipField {
   private reset(segments: FieldSegment[]): void {
     this.names = this.highlightNames();
     this.pending = [];
-    this.held = [];
+    this.press = null;
     this.groupBefore = null;
     this.render(segments);
     const end = { anchor: unitLength(segments), focus: unitLength(segments) };
@@ -243,22 +241,16 @@ export class ChipField {
   }
 
   // Tab (1) or Shift+Tab (-1) on a list item, as one undo step; false when the caret is not on an item that can move,
-  // so the key moves focus as usual. During a composition only the answer is read; the move waits for it to end.
+  // so the key moves focus as usual. A Tab that ends a composition only keeps focus in the field: the move comes with
+  // the same key sent again once the composition has ended (see onCompositionEnd).
   indent(dir: 1 | -1): boolean {
     if (this.readOnly()) return false;
-    const { anchor, focus } = this.readSelection();
-    if (anchor !== focus) return false;
-    if (this.composingNow) {
-      if (!this.pressing("indent") && !indentItem(this.read(), focus, dir)) return false;
-      this.hold("indent", dir);
-      return true;
-    }
-    if (this.resent("indent")) return true;
+    if (this.composingNow) { this.press = { kind: "indent", dir }; return true; }
+    this.press = null;
     return this.moveItem(dir);
   }
 
   private moveItem(dir: 1 | -1): boolean {
-    if (this.readOnly()) return false;
     const { anchor, focus } = this.readSelection();
     if (anchor !== focus) return false;
     const edit = indentItem(this.segments, focus, dir);
@@ -327,6 +319,7 @@ export class ChipField {
 
   private onKeyDown(event: KeyboardEvent): void {
     if (this.discarding && event.keyCode !== 229) this.discarding = false;
+    if (this.composingNow && event.key === "Enter" && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) this.press = { kind: "break" };
     // keyCode 229 is the IME's own key; the composition owns it.
     if (event.isComposing || event.keyCode === 229 || this.composingNow) return;
     if (event.metaKey && !event.ctrlKey && !event.altKey && event.key.toLowerCase() === "z") {
@@ -383,11 +376,11 @@ export class ChipField {
     }
     if (this.discarding && !type.startsWith("insertComposition")) this.discarding = false;
     const lineBreak = type === "insertParagraph" || type === "insertLineBreak";
-    // Only Shift+Enter is held: an Enter that reaches here mid-composition is followed by its own send key.
-    if (type === "insertLineBreak" && this.composingNow) { event.preventDefault(); this.hold("break", 1); return; }
+    // No model edit during a composition (macOS sends none here; an input method that did would get it after the end).
+    if (type === "insertLineBreak" && this.composingNow) { event.preventDefault(); this.press = { kind: "break" }; return; }
     if (this.composingNow || type.startsWith("insertComposition")) return;
     if (type.startsWith("format")) { event.preventDefault(); return; }
-    if (lineBreak) { event.preventDefault(); if (type !== "insertLineBreak" || !this.resent("break")) this.lineBreak(); return; }
+    if (lineBreak) { event.preventDefault(); if (type === "insertLineBreak") this.press = null; this.lineBreak(); return; }
     if (type === "deleteContentBackward") {
       const { anchor, focus } = this.readSelection();
       const edit = anchor === focus ? removeMarker(this.segments, focus) : null;
@@ -512,46 +505,20 @@ export class ChipField {
     this.sync();
     this.compositionTimer = setTimeout(() => {
       if (this.disposed) return;
-      this.compositionRepairPending = false; this.repair(); this.flushPending(); this.flushHeld();
+      this.compositionRepairPending = false; this.repair(); this.flushPending(); this.flushPress();
     }, 0);
   }
 
-  // ── keys held through a composition ──────────────────────────────────────────────────────────────────────────
-  // macOS input methods may deliver a press made during a composition again once it ends, as an ordinary key, before or
-  // after the deferred run above. A press is one entry until its keyup: the same key arriving again before that is the
-  // same press, so each press acts once and presses of different keys act in the order made.
-
-  private pressing(kind: HeldKey["kind"]): boolean { return this.held.some(entry => entry.kind === kind && !entry.released); }
-
-  private hold(kind: HeldKey["kind"], dir: 1 | -1): void {
-    if (!this.pressing(kind)) this.held.push({ kind, dir, done: false, released: false });
-  }
-
-  // An ordinary Shift+Enter or Tab while that key's held press is down: the press sent again. It runs the held keys now
-  // when the deferred run has not, and does nothing of its own.
-  private resent(kind: HeldKey["kind"]): boolean {
-    if (!this.pressing(kind)) return false;
-    this.flushHeld();
-    return true;
-  }
-
-  private flushHeld(): void {
-    if (this.composingNow || this.held.length === 0) return;
-    // A field the host locked meanwhile takes no held edit.
-    if (this.readOnly()) { this.held = []; return; }
-    for (const entry of this.held) {
-      if (entry.done) continue;
-      entry.done = true;
-      if (entry.kind === "break") this.lineBreak(); else this.moveItem(entry.dir);
-    }
-    this.held = this.held.filter(entry => !entry.released);
-  }
-
-  private release(event: KeyboardEvent): void {
-    const kind = event.key === "Enter" || event.code === "Enter" || event.code === "NumpadEnter" ? "break" : event.key === "Tab" || event.code === "Tab" ? "indent" : null;
-    if (!kind) return;
-    this.held = this.held.filter(entry => entry.kind !== kind || !entry.done);
-    for (const entry of this.held) if (entry.kind === kind) entry.released = true;
+  // A Shift+Enter or Tab that ends a Korean composition on macOS (Electron 45): keydown (keyCode 229, composing), the
+  // syllable's commit and compositionend, an immediate keyup, then the same key again as an ordinary keydown (with its
+  // insertLineBreak) in the same task, before the timer above. That second key does the edit, after compositionend's
+  // sync put the syllable in the segments, and clears `press`. An input method that does not send the key again leaves
+  // `press` for the timer, which does the edit once.
+  private flushPress(): void {
+    const press = this.press;
+    this.press = null;
+    if (!press || this.composingNow || this.readOnly()) return;
+    if (press.kind === "break") this.lineBreak(); else this.moveItem(press.dir);
   }
 
   // Browser edits keep the DOM drawn as render() would draw it: a chip that an edit leaves at a line's start gets its
