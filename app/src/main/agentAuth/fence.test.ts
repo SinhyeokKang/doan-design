@@ -23,7 +23,7 @@ const agent = (dirs: number, files: number, pattern = "", home = false) => `(den
 ${home ? '(deny file-write* (subpath (param "HOME_STORE_1")) (subpath (param "HOME_STORE_2")) (subpath (param "HOME_STORE_3")) (subpath (param "HOME_STORE_4")))\n' : ""}(allow file-write*${Array.from({ length: dirs }, (_, i) => ` (subpath (param "AGENT_DIR_${i + 1}"))`).join("")}${Array.from({ length: files }, (_, i) => ` (prefix (param "AGENT_FILE_${i + 1}"))`).join("")})
 ${pattern ? `(allow file-write* (require-all (subpath (param "AGENT_FOLDER")) (regex #"${pattern}")))
 ` : ""}`;
-const CLAUDE = agent(15, 6), CODEX = agent(8, 6, "\\.sqlite[^/]*$"), COPILOT = agent(3, 3, "", true), CURSOR = agent(2, 3, "", true), GEMINI = agent(3, 2, "/config/[0-9a-f-]+\\.(db|meta)[^/]*$", true);
+const CLAUDE = agent(14, 6), CODEX = agent(8, 6, "\\.sqlite[^/]*$"), COPILOT = agent(3, 3, "", true), CURSOR = agent(2, 3, "", true), GEMINI = agent(3, 2, "/config/[0-9a-f-]+\\.(db|meta)[^/]*$", true);
 
 const U = "/Users/ada/Library/Application Support/doan";
 const P = `${U}/agent-auth/profiles/claude`;
@@ -274,9 +274,9 @@ describe("codexProfileArgs", () => {
     const text = codexProfileArgs(codex, denied, sock).join(" ");
     for (const file of ["config.toml", "hooks.json", "managed_config.toml", ".env", "rules"]) expect(text).toContain(`"${profile}/${file}"="deny"`);
   });
-  // Sandboxed commands write nothing in the profile: Codex writes its rollouts, databases and caches from its own
-  // process, outside the command sandbox, and creates the arg0 aliases it puts on PATH (tmp/arg0) there too (codex-cli
-  // 0.169.0 probe: a turn's commands, apply_patch included, ran and the rollout was recorded). The skills and plugins stay
+  // Sandboxed commands write nothing in the profile: Codex writes its rollouts, databases, caches and runtime helpers
+  // (tmp/) from its own process, outside the command sandbox (codex-cli 0.169.0 probe: a turn's commands, apply_patch
+  // included, ran and the rollout was recorded). The skills and plugins stay
   // readable, since the model opens a skill's SKILL.md with shell tools; an approved escalated command keeps only deny
   // entries, so it can write there: a known limit.
   it("keeps the whole profile readable and not writable to sandboxed commands", () => {

@@ -41,22 +41,22 @@ function expectWrites(provider: Provider, open: readonly string[], closed: reado
 }
 
 describe.runIf(usable)("the outer fence's writes in the agent's folder", () => {
-  // Claude Code 2.1.327 (isolated CLAUDE_CONFIG_DIR, a turn with a tool call): the session's transcript, environment
-  // and shell snapshot, .claude.json and its backups; a signed-in profile adds the caches, the credential fallback and
-  // the cleanup marker.
+  // Claude Code 2.1.327 (isolated CLAUDE_CONFIG_DIR, a turn with a tool call): the session's transcript and shell
+  // snapshot, .claude.json and its backups; a signed-in profile adds the caches, the credential fallback and the cleanup
+  // marker. session-env/ holds the environment files hooks leave for a session, which its commands source again on a
+  // resume (probe), so it stays closed; the CLI runs without it.
   it("lets Claude write its sessions, transcripts and state and nothing a later turn reads as settings or instructions", () => {
     expectWrites("claude", [
       ".claude.json", ".claude.json.tmp.85251.42ac2059", "backups/.claude.json.backup.1", ".credentials.json", "projects/-repo/1b9d.jsonl", "projects/-repo/1b9d/subagents/a.jsonl",
-      "sessions/1b9d.json", "session-env/1b9d/x", "shell-snapshots/snapshot-zsh-1.sh", "file-history/1b9d/a@v1", "todos/1b9d.json", "plans/a.md", "tasks/1b9d/1.json",
+      "sessions/1b9d.json", "shell-snapshots/snapshot-zsh-1.sh", "file-history/1b9d/a@v1", "todos/1b9d.json", "plans/a.md", "tasks/1b9d/1.json",
       "cache/model-catalog", "statsig/x", "debug/1b9d.txt", "paste-cache/a", "image-cache/a", "telemetry/a", "history.jsonl", "stats-cache.json", "mcp-needs-auth-cache.json", ".last-cleanup",
     ], [
-      "CLAUDE.md", "settings.json", ".mcp.json", ".claude/settings.json", "rules/a.md", "output-styles/a.md", "skills/a/SKILL.md", "agents/a.md", "commands/a.md",
+      "CLAUDE.md", "session-env/1b9d/sessionstart-hook-0.sh", "settings.json", ".mcp.json", ".claude/settings.json", "rules/a.md", "output-styles/a.md", "skills/a/SKILL.md", "agents/a.md", "commands/a.md",
       "plugins/a/plugin.json", "hooks/a.json", "remote-settings.json", "policy-limits.json", "daemon/a", "workflows/a", "x",
     ]);
   });
-  // codex-cli 0.169.0 in Full access (isolated CODEX_HOME): its stores and caches, the arg0 aliases under tmp/ that it
-  // puts on PATH, the temporary files it renames onto root files, and the SQLite databases at the root, whatever their
-  // version suffix.
+  // codex-cli 0.169.0 in Full access (isolated CODEX_HOME): its stores and caches, its runtime helpers under tmp/, the
+  // temporary files it renames onto root files, and the SQLite databases at the root, whatever their version suffix.
   it("lets Codex write its stores and caches and none of its instruction or settings files", () => {
     expectWrites("codex", [
       "sessions/2026/11/19/rollout-a.jsonl", "archived_sessions/a.jsonl", "shell_snapshots/a.sh", "memories/a.md", "tmp/arg0/codex-arg0Ab/apply_patch", ".tmp/plugins.sync.lock", ".tmpAb12Cd",
