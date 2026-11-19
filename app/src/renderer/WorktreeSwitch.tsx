@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useId, useRef, useState, type SyntheticEvent } from "react";
 import { DropdownMenu } from "radix-ui";
 import { Check, FolderOpen, GitBranch, Settings } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
@@ -13,8 +13,8 @@ export interface WorktreeRecovery {
   projectSettings(root: string): void;
 }
 
-export function WorktreeSwitch({ model, reason, tabIndex, onWorktree, recovery, handOffFocus = false, canvasKey = null, fallbackFocus }: {
-  model: WorktreeModel; reason?: string | null; tabIndex?: number; onWorktree(root: string): void;
+export function WorktreeSwitch({ model, reason, tabIndex, sidebar = false, onWorktree, recovery, handOffFocus = false, canvasKey = null, fallbackFocus }: {
+  model: WorktreeModel; reason?: string | null; tabIndex?: number; sidebar?: boolean; onWorktree(root: string): void;
   recovery?: WorktreeRecovery; handOffFocus?: boolean; canvasKey?: string | null; fallbackFocus?(): void;
 }) {
   const description = useId(), heading = useId();
@@ -37,17 +37,18 @@ export function WorktreeSwitch({ model, reason, tabIndex, onWorktree, recovery, 
       offered.current = new Set(model.rows.filter(row => row.state.kind === "open" && !row.current).map(row => row.root));
     }
   };
+  const stopTreeEvent = sidebar ? (event: SyntheticEvent) => event.stopPropagation() : undefined;
   return <DropdownMenu.Root open={open && !reason} onOpenChange={changeOpen}>
     <Tooltip open={tip && !open} onOpenChange={next => setTip(next && (!!reason || isCut(trigger.current)))}>
       <TooltipTrigger asChild><DropdownMenu.Trigger asChild aria-disabled={reason ? true : undefined} aria-describedby={reason ? description : undefined}><button ref={trigger} type="button" className="doan-chip shell-branch wt-chip" data-ui-variant="translucent"
         aria-label={`Worktree: ${model.label}`}
-        tabIndex={tabIndex} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+        tabIndex={tabIndex} onClick={stopTreeEvent} onKeyDown={stopTreeEvent}>
         <GitBranch aria-hidden="true" /><span>{model.label}</span></button></DropdownMenu.Trigger></TooltipTrigger>
-      <TooltipContent side="bottom" className="hbw-tip">{reason ?? <><span>{model.label}</span><span>{model.path}</span></>}</TooltipContent>
+      <TooltipContent side="bottom" className="wt-tip">{reason ?? <><span>{model.label}</span><span>{model.path}</span></>}</TooltipContent>
     </Tooltip>
     {reason && <span className="sr-only" id={description}>{reason}</span>}
-    <DropdownMenu.Portal><DropdownMenu.Content className={`doan-floating doan-menu shell-project-menu wt-menu${tabIndex === undefined ? "" : " shell-side-menu"}`}
-      aria-labelledby={heading} align="start" sideOffset={4} collisionPadding={8} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}
+    <DropdownMenu.Portal><DropdownMenu.Content className={`doan-floating doan-menu shell-project-menu wt-menu${sidebar ? " shell-side-menu" : ""}`}
+      aria-labelledby={heading} align="start" sideOffset={4} collisionPadding={8} onClick={stopTreeEvent} onKeyDown={stopTreeEvent}
       onCloseAutoFocus={event => { if (handOff.current) { event.preventDefault(); handOff.current = false; } else onCloseAutoFocus(event); }}>
       <DropdownMenu.Label id={heading} className="doan-menu-head">Worktrees</DropdownMenu.Label>
       {model.rows.map(row => {

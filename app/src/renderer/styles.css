@@ -1342,7 +1342,7 @@ body:has(.shell-top) { background: transparent; }
 /* The branch chip as a worktree picker: the translucent chip with a chevron, opening the project menu's worktree rows. */
 .wt-chip { cursor: pointer; -webkit-app-region: no-drag; }
 .ov-project > .wt-chip { flex: 0 1e8 auto; min-width: calc-size(max-content, min(size, 2 * var(--space-chip-inset) + var(--size-icon-xs) + var(--space-1) + var(--space-12))); }
-.hbw-tip > span { display: block; }
+.wt-tip > span { display: block; }
 .wt-chip[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
 button.wt-chip.doan-chip[aria-disabled="true"]:is(:hover, :active) { background: var(--affordance-backdrop-hover); }
 .shell-worktree .shell-menu-reason { margin-top: var(--space-half); white-space: normal; }

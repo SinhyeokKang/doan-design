@@ -475,7 +475,7 @@ export function ShellSidebar(props: Props) {
             <span className="shell-lead"><span className={`shell-thumbnail hue-${projectHue(card.name)}`} aria-hidden="true">{projectInitial(card.name)}</span>
               {listed && <button type="button" className="shell-disclosure" aria-label={`${expanded ? "Collapse" : "Expand"} ${card.name}`} tabIndex={-1} onClick={event => { event.stopPropagation(); props.disclose(card.key); }}><ChevronDown aria-hidden="true" /></button>}</span>
             <NameTip text={card.name}><span className="shell-project-name">{card.name}</span></NameTip>
-            {worktrees && <WorktreeSwitch model={worktrees} reason={locked ? props.lockReason ?? "Finish or cancel the current task." : null}
+            {worktrees && <WorktreeSwitch sidebar model={worktrees} reason={lock?.reason ?? null}
               tabIndex={active === card.key ? 0 : -1} onWorktree={props.worktree} recovery={{ action: props.action, projectSettings: props.projectSettings }} />}
             <RowSlotMark slot={layout.mark} />
             {layout.state && <span id={stateId} className="sr-only">{layout.state.label}</span>}
