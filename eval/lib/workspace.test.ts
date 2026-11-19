@@ -246,6 +246,24 @@ test("worktree runs the agent in a second worktree of the seed commit while the 
   assert.equal(existsSync(ws.base), false);
 });
 
+// Codex 0.169.0 loads a linked worktree's project config when the first worktree is trusted (probe), so the second one
+// is not trusted on its own.
+test("a Codex run in a second worktree trusts only the first", async () => {
+  const saved = process.env.CODEX_HOME;
+  const fake = mkdtempSync("/tmp/doan-eval-codex-home-");
+  try {
+    process.env.CODEX_HOME = fake;
+    const ws = await prepareWorkspace({ scenario: { ...seeded(), worktree: { branch: "feat-plan-copy" } }, agent: "codex", cli, stub: "stub\n" });
+    try {
+      assert.equal(readFileSync(join(ws.env.CODEX_HOME!, "config.toml"), "utf8"),
+        `[projects.${JSON.stringify(ws.repo)}]\ntrust_level = "trusted"\n`);
+    } finally { await ws.dispose(); }
+  } finally {
+    if (saved === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = saved;
+    rmSync(fake, { recursive: true, force: true });
+  }
+});
+
 test("checks and the judge see changes in each worktree separately", async () => {
   const ws = await prepareWorkspace({ scenario: { ...seeded(), worktree: { branch: "feat-plan-copy" } }, agent: "fixture", cli, stub: "stub\n" });
   try {
@@ -310,7 +328,10 @@ test("each real agent's environment leaves out the user's own instruction files;
       assert.equal(existsSync(join(home, "AGENTS.md")), false);
       assert.equal(readFileSync(join(home, "auth.json"), "utf8"), "{}\n");
       assert.equal(git(codex.repo, ["status", "--porcelain"]), "");
+      // The eval's Codex rule is project config, which Codex 0.169.0 loads only in a trusted project.
+      assert.equal(readFileSync(join(home, "config.toml"), "utf8"), `[projects.${JSON.stringify(codex.repo)}]\ntrust_level = "trusted"\n`);
     } finally { await codex.dispose(); }
+    assert.equal(readFileSync(join(fake, "config.toml"), "utf8"), "");
     // The links to the user's sign-in do not outlive the run.
     assert.equal(existsSync(home), false);
     assert.equal(readFileSync(join(fake, "AGENTS.md"), "utf8"), "global\n");

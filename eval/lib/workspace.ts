@@ -85,7 +85,9 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     // Codex itself, outside its sandbox, writes refreshed tokens through this home's links and reads instructions and
     // settings there, and the rollout read as evidence lives there, so the agent must not be able to rewrite it.
     if (o.agent === "codex") codexHome = outsideCodexSandbox("doan-eval-codex-");
-    const env = o.agent === "fixture" ? shared : isolateUserInstructions(o.agent, shared, codexHome ?? join(base, "codex-home"));
+    // Codex loads the run's project rule only in a trusted project. Trusting the first worktree also covers a second one
+    // (codex-cli 0.169.0 probe), so the repo is the only folder trusted.
+    const env = o.agent === "fixture" ? shared : isolateUserInstructions(o.agent, shared, codexHome ?? join(base, "codex-home"), [repo]);
     const gitDir = o.scenario.git ? null : join(base, "seed.git");
     const git = (args: string[]) => must(sh("git", [...GIT, "-C", repo, ...(gitDir ? ["--git-dir", gitDir, "--work-tree", repo] : []), ...args], repo, env), `git ${args[0]}`);
     if (gitDir) must(sh("git", [...GIT, "init", "-q", "--bare", gitDir], base, env), "git init");
