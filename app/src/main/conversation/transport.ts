@@ -160,8 +160,8 @@ export function displayPath(path: string, root: string): string {
   const relative = posix.relative(root, posix.resolve(root, path));
   return relative && !relative.startsWith("..") && !posix.isAbsolute(relative) ? relative : path;
 }
-// Allow answers for `command` whole. Codex's `commandActions` is a best-effort parse for display that can name only one
-// segment of a line (0.169.0 reads `cat a | tee b` as one read of `cat a`), so it never stands in for the command. Only
+// Allow answers for `command` whole. Codex's `commandActions` is a best-effort parse for display that can name only part
+// of the line, so it never stands in for the command. Only
 // the login-shell wrapper Codex adds (`/bin/zsh -lc <script>`, a system shell) comes off, and only when the rest decodes
 // as exactly one shell word; anything else shows as sent.
 const SHELL_WRAPPER = /^\/bin\/(?:zsh|bash|sh) -l?c (.+)$/s;

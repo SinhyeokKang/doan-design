@@ -175,8 +175,7 @@ describe("approval card content", () => {
     expect(claudePermission("r", "Bash", { command: "npm test" }, [], "/repo").event.options.every(o => !("detail" in o))).toBe(true);
   });
   const codexCommand = (params: Record<string, unknown>) => codexPermission({ id: 5, method: "item/commandExecution/requestApproval", params: { threadId: "s", turnId: "t", itemId: "i", ...params } })?.event;
-  // Codex 0.169.0 parses `cat notes.txt | tee copy.txt` into one read action whose command is only `cat notes.txt`;
-  // Allow answers for the whole line.
+  // Codex's display parse can name only part of the line; Allow answers for the whole line.
   it("shows the whole Codex command even when Codex parsed it into one action", () => {
     expect(codexCommand({ command: "/bin/zsh -lc 'cat notes.txt | tee copy.txt'", commandActions: [{ type: "read", command: "cat notes.txt", name: "notes.txt", path: "/repo/notes.txt" }] })?.summary)
       .toBe("cat notes.txt | tee copy.txt");
