@@ -2335,6 +2335,25 @@ it("remembers the source view when an explicit canvas opens in another workspace
   } finally { controller.dispose(); }
 });
 
+it("keeps pan and zoom across a header worktree move and clears the source selection", () => {
+  const h = selectionHarness();
+  try {
+    const other = { ...h.row, url: "http://localhost/other/a.html", id: "branch-copy" };
+    h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [h.row] }, { path: "/other", kind: "list", servedRev: 0, canvases: [other] }]);
+    h.select(1);
+    expect(h.state().selection).not.toBeNull();
+    h.controller.zoomTo(1.5);
+    h.controller.wheel({ dx: 18, dy: 32, ctrl: false, meta: false, deltaMode: 0 }, { x: 100, y: 100 });
+    const view = h.controller.currentView();
+    h.controller.openCanvas("/other", other, undefined, { keepView: true });
+    h.layout({ href: other.url });
+    h.controller.settleFit();
+    expect(h.controller.currentView()).toEqual(view);
+    expect(h.state().selection).toBeNull();
+    expect(h.state().open).toMatchObject({ folder: "/other", row: other });
+  } finally { h.controller.dispose(); }
+});
+
 it("repicking the current canvas cancels an older waiting worktree selection", () => {
   const { controller, row } = loadedController();
   try {

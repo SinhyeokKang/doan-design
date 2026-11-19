@@ -65,7 +65,7 @@ vi.mock("./CanvasController", async original => ({
 }));
 vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
-const { App } = await import("./App");
+const { App, TopBar } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
 const { ConversationPanel, ResizeHandle } = await import("./ConversationPanel");
 const { InspectorColumn } = await import("./InspectorPanel");
@@ -455,6 +455,39 @@ test("the canvas page's panel holds the open canvas's conversation", async () =>
   expect(conversation()?.target).toEqual({ root: "/w/a", canvas: { path: rowA.path, id: "a" } });
   expect(conversation()?.blocked).toBeNull();
   expect(doan.conversationResumeTarget).toHaveBeenCalledWith({ root: "/w/a", canvas: { path: rowA.path, id: "a" } });
+});
+
+test("a header switch and Back/Forward open the matching path and its conversation in each root", async () => {
+  await openCanvas();
+  const second = { ...rowA, id: "b", url: "u-b" };
+  const rows = [rowA, second].map((canvas, i): FolderEntry => ({ kind: "list", path: i ? "/w/b" : "/w/a", servedRev: 0,
+    canvases: [canvas], git: { common: "/w/a/.git", branch: i ? "topic" : "main", worktrees: [] } }));
+  folders(rows);
+  const controller = harness.controller!;
+  controller.openCanvas!.mockImplementation((root: string, row: CanvasRow, _target, options: { opened(): void }) => {
+    controller.destination!.mockReturnValue({ root, canvas: row.path });
+    harness.setState!({ ...initialCanvasState(), open: { folder: root, canvas: row.path, row }, shown: row.path, status: null });
+    options.opened();
+  });
+  find<{ open(root: string, row: CanvasRow): void }>(ShellSidebar)[0]!.props.open("/w/a", rowA);
+  render();
+  const nav = () => (pane() as Pane & { navigation: { worktree(root: string, path: string): void; overview(): void } }).navigation;
+  nav().worktree("/w/b", rowA.path); render();
+  expect(controller.openCanvas!.mock.lastCall).toMatchObject(["/w/b", second, undefined, { keepView: true }]);
+  expect(conversation()?.target).toEqual({ root: "/w/b", canvas: { path: rowA.path, id: "b" } });
+  find<{ previous(): void }>(TopBar)[0]!.props.previous(); render();
+  expect(conversation()?.target.root).toBe("/w/a");
+  find<{ next(): void }>(TopBar)[0]!.props.next(); render();
+  expect(conversation()?.target.root).toBe("/w/b");
+  const pick = nav().worktree;
+  folders([rows[1]!, { ...listed("/w/a"), kind: "list", servedRev: 1, canvases: [] }]);
+  controller.openCanvas!.mockClear();
+  pick("/w/a", rowA.path); render();
+  expect(controller.openCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).toHaveBeenCalledWith(expect.stringContaining("a is no longer"));
+  expect(conversation()?.target.root).toBe("/w/b");
+  nav().overview();
+  expect(controller.showOverview).toHaveBeenCalled();
 });
 
 test("a canvas page showing a page outside the list keeps the draft in a composer that takes no input", async () => {

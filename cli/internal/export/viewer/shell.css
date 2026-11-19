@@ -21,6 +21,25 @@
   --neutral-backdrop-hover: rgb(0 0 0 / 6%);
   --neutral-backdrop-pressed: rgb(0 0 0 / 10%);
 
+  --rose-600: oklch(58.6% 0.253 17.585);
+  --orange-600: oklch(64.6% 0.222 41.116);
+  --amber-600: oklch(66.6% 0.179 58.318);
+  --emerald-600: oklch(59.6% 0.145 163.225);
+  --teal-600: oklch(60% 0.118 184.704);
+  --sky-600: oklch(58.8% 0.158 241.966);
+  --indigo-600: oklch(51.1% 0.262 276.966);
+  --fuchsia-600: oklch(59.1% 0.293 322.896);
+  --identity-project-rose: var(--rose-600);
+  --identity-project-orange: var(--orange-600);
+  --identity-project-amber: var(--amber-600);
+  --identity-project-emerald: var(--emerald-600);
+  --identity-project-teal: var(--teal-600);
+  --identity-project-sky: var(--sky-600);
+  --identity-project-indigo: var(--indigo-600);
+  --identity-project-fuchsia: var(--fuchsia-600);
+  --radius-thumbnail: 25%;
+  --type-weight-semibold: 600;
+
   --font-system-sans: ui-sans-serif, -apple-system, "Apple SD Gothic Neo", sans-serif;
   --type-family: "Geist", var(--font-system-sans);
 
@@ -118,13 +137,28 @@ svg { display: block; flex: none; }
 
 /* ── Header (styles.css .ov-head, .doan-canvas-head and friends) ─────────────── */
 .ov-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); }
-.doan-canvas-head { flex: none; background: var(--surface-panel); }
-.doan-canvas-name { display: inline-flex; align-items: center; gap: var(--space-1h); flex: none; max-width: 40%; min-width: 0; padding-left: var(--space-2); color: var(--text-subtle); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
-.doan-canvas-name svg { width: var(--size-icon); height: var(--size-icon); }
+.doan-canvas-head { flex: none; background: var(--surface-panel); container: doan-canvas-head / inline-size; }
+.shell-thumbnail { display: flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: var(--radius-thumbnail); font-size: 10px; font-weight: var(--type-weight-semibold); line-height: 16px; }
+.hue-rose { background: color-mix(in srgb, var(--identity-project-rose) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-rose) 65%, var(--text-standard)); }
+.hue-amber { background: color-mix(in srgb, var(--identity-project-amber) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-amber) 65%, var(--text-standard)); }
+.hue-emerald { background: color-mix(in srgb, var(--identity-project-emerald) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-emerald) 65%, var(--text-standard)); }
+.hue-sky { background: color-mix(in srgb, var(--identity-project-sky) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-sky) 65%, var(--text-standard)); }
+.hue-orange { background: color-mix(in srgb, var(--identity-project-orange) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-orange) 65%, var(--text-standard)); }
+.hue-teal { background: color-mix(in srgb, var(--identity-project-teal) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-teal) 65%, var(--text-standard)); }
+.hue-indigo { background: color-mix(in srgb, var(--identity-project-indigo) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-indigo) 65%, var(--text-standard)); }
+.hue-fuchsia { background: color-mix(in srgb, var(--identity-project-fuchsia) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-fuchsia) 65%, var(--text-standard)); }
+.doan-canvas-trail { display: flex; align-items: center; gap: var(--space-2); flex: 0 1 auto; min-width: 0; }
+/* The static project crumb has a leading inset only, so its thumbnail floor is one inset narrower than the button. */
+.doan-canvas-project { display: inline-flex; align-items: center; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); flex: 0 1e8 auto; min-width: calc(var(--size-icon) + var(--space-2)); gap: var(--space-2); color: var(--text-subtle); font-weight: var(--type-weight-regular); }
+.doan-canvas-project-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doan-canvas-trail > .ov-title-wrap { flex: 0 10000 auto; min-width: calc(2 * var(--space-2) + var(--space-1h) + var(--size-icon)); }
+.doan-canvas-trail > .doan-canvas-name { flex: 0 1 auto; max-width: 40cqi; min-width: calc(var(--space-2) + var(--size-icon)); }
+.doan-canvas-name { display: inline-flex; align-items: center; gap: var(--space-1h); flex: none; max-width: 40%; min-width: 0; padding-left: var(--space-2); color: var(--text-subtle); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); }
+.doan-canvas-name svg { width: var(--size-icon); height: var(--size-icon); flex: none; }
 .doan-canvas-name span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); }
 .ov-title-wrap { position: relative; display: flex; min-width: 0; }
-.ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
 .ov-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chev { width: var(--space-4); height: var(--space-4); flex: none; color: var(--text-metadata); }
 .doan-canvas-head-tools { display: flex; align-items: center; gap: var(--space-1); flex: none; margin-left: auto; }
@@ -137,10 +171,15 @@ svg { display: block; flex: none; }
 .doan-canvas-head .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
 .doan-canvas-head .doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
 
-/* Without JavaScript (Quick Look, a mail preview) the header is the canvas name alone: the drawer
-   and the zoom controls cannot work there. shell.js adds `js` to <html> first thing. */
-.ov-sep, .ov-title-wrap, .doan-canvas-head-tools { display: none; }
-.js .ov-sep, .js .ov-title-wrap, .js .doan-canvas-head-tools { display: flex; }
+/* The frame separator, drawer and zoom controls need the scripted viewer. */
+html:not(.js) :is(.ov-sep:not(.doan-canvas-sep-root), .ov-title-wrap, .doan-canvas-head-tools) { display: none; }
+/* Container queries measure the content box, inside the two 16px header insets. */
+@container doan-canvas-head (width < 688px) {
+  .doan-canvas-project-name, .doan-canvas-zoom > .doan-icon-button { display: none; }
+}
+@container doan-canvas-head (width < 568px) {
+  .doan-canvas-trail > :is(.doan-canvas-project, .doan-canvas-sep-root) { display: none; }
+}
 
 /* ── Buttons (ds/controls.css) ───────────────────────────────────────────────── */
 .doan-button {

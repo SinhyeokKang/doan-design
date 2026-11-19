@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DropdownMenu } from "radix-ui";
-import { ArrowUpRight, Check, ChevronDown, FolderOpen, GitBranch, Settings, SquarePen } from "lucide-react";
+import { ArrowUpRight, ChevronDown, SquarePen } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
 import { sendNowShown } from "../main/conversation/steerSupport";
@@ -34,7 +34,7 @@ import { useRingUsage } from "./ContextRing";
 import { DockedComposer, type DockedOutcome, type DockedRequest } from "./DockedComposer";
 import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedBusy, type DockedMode } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
-import { cardRow, chipClass, ROW_ACTION_ICONS, ROW_ACTION_LABELS, type RowAction } from "./homeCards";
+import type { RowAction } from "./homeCards";
 import {
   attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, MAX_PASTED_BYTES, modelOption, modelPickerView,
   selectableProvider, sendRefusal, suggestedPresets, suggestedPrompts, type AttachmentDraft, type ModelsState, type NewConversationDefault,
@@ -43,7 +43,8 @@ import type { LastRequest } from "./homeConversations";
 import type { StartInput, StartOutcome } from "./HomeComposerView";
 import { projectConversationMenu } from "./overviewConversation";
 import { scrollTarget, type ListView, type OverviewRun } from "./overviewRun";
-import { displayPath } from "./projectDisplay";
+import { worktreeSwitchModel } from "./worktreeSwitchModel";
+import { WorktreeSwitch } from "./WorktreeSwitch";
 import { projectHue, projectInitial } from "./shellNavigation";
 import type { SettingsTarget } from "./settingsSections";
 import { threadItems, withSending } from "./threadItems";
@@ -65,7 +66,7 @@ export interface ProjectOverviewProps {
   root: string;
   project: string;
   entry: FolderEntry;
-  // The project's worktrees (the sidebar card's rows): two or more make the branch chip a worktree menu.
+  // The sidebar card's worktrees in saved order.
   worktrees: readonly FolderEntry[];
   homeDirectory: string | null;
   // The duplicate-ID notice (App's), under the header.
@@ -94,7 +95,7 @@ export interface ProjectOverviewProps {
   // A send in an existing conversation, through HomeRun so the new canvas its turn makes opens.
   onSendConversation(provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | ScheduledSend | { error: string; missing?: string[]; replaced?: string[]; resetsAt?: string }>;
   // A problem worktree's repair actions in the branch chip's menu, as the sidebar's project menu runs them.
-  onAction(name: RowAction, root: string): void;
+  onAction(name: RowAction, root: string): void | Promise<void>;
   onProjectSettings(root: string): void;
   onSettings(target: SettingsTarget): void;
   onNotice?(text: string): void;
@@ -108,14 +109,6 @@ const REPLY_PLACEHOLDER = "Reply, / for presets";
 const NEW = "";
 // One empty list for a project without one, so the thread's memoized chip data keeps its identity across renders.
 const NO_ROWS: readonly CanvasRow[] = [];
-
-// A worktree row in the branch chip's menu does what the sidebar's does: a listed or reading worktree
-// opens its Overview; a problem one turns the menu to its repair actions. Show in Finder and Project Settings are
-// fixed items there, and removing the project stays in the sidebar.
-export function worktreeChoice(row: FolderEntry): { kind: "open" } | { kind: "repair"; actions: RowAction[] } {
-  if (row.kind === "list" || row.kind === "loading") return { kind: "open" };
-  return { kind: "repair", actions: cardRow(row, null, null).actions.filter(action => action !== "remove" && action !== "showInFinder") };
-}
 
 // The canvas a conversation names, as main matches it: an ID on either side matches by ID only, else the path.
 export function sameCanvas(a: Canvas, b: Canvas): boolean {
@@ -350,14 +343,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     picked.current = true;
     run.select(root, value === NEW ? null : value);
   };
-  const branchOf = (row: FolderEntry) => cardRow(row, null, null).summary?.branch ?? null;
-  const branch = branchOf(props.entry);
-  const worktreePicked = useRef(false);
-  // The problem worktree whose repair actions the chip's menu shows, as the sidebar's menu does.
-  const [repair, setRepair] = useState<string | null>(null);
-  const repairRow = repair ? props.worktrees.find(row => row.path === repair) : undefined;
-  const repairChoice = repairRow ? worktreeChoice(repairRow) : null;
-  const chipLabel = branch ?? root.split("/").at(-1) ?? root;
+  const worktrees = worktreeSwitchModel(props.worktrees, root, props.homeDirectory);
 
   // The column shows the new conversation state; a failed first read is one too.
   const showsNew = conversationId === null && !waiting;
@@ -371,37 +357,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
       <span className="ov-project">
         <span className={`shell-thumbnail hue-${projectHue(project)}`} aria-hidden="true">{projectInitial(project)}</span>
         <NameTip text={project}><span className="ov-project-name">{project}</span></NameTip>
-        {props.worktrees.length > 1 ? <DropdownMenu.Root onOpenChange={open => { if (open) setRepair(null); }}>
-          <DropdownMenu.Trigger asChild><button type="button" className="doan-chip shell-branch wt-chip" data-ui-variant="translucent" aria-label={`Worktree: ${chipLabel}`}>
-            <GitBranch aria-hidden="true" /><span>{chipLabel}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
-          <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu shell-project-menu wt-menu" aria-label="Worktrees" align="start" sideOffset={4} collisionPadding={8}
-            onCloseAutoFocus={event => { if (worktreePicked.current) { worktreePicked.current = false; event.preventDefault(); } }}>
-            <DropdownMenu.Label className="doan-menu-head">Worktrees</DropdownMenu.Label>
-            {props.worktrees.map(row => {
-              const chip = row.kind === "list" || row.kind === "loading" ? undefined : cardRow(row, null, null).chip;
-              const marked = row.path === (repair ?? root);
-              return <DropdownMenu.Item key={row.path} className="doan-menu-item shell-worktree" aria-current={marked ? "true" : undefined}
-                onSelect={event => {
-                  if (worktreeChoice(row).kind === "repair") { event.preventDefault(); setRepair(row.path); return; }
-                  if (row.path === root) return;
-                  worktreePicked.current = true; props.onWorktree(row.path);
-                }}>
-                <GitBranch aria-hidden="true" /><span><span>{branchOf(row) ?? row.path.split("/").at(-1)}</span><small>{displayPath(row.path, props.homeDirectory)}</small></span>
-                {chip ? <span className={chipClass(chip)}>{chip}</span> : marked && <Check aria-hidden="true" />}
-              </DropdownMenu.Item>;
-            })}
-            {repairRow && repairChoice?.kind === "repair" && <>
-              <DropdownMenu.Separator className="doan-menu-sep" />
-              <DropdownMenu.Item className="doan-menu-item" onSelect={() => props.onAction("showInFinder", repairRow.path)}><FolderOpen aria-hidden="true" />{ROW_ACTION_LABELS.showInFinder}</DropdownMenu.Item>
-              <DropdownMenu.Item className="doan-menu-item" onSelect={() => props.onProjectSettings(repairRow.path)}><Settings aria-hidden="true" />Project Settings</DropdownMenu.Item>
-              {repairChoice.actions.map(action => {
-                const Icon = ROW_ACTION_ICONS[action];
-                return <DropdownMenu.Item key={action} className="doan-menu-item" onSelect={() => props.onAction(action, repairRow.path)}>{Icon && <Icon aria-hidden="true" />}{ROW_ACTION_LABELS[action]}</DropdownMenu.Item>;
-              })}
-            </>}
-          </DropdownMenu.Content></DropdownMenu.Portal>
-        </DropdownMenu.Root>
-          : branch && <span className="doan-chip shell-branch" data-ui-variant="translucent"><GitBranch aria-hidden="true" /><span>{branch}</span></span>}
+        {worktrees && <WorktreeSwitch model={worktrees} onWorktree={props.onWorktree} handOffFocus
+          recovery={{ action: props.onAction, projectSettings: props.onProjectSettings }} />}
       </span>
       <span className="ov-sep" aria-hidden="true">/</span>
       <span className="ov-title-wrap">

@@ -85,7 +85,7 @@ export function cardRow(entry: FolderEntry, loaded: string | null, selection: Se
     case "cliError":
       return { ...row, chip: "CLI error", actions: ["retry", "details", "remove"], detail: entry.reason };
     case "list": {
-      const branch = entry.git?.branch ?? (entry.git?.detached === undefined ? undefined : `detached ${entry.git.detached.slice(0, 7)}`);
+      const branch = entry.git?.branch !== undefined || entry.git?.detached !== undefined ? worktreeLabel(entry) : undefined;
       const summary = {
         ...(branch === undefined ? {} : { branch }),
         ...(entry.changedAt === undefined ? {} : { changedAt: entry.changedAt }),
@@ -103,4 +103,9 @@ function selectionLabel(selection: SelectionView): string | undefined {
 
 function basename(path: string): string {
   return path.split("/").filter(Boolean).at(-1) ?? path;
+}
+
+export function worktreeLabel(row: FolderEntry): string {
+  const git = row.kind === "list" ? row.git : undefined;
+  return git?.branch ?? (git?.detached === undefined ? basename(row.path) : `detached ${git.detached.slice(0, 7)}`);
 }

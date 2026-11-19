@@ -726,7 +726,7 @@ describe("viewer files", () => {
     const body = shellHtml.replace(/<!--[\s\S]*?-->/, "");
     const counts = new Map<string, number>();
     for (const m of body.matchAll(/\{\{([A-Za-z_]+)\}\}/g)) counts.set(m[1]!, (counts.get(m[1]!) ?? 0) + 1);
-    expect(Object.fromEntries(counts)).toEqual({ NAME: 2, WIDTH: 1, META: 1, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
+    expect(Object.fromEntries(counts)).toEqual({ PROJECT: 1, INITIAL: 1, HUE: 1, NAME: 2, WIDTH: 1, META: 1, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
     // The comment documents the placeholders by name: a brace form in it would be replaced too.
     expect(shellHtml.match(/<!--[\s\S]*?-->/)?.[0]).not.toContain("{{");
     for (const name of ["lib.js", "measure.js", "shell.js", "shell.css"]) expect(files[name], name).not.toContain("{{");
@@ -771,14 +771,13 @@ describe("without JavaScript", () => {
     expect(noscript.replace(/<[^>]*>/g, "")).toBe("This preview shows the top of the canvas. Open the file in a web browser to see all of it and its frames.");
   });
 
-  test("the header shows the canvas name alone until shell.js marks the page as scripted", () => {
-    // Hidden by default, shown only under `.js`.
-    expect(shellCss).toMatch(/^\.ov-sep, \.ov-title-wrap, \.doan-canvas-head-tools \{ display: none; \}$/m);
-    expect(shellCss).toMatch(/^\.js \.ov-sep, \.js \.ov-title-wrap, \.js \.doan-canvas-head-tools \{ display: flex; \}$/m);
+  test("the header shows the project and canvas names until shell.js marks the page as scripted", () => {
+    expect(shellCss).toContain("html:not(.js) :is(.ov-sep:not(.doan-canvas-sep-root), .ov-title-wrap, .doan-canvas-head-tools) { display: none; }");
     expect(shellJs).toMatch(/^document\.documentElement\.classList\.add\("js"\);$/m);
     expect(shellJs.split("\n").filter(line => !line.startsWith("//") && line.trim() !== "")[0]).toBe('document.documentElement.classList.add("js");');
-    // The drawer, zoom controls and the separator are all inside the hidden parts.
+    // The project separator stays with the static breadcrumb.
     const header = /<header[\s\S]*?<\/header>/.exec(shellHtml)?.[0] ?? "";
+    expect(header).toMatch(/<nav class="doan-canvas-trail" aria-label="Breadcrumb">[\s\S]*?<span class="doan-canvas-project"[\s\S]*?hue-\{\{HUE\}\}[\s\S]*?\{\{INITIAL\}\}[\s\S]*?\{\{PROJECT\}\}[\s\S]*?doan-canvas-sep-root[\s\S]*?id="name"/);
     expect(header.indexOf('class="ov-sep"')).toBeGreaterThan(header.indexOf('id="name"'));
     expect(header.indexOf('class="ov-title-wrap"')).toBeGreaterThan(header.indexOf('class="ov-sep"'));
     expect(header.indexOf('class="doan-canvas-head-tools"')).toBeGreaterThan(header.indexOf('class="ov-title-wrap"'));
@@ -808,6 +807,37 @@ const declarations = (css: string, selector: string): string[] => {
   return body.split(";").map(part => part.replace(/\s+/g, " ").trim()).filter(Boolean);
 };
 
+describe("breadcrumb rules shared with the canvas header", () => {
+  test("the trail and its children use the app's layout and typography", () => {
+    for (const selector of [
+      ".ov-head", ".doan-canvas-head", ".doan-canvas-trail", ".doan-canvas-project-name",
+      ".doan-canvas-trail > .ov-title-wrap", ".doan-canvas-trail > .doan-canvas-name",
+      ".doan-canvas-name", ".doan-canvas-name svg", ".doan-canvas-name span", ".ov-sep",
+      ".ov-title.doan-button", ".ov-title span",
+    ]) {
+      expect(declarations(shellCss, selector), selector).toEqual(declarations(stylesCss, selector));
+    }
+    // The viewer positions its own floating drawer relative to the wrapper.
+    expect(declarations(shellCss, ".ov-title-wrap")).toEqual(["position: relative", ...declarations(stylesCss, ".ov-title-wrap")]);
+  });
+
+  test("the static project crumb has the app's shrink priority with only a leading inset", () => {
+    const appProject = declarations(stylesCss, ".doan-canvas-project.doan-button");
+    expect(declarations(shellCss, ".doan-canvas-project")).toEqual([
+      "display: inline-flex", "align-items: center", "padding-left: var(--space-2)",
+      "font-size: var(--type-label-sm-size)", "line-height: var(--type-label-sm-line-height)",
+      ...appProject.map(d => d.replace("2 * var(--space-2)", "var(--space-2)")),
+    ]);
+  });
+
+  test("the viewer uses the app's container breakpoints and hide rules", () => {
+    const queries = (css: string) => css.match(/^@container doan-canvas-head\b[^{}]*\{[\s\S]*?^\}/gm) ?? [];
+    const appQueries = queries(stylesCss);
+    expect(appQueries).toHaveLength(2);
+    expect(queries(shellCss)).toEqual(appQueries.map(rule => rule.replace(", .wt-chip", "")));
+  });
+});
+
 describe("tokens are the app's", () => {
   const roots = (css: string): Map<string, string> => {
     const map = new Map<string, string>();
@@ -821,6 +851,14 @@ describe("tokens are the app's", () => {
   }).replace(/\s+/g, " ");
   const app = roots(tokensCss);
   const viewer = roots(shellCss);
+
+  test("project thumbnail colors and shape match the sidebar", () => {
+    expect(declarations(shellCss, ".shell-thumbnail")).toEqual(declarations(stylesCss, ".shell-thumbnail"));
+    for (const hue of ["rose", "orange", "amber", "emerald", "teal", "sky", "indigo", "fuchsia"]) {
+      expect(viewer.has(`--identity-project-${hue}`)).toBe(true);
+      expect(declarations(shellCss, `.hue-${hue}`)).toEqual(declarations(stylesCss, `.hue-${hue}`));
+    }
+  });
 
   test("every token the viewer copies resolves to the app's value", () => {
     expect(viewer.size).toBeGreaterThan(50);
@@ -1204,14 +1242,15 @@ describe("tool wiring", () => {
 // The page `assemble` writes (cli/internal/export/assemble.go), filled here in one pass over shell.html: a canvas of
 // `body` at `width`, with lib.js and measure.js at the top of its head; without them (`reports: false`) the canvas never
 // reports a layout, so the page stays before its first view until the timeout.
-const viewerPage = (body: string, { width = 800, reports = true } = {}): string => {
+const viewerPage = (body: string, { width = 800, reports = true, scripted = true } = {}): string => {
   const head = reports ? `<script>(function () {\n${lib}\n${measure}\n})();</script>` : "";
   const canvas = `<!doctype html><html><head>${head}</head><body style="margin:0">${body}</body></html>`;
   const values: Record<string, string> = {
+    PROJECT: "northwind-customer-portal", INITIAL: "N", HUE: "indigo",
     NAME: "checkout", WIDTH: String(width), META: JSON.stringify({ name: "checkout", width }).replace(/</g, "\\u003c"), STYLE: shellCss,
-    SCRIPT: `(function () {\n${lib}\n${shellJs}\n})();`, SRCDOC: canvas.replace(/&/g, "&amp;").replace(/"/g, "&quot;"),
+    SCRIPT: scripted ? `(function () {\n${lib}\n${shellJs}\n})();` : "", SRCDOC: canvas.replace(/&/g, "&amp;").replace(/"/g, "&quot;"),
   };
-  return shellHtml.replace(/\{\{(NAME|WIDTH|META|STYLE|SCRIPT|SRCDOC)\}\}/g, (_, key: string) => values[key]!);
+  return shellHtml.replace(/\{\{(PROJECT|INITIAL|HUE|NAME|WIDTH|META|STYLE|SCRIPT|SRCDOC)\}\}/g, (_, key: string) => values[key]!);
 };
 const twoFrames = '<section data-doan-frame="cart" data-doan-title="Cart" style="height:600px">Cart</section><section data-doan-frame="pay" data-doan-title="Payment" style="height:600px">Payment</section>';
 
@@ -1235,6 +1274,37 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     await frame.waitForFunction(() => document.documentElement.classList.contains("ready"));
     return frame;
   };
+  test("without scripts the header shows the project and canvas but hides the frame controls", async () => {
+    const frame = await dom.load(viewerPage(twoFrames, { reports: false, scripted: false }));
+    await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "960px"; });
+    const header = frame.locator("header");
+    expect(await header.locator(".doan-canvas-project-name").innerText()).toBe("northwind-customer-portal");
+    expect(await header.locator("#name").innerText()).toBe("checkout");
+    for (const selector of [".doan-canvas-project", ".shell-thumbnail", ".doan-canvas-project-name", ".doan-canvas-sep-root", "#name"]) {
+      expect(await header.locator(selector).isVisible(), selector).toBe(true);
+    }
+    for (const selector of [".ov-sep:not(.doan-canvas-sep-root)", "#drawer-button", "#drawer"]) {
+      expect(await header.locator(selector).count(), selector).toBe(1);
+      expect(await header.locator(selector).isHidden(), selector).toBe(true);
+    }
+  });
+
+  test("the project crumb and zoom step buttons follow the header width", async () => {
+    const frame = await open(twoFrames);
+    for (const width of [720, 719, 600, 599]) {
+      await frame.evaluate(width => {
+        (window.frameElement as HTMLElement).style.width = `${width + 16}px`;
+      }, width);
+      expect(await frame.locator("header").evaluate(el => el.getBoundingClientRect().width)).toBe(width);
+      expect(await frame.locator(".shell-thumbnail").isVisible()).toBe(width >= 600);
+      expect(await frame.locator(".doan-canvas-sep-root").isVisible()).toBe(width >= 600);
+      expect(await frame.locator(".doan-canvas-project-name").isVisible()).toBe(width >= 720);
+      expect(await frame.locator("#zoom-out").isVisible()).toBe(width >= 720);
+      expect(await frame.locator("#zoom-in").isVisible()).toBe(width >= 720);
+      expect(await frame.locator("#zoom-button").isVisible()).toBe(true);
+    }
+  });
+
   // Read once the buttons' 150ms colour and fill transitions have ended.
   const button = (frame: Frame, id: string) => frame.evaluate(async id => {
     await Promise.all(document.getAnimations().map(animation => animation.finished));

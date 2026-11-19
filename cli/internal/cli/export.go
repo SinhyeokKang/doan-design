@@ -103,6 +103,7 @@ func Export(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		proto = prototypeGroup(model, played.ID)
 		page, err = export.AssemblePrototype(meta, proto, inlined.HTML)
 	} else {
+		meta.Project = exportProjectName(r.Root, repo.ReadGit(r.Root, ctx.Home))
 		page, err = export.Assemble(meta, inlined.HTML)
 	}
 	if err != nil {
@@ -336,4 +337,11 @@ func exportInternal(err error) *Error {
 		err = le.Err
 	}
 	return &Error{Code: "internal_error", Message: "Export failed: " + err.Error(), NextSteps: []string{"Check that the repository and the output directory are readable and writable, then export again"}}
+}
+
+func exportProjectName(root string, git *repo.GitInfo) string {
+	if git != nil && git.Main != "" {
+		return filepath.Base(git.Main)
+	}
+	return filepath.Base(root)
 }

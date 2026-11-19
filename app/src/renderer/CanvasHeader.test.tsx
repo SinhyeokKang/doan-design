@@ -4,7 +4,7 @@ import type { CanvasSignal } from "./rightPanelOpen";
 import { describe, expect, it, vi } from "vitest";
 import type { CanvasRow } from "../main/view";
 import type { LayoutMessage } from "./canvasMessage";
-import { CanvasHeader } from "./CanvasHeader";
+import { CanvasHeader, type CanvasHeaderNavigation } from "./CanvasHeader";
 import { CanvasViewStore, canvasViewFields, initialCanvasState, type CanvasState, type CanvasViewFields } from "./CanvasController";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { CONVERSATION_PANEL_ID } from "./ConversationPanel";
@@ -17,7 +17,9 @@ const layout = (over: Partial<LayoutMessage> = {}): LayoutMessage => ({ type: "l
 const opened = (over: Partial<CanvasState> = {}): CanvasState => ({ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, message: "", hasFrame: true, layout: layout(), currentFrame: 2, zoom: 64, scale: 0.64, ...over });
 
 type Inspector = { open: boolean; fits: boolean; show(): void };
-const html = (state: CanvasState, panel?: { open: boolean; show(): void; badge?: Pick<CanvasSignal, "kind" | "label"> | null }, view: CanvasViewFields = canvasViewFields(state), inspector?: Inspector) => renderToStaticMarkup(<TooltipProvider>{<CanvasHeader state={state} view={new CanvasViewStore(view)} command={vi.fn()} zoomTo={vi.fn()} selectFrame={vi.fn()} {...(panel ? { panel } : {})} {...(inspector ? { inspector } : {})} /> as ReactElement}</TooltipProvider>);
+const navigation: CanvasHeaderNavigation = { card: { key: "c", name: "Demo", rows: [{ kind: "list", path: "/repo", servedRev: 0, canvases: [row], git: { branch: "main", common: "c", worktrees: [] } }] },
+  root: "/repo", homeDirectory: null, overview: vi.fn(), worktree: vi.fn() };
+const html = (state: CanvasState, panel?: { open: boolean; show(): void; badge?: Pick<CanvasSignal, "kind" | "label"> | null }, view: CanvasViewFields = canvasViewFields(state), inspector?: Inspector) => renderToStaticMarkup(<TooltipProvider>{<CanvasHeader navigation={navigation} state={state} view={new CanvasViewStore(view)} command={vi.fn()} zoomTo={vi.fn()} selectFrame={vi.fn()} {...(panel ? { panel } : {})} {...(inspector ? { inspector } : {})} /> as ReactElement}</TooltipProvider>);
 const button = (markup: string, label: string) => markup.match(new RegExp(`<button[^>]*aria-label="${label}"[^>]*>`))?.[0] ?? "";
 
 describe("CanvasHeader", () => {
@@ -51,6 +53,15 @@ describe("CanvasHeader", () => {
     expect(markup).toMatch(/aria-label="Zoom 64%, zoom options"[^>]*>64%/);
     expect(button(markup, "Zoom out")).not.toContain("disabled");
     expect(button(markup, "Zoom in")).not.toContain("disabled");
+  });
+
+  it("starts the Breadcrumb with the project and its worktree switch, followed by the canvas and frame", () => {
+    const nav = html(opened()).match(/<nav[^>]*aria-label="Breadcrumb"[^>]*>(.+?)<\/nav>/)?.[1];
+    expect(nav).toBeDefined();
+    const parts = ["Demo Overview", "Worktree: main", "doan-canvas-name", "doan-frame-trigger"].map(text => nav!.indexOf(text));
+    expect(parts.every(i => i >= 0)).toBe(true);
+    expect(parts).toEqual([...parts].sort((a, b) => a - b));
+    expect(nav).not.toContain("Zoom out");
   });
 
   it("puts the zoom controller in the order −, value, +", () => {
@@ -91,7 +102,7 @@ describe("CanvasHeader", () => {
   // disabled is kept for the whole controller being off (no canvas drawn), above.
   it("at a zoom limit the button is aria-disabled, not disabled", () => {
     const command = vi.fn();
-    const at = (zoom: number, scale: number) => renderToStaticMarkup(<TooltipProvider>{<CanvasHeader state={opened({ zoom, scale })} view={new CanvasViewStore(canvasViewFields(opened({ zoom, scale })))} command={command} zoomTo={vi.fn()} selectFrame={vi.fn()} /> as ReactElement}</TooltipProvider>);
+    const at = (zoom: number, scale: number) => renderToStaticMarkup(<TooltipProvider>{<CanvasHeader navigation={navigation} state={opened({ zoom, scale })} view={new CanvasViewStore(canvasViewFields(opened({ zoom, scale })))} command={command} zoomTo={vi.fn()} selectFrame={vi.fn()} /> as ReactElement}</TooltipProvider>);
     const min = at(5, 0.05), max = at(400, 4);
     expect(button(min, "Zoom out")).toContain('aria-disabled="true"');
     expect(button(min, "Zoom out")).not.toMatch(/ disabled=""/);
@@ -100,18 +111,20 @@ describe("CanvasHeader", () => {
     expect(button(max, "Zoom in")).not.toMatch(/ disabled=""/);
   });
 
-  it("drops the canvas name and separator on an unlisted page", () => {
+  it("keeps the project separator and explains the switch on an unlisted page", () => {
     const markup = html(opened({ unlisted: true, shown: null }));
     expect(markup).not.toContain("doan-canvas-name");
-    expect(markup).not.toContain("ov-sep");
+    expect(markup).toContain("doan-canvas-sep-root");
     expect(button(markup, "Frames")).toContain("disabled");
     expect(button(markup, "Zoom options")).toContain("disabled");
+    expect(button(markup, "Worktree: main")).toContain('aria-disabled="true"');
+    expect(markup).toContain("Switching worktrees isn’t available on a page that isn’t a listed canvas.");
   });
 
   it("drops the canvas name when the canvas left the list or the project has a problem", () => {
     const markup = html({ ...initialCanvasState(), status: "missing", message: "gone" });
     expect(markup).not.toContain("doan-canvas-name");
-    expect(markup).not.toContain("ov-sep");
+    expect(markup).toContain("doan-canvas-sep-root");
     expect(button(markup, "Frames")).toContain("disabled");
   });
 
@@ -229,4 +242,13 @@ describe("CanvasHeader", () => {
       }
     });
   });
+});
+
+it("uses the same switch in the sidebar, Overview and canvas header", async () => {
+  const { readFileSync } = await import("node:fs");
+  for (const file of ["ShellSidebar.tsx", "ProjectOverview.tsx", "CanvasHeader.tsx"]) {
+    const source = readFileSync(new URL(file, import.meta.url), "utf8");
+    expect(source, file).toContain('from "./WorktreeSwitch"');
+    expect(source, file).toContain("<WorktreeSwitch ");
+  }
 });

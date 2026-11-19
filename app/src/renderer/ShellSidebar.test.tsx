@@ -15,7 +15,7 @@ function render(loaded: string | null, selected = "/repo", expanded = false, pro
   const first: FolderEntry = problem ? { ...entry, canvases: [{ ...row, error: { code: "bad", message: "Unreadable" } }] } : entry;
   return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [first, { ...entry, path: "/other", canvases: [] }] }]} projects={{ common: { roots: ["/repo", "/other"], selectedRoot: selected, expanded } }} loaded={loaded} unlisted={unlisted} canvas={loaded ? row.path : undefined} homeDirectory={null} search={vi.fn()} toggle={vi.fn()} disclose={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} canvasMenu={NO_CANVAS_MENU} />);
 }
-it("renders project to canvas IA, locks current expansion, and keeps the branch passive", () => {
+it("renders project to canvas IA, locks current expansion, and makes the branch a worktree menu", () => {
   const html = render("/repo");
   expect(html).toContain('aria-expanded="true"');
   expect(html).toContain('aria-label="canvas"');
@@ -23,7 +23,7 @@ it("renders project to canvas IA, locks current expansion, and keeps the branch 
   expect(html).not.toContain("hidden-frame");
   expect(html).not.toContain('aria-label="Overview"');
   expect(html).toContain('data-ui-variant="translucent"');
-  expect(html).not.toContain('aria-label="Switch worktree"');
+  expect(html).toMatch(/<button[^>]*aria-label="Worktree: main"[^>]*tabindex="0"[^>]*aria-haspopup="menu"/);
   expect(html).toContain('aria-label="demo menu"');
 });
 it("shows only the remembered worktree and keeps other projects collapsed", () => {
