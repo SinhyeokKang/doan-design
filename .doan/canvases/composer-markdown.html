@@ -192,6 +192,8 @@ button.anchor-chip{cursor:pointer}
 .bubble-item{display:grid;grid-column:1 / -1;grid-template-columns:subgrid}
 .bubble-item>.list-depth{grid-column:1}
 .bubble-item>.list-mark{grid-column:2}
+/* Numbers stand at the column's end, as a native ol draws them, so every "N." keeps the same gap to its text. */
+.bubble-item>.list-mark[data-kind="ol"]{text-align:right}
 .bubble-item>.bubble-item-body{grid-column:3;min-width:0}
 .bubble-item>.bubble-list{grid-column:1 / -1}
 </style></head><body><svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -224,7 +226,7 @@ button.anchor-chip{cursor:pointer}
 <h2>Settled in this draft</h2>
 <ol>
 <li>Indent and marker column, in the field and the bubble: every marker stands one <code>--space-6</code> step (24 px) in and each depth adds one more step; the marker column is <code>--space-3</code> (12 px), so a bullet is followed by a short gap and a number by its typed space. In the bubble a list’s marker column grows to its widest marker, so the bodies of one list line up; in the field a wider marker (<code>100. </code>) pushes only its own item’s text (frames 02 and 05, tiles <i>c</i>).</li>
-<li>Markers take the body ink (<code>--text-standard</code>): the • and the typed numbers, left-aligned in the marker column.</li>
+<li>Markers take the body ink (<code>--text-standard</code>): the • and the typed numbers. In the field each marker starts at its step; in the bubble the • starts the column and numbers are right-aligned in it, so <code>9.</code> and <code>10.</code> keep the same gap to their text.</li>
 <li>No extra spacing between list items in the bubble or the field: lines keep the spacing they had as plain text.</li>
 </ol>
 <p>The person’s list differs from the agent’s Markdown list on purpose: the agent’s replies keep 4 px between items and a circle at the second bullet level (<code>.md</code> lists in <code>styles.css</code>); the person’s bubble keeps the lines as typed and draws • at every level.</p>
