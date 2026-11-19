@@ -227,3 +227,34 @@ Reference: `.doan/canvases/picker-default-labels.html` (frames `triggers`, `menu
 ### Regression pointers
 
 `homeComposer.test.ts`, `dockedRules.test.ts`, `permissionPicker.test.ts`, `newConversationSettings.test.ts`, `SettingsAgents.test.tsx`, `ComposerParts.test.tsx`, `DockedComposer.test.tsx` (CSS source strings only, including the docked trigger ink), `HomeComposerView.interaction.test.tsx`, `rememberChoice.test.ts` and `ProjectOverview.fast.test.tsx` (a model is remembered and marked as picked only when the person picked it, not when restored by Edit). Colours, widths and gaps above are `.scratch/` probes only.
+
+## Composer field lists
+
+Reference: `.doan/canvases/composer-markdown.html` frames `field-bullets`, `field-ordered`, `field-wrap` (tile a) and `field-home`: the docked box composer at 296 px and the Home composer at 680 px, field type label 16/24. One field draws lists in every composer (canvas and Overview docked, Home, the prototype window), so this section holds them all; Home's row points here. Measured outside the running app: the draft canvas was loaded in a bare window of the same Electron build, and on the implementation side the draft tile's shipped composer markup took the built app CSS (`npm --prefix app run build`, every chunk, the app body's rules included) while the real `ChipField` (bundled with Vite) drew the tile's text into the field. The draft's caret is a board stand-in that grows its line box by 0.5 px, so it was removed before reading. Spans were paired by class and order inside each field; line starts by their text.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Marker | A line starting with `- `, `* ` or a 1–3 digit `N. ` has its marker in `.list-mark` (`data-kind` `ul` or `ol`): `inline-block`, `position: relative`, `min-width: 24px` (`--space-6`), so a marker of up to 24 px is 24 wide and the body starts 24 after it | The marker column is the indent of the agent's Markdown lists. |
+| Bullet | `ul` markers keep their characters in `color: transparent`; `::before` draws "•" at left 0 / top 0 in `--text-standard` rgb(15,15,15). `ol` markers are painted as typed in the field's ink | The text the field holds, sends and copies keeps the typed characters. |
+| Depth | Leading spaces before a nested marker are `.list-depth` (`data-depth`), `inline-block`, `data-depth` × 24 wide: depth 1 = 24 and depth 2 = 48, markers at 24 and 48, bodies at 48 and 72; equal to the draft in all four frames | A child's marker sits under its parent's body. |
+| No hanging indent | A wrapped item's next line starts at the field's left edge (`field-wrap` a: field height 120 for its five rows, equal to the draft); the field has no columns | The field is plain editable text; the bubble hangs its lines instead. |
+| New item | Shift+Enter's new empty item (`field-bullets` b, `field-ordered` b) draws its marker like any other; the field adds a zero-width filler after it so the caret has a place, a U+200B that the accessible value carries after "* " but the field's text does not | |
+| Lines that are not items | "2026. 11. 19. review with the team" (a four-digit number) draws no marker; positions equal the draft | |
+| Names (CDP) | The field stays a `textbox` named "Message" whose value is the typed text; the "•" is not in it | |
+
+### Documented deviations from the draft
+
+- **Leading spaces at depth 0.** Leading spaces before an item with no parent item (a first line " - one space") take no width: its `.list-depth` span is 0 px wide and its marker sits at 0, like an item typed without them. Depth follows the parent rule, so spaces under an item are a depth step ("   - three spaces" after "- none": depth 1, 24 px). The draft draws no such item.
+
+Context, not deviations: numbered markers of two or three digits are wider in a field that inherits the app body's tabular figures (the canvas panel's docked composer, Home, the prototype window): "10. " is 26.42 px against the draft's 24 and "100. " 36.02 against 34.58 (`field-ordered` c), so those items' bodies start 2.42 and 1.44 px further right. With plain figures, as the Overview's main column sets them ('Project overview' Numerals in `project.md`), all three markers equal the draft (measured with `font-variant-numeric: normal` on the field). Every list part inherits `tabular-nums`; containers' inherited 13 px / `normal` type.
+
+### Not verified
+
+- The running app: the field was drawn by `ChipField` on the built CSS, not inside a composer of the running app, and the Overview's docked composer was not opened (its plain figures were set on the field by hand). The prototype window's composer was not measured.
+- Keys, caret and IME over the spans belong to the field's behaviour, not this measurement (`chipField.dom.test.ts`).
+
+### Regression pointers
+
+`chipField.dom.test.ts` (Electron: spans over the typed text, depth and marker widths 24 / 48, the bullet's transparent characters and "•", leading spaces of a depth-0 item 0 wide, a wrapped line back at x 0), `chipField.test.ts`, `composerLists.test.ts`. Probe: `.scratch/design-sync/composer-markdown/measure.mjs`, `compare.mjs`.
