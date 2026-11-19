@@ -1211,13 +1211,13 @@ describe("tool wiring", () => {
 // The page `assemble` writes (cli/internal/export/assemble.go), filled here in one pass over shell.html: a canvas of
 // `body` at `width`, with lib.js and measure.js at the top of its head; without them (`reports: false`) the canvas never
 // reports a layout, so the page stays before its first view until the timeout.
-const viewerPage = (body: string, { width = 800, reports = true } = {}): string => {
+const viewerPage = (body: string, { width = 800, reports = true, scripted = true } = {}): string => {
   const head = reports ? `<script>(function () {\n${lib}\n${measure}\n})();</script>` : "";
   const canvas = `<!doctype html><html><head>${head}</head><body style="margin:0">${body}</body></html>`;
   const values: Record<string, string> = {
     PROJECT: "northwind-customer-portal", INITIAL: "N", HUE: "indigo",
     NAME: "checkout", WIDTH: String(width), META: JSON.stringify({ name: "checkout", width }).replace(/</g, "\\u003c"), STYLE: shellCss,
-    SCRIPT: `(function () {\n${lib}\n${shellJs}\n})();`, SRCDOC: canvas.replace(/&/g, "&amp;").replace(/"/g, "&quot;"),
+    SCRIPT: scripted ? `(function () {\n${lib}\n${shellJs}\n})();` : "", SRCDOC: canvas.replace(/&/g, "&amp;").replace(/"/g, "&quot;"),
   };
   return shellHtml.replace(/\{\{(PROJECT|INITIAL|HUE|NAME|WIDTH|META|STYLE|SCRIPT|SRCDOC)\}\}/g, (_, key: string) => values[key]!);
 };
@@ -1243,6 +1243,21 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     await frame.waitForFunction(() => document.documentElement.classList.contains("ready"));
     return frame;
   };
+  test("without scripts the header shows the project and canvas but hides the frame controls", async () => {
+    const frame = await dom.load(viewerPage(twoFrames, { reports: false, scripted: false }));
+    await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "960px"; });
+    const header = frame.locator("header");
+    expect(await header.locator(".doan-canvas-project-name").innerText()).toBe("northwind-customer-portal");
+    expect(await header.locator("#name").innerText()).toBe("checkout");
+    for (const selector of [".doan-canvas-project", ".shell-thumbnail", ".doan-canvas-project-name", ".doan-canvas-sep-root", "#name"]) {
+      expect(await header.locator(selector).isVisible(), selector).toBe(true);
+    }
+    for (const selector of [".ov-sep:not(.doan-canvas-sep-root)", "#drawer-button", "#drawer"]) {
+      expect(await header.locator(selector).count(), selector).toBe(1);
+      expect(await header.locator(selector).isHidden(), selector).toBe(true);
+    }
+  });
+
   test("the project crumb and zoom step buttons follow the header width", async () => {
     const frame = await open(twoFrames);
     for (const width of [720, 719, 600, 599]) {
