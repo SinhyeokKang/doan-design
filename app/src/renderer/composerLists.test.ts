@@ -74,6 +74,15 @@ describe("listLines", () => {
     expect(depths(["-   ", "  - b"])).toEqual([0, 1]);
   });
 
+  test("whitespace after the marker counts tabs to the next 4-column stop too", () => {
+    const depths = (lines: string[]) => listLines(lines).map(item => item?.depth);
+    expect(listLines(["- \ta"])[0]).toMatchObject({ marker: "- ", body: 2, column: 4 });
+    expect(depths(["- \ta", "  - b"])).toEqual([0, 0]);
+    expect(depths(["- \ta", "    - b"])).toEqual([0, 1]);
+    // From column 3 the tab reaches 8: five columns of whitespace, so the body starts one past the marker.
+    expect(listLines(["  - \ta"])[0]).toMatchObject({ indent: 2, column: 4 });
+  });
+
   test("more spaces than needed still go one level deeper, never two", () => {
     expect(listLines(["- a", "          - b"]).map(item => item?.depth)).toEqual([0, 1]);
   });
@@ -183,6 +192,7 @@ describe("indentItem", () => {
     ["-   a\n- b|", "-   a\n    - b|"],
     ["- a\n-   b|\n    - c", "- a\n  -   b|\n      - c"],
     ["1. a\n   999. x\n2. b|", "1. a\n   999. x\n   2. b|"],
+    ["- a\n- \tb|\n    - c", "- a\n  - \tb|\n    - c"],
   ])("Tab makes %j a child of the item above", (before, after) => {
     expect(run((segments, caret) => indentItem(segments, caret, 1), before)).toBe(after);
   });
@@ -219,6 +229,7 @@ describe("indentItem", () => {
     ["- a\n  - b|\n    - c", "- a\n- b|\n  - c"],
     ["1. a\n   1. b|\n      - c", "1. a\n2. b|\n   - c"],
     ["999. a\n     1. |b", "999. a\n1. |b"],
+    ["- a\n  - \tb|\n    - c", "- a\n- \tb|\n    - c"],
   ])("Shift+Tab moves %j out one level", (before, after) => {
     expect(run((segments, caret) => indentItem(segments, caret, -1), before)).toBe(after);
   });
