@@ -75,6 +75,38 @@ export function frameBottom(bottom: number, position: string, ancestors: readonl
   return bottom;
 }
 
+// One ancestor of a marked element, nearest first, up to body. `box` is where
+// the ancestor clips its content (its padding box, inside any scrollbar), in the
+// viewport, and is only read on an axis whose overflow is not `visible`.
+export interface ClipBox {
+  position: string;
+  overflowX: string;
+  overflowY: string;
+  display: string;
+  box: { x: number; y: number; width: number; height: number };
+}
+
+// The part of an element's box its ancestors let show, so an overlay mark never
+// reaches past the window that clips the element. The ancestors that clip follow
+// frameBottom, on both axes.
+export function visibleRect(rect: { x: number; y: number; width: number; height: number }, position: string, ancestors: readonly ClipBox[]): { x: number; y: number; width: number; height: number } {
+  const noOverflow = /^(inline|contents|none|table-(row|row-group|header-group|footer-group|column|column-group)|ruby.*)$/;
+  let left = rect.x, top = rect.y, right = rect.x + rect.width, bottom = rect.y + rect.height;
+  if (position !== "fixed") {
+    let escaping = position === "absolute";
+    for (const link of ancestors) {
+      const positioned = link.position !== "static";
+      if ((!escaping || positioned) && !noOverflow.test(link.display)) {
+        if (link.overflowX !== "visible") { left = Math.max(left, link.box.x); right = Math.min(right, link.box.x + link.box.width); }
+        if (link.overflowY !== "visible") { top = Math.max(top, link.box.y); bottom = Math.min(bottom, link.box.y + link.box.height); }
+      }
+      if (link.position === "fixed") break;
+      if (positioned) escaping = link.position === "absolute";
+    }
+  }
+  return { x: left, y: top, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
+}
+
 export function canScrollAxis(overflow: string, position: number, client: number, size: number, delta: number): boolean {
   if (delta === 0 || size <= client) return false;
   if (overflow !== "auto" && overflow !== "scroll" && overflow !== "overlay") return false;
@@ -281,6 +313,7 @@ interface CanvasLib {
   nextHeight: typeof nextHeight;
   documentHeight: typeof documentHeight;
   frameBottom: typeof frameBottom;
+  visibleRect: typeof visibleRect;
   canScrollAxis: typeof canScrollAxis;
   clipText: typeof clipText;
   elementSelector: typeof elementSelector;
@@ -467,9 +500,32 @@ export function canvasScript(lib: CanvasLib): void {
   const isElement = (target: unknown): target is Element => typeof target === "object" && target !== null && "nodeType" in target && target.nodeType === 1;
   const isText = (node: unknown): node is Text => typeof node === "object" && node !== null && "nodeType" in node && node.nodeType === 3;
   const isEditable = (el: Element) => "isContentEditable" in el && el.isContentEditable === true;
+  // Every overlay mark, and the size and measurements read from it, is the part of the element that shows.
   const rectOf = (el: Element): Rect => {
     const r = el.getBoundingClientRect();
-    return { x: r.left, y: r.top, width: r.width, height: r.height };
+    const html = document.documentElement;
+    // body's overflow belongs to the viewport while html's is visible, and then body clips nothing.
+    const rootStyle = getComputedStyle(html);
+    const bodyClips = rootStyle.overflowX !== "visible" || rootStyle.overflowY !== "visible";
+    const links: ClipBox[] = [];
+    for (let node = el.parentElement; node !== null && node !== html; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      const unclipped = node === document.body && !bodyClips;
+      const overflowX = unclipped ? "visible" : style.overflowX;
+      const overflowY = unclipped ? "visible" : style.overflowY;
+      let box = { x: 0, y: 0, width: 0, height: 0 };
+      if (overflowX !== "visible" || overflowY !== "visible") {
+        // The border box scaled back to layout px gives the transform's scale for the padding box's offsets.
+        const outer = node.getBoundingClientRect();
+        const width = "offsetWidth" in node && typeof node.offsetWidth === "number" ? node.offsetWidth : 0;
+        const height = "offsetHeight" in node && typeof node.offsetHeight === "number" ? node.offsetHeight : 0;
+        const sx = width ? outer.width / width : 1;
+        const sy = height ? outer.height / height : 1;
+        box = { x: outer.left + node.clientLeft * sx, y: outer.top + node.clientTop * sy, width: node.clientWidth * sx, height: node.clientHeight * sy };
+      }
+      links.push({ position: style.position, overflowX, overflowY, display: style.display, box });
+    }
+    return lib.visibleRect({ x: r.left, y: r.top, width: r.width, height: r.height }, getComputedStyle(el).position, links);
   };
   const byAttribute = (attribute: string, value: string) => Array.from(document.querySelectorAll(`[${attribute}]`)).filter((el) => el.getAttribute(attribute) === value);
   const postSelection = (type: "select" | "clear" | "key", fields: Record<string, unknown>) => post({ type, href: location.href, seq, viewport: innerHeight, ...fields });
@@ -1430,7 +1486,7 @@ export function canvasScript(lib: CanvasLib): void {
 }
 
 export function canvasScriptSource(): string {
-  const lib = { nextHeight, documentHeight, frameBottom, canScrollAxis, clipText, elementSelector, ancestorPath, clipHtml, textQuote, chipAnchors, frameStep, escapeTarget, textDragState, textBoundary, nodeKind, nodeLabel, elementTree };
+  const lib = { nextHeight, documentHeight, frameBottom, visibleRect, canScrollAxis, clipText, elementSelector, ancestorPath, clipHtml, textQuote, chipAnchors, frameStep, escapeTarget, textDragState, textBoundary, nodeKind, nodeLabel, elementTree };
   return `(${canvasScript.toString()})({${Object.entries(lib).map(([name, fn]) => `${name}: ${fn.toString()}`).join(", ")}}); void 0;`;
 }
 
