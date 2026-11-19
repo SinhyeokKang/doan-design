@@ -1313,6 +1313,15 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     await panel.getByRole("button", { name: /<b>Item<\/b>/ }).waitFor();
   });
 
+  test("a folded inspector preserves repeated Escape in the page and in the canvas", async () => {
+    const frame = await open(twoFrames);
+    for (const target of [frame.locator("body"), frame.frameLocator("#canvas").locator("body")]) {
+      await frame.locator('[data-tool="hand"]').evaluate(el => (el as HTMLButtonElement).click());
+      await target.dispatchEvent("keydown", { key: "Escape", code: "Escape", bubbles: true, repeat: true });
+      await expect.poll(() => frame.locator('[data-tool="select"]').getAttribute("aria-pressed")).toBe("true");
+    }
+  });
+
   test("a partially overwritten var shorthand exposes only the applied row", async () => {
     const frame = await open('<style>:root{--old:3px;--pad:12px;--left:5px}section{padding:var(--old)}.card{padding:var(--pad);padding-left:var(--left)}</style><section class="card" data-doan-frame="card">Card</section>');
     await frame.getByRole("button", { name: "Show inspector" }).click();
