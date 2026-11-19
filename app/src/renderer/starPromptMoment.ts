@@ -3,10 +3,6 @@
 
 export const STAR_IDLE_MS = 1200;
 
-// Surfaces the card must not appear beside: modal dialogs, Radix popovers (role="dialog" content), menus and the
-// frame list. A card that comes up while one is open would sit under the person's attention or take part of it.
-export const STAR_OVERLAY_QUERY = 'dialog[open], [role="dialog"]:not(dialog), [role="alertdialog"]:not(dialog), [role="menu"], [role="listbox"]';
-
 export interface StarMomentInput {
   // Since the last key or pointer input.
   idleMs: number;
@@ -14,6 +10,8 @@ export interface StarMomentInput {
   windowActive: boolean;
   // First run: onboarding or the buddy introduction.
   onboarding: boolean;
+  // An open menu, list, popover or dialog (canvasTool.ts `overlayOpen`). A card that comes up while one is open would
+  // sit under the person's attention or take part of it.
   overlayOpen: boolean;
   // Another conversation running, or waiting for a permission or question answer.
   otherTurnBusy: boolean;

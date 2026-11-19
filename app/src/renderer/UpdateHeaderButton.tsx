@@ -4,6 +4,7 @@ import { Popover } from "radix-ui";
 import { CircleFadingArrowUp } from "lucide-react";
 import type { UpdateSnapshot } from "../main/update/types";
 import { UPDATE_BLOCKED, updateView, type UpdateHeaderView, type UpdateNotice } from "../main/update/view";
+import { useActivationFocus } from "./activationFocus";
 import type { CanvasPress } from "./ComposerParts";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { useHeaderNoDrag } from "./headerNoDrag";
@@ -47,6 +48,9 @@ export function UpdateHeaderButton({ disabled, canvasPress }: { disabled: boolea
   const [snapshot, setSnapshot] = useState<UpdateSnapshot | null>(null);
   const [shown, setShown] = useState<UpdateNotice | null>(null);
   const button = useRef<HTMLButtonElement | null>(null);
+  // An update push can close the popover while the window is in the background; the move back to the button is made
+  // again on activation (POSTMORTEM 2026-11-17).
+  const handFocus = useActivationFocus();
   const content = useRef<HTMLDivElement | null>(null);
   // A popover the person did not open by pressing leaves focus where it is.
   const quiet = useRef(false);
@@ -121,6 +125,6 @@ export function UpdateHeaderButton({ disabled, canvasPress }: { disabled: boolea
       // the window would leave it on <body>.
       event.preventDefault();
       const active = document.activeElement;
-      if (active === null || active === document.body) button.current?.focus();
+      if (active === null || active === document.body) handFocus(() => button.current?.focus());
     }} />;
 }

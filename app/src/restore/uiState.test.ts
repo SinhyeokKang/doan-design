@@ -573,6 +573,16 @@ test("withoutUnlisted keeps an entry whose canvas is listed for now without its 
   expect(withoutUnlisted(memory, listed)).toEqual({ "/repo/a": { home: ID_A } });
 });
 
+// Without a read conversation list (still reading, or failed), an entry kept by a canvas listed without its ID cannot be
+// told from one whose canvas is gone, so the canvas list drops nothing for that root (ARCHITECTURE §7).
+test("withoutUnlisted keeps every entry of a root whose conversation list is unread while a canvas is listed without its ID", () => {
+  const memory = { "/repo/a": { home: ID_A, gone: ID_B } };
+  const rows = [{ path: ".doan/canvases/home.html" }, { path: ".doan/canvases/cart.html", id: "cart" }];
+  expect(withoutUnlisted(memory, () => ({ canvases: rows, conversations: null }))).toBe(memory);
+  // With every row carrying its ID, the canvas list still drops what it no longer names.
+  expect(withoutUnlisted(memory, () => ({ canvases: [{ path: ".doan/canvases/home.html", id: "home" }], conversations: null }))).toEqual({ "/repo/a": { home: ID_A } });
+});
+
 test("reads the inspector's open flag and width", () => {
   expect(parse({ screen: "home", inspector: { open: true, width: 320 } })?.inspector).toEqual({ open: true, width: 320 });
   expect(parse({ screen: "home", inspector: { open: false, width: 300.5 } })?.inspector).toEqual({ open: false, width: 300.5 });

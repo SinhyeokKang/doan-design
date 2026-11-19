@@ -82,13 +82,27 @@ window.addEventListener("click", (event) => {
     taken = takeHref(event);
   };
   window.addEventListener("click", late);
-  setTimeout(() => {
+  let decided = false;
+  const decide = () => {
+    if (decided) return;
+    decided = true;
     window.removeEventListener("click", late);
+    window.removeEventListener("beforeunload", leaving);
     if (!event.defaultPrevented) post({ goto: value.length <= MAX_GOTO ? value : null });
     for (const { node, attr } of taken) {
       if (attr.ownerElement === null && node.getAttributeNodeNS(attr.namespaceURI, attr.localName) === null) node.setAttributeNode(attr);
     }
-  }, 0);
+  };
+  // An href the canvas set again makes the browser leave the document after the dispatch. If that navigation commits
+  // first, the timer is gone, and even a message posted just before reaches the viewer with no source, which it
+  // refuses. The navigation starts with beforeunload, so the click is decided there, before the request leaves; the
+  // dispatch is over by then, so `defaultPrevented` is final. One fired while the click is still being dispatched (a
+  // script's own navigation) leaves the decision to the timer.
+  const leaving = () => {
+    if (event.eventPhase === Event.NONE) decide();
+  };
+  window.addEventListener("beforeunload", leaving);
+  setTimeout(decide, 0);
 }, true);
 
 // The nearest <a> or <area> in the click's path, as a browser follows it.

@@ -225,6 +225,45 @@ func TestHelpUsageAndHumanError(t *testing.T) {
 	}
 }
 
+// Codex prefix rules compare a rule's tokens with argv in order (ARCHITECTURE §7 'Agent setup'), so the command must be
+// the first argument: a flag or `--` before it is refused before any command runs, and a help flag still prints usage.
+func TestFlagOrDoubleDashBeforeTheCommandIsRefused(t *testing.T) {
+	root := initialized(t)
+	app := startRemoveApp(t)
+	for _, args := range [][]string{
+		{"--json", "export", ".doan/canvases/a.html", "-o", filepath.Join(t.TempDir(), "a.html")},
+		{"--repo", root, "remove"},
+		{"--", "remove"},
+		{"--force", "config", "--add-serve", "assets"},
+		{"-o", "x", "export"},
+		{"-json", "ls"},
+		{"-", "ls"},
+	} {
+		var out, errout bytes.Buffer
+		code := Run(append(append([]string{}, args...), "--json"), strings.NewReader(""), &out, &errout)
+		// After `--` the trailing --json is an argument, so that refusal is the human form on stderr.
+		if code != 2 || !strings.Contains(out.String()+errout.String(), "command must come first") {
+			t.Errorf("%v: exit %d %s %s", args, code, &out, &errout)
+			continue
+		}
+		if out.Len() > 0 {
+			var v map[string]any
+			if e := json.Unmarshal(out.Bytes(), &v); e != nil || v["error"].(map[string]any)["code"] != "usage_error" {
+				t.Errorf("%v: %v %s", args, e, &out)
+			}
+		}
+	}
+	app.silent(t)
+	if _, e := os.Stat(filepath.Join(root, ".doan", "canvases", "a.html")); e == nil {
+		t.Fatal("a command ran")
+	}
+	for _, args := range [][]string{{"--help"}, {"-h"}, {"--help", "ls"}} {
+		if result(t, root, 0, args...)["usage"] == nil {
+			t.Fatal(args)
+		}
+	}
+}
+
 // doan remove is in help only, with the line that says when an agent may run it; the guide and stub do not name it.
 func TestHelpListsRemoveForTheUserOnly(t *testing.T) {
 	usage := result(t, t.TempDir(), 0, "help")["usage"].(string)

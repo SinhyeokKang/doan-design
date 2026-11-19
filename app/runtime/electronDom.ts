@@ -18,7 +18,9 @@ import { _electron, type ElectronApplication, type Frame, type Page } from "play
 const { bounded, closeApp }: typeof import("./harness") = await import(new URL("./harness.ts", import.meta.url).href);
 
 const TIMEOUT_MS = 15_000;
-const CLOSE_MS = 5_000;
+// Electron's graceful quit is the step most sensitive to a loaded machine; 12 s for the quit and 12 s for a forced exit
+// still fit the suites' 30 s afterAll.
+const CLOSE_MS = 12_000;
 
 const MAIN_SCRIPT = `
 const { app, BrowserWindow, session } = require("electron");
@@ -45,8 +47,10 @@ function electronBinary(): string {
 interface AppProcess { process(): ChildProcess; close(): Promise<void> }
 
 // Closes the app (killing it when a close fails or hangs) and removes `dir` only once the process has exited; when the
-// exit cannot be confirmed the folder stays, since the process may still write to it. Any failure is thrown, so a
-// test's afterAll fails rather than passing over a stray Electron.
+// exit cannot be confirmed the folder stays, since the process may still write to it, and the close throws, so a
+// test's afterAll fails rather than passing over a stray Electron. A close that had to be forced only warns once the
+// kill is confirmed and the folder is gone: nothing is left behind, and a slow quit says nothing about the scripts
+// under test. Any other unclean exit still throws.
 export async function closeElectron(app: AppProcess | null, dir: string, ms = CLOSE_MS): Promise<void> {
   const child = app?.process();
   let failure: unknown;
@@ -59,7 +63,10 @@ export async function closeElectron(app: AppProcess | null, dir: string, ms = CL
     throw new AggregateError([failure], `Electron exit unconfirmed; kept ${dir}`);
   }
   await rm(dir, { recursive: true, force: true });
-  if (failure !== undefined) throw failure;
+  if (failure === undefined) return;
+  // `killed` is set only by this process's own kill, so a SIGKILL from elsewhere still fails.
+  if (child?.killed !== true || child.signalCode !== "SIGKILL") throw failure;
+  console.warn("Electron close was forced after it failed; its exit is confirmed and its folder removed:", failure);
 }
 
 export interface ElectronDom {

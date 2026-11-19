@@ -428,7 +428,7 @@ func TestOnboardingCLIMapping(t *testing.T) {
 	for _, code := range schemaDoc.Defs.OperationErrorCode.Enum {
 		want[code] = true
 	}
-	for _, code := range []string{"internal_error", "usage_error", "app_not_running", "app_protocol_mismatch", "app_launch_failed", "cancelled"} {
+	for _, code := range []string{"internal_error", "usage_error", "conversation_refused", "app_not_running", "app_protocol_mismatch", "app_launch_failed", "cancelled"} {
 		want[code] = true
 	}
 	var wantCodes, gotCodes []string

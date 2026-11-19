@@ -9,6 +9,7 @@ import { SELECTION_LOST } from "./selection";
 import { ADD_TO_MESSAGE_OUTSIDE_FRAMES, bubbleAddAvailability, targetAnchor } from "./canvasPicker";
 import { CanvasTools } from "./CanvasTools";
 import { TooltipContent } from "./components/ui/tooltip";
+import { drawnDocument, NOTHING_OPEN, OPEN_SURFACES } from "./drawnTarget.test-support";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -5568,15 +5569,28 @@ describe("following the working frame", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Any open menu on the page (conversation and composer menus are role=menu) holds following off.
-  for (const part of [".doan-frame-list", ".doan-zoom-menu", '[role="menu"]', "dialog[open]", '[role="dialog"]:not(dialog)']) {
-    it(`an open ${part} holds following off`, () => {
+  // Any open menu, list, popover or dialog on the page holds following off, by the rule the tool keys use
+  // (PRODUCT §5 item 2 'Following'); the controller reads it from the document.
+  for (const [name, chain] of OPEN_SURFACES) {
+    it(`${name} open holds following off`, () => {
       const h = rested();
       try {
-        (h.doc as unknown as { querySelector(selector: string): unknown }).querySelector = (selector: string) => selector.split(",").map(item => item.trim()).includes(part) ? {} : null;
+        (h.doc as unknown as { querySelector(selector: string): unknown }).querySelector = drawnDocument(chain).querySelector;
         h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
         setWork(h, "far");
         expect(h.controller.currentView()).toEqual(fitView);
+      } finally { h.controller.dispose(); }
+    });
+  }
+
+  for (const [name, nodes] of NOTHING_OPEN) {
+    it(`follows with ${name} on the page`, () => {
+      const h = rested();
+      try {
+        (h.doc as unknown as { querySelector(selector: string): unknown }).querySelector = drawnDocument(nodes).querySelector;
+        h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+        setWork(h, "far");
+        expect(h.controller.currentView()).toEqual(elementView(FRAMES[2]!, { width: 800, height: 600 }, FIT_INSET, fitView));
       } finally { h.controller.dispose(); }
     });
   }

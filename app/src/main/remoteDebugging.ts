@@ -1,0 +1,10 @@
+import type { CommandLine } from "electron";
+
+// Fuses turn off Node's inspector but not Chromium's DevTools protocol switches. Chromium opens that server only
+// after the main script starts, so exiting there keeps that protocol closed in the packaged app. The unfused
+// node_modules Electron of dev runs and Playwright probes keeps them.
+const SWITCHES = ["remote-debugging-port", "remote-debugging-pipe"];
+
+export function refusesRemoteDebugging(commandLine: Pick<CommandLine, "hasSwitch">, packaged: boolean): boolean {
+  return packaged && SWITCHES.some((name) => commandLine.hasSwitch(name));
+}

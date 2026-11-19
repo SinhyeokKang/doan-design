@@ -40,7 +40,8 @@ it("starts a fenced ACP server under sandbox-exec with the policy, its parameter
   const args = execArgs(root)!;
   // The recorded policy spans lines; the parameters and the command follow it.
   expect(args.join("\n")).toContain(`-p\n${fencePolicy("cursor")}\n-D\nUSERDATA=/u\n`);
-  expect(args.slice(-5)).toEqual(["-D", "ATTACHMENTS=/u/agent-auth/profiles/cursor", process.execPath, SERVER, join(__dirname, "fixtures", "acp-cursor.json")]);
+  expect(args).toContain("ATTACHMENTS=/u/agent-auth/profiles/cursor");
+  expect(args.slice(-5)).toEqual(["-D", "AGENT_FILE_3=/u/agent-auth/profiles/cursor/.cursor/auth.json", process.execPath, SERVER, join(__dirname, "fixtures", "acp-cursor.json")]);
   await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
 });
 it("starts an unfenced ACP server (a list read) as before", async () => {
@@ -76,8 +77,9 @@ readline.createInterface({input:process.stdin}).on('line', line => {
 const CLAUDE_OWNER = { kind: "doan" as const, provider: "claude" as const, connectionId: "c1", accountId: "a1", workspaceId: "org-1", profile: "claude" };
 // Every fenced Claude turn and list read runs inside sandbox-exec, so the code the CLI starts beside the model (hooks,
 // MCP servers, helpers) is held too. Claude's own sandbox cannot start inside it, so the flag tier turns it off whatever
-// the profile or the repository says, Fast or not.
-it("wraps every fenced Claude turn and list read in sandbox-exec and passes sandbox.enabled false", async () => {
+// the profile or the repository says, Fast or not. Auto memory is off too: its files sit under projects/, which the CLI
+// writes its transcripts to, so a fenced turn could leave memory every later turn in the profile would read.
+it("wraps every fenced Claude turn and list read in sandbox-exec and passes sandbox.enabled false and auto memory off", async () => {
   const root = temp(), exec = fakeExec(root), command = fakeClaude(root);
   const base = { command, runtime: "claude" as const, owner: CLAUDE_OWNER, cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, fence: { paths: paths("claude"), exec } };
   const settingsOf = () => { const argv = JSON.parse(readFileSync(join(root, "claude-argv"), "utf8")) as string[]; return JSON.parse(argv[argv.indexOf("--settings") + 1]!) as Record<string, unknown>; };
@@ -85,17 +87,17 @@ it("wraps every fenced Claude turn and list read in sandbox-exec and passes sand
   await turn.close();
   expect(execArgs(root)).toContain(command);
   expect(execArgs(root)?.slice(-1)[0]).toBe(JSON.parse(readFileSync(join(root, "claude-argv"), "utf8")).at(-1));
-  expect(settingsOf()).toEqual({ sandbox: { enabled: false } });
+  expect(settingsOf()).toEqual({ sandbox: { enabled: false }, autoMemoryEnabled: false });
   rmSync(join(root, "exec-args")); rmSync(join(root, "claude-argv"));
   const fast = await openRunner({ ...base, fast: true }, () => {}, () => {}, () => {});
   await fast.close();
   expect(execArgs(root)).toContain(command);
-  expect(settingsOf()).toEqual({ fastMode: true, sandbox: { enabled: false } });
+  expect(settingsOf()).toEqual({ fastMode: true, sandbox: { enabled: false }, autoMemoryEnabled: false });
   for (const read of [listModels, listSkills] as const) {
     rmSync(join(root, "exec-args")); rmSync(join(root, "claude-argv"));
     await read(base, () => {}, () => {});
     expect(execArgs(root)).toContain(command);
-    expect(settingsOf()).toMatchObject({ sandbox: { enabled: false } });
+    expect(settingsOf()).toMatchObject({ sandbox: { enabled: false }, autoMemoryEnabled: false });
   }
 }, 20000);
 it("leaves a Claude run without a fence (a terminal session's) outside sandbox-exec with no settings", async () => {
