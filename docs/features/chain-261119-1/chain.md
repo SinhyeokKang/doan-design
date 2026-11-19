@@ -33,7 +33,7 @@
 - 리드는 각 링크의 PR을 리뷰와 gate가 통과하면 링크 순서대로 develop에 머지하고 다음 링크를 시작한다(chain 기본).
 - conductor 런타임: Claude Code(리드와 같은 계열).
 - **모델 경계 넘기(사용자 허가, 2026-11-19)**: 이 체인의 모든 링크에서 conductor가 Codex 워커를 쓸 수 있다. 조건:
-  - conductor는 링크 시작 때와 배치를 나눌 때 Codex의 남은 사용량을 확인한다.
+  - conductor는 링크 시작 때와 배치를 나눌 때 Codex의 남은 사용량을 확인한다. 배치 계획을 세우기 전에 반드시 확인하고, 남은 양이 있을 때만 Codex 워커를 띄운다. Codex 토큰은 2026-11-19 18:16 무렵 초기화될 예정이다(사용자 안내). 그 전이라 남은 양이 없으면 초기화 뒤 다시 확인한다.
   - 각 링크의 `orch.md`에 Codex를 쓴 배치와 이유를 적는다.
   - 모델과 effort는 `/orchestrate` §0 3의 공통 규칙을 따른다(Codex Astra·Sol, Claude 모두 effort 상한 `high`).
 
@@ -43,7 +43,7 @@
 - 로그인된 userData: `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`(메인 체크아웃). Claude Code, Codex, Cursor, Antigravity, Copilot이 로그인되어 있다. 링크는 각자 워크트리를 가지므로 이 절대 경로를 쓴다.
 - 실행: `/Users/sinhyeok/code/doan-design/.scratch/runtime-test/first-run-261119/launch-kept.sh`(읽고 링크 워크트리의 빌드를 가리키게 고쳐 쓴다). 개발 Electron을 띄울 때마다 Keychain "doan Safe Storage" 창이 한 번 뜬다. 사용자는 "허용"(한 번만)을 누르고 "항상 허용"은 누르지 않는다. 띄우기 전에 사용자에게 알린다.
 - 프로필에는 등록된 프로젝트가 없다. 앱이 꺼진 동안 `<userData>/folders.json`에 `["/private/tmp/<project>"]`를 쓰고(`doan init --storage local` 먼저), 끝나면 지운다.
-- 링크마다 로그아웃하지 않는다. 지우는 probe는 복사본으로 한다. 새 로그인을 청하기 전에 프로필을 먼저 확인한다. 체인 끝의 처리는 '시작 점검' 5를 따른다.
+- 링크마다 로그아웃하지 않는다. 지우는 probe는 복사본으로 한다. 새 로그인을 청하기 전에 프로필을 먼저 확인한다. 체인이 끝난 뒤에도 로그아웃하지 않고 프로필을 남긴다(사용자 승인, '인계 기록').
 - probe가 남긴 대기 메시지나 대화는 링크 안에서 지운다(이전 세션에 대기 메시지가 남은 적이 있다).
 
 ## 진행 규칙
@@ -69,3 +69,10 @@
 ## 인계 기록
 
 - 2026-11-19 (리드 세션, 체인 작성): 세 feature의 `/feature-review`, 초안 확정, PoC(composer, inspector (A))를 마쳤다. 사용자는 이 체인을 새 리드 세션이 시작한다고 했다. Codex 워커 허가는 사용자가 이 체인 전체에 대해 주었다. 같은 날 공통 규칙에서 Codex Astra의 effort 상한을 `high`로 올렸다(`b160a7aa9`). 아직 '시작 점검'을 묻지 않았다.
+- 2026-11-19 (새 리드 세션, 체인 시작): 사용자가 '시작 점검'을 승인했다.
+  1. composer 완료 조건 7(한글 IME): 링크 1의 `/runtime-test` 때 사용자가 실제 앱에서 직접 확인한다. 확인하지 못하면 BACKLOG 'Not verified in the real app'에 남긴다.
+  2. ⌘←로 기호 앞에 입력하면 목록이 풀리는 동작은 그대로 둔다.
+  3. inspector tasks 10: conductor가 `.scratch/` 확인 스크립트를 정해 쓰는 것을 승인했다. 실제 Safari는 실행하지 않고 BACKLOG에 남긴다.
+  4. inspector tasks 8의 생성 스크립트 명령을 conductor가 링크 브랜치에서 AGENTS.md 'Commands'에 더해도 된다.
+  5. 로그인 프로필은 체인이 끝난 뒤에도 남긴다. 로그아웃하지 않고 지우지 않는다(chain skill 기본과 다름).
+  - Codex: 사용자가 18:16 무렵 토큰 초기화를 알렸다. conductor는 배치 계획 전에 Codex 남은 사용량을 확인하고, 사용할 수 있을 때만 Codex 워커를 띄운다('상시 권한').
