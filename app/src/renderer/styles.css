@@ -1339,7 +1339,7 @@ body:has(.shell-top) { background: transparent; }
 /* A long folder name stops at 40% of the header, as the canvas header's crumb, so New conversation stays in. */
 .ov-project { display: inline-flex; align-items: center; gap: var(--space-2); flex: 0 1 auto; max-width: 40%; min-width: 0; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); }
 .ov-project-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--type-weight-medium); }
-/* The branch chip as a worktree picker: the translucent chip with a chevron, opening the project menu's worktree rows. */
+/* The worktree button stays clickable in the draggable header. */
 .wt-chip { cursor: pointer; -webkit-app-region: no-drag; }
 .ov-project > .wt-chip { flex: 0 1e8 auto; min-width: calc-size(max-content, min(size, 2 * var(--space-chip-inset) + var(--size-icon-xs) + var(--space-1) + var(--space-12))); }
 .wt-tip > span { display: block; }

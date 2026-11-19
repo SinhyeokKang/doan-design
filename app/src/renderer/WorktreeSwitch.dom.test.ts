@@ -48,6 +48,7 @@ test("a reading row becomes selectable under the same focus, and reselecting the
   const next = frame.getByRole("menuitem", { name: /next/ });
   await next.focus();
   expect(await next.getAttribute("aria-disabled")).toBe("true");
+  expect(await next.evaluate(node => document.getElementById(node.getAttribute("aria-describedby")!)?.textContent)).toBe("Reading…");
   await next.press("Enter");
   expect(await next.isVisible()).toBe(true);
   await frame.evaluate(() => (window as unknown as { draw(ready: boolean, reason: null): void }).draw(true, null));
