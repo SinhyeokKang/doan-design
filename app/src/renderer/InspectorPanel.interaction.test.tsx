@@ -140,6 +140,22 @@ describe("the element menu", () => {
     expect(menu.scrollLeft).toBeGreaterThan(0);
   });
 
+  test("ArrowDown reveals the next row's name after a one-level increase in depth", () => {
+    const nodes = NODES.slice(0, 2).map((node, index) => ({ ...node, depth: 5 + index, selected: index === 0 }));
+    const rendered = run(ElementMenu, { view: VIEW, nodes, tree: source(), shown: true, onEscape: noop });
+    const menu = { clientWidth: 224, scrollLeft: 0 };
+    const content = rendered.find(element => element.type === Popover.Content)!;
+    (content.props.ref as { current: unknown }).current = menu;
+    for (const row of items(rendered)) (row.props.ref as (node: unknown) => void)({
+      focus: vi.fn(), querySelector: () => ({ offsetWidth: 64 }),
+    });
+    (content.props.onOpenAutoFocus as (event: unknown) => void)({ preventDefault: vi.fn() });
+    expect(menu.scrollLeft).toBe(0);
+    const keydown = rendered.find(element => element.props.role === "tree")!.props.onKeyDown as (event: unknown) => void;
+    keydown(key("ArrowDown"));
+    expect(menu.scrollLeft).toBe(40);
+  });
+
   test("an initial tree reply replaces the focused fallback with the selected deep row", () => {
     const props = { view: VIEW, tree: source(), shown: true, onEscape: noop };
     const menu = { clientWidth: 260, scrollLeft: 0 };

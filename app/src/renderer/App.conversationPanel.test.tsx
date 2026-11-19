@@ -1338,6 +1338,38 @@ describe("the inspector column", () => {
     expect(focus.mock.calls.length).toBeGreaterThan(restored);
   });
 
+  test("activating the window after reload returns focus to the inspector bubble leaves it there", async () => {
+    await canvasPage();
+    folders([listed("/w/a")]);
+    const win = new EventTarget();
+    vi.stubGlobal("window", Object.assign(win, { doan }));
+    let activeWindow = false;
+    Object.assign(document, { hasFocus: () => activeWindow });
+    const focused = (target: unknown) => {
+      Object.assign(document, { activeElement: target });
+      for (const [type, listener] of vi.mocked(document.addEventListener).mock.calls) {
+        if (type === "focusin") (listener as (event: unknown) => void)({ target });
+      }
+    };
+    const header = { closest: () => null, isConnected: true, focus: () => focused(header) };
+    const bubble = { closest: () => null, isConnected: true, focus: () => focused(bubble) };
+    Object.assign(document, { querySelector: (selector: string) => selector === SHOW ? header : null });
+    const controller = harness.controller as unknown as { bubbleAdd: { host(node: unknown): void }; bubbleInspect: { onFocusLost(): void; button(): HTMLElement } };
+    controller.bubbleAdd.host({}); render();
+    const portal = find<Parameters<typeof BubbleAdd>[0]>(BubbleAdd)[0]!.props;
+    portal.inspectButton.current = bubble as unknown as HTMLButtonElement;
+    focused(bubble);
+    controller.bubbleInspect.onFocusLost();
+    expect(document.activeElement).toBe(header);
+    // The controller found the same selection and its focus holder still holds.
+    controller.bubbleInspect.button().focus({ preventScroll: true });
+    expect(document.activeElement).toBe(bubble);
+    activeWindow = true;
+    win.dispatchEvent(new Event("focus"));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(document.activeElement).toBe(bubble);
+  });
+
   // Found in the real app: hiding the sidebar animates the shell's columns, so the measure taken when it hides still saw
   // the sidebar, and at 1000 the inspector stayed away until the next window resize. The end of the shell's own
   // transition measures again.
