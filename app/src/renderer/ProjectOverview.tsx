@@ -10,11 +10,12 @@ import type { AttachmentResult } from "../main/attachments";
 import type { Canvas } from "../main/conversation/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { HomeMemory } from "../restore/uiState";
-import { requestTitleText, stripRequestLines } from "../main/conversation/requestLines";
+import { requestTitleText } from "../main/conversation/requestLines";
+import { messageLine } from "../main/conversation/messageText";
 import { useProjectSkills } from "./useProjectSkills";
 import { AlertIcon } from "./AlertIcon";
 import { plainText, textSegments } from "./anchorField";
-import { startNewConversation, steerPhaseOf } from "./CanvasConversationPanel";
+import { queuedText, startNewConversation, steerPhaseOf } from "./CanvasConversationPanel";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import { canvasLabel } from "./canvasTree";
 import { focusFieldEnd } from "./chipField";
@@ -309,7 +310,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     }).catch(() => ({ error: "unknown" })).finally(() => settle?.());
     if (reply && "error" in reply) return reply;
     if (reply && "scheduled" in reply) {
-      run.queued(root, mode.conversationId, { id: reply.scheduled.itemId, text: stripRequestLines(request.text), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });
+      run.queued(root, mode.conversationId, { id: reply.scheduled.itemId, text: queuedText(request), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });
       return { ok: true, itemId: reply.scheduled.itemId };
     }
     run.sent(root, mode.conversationId, revision);
@@ -320,7 +321,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     const reply = await window.doan.queueConversation({ conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors], ...(request.attachments.length ? { attachments: request.attachments } : {}) }).catch(() => ({ error: "unknown" as const }));
     if ("error" in reply) return sendRefusal(reply);
     // The row keeps the request's text; the request itself is kept for the thread, where Send now moves it.
-    run.queued(root, mode.conversationId, { id: reply.itemId, text: stripRequestLines(request.text), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });
+    run.queued(root, mode.conversationId, { id: reply.itemId, text: queuedText(request), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });
     return { ok: true, itemId: reply.itemId };
   };
   const busy: DockedBusy | null = props.holder && props.holder.conversationId !== conversationId
@@ -333,7 +334,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const firstMessage = thread && provider ? firstTitleMessage(provider, thread.events) : undefined;
   // The lists' "Conversation" stands in once the history shows only commands; while it is read the title stays empty.
   const untitled = thread?.events.some(event => event.type === "user.message") ? "Conversation" : "";
-  const title = conversationId ? summary?.title || (firstMessage ? requestTitleText(firstMessage.text) : untitled) : "New conversation";
+  const title = conversationId ? summary?.title || (firstMessage ? messageLine(requestTitleText(firstMessage.text), firstMessage.anchors) : untitled) : "New conversation";
   const picked = useRef(false);
   // The title menu's trigger, where focus returns after a Delete's confirmation; `deleting` keeps the closing menu from
   // taking focus back while the alert opens.
