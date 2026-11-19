@@ -313,6 +313,18 @@ Reference: `.doan/canvases/canvas-row-menu.html`, the frames `row-button`, `row-
 
 The viewer's content panel, tools row, tooltip and cursors follow a second draft, `.doan/canvases/export-viewer-chrome.html` (frames `viewer-select`, `viewer-hand`, `viewer-dragging`). They were measured against an exported file (a 1440-wide, four-frame canvas), both read in the same Playwright 1.64.1 browser, Chromium and WebKit, the viewer in a 960 × 600 window. States were reached with the mouse alone: the first view (Fit) with the pointer over Select; 100 % from the zoom menu, a click on Hand and the pointer over it; a held drag on the board in Hand.
 
+The exported inspector was measured against all eight frames of `.doan/canvases/inspector-reach-viewer.html`. Playwright Chromium 156.0.8078.4 and WebKit 27.2 opened files written by the repo CLI. The table gives matching computed values from both engines at a 1280 × 800 viewport unless a width is specified.
+
+| State | Measured in the export and draft |
+|---|---|
+| Folded | The 56px header has 16px horizontal padding. Show inspector is 32 × 32 with an 18px radius. Its tooltip opens 4px below it. At window widths of 736 and 735px the header crosses 720px and the zoom step buttons disappear while Show inspector stays visible. |
+| Open, empty | The white column is 280px wide including its 1px start border. The centred empty message wraps at 240px in 14/20 type. |
+| Selection and external styles | Rows are at least 32px high with a 12px radius, 8px horizontal padding and a 96px label column. At this width the 12px gap leaves 139px for the value. The external background used the applied color without a chip. A 410px element inside a 160px clipping box produced a 160px selection and hover mark. |
+| Element menu | The menu is 263px wide inside the column, with 4px padding and 24px corners. Opening on a selection 13 levels deep scrolls its name into view. Home returns the horizontal scroll to zero. |
+| Row copy | Success and failure use 16px horizontal padding. The status fill is rgb(245,245,246), and the failure text is rgb(100,23,35). Clicking a token row reported the token name in both engines. Denying both clipboard paths produced the failure line. |
+| Text drag | The highlight uses rgb(151,59,225) at 30% opacity. A drag over canvas text with `user-select: none` kept the element selection and supplied plain text to the browser’s ⌘C copy event. |
+| Yield | At 640px the column yields and Show inspector takes rgb(149,149,149). At 657px the column and its previous selection return. |
+
 ### Measured contracts
 
 | Element | Measured contract | Reason |
