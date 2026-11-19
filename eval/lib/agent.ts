@@ -19,22 +19,29 @@ export function agentEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 // from the user's $CODEX_HOME/AGENTS.md), so an agent or judge gets none, while it still signs in as the user and keeps
 // the user's model settings. The runner writes, moves or copies nothing in the user's homes.
 // Codex 0.167 reads $CODEX_HOME/AGENTS.override.md or AGENTS.md with no setting to skip them (--ignore-user-config skips
-// only config.toml), so a Codex process gets its own CODEX_HOME at `dir` holding links to the user's auth.json, its lock
-// files and config.toml. Links, not copies: Codex writes refreshed tokens through auth.json in place and takes auth.lock
-// and auth.json.lock to coordinate with the user's other Codex processes, so a copy could leave the user's sign-in on a
-// spent refresh token. Codex creates the locks only at a sign-in or refresh (codex-cli 0.169.0), so they are linked
-// whenever auth.json is, dangling or not: a run then takes them at the user's path, as the user's own Codex would.
+// only config.toml), so a Codex process gets its own CODEX_HOME at `dir` holding links to the user's auth.json and its
+// lock files, and a copy of config.toml. Links, not copies: Codex writes refreshed tokens through auth.json in place and
+// takes auth.lock and auth.json.lock to coordinate with the user's other Codex processes, so a copy could leave the
+// user's sign-in on a spent refresh token. Codex creates the locks only at a sign-in or refresh (codex-cli 0.169.0), so
+// they are linked whenever auth.json is, dangling or not: a run then takes them at the user's path, as the user's own
+// Codex would. config.toml is copied because the run's copy also trusts the `trusted` folders: Codex 0.169.0 loads a
+// project's .codex/ layer (the eval's doan rule) only for a project trusted there, and a `-c projects.…` override does
+// not count; a link would put that trust, and anything else Codex saves there, into the user's config.
 // Everything else Codex keeps there (sessions, logs, skills, rules, hooks.json, .env) stays out of the run.
 // Claude Code 2.1.325 loads ~/.claude/CLAUDE.md (or $CLAUDE_CONFIG_DIR/CLAUDE.md) and user rules with user settings,
 // which also carry the model, so only CLAUDE_CODE_DISABLE_CLAUDE_MDS is set; it hides project memory files too, which no
 // scenario seed has (agent.test.ts).
-export function isolateUserInstructions(agent: Agent, env: NodeJS.ProcessEnv, dir: string): NodeJS.ProcessEnv {
+export function isolateUserInstructions(agent: Agent, env: NodeJS.ProcessEnv, dir: string, trusted: readonly string[] = []): NodeJS.ProcessEnv {
   if (agent === "claude") return { ...env, CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1" };
   const user = env.CODEX_HOME || join(env.HOME || homedir(), ".codex");
   mkdirSync(dir, { recursive: true });
   const signedIn = existsSync(join(user, "auth.json"));
-  for (const name of ["auth.json", "auth.lock", "auth.json.lock", "config.toml"])
+  for (const name of ["auth.json", "auth.lock", "auth.json.lock"])
     if (existsSync(join(user, name)) || (signedIn && name.endsWith(".lock"))) symlinkSync(join(user, name), join(dir, name));
+  const config = existsSync(join(user, "config.toml")) ? readFileSync(join(user, "config.toml"), "utf8") : null;
+  // A JSON string of a path is a valid TOML basic string.
+  const trust = trusted.map(path => `[projects.${JSON.stringify(path)}]\ntrust_level = "trusted"\n`).join("\n");
+  if (config !== null || trust) writeFileSync(join(dir, "config.toml"), [config && (config.endsWith("\n") ? config : `${config}\n`), trust].filter(Boolean).join("\n"));
   return { ...env, CODEX_HOME: dir };
 }
 
