@@ -127,8 +127,9 @@ const CLAUDE_PROFILE_ALLOW: SettingMerge = current => {
 // Antigravity <GEMINI_HOME>/config/skills (ACP server 1.3.0 resolve_skills_paths; a live turn on 2026-11-06 found the
 // stub there and not at <GEMINI_HOME>/skills, where earlier builds wrote it; that old file is left alone, nothing reads it).
 const HOME_STUB = (dir: string) => ({ [`${dir}/skills/doan/SKILL.md`]: stub });
-// Codex applies the strictest matching rule (forbidden > prompt > allow, Codex docs 'Rules'), so `doan handoff` still asks
-// in the asking modes, as the person chose for starting a conversation, although rules/doan.rules allows most `doan` commands.
+// rules/doan.rules (codexRuleText) allows only the read and signal commands, so every other `doan` command follows the
+// mode's own sandbox: Full access runs `doan export` and `doan config`, which a `prompt` rule would refuse there. Only
+// `doan handoff` gets a `prompt` rule, so it asks in the asking modes, as the person chose for starting a conversation.
 const CODEX_HANDOFF_RULE = '# Written by Doan so Codex asks before `doan handoff` starts another conversation.\nprefix_rule(pattern=["doan", "handoff"], decision="prompt")\n';
 const CLI_RUN = { acpAuth: null, acp: null, verifyByRun: false, hookLink: null, loginClears: false, identity: null };
 export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {

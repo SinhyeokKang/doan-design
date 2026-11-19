@@ -215,6 +215,24 @@ test("a Codex exec_command whose cmd is not a plain string makes the read incomp
   assert.equal(incompleteRead(toolCalls(exec("await tools.exec_command({cmd: 'doan active --json', workdir: '/tmp'});")).commands), false);
 });
 
+// Only `tools.exec_command(…)` is read as a call; any other way a script reaches exec_command still runs a command.
+test("a Codex exec_command reached any other way than tools.exec_command(…) makes the read incomplete", () => {
+  const exec = (input: string) => JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", name: "exec", input } });
+  for (const input of [
+    "await tools?.exec_command({cmd: 'doan open .doan/canvases/a.html'});",
+    "await tools[\"exec_command\"]({cmd: 'doan open .doan/canvases/a.html'});",
+    "await tools['exec_command']({cmd: 'doan open .doan/canvases/a.html'});",
+    "const run = tools.exec_command; await run({cmd: 'doan open .doan/canvases/a.html'});",
+    "const { exec_command } = tools; await exec_command({cmd: 'doan open .doan/canvases/a.html'});",
+  ]) {
+    const { commands } = toolCalls(exec(input));
+    assert.equal(incompleteRead(commands), true, input);
+    assert.ok(!commands.flatMap(commandWords).some(words => words[0] === "doan"), input);
+  }
+  // A string or comment that only mentions it runs nothing.
+  assert.deepEqual(toolCalls(exec("text('use exec_command'); // tools.exec_command\nawait tools.exec_command({cmd: 'doan active'});")).commands, ["doan active"]);
+});
+
 // Codex records each process an exec script ran (item_completed CommandExecution, with no call id) between the
 // script's call and its output, so a template command is read from what actually ran.
 test("a Codex exec script's template commands are read from the commands its run recorded", () => {
@@ -295,6 +313,12 @@ test("a bare variable holding several words is unresolved, since zsh passes it a
   // One word, or several quoted into one, reads the same in every shell.
   assert.deepEqual(parseCommand("p=harden; doan design-skill $p"), { words: [["doan", "design-skill", "harden"]], incomplete: false });
   assert.deepEqual(parseCommand("m='a b'; echo \"$m\""), { words: [["echo", "a b"]], incomplete: false });
+});
+// zsh passes `' harden'` with its space, where bash drops it, so the argument doan gets is not known.
+test("a bare variable holding one word with surrounding whitespace is unresolved, since zsh keeps the whitespace", () => {
+  assert.deepEqual(parseCommand("p=' harden'; doan design-skill $p"), { words: [], incomplete: true });
+  assert.deepEqual(parseCommand("p='harden '; doan design-skill $p"), { words: [], incomplete: true });
+  assert.deepEqual(parseCommand("for p in harden; do q=\"$p \"; doan design-skill $q; done"), { words: [], incomplete: true });
 });
 test("loop variables and assignments in a body are the shell state that goes on after the loop", () => {
   assert.deepEqual(commandWords("p=harden; for p in polish; do echo $p; done; doan design-skill $p"), [["echo", "polish"], ["doan", "design-skill", "polish"]]);
@@ -690,6 +714,15 @@ test("an interpreter running a script the reader cannot see, or find -exec into 
     "python3 fix.py .doan/canvases/a.html",
     "node build.mjs",
     "python3 -u /tmp/run.py --repo .",
+    // A switch after the script is the script's own argument, not an inline script.
+    "python3 gen.py -c cfg.json",
+    "python3 gen.py -m fast",
+    "node build.mjs -e",
+    "perl fix.pl -e",
+    "ruby fix.rb -e",
+    // A module is a script the transcript does not show.
+    "python3 -m tools.publish",
+    "python3 -I -m pip install x",
     "deno run x.ts",
     "python3 < /tmp/run.py",
     "node - < /tmp/run.js",
@@ -702,6 +735,9 @@ test("an interpreter running a script the reader cannot see, or find -exec into 
   read("python3 - <<'EOF'\nimport json\nprint(json.load(open('.doan/canvases/a.html')))\nEOF", [["python3", "-"]]);
   read("python3 -I - .doan/canvases/a.html <<'EOF'\nimport sys\nprint(open(sys.argv[1]).read())\nEOF", [["python3", "-I", "-", ".doan/canvases/a.html"]]);
   read("doan ls --json | python3 -m json.tool", [["doan", "ls", "--json"], ["python3", "-m", "json.tool"]]);
+  // An option's own value is not the script.
+  read("python3 -W ignore -c 'print(1)'", [["python3", "-W", "ignore", "-c", "print(1)"]]);
+  read("node -r ./setup.cjs -e 'console.log(1)'", [["node", "-r", "./setup.cjs", "-e", "console.log(1)"]]);
   read("python3 --version; node -v", [["python3", "--version"], ["node", "-v"]]);
   read("perl -0pi -e 's/a/b/' .doan/canvases/a.html", [["perl", "-0pi", "-e", "s/a/b/", ".doan/canvases/a.html"]]);
   read("cat <<'EOF' > /tmp/x\ndoan active\nEOF", [["cat"]]);
@@ -714,6 +750,10 @@ test("an interpreter running a script the reader cannot see, or find -exec into 
     "ruby <<'EOF'\nputs %x(doan active)\nEOF",
     "osascript <<'EOF'\ndo shell script \"doan active\"\nEOF",
   ]) read(command, [], true);
+  // Perl and Ruby run a backtick string as a command; to Python and Node it is text.
+  read("perl <<'EOF'\nmy $out = `doan ls --json`;\nprint $out;\nEOF", [], true);
+  read("ruby <<'EOF'\nputs `doan active`\nEOF", [], true);
+  read("node <<'EOF'\nconsole.log(`run doan check`)\nEOF", [["node"]]);
   // find -exec into a shell -c script runs that script, which is read like any sh -c script.
   read("find .agents -type f -exec sh -c 'echo \"== $1\"; cat \"$1\"' _ {} \\;", [["find", ".agents", "-type", "f", "-exec", "sh", "-c", 'echo "== $1"; cat "$1"', "_", "{}", ";"], ["echo", "== $1"], ["cat", "$1"]]);
 });

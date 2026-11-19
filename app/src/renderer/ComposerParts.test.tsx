@@ -520,3 +520,27 @@ test("the / list never runs past the composer's right edge", () => {
   // Same weight as the shared popover rule, so it wins by coming after it.
   expect(css.indexOf(".slash-popover {")).toBeGreaterThan(css.indexOf(".preset-popover {"));
 });
+
+// POSTMORTEM 2026-11-17: a read answered while the window is in the background moves focus to the search box, which
+// activation would otherwise put back on the Retry that went.
+test("a presets Retry answered with the window in the background focuses the search box again when the window activates", async () => {
+  hooks.on = true; hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.cursor = 0; hooks.refCursor = 0;
+  const win = new EventTarget(), body = {}, input = { focus: vi.fn() };
+  vi.stubGlobal("window", win);
+  vi.stubGlobal("document", { activeElement: body, body, hasFocus: () => false, querySelectorAll: () => [] });
+  vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    const failed = { v: 1, ok: false, error: { code: "cli_error", reason: "failed", message: "", nextSteps: [] } } as never;
+    const retry = { ...LIST_RETRY_IDLE, run: (work: () => Promise<boolean>) => { void work(); } };
+    const tree = propsOf(PresetsButton({ reply: failed, project: "p", suggested: [], listId: "l", disabled: false, retry, onOpen: () => {}, onChoose: () => {}, onRetry: async () => true, onPicked: () => {} }));
+    (tree.find(item => typeof item.props.onCloseAutoFocus === "function")!.props.ref as { current: unknown }).current = { querySelector: () => input };
+    const button = tree.find(item => item.type === "button" && item.props.children === "Retry")!;
+    (button.props.onClick as (event: unknown) => void)({ currentTarget: { isConnected: false } });
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(input.focus).toHaveBeenCalledTimes(1);
+    win.dispatchEvent(new Event("focus"));
+    vi.runAllTimers();
+    expect(input.focus).toHaveBeenCalledTimes(3);
+  } finally { hooks.on = false; vi.useRealTimers(); vi.unstubAllGlobals(); }
+});

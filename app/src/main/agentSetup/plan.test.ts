@@ -97,12 +97,13 @@ describe("the Codex rule's earlier texts", () => {
   // A failure here means the rule text changed: add the released text below to EARLIER_CODEX_RULES before updating
   // this pin, or every machine set up by an earlier version keeps that version's file as someone else's.
   it("pins the current rule text", () => {
-    expect(codexRuleText()).toBe('# Written by Doan so Codex runs `doan` outside its sandbox without asking, and asks first for `doan export`, `config`, `onboarding` and `remove`. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan"], decision="allow")\nprefix_rule(pattern=["doan", "export"], decision="prompt")\nprefix_rule(pattern=["doan", "config"], decision="prompt")\nprefix_rule(pattern=["doan", "onboarding"], decision="prompt")\nprefix_rule(pattern=["doan", "remove"], decision="prompt")\n');
+    expect(codexRuleText()).toBe('# Written by Doan so Codex runs `doan ls`, `check`, `active`, `work`, `open`, `skill`, `design-skill` and `help` outside its sandbox without asking; every other `doan` command follows your Codex settings. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan", "ls"], decision="allow")\nprefix_rule(pattern=["doan", "check"], decision="allow")\nprefix_rule(pattern=["doan", "active"], decision="allow")\nprefix_rule(pattern=["doan", "work"], decision="allow")\nprefix_rule(pattern=["doan", "open"], decision="allow")\nprefix_rule(pattern=["doan", "skill"], decision="allow")\nprefix_rule(pattern=["doan", "design-skill"], decision="allow")\nprefix_rule(pattern=["doan", "help"], decision="allow")\n');
   });
 
-  // The text agent setup wrote before the writing commands asked: installed copies must upgrade, not turn foreign.
-  it("lists the allow-everything text as an earlier one", () => {
+  // The texts agent setup wrote before: installed copies must upgrade, not turn foreign.
+  it("lists the allow-everything texts as earlier ones", () => {
     expect(EARLIER_CODEX_RULES).toContain('# Written by Doan so Codex runs `doan` outside its sandbox without asking. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan"], decision="allow")\n');
+    expect(EARLIER_CODEX_RULES).toContain('# Written by Doan so Codex runs `doan` outside its sandbox without asking, and asks first for `doan export`, `config`, `onboarding` and `remove`. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan"], decision="allow")\nprefix_rule(pattern=["doan", "export"], decision="prompt")\nprefix_rule(pattern=["doan", "config"], decision="prompt")\nprefix_rule(pattern=["doan", "onboarding"], decision="prompt")\nprefix_rule(pattern=["doan", "remove"], decision="prompt")\n');
   });
 
   it("never lists the current text", () => {
@@ -140,13 +141,30 @@ describe("plannedTargets", () => {
     ]);
   });
 
-  // Codex applies the strictest matching rule (forbidden > prompt > allow, Codex docs 'Rules'), so these four ask while
-  // every other doan command runs outside the sandbox unasked.
-  it("allows doan commands but asks before export, config, onboarding and remove", () => {
-    expect(codexRuleText()).toMatch(/^prefix_rule\(pattern=\["doan"\], decision="allow"\)$/m);
-    for (const command of ["export", "config", "onboarding", "remove"])
-      expect(codexRuleText()).toMatch(new RegExp(`^prefix_rule\\(pattern=\\["doan", "${command}"\\], decision="prompt"\\)$`, "m"));
-    expect(codexRuleText().match(/^prefix_rule/gm)).toHaveLength(5);
+  // Codex compares a rule's tokens with argv in order and applies the strictest matching rule (forbidden > prompt >
+  // allow, Codex docs 'Rules'); a command no rule matches follows the person's Codex settings. Only the read and signal
+  // commands an agent needs the app socket or no prompt for are allowed, so a writing command never runs outside the
+  // sandbox unasked, however its arguments are arranged.
+  const decision = (argv: string[]): string => {
+    const order = ["forbidden", "prompt", "allow"];
+    const matched = [...codexRuleText().matchAll(/^prefix_rule\(pattern=(\[.*\]), decision="(\w+)"\)$/gm)]
+      .filter(([, pattern]) => (JSON.parse(pattern!) as string[]).every((token, i) => argv[i] === token))
+      .map(([, , result]) => result!);
+    return order.find(result => matched.includes(result)) ?? "default";
+  };
+
+  it("allows only the read and signal commands", () => {
+    for (const command of ["ls", "check", "active", "work", "open", "skill", "design-skill", "help"])
+      expect(decision(["doan", command, "--json"]), command).toBe("allow");
+    expect(codexRuleText()).not.toMatch(/^prefix_rule\(pattern=\["doan"\]/m);
+    expect(codexRuleText()).not.toMatch(/decision="(prompt|forbidden)"/);
+  });
+
+  it("leaves every other command and every flag-first shape to the person's Codex settings", () => {
+    for (const command of ["export", "config", "onboarding", "remove", "init", "handoff"])
+      expect(decision(["doan", command]), command).toBe("default");
+    for (const argv of [["doan", "--json", "export"], ["doan", "--repo", "x", "config"], ["doan", "--", "remove"], ["doan", "-o", "x", "export"], ["doan", "--json", "ls"], ["doan"]])
+      expect(decision(argv), argv.join(" ")).toBe("default");
   });
 
   it("leaves out missing provider folders and the system link when PATH has ~/.local/bin", () => {

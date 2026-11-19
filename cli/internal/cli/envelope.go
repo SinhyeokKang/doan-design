@@ -29,7 +29,7 @@ func ExitCode(code string) int {
 	switch code {
 	case "usage_error", "repo_not_found", "invalid_config", "unsupported_version", "canvas_not_found",
 		"invalid_url", "path_unavailable", "not_candidate", "initialize_required", "request_conflict", "operation_not_found", "inspection_stale", "destination_exists",
-		"export_refused", "export_too_large", "not_app_conversation", "root_mismatch", "git_init_failed",
+		"export_refused", "export_too_large", "not_app_conversation", "conversation_refused", "root_mismatch", "git_init_failed",
 		// The static frame judgment of open --prototype and export --prototype, and open --prototype's canvas read.
 		"frame_not_found", "not_prototype", "canvas_unreadable":
 		return 2

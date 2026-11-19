@@ -71,7 +71,9 @@ func removeReply(line []byte, root string, secrets []string) (map[string]any, *E
 	reply := obj["error"].(map[string]any)
 	switch code := reply["code"].(string); code {
 	case "bad_token":
-		// The runtime file outlived the app that wrote it; a new app has another token.
+		// The runtime file outlived the app that wrote it; a new app has another token. An app conversation's credential
+		// is refused here too, but its CLI refuses `doan remove` before dialling (conversation_refused), so this reads as
+		// a stale runtime file.
 		return nil, removeFailure("app_not_running", "Doan rejected the token in its runtime file")
 	case "bad_request":
 		return nil, internal(errors.New("Doan rejected the remove request as malformed"))

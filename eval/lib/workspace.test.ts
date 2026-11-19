@@ -7,7 +7,7 @@ import { after, before, test } from "node:test";
 import { CODEX_RULE, codexRuleText, evalCodexRuleText } from "./codex-rule.ts";
 import { createContext, judgeMaterial, sh } from "./context.ts";
 import { loadScenario } from "./scenario.ts";
-import { keepCodexSessions, keepOnboardingLog, prepareWorkspace } from "./workspace.ts";
+import { keepCodexSessions, keepOnboardingLog, outsideCodexSandbox, prepareWorkspace } from "./workspace.ts";
 
 const { CLAUDE_ALLOW_RULES } = await import("../../app/src/main/agentSetup/plan.ts");
 
@@ -279,6 +279,17 @@ test("canvas-only seeds are initialized even though .doan already exists", async
   } finally { await ws.dispose(); }
 });
 
+// The Codex judge of a Claude run lives while the Codex lane's agents run under workspace-write, so its home, with links
+// to the user's sign-in and its instruction files, must be out of their reach as the agents' homes are.
+test("a directory made outside the Codex sandbox is in none of the folders workspace-write opens", () => {
+  const dir = outsideCodexSandbox("doan-eval-judge-");
+  try {
+    assert.ok(statSync(dir).isDirectory());
+    for (const writable of ["/tmp", "/private/tmp", realpathSync(tmpdir())])
+      assert.ok(!`${dir}/`.startsWith(`${writable}/`), `${dir} is inside ${writable}`);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 test("each real agent's environment leaves out the user's own instruction files; the fixture agent's is unchanged", async () => {
   const saved = process.env.CODEX_HOME;
   const fake = mkdtempSync("/tmp/doan-eval-codex-home-");
@@ -355,11 +366,13 @@ test("a Codex run's own sessions are kept in the run directory when its rollout 
   }
 });
 
-// Codex runs with approval_policy="never", where agent setup's `prompt` rules refuse the command outright. The eval
-// measures how agents use the guide, not the person's approvals, so its rule is agent setup's allow rule without them.
-test("the eval's Codex rule is agent setup's rule without its prompt rules", () => {
-  assert.match(codexRuleText(), /decision="prompt"/);
-  assert.equal(evalCodexRuleText(), codexRuleText().split("\n").filter(line => !line.includes('decision="prompt"')).join("\n"));
-  assert.match(evalCodexRuleText(), /^prefix_rule\(pattern=\["doan"\], decision="allow"\)$/m);
-  assert.doesNotMatch(evalCodexRuleText(), /decision="prompt"/);
+// Codex runs with approval_policy="never", where a command that needs to leave the sandbox is refused outright. The eval
+// measures how agents use the guide, not the person's approvals, so its rule is agent setup's rule plus an allow rule
+// for each command agent setup leaves to the person's Codex settings: every `doan` command runs outside the sandbox.
+test("the eval's Codex rule is agent setup's rule plus allow rules for every other command", () => {
+  assert.ok(evalCodexRuleText().startsWith(codexRuleText()));
+  const allowed = [...evalCodexRuleText().matchAll(/^prefix_rule\(pattern=\["doan", "([a-z-]+)"\], decision="allow"\)$/gm)].map(([, command]) => command).sort();
+  assert.deepEqual(allowed, ["active", "check", "config", "design-skill", "export", "handoff", "help", "init", "ls", "onboarding", "open", "remove", "skill", "work"]);
+  assert.doesNotMatch(evalCodexRuleText(), /decision="(prompt|forbidden)"/);
+  assert.doesNotMatch(evalCodexRuleText(), /^prefix_rule\(pattern=\["doan"\]/m);
 });

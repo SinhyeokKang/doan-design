@@ -7,6 +7,7 @@ import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { Anchor, SkillSummary } from "../main/conversation/types";
 import { pickerAction, pickerFooter, providerShortStatus } from "./agentAuthView";
+import { useActivationFocus } from "./activationFocus";
 import { AlertIcon } from "./AlertIcon";
 import type { FieldSegment } from "./anchorField";
 import { ChipField, type ChipInsert } from "./chipField";
@@ -350,6 +351,8 @@ export function PresetsButton(props: {
   // the canvas, so it stays there.
   const pressed = useRef(false);
   const lastFocused = useRef<HTMLElement | null>(null);
+  // The read can answer after the person left the window; the move is made again on activation (POSTMORTEM 2026-11-17).
+  const handFocus = useActivationFocus();
   const { canvasPress } = props;
   useEffect(() => {
     if (!open || !canvasPress) return;
@@ -372,7 +375,7 @@ export function PresetsButton(props: {
   // A read that answers with the list takes the line and its Retry away; focus that was on the Retry goes to the search
   // box, the popover's first control, instead of falling to <body>.
   const readAgain = (pressed: HTMLElement | null) => props.retry.run(() => props.onRetry().then(ok => {
-    if (ok) requestAnimationFrame(() => { if (pressed && !pressed.isConnected && document.activeElement === document.body) content.current?.querySelector<HTMLElement>("input")?.focus(); });
+    if (ok) requestAnimationFrame(() => { if (pressed && !pressed.isConnected && document.activeElement === document.body) handFocus(() => content.current?.querySelector<HTMLElement>("input")?.focus()); });
     return ok;
   }), pressed);
   return <Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) { pressed.current = false; setQuery(""); props.onOpen(); } }}>

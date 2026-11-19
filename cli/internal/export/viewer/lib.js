@@ -7,7 +7,8 @@
 //   - nextHeight, documentHeight, frameBottom, canScrollAxis, clipText: app/src/main/canvasScript.ts
 //     (compared as function text);
 //   - the constants, fitScale, wheelAction: app/src/renderer/viewport.ts (compared as values);
-//   - toolShortcut with TOOL_KEYS, CONTROL_ROLES and interactiveTarget: app/src/renderer/canvasTool.ts,
+//   - toolShortcut with TOOL_KEYS, CONTROL_ROLES, interactiveTarget, OPEN_OVERLAY and inOpenOverlay:
+//     app/src/renderer/canvasTool.ts,
 //     and editableTarget: app/src/renderer/selection.ts (compared as values over one event table,
 //     since the app does not export the helpers);
 //   - TIP_DELAY_MS and TIP_SKIP_MS: app/src/renderer/components/ui/tooltip.tsx (compared as values
@@ -266,6 +267,9 @@ function panScroll(scroll, max, dx, dy) {
 
 const TOOL_KEYS = { KeyV: "select", KeyH: "hand" };
 const CONTROL_ROLES = new Set(["button", "menuitem", "treeitem", "option", "tab", "switch", "checkbox", "radio", "combobox"]);
+// The app's rule for an open menu, list, popover or dialog. The viewer's drawer and zoom menu carry `doan-menu` and a
+// listbox; the rest of the rule is kept so the copy answers as the app's does.
+const OPEN_OVERLAY = '.doan-menu, [role="menu"], [role="listbox"], .preset-popover, dialog[open], [role="dialog"]:not(dialog), [role="alertdialog"]:not(dialog)';
 
 function editableTarget(target) {
   if (typeof target !== "object" || target === null || !("tagName" in target)) return false;
@@ -283,15 +287,20 @@ function interactiveTarget(target) {
   return typeof role === "string" && CONTROL_ROLES.has(role);
 }
 
+function inOpenOverlay(target) {
+  if (typeof target !== "object" || target === null || !("closest" in target) || typeof target.closest !== "function") return false;
+  return target.closest(OPEN_OVERLAY) !== null;
+}
+
 // By key position (`code`), so a Korean layout's ㅍ and ㅗ still switch tools. A Space release
-// always counts, so a held Space never outlives the key.
+// always counts, so a held Space never outlives the key. An open menu or list keeps every printable key.
 function toolShortcut(event, context) {
   if (event.type === "keyup") return event.code === "Space" ? { kind: "space", down: false } : null;
   if (event.type !== "keydown") return null;
   const tool = TOOL_KEYS[event.code];
   if (tool === undefined && event.code !== "Space") return null;
   if (!context.canvasPage || event.repeat || event.isComposing || event.keyCode === 229 || event.defaultPrevented) return null;
-  if (event.metaKey || event.ctrlKey || event.altKey || editableTarget(event.target)) return null;
+  if (event.metaKey || event.ctrlKey || event.altKey || editableTarget(event.target) || inOpenOverlay(event.target)) return null;
   if (tool !== undefined) return { kind: "tool", tool };
   return interactiveTarget(event.target) ? null : { kind: "space", down: true };
 }

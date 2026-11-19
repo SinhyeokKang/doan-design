@@ -959,3 +959,25 @@ func TestBundleIDIsTheAppID(t *testing.T) {
 		t.Fatalf("app/package.json build.appId %q, bundleID %q", pkg.Build.AppID, bundleID)
 	}
 }
+
+// An agent in an app conversation cannot use Doan's onboarding (PRODUCT §3 'Resume and permissions'): every onboarding
+// command is refused before it dials or launches, with a code that says where it can run instead.
+func TestOnboardingInAnAppConversationIsRefusedBeforeTheApp(t *testing.T) {
+	app := startOnboardingApp(t, shortTempDir(t), func(map[string]any) string { return fixtureReply(t, "start-fresh") })
+	t.Setenv("DOAN_RUNTIME", app.runtime)
+	t.Setenv("DOAN_APP_CONVERSATION", "1")
+	for op, call := range onboardingCalls {
+		code, env, out := runOnboarding(t, call.args...)
+		failure, _ := env["error"].(map[string]any)
+		if code != 2 || failure == nil || failure["code"] != "conversation_refused" {
+			t.Errorf("%s: %d %s", op, code, out)
+			continue
+		}
+		if !strings.Contains(failure["message"].(string), "app conversation") || !strings.Contains(strings.Join(stringsOf(failure["nextSteps"]), " "), "terminal") {
+			t.Errorf("%s: %s", op, out)
+		}
+	}
+	if n := len(app.received()); n != 0 {
+		t.Fatalf("%d requests sent", n)
+	}
+}

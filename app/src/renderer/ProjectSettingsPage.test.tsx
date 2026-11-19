@@ -80,7 +80,7 @@ beforeEach(() => {
     revealProject: vi.fn(async () => {}),
   };
   vi.stubGlobal("window", { doan });
-  vi.stubGlobal("document", { activeElement: null, body: {}, addEventListener: vi.fn(), removeEventListener: vi.fn(), querySelector: () => null, querySelectorAll: () => [] });
+  vi.stubGlobal("document", { activeElement: null, body: {}, hasFocus: () => true, addEventListener: vi.fn(), removeEventListener: vi.fn(), querySelector: () => null, querySelectorAll: () => [] });
   vi.stubGlobal("requestAnimationFrame", (callback: () => void) => { callback(); return 0; });
   vi.stubGlobal("cancelAnimationFrame", vi.fn());
   vi.stubGlobal("HTMLButtonElement", class {});
@@ -587,6 +587,47 @@ test("a confirmation open when the worktree turns into a problem is cancelled, a
   expect(text()).toContain("Doan can’t find this folder");
   expect(doan.writeConfig).not.toHaveBeenCalled();
   unmount();
+});
+
+// The window is in the background (an agent's CLI changed the worktree) until a `focus` event is sent.
+function inBackground() {
+  const win = Object.assign(new EventTarget(), { doan });
+  vi.stubGlobal("window", win);
+  Object.assign(document, { hasFocus: () => false });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  return () => { win.dispatchEvent(new Event("focus")); vi.runAllTimers(); };
+}
+
+test("a confirmation cancelled by a background change focuses the title again when the window activates", async () => {
+  // POSTMORTEM 2026-11-17: activation restores focus to the confirmation's button that went, and with it gone to
+  // the first focusable control.
+  await open();
+  click("Add file or folder"); await flush(); render();
+  const title = { focus: vi.fn() };
+  (heading().props.ref as (node: unknown) => void)(title);
+  const activate = inBackground();
+  try {
+    render({ entries: [missing()] }); render();
+    expect(confirmation()).toBeUndefined();
+    title.focus.mockClear();
+    activate();
+    expect(title.focus).toHaveBeenCalledTimes(2);
+  } finally { vi.useRealTimers(); unmount(); }
+});
+
+test("a redraw made in the background that took the focused control focuses the title again when the window activates", async () => {
+  await open();
+  const title = { focus: vi.fn() };
+  (heading().props.ref as (node: unknown) => void)(title);
+  focusOn(document.body);
+  const activate = inBackground();
+  try {
+    render({ entries: [missing()] }); render();
+    expect(title.focus).toHaveBeenCalledTimes(1);
+    title.focus.mockClear();
+    activate();
+    expect(title.focus).toHaveBeenCalledTimes(2);
+  } finally { vi.useRealTimers(); unmount(); }
 });
 
 test("a picker answered after the worktree turned into a problem opens nothing", async () => {

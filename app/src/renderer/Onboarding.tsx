@@ -7,6 +7,7 @@ import { nextFocusIndex } from "./onboardingView";
 import { noAgentReadyNotice, type AuthCommand, type Button, type Notice, type ProviderView, type pasteDialog, type stopDialog } from "./agentAuthView";
 import { AgentStepSession } from "./agentStep";
 import { agentSignIn } from "./agentSignIn";
+import { useActivationFocus } from "./activationFocus";
 import { projectFooter, projectNoticeCode, projectNoticeSlot, ProjectStepSession, type ProjectError, type ProjectStepState, type ProjectUse } from "./projectStep";
 import { canAdvance, initialScene, nextScene, setupSteps, type Scene, type SceneEvent, type SetupStep } from "./onboardingScene";
 import { projectHue, projectInitial } from "./shellNavigation";
@@ -187,16 +188,19 @@ export function AgentStep({ session, heading, back, next }: { session: AgentStep
   // The row whose control the user last used, and the element holding (or last given) its focus.
   const watch = useRef<{ provider: Provider; node: HTMLElement } | null>(null);
   const title = useRef<HTMLHeadingElement | null>(null);
+  // A sign-in finished in the browser lands with the window in the background, so the hand-offs below are made again
+  // on activation (POSTMORTEM 2026-11-17).
+  const handFocus = useActivationFocus();
   useEffect(() => { session.enter(); }, []);
   useEffect(() => {
     const focus = state.focus;
     if (!focus) return;
-    requestAnimationFrame(() => {
+    requestAnimationFrame(() => handFocus(() => {
       if (focus.target === "continue") { continueButton.current?.focus(); return; }
       // The attempt may have ended meanwhile; the step heading is the next stable place.
       const paste = document.querySelector<HTMLElement>(`[data-paste="${focus.provider}"]`);
       (paste && !paste.matches(":disabled") ? paste : title.current)?.focus();
-    });
+    }));
   }, [state.focus?.seq]);
   // After every render (a snapshot, a reply, a closed stop dialog): a watched control that went away or was disabled
   // hands focus on within its row, never to <body>. A dialog keeps its own focus meanwhile.
@@ -215,7 +219,7 @@ export function AgentStep({ session, heading, back, next }: { session: AgentStep
       const node = target === "notice" ? row?.querySelector<HTMLElement>(".doan-notice") : target ? row?.querySelector<HTMLElement>(`[data-command="${target}"]:not(:disabled)`) : null;
       const next = node ?? title.current;
       if (!next) return;
-      next.focus();
+      handFocus(() => next.focus());
       watched.node = next;
     });
   });
