@@ -65,7 +65,7 @@
 |---|---|---|---|---|
 | 1 composer-markdown | Claude conductor · `/Users/sinhyeok/orca/workspaces/doan-design/composer-markdown-orch` (`feat/composer-markdown`) | 2026-11-19 17:58 (`2b11f18cd`) | [#307](https://github.com/SinhyeokKang/doan-design/pull/307) · `dc07740a4` | 머지 |
 | 2 header-breadcrumb-worktree | Claude conductor(구현 Codex `gpt-6.2-astra`, 리뷰 Claude) · `/Users/sinhyeok/orca/workspaces/doan-design/header-breadcrumb-worktree-orch` (`feat/header-breadcrumb-worktree`) | 2026-11-19 21:07 (`50ecade95`) | [#308](https://github.com/SinhyeokKang/doan-design/pull/308) · `e3d03257d` | 머지 |
-| 3 inspector-reach | | | | 대기 |
+| 3 inspector-reach | Claude conductor(구현 Codex `gpt-6.2-astra`, 리뷰 Claude) · `/Users/sinhyeok/orca/workspaces/doan-design/inspector-reach-orch` (`feat/inspector-reach`) | 2026-11-19 (`989ff7a6e`) | | 진행 중 |
 
 ## 인계 기록
 
