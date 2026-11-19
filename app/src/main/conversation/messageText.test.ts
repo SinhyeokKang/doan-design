@@ -91,6 +91,11 @@ describe("plainTitle", () => {
     expect(plainTitle(text)).toBe(text);
   });
 
+  test("only a line feed separates lines, as in the field and the bubble", () => {
+    expect(plainTitle("A\u2028- B")).toBe("A\u2028- B");
+    expect(plainTitle("- A\u2029- B")).toBe("A\u2029- B");
+  });
+
   test("a long text is not cut", () => {
     expect(plainTitle(`- ${"x".repeat(LIMITS.text)}`)).toHaveLength(LIMITS.text);
   });

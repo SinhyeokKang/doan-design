@@ -1,10 +1,11 @@
 import { describe, expect, test } from "vitest";
 import type { Anchor } from "../main/conversation/types";
 import { LIMITS } from "../main/conversation/messageText";
-import { normalize, unitLength, type FieldSegment } from "./anchorField";
+import { normalize, spliceUnits, textSegments, type FieldSegment } from "./anchorField";
 import {
   bubbleBlocks, continueList, fieldListItems, indentItem, listLines, removeMarker, trimBlankLines, type BubbleBlock, type FieldEdit,
 } from "./composerLists";
+import { draftProblem } from "./homeComposer";
 import type { MessagePart } from "./threadItems";
 
 // A field written as a string: ◆ is a chip, | is the caret.
@@ -57,6 +58,22 @@ describe("listLines", () => {
     expect(listLines(["- a", " - b"]).map(item => item?.depth)).toEqual([0, 0]);
   });
 
+  test("the body starts after 1 to 4 spaces past the marker, and one space past it from 5 spaces or with no body", () => {
+    const depths = (lines: string[]) => listLines(lines).map(item => item?.depth);
+    expect(listLines(["-  a"])[0]).toMatchObject({ marker: "- ", body: 2, column: 3 });
+    expect(listLines(["-    a"])[0]).toMatchObject({ marker: "- ", body: 2, column: 5 });
+    expect(listLines(["-     a"])[0]).toMatchObject({ marker: "- ", body: 2, column: 2 });
+    expect(listLines(["-   "])[0]).toMatchObject({ marker: "- ", body: 2, column: 2 });
+    expect(listLines(["1.  a"])[0]).toMatchObject({ marker: "1. ", body: 3, column: 4 });
+    expect(depths(["-   a", "  - b"])).toEqual([0, 0]);
+    expect(depths(["-  a", "  - b"])).toEqual([0, 0]);
+    expect(depths(["-  a", "   - b"])).toEqual([0, 1]);
+    expect(depths(["-    a", "    - b"])).toEqual([0, 0]);
+    expect(depths(["-    a", "     - b"])).toEqual([0, 1]);
+    expect(depths(["-     a", "  - b"])).toEqual([0, 1]);
+    expect(depths(["-   ", "  - b"])).toEqual([0, 1]);
+  });
+
   test("more spaces than needed still go one level deeper, never two", () => {
     expect(listLines(["- a", "          - b"]).map(item => item?.depth)).toEqual([0, 1]);
   });
@@ -103,6 +120,7 @@ describe("continueList", () => {
     ["- ◆ x|", "- ◆ x\n- |"],
     ["- ◆|", "- ◆\n- |"],
     ["- /deploy|", "- /deploy\n- |"],
+    ["-   a|", "-   a\n- |"],
     ["/review\n- a|", "/review\n- a\n- |"],
     ["1. a\n   1. b|", "1. a\n   1. b\n   2. |"],
   ])("%j adds the next marker at the same depth", (before, after) => {
@@ -124,9 +142,11 @@ describe("continueList", () => {
   test.each([
     ["- a\n- |", "- a\n|"],
     ["- |", "|"],
-    ["- a\n-   |", "- a\n|"],
+    ["- a\n-   |", "- a\n  |"],
+    ["  - |", "  |"],
     ["1. a\n2. |", "1. a\n|"],
-  ])("an empty item at depth 0 ends the list: %j", (before, after) => {
+    ["12. |", "|"],
+  ])("an empty item at depth 0 ends the list, only its marker removed: %j", (before, after) => {
     expect(run(continueList, before)).toBe(after);
   });
 
@@ -134,15 +154,18 @@ describe("continueList", () => {
     ["- a\n  - |", "- a\n- |"],
     ["1. a\n   1. |", "1. a\n2. |"],
     ["- a\n  - b\n    - |", "- a\n  - b\n  - |"],
+    ["999. a\n     1. |", "999. a\n1. |"],
   ])("an empty item deeper than 0 moves out one level: %j", (before, after) => {
     expect(run(continueList, before)).toBe(after);
   });
 
-  test("an added marker is not cut at the text limit", () => {
-    const body = "x".repeat(LIMITS.text - 2);
-    const edit = continueList([{ kind: "text", text: `- ${body}` }], LIMITS.text);
-    expect(edit && unitLength(edit.segments)).toBe(LIMITS.text + 3);
-    expect(edit?.caret).toBe(LIMITS.text + 3);
+  test("an added marker can take a draft over the text limit where a plain line break does not, and nothing is cut", () => {
+    const segments = textSegments(`- ${"x".repeat(LIMITS.text - 3)}`), end = LIMITS.text - 1;
+    const plain = spliceUnits(segments, end, end, textSegments("\n"));
+    const listed = continueList(segments, end);
+    expect(draftProblem(plain.segments, null, [], [])).toBeNull();
+    expect(listed && draftProblem(listed.segments, null, [], [])).toMatchObject({ kind: "overLimit" });
+    expect(listed?.caret).toBe(LIMITS.text + 2);
   });
 });
 
@@ -157,6 +180,9 @@ describe("indentItem", () => {
     ["1. a\n- b|", "1. a\n   - b|"],
     ["/review\n- a\n- ◆ b|", "/review\n- a\n  - ◆ b|"],
     ["\t- a\n\t- b|", "\t- a\n      - b|"],
+    ["-   a\n- b|", "-   a\n    - b|"],
+    ["- a\n-   b|\n    - c", "- a\n  -   b|\n      - c"],
+    ["1. a\n   999. x\n2. b|", "1. a\n   999. x\n   2. b|"],
   ])("Tab makes %j a child of the item above", (before, after) => {
     expect(run((segments, caret) => indentItem(segments, caret, 1), before)).toBe(after);
   });
@@ -192,6 +218,7 @@ describe("indentItem", () => {
     ["\t- a\n\t  - b|", "\t- a\n\t- b|"],
     ["- a\n  - b|\n    - c", "- a\n- b|\n  - c"],
     ["1. a\n   1. b|\n      - c", "1. a\n2. b|\n   - c"],
+    ["999. a\n     1. |b", "999. a\n1. |b"],
   ])("Shift+Tab moves %j out one level", (before, after) => {
     expect(run((segments, caret) => indentItem(segments, caret, -1), before)).toBe(after);
   });
@@ -216,6 +243,7 @@ describe("removeMarker", () => {
   test.each([
     ["- a\n  - |b", "- a\n- |b"],
     ["1. a\n   1. |b", "1. a\n2. |b"],
+    ["999. a\n     1. |b", "999. a\n1. |b"],
   ])("Backspace at the body start of a deeper item moves it out: %j", (before, after) => {
     expect(run(removeMarker, before)).toBe(after);
   });
@@ -291,6 +319,10 @@ describe("bubbleBlocks", () => {
       { kind: "list", list: "ul", items: [{ lead: "", marker: "- ", parts: [{ text: "a" }], children: [] }] },
       { kind: "list", list: "ol", items: [{ lead: "", marker: "1. ", parts: [{ text: "b" }], children: [] }] },
     ]);
+  });
+
+  test("only a line feed separates lines, so a marker after U+2028 stays text", () => {
+    expect(bubbleBlocks([{ text: "A\u2028- B" }])).toEqual([{ kind: "text", parts: [{ text: "A\u2028- B" }] }]);
   });
 
   test("a year at a line start is text", () => {
