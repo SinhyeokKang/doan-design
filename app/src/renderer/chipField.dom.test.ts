@@ -47,7 +47,9 @@ const el = document.getElementById("f");
 let changes = 0;
 const field = new Probe.ChipField(el, { onChange() { changes++; }, onInput() {}, onAnnounce() {}, scope: () => "canvas", skillNames: () => new Set(["copy-check"]), commandNames: () => new Set() }, []);
 let draft = 0;
-window.probe = {
+// ComposerField's Tab: the field's indent, preventing the key's focus move only when it answers true.
+el.addEventListener("keydown", e => { if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey && field.indent(e.shiftKey ? -1 : 1)) e.preventDefault(); });
+const probe = window.probe = {
   field,
   set(segments) { el.focus(); field.setValue(segments, String(++draft)); },
   text: () => field.segments.map(s => s.kind === "text" ? s.text : "\\ufffc").join(""),
@@ -67,7 +69,24 @@ window.probe = {
     s.setBaseAndExtent(node, at + data.length, node, at + data.length);
     el.dispatchEvent(new InputEvent("input", { inputType: "insertCompositionText", data, isComposing: true }));
   },
-  keyup(key) { el.dispatchEvent(new KeyboardEvent("keyup", { key, code: key, bubbles: true })); },
+  // A Shift+Enter, Tab or Shift+Tab that ends a composition, in the order the macOS Korean input method sends it in
+  // Electron 45 (measured): keydown (229, composing), the syllable's commit and compositionend, an immediate keyup, then
+  // with \`resend\` the same key again as an ordinary keydown (and insertLineBreak for Shift+Enter), all in one task;
+  // the real keyup comes later. Returns whether the composing keydown and the second keydown were prevented.
+  endWith(key, shift, resend) {
+    const code = key === "Enter" ? 13 : 9;
+    const down = (keyCode, isComposing) => { const e = new KeyboardEvent("keydown", { key, code: key, keyCode, shiftKey: shift, isComposing, bubbles: true, cancelable: true }); el.dispatchEvent(e); return e.defaultPrevented; };
+    const first = down(229, true);
+    const data = document.getSelection().focusNode.data.slice(-1);
+    el.dispatchEvent(new InputEvent("beforeinput", { inputType: "insertCompositionText", data, isComposing: true, bubbles: true, cancelable: true }));
+    el.dispatchEvent(new CompositionEvent("compositionend", { data }));
+    el.dispatchEvent(new KeyboardEvent("keyup", { key, code: key, keyCode: code, shiftKey: shift, bubbles: true }));
+    if (!resend) return [first, null];
+    const second = down(code, false);
+    if (key === "Enter") probe.input("insertLineBreak");
+    return [first, second];
+  },
+  keydown(key, shift) { const e = new KeyboardEvent("keydown", { key, code: key, shiftKey: shift, bubbles: true, cancelable: true }); el.dispatchEvent(e); return e.defaultPrevented; },
   indent: dir => field.indent(dir),
   lock() { el.contentEditable = "false"; },
   dispose() { field.dispose(); },
@@ -238,76 +257,68 @@ test("Tab's indent moves an item under the one above as one undo step, and refus
 });
 
 // Each composition below leaves a syllable in the DOM, as the Korean input method does, and that syllable must reach
-// the text before any held key acts on it. The order of the events macOS really sends is checked in the real app.
+// the text before the key acts on it.
 type Step = [string, ...unknown[]];
 const run = (...steps: Step[]) => call<unknown[]>("run", steps);
-
-test("Shift+Enter and Tab pressed during a composition act after it ends, in the order pressed", async () => {
-  await open("- a\n- b");
-  await call("place", 7);
-  expect(await run(["compose", "compositionstart"], ["composeText", "나"], ["input", "insertLineBreak"], ["indent", 1])).toEqual([undefined, undefined, true, true]);
-  expect(await text()).toBe("- a\n- b");
-  await call("compose", "compositionend");
+async function composeThenPress(start: string, caret: number, key: "Enter" | "Tab", shift: boolean, resend = true): Promise<unknown> {
+  await open(start);
+  await call("place", caret);
+  const [, , pressed] = await run(["compose", "compositionstart"], ["composeText", "나"], ["endWith", key, shift, resend]);
   await dom.flush(frame);
-  expect(await text()).toBe("- a\n- b나\n  - ");
-  expect(await consistent()).toBe(true);
-  await run(["keyup", "Enter"], ["keyup", "Tab"]);
-  // Each held key is its own undo step, after the composed text's.
-  await press("Meta+z");
-  expect(await text()).toBe("- a\n- b나\n- ");
-  await press("Meta+z");
-  expect(await text()).toBe("- a\n- b나");
-});
+  return pressed;
+}
 
-test("a Shift+Enter sent again after compositionend acts once, whether it comes before or after the deferred run", async () => {
-  // Before: the second delivery runs the held press at once and does nothing itself.
-  await open("- a");
-  await run(["compose", "compositionstart"], ["composeText", "나"], ["input", "insertLineBreak"]);
-  expect(await run(["compose", "compositionend"], ["input", "insertLineBreak"])).toEqual([undefined, true]);
-  await dom.flush(frame);
+test("Shift+Enter ending a composition continues the list once, after the syllable, in the measured macOS order", async () => {
+  expect(await composeThenPress("- a", 3, "Enter", true)).toEqual([false, false]);
   expect(await text()).toBe("- a나\n- ");
-  await call("keyup", "Enter");
+  expect(await consistent()).toBe(true);
   await press("Meta+z");
   expect(await text()).toBe("- a나");
-
-  // After: the deferred run already acted, so the second delivery of the still-held key is dropped.
-  await open("- a");
-  await run(["compose", "compositionstart"], ["composeText", "나"], ["input", "insertLineBreak"], ["compose", "compositionend"]);
-  await dom.flush(frame);
-  expect(await text()).toBe("- a나\n- ");
-  expect(await call("input", "insertLineBreak")).toBe(true);
-  await dom.flush(frame);
-  expect(await text()).toBe("- a나\n- ");
-  // Once the key is released, the next Shift+Enter is a new press: on the empty item it ends the list.
-  await call("keyup", "Enter");
-  await call("input", "insertLineBreak");
-  expect(await text()).toBe("- a나\n");
 });
 
-test("a Tab sent again after the deferred run moves the item once and keeps focus in the field", async () => {
-  await open("- a\n- b");
-  await call("place", 7);
-  await run(["compose", "compositionstart"], ["composeText", "나"], ["indent", 1], ["compose", "compositionend"]);
-  await dom.flush(frame);
+test("Tab and Shift+Tab ending a composition move the item once and keep focus; a line that cannot move lets focus go", async () => {
+  expect(await composeThenPress("- a\n- b", 7, "Tab", false)).toEqual([true, true]);
   expect(await text()).toBe("- a\n  - b나");
-  expect(await call("indent", 1)).toBe(true);
-  expect(await text()).toBe("- a\n  - b나");
-  await call("keyup", "Tab");
-  // A new press with nothing to move under: Tab goes on to move focus.
-  expect(await call("indent", 1)).toBe(false);
+  await press("Meta+z");
+  expect(await text()).toBe("- a\n- b나");
+  expect(await composeThenPress("- a\n  - b", 9, "Tab", true)).toEqual([true, true]);
+  expect(await text()).toBe("- a\n- b나");
+  // The composing keydown is prevented either way (it changes nothing on macOS); the ordinary Tab after it moves focus.
+  expect(await composeThenPress("plain", 5, "Tab", false)).toEqual([true, false]);
+  expect(await text()).toBe("plain나");
 });
 
-test("a held Shift+Enter does not edit a field locked or removed before the deferred run", async () => {
-  for (const close of ["lock", "dispose"]) {
-    await open("- a");
-    await run(["compose", "compositionstart"], ["composeText", "나"], ["input", "insertLineBreak"]);
-    const changes = await call<number>("changes");
-    // In the same task as compositionend, before its deferred run.
-    await run(["compose", "compositionend"], [close]);
-    await dom.flush(frame);
-    expect(await text()).toBe("- a나");
-    // Only the composed text's own commit reached the host.
-    expect(await call("changes")).toBe(changes + 1);
+test("Shift+Enter ending a composition and then Tab indent the new item, from a first or a second item", async () => {
+  for (const [start, caret, expected] of [["- a", 3, "- a나\n  - "], ["- a\n- b", 7, "- a\n- b나\n  - "]] as const) {
+    await composeThenPress(start, caret, "Enter", true);
+    // The Shift+Enter ended the composition, so this Tab is an ordinary press.
+    expect(await call("keydown", "Tab", false)).toBe(true);
+    expect(await text()).toBe(expected);
+    expect(await consistent()).toBe(true);
+  }
+});
+
+test("an input method that does not send the key again gets the edit once from compositionend's deferred run", async () => {
+  expect(await composeThenPress("- a", 3, "Enter", true, false)).toEqual([false, null]);
+  expect(await text()).toBe("- a나\n- ");
+  expect(await composeThenPress("- a\n- b", 7, "Tab", false, false)).toEqual([true, null]);
+  expect(await text()).toBe("- a\n  - b나");
+});
+
+test("a pending Shift+Enter or Tab does not edit a field locked or removed before the deferred run", async () => {
+  for (const [key, shift] of [["Enter", true], ["Tab", false]] as const) {
+    for (const close of ["lock", "dispose"]) {
+      await open("- a\n- b");
+      await call("place", 7);
+      await run(["compose", "compositionstart"], ["composeText", "나"]);
+      const changes = await call<number>("changes");
+      // In the same task as compositionend, before its deferred run; no second key comes.
+      await run(["endWith", key, shift, false], [close]);
+      await dom.flush(frame);
+      expect(await text()).toBe("- a\n- b나");
+      // Only the composed text's own commit reached the host.
+      expect(await call("changes")).toBe(changes + 1);
+    }
   }
 });
 
@@ -339,11 +350,12 @@ test("Ctrl+Tab's focus move reaches the same stop as native Tab, passing over a 
     before: '<button id="before">before</button><button id="off-before" disabled tabindex="0">off</button>',
     after: '<button id="off-after" disabled tabindex="0">off</button><button id="after">after</button>',
   });
+  // On the first item neither Tab nor Shift+Tab can move it, so native Tab moves focus there too.
   for (const [backward, key, expected] of [[false, "Tab", "after"], [true, "Shift+Tab", "before"]] as const) {
-    await call("place", 8);
+    await call("place", 3);
     await frame.press("#f", key);
     expect(await focused()).toBe(expected);
-    await call("place", 8);
+    await call("place", 3);
     await moveFocus(backward);
     expect(await focused()).toBe(expected);
   }
