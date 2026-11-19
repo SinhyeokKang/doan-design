@@ -64,7 +64,8 @@ export async function closeElectron(app: AppProcess | null, dir: string, ms = CL
   }
   await rm(dir, { recursive: true, force: true });
   if (failure === undefined) return;
-  if (child?.signalCode !== "SIGKILL") throw failure;
+  // `killed` is set only by this process's own kill, so a SIGKILL from elsewhere still fails.
+  if (child?.killed !== true || child.signalCode !== "SIGKILL") throw failure;
   console.warn("Electron close was forced after it failed; its exit is confirmed and its folder removed:", failure);
 }
 
