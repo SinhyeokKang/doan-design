@@ -52,13 +52,23 @@
 - 2026-11 툴바 버튼이 포커스를 가져가 Space가 막힌 사고(`docs/postmortem/2026-11.md:160-166`): 버블의 Show inspector와 뷰어의 Show inspector도 포인터 누름으로 포커스를 가져가지 않는다.
 - `docs/postmortem/2026-11.md:51-57`: srcdoc 관련 수정은 `isolate.js`와 `measure.js`에 함께 넣고 복사본을 고정한다.
 
-## PoC 의존 (먼저 확인)
+## PoC 결과 (2026-11-19, `node .scratch/inspector-reach/probe.mjs`, 리드 체크아웃의 `.scratch/inspector-reach/`)
 
-1. 통과 기준: fixture 캔버스들(변수, `@layer`, `@media`, `@container`, `:is`·`:where`·`:has`, nesting, var() shorthand, `@import`, 외부 시트 하나)에서 뷰어 CSSOM 경로의 `inspectRows` 출력이 앱 CDP 경로의 출력과 같다. Chromium은 `exportViewer.test.ts`가 이미 쓰는 `launchElectronDom`으로, WebKit은 Playwright로 확인한다. 실제 Safari는 실행하지 않는다는 점을 기록한다.
-2. opaque-origin `srcdoc` iframe 안에서 `data:`로 바꾼 스타일시트의 `cssRules`를 Chromium과 WebKit 모두에서 읽는가.
-3. 외부 URL 스타일시트(CORS)에서 온 값을 어떻게 보일지.
-4. `file://`로 연 파일에서 클립보드 쓰기가 Safari(WebKit)에서 되는가.
-5. 뷰어 JS가 늘어나는 크기.
+- 방법: 합성 fixture 11개(var() 체인, shorthand 속 var(), `@layer` 이름 없음·중첩·`!important` 역전, `@media`·`@container`·`@supports`, `:is`·`:where`·`:has`·`nth-child(of)`, nesting, `@import` 조건·중첩, inline, UA, presentational, 다른 포트의 외부 시트)와 실제 캔버스 5개(캔버스마다 요소 최대 400개). 기준은 Chromium CDP `getMatchedStylesForNode` + computed → 앱 `inspectRows`. 후보는 repo CLI로 만든 실제 `doan export` 파일의 srcdoc 안에서 CSSOM 수집기 + 같은 `inspectRows`. 결과 표: PASS 7, PASS* 9(알려진 차이만), FAIL 0.
+- Chromium: 행 30895/30922가 같다. 패널(`rowDisplay`)은 요소 2014개 중 2010개가 같다. 다른 27행:
+  - 22행: var() 없이 쓴 매핑 안 된 shorthand(`flex-flow`, `place-items` 등). CDP는 `unknown`, CSSOM은 `hardcoded`. 패널에 보이는 차이는 없다.
+  - 3행: 같은 규칙에서 var() shorthand 뒤에 longhand가 오는 경우(`padding: var(--s2); padding-left: 4px`). CSSOM이 shorthand 원문을 버려 변별 토큰이 빠진다.
+  - 2행: 외부 시트. CDP는 외부 토큰을 보지만 CSSOM은 읽지 못한다.
+- WebKit(Playwright 27.2 headless): 행 출처(state, token, chain, inheritedFrom, 변별 토큰) 30886/30922가 Chromium 기준과 같다. 추가 9행은 엔진 차이(`@supports (backdrop-filter)`)다. **WebKit은 `@import`로 들어온 `data:` 시트의 `cssRules`를 읽지 못한다**(SecurityError). 수집기가 import href의 data: 텍스트를 풀어 `replaceSync`로 다시 파싱하면 Chromium과 같아진다.
+- 외부 시트: 그 시트를 잠깐 `disabled`로 바꾸고 Typed OM `computedStyleMap`으로 값이 바뀌는지 보아 가려낸다. 이 순간 스타일을 다시 계산하므로 transition이 튈 수 있다(구현 때 다른 판별 방법을 먼저 찾는다).
+- 클립보드(`file://`): `navigator.clipboard.writeText`는 WebKit resolve, Chromium headless NotAllowedError. `execCommand('copy')`는 둘 다 true. 시스템 클립보드는 headless라 두 경우 모두 바뀌지 않았다. 실제 브라우저 확인은 하지 못했다. `execCommand` 대체 경로를 둔다.
+- 크기: 캔버스 쪽(수집기 + `inspectRows`) raw 42,727 B(minified 24,971, gzip 9,206), shell 쪽(`rowDisplay`, `rowCopyText`) raw 4,163 B. 지금 뷰어 JS·CSS는 76,881 B. 검사 한 번(규칙 수집 + 요소 1개) Chromium 0.3–58 ms, WebKit 0–177 ms(가장 느린 것은 626 KB 캔버스).
+- 다루지 않은 것: `@scope`, shadow DOM, UA 규칙은 inherited 속성 7묶음을 손으로 적은 표로 흉내 냈다. 실제 Safari와 실제 Chrome 클립보드는 실행하지 않았다.
+
+## PoC 뒤 결정 (2026-11-19, 사용자)
+
+- 행 단위로 물러선다: CSSOM이 앱과 같은 출처를 내지 못하는 행(같은 규칙의 var() shorthand 뒤 longhand, 외부 시트)만 토큰 없이 계산된 값을 보이고, 나머지 행은 앱과 같은 토큰·출처를 보인다.
+- 설계에 넣는다: WebKit용 `@import` `data:` 시트 다시 파싱(또는 export가 Go에서 import를 펼치는 방법 중 구현 때 고른다), 클립보드 `execCommand('copy')` 대체 경로.
 
 ## 초안 요청 (`/design-draft`)
 
