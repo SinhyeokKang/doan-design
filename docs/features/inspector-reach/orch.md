@@ -33,6 +33,7 @@
 
 ## Codex 사용
 
+- 2026-11-20 링크 종료 때 terminal 상태줄: weekly 90% left.
 - 2026-11-19 22:43 기록(23:05 확인, `$CODEX_HOME/sessions` 최신 rollout): 주간(10080분) 8% 사용, plan pro. 사용할 수 있다.
 
 ## 배치
@@ -42,9 +43,9 @@
 | B | tasks 2, 3, 3a | `app/src/renderer/**`: 새 버블 순수 모듈과 테스트, `CanvasController.ts`, `sizeBubble.ts`, `BubbleAdd.tsx`, `App.tsx`, `headerShowButtons.ts`, `InspectorPanel.tsx`, `styles.css`와 각 테스트 | 없음 | Codex Astra high — controller DOM과 React portal을 잇는 포커스 규칙, 클릭 분배가 틀리면 Add to message가 잘못 실행된다(postmortem 2026-11 툴바 포커스) | `npm --prefix app test`, typecheck, lint | 1차 완료 `a6a0d2a89`·`a188117b6` → 통합 `f3ce32ce2`·`dd47ce900` (dispatch `ctx_325cf1e81639`, 워크트리 `irb-b`; Vitest 513 files / 14,853 PASS, typecheck·lint PASS) |
 | B-rev | B 리뷰 | 없음(보고만) | B | Claude Opus high — 포커스·이벤트 경로가 여러 컴포넌트에 걸친다 | `/code-review` 보고 | 1차 🔴0 🟡1 ⚪4 (`.scratch/evidence/review-B.md`) → B 고침 1차 `21ad93176`·`ee694b8a7`(🟡1, ⚪1·3·4; 수정 전 실패 확인, Vitest 14,858 PASS) → 통합 `fe76350aa`·`64e196a91`(conductor가 diff 확인). ⚪2는 conductor `/runtime-test` 항목 |
 | BDS | tasks 4(`/design-sync`) | B와 같음, `docs/design/prototype.md`, `docs/design/canvas.md` | B, B-rev | Codex Astra(B 워커 후속 Task) — 측정 절차가 정해져 있다 | 측정값 기록, 960×600에서 헤더 도구가 breadcrumb 옆에 들어감, test | 완료 `66c2c312a`·`ebc09b60d` → 통합 `e133f89e3`·`ed1008ca4`(conductor가 diff 확인). 앱 실행 1회, 1,404개 비교 중 1,390개 일치, 남은 14개는 문서화된 편차(툴팁 포털·서브픽셀·상속 자간). 960×600 양쪽 열림에서 breadcrumb와 도구 간격 8px. B 워커 해제, 워크트리 `irb-b` 제거(브랜치 `SinhyeokKang/irb-b` `ebc09b60d` 유지) |
-| A | tasks 8, 9, 10 | `cli/internal/export/**`(뷰어 `shell.*`, `measure.js`, 새 `inspect.js`, `assemble.go`, 테스트와 고정 출력), `app/scripts/viewerInspect.mjs`와 테스트, `app/src/main/exportViewer.test.ts`, 생성 대상 앱 소스의 export 범위(동작 변경 없음), `.agents/skills/verify/scripts/verify.mjs`의 한 단계, AGENTS.md 'Commands' 한 줄, `docs/design/canvas.md` 뷰어 절 | B 통합 | Codex Astra high — 신뢰하지 않는 메시지 검증, CSSOM cascade, 생성 규칙, 두 엔진 | `npm --prefix app test`, typecheck, lint, `go test ./...`, `go vet ./...`, `node app/scripts/viewerInspect.mjs --check`, `node eval/run.ts --self-test --scenarios X1,X2` | 1차 완료 `738f07f27`..`c9f5e2501`(7커밋) → 통합 `4d6ba2da4`..`9f53161e0` (dispatch `ctx_0fb0fca266a4`; Vitest 515 files / 14,861, Go 2,423, X1·X2 self-test, `--check` PASS; Chromium·WebKit 11/11 PASS; 빈 캔버스 export 113,504 → 194,602 B(+81,098)) |
-| A-rev | A 리뷰 | 없음(보고만) | A | Claude Opus high — 보안 경계(postMessage)와 생성 코드 | `/code-review` 보고 | 1차 🔴0 🟡4 ⚪7 (`.scratch/evidence/review-A.md`; dispatch `ctx_f3e5c74f56d3`) → A 고침 1차(🟡1~4, ⚪1·2·5·7) 진행 중 (dispatch `ctx_c6ecdf7db5fd`) |
-| conductor | tasks 4(`/runtime-test`), 5, 11, 12 | orch.md, 승격 문서, BACKLOG | 전부 | — | `/runtime-test`, verify, `grep -rn "inspector-reach" docs/ app/ cli/` | `/runtime-test`(B) PASS — 아래 '런타임 확인'. 승격·verify 대기 |
+| A | tasks 8, 9, 10 | `cli/internal/export/**`(뷰어 `shell.*`, `measure.js`, 새 `inspect.js`, `assemble.go`, 테스트와 고정 출력), `app/scripts/viewerInspect.mjs`와 테스트, `app/src/main/exportViewer.test.ts`, 생성 대상 앱 소스의 export 범위(동작 변경 없음), `.agents/skills/verify/scripts/verify.mjs`의 한 단계, AGENTS.md 'Commands' 한 줄, `docs/design/canvas.md` 뷰어 절 | B 통합 | Codex Astra high — 신뢰하지 않는 메시지 검증, CSSOM cascade, 생성 규칙, 두 엔진 | `npm --prefix app test`, typecheck, lint, `go test ./...`, `go vet ./...`, `node app/scripts/viewerInspect.mjs --check`, `node eval/run.ts --self-test --scenarios X1,X2` | 완료. 1차 통합 `4d6ba2da4`..`9f53161e0`, 고침 1차 `7abe053cb`..`b5a62d7b4` → 통합 `e2d204711`까지. 워커 해제, 워크트리 `irb-a` 제거(브랜치 `SinhyeokKang/irb-a` `b5a62d7b4` 유지) |
+| A-rev | A 리뷰 | 없음(보고만) | A | Claude Opus high — 보안 경계(postMessage)와 생성 코드 | `/code-review` 보고 | 1차 🔴0 🟡4 ⚪7 → 고침 1차 → 2차: 이전 지적 해결, 새 🟡1(외부 시트가 도착값을 정하는 transition)은 사용자가 한계를 넓혀 기록하기로 결정 |
+| conductor | tasks 4(`/runtime-test`), 5, 11, 12 | orch.md, 승격 문서, BACKLOG | 전부 | — | `/runtime-test`, verify, `grep -rn "inspector-reach" docs/ app/ cli/` | `/runtime-test`(B) PASS, verify PASS(`e2d204711`), X1·X2 self-test PASS, 승격 `f916e6e8a`·`c17dd4991`(PRODUCT), `7ebfc73f2`·`215b1e07e`(ARCHITECTURE), `10700620f`(BACKLOG) |
 
 - 겹침: B와 A는 직렬이다. 위 '배치 순서'.
 - 모든 tasks 체크 항목: 1·6·7 끝, 2·3·3a B, 4 BDS+conductor, 5 conductor, 8·9·10 A, 11·12 conductor. 주인 없는 항목은 없다.
@@ -54,4 +55,5 @@
 | 배치 | 라운드 | 리뷰에서 나온 문제 |
 |---|---|---|
 | B (tasks 2·3·3a, high) | 구현 1 + 고침 1 | B-rev 🔴0 🟡1 ⚪4: reload가 버블 Show inspector로 포커스를 되돌린 뒤 창 활성화 재포커스가 취소되지 않아 헤더로 넘어감(코드 읽기로 찾음). ⚪: pick 취소 경로 테스트 없음, 렌더 중 Play 조회, `treeScrollLeft` 상수 출처와 ArrowDown 테스트. 자기 리뷰는 "🔴·🟡 없음"이라 보고했다. 고침 1차로 전부 해결(수정 전 실패 확인). |
+| A (tasks 8·9·10, high) | 구현 1 + 고침 1(두 번에 나눔) | A-rev 1차 🔴0 🟡4 ⚪7: 외부 시트 판별이 애니메이션을 다시 시작하고 transition을 끊음, shell 상한이 생산 쪽 상한과 묶이지 않음, 위조 press·drag가 메뉴를 닫고 V/H/Space를 막음, 핵심 동작이 추적 테스트에 없음. 핸드오프의 "transition을 막는다"는 리뷰가 반증했다. 고침 중 남은 부작용에서 지시대로 멈췄고 나머지 항목까지 멈춰 다시 보냈다. 2차: 전부 해결, 한계 확장 1건(사용자 수용). |
 | BDS (tasks 4, B 워커) | 측정 1 | 리뷰 지적 없음. 앱 실행 1회로 다섯 프레임·깊이 13 메뉴·헤더 다섯 폭을 쟀다. 고칠 동작 차이 없음. |
