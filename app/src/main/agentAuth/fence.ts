@@ -43,7 +43,8 @@ const hooked = (provider: Provider) => provider === "claude" || provider === "an
 // hooks and MCP servers there, some outside this fence (Codex outside Full access; Claude's sign-in, status and
 // sign-out), so the fence closes the folder to writes and reopens only what the CLI itself writes during a run, its
 // sign-in and its status: an allowlist, so a store a new CLI version adds is closed until a probe opens it. The rest of
-// a dedicated HOME stays writable: it is the HOME the agent's own commands use (npm, pip and build caches).
+// a dedicated HOME stays writable but for other agents' folders (HOME_STORES): it is the HOME the agent's own commands
+// use (npm, pip and build caches).
 // dirs are reopened with everything under them, files by prefix, which covers each file's lock, temporary, backup and
 // write-ahead names. pattern: a constant regex for names a list cannot hold, applied inside the folder only.
 // Doan writes the doan skill stub, the Codex rules and Claude's and Copilot's settings from outside the fence.
@@ -72,17 +73,22 @@ const AGENT_WRITES: Record<Provider, AgentWrites> = {
   antigravity: { folder: ".gemini", dirs: ["antigravity-acp/conversations", "antigravity-acp/brain", "antigravity"], files: ["antigravity-acp/acp_token.json", "antigravity-acp/acp_business_token.json"],
     pattern: "/config/[0-9a-f-]+\\.(db|meta)[^/]*$" },
 };
+// Other agents' folders in a dedicated HOME, read there as the person's own: Copilot 1.0.105 loads personal skills from
+// ~/.agents/skills, and Cursor 2026.10.22 skills from .agents, .claude, .codex and .grok and hooks, permissions and
+// commands from .claude. Each whole folder is closed, so none can be moved into place either.
+const HOME_STORES = [".agents", ".claude", ".codex", ".grok"];
 function agentRule(provider: Provider): string {
-  const { dirs, files, pattern } = AGENT_WRITES[provider];
+  const { folder, dirs, files, pattern } = AGENT_WRITES[provider];
   const reopen = [...dirs.map((_, i) => ` (subpath (param "AGENT_DIR_${i + 1}"))`), ...files.map((_, i) => ` (prefix (param "AGENT_FILE_${i + 1}"))`)].join("");
+  const stores = folder ? `(deny file-write*${HOME_STORES.map((_, i) => ` (subpath (param "HOME_STORE_${i + 1}"))`).join("")})\n` : "";
   return `(deny file-write* (subpath (param "AGENT_FOLDER")))
-(allow file-write*${reopen})
+${stores}(allow file-write*${reopen})
 ${pattern ? `(allow file-write* (require-all (subpath (param "AGENT_FOLDER")) (regex #"${pattern}")))\n` : ""}`;
 }
 function agentParams(provider: Provider, profile: string): [string, string][] {
   const { folder: name, dirs, files } = AGENT_WRITES[provider];
   const folder = name ? `${profile}/${name}` : profile;
-  return [["AGENT_FOLDER", folder], ...dirs.map((dir, i): [string, string] => [`AGENT_DIR_${i + 1}`, `${folder}/${dir}`]), ...files.map((file, i): [string, string] => [`AGENT_FILE_${i + 1}`, `${folder}/${file}`])];
+  return [["AGENT_FOLDER", folder], ...(name ? HOME_STORES.map((store, i): [string, string] => [`HOME_STORE_${i + 1}`, `${profile}/${store}`]) : []), ...dirs.map((dir, i): [string, string] => [`AGENT_DIR_${i + 1}`, `${folder}/${dir}`]), ...files.map((file, i): [string, string] => [`AGENT_FILE_${i + 1}`, `${folder}/${file}`])];
 }
 // Every Codex process loads <CODEX_HOME>/.env into its own environment (codex-cli 0.169.0, probe): a PATH there decides
 // what the harness's unsandboxed children (git) run, so the agent must not write it, and AuthManager removes one before
