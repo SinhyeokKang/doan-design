@@ -34,6 +34,11 @@
 - B 재검토(Round 2): 보류 키 처리의 경계 결함 3건. 가정을 더 쌓지 않고 실제 순서를 쟀다: 사용자가 macOS 한글 IME로 Electron 45 이벤트 기록 창에 입력했다(`.scratch/runtime-test/ime-events/events-macos-korean.log`). Shift+Enter·Tab·Enter 모두 같은 순서다: 조합 중 keydown(229) → 같은 음절 확정 → compositionend → 즉시 합성 keyup → 같은 키 keydown 재전달(조합 아님) → (Enter면) insertLineBreak/insertParagraph → compositionend의 0ms 타이머 → 실제 keyup. 조합 중에는 insertLineBreak가 오지 않는다. 지금 코드는 Tab을 두 번 들여쓴다(합성 keyup이 보류를 풀고, 재전달과 타이머가 각각 실행). B 고침 2차: 조합 중 키는 기억만 하고 재전달된 키에서 편집한다. 재전달이 없으면 타이머에서 한 번 한다.
 - C 3차: 깊은 중첩 버블의 그린 들여쓰기는 4단계에서 멈춘다(편차 3, D가 기록).
 - 한글 IME 확인 방식(사용자 결정): `/runtime-test`에서 conductor가 `orca computer --restore-window`(앞으로 가져오는 방식)로 자판 키를 보내 확인한다. 이 방식은 조합이 유지되고 이벤트 순서가 사람의 입력과 같았다(`.scratch/runtime-test/ime-events/events-computer-use-foreground.log`). 백그라운드 전달은 키마다 포커스를 잃어 조합이 끊긴다. 키마다 `delivery`를 확인하고, 막히면 건너뛰지 않고 사용자에게 턴을 넘긴다.
+- `/runtime-test` 1차(로그인 프로필, 이 워크트리 빌드, CDP + `orca computer --restore-window`, `.scratch/runtime-test/cm/`):
+  - 네 composer(Home, Overview, 캔버스 패널, 프로토타입 창)에서 목록 키 동작 18개씩 PASS(72/72): •·번호 그리기, Shift+Enter 이어 쓰기와 undo 한 번, Tab·Shift+Tab, 깊이 0 Shift+Tab 포커스 이동, 빈 항목 종료, ol +1, 하위 ol 1부터, 본문 맨 앞 Backspace, ← 기호 건너뛰기, 4자리 숫자, Ctrl+Tab.
+  - 한글 IME(완료 조건 7): macOS 2벌식, 앞으로 가져온 창에 자판 키. Shift+Enter, Tab, Shift+Tab, Shift+Enter 바로 뒤 Tab, 들여쓸 수 없는 줄의 Tab(포커스 이동) 모두 마지막 음절이 남고 한 번만 처리됐다. 첫 시도는 입력 소스가 영문이라 막혀 사용자에게 넘겼다.
+  - 실제 보내기(캔버스 패널, Claude Code): 버블이 ul·ol 중첩, 내어쓰기, 적힌 번호, `**`·백틱 평문으로 그려졌다. 버블 선택 텍스트가 저장된 원문과 같았다. 제목과 큐 행(사용 한도 예약 행, 일반 큐 행)은 기호 없는 평문이었다. Claude Code 주간 한도에 걸려 답은 오지 않았다. 큐 2건과 대화는 지웠다.
+- 사용자 디자인 변경(실제 앱을 보고): 버블과 입력창 둘 다, 첫 깊이 인덴트를 지금 둘째 깊이 자리에서 시작하고, 기호(•, N.)와 글자 사이 간격을 줄인다. 초안을 이 결정에 맞춰 고친다(편차로 남기지 않는다). D 2차에서 한다.
 - `/runtime-test`(tasks 9)와 최종 `/verify`(tasks 10), 승격(tasks 11)은 conductor가 한다. IME 확인에 사용자가 필요하고, 승격은 문서 커밋이다.
 
 ## Codex 사용
@@ -51,7 +56,7 @@
 | B-rev | B 리뷰 | 없음 | B | Codex Astra high — 여러 컴포넌트에 걸친 입력 처리, 실수하면 입력이 깨진다 | `/code-review` 보고 | 1차 🔴1 🟡3 → 고침 1차 통합 → 2차 🟡3(보류 키) → 실측 IME 순서로 고침 2차 `e123dd934`·`adbc4bb16` → 3차 🔴0 🟡2 → 고침 3차 `213597d03`·`31fba0d94`(conductor가 diff 확인) |
 | C | tasks 6, 7 | `homeComposer.ts`(`composeRequest`), `messageText.ts`(`messageLine` 연결), `ConversationThread.tsx`(`UserMessage`)와 테스트, 큐·초안 복원 테스트(프로토타입 포함). 버블 CSS는 보류 항목 | A | Opus medium — 명세가 구체적이고 영향 범위가 B보다 좁다 | test, typecheck, lint | 통합 `79e67ad86`·`1be729481`(통합 HEAD 관련 테스트 23 files / 762 PASS). 버블 CSS 보류 |
 | C-rev | C 리뷰 | 없음 | C | Codex Astra medium — 교차 계열 독립 리뷰 | `/code-review` 보고 | 1차 🔴1 🟡3 → C 2차 통합 → 재검토 🔴1(명령과 같은 이름의 스킬, 이전부터의 결함) 🟡1(깊은 중첩 본문 폭 0) → C 3차 `56ac1586a`·`ed5916ae7` 통합(conductor가 diff 확인) |
-| D | tasks 8 | `styles.css` 측정 수정, `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, 회귀 테스트 | B, C 통합 | Opus medium — 측정 절차가 정해진 작업 | `/design-sync` 기록 | 진행 (`cm-d`, B 고침 2차와 파일이 겹치지 않아 병렬) |
+| D | tasks 8 | `styles.css` 측정 수정, `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, 회귀 테스트 | B, C 통합 | Opus medium — 측정 절차가 정해진 작업 | `/design-sync` 기록 | 1차 통합 `6ba950145`~`ce5ac2771`(CSS 수정 없음, 편차 4건 기록) → 2차(사용자 간격 변경) 진행 |
 | conductor | tasks 9, 10, 11 | BACKLOG, PRODUCT, ARCHITECTURE, DESIGN 색인, feature 디렉터리 삭제 | D | — | `/runtime-test`, verify, grep | 대기 |
 
 ## 파일 겹침과 순서
