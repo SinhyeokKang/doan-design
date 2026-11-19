@@ -276,7 +276,7 @@ describe("onboarding CLI mapping", () => {
   test("every code a command can return has an exit code", () => {
     const socketCodes = appSocketV2Schema.$defs.errorCode.enum.map((code) => mapping.translate[code] ?? code);
     const operationCodes = appSocketV2Schema.$defs.operationErrorCode.enum;
-    const cliCodes = ["internal_error", "usage_error", "app_not_running", "app_protocol_mismatch", "app_launch_failed", "cancelled"];
+    const cliCodes = ["internal_error", "usage_error", "conversation_refused", "app_not_running", "app_protocol_mismatch", "app_launch_failed", "cancelled"];
     expect(Object.keys(mapping.exitCodes).sort()).toEqual([...new Set([...socketCodes, ...operationCodes, ...cliCodes])].sort());
   });
 

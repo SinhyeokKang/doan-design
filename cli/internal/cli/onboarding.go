@@ -382,7 +382,9 @@ func readOnboardingReply(line []byte, op, token, runtimePath string) (map[string
 		e := obj["error"].(map[string]any)
 		switch code := e["code"].(string); code {
 		case "bad_token":
-			// The runtime file outlived the app that wrote it; a new app has another token.
+			// The runtime file outlived the app that wrote it; a new app has another token. An app conversation's
+			// credential is refused here too, but its CLI refuses onboarding before dialling (conversation_refused), so
+			// this reads as a stale runtime file.
 			return nil, onboardingFailure("app_not_running", "Doan rejected the token in its runtime file"), true
 		case "bad_request":
 			return nil, internal(errors.New("Doan rejected the request as malformed")), false

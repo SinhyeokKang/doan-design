@@ -249,15 +249,19 @@ func TestRemoveNeverLaunches(t *testing.T) {
 	}
 }
 
-// An app conversation sends the same request: the app refuses it because that conversation's own turn is running.
-func TestRemoveInAnAppConversationSendsTheSameRequest(t *testing.T) {
+// An agent in an app conversation cannot remove projects (PRODUCT §5 item 10): the CLI refuses before it dials, with a
+// code that says where the command can run instead of reporting the running app as not running.
+func TestRemoveInAnAppConversationIsRefusedBeforeTheApp(t *testing.T) {
 	root := realPath(t, initialized(t))
 	app := startRemoveApp(t)
 	t.Setenv("DOAN_APP_CONVERSATION", "1")
 	t.Setenv("DOAN_HANDOFF", testHandoffKey)
-	app.replies <- `{"v":7,"ok":false,"error":{"code":"conversation_running","message":"m"}}`
-	removeCode(t, root, "conversation_running")
-	if req := app.request(t); !reflect.DeepEqual(req, map[string]any{"v": float64(7), "token": testToken, "root": root}) {
-		t.Fatal(req)
+	failure := removeCode(t, root, "conversation_refused")
+	if _, exit := runRemove(t, root); exit != 2 {
+		t.Fatalf("exit %d", exit)
 	}
+	if !strings.Contains(failure["message"].(string), "app conversation") || !strings.Contains(strings.Join(stringsOf(failure["nextSteps"]), " "), "terminal") {
+		t.Fatal(failure)
+	}
+	app.silent(t)
 }

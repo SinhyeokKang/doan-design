@@ -68,7 +68,7 @@ func TestRunRepositoryDiscoveryAndParsing(t *testing.T) {
 	}
 	t.Chdir(nested)
 	var out, errout bytes.Buffer
-	code := Run([]string{"--json", "ls"}, strings.NewReader(""), &out, &errout)
+	code := Run([]string{"ls", "--json"}, strings.NewReader(""), &out, &errout)
 	var env any
 	if e := json.Unmarshal(out.Bytes(), &env); e != nil {
 		t.Fatal(e)
