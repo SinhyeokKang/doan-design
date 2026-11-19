@@ -807,6 +807,37 @@ const declarations = (css: string, selector: string): string[] => {
   return body.split(";").map(part => part.replace(/\s+/g, " ").trim()).filter(Boolean);
 };
 
+describe("breadcrumb rules shared with the canvas header", () => {
+  test("the trail and its children use the app's layout and typography", () => {
+    for (const selector of [
+      ".ov-head", ".doan-canvas-head", ".doan-canvas-trail", ".doan-canvas-project-name",
+      ".doan-canvas-trail > .ov-title-wrap", ".doan-canvas-trail > .doan-canvas-name",
+      ".doan-canvas-name", ".doan-canvas-name svg", ".doan-canvas-name span", ".ov-sep",
+      ".ov-title.doan-button", ".ov-title span",
+    ]) {
+      expect(declarations(shellCss, selector), selector).toEqual(declarations(stylesCss, selector));
+    }
+    // The viewer positions its own floating drawer relative to the wrapper.
+    expect(declarations(shellCss, ".ov-title-wrap")).toEqual(["position: relative", ...declarations(stylesCss, ".ov-title-wrap")]);
+  });
+
+  test("the static project crumb has the app's shrink priority with only a leading inset", () => {
+    const appProject = declarations(stylesCss, ".doan-canvas-project.doan-button");
+    expect(declarations(shellCss, ".doan-canvas-project")).toEqual([
+      "display: inline-flex", "align-items: center", "padding-left: var(--space-2)",
+      "font-size: var(--type-label-sm-size)", "line-height: var(--type-label-sm-line-height)",
+      ...appProject.map(d => d.replace("2 * var(--space-2)", "var(--space-2)")),
+    ]);
+  });
+
+  test("the viewer uses the app's container breakpoints and hide rules", () => {
+    const queries = (css: string) => css.match(/^@container doan-canvas-head\b[^{}]*\{[\s\S]*?^\}/gm) ?? [];
+    const appQueries = queries(stylesCss);
+    expect(appQueries).toHaveLength(2);
+    expect(queries(shellCss)).toEqual(appQueries.map(rule => rule.replace(", .wt-chip", "")));
+  });
+});
+
 describe("tokens are the app's", () => {
   const roots = (css: string): Map<string, string> => {
     const map = new Map<string, string>();
