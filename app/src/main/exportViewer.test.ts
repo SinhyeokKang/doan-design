@@ -2604,9 +2604,9 @@ describe("inspector message boundary", () => {
   const sender = {};
   const row = { group: "box", label: "Width", value: "<strong>20px</strong>", state: "hardcoded" };
   const selection = { type: "inspection", epoch: 3, seq: 2, rows: [row], nodes: [{ name: "frame", kind: "frame", depth: 0, selected: true, selector: "#frame" }] };
-  function parse(data: unknown, source: unknown = sender, origin = "null") {
+  function parse(data: unknown, source: unknown = sender, origin = "null", canvasFocused = true) {
     const parser = runInNewContext(lib + "\n" + read("inspectMessage.js") + "\ninspectorMessages") as Lib;
-    return parser.parseMessage({ data, source, origin }, sender, 3, 1);
+    return parser.parseMessage({ data, source, origin }, sender, 3, 1, canvasFocused);
   }
   test("accepts bounded row text only for the current frame and inspection", () => {
     expect(parse(selection)?.rows).toEqual([row]);
@@ -2615,6 +2615,16 @@ describe("inspector message boundary", () => {
     expect(parse({ ...selection, epoch: 2 })).toBeNull();
     expect(parse({ ...selection, seq: 1 })).toBeNull();
   });
+  test("a press or drag start cannot change shell controls after the canvas loses focus", () => {
+    const press = { type: "inspect-press", epoch: 3, seq: 2 };
+    const drag = { ...press, type: "inspect-text", dragging: true, text: "", rects: [] };
+    for (const message of [press, drag]) {
+      expect(parse(message, sender, "null", true)).toEqual(message);
+      expect(parse(message, sender, "null", false)).toBeNull();
+    }
+    expect(parse({ ...drag, dragging: false }, sender, "null", false)).not.toBeNull();
+  });
+
   test("rejects malformed rows, oversized arrays, nested values and non-finite marks", () => {
     for (const rows of [null, Array(1), Array(257).fill(row), [{ ...row, sides: [null] }], [{ ...row, token: "a".repeat(10001) }], [{ ...row, chain: [false] }]]) {
       expect(parse({ ...selection, rows })).toBeNull();
