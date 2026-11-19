@@ -8,16 +8,18 @@ import type { FolderEntry } from "../main/view";
 // Both title menus (the Overview's Conversation menu, the canvas panel's Title menu): the row Delete, and the
 // header's New conversation, unavailable on the new conversation state. Radix menus render nothing closed under static markup, so the menu parts are drawn inline here
 // and record their props for the test to press; Tooltip stays real.
-const menu = vi.hoisted(() => ({ items: [] as Record<string, unknown>[], roots: [] as Record<string, unknown>[], contents: [] as Record<string, unknown>[] }));
+const menu = vi.hoisted(() => ({ items: [] as Record<string, unknown>[], contents: [] as Record<string, unknown>[] }));
 vi.mock("radix-ui", async original => {
   const actual = await original<typeof import("radix-ui")>();
-  const { createElement, forwardRef } = await import("react");
+  const { createContext, createElement, forwardRef, useContext } = await import("react");
+  const owner = createContext<Record<string, unknown>>({});
   const part = (tag: string, role?: string, record?: Record<string, unknown>[]) => forwardRef<HTMLElement, Record<string, unknown>>(({ children, asChild, textValue: _t, onSelect: _s, onCloseAutoFocus: _c, value: _v, onValueChange: _o, sideOffset: _so, collisionPadding: _cp, align: _a, ...props }, ref) => {
-    record?.push({ ...props, children, asChild, textValue: _t, onSelect: _s, onCloseAutoFocus: _c, value: _v });
+    const root = useContext(owner);
+    record?.push({ ...props, root, children, asChild, textValue: _t, onSelect: _s, onCloseAutoFocus: _c, value: _v });
     if (asChild) return children as ReactElement;
     return createElement(tag, { ...props, ...(role ? { role } : {}), ref }, children as ReactNode);
   });
-  const Root = ({ children, ...props }: Record<string, unknown>) => { menu.roots.push(props); return children as ReactElement; };
+  const Root = ({ children, ...props }: Record<string, unknown>) => createElement(owner.Provider, { value: props }, children as ReactNode);
   return { ...actual, DropdownMenu: {
     Root, Portal: ({ children }: { children: ReactNode }) => children, Trigger: part("button"), Content: part("div", "menu", menu.contents), RadioGroup: part("div", "group"),
     RadioItem: part("div", "menuitemradio", menu.items), Item: part("div", "menuitem", menu.items), Separator: part("div", "separator"), Label: part("div"),
@@ -66,7 +68,7 @@ const summary = (conversationId: string, title: string, extra: Partial<Conversat
 const FIELD = { field: true };
 
 beforeEach(() => {
-  menu.items.length = 0; menu.roots.length = 0; menu.contents.length = 0; triggers.length = 0; tooltips.length = 0; focused.calls.length = 0;
+  menu.items.length = 0; menu.contents.length = 0; triggers.length = 0; tooltips.length = 0; focused.calls.length = 0;
   vi.stubGlobal("window", { doan: { readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })) } });
   vi.stubGlobal("document", { querySelector: (selector: string) => selector.endsWith(".composer-input") ? FIELD : null });
 });
@@ -177,7 +179,7 @@ test.each(screens)("%s: an unavailable Delete does nothing when pressed", (_name
 // Runtime probe (T4 step 0): the title menus are controlled so the Delete tooltip's Escape closes them.
 test.each(screens)("%s: the title menu is controlled, so a closing Escape can come from the Delete's tooltip", (_name, draw) => {
   draw();
-  const root = menu.roots.find(props => "open" in props)!;
+  const root = menu.contents.find(item => item.className === "doan-floating doan-menu conv-menu")!.root as Record<string, unknown>;
   expect(root["open"]).toBe(false);
   expect(typeof root["onOpenChange"]).toBe("function");
 });
@@ -259,7 +261,7 @@ test.each([["Overview Conversation menu", () => overview("loading", null)], ["ca
   const trigger = html.match(/<button[^>]*class="ov-title doan-button"[^>]*>/)?.[0] ?? "";
   expect(trigger).toContain('aria-disabled="true"');
   expect(trigger).not.toMatch(/ disabled=""/);
-  const root = menu.roots.find(props => "open" in props)!;
+  const root = menu.contents.find(item => item.className === "doan-floating doan-menu conv-menu")!.root as Record<string, unknown>;
   expect(root["open"]).toBe(false);
   (root["onOpenChange"] as (open: boolean) => void)(true);
   expect(setters.filter(setter => typeof setter.initial === "boolean").flatMap(setter => setter.calls)).not.toContain(true);
