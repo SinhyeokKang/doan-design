@@ -1179,6 +1179,16 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .bubble { padding: var(--space-2) var(--space-4); border-radius: var(--radius-row); background: var(--surface-accent-subtle); color: var(--text-standard); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; user-select: text; }
 .conversation-thread .bubble-preset { display: inline-flex; align-items: center; gap: var(--space-1h); color: var(--text-accent-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); font-weight: var(--type-weight-medium); }
 .conversation-thread .bubble-preset svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* A sent list (UserMessage): role="list" blocks of inline-blocks, not ul/ol and not a grid, because Chromium copies an
+   ul/ol marker and a grid item's edge as line breaks; the person copies what they sent. The depth span and the marker
+   column (data-mark: the list's widest marker in ch, at least --space-6) sit before the body, and the body wraps under
+   itself (hanging indent). A nested list starts at its parent item's left and moves in by its own depth span. Items
+   keep the spacing of plain lines. */
+.conversation-thread .bubble-text { display: block; }
+.conversation-thread .bubble-item { display: block; }
+.conversation-thread .bubble-item > :is(.list-depth, .list-mark, .bubble-item-body) { vertical-align: top; }
+.conversation-thread .bubble-item > .list-mark { min-width: max(var(--space-6), calc(attr(data-mark type(<number>), 0) * 1ch)); }
+.conversation-thread .bubble-item-body { display: inline-block; max-width: calc(100% - attr(data-depth type(<number>), 0) * var(--space-6) - max(var(--space-6), calc(attr(data-mark type(<number>), 0) * 1ch))); }
 .conversation-thread .msg-files { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1h); }
 /* A sent file has no remove button, so the chip keeps its own inline end padding. */
 .conversation-thread .msg-files .attach-chip { gap: var(--space-3); padding: var(--space-1h) var(--space-4) var(--space-1h) var(--space-1h); }

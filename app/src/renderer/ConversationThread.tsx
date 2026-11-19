@@ -474,6 +474,13 @@ function endsInBlankLine(parts: readonly MessagePart[]): boolean {
   return !last || ("text" in last && last.text.endsWith("\n"));
 }
 
+// The list's marker column, in ch, for the bubble's hanging indent: as wide as its widest marker so the bodies line up.
+// A number counts its digits as 1ch each and ". " as 0.6ch (measured in the app font: "888. " is 3.49ch), which covers
+// the marker without measuring; "- ", "* " and a one or two digit number fit the 24px minimum (0).
+function markColumn(block: BubbleList): number {
+  return block.list === "ol" ? Math.max(...block.items.map(item => item.marker.length - 2)) + 0.6 : 0;
+}
+
 // A sent message: its bubble, attachments and the chip locate note under the bubble (draft frame `chip-locate`). One
 // Send now has in flight ends with a Sending line and has no actions (canvas-composer-polish draft frame `sending`).
 function UserMessage({ entry, frames, disabled, onLocate, home }: { entry: Extract<ThreadItem, { kind: "user" }>; frames: readonly FrameName[] | undefined; disabled: boolean; onLocate: ConversationThreadProps["onLocate"]; home: string | null }) {
@@ -497,10 +504,10 @@ function UserMessage({ entry, frames, disabled, onLocate, home }: { entry: Extra
   const blocks = bubbleBlocks(entry.parts), listed = blocks.some(block => block.kind === "list");
   // Lists are role="list" blocks, not ul/ol: Chromium leaves an ul/ol marker out of copied text, and the person copies
   // what they sent, markers and depth spaces included. A message without a list draws as plain text, as before.
-  const list = (block: BubbleList, depth: number): ReactNode => <div className="bubble-list" role="list">{block.items.map((item, i) => <div key={i} className="bubble-item" role="listitem">
+  const list = (block: BubbleList, depth: number, mark = markColumn(block)): ReactNode => <div className="bubble-list" role="list">{block.items.map((item, i) => <div key={i} className="bubble-item" role="listitem">
     {item.lead && <span className="list-depth" data-depth={depth}>{item.lead}</span>}
-    <span className="list-mark" data-kind={block.list}>{item.marker}</span>
-    <span className="bubble-item-body">{inline(item.parts)}</span>
+    <span className="list-mark" data-kind={block.list} data-mark={mark}>{item.marker}</span>
+    <span className="bubble-item-body" data-depth={depth} data-mark={mark}>{inline(item.parts)}</span>
     {item.children.map((child, n) => <Fragment key={n}>{list(child, depth + 1)}</Fragment>)}
   </div>)}</div>;
   return <div className="msg-user">
