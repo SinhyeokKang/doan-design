@@ -19,6 +19,7 @@
   - 🟡5(캐럿이 기호 앞일 때 Shift+Enter는 평소 줄바꿈): 그대로 둔다. conductor 재량 — 기호 앞 위치는 텍스트 모델대로 둔다는 시작 점검 2와 같은 원칙이고, 아래 항목은 그대로 남는다.
   - Tab·Shift+Tab이 자손을 함께 옮기고 번호를 같은 깊이 앞 항목 + 1(없으면 1)로 다시 쓰는 동작: 유지한다. conductor 재량 — 새 하위 목록은 1부터라는 spec 2와 맞고, 내어쓴 뒤에도 번호가 이어진다.
   - 탭 문자 폭: 다음 4열 경계까지로 센다(CommonMark §2.2). 승격 때 ARCHITECTURE에 그렇게 적는다.
+- C 측정(Electron): 초안의 버블 grid/subgrid CSS는 복사를 깨뜨린다(`- \na`, 9/9 실패). inline-block 배치는 9/9 원문과 같다. 버블 CSS 보류 항목은 grid 없이 쓰고, 한 목록 안 본문을 가장 넓은 기호에 맞추는 초안 동작은 다른 방법으로 맞추거나 편차로 기록한다.
 - `/runtime-test`(tasks 9)와 최종 `/verify`(tasks 10), 승격(tasks 11)은 conductor가 한다. IME 확인에 사용자가 필요하고, 승격은 문서 커밋이다.
 
 ## Codex 사용
@@ -31,11 +32,11 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | A | tasks 3, 4 | 새 renderer 모듈(목록 순수 함수)과 테스트, `skillWords.ts`(+test), `messageText.ts`의 `plainTitle`(+test) | 없음 | Opus high — CommonMark 깊이 규칙과 칩이 섞인 segment 위 캐럿 편집이 B·C 전체의 기반이다 | `npm --prefix app test`, typecheck | 통합 `4cab90fa4`·`02617b8ae` (워커 `cm-a`, 507 files / 14,722 tests PASS) |
-| A-rev | A 리뷰 | 없음(보고만) | A | Codex Astra medium — 교차 계열 독립 리뷰, 순수 함수라 범위가 좁다 | `/code-review` 보고 | 1차 완료(🔴0 🟡5 🟢1) → A 고침 1차 진행 |
+| A-rev | A 리뷰 | 없음(보고만) | A | Codex Astra medium — 교차 계열 독립 리뷰, 순수 함수라 범위가 좁다 | `/code-review` 보고 | 1차 🔴0 🟡5 🟢1 → 고침 1차 `8977347c2`·`ef7b29d05` → 2차 🟡1(기호 뒤 탭) → 고침 2차 `a7e99a99f`·`ebb069dff`(conductor가 diff 확인) |
 | B | tasks 5 | `chipField.ts`(+test), `ComposerParts.tsx`(+test), `styles.css`, 네 composer 공유 고정 테스트 | A | Opus high — contenteditable 캐럿·undo·IME 조합, PoC 5가지 처리 | test, typecheck, lint | 진행 (`cm-b`) |
 | B-rev | B 리뷰 | 없음 | B | Codex Astra high — 여러 컴포넌트에 걸친 입력 처리, 실수하면 입력이 깨진다 | `/code-review` 보고 | 대기 |
-| C | tasks 6, 7 | `homeComposer.ts`(`composeRequest`), `messageText.ts`(`messageLine` 연결), `ConversationThread.tsx`(`UserMessage`)와 테스트, 큐·초안 복원 테스트(프로토타입 포함). 버블 CSS는 보류 항목 | A | Opus medium — 명세가 구체적이고 영향 범위가 B보다 좁다 | test, typecheck, lint | 진행 (`cm-c`) |
-| C-rev | C 리뷰 | 없음 | C | Codex Astra medium — 교차 계열 독립 리뷰 | `/code-review` 보고 | 대기 |
+| C | tasks 6, 7 | `homeComposer.ts`(`composeRequest`), `messageText.ts`(`messageLine` 연결), `ConversationThread.tsx`(`UserMessage`)와 테스트, 큐·초안 복원 테스트(프로토타입 포함). 버블 CSS는 보류 항목 | A | Opus medium — 명세가 구체적이고 영향 범위가 B보다 좁다 | test, typecheck, lint | 통합 `79e67ad86`·`1be729481`(통합 HEAD 관련 테스트 23 files / 762 PASS). 버블 CSS 보류 |
+| C-rev | C 리뷰 | 없음 | C | Codex Astra medium — 교차 계열 독립 리뷰 | `/code-review` 보고 | 진행 (`cm-c`에서) |
 | D | tasks 8 | `styles.css` 측정 수정, `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, 회귀 테스트 | B, C 통합 | Opus medium — 측정 절차가 정해진 작업 | `/design-sync` 기록 | 대기 |
 | conductor | tasks 9, 10, 11 | BACKLOG, PRODUCT, ARCHITECTURE, DESIGN 색인, feature 디렉터리 삭제 | D | — | `/runtime-test`, verify, grep | 대기 |
 
