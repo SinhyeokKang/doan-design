@@ -164,6 +164,22 @@ func TestConfigRemoveMissingAndNoncanonicalServe(t *testing.T) {
 	}
 }
 
+// A deleted serve target can be removed through an absolute path that spells the root differently from both the
+// disk and --repo (here --repo is the disk spelling).
+func TestConfigRemoveMissingServeThroughOtherRootSpelling(t *testing.T) {
+	root, upper, nfd := otherSpellings(t)
+	for _, spelled := range []string{upper, nfd} {
+		putFile(t, root, ".doan/config.json", `{"v":1,"serve":["dist"]}`)
+		got := result(t, root, 0, "config", "--remove-serve", filepath.Join(spelled, "dist"))
+		if got["changed"] != true || len(got["serve"].([]any)) != 0 {
+			t.Fatal(spelled, got)
+		}
+	}
+	failure(t, root, "usage_error", "config", "--remove-serve", filepath.Join(filepath.Dir(upper), "other", "dist"))
+	// Unjoined, so the ".." segments reach the command as typed.
+	failure(t, root, "usage_error", "config", "--remove-serve", upper+"/dist/../..")
+}
+
 func TestConfigRemoveExistingAliasAndOutside(t *testing.T) {
 	root := initialized(t)
 	putFile(t, root, "styles/file", "")

@@ -190,6 +190,14 @@ func configRemovalPaths(root, inputRoot, path string, stored []string) ([]string
 			break
 		}
 	}
+	if relative == "" {
+		// A third spelling of the root, through a link or another letter case or Unicode form.
+		rel, err := belowRoot(root, path)
+		if err != nil {
+			return nil, internal(err)
+		}
+		relative = filepath.ToSlash(rel)
+	}
 	state, canonical, err := repo.InsideRelative(root, path)
 	if err != nil {
 		return nil, internal(err)

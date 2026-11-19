@@ -361,6 +361,34 @@ test("a timed-out read that answers late leaves DOM and CSS on for the read that
   expect(methods).toEqual(["DOM.enable", "CSS.enable", "DOM.enable", "CSS.enable", "CSS.disable", "DOM.disable"]);
 });
 
+// The late cleanup awaits CSS.disable; a read that starts during that wait needs DOM on, so DOM.disable is checked again.
+test("a timed-out read's late cleanup leaves DOM on for a read that started while its CSS.disable was in flight", async () => {
+  vi.useFakeTimers();
+  const { dbg, docs, inspector } = setup();
+  show(dbg, docs, "S1", "loader");
+  dbg.holdOn.add("CSS.getMatchedStylesForNode");
+  const first = inspector.inspect(request());
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(await first).toEqual({ ok: false, reason: "unavailable" });
+  dbg.holdOn = new Set(["CSS.disable"]);
+  dbg.release("CSS.getMatchedStylesForNode");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(dbg.held.map((entry) => entry.method)).toEqual(["CSS.disable"]);
+  dbg.holdOn = new Set(["DOM.querySelector"]);
+  const second = inspector.inspect(request());
+  await vi.advanceTimersByTimeAsync(0);
+  expect(dbg.held.map((entry) => entry.method)).toEqual(["CSS.disable", "DOM.querySelector"]);
+  dbg.holdOn.clear();
+  // The first read's CSS.disable answers while the second is mid-read.
+  dbg.release("CSS.disable");
+  await vi.advanceTimersByTimeAsync(0);
+  dbg.release("DOM.querySelector");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(await second).toMatchObject({ ok: true });
+  const methods = dbg.calls.map(([method]) => method).filter((m) => /^(DOM|CSS)\.(enable|disable)$/.test(m));
+  expect(methods).toEqual(["DOM.enable", "CSS.enable", "CSS.disable", "DOM.enable", "CSS.enable", "CSS.disable", "DOM.disable"]);
+});
+
 test("a timed-out read sends no further read once its budget is spent, and with no later read turns DOM and CSS off", async () => {
   vi.useFakeTimers();
   const { dbg, docs, inspector } = setup();
