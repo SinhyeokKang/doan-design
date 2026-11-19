@@ -33,6 +33,7 @@
 - B 고침 1차: 보류 키를 누름마다 줄에 쌓고 keyup으로 중복을 가린다. 가정한 IME 순서 6가지는 `.scratch/handoff-B.md` 'Fix round 1'에 있다. `/runtime-test`에서 사용자가 macOS 한글 IME로 확인한다.
 - B 재검토(Round 2): 보류 키 처리의 경계 결함 3건. 가정을 더 쌓지 않고 실제 순서를 쟀다: 사용자가 macOS 한글 IME로 Electron 45 이벤트 기록 창에 입력했다(`.scratch/runtime-test/ime-events/events-macos-korean.log`). Shift+Enter·Tab·Enter 모두 같은 순서다: 조합 중 keydown(229) → 같은 음절 확정 → compositionend → 즉시 합성 keyup → 같은 키 keydown 재전달(조합 아님) → (Enter면) insertLineBreak/insertParagraph → compositionend의 0ms 타이머 → 실제 keyup. 조합 중에는 insertLineBreak가 오지 않는다. 지금 코드는 Tab을 두 번 들여쓴다(합성 keyup이 보류를 풀고, 재전달과 타이머가 각각 실행). B 고침 2차: 조합 중 키는 기억만 하고 재전달된 키에서 편집한다. 재전달이 없으면 타이머에서 한 번 한다.
 - C 3차: 깊은 중첩 버블의 그린 들여쓰기는 4단계에서 멈춘다(편차 3, D가 기록).
+- 한글 IME 확인 방식(사용자 결정): `/runtime-test`에서 conductor가 `orca computer --restore-window`(앞으로 가져오는 방식)로 자판 키를 보내 확인한다. 이 방식은 조합이 유지되고 이벤트 순서가 사람의 입력과 같았다(`.scratch/runtime-test/ime-events/events-computer-use-foreground.log`). 백그라운드 전달은 키마다 포커스를 잃어 조합이 끊긴다. 키마다 `delivery`를 확인하고, 막히면 건너뛰지 않고 사용자에게 턴을 넘긴다.
 - `/runtime-test`(tasks 9)와 최종 `/verify`(tasks 10), 승격(tasks 11)은 conductor가 한다. IME 확인에 사용자가 필요하고, 승격은 문서 커밋이다.
 
 ## Codex 사용
