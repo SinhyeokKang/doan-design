@@ -14,17 +14,16 @@ const BASE = `(version 1)
 `;
 const HOOK = `(allow file-read* (literal (param "BROWSER_HOOK")))
 `;
-// A later run reads these as its settings, and Claude's or Codex's next run may start without the outer fence
-// (Claude by its sandbox setting, Codex outside Full access): their hooks, MCP servers and notify then run outside
-// any sandbox, so the agent must not plant them.
-const CLAUDE_SETTINGS = `(deny file-write* (literal (param "PROVIDER_SETTINGS")) (subpath (param "PROVIDER_SKILLS")) (subpath (param "PROVIDER_AGENTS")) (subpath (param "PROVIDER_PLUGINS")) (subpath (param "PROVIDER_COMMANDS")) (subpath (param "PROVIDER_PROJECT")) (literal (param "PROVIDER_MCP")) (literal (param "PROVIDER_MEMORY")))
-`;
-const CODEX_SETTINGS = `(deny file-write* (literal (param "CODEX_CONFIG")) (literal (param "CODEX_HOOKS")) (literal (param "CODEX_MANAGED")) (literal (param "CODEX_ENV")) (subpath (param "CODEX_RULES")) (subpath (param "CODEX_SKILLS")) (subpath (param "CODEX_PLUGINS")) (literal (param "CODEX_AGENTS")) (literal (param "CODEX_AGENTS_OVERRIDE")))
-`;
 const ANTIGRAVITY = `(allow file-read-metadata (literal (param "AGENT_RUNTIMES")))
 (allow file-read* (subpath (param "AGENT_RUNTIME")))
-(deny file-write* (subpath (param "SKILLS_CONFIG")) (subpath (param "SKILLS_CLI")))
 `;
+// The agent's own folder closed to writes, then what its CLI writes there reopened (fence.seatbelt.test.ts holds the
+// lists path by path).
+const agent = (dirs: number, files: number, pattern = "", home = false) => `(deny file-write* (subpath (param "AGENT_FOLDER")))
+${home ? '(deny file-write* (subpath (param "HOME_STORE_1")) (subpath (param "HOME_STORE_2")) (subpath (param "HOME_STORE_3")) (subpath (param "HOME_STORE_4")))\n' : ""}(allow file-write*${Array.from({ length: dirs }, (_, i) => ` (subpath (param "AGENT_DIR_${i + 1}"))`).join("")}${Array.from({ length: files }, (_, i) => ` (prefix (param "AGENT_FILE_${i + 1}"))`).join("")})
+${pattern ? `(allow file-write* (require-all (subpath (param "AGENT_FOLDER")) (regex #"${pattern}")))
+` : ""}`;
+const CLAUDE = agent(14, 6), CODEX = agent(8, 6, "\\.sqlite[^/]*$"), COPILOT = agent(3, 3, "", true), CURSOR = agent(2, 3, "", true), GEMINI = agent(3, 2, "/config/[0-9a-f-]+\\.(db|meta)[^/]*$", true);
 
 const U = "/Users/ada/Library/Application Support/doan";
 const P = `${U}/agent-auth/profiles/claude`;
@@ -36,21 +35,22 @@ const params = (args: readonly string[]) => {
 };
 
 describe("fencePolicy", () => {
-  it("is the passing text for Cursor and Copilot", () => {
-    for (const provider of ["cursor", "copilot"] as Provider[]) expect(fencePolicy(provider)).toBe(BASE);
+  // A later conversation reads the agent's folder as its instructions, settings, skills and hooks, so a fenced run
+  // writes there only what its CLI needs to.
+  it("closes the agent's own folder to writes and reopens what its CLI writes", () => {
+    expect(fencePolicy("cursor")).toBe(BASE + CURSOR);
+    expect(fencePolicy("copilot")).toBe(BASE + COPILOT);
+    expect(fencePolicy("codex")).toBe(BASE + CODEX);
   });
-  it("closes Claude's and Codex's own settings files to writes", () => {
-    expect(fencePolicy("codex")).toBe(BASE + CODEX_SETTINGS);
-  });
-  it("adds the browser hook for Claude and the hook, agent runtime and skill-path deny for Antigravity", () => {
-    expect(fencePolicy("claude")).toBe(BASE + HOOK + CLAUDE_SETTINGS);
-    expect(fencePolicy("antigravity")).toBe(BASE + HOOK + ANTIGRAVITY);
+  it("adds the browser hook for Claude and the hook and agent runtime for Antigravity", () => {
+    expect(fencePolicy("claude")).toBe(BASE + CLAUDE + HOOK);
+    expect(fencePolicy("antigravity")).toBe(BASE + GEMINI + HOOK + ANTIGRAVITY);
   });
   it("is the same text with no pasted image or one", () => {
     for (const provider of ["cursor", "claude", "antigravity"] as Provider[]) expect(fencePolicy(provider, 1)).toBe(fencePolicy(provider, 0));
   });
   it("appends one read rule per further pasted image and leaves the rest unchanged", () => {
-    expect(fencePolicy("claude", 3)).toBe(BASE + HOOK + CLAUDE_SETTINGS + `(allow file-read* (subpath (param "ATTACHMENTS_2")))
+    expect(fencePolicy("claude", 3)).toBe(BASE + CLAUDE + HOOK + `(allow file-read* (subpath (param "ATTACHMENTS_2")))
 (allow file-read* (subpath (param "ATTACHMENTS_3")))
 `);
   });
@@ -59,24 +59,39 @@ describe("fencePolicy", () => {
 describe("fenceArgs", () => {
   it("passes the policy with -p and every path as a -D parameter in the order of the runs that passed", () => {
     const att = `${U}/attachments/1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed`;
-    expect(fenceArgs("claude", paths({ attachments: [att] }))).toEqual(["-p", BASE + HOOK + CLAUDE_SETTINGS,
+    const args = fenceArgs("claude", paths({ attachments: [att] }));
+    expect(args.slice(0, 16)).toEqual(["-p", BASE + CLAUDE + HOOK,
       "-D", `USERDATA=${U}`, "-D", `AGENT_AUTH=${U}/agent-auth`, "-D", `PROFILES=${U}/agent-auth/profiles`, "-D", `PROFILE=${P}`,
-      "-D", `RUNTIME=${U}/conversation-runtime.json`, "-D", `ATTACHMENTS=${att}`, "-D", `BROWSER_HOOK=${U}/agent-auth/browser-hook`, "-D", `PROVIDER_SETTINGS=${P}/settings.json`,
-      "-D", `PROVIDER_SKILLS=${P}/skills`, "-D", `PROVIDER_AGENTS=${P}/agents`, "-D", `PROVIDER_PLUGINS=${P}/plugins`, "-D", `PROVIDER_COMMANDS=${P}/commands`,
-      "-D", `PROVIDER_PROJECT=${P}/.claude`, "-D", `PROVIDER_MCP=${P}/.mcp.json`, "-D", `PROVIDER_MEMORY=${P}/CLAUDE.md`]);
+      "-D", `RUNTIME=${U}/conversation-runtime.json`, "-D", `ATTACHMENTS=${att}`, "-D", `BROWSER_HOOK=${U}/agent-auth/browser-hook`]);
+    expect(args.slice(16, 20)).toEqual(["-D", `AGENT_FOLDER=${P}`, "-D", `AGENT_DIR_1=${P}/projects`]);
   });
-  it("names Codex's settings files in its own profile", () => {
-    const profile = `${U}/agent-auth/profiles/codex-7`;
-    expect(params(fenceArgs("codex", { userData: U, profile, attachments: [`${U}/attachments`] }))).toMatchObject({
-      CODEX_CONFIG: `${profile}/config.toml`, CODEX_HOOKS: `${profile}/hooks.json`, CODEX_MANAGED: `${profile}/managed_config.toml`, CODEX_ENV: `${profile}/.env`, CODEX_RULES: `${profile}/rules`,
-      CODEX_SKILLS: `${profile}/skills`, CODEX_PLUGINS: `${profile}/plugins`, CODEX_AGENTS: `${profile}/AGENTS.md`, CODEX_AGENTS_OVERRIDE: `${profile}/AGENTS.override.md` });
+  // Claude Code and Codex keep their whole state in the profile (CLAUDE_CONFIG_DIR, CODEX_HOME); the HOME-profile
+  // providers keep theirs in one folder of it, and the rest is the HOME their agent's own commands write to.
+  it("names the agent's own folder: the profile for Claude and Codex, the CLI's folder in the dedicated HOME otherwise", () => {
+    for (const [provider, folder] of [["claude", ""], ["codex", ""], ["copilot", "/.copilot"], ["cursor", "/.cursor"], ["antigravity", "/.gemini"]] as const) {
+      const profile = `${U}/agent-auth/profiles/${provider}`;
+      expect(params(fenceArgs(provider, paths({ profile }))).AGENT_FOLDER).toBe(profile + folder);
+    }
   });
-  it("gives Antigravity its agent runtime and its own profile's skill paths", () => {
+  // Copilot reads ~/.agents/skills and Cursor .agents, .claude, .codex and .grok in its HOME as the person's own skills,
+  // commands and settings; the whole folders close, so none can be moved into place either.
+  it("closes other agents' folders in a dedicated HOME and names none for Claude or Codex", () => {
+    for (const provider of ["copilot", "cursor", "antigravity"] as const) {
+      const profile = `${U}/agent-auth/profiles/${provider}`;
+      expect(params(fenceArgs(provider, paths({ profile })))).toMatchObject({ HOME_STORE_1: `${profile}/.agents`, HOME_STORE_2: `${profile}/.claude`, HOME_STORE_3: `${profile}/.codex`, HOME_STORE_4: `${profile}/.grok` });
+    }
+    for (const provider of ["claude", "codex"] as const) expect(Object.keys(params(fenceArgs(provider, paths())))).not.toContain("HOME_STORE_1");
+  });
+  it("reopens only Copilot's sessions, logs, plugin data, login and settings", () => {
+    const profile = `${U}/agent-auth/profiles/copilot`, c = `${profile}/.copilot`;
+    expect(params(fenceArgs("copilot", paths({ profile })))).toMatchObject({ AGENT_DIR_1: `${c}/session-state`, AGENT_DIR_2: `${c}/logs`, AGENT_DIR_3: `${c}/plugin-data`,
+      AGENT_FILE_1: `${c}/config.json`, AGENT_FILE_2: `${c}/settings.json`, AGENT_FILE_3: `${c}/session-store.db` });
+  });
+  it("gives Antigravity its agent runtime", () => {
     const profile = `${U}/agent-auth/profiles/antigravity`;
     const args = fenceArgs("antigravity", paths({ profile }));
     expect(args[1]).toBe(fencePolicy("antigravity"));
-    expect(params(args)).toMatchObject({ AGENT_RUNTIMES: `${U}/agent-runtimes`, AGENT_RUNTIME: `${U}/agent-runtimes/antigravity-acp`,
-      SKILLS_CONFIG: `${profile}/.gemini/config/skills`, SKILLS_CLI: `${profile}/.gemini/antigravity-cli/skills` });
+    expect(params(args)).toMatchObject({ AGENT_RUNTIMES: `${U}/agent-runtimes`, AGENT_RUNTIME: `${U}/agent-runtimes/antigravity-acp` });
   });
   it("re-allows the profile as the attachment parameter when the turn has no pasted image", () => {
     expect(params(fenceArgs("cursor", paths({ profile: `${U}/agent-auth/profiles/cursor` }))).ATTACHMENTS).toBe(`${U}/agent-auth/profiles/cursor`);
@@ -89,7 +104,8 @@ describe("fenceArgs", () => {
   });
   it("names no other provider's profile and no Doan path beyond the allowed ones", () => {
     const values = Object.values(params(fenceArgs("claude", paths())));
-    expect(values.filter(v => v.startsWith(`${U}/agent-auth/profiles/`))).toEqual([P, P, `${P}/settings.json`, `${P}/skills`, `${P}/agents`, `${P}/plugins`, `${P}/commands`, `${P}/.claude`, `${P}/.mcp.json`, `${P}/CLAUDE.md`]);
+    expect(values.filter(v => v.startsWith(`${U}/agent-auth/profiles/`) && !v.startsWith(`${P}/`))).toEqual([P, P, P]);
+    for (const closed of ["CLAUDE.md", "settings.json", "rules", "skills", "agents", "commands", "plugins", "output-styles", ".claude", ".mcp.json"]) expect(values.some(v => v === `${P}/${closed}` || v.startsWith(`${P}/${closed}/`))).toBe(false);
     expect(values.some(v => v.includes("conversations") || v.includes("vault"))).toBe(false);
   });
   it("keeps a path with quotes, spaces and parentheses as one argument", () => {
@@ -155,7 +171,7 @@ describe("profileFencedCommand", () => {
     expect(launch.command).toBe(SANDBOX_EXEC);
     expect(launch.args.slice(-3)).toEqual(["/bin/claude", "mcp", "list"]);
     expect(launch.args[1]).toBe(fencePolicy("claude"));
-    expect(params(launch.args)).toMatchObject({ USERDATA: U, PROFILE: P, PROVIDER_SETTINGS: `${P}/settings.json`, BROWSER_HOOK: `${U}/agent-auth/browser-hook` });
+    expect(params(launch.args)).toMatchObject({ USERDATA: U, PROFILE: P, AGENT_FOLDER: P, BROWSER_HOOK: `${U}/agent-auth/browser-hook` });
   });
   it("runs a Copilot command under Copilot's policy in its own profile", () => {
     const copilot = `${U}/agent-auth/profiles/copilot`;
@@ -163,7 +179,7 @@ describe("profileFencedCommand", () => {
     expect(launch.command).toBe(SANDBOX_EXEC);
     expect(launch.args.slice(-2)).toEqual(["/bin/copilot", "login"]);
     expect(launch.args[1]).toBe(fencePolicy("copilot"));
-    expect(params(launch.args)).toEqual({ USERDATA: U, AGENT_AUTH: `${U}/agent-auth`, PROFILES: `${U}/agent-auth/profiles`, PROFILE: copilot, RUNTIME: `${U}/conversation-runtime.json`, ATTACHMENTS: copilot });
+    expect(params(launch.args)).toMatchObject({ USERDATA: U, AGENT_AUTH: `${U}/agent-auth`, PROFILES: `${U}/agent-auth/profiles`, PROFILE: copilot, RUNTIME: `${U}/conversation-runtime.json`, ATTACHMENTS: copilot, AGENT_FOLDER: `${copilot}/.copilot` });
   });
   it("takes another sandbox-exec path", () => {
     expect(profileFencedCommand("claude", { userData: U, exec: "/tmp/exec" }, P, "/bin/claude", [], real)!.command).toBe("/tmp/exec");
@@ -242,7 +258,7 @@ describe("codexProfileArgs", () => {
   const denied = [{ path: `${U}/conversations`, directory: true }, { path: `${U}/agent-auth/profiles/cursor`, directory: true }];
   const sock = "/private/var/folders/x/T/doan-AbC123";
   it("defines Doan's two permission profiles and makes the read-only one the default", () => {
-    const entries = `{"${U}/conversations"="deny","${U}/agent-auth/profiles/cursor"="deny","${profile}/config.toml"="deny","${profile}/hooks.json"="deny","${profile}/managed_config.toml"="deny","${profile}/.env"="deny","${profile}/rules"="deny","${profile}/AGENTS.md"="deny","${profile}/AGENTS.override.md"="deny","${profile}"="write","${U}/conversation-runtime.json"="read","${U}/attachments"="read","${profile}/skills"="read","${profile}/plugins"="read","${profile}/sessions"="read","${profile}/memories"="read","${profile}/shell_snapshots"="read"}`;
+    const entries = `{"${U}/conversations"="deny","${U}/agent-auth/profiles/cursor"="deny","${profile}/config.toml"="deny","${profile}/hooks.json"="deny","${profile}/managed_config.toml"="deny","${profile}/.env"="deny","${profile}/rules"="deny","${profile}/AGENTS.md"="deny","${profile}/AGENTS.override.md"="deny","${profile}"="read","${U}/conversation-runtime.json"="read","${U}/attachments"="read"}`;
     const network = `network={enabled=true,unix_sockets={"${sock}"="allow"}}`;
     expect(codexProfileArgs(codex, denied, sock)).toEqual([
       "-c", 'default_permissions="doan"',
@@ -254,25 +270,26 @@ describe("codexProfileArgs", () => {
   // there decides what the harness's own unsandboxed children (git) run, so it is closed like the settings files.
   // MCP servers and notify from config.toml run outside the Codex sandbox (codex-cli 0.166.0, probe), and an escalated
   // command keeps only deny entries, so the settings files are denied rather than read-only.
-  // A skill's agents/openai.yaml can name MCP dependencies and a plugin can carry hooks and MCP servers.
-  it("denies the profile's own settings files, skills and plugins", () => {
+  it("denies the profile's own settings files", () => {
     const text = codexProfileArgs(codex, denied, sock).join(" ");
     for (const file of ["config.toml", "hooks.json", "managed_config.toml", ".env", "rules"]) expect(text).toContain(`"${profile}/${file}"="deny"`);
   });
-  // The model opens a skill's SKILL.md with shell tools, so a deny kept the doan stub from sandboxed commands; read-only
-  // still keeps them from writing there (codex sandbox probe). An approved escalated command keeps only deny entries,
-  // so it can write there: a known limit.
-  it("keeps the profile's skills and plugins readable but not writable to sandboxed commands", () => {
+  // Sandboxed commands write nothing in the profile: Codex writes its rollouts, databases, caches and runtime helpers
+  // (tmp/) from its own process, outside the command sandbox (codex-cli 0.169.0 probe: a turn's commands, apply_patch
+  // included, ran and the rollout was recorded). The skills and plugins stay
+  // readable, since the model opens a skill's SKILL.md with shell tools; an approved escalated command keeps only deny
+  // entries, so it can write there: a known limit.
+  it("keeps the whole profile readable and not writable to sandboxed commands", () => {
     const text = codexProfileArgs(codex, denied, sock).join(" ");
-    for (const dir of ["skills", "plugins"]) { expect(text).toContain(`"${profile}/${dir}"="read"`); expect(text).not.toContain(`"${profile}/${dir}"="deny"`); }
+    expect(text).toContain(`"${profile}"="read"`);
+    expect(text).not.toMatch(/="write"/);
+    for (const dir of ["skills", "plugins", "tmp"]) expect(text).not.toContain(`"${profile}/${dir}"="deny"`);
   });
   // Codex loads <CODEX_HOME>/AGENTS.md (or AGENTS.override.md) as the person's own instructions in every later thread,
-  // and replays sessions/ on a resume; memories/ and shell_snapshots/ feed later threads and commands. Codex itself writes
-  // its sessions, memories and snapshots outside the command sandbox, so only the agent's commands lose the writes.
-  it("closes the instruction files and the stored sessions, memories and shell snapshots to the agent's writes", () => {
+  // so an escalated command cannot write them either.
+  it("denies the instruction files", () => {
     const text = codexProfileArgs(codex, denied, sock).join(" ");
     for (const file of ["AGENTS.md", "AGENTS.override.md"]) expect(text).toContain(`"${profile}/${file}"="deny"`);
-    for (const dir of ["sessions", "memories", "shell_snapshots"]) { expect(text).toContain(`"${profile}/${dir}"="read"`); expect(text).not.toContain(`"${profile}/${dir}"="write"`); }
   });
   // Conversations read their own runtime file, whose credential the app refuses for onboarding and removal; the
   // terminal's runtime.json stays closed.
