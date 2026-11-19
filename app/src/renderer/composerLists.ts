@@ -6,22 +6,26 @@ import type { MessagePart } from "./threadItems";
 // segments and the message its text, markers and depth spaces included (PRODUCT §5 'Composer').
 
 export type ListKind = "ul" | "ol";
-// A list item's line. `lead` and `body` are code units into the line (where the marker and the body start); `indent`
-// and `column` are the same two places in columns, which is what depth compares.
+// A list item's line. `lead` and `body` are code units into the line where the marker and what follows its one space
+// start: the marker an edit copies or removes is always the marker and one space. `indent` is the marker's column and
+// `column` the body's column for nesting (CommonMark §5.2): after 1 to 4 spaces the body starts past them; from 5
+// spaces, or with nothing after the marker, it starts one space past the marker.
 export interface ListItem { list: ListKind; marker: string; number: number | null; depth: number; lead: number; body: number; indent: number; column: number }
 export type ListLine = ListItem | null;
 export type FieldListItem = ListItem & { start: number };
 export type FieldEdit = { segments: FieldSegment[]; caret: number };
 
-// A tab reaches the next multiple of 4 columns, as in CommonMark.
+// A tab advances to the next multiple of 4 columns, not by a fixed 4 (CommonMark §2.2), so " \t" reaches column 4 as
+// Markdown readers count it.
 function columns(lead: string): number {
   let column = 0;
   for (const char of lead) column = char === "\t" ? column + 4 - (column % 4) : column + 1;
   return column;
 }
 
-// CommonMark's rule: an item is the child of the nearest item above whose body starts at or before its marker. Any line
-// that is not an item, a blank one included, ends the list, so the next item starts again at depth 0.
+// CommonMark's rule: an item is the child of the nearest item above whose body starts at or before its marker. Unlike
+// full CommonMark, where blank lines and indented paragraphs can stay inside an item, any line that is not an item ends
+// the list here, so the next item starts again at depth 0.
 export function listLines(lines: readonly string[]): ListLine[] {
   const open: ListItem[] = [];
   return lines.map(line => {
@@ -29,10 +33,12 @@ export function listLines(lines: readonly string[]): ListLine[] {
     if (!match) { open.length = 0; return null; }
     const lead = match[1] ?? "", marker = match[2] ?? "", indent = columns(lead);
     while (open.length > 0 && indent < open[open.length - 1]!.column) open.pop();
-    const ordered = marker.endsWith(". ");
+    const ordered = marker.endsWith(". "), rest = line.slice(lead.length + marker.length);
+    const extra = rest.length - rest.replace(/^ +/, "").length;
+    const column = indent + marker.length + (extra < 4 && rest.trim() !== "" ? extra : 0);
     const item: ListItem = {
       list: ordered ? "ol" : "ul", marker, number: ordered ? Number(marker.slice(0, -2)) : null, depth: open.length,
-      lead: lead.length, body: lead.length + marker.length, indent, column: indent + marker.length,
+      lead: lead.length, body: lead.length + marker.length, indent, column,
     };
     open.push(item);
     return item;
@@ -72,7 +78,8 @@ export function continueList(segments: readonly FieldSegment[], caret: number): 
   if (!item || caret < start + item.body) return null;
   if (line.slice(item.body).trim() === "") {
     if (item.depth > 0) return indentItem(segments, caret, -1);
-    return spliceUnits(segments, start, start + line.length, []);
+    const edit = spliceUnits(segments, start + item.lead, start + item.body, []);
+    return { segments: edit.segments, caret: caret - (item.body - item.lead) };
   }
   const marker = item.list === "ul" ? item.marker : numbered((item.number ?? 0) + 1);
   if (marker === null) return null;
@@ -81,7 +88,8 @@ export function continueList(segments: readonly FieldSegment[], caret: number): 
 
 // Tab (1) makes the caret's item a child of the item above at its depth; Shift+Tab (-1) moves it to its parent's level.
 // Its own children move with it, so the tree under it keeps its shape. A numbered item takes the number after the
-// item it now follows at its new depth, or 1 when it starts a new numbered list there.
+// item it now follows at its new depth, or 1 when it starts a new numbered list there; when that number would have 4
+// digits the item keeps its marker, since the depth change is what the key asked for.
 export function indentItem(segments: readonly FieldSegment[], caret: number, dir: 1 | -1): FieldEdit | null {
   const { lines, starts, items } = layout(segments);
   const i = lineOf(starts, caret), item = items[i];
@@ -94,10 +102,10 @@ export function indentItem(segments: readonly FieldSegment[], caret: number, dir
   if (!target || target.depth !== level) return null;
   let previous: ListItem | null = dir === 1 ? null : target;
   for (let j = i - 1; dir === 1 && j > at; j--) if (items[j]!.depth === item.depth + 1) { previous = items[j]!; break; }
-  const marker = item.list === "ul" ? item.marker : numbered(previous?.list === "ol" ? (previous.number ?? 0) + 1 : 1);
-  if (marker === null) return null;
+  const marker = item.list === "ul" ? item.marker : numbered(previous?.list === "ol" ? (previous.number ?? 0) + 1 : 1) ?? item.marker;
   const lead = dir === 1 ? " ".repeat(target.column) : lines[at]!.slice(0, target.lead);
-  const shift = columns(lead) + marker.length - item.column;
+  // The body keeps its spaces after the marker, so its column moves by the lead's change and the marker's.
+  const shift = columns(lead) - item.indent + marker.length - item.marker.length;
   let edit: FieldEdit = { segments: [...segments], caret };
   // Bottom to top, so the units of the lines still to change stay where layout found them.
   let end = i + 1;

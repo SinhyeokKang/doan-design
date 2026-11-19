@@ -70,11 +70,11 @@ export function chipLabel(anchor: Anchor, frames: readonly FrameName[] = []): Ch
 // A list item's leading whitespace and marker: "- ", "* " or a 1 to 3 digit number and ". ". A longer number is not a
 // marker, so a line that starts with a year ("2026. 11. 19.") stays text. The composer's lists read the same rule.
 export const LIST_MARKER = /^([ \t]*)([-*] |\d{1,3}\. )/;
-const LIST_MARKERS = new RegExp(LIST_MARKER.source, "gm");
 
-// A title or queue row reads the words, not the list: each line's marker and the spaces before it go.
+// A title or queue row reads the words, not the list: each line's marker and the spaces before it go. Lines end at a
+// line feed only, as in the composer and the bubble; a regex `m` flag would also start a line after U+2028 or U+2029.
 export function plainTitle(text: string): string {
-  return text.replace(LIST_MARKERS, "");
+  return text.split("\n").map(line => line.replace(LIST_MARKER, "")).join("\n");
 }
 
 // The one-line form of a message for titles, previews, the queue and notifications: each chip marker reads as its
