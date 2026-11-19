@@ -1188,7 +1188,11 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .bubble-item { display: block; }
 .conversation-thread .bubble-item > :is(.list-depth, .list-mark, .bubble-item-body) { vertical-align: top; }
 .conversation-thread .bubble-item > .list-mark { min-width: max(var(--space-6), calc(attr(data-mark type(<number>), 0) * 1ch)); }
-.conversation-thread .bubble-item-body { display: inline-block; max-width: calc(100% - attr(data-depth type(<number>), 0) * var(--space-6) - max(var(--space-6), calc(attr(data-mark type(<number>), 0) * 1ch))); }
+/* A deep list in a narrow bubble would leave its body no width, so the drawn indentation stops at four steps; the
+   depth spaces stay in the text for copy. Not a share of the item: a bubble shrinks to its text, so a short list's
+   item is narrow and a share would pull in its first levels too. */
+.conversation-thread .bubble-item > .list-depth { width: calc(min(attr(data-depth type(<number>), 0), 4) * var(--space-6)); }
+.conversation-thread .bubble-item-body { display: inline-block; max-width: calc(100% - min(attr(data-depth type(<number>), 0), 4) * var(--space-6) - max(var(--space-6), calc(attr(data-mark type(<number>), 0) * 1ch))); }
 .conversation-thread .msg-files { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1h); }
 /* A sent file has no remove button, so the chip keeps its own inline end padding. */
 .conversation-thread .msg-files .attach-chip { gap: var(--space-3); padding: var(--space-1h) var(--space-4) var(--space-1h) var(--space-1h); }
