@@ -121,7 +121,7 @@ code, kbd { font-family: var(--type-family); }
 }
 /* With Play the bubble starts with a button too, so both ends take the 4px button inset. */
 .dims.playable { padding-left: var(--space-1); }
-/* App portals Add to message into this host, which takes no box of its own. */
+/* Portal buttons take their places in the bubble without an extra box around them. */
 .dims .bubble-host { display: contents; }
 /* The bubble's buttons: 14px icons whose hit target is the 24px capsule height, the overlay's only pointer targets.
    Their ring is drawn inside so it does not cover the size text. */
@@ -1607,6 +1607,9 @@ button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-ba
 /* The element menu spans the panel less --space-2 a side, not its rows' width, however wide the column is made: it
    reads as part of the panel, so the shared menu's 320 cap does not apply. */
 .doan-floating.doan-insp-menu { width: calc(var(--doan-insp-panel-width) - 2 * var(--space-2)); max-width: none; }
+.doan-insp-menu[data-ui-variant="tree"] { overflow-x: auto; }
+.doan-insp-menu [role="tree"] { width: max-content; min-width: 100%; }
+.doan-insp-menu[data-ui-variant="tree"] .doan-menu-item > .name { flex: none; overflow: visible; text-overflow: clip; }
 /* The row's tooltip: one line per fact. */
 .doan-insp-tip > span { display: block; }
 /* A new selection's read: the spinner line after the delay. */
