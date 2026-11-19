@@ -19,11 +19,11 @@ const ANTIGRAVITY = `(allow file-read-metadata (literal (param "AGENT_RUNTIMES")
 `;
 // The agent's own folder closed to writes, then what its CLI writes there reopened (fence.seatbelt.test.ts holds the
 // lists path by path).
-const agent = (dirs: number, files: number, pattern = "") => `(deny file-write* (subpath (param "AGENT_FOLDER")))
-(allow file-write*${Array.from({ length: dirs }, (_, i) => ` (subpath (param "AGENT_DIR_${i + 1}"))`).join("")}${Array.from({ length: files }, (_, i) => ` (prefix (param "AGENT_FILE_${i + 1}"))`).join("")})
+const agent = (dirs: number, files: number, pattern = "", home = false) => `(deny file-write* (subpath (param "AGENT_FOLDER")))
+${home ? '(deny file-write* (subpath (param "HOME_STORE_1")) (subpath (param "HOME_STORE_2")) (subpath (param "HOME_STORE_3")) (subpath (param "HOME_STORE_4")))\n' : ""}(allow file-write*${Array.from({ length: dirs }, (_, i) => ` (subpath (param "AGENT_DIR_${i + 1}"))`).join("")}${Array.from({ length: files }, (_, i) => ` (prefix (param "AGENT_FILE_${i + 1}"))`).join("")})
 ${pattern ? `(allow file-write* (require-all (subpath (param "AGENT_FOLDER")) (regex #"${pattern}")))
 ` : ""}`;
-const CLAUDE = agent(15, 6), CODEX = agent(8, 6, "\\.sqlite[^/]*$"), COPILOT = agent(3, 3), CURSOR = agent(2, 3), GEMINI = agent(3, 2, "/config/[0-9a-f-]+\\.(db|meta)[^/]*$");
+const CLAUDE = agent(15, 6), CODEX = agent(8, 6, "\\.sqlite[^/]*$"), COPILOT = agent(3, 3, "", true), CURSOR = agent(2, 3, "", true), GEMINI = agent(3, 2, "/config/[0-9a-f-]+\\.(db|meta)[^/]*$", true);
 
 const U = "/Users/ada/Library/Application Support/doan";
 const P = `${U}/agent-auth/profiles/claude`;
@@ -72,6 +72,15 @@ describe("fenceArgs", () => {
       const profile = `${U}/agent-auth/profiles/${provider}`;
       expect(params(fenceArgs(provider, paths({ profile }))).AGENT_FOLDER).toBe(profile + folder);
     }
+  });
+  // Copilot reads ~/.agents/skills and Cursor .agents, .claude, .codex and .grok in its HOME as the person's own skills,
+  // commands and settings; the whole folders close, so none can be moved into place either.
+  it("closes other agents' folders in a dedicated HOME and names none for Claude or Codex", () => {
+    for (const provider of ["copilot", "cursor", "antigravity"] as const) {
+      const profile = `${U}/agent-auth/profiles/${provider}`;
+      expect(params(fenceArgs(provider, paths({ profile })))).toMatchObject({ HOME_STORE_1: `${profile}/.agents`, HOME_STORE_2: `${profile}/.claude`, HOME_STORE_3: `${profile}/.codex`, HOME_STORE_4: `${profile}/.grok` });
+    }
+    for (const provider of ["claude", "codex"] as const) expect(Object.keys(params(fenceArgs(provider, paths())))).not.toContain("HOME_STORE_1");
   });
   it("reopens only Copilot's sessions, logs, plugin data, login and settings", () => {
     const profile = `${U}/agent-auth/profiles/copilot`, c = `${profile}/.copilot`;

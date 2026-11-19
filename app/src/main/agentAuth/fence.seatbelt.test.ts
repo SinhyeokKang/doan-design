@@ -32,6 +32,10 @@ function written(provider: Provider, rels: readonly string[]): string[] {
   expect(run.status).toBe(0);
   return run.stdout.split("\n").filter(Boolean);
 }
+// Other agents' folders in a dedicated HOME, which Copilot (~/.agents/skills) and Cursor (.agents, .claude with its
+// settings hooks, commands, skills and plugins, .codex and .grok skills) read as the person's own; a tool cache beside
+// them stays writable.
+const HOME_STORES = [".agents/skills/a/SKILL.md", ".claude/settings.json", ".claude/commands/a.md", ".claude/skills/a/SKILL.md", ".codex/skills/a/SKILL.md", ".grok/skills/a/SKILL.md", ".agents"];
 function expectWrites(provider: Provider, open: readonly string[], closed: readonly string[]) {
   expect(written(provider, [...open, ...closed])).toEqual(open);
 }
@@ -67,8 +71,8 @@ describe.runIf(usable)("the outer fence's writes in the agent's folder", () => {
   it("lets Copilot write its sessions, logs and login and none of its instruction or plugin files", () => {
     expectWrites("copilot", [
       ".copilot/session-state/1b9d/workspace.yaml", ".copilot/session-store.db", ".copilot/session-store.db-wal", ".copilot/logs/process-1.log", ".copilot/plugin-data/_direct/a",
-      ".copilot/config.json", ".copilot/settings.json", ".copilot/settings.json.lock", ".local/state/gh/device-id", "Library/Caches/copilot/exp-cache.json", ".npm/_cacache/a",
-    ], [
+      ".copilot/config.json", ".copilot/settings.json", ".copilot/settings.json.lock", ".local/state/gh/device-id", "Library/Caches/copilot/exp-cache.json", ".npm/_cacache/a", ".cache/pip/a",
+    ], [...HOME_STORES,
       ".copilot/copilot-instructions.md", ".copilot/agents/a.md", ".copilot/skills/a/SKILL.md", ".copilot/hooks/a.json", ".copilot/mcp-config.json", ".copilot/installed-plugins/a/plugin.json", ".copilot/x",
     ]);
   });
@@ -78,8 +82,8 @@ describe.runIf(usable)("the outer fence's writes in the agent's folder", () => {
   it("lets Cursor write its sessions, state and login and none of its rules, skills, hooks or MCP files", () => {
     expectWrites("cursor", [
       ".cursor/acp-sessions/1b9d.json", ".cursor/ai-tracking/a.db", ".cursor/statsig-cache.json", ".cursor/agent-cli-state.json", ".cursor/auth.json",
-      "Library/Caches/cursor-compile-cache/a",
-    ], [
+      "Library/Caches/cursor-compile-cache/a", ".npm/_cacache/a",
+    ], [...HOME_STORES,
       ".cursor/cli-config.json", ".cursor/rules/a.mdc", ".cursor/mcp.json", ".cursor/hooks.json", ".cursor/skills/a/SKILL.md", ".cursor/skills-cursor/a/SKILL.md", ".cursor/agents/a.md", ".cursor/commands/a.md",
       ".cursor/plugins/a/plugin.json", ".cursor/sandbox.json", ".cursor/x",
     ]);
@@ -89,8 +93,8 @@ describe.runIf(usable)("the outer fence's writes in the agent's folder", () => {
   it("lets Antigravity write its conversations, brain and token and none of its config, memory or settings", () => {
     expectWrites("antigravity", [
       ".gemini/antigravity-acp/conversations/a.pb", ".gemini/antigravity-acp/brain/a/b.md", ".gemini/antigravity-acp/acp_token.json", ".gemini/antigravity/bin/webm_encoder",
-      ".gemini/config/f58ecf9c-7be2-400c-897f-2b84dc9464e3.db-wal", ".gemini/config/f58ecf9c-7be2-400c-897f-2b84dc9464e3.meta",
-    ], [
+      ".gemini/config/f58ecf9c-7be2-400c-897f-2b84dc9464e3.db-wal", ".gemini/config/f58ecf9c-7be2-400c-897f-2b84dc9464e3.meta", ".npm/_cacache/a",
+    ], [...HOME_STORES,
       ".gemini/GEMINI.md", ".gemini/settings.json", ".gemini/config/memory.txtpb", ".gemini/config/mcp_config.json", ".gemini/config/hooks.json", ".gemini/config/skills/a/SKILL.md",
       ".gemini/config/workflows/a.md", ".gemini/antigravity-acp/settings.json", ".gemini/antigravity-acp/trusted_workspaces.json", ".gemini/antigravity-cli/skills/a/SKILL.md", ".gemini/x",
     ]);
