@@ -43,6 +43,11 @@ func Scope(root string, config Config) ([]string, error) {
 		return nil, err
 	}
 	for _, p := range append(defaults, config.Serve...) {
+		// `doan check` reports an entry withheld by its written name too
+		// (`serve_withheld`), so a link named `.env-docs` stays out whatever it points to.
+		if Withheld(filepath.ToSlash(filepath.Clean(p))) {
+			continue
+		}
 		state, real, err := Resolve(root, root, p)
 		if err != nil {
 			return nil, err

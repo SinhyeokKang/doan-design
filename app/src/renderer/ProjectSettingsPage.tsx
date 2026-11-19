@@ -6,6 +6,7 @@ import { homeOrAbove, projectKeepsLocal } from "../main/storage";
 import type { FolderEntry } from "../main/view";
 import type { ConfigWrite } from "../preload";
 import type { AddPageOrigin } from "./addProjectsNav";
+import { useActivationFocus } from "./activationFocus";
 import { AlertIcon } from "./AlertIcon";
 import { withChips } from "./codeChips";
 import { copyText } from "./copyText";
@@ -100,7 +101,10 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   const locked = projectSettingsLocked({ picking, confirming: !!choice || creating, writing: !!busy });
   const home = homeDirectory !== null && homeOrAbove(root, homeDirectory);
 
-  function focusTitle() { requestAnimationFrame(() => heading.current?.focus()); }
+  // A worktree changed by an agent's CLI redraws the page or cancels its confirmation with the window in the background,
+  // so the title focus is made again on activation (POSTMORTEM 2026-11-17).
+  const handFocus = useActivationFocus();
+  function focusTitle() { requestAnimationFrame(() => handFocus(() => heading.current?.focus())); }
   // quiet: a refresh for a change made elsewhere (a listed mode change). It keeps the controls as they are, so a focus
   // just returned to them is not dropped; it still supersedes any older read. retry: Retry on a failed read keeps the
   // failed notice drawn while it reads, so the pressed Retry stays mounted, busy, and keeps focus.
@@ -292,9 +296,9 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
     if (first) return;
     requestAnimationFrame(() => {
       const active = document.activeElement;
-      if (!active || active === document.body || !active.isConnected) heading.current?.focus();
+      if (!active || active === document.body || !active.isConnected) handFocus(() => heading.current?.focus());
     });
-  }, [shape]);
+  }, [shape, handFocus]);
 
   function recover(action: PageAction) {
     if (action === "details") { setDetails(open => !open); return; }

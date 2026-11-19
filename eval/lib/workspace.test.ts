@@ -7,7 +7,7 @@ import { after, before, test } from "node:test";
 import { CODEX_RULE, codexRuleText, evalCodexRuleText } from "./codex-rule.ts";
 import { createContext, judgeMaterial, sh } from "./context.ts";
 import { loadScenario } from "./scenario.ts";
-import { keepCodexSessions, keepOnboardingLog, prepareWorkspace } from "./workspace.ts";
+import { keepCodexSessions, keepOnboardingLog, outsideCodexSandbox, prepareWorkspace } from "./workspace.ts";
 
 const { CLAUDE_ALLOW_RULES } = await import("../../app/src/main/agentSetup/plan.ts");
 
@@ -277,6 +277,17 @@ test("canvas-only seeds are initialized even though .doan already exists", async
     assert.ok(existsSync(join(ws.repo, ".doan/config.json")));
     assert.equal(sh(cli, ["check", "--json", "--repo", ws.repo], ws.repo, ws.env).code, 0);
   } finally { await ws.dispose(); }
+});
+
+// The Codex judge of a Claude run lives while the Codex lane's agents run under workspace-write, so its home, with links
+// to the user's sign-in and its instruction files, must be out of their reach as the agents' homes are.
+test("a directory made outside the Codex sandbox is in none of the folders workspace-write opens", () => {
+  const dir = outsideCodexSandbox("doan-eval-judge-");
+  try {
+    assert.ok(statSync(dir).isDirectory());
+    for (const writable of ["/tmp", "/private/tmp", realpathSync(tmpdir())])
+      assert.ok(!`${dir}/`.startsWith(`${writable}/`), `${dir} is inside ${writable}`);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
 test("each real agent's environment leaves out the user's own instruction files; the fixture agent's is unchanged", async () => {

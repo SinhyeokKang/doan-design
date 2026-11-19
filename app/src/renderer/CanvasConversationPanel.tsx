@@ -64,7 +64,7 @@ import { NameTip } from "./NameTip";
 export type ConversationCalls = SkillsCalls & Pick<DoanApi, "onAgentAuth" | "startConversation" | "sendConversation" | "queueConversation" |
   "removeQueuedMessage" | "interruptConversation" | "answerConversationPermission" | "answerConversationQuestion" | "openLink" |
   "chooseAttachments" | "addAttachmentFiles" | "addPastedImage" | "droppedPath" | "removeAttachment" | "releaseAttachments" |
-  "readAgentUsage" | "onAgentUsage">;
+  "readAgentUsage" | "onAgentUsage" | "onWindowVisible">;
 
 export interface CanvasConversationProps {
   calls: ConversationCalls;
@@ -504,7 +504,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
 
   return <div className="doan-conv-content" ref={body}>
     <div className={`cp-scroll${conversationId ? "" : " end"}`}>
-      {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project}
+      {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project} visibility={calls}
         liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} turn={thread && Array.isArray(items) ? threadTurn(thread.events, items, live, store.stageOf(conversationId), root, summary?.stopping === true, turnId => commands && commandTurnLabel(provider, commands, turnId)) : null}
         card={card} onCardAction={cardAction} onCardDismiss={dismissCard}
         background={summary?.background ?? null} onStopBackground={turnId => stopBackground({ conversationId, turnId }, request => calls.interruptConversation(request)).then(failed => { if (failed) props.onNotice(failed); return failed === null; })} canvasListed={canvas => props.entry.kind === "list" && props.entry.canvases.some(row => sameCanvas(canvas, row))}

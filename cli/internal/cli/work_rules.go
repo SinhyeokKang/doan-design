@@ -25,21 +25,14 @@ func workTarget(root, path string) (string, error) {
 	if !filepath.IsAbs(candidate) {
 		candidate = filepath.Join(root, candidate)
 	} else {
-		// Canonicalize only the root alias here so canvas-directory spelling
+		// Rebase only the root alias here so canvas-directory spelling
 		// still passes the lexical check before any in-repo links are followed.
-		for ancestor := filepath.Dir(candidate); ; ancestor = filepath.Dir(ancestor) {
-			real, err := filepath.EvalSymlinks(ancestor)
-			if err == nil && real == root {
-				suffix, err := filepath.Rel(ancestor, candidate)
-				if err != nil {
-					return "", err
-				}
-				candidate = filepath.Join(root, suffix)
-				break
-			}
-			if filepath.Dir(ancestor) == ancestor {
-				break
-			}
+		suffix, err := belowRoot(root, candidate)
+		if err != nil {
+			return "", err
+		}
+		if suffix != "" {
+			candidate = filepath.Join(root, suffix)
 		}
 	}
 	relative, err := filepath.Rel(root, candidate)
@@ -97,6 +90,27 @@ func workTarget(root, path string) (string, error) {
 		return "", fmt.Errorf("resolved path is outside the canvas directories: %s", path)
 	}
 	return resolved, nil
+}
+
+// belowRoot is abs relative to its nearest ancestor that is the root directory, or "" when no ancestor is.
+// It compares file identity, as repo.Resolver does for link targets, because an absolute path may name the
+// root through a link or in another letter case or Unicode form than the disk (a shell's logical $PWD keeps
+// what the person typed), and EvalSymlinks keeps that spelling. The rest of abs stays lexical.
+func belowRoot(root, abs string) (string, error) {
+	rootInfo, err := os.Stat(root)
+	if err != nil {
+		return "", err
+	}
+	// Cleaned first so every ancestor is a prefix of abs and the result never climbs out with "..".
+	abs = filepath.Clean(abs)
+	for ancestor := abs; ; ancestor = filepath.Dir(ancestor) {
+		if info, err := os.Stat(ancestor); err == nil && os.SameFile(info, rootInfo) {
+			return filepath.Rel(ancestor, abs)
+		}
+		if filepath.Dir(ancestor) == ancestor {
+			return "", nil
+		}
+	}
 }
 
 func workSession(claude, thread, legacy string) (provider, id string) {
