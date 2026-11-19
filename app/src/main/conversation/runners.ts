@@ -456,11 +456,12 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     if (input.owner) { await Promise.race([stderrDone, new Promise(resolve => setTimeout(resolve, 1000).unref())]); if (PIN_REFUSED.test(stderr)) throw new Error("credential_override"); }
     // A fenced start that could not run is a process failure, never the SDK's message about the CLI binary, which names
     // a missing CLI: sandbox-exec missing (a spawn error), or sandbox-exec itself refusing (65 for a policy error, 71 for
-    // an exec failure, with its own "sandbox-exec:" message). The CLI's own early exit keeps the SDK's error.
+    // an exec failure, with its own "sandbox-exec:" message). The CLI's own early exit is one too: the SDK's error for it
+    // ("Claude Code process exited with code 1") is no code a composer can explain. A spawn error keeps the SDK's error.
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the child exit callback sets this while the SDK starts
     const refused = childExited && sandboxRefused({ exitCode, stderr });
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the spawn error and exit callbacks set these while the SDK starts
-    if (input.fence && (spawnFailed || refused)) throw new Error("process_exited");
+    if ((input.fence && (spawnFailed || refused)) || childExited) throw new Error("process_exited");
     throw error;
   }
   // The session the run is on: the one it opened, or the one the person's /clear moved it to.

@@ -291,7 +291,11 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
         return { error: code, missing: error.missing, ...("replaced" in error && Array.isArray(error.replaced) ? { replaced: error.replaced } : {}) };
       }
       if (code === "rate_limited" && error instanceof Error && "resetsAt" in error && typeof error.resetsAt === "string") return { error: code, resetsAt: error.resetsAt };
-      return { error: code === "outside_root" ? "session_unavailable" : known.includes(code) ? code : "unknown" };
+      const answered = code === "outside_root" ? "session_unavailable" : known.includes(code) ? code : "unknown";
+      // No composer explains these two beyond "Couldn't start", so the log keeps what refused the start; a cause that
+      // became unknown is otherwise lost.
+      if (method === "start" && (answered === "unknown" || answered === "bad_request")) console.error(`doan: conversation start refused: ${answered}${code !== answered ? ` (${code})` : ""}`);
+      return { error: answered };
     }
   };
 }
