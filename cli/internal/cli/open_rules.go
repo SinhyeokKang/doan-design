@@ -79,7 +79,7 @@ func openFailure(code, message string) *Error {
 		"app_not_running":       unreachableSteps("`doan open`"),
 		"app_launch_failed":     unreachableSteps("`doan open`"),
 		"app_protocol_mismatch": {"Ask the user to update Doan and the doan CLI to matching versions"},
-		"project_not_open":      {"Tell the user which folder Doan does not have open and ask them to add it in Doan (Add Projects), then to ask again"},
+		"project_not_open":      notOpenSteps(", then to ask again"),
 		"canvas_not_found":      {"Tell the user Doan could not find that canvas; check the path with `doan ls`"},
 		"busy":                  {"Tell the user what Doan is waiting for (see the message) and ask them to finish it; run `doan open` again only when they ask again"},
 	}[code]
@@ -122,7 +122,7 @@ func openReply(line []byte, target openTarget, secrets []string) (map[string]any
 	case "not_ready":
 		return nil, &Error{Code: "not_ready", Message: "Doan is still starting"}, false
 	case "project_not_open":
-		return nil, openFailure(code, "Doan does not have the folder "+quoteName(filepath.Base(target.root))+" open"), false
+		return nil, openFailure(code, notOpenMessage(target.root)), false
 	case "canvas_not_found":
 		return nil, openFailure(code, "Doan has no canvas "+target.path+" in "+quoteName(filepath.Base(target.root))), false
 	default:
@@ -135,6 +135,22 @@ func openReply(line []byte, target openTarget, secrets []string) (map[string]any
 }
 
 func quoteName(s string) string { return `"` + s + `"` }
+
+// notOpenMessage names the whole root, not its base name: another checkout or worktree of a saved project has the
+// same folder name and differs only in its path, and Doan answers project_not_open for it too (ARCHITECTURE §12).
+func notOpenMessage(root string) string {
+	return "Doan does not have the folder " + quoteName(root) + " open"
+}
+
+// notOpenSteps is the project_not_open guidance doan open, open --prototype and handoff share; after is what follows
+// adding the folder. The second step is conditional because the CLI cannot tell a folder never added from another
+// checkout of an added one.
+func notOpenSteps(after string) []string {
+	return []string{
+		"Tell the user Doan does not have the folder at the path in the message open and ask them to add that path in Doan (Add Projects)" + after,
+		"If they say Doan already has a project with this name, ask them to compare its path (Project Settings shows it) with the path in the message: a different path is another checkout or worktree, so add this path too or work in the folder Doan has open",
+	}
+}
 
 // decodeOpenReply reads exactly one JSON object; any numeric v other than 4, including an older app's v1
 // bad_request, is another protocol.

@@ -120,7 +120,7 @@ func prototypeReply(line []byte, target prototypeTarget, secrets []string) (map[
 	case "not_ready":
 		return nil, &Error{Code: "not_ready", Message: "Doan is still starting"}, false
 	case "project_not_open":
-		return nil, prototypeFailure(code, "Doan does not have the folder "+quoteName(filepath.Base(target.root))+" open"), false
+		return nil, prototypeFailure(code, notOpenMessage(target.root)), false
 	case "canvas_not_found":
 		return nil, prototypeFailure(code, "Doan has no canvas "+target.path+" in "+quoteName(filepath.Base(target.root))), false
 	default:
