@@ -15,7 +15,7 @@
 
 ### export 뷰어 헤더 (CLI)
 
-- 뷰어는 CLI가 만든다(`cli/internal/export/viewer/shell.html`·`shell.css`·`shell.js`, `assemble.go`가 `{{NAME}}` 등을 채운다). 헤더에 프로젝트 조각을 더하고, `assemble`이 프로젝트 이름을 채운다. 이름은 `repo.ReadGit`(`cli/internal/repo/git.go`)의 `Main`이 있으면 그 폴더 이름, 없으면 루트 폴더 이름이다(앱의 그룹 이름 규칙, PRODUCT §5 item 1과 같다).
+- 뷰어는 CLI가 만든다(`cli/internal/export/viewer/shell.html`·`shell.css`·`shell.js`, `assemble.go`가 `{{NAME}}` 등을 채운다). 헤더에 프로젝트 조각을 더하고, `assemble`이 프로젝트 이름을 채운다. 이름은 `repo.ReadGit`(`cli/internal/repo/git.go`)의 `Main`이 있으면 그 폴더 이름, 없으면 루트 폴더 이름이다(앱의 그룹 이름 규칙, PRODUCT §5 item 1과 같다). 썸네일은 앱의 `projectHue`·`projectInitial`(`app/src/renderer/shellNavigation.ts:5-11`)과 같은 계산을 Go로 해서 정적 HTML에 넣는다(JavaScript 없이도 보인다). 두 구현이 같은 결과를 내는지는 TS와 Go가 함께 읽는 fixture로 고정한다(ARCHITECTURE §11 'Shared formats'의 fixture 방식).
 - 줄임 순서와 720·600 단계, 줌 −/+ 숨김은 캔버스 헤더와 같은 CSS 규칙을 `shell.css`에 둔다(뷰어는 앱 CSS를 손으로 복사하고 `exportViewer.test.ts`가 고정한다).
 - 출력이 바뀌므로 `TestAssembleOutputIsPinned`를 갱신하고, export를 검사하는 eval 시나리오 X1·X2의 self-test를 돌린다. 프로토타입 파일은 바뀌지 않는다.
 
@@ -27,6 +27,7 @@
 4. `headerMove(row, canvasPath): { kind: "canvas"; root; path } | { kind: "stay" }` — 캔버스 헤더 이동 대상.
 5. `canvasCrumbs(card, root, canvas): Crumb[]` — 프로젝트, 워크트리, 캔버스 조각과 각각의 접근 이름·툴팁. 목록에 없는 페이지와 프로젝트 문제일 때는 캔버스 이름 없이(PRODUCT §5 item 2 'Canvas header') 셀렉트 비활성 이유를 담는다.
 6. (Go) `exportProjectName(root, git *GitInfo) string` — export 뷰어의 프로젝트 이름.
+7. (Go) `projectHue(name)`, `projectInitial(name)` — 앱과 같은 썸네일 계산. TS와 공유 fixture로 결과를 고정한다.
 
 ## 형식 변경
 

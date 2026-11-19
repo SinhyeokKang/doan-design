@@ -16,7 +16,7 @@
 5. **캔버스 헤더 적용**: 브레드크럼 `nav`, 프로젝트 조각(Overview로 이동), `WorktreeSwitch`(비활성 행 포함), 캔버스 이름, 프레임 서랍 순서. 이동은 `headerMove`, 줌·위치 유지, 선택 해제, 사라진 캔버스는 토스트와 제자리. 세 곳이 같은 컴포넌트를 쓰는지, 두 root를 오갈 때 캔버스·대화 패널·Back/Forward가 새 root를 가리키는지 테스트로 고정한다.
    - 확인: `npm --prefix app test` 초록, `npm --prefix app run lint` 통과.
    - ── 커밋 경계 (`feat:`) ──
-5a. **export 뷰어 헤더(CLI)**: `exportProjectName`과 테스트, `shell.html`·`shell.css`의 프로젝트 조각과 반응형 규칙, `assemble`이 이름을 채움. 출력 고정 테스트 갱신.
+5a. **export 뷰어 헤더(CLI)**: `exportProjectName`, Go `projectHue`·`projectInitial`과 TS·Go 공유 fixture 테스트, `shell.html`·`shell.css`의 프로젝트 조각과 반응형 규칙, `assemble`이 이름을 채움. 출력 고정 테스트 갱신.
    - 확인: `go test ./...` 통과(`TestAssembleOutputIsPinned`, 프로토타입 출력 불변), `go vet ./...` 통과, `npm --prefix app test` 초록(`exportViewer.test.ts`), `node eval/run.ts --self-test --scenarios X1,X2` self-test PASS.
    - ── 커밋 경계 (`test:` → `feat:`) ──
 6. **`/design-sync`**: 세 화면을 초안과 측정해 맞추고 `docs/design/shell.md`, `docs/design/project.md`, `docs/design/canvas.md`에 기록한다. 960×600에서 캔버스 헤더 조각이 겹치지 않고 초안의 순서대로 줄어드는지 측정한다.
