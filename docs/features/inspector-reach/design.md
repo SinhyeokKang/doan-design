@@ -49,6 +49,6 @@
 
 ## PoC 의존 (먼저 확인)
 
-1. opaque-origin `srcdoc` iframe 안에서 `data:`로 바꾼 스타일시트의 `cssRules`를 Chromium과 Safari 모두에서 읽을 수 있는지. 못 읽으면 D1의 '앱과 같은 값'은 불가능하고 계산된 값만 남는다.
+1. opaque-origin `srcdoc` iframe 안에서 `data:`로 바꾼 스타일시트의 `cssRules`를 Chromium과 Safari 모두에서 읽을 수 있는지. 못 읽으면 앱과 같은 값은 불가능하고 계산된 값만 남는다(그때 사용자에게 다시 묻는다).
 2. 외부 URL 스타일시트(CDN 등)는 CORS 때문에 읽지 못한다. 그 규칙에서 온 값을 어떻게 보일지(계산된 값으로 대신, 또는 출처 없음 표시).
 3. 뷰어 JS가 늘어나는 크기(지금 Geist를 빼서 약 93 KB를 아낄 만큼 무게를 따진다).
