@@ -54,6 +54,7 @@ export class ConnectorStore {
     if (!read.ok) return read;
     const next = patchConnectors(read.file, patch);
     if (!next) return { ok: false, code: "invalid" };
+    if (next === read.file) return read;
     return this.write("mcp-connectors.json", next) ? { ok: true, file: next } : { ok: false, code: "write_failed" };
   }
 

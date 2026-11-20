@@ -302,6 +302,11 @@ export class McpService implements McpConversationFacts {
     if (!mcpLogoutPlan(probe).logout.length) return { failed: [] };
     try {
       return await this.exclusive(provider, async () => {
+        const { previousAccountId, nextAccountId } = request;
+        if (request.kind === "replace" && previousAccountId !== null && nextAccountId !== null && previousAccountId !== nextAccountId) {
+          this.checks.delete(provider);
+          this.options.store.patch({ clearHistory: provider });
+        }
         const listed = await this.listForAuth(provider, request);
         // A server the list shows signed out holds no token to log out; its logout could fail for that alone and
         // leave a record that blocks Connect without cause. Unknown statuses are logged out.
