@@ -17,6 +17,7 @@ import {
   newCanvasCandidates, permissionToastKey, rememberRequest, removalConfirm, slotKey,
   type HomeConversation, type LastRequest, type Slot,
 } from "./homeConversations";
+import { worktreeLabel } from "./homeCards";
 import type { StartInput, StartOutcome } from "./HomeComposerView";
 
 // Home conversations: the send and the move to the project,
@@ -53,7 +54,15 @@ export interface HomeRunHost {
 // drew: the path of the canvas the turn made, until main binds it.
 interface Extras { atStart: string[]; checked: string[]; canvasOpens: number; toasted: string | null; opened: boolean; endedAt?: number; endRead?: number; drew?: string }
 interface Pending { conversationId: string; root: string; moves: number; sawModal: boolean }
-export interface Removing { paths: string[]; conversations: string[]; title: string; body: string; cancel: string; confirm: string }
+interface RemovalTarget { conversationId: string; waiting: boolean; label: string }
+interface Removing extends ReturnType<typeof removalConfirm> {
+  paths: string[]; project: string; stopped: RemovalTarget[]; pending: boolean; error: string | null;
+}
+
+function conversationsIn(targets: RemovalTarget[]) {
+  const labels = new Intl.ListFormat("en").format(targets.map(target => target.label));
+  return targets.length === 1 ? `conversation in ${labels}` : `conversations in ${labels}`;
+}
 
 const RUNNING: readonly StripState["kind"][] = ["starting", "working", "permission", "question"];
 const RANK: Record<StripState["kind"], number> = { permission: 3, question: 3, starting: 2, working: 2, done: 1, failed: 1, interrupted: 1 };
@@ -482,17 +491,79 @@ export class HomeRun {
   remove(paths: string[], project: string): Promise<void> {
     const merged = this.merged();
     const running = paths.flatMap(root => (merged.get(root) ?? []).filter(holdsRoot)).map(c => ({ conversationId: c.conversationId, waiting: c.phase === "waiting" }));
-    this.removing = { paths, ...removalConfirm(running, project, paths.length) };
+    this.removing = { paths, project, stopped: [], pending: false, error: null, ...removalConfirm(running, project, paths.length) };
     this.host.changed();
     return Promise.resolve();
   }
-  cancelRemove(): void { this.removing = null; this.host.changed(); }
+  cancelRemove(): void { if (!this.removing?.pending) this.closeRemove(); }
+  closeRemove(): void {
+    this.removing = null;
+    this.host.changed();
+  }
   async confirmRemove(): Promise<void> {
-    const removing = this.removing;
-    if (!removing) return;
-    this.removing = null; this.host.changed();
-    await Promise.all(removing.conversations.map(conversationId => window.doan.interruptConversation({ conversationId }).catch(console.error)));
-    await this.host.removeNow(removing.paths);
+    const dialog = this.removing;
+    if (!dialog || dialog.pending) return;
+    const { paths, project, stopped } = dialog;
+    dialog.pending = true;
+    this.host.changed();
+    const recover = (error: string, action: string) => {
+      const prior = stopped.length ? `The ${conversationsIn(stopped)} stopped. ` : "";
+      Object.assign(dialog, { pending: false, title: `${project} is still in Doan`, body: prior + action, cancel: "Keep project", confirm: "Retry", error });
+      this.host.changed();
+    };
+
+    // Read main at the press: a listChanged notice (or its follow-up read) may still be on the way.
+    let running: RemovalTarget[];
+    try {
+      const lists = await Promise.all(paths.map(root => window.doan.listConversations({ root })));
+      if (this.removing !== dialog) return;
+      const entries = this.host.view().entries;
+      running = lists.flatMap((list, i) => {
+        if (!Array.isArray(list)) throw new Error(list.error);
+        const root = paths[i]!, entry = entries.find(item => item.path === root);
+        const label = entry ? worktreeLabel(entry) : root;
+        const targets = list.filter(holdsRoot);
+        return targets.filter(c => !stopped.some(done => done.conversationId === c.conversationId))
+          .map(c => ({ conversationId: c.conversationId, waiting: c.phase === "waiting", label: targets.length > 1 ? `${label} (“${c.title || c.conversationId}”)` : label }));
+      });
+    } catch {
+      if (this.removing === dialog) recover("Couldn’t check the project’s conversations.", `Retry to check the conversations before removing ${project}.`);
+      return;
+    }
+    // A plain removal, or a confirmation for fewer conversations, did not authorize stopping additional work.
+    if (running.length > dialog.conversations.length) {
+      Object.assign(dialog, removalConfirm(running, project, paths.length), { pending: false, error: null });
+      this.host.changed();
+      return;
+    }
+    if (running.length) {
+      const singular = running.length === 1;
+      Object.assign(dialog, {
+        title: singular ? "Stopping conversation…" : "Stopping conversations…",
+        body: `${project} stays in your project list until ${singular ? "the conversation stops" : running.length === 2 ? "both conversations stop" : `all ${running.length} conversations stop`}.`,
+        confirm: "Stopping…", error: null,
+      });
+      this.host.changed();
+      const replies = await Promise.allSettled(running.map(target => window.doan.interruptConversation({ conversationId: target.conversationId })));
+      if (this.removing !== dialog) return;
+      const failed: RemovalTarget[] = [];
+      replies.forEach((reply, i) => {
+        (reply.status === "fulfilled" && reply.value === undefined ? stopped : failed).push(running[i]!);
+      });
+      dialog.conversations = failed.map(target => target.conversationId);
+      if (failed.length) {
+        const remaining = failed.length === 1 ? "the remaining conversation" : `the remaining ${failed.length} conversations`;
+        recover(`Couldn’t stop the ${conversationsIn(failed)}.`, `Retry to stop ${remaining} and remove ${project}.`);
+        return;
+      }
+    }
+    try {
+      await this.host.removeNow(paths);
+    } catch {
+      if (this.removing === dialog) recover(`Couldn’t remove ${project} from your project list.`, `Retry to remove ${project}.`);
+      return;
+    }
+    if (this.removing === dialog) this.closeRemove();
   }
 
   // The list
