@@ -1,3 +1,5 @@
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import type { Readable } from "node:stream";
 import { object } from "./sessions";
 // How a finished turn's process is ended for the next send. A done turn with its prompt read and no background work has
 // only its suggestion left: it is killed at once (a SIGTERM takes the CLI 0.5-1 s, and SIGKILL left every session
@@ -53,4 +55,42 @@ export class OwnedGroup {
     this.exited = true; clearInterval(this.poll); clearTimeout(this.escalation); this.released();
     for (const settle of this.waiting.splice(0)) settle();
   }
+}
+
+// Install before exit: a pipe may close first, or still contain the leader's last write after it exits.
+// A descendant outside the group can retain the descriptor indefinitely.
+export function drainOutput(...pipes: Readable[]): () => Promise<void> {
+  const closed = Promise.all(pipes.map(pipe => new Promise<void>(resolve => { pipe.once("close", resolve); })));
+  return () => new Promise<void>(resolve => {
+    const timer = setTimeout(() => { for (const pipe of pipes) pipe.destroy(); resolve(); }, 500);
+    timer.unref();
+    void closed.then(() => { clearTimeout(timer); resolve(); });
+  });
+}
+
+// Losing either direction of the protocol stops descendants immediately. The service's exited() can fail
+// an accepted turn and release its lease, so it follows both the final protocol events and actual group exit.
+export function ownProtocolProcess(child: ChildProcessWithoutNullStreams, endTransport: () => void, exited: () => void) {
+  const drain = drainOutput(child.stdout, child.stderr);
+  let release!: () => void;
+  const gone = new Promise<void>(resolve => { release = resolve; });
+  const group = child.pid ? new OwnedGroup(child.pid, undefined, undefined, release) : undefined;
+  let ending = false;
+  const end = () => {
+    if (ending) return;
+    ending = true;
+    if (group) void group.stop(); else release();
+    void drain().then(() => { endTransport(); return gone; }).then(exited);
+  };
+  child.stdin.on("error", end);
+  child.stdout.once("end", end);
+  child.once("error", end);
+  child.once("exit", () => { group?.childExited(); end(); });
+  const write = (line: string) => {
+    // Rejecting a server request in the tail no longer needs a reply, but its following frames still count.
+    if (ending) return;
+    if (!child.stdin.writable) throw new Error("process_exited");
+    child.stdin.write(line);
+  };
+  return { group, ending: () => ending, write };
 }

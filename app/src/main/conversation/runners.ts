@@ -6,7 +6,7 @@ import { query, type EffortLevel, type PermissionResult, type PermissionUpdate, 
 import { openAcp } from "./acpRunner";
 import { CodexDispatcher, RpcError } from "./dispatcher";
 import { codexInitialize, codexThreadStart, type HandshakeReply, type HandshakeVerdict } from "./handshake";
-import { afterTurnCleanup, OwnedGroup } from "./process";
+import { afterTurnCleanup, OwnedGroup, ownProtocolProcess } from "./process";
 import { readRegularFileNoFollowSync } from "../regularFile";
 import { object } from "./sessions";
 import { applyClaudeFastUnavailable, parseClaudeModels, parseCodexModels } from "./models";
@@ -133,9 +133,9 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
   // Set while a compaction waits for the turn it opened (compactionTurn).
   let turnStarted: ((id: string | undefined) => void) | undefined;
   const startedTurn = (raw: unknown): string | undefined => object(raw) && raw.method === "turn/started" && object(raw.params) && raw.params.threadId === sessionId && object(raw.params.turn) && typeof raw.params.turn.id === "string" ? raw.params.turn.id : undefined;
-  let group: OwnedGroup | undefined, sessionId = input.sessionId ?? "", activeTurn = "", localTurn = "", buffer = "", dead = false;
+  let sessionId = input.sessionId ?? "", activeTurn = "", localTurn = "", buffer = "", dead = false;
   let defaults: CodexDefaults | undefined, workspace: CodexWorkspace = {};
-  const write = (value: unknown) => { if (dead || !child.stdin.writable) throw new Error("process_exited"); child.stdin.write(JSON.stringify(value) + "\n"); };
+  const write = (value: unknown) => writeLine(JSON.stringify(value) + "\n");
   let protocolFailed = false;
   // A done turn reads the account's usage on this server, which lives between turns (ARCHITECTURE §7 'Agent usage').
   const dispatcher: CodexDispatcher = new CodexDispatcher(write, event => {
@@ -167,16 +167,11 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
   });
   const transportDied = () => {
     if (dead) return; dead = true;
-    // Transport loss ends the turn now; only group disappearance releases ownership.
-    dispatcher.end(); starting?.wake(); turnStarted?.(undefined); void group?.stop();
+    dispatcher.end(); starting?.wake(); turnStarted?.(undefined);
   };
-  child.stderr.resume(); child.stdin.on("error", transportDied); child.stdout.once("end", transportDied);
-  child.once("exit", () => { transportDied(); group?.childExited(); });
-  child.once("error", () => { transportDied(); if (!child.pid) exited(); else group?.childExited(); });
-  if (child.pid) {
-    const owned = new OwnedGroup(child.pid, undefined, undefined, exited); group = owned;
-    registerStop(() => { dispatcher.close(); return owned.stop(); });
-  }
+  child.stderr.resume();
+  const { group, ending, write: writeLine } = ownProtocolProcess(child, transportDied, exited);
+  if (group) registerStop(() => { dispatcher.close(); return group.stop(); });
   try {
     const resume = !!input.sessionId, judge = verdicts(input);
     const initialized = await judgedStep(dispatcher.request("initialize", { clientInfo: { name: "doan", version: "0.1.0" }, capabilities: { experimentalApi: true } }), reply => judge(codexInitialize(reply, resume)));
@@ -208,10 +203,9 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
       // Accept edits carries the configured network access and roots; without config/read it sends the narrower bare policy.
       workspace = codexWorkspace(await dispatcher.request("config/read", { cwd: input.cwd }).catch((error: unknown) => { if (error instanceof RpcError) return null; throw error; }));
     }
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the child exit callback sets this while the thread opens
-    if (dead) throw new Error("process_exited");
+    if (ending()) throw new Error("process_exited");
   // oxlint-disable-next-line typescript/no-unnecessary-condition -- the child exit callback sets this while the thread opens
-  } catch (error) { dispatcher.close(); void group?.stop(); throw new Error(dead ? "process_exited" : transportError(error instanceof Error ? error.message : "")); }
+  } catch (error) { dispatcher.close(); void group?.stop(); throw new Error(dead || (error instanceof Error && error.message === "process_exited") ? "process_exited" : transportError(error instanceof Error ? error.message : "")); }
   // A turn that starts before its servers are ready runs without their tools ("omitting pending optional MCP server"),
   // so a doan run waits for the profile's doan- servers first. A reload restarts them: their earlier statuses are
   // forgotten before it is sent, since the new ones can follow its reply at once. The reload is awaited to its answer
@@ -251,7 +245,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
   return {
     sessionId, ...(mechanism ? { mechanism } : {}),
     async send(prompt, turnId, _attachments, choice) {
-      if (dead) { emit({ type: "turn.failed", code: "process_exited" }); return; }
+      if (ending()) { emit({ type: "turn.failed", code: "process_exited" }); return; }
       const own: Start = { stopped: false, wake: () => {} }, previous = settled;
       let settle = () => {}; settled = new Promise<void>(resolve => { settle = resolve; });
       starting = own; latest = own;
@@ -311,10 +305,10 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     // Before turn/start answers there is no native id to expect (startingTurn); a steer then is refused, not held.
     // No model, effort or permission: a steered message runs in the running turn's.
     async steer(prompt, turnId, messageId) {
-      if (dead || startingTurn || turnId !== localTurn || activeTurn === localTurn) throw new Error("not_running");
+      if (ending() || startingTurn || turnId !== localTurn || activeTurn === localTurn) throw new Error("not_running");
       await dispatcher.steer({ threadId: sessionId, expectedTurnId: activeTurn, input: [{ type: "text", text: prompt }], clientUserMessageId: messageId }, messageId);
     },
-    answer: (id, option) => dispatcher.answer(id, option),
+    answer: (id, option) => !ending() && dispatcher.answer(id, option),
     // Only a native turn can be interrupted: interrupting the local id fails, and that failure stops the server group.
     // Before turn/start nothing was sent; while it is unanswered the send interrupts the native turn once it exists.
     async stop() {

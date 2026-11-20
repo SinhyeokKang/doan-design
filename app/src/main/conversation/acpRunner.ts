@@ -6,7 +6,7 @@ import { StringDecoder } from "node:string_decoder";
 import { signInLink } from "../agentAuth/antigravity";
 import { ACP_PROTOCOL_VERSION, AcpConnection, acpEnded, acpPermission, acpPromptDone, acpQuestion, acpPromptFailed, initialAcp, normalizeAcp, type AcpChoice, type AcpTransport } from "./acp";
 import { acpInitialize, acpSessionNew, type HandshakeVerdict } from "./handshake";
-import { OwnedGroup } from "./process";
+import { ownProtocolProcess } from "./process";
 import { object } from "./sessions";
 import { acpOption, parseAcpModels, parseAcpModes, type ModelOption } from "./models";
 import { acpModeFor, type AcpModes } from "./permissionMode";
@@ -28,7 +28,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
   // Every mode of a Doan-connection run is fenced: no ACP server sandboxes its own commands.
   const launch = fencedCommand(input.command, input.args ?? [], input.fence ? fenceArgs(input.runtime, input.fence.paths) : undefined, input.fence?.exec);
   const child = spawn(launch.command, launch.args, { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
-  let group: OwnedGroup | undefined, dead = false, failure = "", prompting = false, finished = false;
+  let dead = false, failure = "", prompting = false, finished = false;
   let state: AcpTransport = initialAcp(randomUUID());
   // One table for both kinds, so expiry answers every pending request once; each answer path takes only its own kind.
   type Pending = { rpc: string | number; kind: "permission"; choices: AcpChoice[] } | { rpc: string | number; kind: "question"; question: Question; optionIds: string[] };
@@ -46,7 +46,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
       emit(pending.kind === "question" ? { type: "question.resolved", requestId, outcome: "expired" } : { type: "permission.resolved", requestId, optionId: "expired" });
     }
   };
-  const acp = new AcpConnection(line => { if (dead || !child.stdin.writable) throw new Error("process_exited"); child.stdin.write(line); }, (params, rpc) => {
+  const acp = new AcpConnection(line => write(line), (params, rpc) => {
     const requestId = randomUUID();
     const live = prompting && !state.terminal && params.sessionId === sessionId;
     // Only Antigravity asks this way; for Cursor and Copilot the same shape stays a permission request.
@@ -95,16 +95,10 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
   });
   const transportDied = () => {
     if (dead) return; dead = true; acp.close();
-    if (prompting) apply(acpEnded(state));
-    void group?.stop();
+    if (prompting) apply(failure ? acpPromptFailed(state, failure) : acpEnded(state));
   };
-  child.stdin.on("error", transportDied); child.stdout.once("end", transportDied);
-  child.once("exit", () => { transportDied(); group?.childExited(); });
-  child.once("error", () => { transportDied(); if (!child.pid) exited(); else group?.childExited(); });
-  if (child.pid) {
-    const owned = new OwnedGroup(child.pid, undefined, undefined, exited); group = owned;
-    registerStop(() => { expire(); acp.close(); return owned.stop(); });
-  }
+  const { group, ending, write } = ownProtocolProcess(child, transportDied, exited);
+  if (group) registerStop(() => { expire(); acp.close(); return group.stop(); });
   // A failed request answers nothing about the protocol shape here, so only replies are judged, before any refusal.
   const judge = (verdict: HandshakeVerdict) => { if (verdict === "incompatible") input.incompatible?.(); else if (verdict === "compatible") input.compatible?.(); };
   const opened = (async () => {
@@ -144,14 +138,13 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
   })();
   try {
     await opened;
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the process exit callback sets this while the session opens
-    if (dead) throw new Error("process_exited");
+    if (ending()) throw new Error("process_exited");
   }
   catch (error) {
     acp.close(); void group?.stop();
     const detail = failure || (error instanceof Error ? error.message : "");
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the exit and failure callbacks set these while the session opens
-    throw new Error(dead && !failure ? "process_exited" : ["runtime_unsupported", "session_unavailable"].includes(detail) ? detail : transportCode(detail));
+    throw new Error((dead || detail === "process_exited") && !failure ? "process_exited" : ["runtime_unsupported", "session_unavailable"].includes(detail) ? detail : transportCode(detail));
   }
   const stopTurn = async (reason: "user" | "appQuit") => {
     state = { ...state, stop: state.stop ?? reason }; expire();
@@ -165,7 +158,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     sessionId,
     models: async () => ({ models, ...(modes ? { modes } : {}) }),
     async send(prompt, turnId, attachments = []) {
-      if (dead || prompting || finished) throw new Error("process_exited");
+      if (ending() || prompting || finished) throw new Error("process_exited");
       state = initialAcp(turnId); prompting = true;
       try {
         // Antigravity's view_file refuses paths outside the workspace, so it also gets the images themselves.
@@ -182,7 +175,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     },
     answer(id, option) {
       const pending = permissions.get(id); const choice = pending?.kind === "permission" ? pending.choices.find(c => c.option.id === option) : undefined;
-      if (!pending || !choice || state.terminal) return false;
+      if (!pending || !choice || state.terminal || ending()) return false;
       try { acp.respond(pending.rpc, { outcome: { outcome: "selected", optionId: choice.optionId } }); } catch { return false; }
       permissions.delete(id); emit({ type: "permission.resolved", requestId: id, optionId: option }); return true;
     },
