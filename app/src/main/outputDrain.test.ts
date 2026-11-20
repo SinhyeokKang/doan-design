@@ -40,12 +40,12 @@ function fakeChild() {
   };
 }
 
-async function accepted(runtime: "codex" | "cursor", text = "hello") {
+async function accepted(runtime: "codex" | "cursor" | "antigravity", text = "hello") {
   const root = temp(), fake = fakeChild(), store = new ConversationStore(root);
   const release = vi.fn(async () => {});
   const service = new ConversationService(store, async () => ({
     command: "/fake", runtime, cwd: root, configDir: root, env: {}, release,
-    ...(runtime === "cursor" ? { owner: { kind: "doan" as const, provider: runtime, profile: "cursor", accountId: null, workspaceId: null, connectionId: "account" } } : {}),
+    ...(runtime !== "codex" ? { owner: { kind: "doan" as const, provider: runtime, profile: runtime, accountId: null, workspaceId: null, connectionId: "account" } } : {}),
   }), openRunner, () => {});
   let promptId: number | string | undefined;
   fake.child.stdin.on("data", (bytes: Buffer) => {
@@ -58,7 +58,7 @@ async function accepted(runtime: "codex" | "cursor", text = "hello") {
   const { conversationId } = await service.start({ root, runtime, mode: "new", text, anchors: [] });
   await nextTurn();
   expect(promptId).toBeDefined();
-  return { ...fake, promptId, release, history: () => store.read(conversationId) };
+  return { ...fake, promptId, release, service, conversationId, history: () => store.read(conversationId) };
 }
 
 it.each(["codex", "cursor"] as const)("records the last %s reply before releasing the accepted turn", async runtime => {
@@ -107,6 +107,24 @@ it.each(["codex", "cursor"] as const)("stops the %s group at leader exit and bou
   await vi.advanceTimersByTimeAsync(100);
   expect(run.release).toHaveBeenCalledOnce();
   run.close();
+});
+
+it("expires an ACP question when its answer arrives after the leader exits", async () => {
+  const run = await accepted("antigravity");
+  run.line({ jsonrpc: "2.0", id: 7, method: "session/request_permission", params: {
+    sessionId: "s", toolCall: { title: "Choose a color" }, options: ["Red", "Blue"].map(name => ({ name, optionId: name, kind: "allow_once" })),
+  } });
+  const request = run.history().find(e => e.type === "question.request")!;
+  run.gone(); run.exit(0);
+  try {
+    expect(() => run.service.answerQuestion(run.conversationId, request.requestId, { outcome: "skipped" })).toThrow("stale");
+  } finally {
+    run.line({ jsonrpc: "2.0", id: run.promptId, result: { stopReason: "end_turn" } });
+    run.close();
+    await vi.waitFor(() => expect(run.release).toHaveBeenCalledOnce());
+  }
+  expect(run.history()).not.toContainEqual(expect.objectContaining({ type: "question.resolved", outcome: "skipped" }));
+  expect(run.history()).toContainEqual(expect.objectContaining({ type: "turn.done" }));
 });
 
 it.each(["turn/start", "thread/compact/start"])("consumes the final %s replies across its start deadline", async method => {
