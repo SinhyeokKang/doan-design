@@ -2100,16 +2100,14 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* The open conversation panel's width: the window sets it on .pw from main's panel state; this is the panel minimum. */
 :root { --pw-panel: 280px; }
 .pw { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) 0px; grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); }
-/* The name's second row, when the first leaves it less than 80 (the renderer sets it from the window's width, as main
+/* The name's second row, when the first leaves it less than 120 (the renderer sets it from the window's width, as main
    does): 36 for the capsule and 8 under it. Both groups stay in the first row. */
 .pw.name-row { grid-template-rows: calc(var(--size-chrome) + 36px + var(--space-2)) minmax(0, 1fr); }
 .pw-top { align-items: flex-start; }
 .pw-top > .shell-history { height: var(--size-chrome); align-items: center; }
-/* Against the header, which starts 8px inside the window: its 8px padding, the traffic lights, three 32px buttons and
-   their gaps, then 8px; on the right, 8px before the right group, which sits 16px in from the window's edge. The name is
-   centred between the groups. */
-.pw-name { position: absolute; top: calc((var(--size-chrome) - 36px) / 2); left: calc(var(--space-2) + 72px + 3 * var(--size-control-sm) + 2 * var(--space-1) + var(--space-2)); right: calc(2 * var(--space-2) + var(--pw-right)); width: auto; justify-content: center; }
-.pw.name-row .pw-name { top: var(--size-chrome); left: var(--space-2); right: var(--space-2); }
+/* The header shares the content panel's 8px inset. Reserve a draggable strip beside each group on the first row. */
+.pw-name { position: absolute; top: calc((var(--size-chrome) - 36px) / 2); left: calc(var(--space-2) + 72px + 3 * var(--size-control-sm) + 2 * var(--space-1) + var(--space-10)); right: calc(var(--space-2) + var(--space-10) + var(--pw-right)); width: auto; justify-content: center; }
+.pw.name-row .pw-name { top: var(--size-chrome); left: 0; right: 0; }
 .pw-name[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
 .pw-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pw-name .chev { flex: none; color: var(--text-metadata); }
