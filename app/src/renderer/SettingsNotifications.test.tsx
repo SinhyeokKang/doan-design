@@ -249,7 +249,7 @@ test.each(["false", "rejection"])("an OS settings %s keeps the permission hint a
   if (failure === "false") doan.openNotificationSettings!.mockResolvedValueOnce(false);
   else doan.openNotificationSettings!.mockRejectedValueOnce(new Error("failed to launch"));
   click(open); await flush(); render();
-  const notice = () => all(tree).find(element => element.props.role === "note")!;
+  const notice = () => all(tree).find(element => element.props.className === "doan-notice stacked")!;
   const error = () => all(notice()).find(element => element.props.role === "alert");
   expect(words(error()?.props.children)).toBe(route);
   expect(button(open).props["aria-describedby"]).toBe(error()!.props.id);
@@ -265,4 +265,20 @@ test.each(["false", "rejection"])("an OS settings %s keeps the permission hint a
   expect(button(open).props["aria-describedby"]).toBeUndefined();
   expect(words(notice().props.children)).toContain("If no notification appears");
   expect(doan.sendTestNotification).not.toHaveBeenCalled();
+});
+
+test.each([
+  ["sent", "status", "Test notification sent. If you didn’t see it, allow Doan in System Settings › Notifications."],
+  ["failed", "alert", "Doan isn’t allowed to show notifications. Allow it in System Settings › Notifications."],
+])("a %s test result and a launch error have independent live regions", async (kind, role, message) => {
+  doan.sendTestNotification!.mockResolvedValueOnce({ kind });
+  doan.openNotificationSettings!.mockResolvedValueOnce(false);
+  render();
+  click("Send test notification"); await flush(); render();
+  click("Open System Settings ↗"); await flush(); render();
+  const permission = all(tree).find(element => String(element.props.className).includes("settings-permission"))!;
+  const regions = all(permission).filter(element => ["alert", "status"].includes(String(element.props.role)));
+  expect(regions.map(element => [element.props.role, words(element.props.children)])).toEqual([
+    [role, message], ["alert", "Couldn’t open System Settings. On your Mac, go to System Settings › Notifications › Doan."],
+  ]);
 });

@@ -25,9 +25,10 @@ vi.mock("react", async original => {
   return {
     ...actual,
     useState: (initial: unknown) => {
+      const states = hooks.states;
       const index = hooks.cursor++;
-      if (!(index in hooks.states)) hooks.states[index] = typeof initial === "function" ? (initial as () => unknown)() : initial;
-      return [hooks.states[index], (next: unknown) => { hooks.states[index] = typeof next === "function" ? (next as (value: unknown) => unknown)(hooks.states[index]) : next; }];
+      if (!(index in states)) states[index] = typeof initial === "function" ? (initial as () => unknown)() : initial;
+      return [states[index], (next: unknown) => { states[index] = typeof next === "function" ? (next as (value: unknown) => unknown)(states[index]) : next; }];
     },
     useReducer: () => [0, () => {}],
     useRef: (value: unknown) => { const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
@@ -686,9 +687,13 @@ test.each([{ ok: true, name: "old" }, { ok: false, reason: "write_failed" }])("a
   for (const effect of hooks.effects) effect?.cleanup?.();
   hooks.states = []; hooks.refs = []; hooks.effects = [];
   await add("https://new.example.com");
+  const onLock = vi.mocked(props.onLock);
+  expect(onLock.mock.calls).toEqual([[true], [false], [true]]);
   oldAnswer(reply); await settle();
+  expect(onLock).toHaveBeenCalledTimes(3);
   expect(byLabel("Server URL")?.props).toMatchObject({ value: "https://new.example.com", readOnly: true });
   expect(all(tree).find(element => element.type === "dialog")?.props["aria-busy"]).toBe(true);
   newAnswer({ ok: true, name: "new" }); await settle();
+  expect(onLock.mock.calls).toEqual([[true], [false], [true], [false]]);
   expect(byLabel("Server URL")).toBeUndefined();
 });

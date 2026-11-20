@@ -77,7 +77,7 @@ export function SettingsNotifications({ preferences, save }: { preferences: Pref
         </div>
         {enabled && <div className="doan-preference-row-extra settings-permission">
           {/* The notice's two actions stack on their own row inside it, panel on its inset fill (DESIGN 'Notices'). */}
-          <div className={hint.error ? "doan-notice error stacked" : "doan-notice stacked"} role={hint.role}><AlertIcon /><span className="ob-notice-text selectable">{hint.text}</span>
+          <div className={hint.error ? "doan-notice error stacked" : "doan-notice stacked"}><AlertIcon /><span className="ob-notice-text selectable" role={hint.role}>{hint.text}</span>
             <div className="ob-notice-actions">
               <button type="button" className="doan-button" data-ui-variant="panel" data-ui-size="sm" onClick={sendTest}>Send test notification</button>
               <button type="button" className="doan-button" data-ui-variant="panel" data-ui-size="sm" aria-busy={opening.running || undefined} aria-disabled={opening.running || undefined}
