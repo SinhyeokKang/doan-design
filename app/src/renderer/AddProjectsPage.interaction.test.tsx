@@ -170,3 +170,23 @@ test("a failed first read leaves the shell available and retries in place until 
   expect(heading.focus).toHaveBeenCalled();
   expect(doan.chooseOnboardingFolder).not.toHaveBeenCalled();
 });
+
+test("a failed read and a successful retry preserve focus moved into the shell and report repeated failures", async () => {
+  const page = props(), heading = { focus: vi.fn() };
+  render(page);
+  const shell = Object.assign(new HTMLElement(), { isConnected: true, closest: () => null, matches: () => false });
+  Object.defineProperty(document, "activeElement", { configurable: true, value: shell });
+  readPage({ ok: false }); await flush(); render(page);
+  function problem() {
+    return all(pageTree).find(el => el.type === ProblemOverlay)!.props as Parameters<typeof ProblemOverlay>[0];
+  }
+  expect(problem().announcement.trim()).toBe("Couldn’t open Add Projects");
+  const first = problem().announcement;
+  problem().onAction("retry"); render(page);
+  readPage({ ok: false }); await flush(); render(page);
+  expect(problem().announcement.trim()).toBe(first.trim());
+  expect(problem().announcement).not.toBe(first);
+  problem().onAction("retry"); render(page);
+  readPage(status("ready")); await flush(); render(page, heading);
+  expect(heading.focus).not.toHaveBeenCalled();
+});
