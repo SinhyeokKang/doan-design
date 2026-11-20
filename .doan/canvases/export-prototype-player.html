@@ -50,12 +50,10 @@ svg { width: var(--size-icon); height: var(--size-icon); }
 .board-tools [aria-pressed="true"], .board-tools [aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
 .drawer { position: absolute; z-index: 4; width: 320px; }
 .trigger .drawer { top: calc(100% + var(--space-1)); left: 0; }
-.play-anchor > .drawer, .play-anchor > .blocked { bottom: calc(100% + var(--space-1)); left: 50%; transform: translateX(-50%); }
+.play-anchor > .drawer { bottom: calc(100% + var(--space-1)); left: 50%; transform: translateX(-50%); }
 .row-num { min-width: var(--space-6); color: var(--text-metadata); }
 .row-end { margin-left: auto; gap: var(--space-2); color: var(--text-metadata); }
 .row-end svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
-.blocked { position: absolute; width: 320px; padding: var(--space-3) var(--space-4); display: flex; gap: var(--space-2); align-items: flex-start; }
-.blocked svg { margin-top: var(--space-half); color: var(--text-warning); }
 .samples { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-4); }
 .sample { min-width: 0; flex: 1; }
 .sample .doan-floating { max-width: 100%; }
@@ -481,7 +479,7 @@ svg { width: var(--size-icon); height: var(--size-icon); }
 <p class="notes">The name uses the second row when the first would leave less than 120 px. Tab reaches the toggle once; arrow keys move between its buttons.</p>
 </figure>
 <figure data-doan-frame="play-blocked" data-doan-title="Recover from a blocked pop-up" data-doan-implements="cli/internal/export/viewer/shell.html">
-<figcaption><h2>Recover from a blocked pop-up</h2><p class="description">The notice sits above the Play button that opened it. The selection, zoom and scroll position stay in place.</p></figcaption>
+<figcaption><h2>Recover from a blocked pop-up</h2><p class="description">A toast appears in the lower-right corner of the canvas. The selection, zoom and scroll position stay in place.</p></figcaption>
 <div class="viewport" data-doan-id="play-blocked-viewport">
 <div class="viewer-panel">
 <header class="board-head" data-doan-id="play-blocked-header">
@@ -543,7 +541,8 @@ svg { width: var(--size-icon); height: var(--size-icon); }
 <button data-doan-id="play-blocked-hand" type="button" class="doan-icon-button " aria-label="Hand" data-ui-size="md" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Hand"/></svg></button><span class="sep"></span>
 <div class="play-anchor">
 <button type="button" class="doan-icon-button " aria-label="Play prototype" data-ui-size="md" data-doan-id="play-blocked-toolbar-play"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Play"/></svg></button>
-<div class="blocked doan-floating" data-doan-id="play-blocked-popup-notice" role="status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-CircleAlert"/></svg><span>Your browser blocked the prototype window. Allow pop-ups, then press Play again.</span></div></div></div></div></div></div>
+</div></div></div></div>
+<div class="doan-floating doan-toast result" data-doan-id="play-blocked-popup-notice" role="status"><span class="msg">Your browser blocked the prototype window. Allow pop-ups, then press Play again.</span></div></div>
 
 </figure>
 <figure data-doan-frame="player-failure" data-doan-title="Recover an unresponsive frame" data-doan-implements="cli/internal/export/assemble.go">
