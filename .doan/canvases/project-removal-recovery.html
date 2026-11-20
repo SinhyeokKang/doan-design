@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="doan:canvas" content="project-removal-recovery">
+<meta name="doan:width" content="1520">
+<title>Removing a project with active conversations</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<style>
+body { width: 1520px; }
+main { padding: var(--space-8); }
+header { margin-bottom: var(--space-6); max-width: 920px; }
+header h1 { margin-bottom: var(--space-2); font-size: var(--type-heading-size); font-weight: var(--type-weight-medium); }
+header p, footer { color: var(--text-subtle); }
+.sources { margin-top: var(--space-2); font-size: var(--type-caption-size); }
+.board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6); }
+.frame { padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-4); min-height: 432px; background: var(--surface-panel); border-radius: var(--radius-container); box-shadow: var(--shadow-panel); }
+.frame h2 { font-size: var(--type-label-size); font-weight: var(--type-weight-medium); }
+.scene { position: relative; display: grid; place-items: center; flex: 1; min-height: 272px; border: 1px solid var(--border-standard); border-radius: var(--radius-container); background: var(--bg-app); padding: var(--space-6); }
+.scene.scrim { background: var(--bg-scrim); }
+.scene .doan-dialog[open] { position: relative; inset: auto; margin: 0; max-height: none; }
+.settings { width: 100%; }
+.settings h3 { margin: 0 0 var(--space-2) var(--space-4); font-weight: var(--type-weight-medium); font-size: var(--type-label-sm-size); }
+.doan-alert-icon { width: var(--size-icon); height: var(--size-icon); }
+.sidebar-sample { width: 240px; padding: var(--space-2); background: var(--surface-panel); border-radius: var(--radius-row); }
+.sidebar-sample h3 { margin-bottom: var(--space-1); padding: var(--space-1) 10px; color: var(--text-metadata); font: 400 10px/var(--space-4) var(--type-family); letter-spacing: .08em; }
+.row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); min-height: var(--size-control-sm); }
+.thumb { display: grid; place-items: center; width: var(--size-icon); height: var(--size-icon); border-radius: var(--radius-thumbnail); font: var(--type-weight-semibold) 10px/var(--size-icon) var(--type-family); background: color-mix(in srgb, var(--hue) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--hue) 65%, var(--text-standard)); }
+footer { min-height: var(--space-12); display: flex; flex-direction: column; align-items: start; gap: var(--space-1); }
+.routes { display: flex; gap: var(--space-4); }
+.routes a { text-decoration: underline; text-underline-offset: var(--space-half); color: var(--text-standard); }
+</style></head><body><main>
+<header><h1>Removing a project with active conversations</h1>
+<p>Checkout has two worktrees, main and payment. A conversation is running in each. Play from Project Settings to see what happens if just one stops.</p>
+<p class="sources">UX audit findings 1 and 4 · Proposal for review. The settings row, sidebar list and compact dialog use the shipped components as references (ProjectSettingsPage.tsx, ShellSidebar.tsx, App.tsx and the remove-confirmation design-system canvas). The count, pending state and recovery actions are proposed. Notes below each scene explain the example.</p></header>
+<div class="board">
+<section class="frame" id="entry" data-doan-frame="entry" data-doan-title="Project Settings" data-doan-prototype="716x432" data-doan-implements="app/src/renderer/ProjectSettingsPage.tsx">
+<h2>Project Settings</h2>
+<div class="scene"><div class="settings"><h3>Remove from Doan</h3><div class="doan-settings-group" data-layout="rows"><div class="doan-preference-row"><div class="doan-preference-row-content"><span class="doan-preference-row-description">Doan stops listing Checkout and its worktrees. Files and Git worktrees stay on disk.</span></div><div class="doan-preference-row-trailing"><button class="doan-button" type="button" data-ui-variant="subtle" data-ui-size="sm" data-doan-goto="confirm" data-doan-id="remove-project">Remove from Doan</button></div></div></div></div></div>
+<footer>The same confirmation opens from the project menu.</footer>
+</section>
+<section class="frame" id="confirm" data-doan-frame="confirm" data-doan-title="Confirm which conversations will stop" data-doan-prototype="716x432" data-doan-implements="app/src/renderer/App.tsx">
+<h2>Confirm which conversations will stop</h2>
+<div class="scene scrim"><dialog open role="alertdialog" aria-labelledby="confirm-title" aria-describedby="confirm-desc" data-ui-size="compact" class="doan-dialog" data-doan-id="confirm-dialog">
+<div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 id="confirm-title" class="doan-dialog-title">Stop 2 conversations and remove Checkout?</h3><p id="confirm-desc" class="doan-dialog-description">Doan will stop both conversations, then remove Checkout from your project list. Files and Git worktrees stay on disk.</p></div></div>
+<div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-doan-id="cancel-before-stop" data-doan-goto="entry">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" data-doan-id="confirm-stop" data-doan-goto="stopping">Stop and remove</button></div></dialog></div>
+<footer>Cancel closes the dialog. Both conversations keep running.</footer>
+</section>
+<section class="frame" id="stopping" data-doan-frame="stopping" data-doan-title="Wait for both conversations" data-doan-prototype="716x432" data-doan-implements="app/src/renderer/App.tsx">
+<h2>Wait for both conversations</h2>
+<div class="scene scrim"><dialog open role="alertdialog" aria-labelledby="stopping-title" aria-describedby="stopping-desc" data-ui-size="compact" class="doan-dialog" data-doan-id="stopping-dialog">
+<div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 id="stopping-title" class="doan-dialog-title">Stopping conversations…</h3><p id="stopping-desc" class="doan-dialog-description">Checkout stays in your project list until both conversations stop.</p></div></div>
+<div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="prominent" aria-busy="true" disabled><span class="doan-spinner" aria-hidden="true"></span>Stopping…</button></div></dialog></div>
+<footer><span>Preview a response</span><div class="routes"><a href="#partial" data-doan-goto="partial">One fails →</a><a href="#removed" data-doan-goto="removed">Both stop →</a></div></footer>
+</section>
+<section class="frame" id="partial" data-doan-frame="partial" data-doan-title="One stopped, one still running" data-doan-prototype="716x432" data-doan-implements="app/src/renderer/App.tsx">
+<h2>One stopped, one still running</h2>
+<div class="scene scrim"><dialog open role="alertdialog" aria-labelledby="partial-title" aria-describedby="partial-desc" data-ui-size="compact" class="doan-dialog" data-doan-id="partial-dialog">
+<div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 id="partial-title" class="doan-dialog-title">Checkout is still in Doan</h3><p id="partial-desc" class="doan-dialog-description">The conversation in main stopped. Retry to stop the remaining conversation and remove Checkout.</p></div></div>
+<div class="doan-notice error" role="alert"><svg aria-hidden="true" class="doan-alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6m0 3h.01"/></svg><span>Couldn’t stop the conversation in payment.</span></div><div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-doan-id="keep-after-error" data-doan-goto="kept">Keep project</button><button type="button" class="doan-button" data-ui-variant="prominent" data-doan-id="retry-remaining" data-doan-goto="removed">Retry</button></div></dialog></div>
+<footer>Only payment is retried. This example shows a successful retry. If it fails again, this dialog stays open.</footer>
+</section>
+<section class="frame" id="kept" data-doan-frame="kept" data-doan-title="After Keep project" data-doan-prototype="716x432" data-doan-implements="app/src/renderer/ShellSidebar.tsx">
+<h2>After Keep project</h2>
+<div class="scene"><div class="sidebar-sample"><h3>Projects</h3><ul><li class="row"><span class="thumb" style="--hue:var(--identity-project-amber)" aria-hidden="true">C</span>Checkout</li><li class="row"><span class="thumb" style="--hue:var(--identity-project-teal)" aria-hidden="true">S</span>Studio</li></ul></div></div>
+<footer>Checkout is still listed. The conversation in main stays stopped. The one in payment is still running.</footer>
+</section>
+<section class="frame" id="removed" data-doan-frame="removed" data-doan-title="After both conversations stop" data-doan-prototype="716x432" data-doan-implements="app/src/renderer/ShellSidebar.tsx">
+<h2>After both conversations stop</h2>
+<div class="scene"><div class="sidebar-sample"><h3>Projects</h3><ul><li class="row"><span class="thumb" style="--hue:var(--identity-project-teal)" aria-hidden="true">S</span>Studio</li></ul></div></div>
+<footer>Checkout leaves the list after both stops succeed, on the first attempt or after Retry. Its files and both Git worktrees stay on disk.</footer>
+</section>
+</div></main></body></html>
