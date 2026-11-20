@@ -2017,7 +2017,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       const left = !active || active === document.body || !(active instanceof HTMLElement) || !active.isConnected
         || active.closest(".problem-overlay, .workspace > :is(.ov-main, .right-stack, .doan-canvas-panel, .doan-insp-column, .doan-conv-column, .doan-overview-handle)") !== null;
       // A watcher can change the error while the same focused Retry is still pending.
-      const retryStillFocused = retryPending && active === recoveryFocus.current?.element && active?.isConnected;
+      const retryStillFocused = retryPending && active === recoveryFocus.current?.element && active.isConnected;
       if (arrived || (left && !retryStillFocused)) { setAnnouncement(null); focusHeading(); }
       else announce(sceneHeading);
       return;
