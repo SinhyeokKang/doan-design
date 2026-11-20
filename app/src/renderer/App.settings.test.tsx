@@ -931,6 +931,7 @@ test("with a running conversation only its Stop and remove confirmation shows", 
   doan.removeProjects = removed();
   const run = hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as InstanceType<typeof HomeRun>;
   vi.spyOn(run as unknown as { merged(): Map<string, unknown[]> }, "merged").mockReturnValue(new Map([["/w/a", [{ conversationId: "c1", working: true, phase: "running" }]]]));
+  doan.listConversations!.mockResolvedValue([{ conversationId: "c1", working: true, phase: "running" }]);
   doan.interruptConversation = vi.fn(async () => {});
   find<{ remove(roots: string[]): void }>(ShellSidebar)[0]!.props.remove(["/w/a"]); render();
   expect(all(tree).filter(element => element.type === "dialog")).toHaveLength(1);

@@ -184,6 +184,7 @@ async function menuRemoval() {
   await seeded();
   sidebar().remove(["/w/a", "/w/b"]); render();
   (dialogButton("Remove from Doan").props.onClick as () => void)();
+  await flush();
   folders([listed("/w/c")]);
   await flush();
 }
