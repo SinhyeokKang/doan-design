@@ -1,6 +1,6 @@
 # 코드베이스 감사 1라운드
 
-2026-11-20, `develop`의 `e5f4318967f0a64bd4dc9922ea8251ff399dfb29`에서 시작했다. 당시 추적 파일 변경은 없었다. 계약·경계·수명주기·회귀 방지 담당자 네 명의 검토와 Go·renderer·main·배포·eval 보충 검토를 마쳤다. 아래 항목은 정적 검토 결과다. 이 라운드에서 실행 재현이나 수정 검증은 아직 하지 않았다.
+2026-11-20, `develop`의 `e5f4318967f0a64bd4dc9922ea8251ff399dfb29`에서 시작했다. 당시 추적 파일 변경은 없었다. 계약·경계·수명주기·회귀 방지 담당자 네 명의 검토와 Go·renderer·main·배포·eval 보충 검토를 마쳤다. 아래 판정은 수정 전 정적 검토 결과다. 이어서 진행한 실행 검증과 병합 결과는 마지막 절에 기록했다.
 
 ## 판정과 실행 한계
 
@@ -41,3 +41,18 @@
 | eval | D/H/O/R/W/X 시나리오 검사, 실행 기록, CLI 경로 증거, fake app의 명령 기록, 채점·최종 결과의 우선순위를 확인했다. | agent와 judge의 실행 한도, 증거 수집, fake app 자식, 실패 후 workspace·임시 CLI 정리를 추적했다. |
 
 10·11월 회고 240건을 현재 코드에 대응시켰다. 이번 판정에 영향을 준 규칙은 일반 파일 읽기(11월 15일), 자식 출력과 종료 순서(11월 16일), 프로젝트 제거 이후 늦은 상태·창 포커스(11월 17~19일), 실제 DOM 테스트 제한 시간(10월 30일 항목의 11월 19일 재발), 캔버스 표시 영역(11월 19일)이다. 삭제된 comments 등은 현재 후속 경로가 있는 경우에만 적용했다. 변경 없는 구현은 11월 18·19일 감사 기록과 현재 호출 경로를 함께 대조했고, 당시 부분 검토였던 renderer와 Go onboarding은 이번에 생산자부터 소비자까지 다시 확인했다.
+
+## 수정과 병합
+
+| 항목 | 수정 결과와 검증 | develop PR |
+|---|---|---|
+| A01·A09 | eval에서 읽을 파일의 종류와 크기를 검사하고, CLI 빌드 실패나 증거 저장 오류 뒤에도 임시 작업공간을 정리한다. eval 테스트 445개와 self-test 시나리오 45개가 통과했다. | [#312](https://github.com/SinhyeokKang/doan-design/pull/312) |
+| A02 | 대화와 인증 프로세스가 종료돼도 이미 출력한 마지막 응답을 처리한다. 격리 Electron에서 Codex·ACP 마지막 메시지, Codex 계정 이메일, Git clone 오류 분류를 확인했다. 실제 provider 계정이나 원격 저장소는 사용하지 않았다. | [#317](https://github.com/SinhyeokKang/doan-design/pull/317) |
+| A03 | 제거·재등록 사이에 돌아온 초안과 재발급된 첨부를 폐기한다. 격리 Electron에서 Home·Overview 복구와 Edit on Home 도중 화면 이동을 확인했다. | [#314](https://github.com/SinhyeokKang/doan-design/pull/314) |
+| A04·A06 나머지 | CSS `@scope` 안팎에서 실제 적용된 토큰을 표시·복사하고 scoped 선언만 있는 행도 표시한다. 내보낸 HTML에서 행과 복사 결과를 확인했다. CSSOM DOM 테스트 본문 제한 시간을 60초로 맞췄다. CI에서 검사 모드 전환 도중 입력이 먼저 전달되는 테스트 문제도 재현해, 실제 응답과 레이아웃을 기다리도록 고쳤다. 서랍 테스트는 실제 클릭으로 선택이 생긴 뒤 포커스를 옮겨 지연 메시지의 처리 순서를 검증한다. | [#316](https://github.com/SinhyeokKang/doan-design/pull/316) |
+| A05 | Quick Open과 Home의 프리셋·스킬 검색이 보조 평면 문자를 포함한 단어 경계를 같은 방식으로 판정한다. 두 화면의 순위와 Quick Open의 강조 위치를 Electron에서 확인했다. | [#315](https://github.com/SinhyeokKang/doan-design/pull/315) |
+| A06 일부·A07 | DOM 테스트 파일 3개의 본문 제한 시간을 60초로 맞췄다. 열려 있는 메뉴에서 캔버스가 선택 가능해졌다가 사라지면 알림을 한 번 표시한다. 실제 앱에서 이동 전후의 iframe URL과 현재 워크트리가 같았다. | [#313](https://github.com/SinhyeokKang/doan-design/pull/313) |
+| A08 | 실제 macOS 창에서 비활성 상태로 문제 화면에 진입했을 때, 수정 전에는 제목 포커스 호출이 1회였고 수정 후에는 창 활성화와 그다음 작업에서도 호출돼 총 3회였다. 두 빌드 모두 제목 포커스를 유지했다. 검증한 차이는 재호출이며 화면에서 포커스가 이탈하는 현상은 재현되지 않았다. | [#318](https://github.com/SinhyeokKang/doan-design/pull/318) |
+| A10 | 같은 provider에서 이전 검사가 늦게 끝나도 Retry 결과를 유지한다. 격리 Electron의 About에서 0.170.0 Supported와 revision 2가 유지됐다. | [#311](https://github.com/SinhyeokKang/doan-design/pull/311) |
+
+프로토타입에서 재생 중인 프레임이 사라지는 별도 경로는 실제 창이 다시 활성화됐을 때도 제목 포커스를 유지해 수정하지 않았다. 서버 파일 핸들, 텍스트 측정 범위, Go 링크 그룹 계산 비용, onboarding 응답 크기의 네 후보는 이번 수정에 포함하지 않았다. 새 BACKLOG 항목은 없다.
