@@ -579,7 +579,7 @@ function descendants(root: FakeNode): FakeNode[] {
   return root.children.flatMap((child) => [child, ...descendants(child)]);
 }
 
-function fakeCanvas(options: { readyState?: string; height?: number; scrollHeight?: number; frames?: FakeElement[]; body?: FakeNode } = {}) {
+function fakeCanvas(options: { readyState?: string; stylesheets?: { sheet: object | null; media: string; disabled: boolean }[]; height?: number; scrollHeight?: number; frames?: FakeElement[]; body?: FakeNode } = {}) {
   const posted: unknown[] = [];
   const windowListeners = new Map<string, Listener[]>();
   const documentListeners = new Map<string, Listener[]>();
@@ -619,6 +619,7 @@ function fakeCanvas(options: { readyState?: string; height?: number; scrollHeigh
     body,
     activeElement: body as FakeNode | null,
     querySelectorAll: (selector: string) => {
+      if (selector.startsWith("link[")) return options.stylesheets ?? [];
       if (options.body === undefined) return frames;
       const attr = /^\[([a-z-]+)\]$/.exec(selector)?.[1];
       if (attr === undefined) { const found = selectors.get(selector); return found?.isConnected ? [found] : []; }
@@ -725,6 +726,20 @@ describe("canvasScriptSource", () => {
   });
 
   // The renderer drops heights measured before its last resize reached the canvas.
+  test.each(["loaded", "failed"])("measures the parsed canvas after its linked stylesheet has %s", outcome => {
+    const link = { sheet: null as object | null, media: "", disabled: false };
+    const canvas = fakeCanvas({ readyState: "interactive", height: 364, stylesheets: [link] });
+    canvas.fromParent({ type: "measure" });
+    expect(ofType(canvas, "layout")).toHaveLength(0);
+    if (outcome === "loaded") {
+      link.sheet = {};
+      canvas.state.height = 988;
+    }
+    canvas.document.readyState = "complete";
+    canvas.trigger("load");
+    expect(ofType(canvas, "layout").at(-1)?.height).toBe(canvas.state.height);
+  });
+
   test("reports the viewport height each layout was measured at", () => {
     const canvas = fakeCanvas();
     canvas.ready();

@@ -37,14 +37,14 @@ export function headerRowState(row: FolderEntry, path: string): RowState {
 }
 
 export type Crumb =
-  | { kind: "project"; label: string; name: string }
+  | { kind: "project"; label: string }
   | { kind: "worktree"; model: WorktreeModel; reason: string | null }
   | { kind: "canvas"; label: string; path: string };
 
 export function canvasCrumbs(card: { name: string; rows: readonly FolderEntry[] }, root: string, canvas: CanvasRow | null, home: string | null): Crumb[] {
   const current = card.rows.find(row => row.path === root);
   const listed = current?.kind === "list" && canvas && current.canvases.some(row => row.path === canvas.path);
-  const crumbs: Crumb[] = [{ kind: "project", label: card.name, name: `${card.name} Overview` }];
+  const crumbs: Crumb[] = [{ kind: "project", label: card.name }];
   const model = worktreeSwitchModel(card.rows, root, home, row => headerRowState(row, canvas?.path ?? ""));
   if (model) {
     const reason = current?.kind !== "list" ? "Switching worktrees isn’t available while the canvas can’t be shown."

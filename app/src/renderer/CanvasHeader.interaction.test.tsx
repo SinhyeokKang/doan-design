@@ -29,7 +29,7 @@ function elements(node: ReactNode): ReactElement<Props>[] {
 }
 // Draws one of the header's own parts (FrameDrawer, ZoomControl), which the header leaves as elements.
 function part(name: string): Props[] {
-  const header = CanvasHeader({ navigation: { card: { key: "/repo", name: "demo", rows: [{ kind: "list", path: "/repo", servedRev: 0, canvases: [row] }] }, root: "/repo", homeDirectory: null, overview: vi.fn(), worktree: vi.fn() }, state, view: new CanvasViewStore(canvasViewFields(state)), canvasKey: "k", command: vi.fn(), zoomTo: vi.fn(), selectFrame: vi.fn() });
+  const header = CanvasHeader({ navigation: { card: { key: "/repo", name: "demo", rows: [{ kind: "list", path: "/repo", servedRev: 0, canvases: [row] }] }, root: "/repo", homeDirectory: null, worktree: vi.fn() }, state, view: new CanvasViewStore(canvasViewFields(state)), canvasKey: "k", command: vi.fn(), zoomTo: vi.fn(), selectFrame: vi.fn() });
   const element = elements(header).find(item => typeof item.type === "function" && item.type.name === name);
   if (!element) throw new Error(`Missing ${name}`);
   return elements((element.type as (props: Props) => ReactNode)(element.props)).map(item => item.props);

@@ -136,7 +136,7 @@ describe("canvas header tooltips", () => {
   const row: CanvasRow = { path: ".doan/canvases/checkout.html", url: "doan://checkout", width: 1280 };
   const state = { ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, message: "", hasFrame: true,
     layout: { type: "layout" as const, href: row.url, height: 1800, viewport: 1800, frames, truncated: false, gotos: [] }, currentFrame: 0, zoom: 100, scale: 1 };
-  const markup = html(<CanvasHeader navigation={{ card: { key: "/repo", name: "demo", rows: [{ kind: "list", path: "/repo", servedRev: 0, canvases: [row] }] }, root: "/repo", homeDirectory: null, overview: noop, worktree: noop }} state={state} view={new CanvasViewStore(canvasViewFields(state))} command={vi.fn()} zoomTo={vi.fn()} selectFrame={vi.fn()} />);
+  const markup = html(<CanvasHeader navigation={{ card: { key: "/repo", name: "demo", rows: [{ kind: "list", path: "/repo", servedRev: 0, canvases: [row] }] }, root: "/repo", homeDirectory: null, worktree: noop }} state={state} view={new CanvasViewStore(canvasViewFields(state))} command={vi.fn()} zoomTo={vi.fn()} selectFrame={vi.fn()} />);
   const keyTip = (label: string, key: string) => `${label}<span class="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">${key}</span>`;
 
   test.each([["Zoom out", "⌘−"], ["Zoom in", "⌘="], ["Reload canvas", "⌘R"]])("%s shows its key %s as a chip", (label, key) => {
