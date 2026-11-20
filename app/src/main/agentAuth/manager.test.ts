@@ -162,6 +162,18 @@ describe("sign-in", () => {
     expect(existsSync(tokenFile("antigravity"))).toBe(false);
     expect(login.stopped && status.stopped).toBe(true);
   });
+  it("accepts the ACP status reply delivered after leader exit", async () => {
+    const m = manager({ adapters: withAcp() });
+    storage.writeMetadata({ v: 1, accounts: [{ provider: "antigravity", connectionId: "c", profile: "antigravity", account: { id: null, workspace: null } }] });
+    await m.load();
+    const check = started(await m.check("antigravity"));
+    const p = await acpRequest("initialize"); p.reply("initialize", INIT);
+    await acpRequest("authenticate");
+    stopReleases = false;
+    p.finish(0, false); await flush();
+    p.reply("authenticate", {}); p.release();
+    expect(await check.outcome).toBe("ok");
+  });
   it("delivers a pasted callback address only from the owner, for this attempt's listener and state", async () => {
     const hits: string[] = [];
     const server = createServer((request, response) => { hits.push(request.url ?? ""); response.end("ok"); });
@@ -1755,6 +1767,18 @@ describe("account identity lookup", () => {
       expect(m.state("codex")).toMatchObject({ phase: "connected", verified: true, connection: { account: { ...NONE, email: "ada@example.com" } } });
       expect(write).not.toHaveBeenCalled();
       expect(storage.readMetadata().accounts[0]!.account).toEqual(NONE);
+    });
+    it("reads the account email delivered after app-server exit", async () => {
+      storedCodex();
+      const m = lookupManager(); await m.load();
+      const check = started(await m.check("codex"));
+      await finish("status", 0);
+      const p = await next("rpc"); p.reply("initialize", {});
+      await until(() => p.requests().some(r => r.method === "account/read"), "account/read");
+      stopReleases = false;
+      p.finish(0, false); await flush();
+      p.reply("account/read", CHATGPT()); p.release();
+      expect((await check.done).connection?.account.email).toBe("ada@example.com");
     });
     it("keeps the email a check showed when a later lookup fails", async () => {
       storedCodex();
