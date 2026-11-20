@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
+import { CANVAS_BYTES, readArtifact } from "../../lib/artifact.ts";
 import { resolve } from "node:path";
 import type { Checks } from "../../lib/types.ts";
 import { prototypeCalls, prototypeCanvasPath } from "../../lib/prototype.ts";
@@ -12,12 +13,12 @@ const checks: Checks = ctx => {
   const calls = prototypeCalls(ctx.calls.commands, "export");
   const asked = calls.some(call => call.prototype && call.frame === frame && call.path !== undefined
     && prototypeCanvasPath(ctx.repo, call.path) === prototypeCanvasPath(ctx.repo, path));
-  const page = existsSync(output) ? readFileSync(output) : null;
+  const page = existsSync(output) ? readArtifact(output, CANVAS_BYTES) : null;
   let same = false, detail = "no output file", notViewer = false, pageDetail = "no output file";
   if (page) {
     const made = ctx.doan(["export", path, "--frame", frame, "--prototype", "-o", reference]);
     try {
-      same = made.code === 0 && made.json?.result?.prototype === true && existsSync(reference) && readFileSync(reference).equals(page);
+      same = made.code === 0 && made.json?.result?.prototype === true && existsSync(reference) && readArtifact(reference, CANVAS_BYTES).equals(page);
       detail = made.code !== 0 ? `reference export failed: ${JSON.stringify(made.json)}` : same ? "byte-identical to doan export --prototype" : "file differs from prototype export";
     } finally { rmSync(reference, { force: true }); }
     const viewer = ctx.doan(["export", path, "-o", viewerReference]);
@@ -25,7 +26,7 @@ const checks: Checks = ctx => {
       const text = page.toString("utf8");
       const markers = text.includes("<title>Sign up (phone) — Prototype</title>")
         && [...text.matchAll(/<noscript\b[^>]*>([\s\S]*?)<\/noscript>/g)].some(match => match[1]!.includes("Open this file in a web browser to play this prototype."));
-      const differs = viewer.code === 0 && existsSync(viewerReference) && !readFileSync(viewerReference).equals(page);
+      const differs = viewer.code === 0 && existsSync(viewerReference) && !readArtifact(viewerReference, CANVAS_BYTES).equals(page);
       notViewer = markers && differs;
       pageDetail = viewer.code !== 0 ? `canvas viewer reference failed: ${JSON.stringify(viewer.json)}` : `prototype markers: ${markers}; differs from canvas viewer: ${differs}`;
     } finally { rmSync(viewerReference, { force: true }); }

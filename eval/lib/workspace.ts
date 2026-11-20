@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { delimiter, join, resolve } from "node:path";
+import { LOG_BYTES, readArtifact } from "./artifact.ts";
 import type { Agent } from "./args.ts";
 import { agentEnvironment, isolateUserInstructions } from "./agent.ts";
 import { CLAUDE_ALLOW_RULES, CODEX_RULE, evalCodexRuleText } from "./codex-rule.ts";
@@ -137,11 +138,14 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
 // dispose deletes rt/, and the log is what onboarding checks were scored on.
 // It holds no token (eval/lib/socket.ts strips it).
 export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial<Pick<Workspace, "workLog" | "openLog" | "handoffLog" | "prototypeLog">>, dir: string): void {
-  if (existsSync(ws.onboardingLog)) cpSync(ws.onboardingLog, join(dir, "onboarding.jsonl"));
-  if (ws.workLog && existsSync(ws.workLog)) cpSync(ws.workLog, join(dir, "work.jsonl"));
-  if (ws.openLog && existsSync(ws.openLog)) cpSync(ws.openLog, join(dir, "open.jsonl"));
-  if (ws.prototypeLog && existsSync(ws.prototypeLog)) cpSync(ws.prototypeLog, join(dir, "prototype.jsonl"));
-  if (ws.handoffLog && existsSync(ws.handoffLog)) cpSync(ws.handoffLog, join(dir, "handoff.jsonl"));
+  const keep = (path: string | undefined, name: string) => {
+    if (path && existsSync(path)) writeFileSync(join(dir, name), readArtifact(path, LOG_BYTES));
+  };
+  keep(ws.onboardingLog, "onboarding.jsonl");
+  keep(ws.workLog, "work.jsonl");
+  keep(ws.openLog, "open.jsonl");
+  keep(ws.prototypeLog, "prototype.jsonl");
+  keep(ws.handoffLog, "handoff.jsonl");
 }
 
 // A Codex run's own CODEX_HOME (isolateUserInstructions) goes with the workspace; when readAgentTranscript could not

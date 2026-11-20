@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
+import { CANVAS_BYTES, readArtifact } from "../../lib/artifact.ts";
 import { resolve } from "node:path";
 import type { Checks } from "../../lib/types.ts";
 import { commandWords, doanArgs, lastFlag } from "../../lib/transcript.ts";
@@ -53,7 +54,7 @@ const checks: Checks = ctx => {
   const reference = resolve(ctx.repo, "..", "reference-export.html");
   const calls = exportCalls(ctx.calls.commands);
   const asked = calls.filter(call => sameCanvas(ctx.repo, ctx.cwd, call.canvas));
-  const page = existsSync(output) ? readFileSync(output) : null;
+  const page = existsSync(output) ? readArtifact(output, CANVAS_BYTES) : null;
   const text = page?.toString("utf8") ?? "";
   const changed = ctx.changedFiles();
 
@@ -62,7 +63,7 @@ const checks: Checks = ctx => {
   if (page) {
     const made = ctx.doan(["export", canvas, "-o", reference]);
     try {
-      same = made.code === 0 && existsSync(reference) && readFileSync(reference).equals(page);
+      same = made.code === 0 && existsSync(reference) && readArtifact(reference, CANVAS_BYTES).equals(page);
       detail = made.code !== 0 ? `reference export failed: ${JSON.stringify(made.json)}` : same ? "byte-identical to doan export" : `${page.length} bytes differ from doan export`;
     } finally { rmSync(reference, { force: true }); }
   }

@@ -1,32 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { dirname, isAbsolute, join, normalize, relative } from "node:path";
+import { existsSync } from "node:fs";
+import { relative } from "node:path";
+import { readRegularFileNoFollowSync } from "../../app/src/main/regularFile.ts";
+import { CANVAS_BYTES, LOG_BYTES, MANIFEST_BYTES, readArtifact, resolveInside, resolveOnDisk } from "./artifact.ts";
 import { toolCalls, type ToolCalls } from "./transcript.ts";
 import type { CheckContext } from "./types.ts";
 
-export function resolveInside(repo: string, path: string): string {
-  if (path === "" || isAbsolute(path)) throw new Error(`not a repo-relative path: ${JSON.stringify(path)}`);
-  const full = join(repo, path);
-  const rel = relative(repo, full);
-  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) throw new Error(`path leaves the repo: ${path}`);
-  return normalize(full);
-}
-
-// readFileSync and existsSync follow links, and the agent may have left one (as
-// the target or any ancestor) pointing out of the repo. The deepest part of the
-// path that exists is resolved, so a missing file under an outside link is
-// refused too, instead of being reported as missing.
-function resolveOnDisk(repo: string, path: string): string {
-  const full = resolveInside(repo, path);
-  let probe = full;
-  let real: string;
-  for (;;) {
-    try { real = realpathSync(probe); break; } catch { probe = dirname(probe); }
-  }
-  const rel = relative(realpathSync(repo), real);
-  if (rel === ".." || rel.startsWith("../") || isAbsolute(rel)) throw new Error(`path leaves the repo: ${path}`);
-  return full;
-}
+export { resolveInside } from "./artifact.ts";
 
 // The repo-relative form git understands, after the same checks as resolveInside.
 export function repoPath(repo: string, path: string): string {
@@ -80,9 +60,12 @@ function checkedGit(repo: string, args: string[], env: NodeJS.ProcessEnv, gitDir
 // work, not the agent's. One the agent changed afterwards counts as the agent's.
 export function appWritten(repo: string, manifest: string | undefined): string[] {
   if (!manifest || !existsSync(manifest)) return [];
-  const written: Record<string, string> = JSON.parse(readFileSync(manifest, "utf8"));
+  const written: Record<string, string> = JSON.parse(readArtifact(manifest, MANIFEST_BYTES).toString("utf8"));
   return Object.keys(written).filter(path => {
-    try { return readFileSync(resolveOnDisk(repo, path), "utf8") === written[path]; } catch { return false; }
+    try {
+      const expected = Buffer.from(written[path]!);
+      return readRegularFileNoFollowSync(resolveOnDisk(repo, path), expected.length).equals(expected);
+    } catch { return false; }
   });
 }
 
@@ -125,7 +108,7 @@ export function createContext(o: ContextOptions): CheckContext {
   };
   const read = (path: string): string | null => {
     const full = resolveOnDisk(o.repo, path);
-    try { return readFileSync(full, "utf8"); } catch { return null; }
+    try { return readRegularFileNoFollowSync(full, CANVAS_BYTES).toString("utf8"); } catch { return null; }
   };
   return {
     repo: o.repo,
@@ -146,23 +129,23 @@ export function createContext(o: ContextOptions): CheckContext {
     cwdChangedFiles: () => changedFiles(cwd),
     onboarding() {
       if (!o.onboardingLog || !existsSync(o.onboardingLog)) return [];
-      return readFileSync(o.onboardingLog, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
+      return readArtifact(o.onboardingLog, LOG_BYTES).toString("utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
     },
     work() {
       if (!o.workLog || !existsSync(o.workLog)) return [];
-      return readFileSync(o.workLog, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
+      return readArtifact(o.workLog, LOG_BYTES).toString("utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
     },
     open() {
       if (!o.openLog || !existsSync(o.openLog)) return [];
-      return readFileSync(o.openLog, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
+      return readArtifact(o.openLog, LOG_BYTES).toString("utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
     },
     prototype() {
       if (!o.prototypeLog || !existsSync(o.prototypeLog)) return [];
-      return readFileSync(o.prototypeLog, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
+      return readArtifact(o.prototypeLog, LOG_BYTES).toString("utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
     },
     handoff() {
       if (!o.handoffLog || !existsSync(o.handoffLog)) return [];
-      return readFileSync(o.handoffLog, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
+      return readArtifact(o.handoffLog, LOG_BYTES).toString("utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
     },
     run: (cmd, args) => sh(cmd, args, o.repo, o.env),
     git: args => git(args),
