@@ -255,10 +255,10 @@ describe("Export prototype", () => {
 });
 
 describe("the name's row", () => {
-  test("the window's width alone decides it: first row from R + 304 (444), the second below, before any view too", () => {
+  test("the window's width alone decides it: first row from R + 408 (548), the second below, before any view too", () => {
     expect(tag(markup({ width: 640 }), 'class="pw')).toMatch(/^<div class="pw"/);
-    expect(tag(markup({ width: 444 }), 'class="pw')).toMatch(/^<div class="pw"/);
-    expect(tag(markup({ width: 443 }), 'class="pw')).toMatch(/^<div class="pw name-row"/);
+    expect(tag(markup({ width: 548 }), 'class="pw')).toMatch(/^<div class="pw"/);
+    expect(tag(markup({ width: 547 }), 'class="pw')).toMatch(/^<div class="pw name-row"/);
     expect(tag(markup({ width: 360, view: null, layers: NO_LAYERS }), 'class="pw')).toMatch(/^<div class="pw name-row"/);
   });
 
@@ -749,32 +749,32 @@ describe("the conversation button and panel", () => {
 });
 
 // The name's row while the panel is open comes from the area left of it (L = W - P - 8) with R 104: the first row from
-// L 408. The width is the one shown, so a handle's drag preview moves the name as the commit would.
+// L 512. The width is the one shown, so a handle's drag preview moves the name as the commit would.
 describe("the name's row with the panel open", () => {
   const conv = (width: number): ShellConversation => ({ button: { label: "Show conversation", badge: null, name: "Show conversation" }, open: true, width, bounds: { min: 280, max: 512 }, onToggle: noop, onResize: noop, preview: noop });
   const row = (width: number, panel: number) => tag(markup({ width, conversation: conv(panel) }), 'class="pw');
 
-  test("L 408 keeps the first row, 407 moves the name to the second", () => {
-    expect(row(696, 280)).toMatch(/^<div class="pw"/);
-    expect(row(695, 280)).toMatch(/^<div class="pw name-row"/);
-    expect(row(736, 320)).toMatch(/^<div class="pw"/);
+  test("L 512 keeps the first row, 511 moves the name to the second", () => {
+    expect(row(800, 280)).toMatch(/^<div class="pw"/);
+    expect(row(799, 280)).toMatch(/^<div class="pw name-row"/);
+    expect(row(840, 320)).toMatch(/^<div class="pw"/);
     expect(row(1024, 320)).toMatch(/^<div class="pw"/);
     expect(row(640, 280)).toMatch(/^<div class="pw name-row"/);
   });
 
-  test("a handle's preview past L 408 moves the same capsule, so its focus and an open menu stay", () => {
-    expect(row(736, 320)).toMatch(/^<div class="pw"/);
-    expect(row(736, 321)).toMatch(/^<div class="pw name-row"/);
+  test("a handle's preview past L 512 moves the same capsule, so its focus and an open menu stay", () => {
+    expect(row(840, 320)).toMatch(/^<div class="pw"/);
+    expect(row(840, 321)).toMatch(/^<div class="pw name-row"/);
     const isMenu = (element: El) => (element.type as { name?: string }).name === "FrameMenu";
-    const first = path(tree({ width: 736, conversation: conv(320) }), isMenu);
+    const first = path(tree({ width: 840, conversation: conv(320) }), isMenu);
     expect(first).not.toBeNull();
-    expect(path(tree({ width: 736, conversation: conv(321) }), isMenu)).toEqual(first);
+    expect(path(tree({ width: 840, conversation: conv(321) }), isMenu)).toEqual(first);
     expect(path(tree({ width: 1024 }), isMenu)).toEqual(first);
   });
 
-  test("a window narrowed while open crosses L 408 by its own width", () => {
-    expect(row(808, 392)).toMatch(/^<div class="pw"/);
-    expect(row(807, 392)).toMatch(/^<div class="pw name-row"/);
+  test("a window narrowed while open crosses L 512 by its own width", () => {
+    expect(row(912, 392)).toMatch(/^<div class="pw"/);
+    expect(row(911, 392)).toMatch(/^<div class="pw name-row"/);
   });
 });
 

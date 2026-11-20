@@ -13,9 +13,9 @@ describe("chrome constants", () => {
     expect(PROTOTYPE_WINDOW_MIN_HEIGHT).toBe(360);
   });
 
-  test("the header's right group is the mode toggle, Export and the conversation button; the name needs 80 or takes a 44 second row", () => {
+  test("the header's right group is the mode toggle, Export and the conversation button; the name needs 120 or takes a 44 second row", () => {
     expect(PROTOTYPE_HEADER_RIGHT).toBe(140);
-    expect(PROTOTYPE_NAME_MIN_WIDTH).toBe(80);
+    expect(PROTOTYPE_NAME_MIN_WIDTH).toBe(120);
     expect(PROTOTYPE_NAME_ROW_HEIGHT).toBe(44);
   });
 
@@ -27,17 +27,17 @@ describe("chrome constants", () => {
 
 describe("prototypeSideLayout", () => {
   test("closed: the window's width and R 140 decide the name's row", () => {
-    expect(prototypeSideLayout(444, null)).toEqual({ left: 444, right: 140, rows: 1 });
-    expect(prototypeSideLayout(443, null)).toEqual({ left: 443, right: 140, rows: 2 });
+    expect(prototypeSideLayout(548, null)).toEqual({ left: 548, right: 140, rows: 1 });
+    expect(prototypeSideLayout(547, null)).toEqual({ left: 547, right: 140, rows: 2 });
     expect(prototypeSideLayout(1024, null)).toEqual({ left: 1024, right: 140, rows: 1 });
   });
 
-  test("open: the area left of the panel (L = W - P - 8) and R 104 decide it; first row from L 408", () => {
+  test("open: the area left of the panel (L = W - P - 8) and R 104 decide it; first row from L 512", () => {
     expect(prototypeSideLayout(1024, 320)).toEqual({ left: 696, right: 104, rows: 1 });
-    expect(prototypeSideLayout(1024, 512)).toEqual({ left: 504, right: 104, rows: 1 });
-    expect(prototypeSideLayout(736, 320)).toEqual({ left: 408, right: 104, rows: 1 });
-    expect(prototypeSideLayout(696, 280)).toEqual({ left: 408, right: 104, rows: 1 });
-    expect(prototypeSideLayout(695, 280)).toEqual({ left: 407, right: 104, rows: 2 });
+    expect(prototypeSideLayout(1024, 512)).toEqual({ left: 504, right: 104, rows: 2 });
+    expect(prototypeSideLayout(840, 320)).toEqual({ left: 512, right: 104, rows: 1 });
+    expect(prototypeSideLayout(800, 280)).toEqual({ left: 512, right: 104, rows: 1 });
+    expect(prototypeSideLayout(799, 280)).toEqual({ left: 511, right: 104, rows: 2 });
     expect(prototypeSideLayout(640, 280)).toEqual({ left: 352, right: 104, rows: 2 });
   });
 
@@ -56,7 +56,7 @@ describe("fitPrototypeWindow", () => {
   });
 
   test("never goes below the minimum width", () => {
-    // 360 is below 408, so the name takes the header's second row: 568 + 64 + 44.
+    // 360 is below 548, so the name takes the header's second row: 568 + 64 + 44.
     expect(fitPrototypeWindow({ width: 320, height: 568 }, laptop)).toEqual({ x: 576, y: 159, width: 360, height: 676 });
     expect(fitPrototypeWindow({ width: 1, height: 1 }, laptop).width).toBe(360);
   });
@@ -85,10 +85,10 @@ describe("fitPrototypeWindow", () => {
   });
 
   test("a fitted width that keeps the name on the first row adds 64; one that moves it to the second row adds 108", () => {
-    // 390 + 16 = 406 is below 140 + 304, so 390x844 fits at 406 x 952: 844 + 100 + 8.
+    // 390 + 16 = 406 is below 140 + 408, so 390x844 fits at 406 x 952: 844 + 100 + 8.
     expect(fitPrototypeWindow({ width: 390, height: 844 }, { x: 0, y: 0, width: 1920, height: 1055 })).toMatchObject({ width: 406, height: 952 });
-    expect(fitPrototypeWindow({ width: 428, height: 400 }, laptop)).toMatchObject({ width: 444, height: 464 });
-    expect(fitPrototypeWindow({ width: 427, height: 400 }, laptop)).toMatchObject({ width: 443, height: 508 });
+    expect(fitPrototypeWindow({ width: 532, height: 400 }, laptop)).toMatchObject({ width: 548, height: 464 });
+    expect(fitPrototypeWindow({ width: 531, height: 400 }, laptop)).toMatchObject({ width: 547, height: 508 });
     expect(prototypeHeaderRows(406, 140)).toBe(2);
   });
 
@@ -146,8 +146,8 @@ describe("the minimum height", () => {
 });
 
 describe("prototypeHeaderRows", () => {
-  test("the name stays on the first row while the space between the groups is at least 80", () => {
-    for (const [right, first] of [[140, 444], [104, 408], [68, 372]] as const) {
+  test("the name stays on the first row while the space between the groups is at least 120", () => {
+    for (const [right, first] of [[140, 548], [104, 512], [68, 476]] as const) {
       expect(prototypeHeaderRows(first, right), `${right} at ${first}`).toBe(1);
       expect(prototypeHeaderRows(first - 1, right), `${right} at ${first - 1}`).toBe(2);
     }
@@ -156,10 +156,10 @@ describe("prototypeHeaderRows", () => {
   test("common window widths", () => {
     for (const right of [140, 104, 68]) {
       expect(prototypeHeaderRows(640, right)).toBe(1);
-      expect(prototypeHeaderRows(520, right)).toBe(1);
+      expect(prototypeHeaderRows(560, right)).toBe(1);
       expect(prototypeHeaderRows(360, right)).toBe(2);
     }
-    expect(prototypeHeaderRows(406, 68)).toBe(1);
+    expect(prototypeHeaderRows(506, 68)).toBe(1);
     expect(prototypeHeaderRows(406, 104)).toBe(2);
   });
 });
@@ -237,6 +237,10 @@ describe("prototypeViewportBox", () => {
 });
 
 describe("prototypeCaptureRect", () => {
+  test.each([[548, 0, 56], [547, 0, 100], [840, 320, 56], [840, 321, 100]])("capture at width %i with panel %i starts at %i", (width, panel, y) => {
+    expect(prototypeCaptureRect({ width, height: 600 }, { width: 390, height: 400 }, "responsive", panel)?.rect.y).toBe(y);
+  });
+
   test("Responsive captures the whole content panel under a one-row header", () => {
     expect(prototypeCaptureRect({ width: 640, height: 908 }, { width: 390, height: 844 }, "responsive")).toEqual({ rect: { x: 8, y: 56, width: 624, height: 844 }, box: { x: 0, y: 0, width: 624, height: 844 } });
   });
@@ -247,7 +251,7 @@ describe("prototypeCaptureRect", () => {
   });
 
   test("Fit scaled down captures the visible frame; a two-row header moves the panel to y100", () => {
-    // 360 < 408: the name is on the second row, so the panel is 344 x 800 from y100.
+    // 360 < 548: the name is on the second row, so the panel is 344 x 800 from y100.
     expect(prototypeCaptureRect({ width: 360, height: 908 }, { width: 390, height: 844 }, "fit")).toEqual({ rect: { x: 8, y: 128, width: 344, height: 744 }, box: { x: 0, y: 28, width: 344, height: 744 } });
     expect(prototypeCaptureRect({ width: 360, height: 908 }, { width: 390, height: 844 }, "responsive")).toEqual({ rect: { x: 8, y: 100, width: 344, height: 800 }, box: { x: 0, y: 0, width: 344, height: 800 } });
   });
@@ -326,13 +330,13 @@ describe("prototypePanelFit", () => {
   const wide = { x: 0, y: 0, width: 1920, height: 1055 };
 
   test("with the panel open a play fits the shown width + 24 + the panel, so the content panel is the shown width", () => {
-    // 390 + 24 + 320 = 734; L = 734 - 320 - 8 = 406 is under 408, so the name takes the second row: 844 + 64 + 44.
+    // 390 + 24 + 320 = 734; L = 734 - 320 - 8 = 406 is under 512, so the name takes the second row: 844 + 64 + 44.
     expect(prototypePanelFit({ width: 390, height: 844 }, wide, 320)).toEqual({ bounds: { x: 593, y: 51, width: 734, height: 952 }, panel: 320, minimum: 640 });
   });
 
-  test("a shown width of 392 or more keeps the name on the first row (+ 64); below it the second (+ 108)", () => {
-    expect(prototypePanelFit({ width: 392, height: 400 }, laptop, 320)).toMatchObject({ bounds: { width: 736, height: 464 }, panel: 320 });
-    expect(prototypePanelFit({ width: 391, height: 400 }, laptop, 320)).toMatchObject({ bounds: { width: 735, height: 508 }, panel: 320 });
+  test("a shown width of 496 or more keeps the name on the first row (+ 64); below it the second (+ 108)", () => {
+    expect(prototypePanelFit({ width: 496, height: 400 }, laptop, 320)).toMatchObject({ bounds: { width: 840, height: 464 }, panel: 320 });
+    expect(prototypePanelFit({ width: 495, height: 400 }, laptop, 320)).toMatchObject({ bounds: { width: 839, height: 508 }, panel: 320 });
   });
 
   test("never narrower than 640, with the panel cut to that window's maximum", () => {
@@ -381,7 +385,7 @@ describe("prototypeCaptureRect with the panel open", () => {
 
   test("the rectangle stays inside the content panel and its top follows the open layout's rows", () => {
     const marks = [{ width: 390, height: 844 }, { width: 1440, height: 900 }, { width: 240, height: 400 }, { width: 0, height: 0 }];
-    for (const [width, panel] of [[640, 280], [695, 280], [696, 280], [1024, 320], [1024, 512], [1512, 756]] as const) {
+    for (const [width, panel] of [[640, 280], [799, 280], [800, 280], [1024, 320], [1024, 512], [1512, 756]] as const) {
       const { left, rows } = prototypeSideLayout(width, panel);
       const top = rows === 2 ? 100 : 56;
       for (const mark of marks) for (const mode of ["fit", "responsive"] as const) {
