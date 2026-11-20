@@ -84,6 +84,10 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
   }
   const clearShowTip = bindHeadTooltip(show, headTip);
   const clearHideTip = bindHeadTooltip(hide, $("inspector-hide-tip"));
+  // Menu handlers can stop propagation. Dismiss the hint without consuming their Escape or the selection step.
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !event.isComposing && event.keyCode !== 229) clearHideTip();
+  }, true);
   mode(false);
 
   async function copy(value) {
