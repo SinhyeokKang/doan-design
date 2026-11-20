@@ -240,6 +240,7 @@ interface Entry {
   shown: string[]; // the selector texts reported (the rule's own text, as CDP does)
   layer: string | null;
   order: number;
+  scopeMarkers?: string[];
   containers: number[]; // indexes into the container conditions
 }
 
@@ -252,6 +253,7 @@ interface Collected {
   entries: Entry[];
   layerRank: Map<string | null, number>;
   conditions: string[];
+  scopeCSS: string[];
   unreadable: CSSStyleSheet[];
 }
 
@@ -369,7 +371,10 @@ function leading(text: string): Lead[] {
   }
 }
 
-function collectRules(doc: Document = document): Collected {
+function collectRules(doc: Document, ancestors: Element[]): Collected {
+  const scopeCSS: string[] = [];
+  // Canvas custom properties must keep their own values while the probe is installed.
+  const markerPrefix = `--doan-scope-${Math.random().toString(36).slice(2)}`;
   const entries: Entry[] = [];
   const unreadable: CSSStyleSheet[] = [];
   const conditions: string[] = [];
@@ -395,6 +400,8 @@ function collectRules(doc: Document = document): Collected {
     layer: string | null;
     containers: number[];
     parent: string | null;
+    sheetRoot: Element;
+    scope?: { headers: string[]; selectors: { selector: string; marker: string }[] };
   }
   const sheet = (s: CSSStyleSheet, ctx: Ctx, href: string | null = s.href) => {
     if (s.disabled) return;
@@ -440,6 +447,42 @@ function collectRules(doc: Document = document): Collected {
     c.replaceSync(text);
     walk(c.cssRules, ctx);
   };
+  // Let the browser match selectors inside their original @scope context, including limits and :scope.
+  // Among the selected element and its ancestors there is only one possible root at each document depth.
+  // Restricting the innermost scope to that depth lets its marker report the winning root's proximity.
+  const scoped = (rule: CSSScopeRule, ctx: Ctx) => {
+    const { start, end } = rule;
+    const contextual = ctx.parent !== null || ctx.scope !== undefined || /:scope|[&\\]/i.test(start ?? "");
+    const roots = ancestors.flatMap((node, depth) =>
+      (start === null ? node === ctx.sheetRoot : contextual || matches(node, start)) ? [depth] : []);
+
+    const atDepth = (depth: number) => `:where(:root${" > *".repeat(depth)})`;
+    const boundary = start ?? (roots.length ? atDepth(roots[0]!) : ":not(*)");
+    const header = (selector: string) => `@scope (${selector})${end ? ` to (${end})` : ""}`;
+    const outer = [...(ctx.scope?.headers ?? [])];
+    if (ctx.parent) outer.push(ctx.parent);
+    const scope: NonNullable<Ctx["scope"]> = { headers: [...outer, header(boundary)], selectors: [] };
+    walk(rule.cssRules, { ...ctx, parent: null, scope });
+    if (!scope.selectors.length) return;
+    for (const depth of roots) {
+      const root = roots.length === 1 ? boundary : splitTop(boundary, ",").map(s => s + atDepth(depth)).join(", ");
+      const body = scope.selectors.map(({ selector, marker }) => `${selector} { ${marker}: ${depth} }`).join("\n");
+      const css = `${header(root)} { ${body} }`;
+      scopeCSS.push(outer.reduceRight((inner, group) => `${group} { ${inner} }`, css));
+    }
+  };
+  const addEntry = (entry: Entry, ctx: Ctx) => {
+    const scope = ctx.scope;
+    if (scope) {
+      entry.scopeMarkers = entry.match.map((selector, index) => {
+        const marker = `${markerPrefix}-${entry.order}-${index}`;
+        scopeCSS.push(`:where(*) { ${marker}: initial }`);
+        scope.selectors.push({ selector, marker });
+        return marker;
+      });
+    }
+    entries.push(entry);
+  };
   const walk = (rules: CSSRuleList, ctx: Ctx) => {
     for (const r of Array.from(rules)) {
       const kind = r.constructor.name;
@@ -454,6 +497,8 @@ function collectRules(doc: Document = document): Collected {
         if (matchMedia((r as CSSMediaRule).media.mediaText).matches) walk((r as CSSMediaRule).cssRules, ctx);
       } else if (kind === "CSSSupportsRule") {
         if (CSS.supports((r as CSSSupportsRule).conditionText)) walk((r as CSSSupportsRule).cssRules, ctx);
+      } else if (kind === "CSSScopeRule") {
+        scoped(r as CSSScopeRule, ctx);
       } else if (kind === "CSSContainerRule") {
         const text = (r as CSSContainerRule).conditionText;
         let index = conditions.indexOf(text);
@@ -463,28 +508,31 @@ function collectRules(doc: Document = document): Collected {
         const sr = r as CSSStyleRule;
         const own = splitTop(sr.selectorText, ",");
         const match = ctx.parent === null ? own : own.map((s) => expandNested(s, ctx.parent!));
-        entries.push({ style: sr.style, match, shown: own, layer: ctx.layer, order: order++, containers: ctx.containers });
+        addEntry({ style: sr.style, match, shown: own, layer: ctx.layer, order: order++, containers: ctx.containers }, ctx);
         // CSSStyleRule gained child rules with native nesting; earlier engines expose the style alone.
         const nested = (sr as Partial<CSSGroupingRule>).cssRules;
         if (nested?.length) walk(nested, { ...ctx, parent: match.join(", ") });
       } else if (kind === "CSSNestedDeclarations") {
-        if (ctx.parent !== null)
-          entries.push({
+        if (ctx.parent !== null || ctx.scope)
+          addEntry({
             style: (r as CSSStyleRule).style,
-            match: [`:is(${ctx.parent})`],
-            shown: [ctx.parent],
+            match: [ctx.parent === null ? ":where(:scope)" : `:is(${ctx.parent})`],
+            shown: [ctx.parent ?? "&"],
             layer: ctx.layer,
             order: order++,
             containers: ctx.containers,
-          });
+          }, ctx);
       }
     }
   };
-  for (const s of Array.from(doc.styleSheets)) {
+  const topLevel = (s: CSSStyleSheet) => sheet(s, {
+    layer: null, containers: [], parent: null, sheetRoot: s.ownerNode?.parentElement ?? doc.documentElement,
+  });
+  for (const s of doc.styleSheets) {
     if (s.media.mediaText && !matchMedia(s.media.mediaText).matches) continue;
-    sheet(s, { layer: null, containers: [], parent: null });
+    topLevel(s);
   }
-  for (const s of doc.adoptedStyleSheets) sheet(s, { layer: null, containers: [], parent: null });
+  for (const s of doc.adoptedStyleSheets) topLevel(s);
   // Children before their parent's own rules; unlayered (the root) last.
   const layerRank = new Map<string | null, number>();
   let rank = 0;
@@ -493,16 +541,17 @@ function collectRules(doc: Document = document): Collected {
     layerRank.set(node.key === "" ? null : node.key, rank++);
   };
   visit(root);
-  return { entries, layerRank, conditions, unreadable };
+  return { entries, layerRank, conditions, scopeCSS, unreadable };
 }
 
 // Container queries have no script API; the engine evaluates them through a probe sheet: every element gets
 // --doan-cq-N: 0, and 1 inside the condition.
-function containerProbe(doc: Document, conditions: string[]): () => void {
-  if (conditions.length === 0) return () => {};
+function matchProbe(doc: Document, { conditions, scopeCSS }: Collected): () => void {
+  if (!conditions.length && !scopeCSS.length) return () => {};
   const probe = new CSSStyleSheet();
   const zero = conditions.map((_, i) => `--doan-cq-${i}: 0`).join(";");
-  probe.replaceSync(`:where(*) { ${zero} }\n` + conditions.map((c, i) => `@container ${c} { :where(*) { --doan-cq-${i}: 1 } }`).join("\n"));
+  const containers = conditions.map((c, i) => `@container ${c} { :where(*) { --doan-cq-${i}: 1 } }`);
+  probe.replaceSync([`:where(*) { ${zero} }`, ...containers, ...scopeCSS].join("\n"));
   const before = [...doc.adoptedStyleSheets];
   doc.adoptedStyleSheets = [...before, probe];
   return () => {
@@ -549,17 +598,26 @@ function matches(el: Element, selector: string): boolean {
 
 type Level = { inlineStyle?: CdpStyle; attributesStyle?: CdpStyle; matchedCSSRules: CdpRuleMatch[] };
 function levelOf(el: Element, c: Collected): Level {
-  const cs = c.conditions.length ? getComputedStyle(el) : null;
-  const hits: { m: CdpRuleMatch; spec: Spec; rank: number; order: number }[] = [];
+  const cs = c.conditions.length || c.scopeCSS.length ? getComputedStyle(el) : null;
+  const hits: { m: CdpRuleMatch; spec: Spec; rank: number; depth: number; order: number }[] = [];
   for (const e of c.entries) {
     if (e.containers.some((i) => cs!.getPropertyValue(`--doan-cq-${i}`).trim() !== "1")) continue;
     const idx: number[] = [];
+    let depth = -1;
     let spec: Spec | null = null;
     for (const [i, sel] of e.match.entries()) {
-      if (!matches(el, sel)) continue;
+      let rootDepth = -1;
+      if (e.scopeMarkers) {
+        const value = cs!.getPropertyValue(e.scopeMarkers[i]!).trim();
+        if (!value) continue;
+        rootDepth = Number(value);
+      } else if (!matches(el, sel)) continue;
       idx.push(i);
       const sp = specificity(sel);
-      if (spec === null || cmp(sp, spec) > 0) spec = sp;
+      if (spec === null || cmp(sp, spec) > 0) {
+        spec = sp;
+        depth = rootDepth;
+      } else if (cmp(sp, spec) === 0) depth = Math.max(depth, rootDepth);
     }
     if (spec === null) continue;
     const rule: CdpRuleMatch["rule"] = {
@@ -568,9 +626,9 @@ function levelOf(el: Element, c: Collected): Level {
       style: styleOf(e.style),
     };
     if (e.layer !== null) rule.layers = [{ text: e.layer }];
-    hits.push({ m: { matchingSelectors: idx, rule }, spec, rank: c.layerRank.get(e.layer) ?? 0, order: e.order });
+    hits.push({ m: { matchingSelectors: idx, rule }, spec, depth, rank: c.layerRank.get(e.layer) ?? 0, order: e.order });
   }
-  hits.sort((a, b) => a.rank - b.rank || cmp(a.spec, b.spec) || a.order - b.order);
+  hits.sort((a, b) => a.rank - b.rank || cmp(a.spec, b.spec) || a.depth - b.depth || a.order - b.order);
   const ua: CdpRuleMatch[] = UA.filter(([sel]) => matches(el, sel)).map(([sel, props]) => ({
     matchingSelectors: [0],
     rule: {
@@ -626,9 +684,7 @@ function cssomMatched(el: Element, c: Collected, parents: Element[]): MatchedSty
   return matched;
 }
 
-function inspectInput(el: Element, c: Collected): InspectInput {
-  const parents: Element[] = [];
-  for (let a = el.parentElement; a; a = a.parentElement) parents.push(a);
+function inspectInput(el: Element, c: Collected, parents: Element[]): InspectInput {
   const cs = getComputedStyle(el);
   const computed = ROW_PROPS.map((name) => ({ name, value: cs.getPropertyValue(name) }));
   for (const name of customNames(c, el)) computed.push({ name, value: cs.getPropertyValue(name) });
@@ -751,10 +807,12 @@ export function inspectElement(element: Element): InspectRow[] {
     for (const row of rows) if (row.value !== "—") valueOnly(row);
     return rows;
   }
-  const collected = collectRules(doc);
-  const restore = containerProbe(doc, collected.conditions);
+  const parents: Element[] = [];
+  for (let a = element.parentElement; a; a = a.parentElement) parents.push(a);
+  const collected = collectRules(doc, [element, ...parents].reverse());
+  const restore = matchProbe(doc, collected);
   try {
-    const input = inspectInput(element, collected);
+    const input = inspectInput(element, collected, parents);
     const rows = inspectRows(input);
     for (const row of rows) if (lostShorthand(row, input.matched)) valueOnly(row);
     externalOverride(element, rows, collected.unreadable);
