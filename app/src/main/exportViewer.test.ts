@@ -1445,15 +1445,18 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     await showInspector(frame);
     const hide = frame.getByRole("button", { name: "Hide inspector", exact: true });
     const tip = frame.getByRole("tooltip").filter({ hasText: "Hide inspector" });
-    await frame.locator("#board").focus();
-    await hide.dispatchEvent("pointerenter");
+    const board = frame.locator("#board");
+    await board.focus();
+    // Opening the inspector can leave the pointer over Hide. Start outside for one fresh hover.
+    await board.hover({ position: { x: 12, y: 12 } });
+    await hide.hover();
     await frame.page().keyboard.press("Escape");
     await frame.evaluate(delay => new Promise(resolve => setTimeout(resolve, delay)), v.TIP_DELAY_MS + 50);
     expect(await tip.isVisible()).toBe(false);
     expect(await hide.getAttribute("aria-describedby")).toBeNull();
 
     await frame.frameLocator("#canvas").locator("section").first().click({ position: { x: 12, y: 12 } });
-    await frame.locator("#element-trigger").press("Tab");
+    await frame.getByRole("button", { name: "Cart, frame. Elements in this frame" }).press("Tab");
     expect(await tip.isVisible()).toBe(true);
     await frame.page().keyboard.press("Escape");
     await frame.locator("#inspect-empty").waitFor();
