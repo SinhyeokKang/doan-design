@@ -527,18 +527,23 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const openRef = useRef(state.open); openRef.current = state.open;
   // Problem overlay (ARCHITECTURE §7): set by the render below, read by effects and listeners declared before it.
   // Whether a problem or reading overlay shows, whether it is a problem scene, and the body under it.
-  const overlaidRef = useRef(false), sceneRef = useRef(false);
+  const overlaidRef = useRef(false), sceneRef = useRef<{ key: string } | null>(null);
   const bodyRef = useRef<"overview" | "canvas" | null>(null);
   // Whether an overlay showed at the last commit, so its going can hand focus on.
   const overlayCommitted = useRef(false);
   // Counts the person's moves into a workspace (completeNavigation): a scene they arrive at takes focus.
   const [arrivalSeq, setArrivalSeq] = useState(0);
   // A scene that should take focus while a modal is open takes it once the modal closes (POSTMORTEM 2026-10-24).
-  const headingPending = useRef(false);
+  const headingPending = useRef<typeof sceneRef.current>(null);
   function focusHeading() {
-    if (live.current.modal || document.querySelector("dialog[open]")) { headingPending.current = true; return; }
-    headingPending.current = false;
-    document.querySelector<HTMLElement>(".workspace .problem-overlay h2")?.focus();
+    const destination = sceneRef.current;
+    if (!destination) return;
+    if (live.current.modal || document.querySelector("dialog[open]")) { headingPending.current = destination; return; }
+    headingPending.current = null;
+    handFocus.current(() => {
+      if (sceneRef.current !== destination || live.current.modal || document.querySelector("dialog[open]")) return;
+      document.querySelector<HTMLElement>(".workspace .problem-overlay h2")?.focus();
+    });
   }
   // Where focus goes once the overlay is gone: the Overview's composer or the canvas area, else the screen's usual
   // place (PRODUCT §5 item 3 'Problem states'), never the page body.
@@ -1936,7 +1941,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   lastOverlay.current = { root: loadedRoot, shown: problem === null ? null : problem.kind === "reading" ? { kind: "reading" } : { kind: "problem", entryKind: problem.entryKind, ...(problem.newer ? { newer: true } : {}) } };
   const scene = problem?.kind === "problem" ? problem : null;
   const overlaid = problem !== null;
-  overlaidRef.current = overlaid; sceneRef.current = scene !== null;
+  const sceneKey = scene ? `${loadedRoot}\n${scene.entryKind}` : null, sceneHeading = scene?.heading ?? "";
+  overlaidRef.current = overlaid;
+  // A later visit can show the same root and kind without owning the earlier visit's activation focus.
+  if (sceneKey !== (sceneRef.current?.key ?? null)) sceneRef.current = sceneKey === null ? null : { key: sceneKey };
   // Details is open per root and kind: another root or kind closes it, a read in between keeps it (PRODUCT §5 item 3 'Problem states'), and
   // keeps the message last shown while the entry carries none.
   const [details, setDetails] = useState<{ root: string; kind: ProblemKind } | null>(null);
@@ -1976,13 +1984,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const announce = (text: string) => setAnnouncement(previous => ({ text, seq: (previous?.seq ?? 0) + 1 }));
   // The scene takes focus to its heading when the person arrived at it, or when focus was in what it covers, on the
   // page, or in the overlay itself (a kind change after a recovery); otherwise the live region reads it (PRODUCT §5 item 3 'Problem states').
-  const sceneKey = scene ? `${loadedRoot}\n${scene.entryKind}` : null, sceneHeading = scene?.heading ?? "";
   const entryKey = screen === "workspace" ? loadedRoot : null;
   const sceneSeen = useRef<{ scene: string | null; arrival: number; entry: string | null; busy: boolean }>({ scene: null, arrival: 0, entry: null, busy: false });
   useEffect(() => {
     const seen = sceneSeen.current;
     sceneSeen.current = { scene: sceneKey, arrival: arrivalSeq, entry: entryKey, busy };
-    if (!sceneKey) { headingPending.current = false; return; }
+    if (!sceneKey) { headingPending.current = null; return; }
     const arrived = arrivalSeq !== seen.arrival || entryKey !== seen.entry;
     if (sceneKey !== seen.scene || arrived) {
       const active = document.activeElement;
@@ -1993,7 +2000,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       return;
     }
     if (seen.busy && !busy) { announce(sceneHeading); return; }
-    if (headingPending.current && !modal) focusHeading();
+    if (headingPending.current === sceneRef.current && !modal) focusHeading();
   }, [sceneKey, sceneHeading, arrivalSeq, entryKey, busy, modal]);
   // A pick or a capture on the covered canvas ends as the overlay shows (ARCHITECTURE §7 'Problem overlay').
   useEffect(() => {
