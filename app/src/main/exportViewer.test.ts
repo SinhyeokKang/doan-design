@@ -838,7 +838,7 @@ describe("breadcrumb rules shared with the canvas header", () => {
   test("the trail and its children use the app's layout and typography", () => {
     for (const selector of [
       ".ov-head", ".doan-canvas-head", ".doan-canvas-trail", ".doan-canvas-project-name",
-      ".doan-canvas-trail > .ov-title-wrap", ".doan-canvas-trail > .doan-canvas-name",
+      ".doan-canvas-trail > .ov-title-wrap", ".doan-canvas-trail > :is(.doan-canvas-project, .ov-title-wrap)", ".doan-canvas-trail > .doan-canvas-name",
       ".doan-canvas-name", ".doan-canvas-name svg", ".doan-canvas-name span", ".ov-sep",
       ".ov-title.doan-button", ".ov-title span",
     ]) {
@@ -863,7 +863,7 @@ describe("breadcrumb rules shared with the canvas header", () => {
     expect(appQueries).toHaveLength(5);
     expect(appQueries[1]).toContain("@container doan-canvas-head (width < 628px)");
     expect(appQueries[1]).toContain(".wt-chip { display: none; }");
-    expect(queries(shellCss)).toEqual(appQueries.filter(rule => !rule.includes(".wt-chip")).map(rule => rule.replace("\n  .", "\n  .js .")));
+    expect(queries(shellCss)).toEqual(appQueries.filter(rule => !rule.includes(".wt-chip")).map(rule => rule.replaceAll("\n  .", "\n  .js .")));
   });
 });
 
@@ -1518,7 +1518,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
   });
 
   test("the viewer hides names in order and keeps named icons at every header width", async () => {
-    const frame = await open(twoFrames);
+    const frame = await open('<section data-doan-frame="payment" data-doan-title="Payment authorization settings for international orders">Payment</section>');
     for (const width of [720, 719, 660, 659, 600, 599, 520, 519, 440, 439]) {
       await frame.evaluate(width => {
         (window.frameElement as HTMLElement).style.width = `${width + 16}px`;

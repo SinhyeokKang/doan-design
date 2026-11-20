@@ -156,9 +156,14 @@ svg { display: block; flex: none; }
 .hue-fuchsia { background: color-mix(in srgb, var(--identity-project-fuchsia) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-fuchsia) 65%, var(--text-standard)); }
 .doan-canvas-trail { display: flex; align-items: center; gap: var(--space-2); flex: 0 1 auto; min-width: 0; }
 /* The static project crumb has a leading inset only, so its thumbnail floor is one inset narrower than the button. */
-.doan-canvas-project { display: inline-flex; align-items: center; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); flex: 0 1e8 auto; min-width: calc(var(--size-icon) + var(--space-2)); gap: var(--space-2); color: var(--text-subtle); font-weight: var(--type-weight-regular); }
+.doan-canvas-project { display: inline-flex; align-items: center; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); flex: 0 1e8 auto; --crumb-min: calc(var(--size-icon) + var(--space-2) + var(--space-2) + var(--size-control)); gap: var(--space-2); color: var(--text-subtle); font-weight: var(--type-weight-regular); }
 .doan-canvas-project-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.doan-canvas-trail > .ov-title-wrap { flex: 0 10000 auto; min-width: calc(2 * var(--space-2) + var(--space-1h) + var(--size-icon)); }
+.doan-canvas-trail > .ov-title-wrap { flex: 0 10000 auto; --crumb-min: calc(2 * var(--space-2) + var(--space-1h) + var(--size-icon) + var(--size-control)); }
+/* Keep part of each long label until its breakpoint, without widening a short name. */
+.doan-canvas-trail > :is(.doan-canvas-project, .ov-title-wrap) {
+  min-width: var(--crumb-min);
+  min-width: calc-size(max-content, min(size, var(--crumb-min)));
+}
 .doan-canvas-trail > .doan-canvas-name { flex: 0 1 auto; max-width: 40cqi; min-width: calc(var(--space-2) + var(--size-icon)); }
 .doan-canvas-name { display: inline-flex; align-items: center; gap: var(--space-1h); flex: none; max-width: 40%; min-width: 0; padding-left: var(--space-2); color: var(--text-subtle); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); }
 .doan-canvas-name svg { width: var(--size-icon); height: var(--size-icon); flex: none; }
@@ -185,9 +190,11 @@ html:not(.js) :is(.ov-sep:not(.doan-canvas-sep-root), .ov-title-wrap, .doan-canv
   .js .doan-canvas-zoom > .doan-icon-button { display: none; }
 }
 @container doan-canvas-head (width < 568px) {
+  .js .doan-canvas-trail > .doan-canvas-project { min-width: max-content; }
   .js .doan-canvas-project-name { display: none; }
 }
 @container doan-canvas-head (width < 488px) {
+  .js .doan-canvas-trail > .ov-title-wrap { min-width: max-content; }
   .js .doan-frame-trigger > span { display: none; }
 }
 @container doan-canvas-head (width < 408px) {
