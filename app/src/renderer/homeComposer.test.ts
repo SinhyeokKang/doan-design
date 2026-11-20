@@ -538,7 +538,7 @@ test("search matches every token over title, id, scope and description, NFC and 
 
 test("a skill word start outranks a preset substring after a supplementary letter", () => {
   const presets = [{ id: "a", title: "𠮷art", description: "", scope: "" }];
-  const skills = [{ name: "b", description: "x art" }];
+  const skills = [{ kind: "skill", name: "b", description: "x art" }] as const;
   expect(searchDrawer(presets, skills, "art").map(row => row.key)).toEqual(["skill:b", "preset:a"]);
 });
 
