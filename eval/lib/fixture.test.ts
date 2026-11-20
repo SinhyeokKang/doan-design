@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { test } from "node:test";
 import { fixtureRun } from "../run.ts";
 import { parseArgs } from "./args.ts";
@@ -44,4 +45,48 @@ test("fixture commands use a fixed fake session rather than the runner's identit
     await fixtureRun(setup, scenario, "pass");
     assert.equal(readFileSync(join(base, "out/W3b-fixture-pass/repo/fixture-session.txt"), "utf8"), "eval-fixture-session||");
   } finally { rmSync(base, { recursive: true, force: true }); }
+});
+
+test("a failed self-test build removes its CLI directory", { timeout: 30_000 }, () => {
+  const base = mkdtempSync("/tmp/doan-build-test-");
+  const round = `build-failure-${basename(base)}`;
+  const out = join(import.meta.dirname, "../../.scratch/agent-eval", round + "-self-test");
+  const capture = join(base, "build-output");
+  let cliDir: string | undefined;
+  try {
+    writeFileSync(join(base, "go"), '#!/bin/sh\nprintf "%s" "$3" > "$BUILD_CAPTURE"\nexit 1\n', { mode: 0o700 });
+    const run = spawnSync(process.execPath, [join(import.meta.dirname, "../run.ts"), "--self-test", "--scenarios", "X1", "--round", round], {
+      env: { ...process.env, PATH: base + ":" + process.env.PATH, BUILD_CAPTURE: capture }, timeout: 25_000, encoding: "utf8",
+    });
+    assert.equal(run.status, 1, run.stderr);
+    assert.match(run.stderr, /go build failed/);
+    cliDir = dirname(readFileSync(capture, "utf8"));
+    assert.equal(existsSync(cliDir), false);
+  } finally {
+    if (cliDir) rmSync(cliDir, { recursive: true, force: true });
+    rmSync(out, { recursive: true, force: true });
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test("a fixture workspace is disposed even when the evidence error cannot be written", { timeout: 15_000 }, async () => {
+  const base = mkdtempSync("/tmp/doan-evidence-test-");
+  let workspace: string | undefined;
+  try {
+    const cli = join(base, "cli");
+    const dir = join(base, "out/W3b-fixture-pass");
+    for (const path of ["seed", "fixtures/pass", "out/W3b-fixture-pass/onboarding.jsonl", "out/W3b-fixture-pass/onboarding-log-error.txt"])
+      mkdirSync(join(base, path), { recursive: true });
+    writeFileSync(cli, '#!/bin/sh\npwd -P > "$2"\nprintf "fixture" > ../rt/onboarding.jsonl\n', { mode: 0o700 });
+    writeFileSync(join(base, "fixtures/pass.commands.json"), JSON.stringify([["record", join(base, "cwd")]]));
+    writeFileSync(join(base, "checks.ts"), 'export default () => [{ id: "fixture", pass: true, detail: "fixture" }];');
+    const scenario = { ...loadScenario(join(import.meta.dirname, "../scenarios"), "W3b"), dir: base, init: null, selectionValue: null };
+    const setup = { options: parseArgs(["--self-test"], new Date()), cli, stub: "stub", out: dirname(dir), meta: { date: "", versions: {}, guideSha256: "", cliVersion: "" } };
+    await assert.rejects(fixtureRun(setup, scenario, "pass"), /onboarding-log-error.txt/);
+    workspace = dirname(readFileSync(join(base, "cwd"), "utf8").trim());
+    assert.equal(existsSync(workspace), false);
+  } finally {
+    if (workspace) rmSync(workspace, { recursive: true, force: true });
+    rmSync(base, { recursive: true, force: true });
+  }
 });
