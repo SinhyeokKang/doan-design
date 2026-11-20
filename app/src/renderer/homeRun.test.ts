@@ -828,6 +828,32 @@ test("Edit on Home after a reload rebuilds the request from the record and the i
   expect(h.run.restore?.request.attachments[1]).not.toHaveProperty("id");
 });
 
+test.each(["navigation", "provider gone"])("Edit on Home discards only the newly issued files when its rebuild loses its destination (%s)", async cause => {
+  lists({ [ROOT]: [summary({ fromHome: false })] });
+  const file = { name: "brief.md", size: 4, kind: "file" as const, path: "/files/brief.md" };
+  doan.readConversation!.mockResolvedValue({ events: [event("c1", { type: "user.message", text: "Look", anchors: [], attachments: [file] })] });
+  doan.removeAttachment = vi.fn(async () => true);
+  const issued = deferred<unknown>();
+  doan.attachmentsFromPaths!.mockReturnValueOnce(issued.promise);
+  const h = harness();
+  h.run.entriesChanged();
+  await flush();
+  const editing = h.run.editOnHome("c1");
+  await flush();
+  expect(doan.attachmentsFromPaths).toHaveBeenCalledOnce();
+  if (cause === "navigation") h.run.personNavigated();
+  else {
+    lists({ [ROOT]: [] });
+    h.run.listChanged(ROOT);
+    await flush();
+  }
+  issued.resolve([{ ok: true, attachment: { ...file, id: "fresh", pasted: false } }]);
+  await editing;
+  expect(doan.removeAttachment.mock.calls).toEqual([["fresh"]]);
+  expect(h.host.goHome).not.toHaveBeenCalled();
+  expect(h.run.restore).toBeNull();
+});
+
 test("Edit on Home gives way to a move the person makes while the record is read", async () => {
   lists({ [ROOT]: [summary({ unseen: true })] });
   const h = harness();

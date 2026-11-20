@@ -8,7 +8,7 @@ import { textSegments } from "./anchorField";
 import * as Parts from "./ComposerParts";
 import { tabKey } from "./ComposerParts";
 import { modelsKey } from "./dockedSupport";
-import { emptyComposer, HeroComposer, pasteAction, slashKey, type ComposerMemory, type HeroComposerProps } from "./HomeComposerView";
+import { emptyComposer, forgetHomeStarts, HeroComposer, pasteAction, slashKey, type ComposerMemory, type HeroComposerProps } from "./HomeComposerView";
 import type { PresetListReply, PresetSummary } from "./homeComposer";
 import type { LastRequest } from "./homeConversations";
 
@@ -380,6 +380,36 @@ test("Home takes the picked project's start message a quit stopped, after the ty
   expect(doan.takeStartDraft).toHaveBeenCalledWith({ root: "/code/doan-design" });
   render(); runEffects();
   expect(doan.takeStartDraft).toHaveBeenCalledTimes(1);
+});
+
+test.each(["take reply", "attachment issuance", "send settlement"])("Remove invalidates Home's old start while waiting for %s", async stage => {
+  const record = { name: "brief.md", kind: "file", size: 1, path: "/files/brief.md" };
+  const reply = deferred<unknown>(), issued = deferred<unknown>();
+  doan.takeStartDraft!.mockReturnValueOnce(reply.promise);
+  doan.attachmentsFromPaths!.mockReturnValueOnce(issued.promise);
+  const { box, render } = setup({ text: "Keep", attachments: [{ key: "kept", id: "owned", name: "kept", status: "ready", kind: "file", pasted: false }] });
+  render(); runEffects();
+  const returned = { text: "Removed", attachments: [record], anchors: [], reason: "restarted" };
+  const files = [{ ok: true, attachment: { ...record, id: "old", pasted: false } }];
+  if (stage === "send settlement") box.current.sending = { generation: 0, text: "Keep", preset: null, keys: ["kept"] };
+  if (stage !== "take reply") {
+    reply.resolve(returned);
+    await vi.waitFor(() => expect(doan.attachmentsFromPaths).toHaveBeenCalledOnce());
+  }
+  if (stage === "send settlement") {
+    issued.resolve(files);
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+  forgetHomeStarts(box, [ENTRY.path]);
+  render(); runEffects();
+  expect(doan.takeStartDraft).toHaveBeenCalledTimes(2);
+  if (stage === "take reply") reply.resolve(returned);
+  else if (stage === "attachment issuance") issued.resolve(files);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(box.current.text).toBe("Keep");
+  expect(box.current.attachments.map(chip => chip.id)).toEqual(["owned"]);
+  if (stage === "take reply") expect(doan.attachmentsFromPaths).not.toHaveBeenCalled();
+  expect(doan.removeAttachment!.mock.calls).toEqual(stage === "take reply" ? [] : [["old"]]);
 });
 
 // The draft is already taken from main, so it lands with its own project even when the person picked another meanwhile.
