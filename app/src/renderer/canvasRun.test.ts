@@ -60,7 +60,7 @@ function harness({ prototype = false }: { prototype?: boolean } = {}) {
     focused: () => state.focused,
     drawing: () => state.drawing,
     remembered: (_root, canvas) => canvas.id === CHECKOUT.id ? state.remembered : state.remembered === undefined ? undefined : null,
-    ...(prototype ? { promoted: () => state.promoted } : { remember }),
+    ...(prototype ? { promoted: () => state.promoted } : { remember, readsProjectThreads: true }),
     changed: vi.fn(),
   };
   const store = new ConversationStore({ list: host.list, readsStarted: host.readsStarted, readsApplied: host.readsApplied, notice: vi.fn(), changed: vi.fn() }, window.doan);

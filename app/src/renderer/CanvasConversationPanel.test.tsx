@@ -48,7 +48,7 @@ const PICK = { pressed: false, enabled: true, reason: null, onToggle: () => {} }
 async function panel(list: ListView, setup: (run: CanvasRun) => void = () => {}, patch: Partial<CanvasConversationProps> = {}) {
   const lists = new Map<string, ListView>([[ROOT, list]]);
   const store = new ConversationStore({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
-  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => drawing, changed: vi.fn() }, store, window.doan);
+  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, readsProjectThreads: true, drawing: () => drawing, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   setup(run);
@@ -86,7 +86,7 @@ test("the drawing preview locks the composer and leaves the thread outside the l
   const out = await panel([project]);
   expect(out).not.toContain('aria-label="Open the project conversation"');
   expect(out).toMatch(/class="cp-foot"[^>]*inert/);
-  expect(out).toContain('contenteditable="false"');
+  expect(out).toContain('contentEditable="false"');
   expect(out).toContain('class="cp-scroll"');
 });
 

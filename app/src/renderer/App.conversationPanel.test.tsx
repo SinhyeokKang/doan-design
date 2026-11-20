@@ -472,7 +472,7 @@ test("a header switch and Back/Forward open the matching path and its conversati
   });
   find<{ open(root: string, row: CanvasRow): void }>(ShellSidebar)[0]!.props.open("/w/a", rowA);
   render();
-  const nav = () => (pane() as Pane & { navigation: { worktree(root: string, path: string): void; overview(): void } }).navigation;
+  const nav = () => (pane() as Pane & { navigation: { worktree(root: string, path: string): void } }).navigation;
   nav().worktree("/w/b", rowA.path); render();
   expect(controller.openCanvas!.mock.lastCall).toMatchObject(["/w/b", second, undefined, { keepView: true }]);
   expect(conversation()?.target).toEqual({ root: "/w/b", canvas: { path: rowA.path, id: "b" } });
@@ -487,8 +487,7 @@ test("a header switch and Back/Forward open the matching path and its conversati
   expect(controller.openCanvas).not.toHaveBeenCalled();
   expect(harness.toast.show).toHaveBeenCalledWith(expect.stringContaining("a is no longer"));
   expect(conversation()?.target.root).toBe("/w/b");
-  nav().overview();
-  expect(controller.showOverview).toHaveBeenCalled();
+  expect(nav()).not.toHaveProperty("overview");
 });
 
 test("a canvas page showing a page outside the list keeps the draft in a composer that takes no input", async () => {

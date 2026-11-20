@@ -21,7 +21,6 @@ import { INSPECTOR_PANEL_ID } from "./InspectorPanel";
 
 export interface CanvasHeaderNavigation {
   card: HomeCard; root: string; homeDirectory: string | null;
-  overview(): void;
   worktree(root: string, canvasPath: string): void;
 }
 
@@ -49,7 +48,7 @@ export function CanvasHeader({ navigation, state, view, canvasKey = null, comman
   return <header className="ov-head doan-canvas-head">
     <nav className="doan-canvas-trail" aria-label="Breadcrumb">
       {navigation && crumbs.map(crumb => {
-        if (crumb.kind === "project") return <ProjectCrumb key="project" label={crumb.label} name={crumb.name} overview={navigation.overview} />;
+        if (crumb.kind === "project") return <ProjectCrumb key="project" label={crumb.label} />;
         if (crumb.kind === "worktree") return <WorktreeSwitch key="worktree" canvasKey={canvasKey} fallbackFocus={fallbackFocus} model={crumb.model} reason={crumb.reason}
           onWorktree={root => { if (canvas) navigation.worktree(root, canvas.path); }} />;
         return <Fragment key="canvas"><span className="ov-sep doan-canvas-sep-root" aria-hidden="true">/</span>
@@ -77,13 +76,13 @@ export function CanvasHeader({ navigation, state, view, canvasKey = null, comman
   </header>;
 }
 
-function ProjectCrumb({ label, name, overview }: { label: string; name: string; overview(): void }) {
+function ProjectCrumb({ label }: { label: string }) {
   const text = useRef<HTMLSpanElement>(null);
   const [tip, setTip] = useState(false);
   return <Tooltip open={tip} onOpenChange={open => setTip(open && (text.current?.offsetWidth === 0 || isCut(text.current)))}>
-    <TooltipTrigger asChild><button type="button" className="doan-button doan-canvas-project" data-ui-variant="trigger" data-ui-size="sm" aria-label={name} onClick={overview}>
+    <TooltipTrigger asChild><span className="doan-canvas-project" role="img" aria-label={label}>
       <span className={`shell-thumbnail hue-${projectHue(label)}`} aria-hidden="true">{projectInitial(label)}</span><span className="doan-canvas-project-name" ref={text}>{label}</span>
-    </button></TooltipTrigger><TooltipContent side="bottom">{name}</TooltipContent>
+    </span></TooltipTrigger><TooltipContent side="bottom">{label}</TooltipContent>
   </Tooltip>;
 }
 
