@@ -323,7 +323,8 @@ The exported inspector was measured against all eight frames of `.doan/canvases/
 | Element menu | The menu is 263px wide inside the column, with 4px padding and 24px corners. Opening on a selection 13 levels deep scrolls its name into view. Home returns the horizontal scroll to zero. |
 | Row copy | Success and failure use 16px horizontal padding. The status fill is rgb(245,245,246), and the failure text is rgb(100,23,35). Clicking a token row reported the token name in both engines. Denying both clipboard paths produced the failure line. |
 | Text drag | The highlight uses rgb(151,59,225) at 30% opacity. A drag over canvas text with `user-select: none` kept the element selection and supplied plain text to the browser’s ⌘C copy event. |
-| Yield | At 640px the column yields and Show inspector takes rgb(149,149,149). At 657px the column and its previous selection return. |
+| Width and alignment | At a 1280px viewport, dragging the 280px column to 690px leaves a 574px board. The toolbar and board centres both measure x = 295px. Home widens the column to 904px. |
+| Yield | At 656px the inspector measures 280px and the board 360px. The toolbar and board centres both measure x = 188px. At 655px the inspector yields and Show inspector becomes unavailable. Widening restores the preferred width and selection. |
 
 In the exported file, Escape from the element menu returned focus to the element name. Clearing the final selection with Escape returned focus to the board. Switching to Hand cleared the selection and properties. Holding Space hid the mark and releasing it restored the selection. Hide inspector showed its tooltip on hover and on keyboard focus.
 
