@@ -386,7 +386,8 @@ export class CanvasRun {
   // draft when it has none, unless this panel's own start from that draft is in flight (POSTMORTEM 2026-11-14: a draft
   // whose send can be in flight never moves; the composer empties only the key it sent from).
   private followNew(s: CanvasState, known: ReadonlySet<string>, list: readonly ConversationSummary[]): boolean {
-    const id = followNewConversation(known, list, s.target.canvas, conversationId => this.store.deleting(conversationId));
+    const preview = this.host.readsProjectThreads && s.notice?.kind === "drawing" ? s.notice.open : undefined;
+    const id = followNewConversation(known, list, s.target.canvas, conversationId => this.store.deleting(conversationId), preview);
     if (id === null) return false;
     const key = canvasKey(s.target);
     if (!this.starting.has(key)) this.store.setDrafts(drafts => (hasDraft(drafts.get(key)) ? carryDraft(drafts, key, `conversation:${id}`) : drafts));

@@ -394,6 +394,17 @@ test("the automatically empty canvas tracks its drawing thread and follows its b
   expect(doan.readConversation).toHaveBeenCalledTimes(1);
 });
 
+test("a binding and a newer canvas conversation in one list keep the previewed thread", () => {
+  const h = harness();
+  h.state.drawing = P;
+  h.run.show(checkout);
+  h.answer([summary(P, { canvas: null })]);
+  expect(h.run.view()).toMatchObject({ conversationId: P, preview: true });
+  h.state.drawing = null;
+  h.answer([summary(A, { lastActivityAt: at(20) }), promoted({ lastActivityAt: at(1) })]);
+  expect(h.run.view()).toEqual({ kind: "conversation", conversationId: P, notice: null });
+});
+
 test("a drawing that ends without binding restores the canvas draft and New", () => {
   const h = harness();
   h.run.show(checkout);

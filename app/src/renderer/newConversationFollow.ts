@@ -9,11 +9,11 @@ import { byActivity } from "./overviewConversation";
 // window's first message), or to one promoted to it. A promoted conversation was usually listed already, as a project
 // conversation, so `known` cannot tell it apart; it counts whenever it is on this canvas, since one there when the panel
 // fell back would have shown instead. A handoff moves no screen, and neither does a conversation whose history could
-// not be read: a handoff's origin is only in that history. Of several, the most recent. `deleting`: a conversation this
+// not be read: a handoff's origin is only in that history. Keep a preview that bound in this read, otherwise take the most recent. `deleting`: a conversation this
 // window is deleting.
-export function followNewConversation(known: ReadonlySet<string> | null, list: readonly ConversationSummary[], canvas: Canvas, deleting: (id: string) => boolean = () => false): string | null {
+export function followNewConversation(known: ReadonlySet<string> | null, list: readonly ConversationSummary[], canvas: Canvas, deleting: (id: string) => boolean = () => false, preview?: string): string | null {
   if (known === null) return null;
   const fresh = list.filter(c => c.canvas !== undefined && sameCanvas(c.canvas, canvas) && !c.readError && !deleting(c.conversationId)
     && (c.startedBy === "promotion" || (c.startedBy === undefined && !known.has(c.conversationId))));
-  return fresh.sort(byActivity)[0]?.conversationId ?? null;
+  return (fresh.find(c => c.conversationId === preview) ?? fresh.sort(byActivity)[0])?.conversationId ?? null;
 }
