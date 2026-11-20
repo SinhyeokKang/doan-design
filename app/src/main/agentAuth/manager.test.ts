@@ -284,6 +284,20 @@ describe("sign-in", () => {
       expect(text).toContain("doan: antigravity sign-in failed: the server refused authenticate (code -32000)");
       leaksNothing(text);
     });
+    it("keeps final stderr delivered after a refused ACP reply until the pipes close", async () => {
+      const m = manager({ adapters: withAcp() }); await m.load();
+      const run = started(await m.signIn("antigravity", 7));
+      const p = await acpRequest("initialize"); p.reply("initialize", INIT);
+      await acpRequest("authenticate");
+      stopReleases = false;
+      p.finish(1, false); await flush();
+      p.print(JSON.stringify({ jsonrpc: "2.0", id: p.requests().at(-1)!.id, error: { code: -32000, message: "refused" } }) + "\n");
+      await flush();
+      p.print(glog("I", "server.py:12", "Cleared credential file"), "stderr"); p.release();
+      await run.done;
+      expect(logged()).toContain("the server refused authenticate (code -32000)");
+      expect(logged()).toContain("server.py:12 server deleted its stored credential");
+    });
     it("logs recognized server events by Doan's own wording and withholds every other line", async () => {
       const m = manager({ adapters: withAcp() }); await m.load();
       const run = started(await m.signIn("antigravity", 7));
