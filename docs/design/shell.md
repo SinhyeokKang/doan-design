@@ -166,6 +166,20 @@ Settings is a page of the main window, like Add Projects: the shell's header and
 - **Lock ink on the current tab and Back.** The current Settings tab is `aria-disabled` and dimmed while the page is locked, like every header tab on a locked page; the draft leaves it unmarked. Locked Back takes the disabled ink and default cursor; the draft marks it without the shipped ink.
 - **Switch thumb** is the button's `::before`, not a child span; its values match the draft's span.
 
+### Opening macOS notification settings
+
+The three frames in [the notification settings canvas](../../.doan/canvases/notification-settings-open.html) were paired with Settings › Notifications in Electron at a 768px content-column width. The failed and retrying states use a refused open followed by a pending keyboard retry on the same button.
+
+| Frame | Permission box, draft / app | Open button, draft / app | Launch error, draft / app |
+|---|---|---|---|
+| Default | 686 × 84 / 686 × 84 | 191.45 × 32 / 191.45 × 32 | Absent / absent |
+| Failed | 686 × 112 / 686 × 112 | 191.45 × 32 / 191.45 × 32 | 654 × 20 / 654 × 20 |
+| Retrying | 686 × 112 / 686 × 112 | 213.45 × 32 / 213.45 × 32 | 654 × 20 / 654 × 20 |
+
+The error follows both buttons, with a 16px icon, 6px gap and 14px/20px danger text. Its text describes the Open button in the accessibility tree. Tab focuses the button in every frame with a 2px black outline. During retry it stays focusable, busy and disabled, with a 14px spinner. The spinner’s rotating bounding rectangle varies with animation phase. The canvas board intercepts pointer hover. When Chromium applies the hover state directly, the button fill matches the app in all three states.
+
+The Delivery subtitle describes main-window inactivity and the viewed prototype conversation. At this width it wraps to two lines and adds 16px to the row. The permission hint owns its note, status or alert role so its actions and the launch error can be announced separately. The app centers the column within the full Settings panel and inherits its body tracking on layout containers. The draft frame has no outer column margin and uses normal tracking on these containers.
+
 ### States not in the draft
 
 - The read-stage notice "Doan couldn’t read its saved settings, so defaults apply." and the newer-file notice above a category's groups (`.settings-notice`, 12px below); the save failure under New conversations (`.settings-save-error`, 12px above, 17px inset). Not measured against a draft.
