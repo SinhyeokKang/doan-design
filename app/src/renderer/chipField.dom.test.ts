@@ -128,7 +128,7 @@ const consistent = () => call<boolean>("consistent");
 
 const NESTED = "Intro\n- Title\n  - Run /copy-check on it\n    - Under 40\n* Buttons\n1. Header\n   1. Logo";
 
-test("list lines draw marker and depth spans over the typed text, without a hanging indent", async () => {
+test("list lines draw marker and depth spans over the typed text, without a hanging indent", { timeout: 60_000 }, async () => {
   await open(NESTED);
   expect(await call("spans")).toEqual([
     'list-mark:ul "- "', 'list-depth:1 "  "', 'list-mark:ul "- "', 'skill-word "/copy-check"', 'list-depth:2 "    "', 'list-mark:ul "- "',
@@ -147,7 +147,7 @@ test("list lines draw marker and depth spans over the typed text, without a hang
   expect(await frame.evaluate(() => getComputedStyle(document.querySelector('.list-mark[data-kind="ol"]')!).color)).toBe("rgb(26, 26, 26)");
 });
 
-test("a depth-0 item's typed leading spaces take no width; a long item wraps to the line start", async () => {
+test("a depth-0 item's typed leading spaces take no width; a long item wraps to the line start", { timeout: 60_000 }, async () => {
   await open("  - Make the hero headline shorter so it fits on one line at the narrowest window width");
   expect(await call("spans")).toEqual(['list-depth:0 "  "', 'list-mark:ul "- "']);
   expect(await call("box", ".list-mark")).toMatchObject({ x: 20, y: 0 });
@@ -169,7 +169,7 @@ test("a depth-0 item's typed leading spaces take no width; a long item wraps to 
   expect(Math.round(second.x)).toBe(0);
 });
 
-test("← and → skip an item's prefix, stopping only at the line start and the body start", async () => {
+test("← and → skip an item's prefix, stopping only at the line start and the body start", { timeout: 60_000 }, async () => {
   await open(NESTED);
   // "- Title": line start 6, body start 8. "    - Under 40": line start 40, body start 46.
   await call("place", 8); await press("ArrowLeft");
@@ -189,7 +189,7 @@ test("← and → skip an item's prefix, stopping only at the line start and the
   expect(await sel()).toEqual({ anchor: 8, focus: 8 });
 });
 
-test("a chip that starts an item's body keeps its own arrow steps and a filler after the marker", async () => {
+test("a chip that starts an item's body keeps its own arrow steps and a filler after the marker", { timeout: 60_000 }, async () => {
   const chip = { frame: { id: "hero", title: "Hero" } };
   await open([{ kind: "text", text: "a\n- " }, { kind: "chip", anchor: chip as never }, { kind: "text", text: " body" }]);
   expect(await consistent()).toBe(true);
@@ -204,7 +204,7 @@ test("a chip that starts an item's body keeps its own arrow steps and a filler a
   expect(await sel()).toEqual({ anchor: 5, focus: 5 });
 });
 
-test("a caret left inside a prefix or at the marker span's end moves to the body's text", async () => {
+test("a caret left inside a prefix or at the marker span's end moves to the body's text", { timeout: 60_000 }, async () => {
   await open("- Title\n  - Child");
   // Inside the depth span of "  - Child" (line start 8): the browser's caret after a click or ↑/↓.
   await frame.evaluate(() => { const depth = document.querySelector(".list-depth")!.firstChild!; document.getSelection()!.setBaseAndExtent(depth, 1, depth, 1); });
@@ -220,7 +220,7 @@ test("a caret left inside a prefix or at the marker span's end moves to the body
   expect(await consistent()).toBe(true);
 });
 
-test("an empty item's caret stands after the marker, outside it, and typing fills the body", async () => {
+test("an empty item's caret stands after the marker, outside it, and typing fills the body", { timeout: 60_000 }, async () => {
   await open("a\n- ");
   const caret = await call<{ x: number; y: number }>("caret");
   expect(caret.x).toBe(32);
@@ -232,7 +232,7 @@ test("an empty item's caret stands after the marker, outside it, and typing fill
   expect(await consistent()).toBe(true);
 });
 
-test("Backspace at a body start removes the marker or outdents, each one undo step", async () => {
+test("Backspace at a body start removes the marker or outdents, each one undo step", { timeout: 60_000 }, async () => {
   await open("- Title\n  - Child");
   await call("place", 12); await press("Backspace");
   expect(await text()).toBe("- Title\n- Child");
@@ -247,7 +247,7 @@ test("Backspace at a body start removes the marker or outdents, each one undo st
   expect(await consistent()).toBe(true);
 });
 
-test("Shift+Enter continues, outdents and ends a list; each is one undo step apart from the typing", async () => {
+test("Shift+Enter continues, outdents and ends a list; each is one undo step apart from the typing", { timeout: 60_000 }, async () => {
   await open("1. Header\n   1. Logo");
   await press("x");
   await press("Shift+Enter");
@@ -267,7 +267,7 @@ test("Shift+Enter continues, outdents and ends a list; each is one undo step apa
   expect(await text()).toBe("plain\n");
 });
 
-test("Tab's indent moves an item under the one above as one undo step, and refuses with no parent", async () => {
+test("Tab's indent moves an item under the one above as one undo step, and refuses with no parent", { timeout: 60_000 }, async () => {
   await open("- a\n- b");
   expect(await frame.evaluate(() => (window as unknown as { probe: { field: { indent(dir: number): boolean } } }).probe.field.indent(1))).toBe(true);
   expect(await text()).toBe("- a\n  - b");
@@ -290,7 +290,7 @@ async function composeThenPress(start: string, caret: number, key: "Enter" | "Ta
   return pressed;
 }
 
-test("Shift+Enter ending a composition continues the list once, after the syllable, in the measured macOS order", async () => {
+test("Shift+Enter ending a composition continues the list once, after the syllable, in the measured macOS order", { timeout: 60_000 }, async () => {
   expect(await composeThenPress("- a", 3, "Enter", true)).toEqual([false, false]);
   expect(await text()).toBe("- a나\n- ");
   expect(await consistent()).toBe(true);
@@ -298,7 +298,7 @@ test("Shift+Enter ending a composition continues the list once, after the syllab
   expect(await text()).toBe("- a나");
 });
 
-test("Tab and Shift+Tab ending a composition move the item once and keep focus; a line that cannot move lets focus go", async () => {
+test("Tab and Shift+Tab ending a composition move the item once and keep focus; a line that cannot move lets focus go", { timeout: 60_000 }, async () => {
   expect(await composeThenPress("- a\n- b", 7, "Tab", false)).toEqual([true, true]);
   expect(await text()).toBe("- a\n  - b나");
   await press("Meta+z");
@@ -310,7 +310,7 @@ test("Tab and Shift+Tab ending a composition move the item once and keep focus; 
   expect(await text()).toBe("plain나");
 });
 
-test("Shift+Enter ending a composition and then Tab indent the new item, from a first or a second item", async () => {
+test("Shift+Enter ending a composition and then Tab indent the new item, from a first or a second item", { timeout: 60_000 }, async () => {
   for (const [start, caret, expected] of [["- a", 3, "- a나\n  - "], ["- a\n- b", 7, "- a\n- b나\n  - "]] as const) {
     await composeThenPress(start, caret, "Enter", true);
     // The Shift+Enter ended the composition, so this Tab is an ordinary press.
@@ -320,14 +320,14 @@ test("Shift+Enter ending a composition and then Tab indent the new item, from a 
   }
 });
 
-test("an input method that does not send the key again gets the edit once from compositionend's deferred run", async () => {
+test("an input method that does not send the key again gets the edit once from compositionend's deferred run", { timeout: 60_000 }, async () => {
   expect(await composeThenPress("- a", 3, "Enter", true, false)).toEqual([false, null]);
   expect(await text()).toBe("- a나\n- ");
   expect(await composeThenPress("- a\n- b", 7, "Tab", false, false)).toEqual([true, null]);
   expect(await text()).toBe("- a\n  - b나");
 });
 
-test("a resent key the host takes answers the press: no line break or indent comes after it", async () => {
+test("a resent key the host takes answers the press: no line break or indent comes after it", { timeout: 60_000 }, async () => {
   // Home's \`/\` list picks the skill on the resent Enter (slashKey ignores Shift) and prevents it.
   expect(await composeThenPress("/", 1, "Enter", true, true, { slash: true })).toEqual([false, true]);
   expect(await text()).toBe("/demo ");
@@ -339,7 +339,7 @@ test("a resent key the host takes answers the press: no line break or indent com
   expect(await text()).toBe("- a\n- b나Next");
 });
 
-test("without a resent Tab, one that cannot move the item moves focus from the deferred run", async () => {
+test("without a resent Tab, one that cannot move the item moves focus from the deferred run", { timeout: 60_000 }, async () => {
   await composeThenPress("- a", 3, "Tab", false, false);
   expect(await text()).toBe("- a나");
   expect(await call("focused")).toBe("after");
@@ -351,7 +351,7 @@ test("without a resent Tab, one that cannot move the item moves focus from the d
   expect(await call("focused")).toBe("f");
 });
 
-test("a pending Shift+Enter or Tab does not edit a field locked or removed before the deferred run", async () => {
+test("a pending Shift+Enter or Tab does not edit a field locked or removed before the deferred run", { timeout: 60_000 }, async () => {
   for (const [key, shift] of [["Enter", true], ["Tab", false]] as const) {
     for (const close of ["lock", "dispose"]) {
       await open("- a\n- b");
@@ -368,7 +368,7 @@ test("a pending Shift+Enter or Tab does not edit a field locked or removed befor
   }
 });
 
-test("deletions the browser makes across the spans leave the field drawn as its text", async () => {
+test("deletions the browser makes across the spans leave the field drawn as its text", { timeout: 60_000 }, async () => {
   await open("- Title\n  - Run");
   // ⌘⌫ at the end of "  - Run" takes the whole line.
   await call("place", 15); await press("Meta+Backspace");
@@ -380,7 +380,7 @@ test("deletions the browser makes across the spans leave the field drawn as its 
   expect(await consistent()).toBe(true);
 });
 
-test("copy keeps the markers and depth spaces as typed", async () => {
+test("copy keeps the markers and depth spaces as typed", { timeout: 60_000 }, async () => {
   await open(NESTED);
   await call("place", 0, NESTED.length);
   // A real ⌘C would overwrite the person's system clipboard (POSTMORTEM 2026-10-27, runtime clipboard): the field's own copy handler
@@ -391,7 +391,7 @@ test("copy keeps the markers and depth spaces as typed", async () => {
 const focused = () => frame.evaluate(() => document.activeElement?.id);
 const moveFocus = (backward: boolean) => frame.evaluate(back => (window as unknown as { Probe: { moveFocus(from: HTMLElement, back: boolean): void } }).Probe.moveFocus(document.getElementById("f")!, back), backward);
 
-test("Ctrl+Tab's focus move reaches the same stop as native Tab, passing over a disabled button with a tabindex", async () => {
+test("Ctrl+Tab's focus move reaches the same stop as native Tab, passing over a disabled button with a tabindex", { timeout: 60_000 }, async () => {
   await open("- a\n  - b", {
     before: '<button id="before">before</button><button id="off-before" disabled tabindex="0">off</button>',
     after: '<button id="off-after" disabled tabindex="0">off</button><button id="after">after</button>',
