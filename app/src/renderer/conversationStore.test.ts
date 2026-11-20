@@ -534,6 +534,55 @@ describe("scheduled rows: request identity and retries", () => {
 // A first message a quit stopped before main accepted it, in an earlier run, comes into its new conversation draft.
 describe("takeStartDraft", () => {
   const CANVAS = { path: ".doan/canvases/a.html", id: "a" };
+  const record = { name: "brief.md", kind: "file", size: 1, path: "/files/brief.md" };
+  const old = { text: "Removed", anchors: [], attachments: [record], reason: "restarted" };
+  const current = { text: "Current", anchors: [], attachments: [], reason: "restarted" };
+  test.each([undefined, CANVAS])("a late start reply cannot land in a re-added project (%j)", async canvas => {
+    const { store } = harness();
+    const reply = deferred<typeof old>();
+    doan.takeStartDraft = vi.fn().mockReturnValueOnce(reply.promise).mockResolvedValue(current);
+    doan.attachmentsFromPaths = vi.fn(async () => []);
+    store.takeStartDraft(ROOT, canvas);
+    store.dropDrafts(() => true);
+    store.takeStartDraft(ROOT, canvas);
+    reply.resolve(old);
+    await flush();
+    expect(doan.attachmentsFromPaths).not.toHaveBeenCalled();
+    expect([...store.drafts.values()].map(draft => draft.segments)).toEqual([[{ kind: "text", text: "Current" }]]);
+    expect(doan.takeStartDraft).toHaveBeenCalledTimes(2);
+  });
+  test("removal releases an attachment still being issued for the old start without touching the re-added draft", async () => {
+    const { store } = harness();
+    const issued = deferred<unknown>();
+    const fresh = (id: string) => [{ ok: true, attachment: { ...record, id, pasted: false } }];
+    doan.takeStartDraft = vi.fn().mockResolvedValueOnce(old).mockResolvedValue({ ...current, attachments: [record] });
+    doan.attachmentsFromPaths = vi.fn().mockReturnValueOnce(issued.promise).mockResolvedValue(fresh("owned"));
+    doan.removeAttachment = vi.fn(async () => true);
+    store.takeStartDraft(ROOT);
+    await flush();
+    expect(doan.attachmentsFromPaths).toHaveBeenCalledOnce();
+    store.dropDrafts(key => key === `root:${ROOT}`);
+    store.takeStartDraft(ROOT);
+    await flush();
+    issued.resolve(fresh("old"));
+    await flush();
+    expect(doan.removeAttachment.mock.calls).toEqual([["old"]]);
+    expect(store.drafts.get(`root:${ROOT}`)?.attachments.map(chip => chip.id)).toEqual(["owned"]);
+  });
+  test("a stale take error leaves the new registration's successful take marked", async () => {
+    const { store } = harness();
+    const reply = deferred<unknown>();
+    doan.takeStartDraft = vi.fn().mockReturnValueOnce(reply.promise).mockResolvedValue(current);
+    store.takeStartDraft(ROOT);
+    store.dropDrafts(() => true);
+    store.takeStartDraft(ROOT);
+    await flush();
+    reply.resolve({ error: "unknown" });
+    await flush();
+    expect(store.drafts.get(`root:${ROOT}`)?.segments).toEqual([{ kind: "text", text: "Current" }]);
+    store.takeStartDraft(ROOT);
+    expect(doan.takeStartDraft).toHaveBeenCalledTimes(2);
+  });
   test("puts a canvas start's message, chips included, after what the canvas's new draft holds, asking main once", async () => {
     const h = harness();
     doan.takeStartDraft = vi.fn(async () => ({ text: "Fix {{1}}", anchors: [CTA], attachments: [], reason: "restarted" }));
