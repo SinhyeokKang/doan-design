@@ -43,20 +43,23 @@ export interface CanvasPanelsLayout {
   inspectorFits: boolean;
 }
 
+export function inspectorBounds(shellWidth: number, conversationWidth = 0): PanelBounds | null {
+  const max = Math.floor(shellWidth - conversationWidth - CANVAS_MIN);
+  return max >= PANEL_MIN ? { min: PANEL_MIN, max } : null;
+}
+
 // The conversation is sized first and the inspector takes what is left, so a narrow window costs the inspector, never
 // the conversation the person is talking in. The inspector has no window-share cap: its width is bounded only by the
 // canvas's minimum beside the conversation.
 export function canvasPanelsLayout({ windowWidth, shellWidth, conversation, inspector }: CanvasPanelsInput): CanvasPanelsLayout {
   const alone = panelBounds(windowWidth, shellWidth);
   const conversationWidth = conversation.open ? panelWidth(conversation.width, alone, canvasPanelDefault(windowWidth)) : 0;
-  const left = Math.floor(shellWidth - conversationWidth - CANVAS_MIN);
-  const inspectorFits = left >= PANEL_MIN;
-  const bounds = inspectorFits ? { min: PANEL_MIN, max: left } : null;
+  const bounds = inspectorBounds(shellWidth, conversationWidth);
   const inspectorWidth = bounds && inspector.open ? panelWidth(inspector.width, bounds, PANEL_MIN) : 0;
   return {
     conversation: { width: conversationWidth, bounds: inspectorWidth > 0 ? panelBounds(windowWidth, shellWidth, inspectorWidth) : alone },
     inspector: { width: inspectorWidth, bounds },
-    inspectorFits,
+    inspectorFits: bounds !== null,
   };
 }
 
