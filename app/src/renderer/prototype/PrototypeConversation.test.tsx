@@ -746,6 +746,46 @@ describe("read persistence across windows", () => {
     expect(run.button().badge).toBeNull();
   });
 
+  test("a mark for an already seen ending cannot hide a newer ending whose last notification preceded its reply", async () => {
+    let saved!: () => void;
+    calls.markConversationSeen!.mockImplementationOnce(() => new Promise<void>(resolve => { saved = resolve; }));
+    await playing({}, [{ ...unread, unseen: false }, other]);
+    run.run.select("B");
+    await flush();
+    expect(calls.markConversationSeen).toHaveBeenCalledWith({ conversationId: "B", seq: 4 });
+    run.run.select("A");
+    run.setView(view(folded));
+    event!(ending("B", 6));
+    listChanged!({ root: ROOT });
+    const persisted = [other, { ...unread, lastActivityAt: "2026-11-01T12:10:00.000Z" }];
+    calls.listConversations!.mockResolvedValueOnce(persisted);
+    // Main already persisted 4, so the successful write sends no other list notification.
+    saved();
+    await flush();
+    await answer(ROOT, persisted);
+    expect(run.store.thread("B")?.events.at(-1)?.seq).toBe(6);
+    expect.soft(run.button().badge).toBe("unseen");
+    run.unfoldTarget();
+    run.setView(view());
+    expect(run.shown()).toMatchObject({ conversationId: "B" });
+    expect(calls.markConversationSeen).toHaveBeenLastCalledWith({ conversationId: "B", seq: 6 });
+  });
+
+  test("an unread snapshot started before a successful mark leaves the badge suppressed until confirmation", async () => {
+    let saved!: () => void;
+    calls.markConversationSeen!.mockImplementationOnce(() => new Promise<void>(resolve => { saved = resolve; }));
+    await playing({}, [unread]);
+    run.setView(view(folded));
+    listChanged!({ root: ROOT });
+    saved();
+    await flush();
+    await answer(ROOT, [unread]);
+    expect(run.button().badge).toBeNull();
+    await answer(ROOT, [{ ...unread, unseen: false }]);
+    expect(run.seen().has("B")).toBe(false);
+    expect(run.button().badge).toBeNull();
+  });
+
   test("a late refusal of an earlier ending keeps the later successful mark until a fresh snapshot", async () => {
     let fail!: (reply: { error: string }) => void;
     calls.markConversationSeen!.mockImplementationOnce(() => new Promise(resolve => { fail = resolve; }));

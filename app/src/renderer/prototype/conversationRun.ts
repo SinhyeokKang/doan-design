@@ -50,8 +50,8 @@ export class PrototypeConversationRun {
   private listFailures = 0;
   private reading: { epoch: number; views: number; again: boolean } | null = null;
   private views = 0;
-  // Main answered a read with "not_playing": it plays a canvas this window has no view of yet, so list changes went
-  // unread. The next view reads again, even of this same canvas (A, B, A coalesced into one view of A).
+  // A list change or confirmation could not be read for this canvas. The next available view reads again,
+  // even of this same canvas (A, B, A coalesced into one view of A).
   private missed = false;
   private reads = 0;
   private applied = 0;
@@ -251,6 +251,12 @@ export class PrototypeConversationRun {
       this.host.changed();
     } else {
       mark.from = this.reads + 1;
+      // Marking an already persisted seq emits no list change. Confirm even when the last notification started
+      // its read before this reply: it may name a newer unseen ending.
+      if (this.key === mark.key) {
+        if (this.view?.canvasRow === "present") this.read();
+        else this.missed = true;
+      }
     }
   }
 
