@@ -1438,10 +1438,11 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
         if (event.data.type === "inspection") {
           window.removeEventListener("message", hold);
           document.querySelector<HTMLButtonElement>("#drawer-button")!.click();
-          for (const message of pending) window.dispatchEvent(new MessageEvent("message", message));
+          for (const message of pending) window.dispatchEvent(message);
         } else {
           event.stopImmediatePropagation();
-          pending.push(event);
+          const { data, origin, source } = event;
+          pending.push(new MessageEvent("message", { data, origin, source }));
         }
       };
       window.addEventListener("message", hold);
