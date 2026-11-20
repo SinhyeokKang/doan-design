@@ -125,6 +125,10 @@ export class CanvasRun {
     this.host.changed();
   }
   panel(open: boolean): void { this.panelOpen = open; this.checkSeen(); }
+  // A failed write leaves this ending eligible the next time the open panel checks it.
+  seenFailed(conversationId: string, seq: number): void {
+    if (this.seenEnd.get(conversationId) === seq) this.seenEnd.delete(conversationId);
+  }
   focusChanged(): void { this.checkSeen(); this.recheckResume(); }
   // A terminal process holds the linked session (session_in_use): nothing says when it exits, so the target is read
   // again when the terminal work list changes and when the window comes back.

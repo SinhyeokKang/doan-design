@@ -26,7 +26,7 @@ import { announcedAgain, LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
 import { LIST_FAILED_TEXT, listFailedNotice, listRetryItem } from "./ListRetryButton";
 import { ReplaceDraftDialog } from "./ReplaceDraftDialog";
 import type { ReplaceDraftConfirm } from "./homeConversations";
-import { ConversationThread, LOADING_DELAY_MS, openReplyLink, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
+import { ConversationLoading, ConversationThread, openReplyLink, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
@@ -414,7 +414,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onOpenLink={url => void openReplyLink(target => window.doan.openLink(target), url, text => props.onNotice?.(text))}
         onCopy={text => Promise.resolve(copyText(text))}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
-        : waiting || conversationId ? <Waiting /> : <div className="ov-col ov-new">
+        : waiting || conversationId ? <ConversationLoading /> : <div className="ov-col ov-new">
           {moved && <div className="doan-notice moved" role="status"><ArrowUpRight className="doan-alert-icon" aria-hidden="true" /><NameTip text={`${moved.title} moved to ${movedCanvas}.`}><span className="grow-text moved-text selectable">
             <span className="moved-title">{moved.title}</span><span className="moved-rest">{` moved to ${movedCanvas}.`}</span></span></NameTip>
             <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onOpenCanvas(moved.canvas, moved.conversationId)}>Open</button></div>}
@@ -462,11 +462,4 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     {replacing && <ReplaceDraftDialog confirm={replacing.confirm} onKeep={() => { setReplacing(null); focusField(); }}
       onReplace={() => { setReplacing(null); resend(replacing.conversationId); }} />}
   </section>;
-}
-
-// The list or the history is read: blank first, then the thread's own loading line.
-function Waiting() {
-  const [slow, setSlow] = useState(false);
-  useEffect(() => { const timer = setTimeout(() => setSlow(true), LOADING_DELAY_MS); return () => clearTimeout(timer); }, []);
-  return <div className="conversation-thread">{slow && <div className="thread-loading" role="status"><span className="doan-spinner" aria-hidden="true" /><span>Loading conversation</span></div>}</div>;
 }
