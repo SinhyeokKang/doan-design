@@ -7,7 +7,7 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
   const hasRoom = matchMedia("(min-width: 657px)");
   const noRoom = "No room for the inspector. Widen the browser window.";
   let wanted = false, epoch = 0, seq = 0, selection = 0, nodes = [];
-  let text = "", dragging = false, copyAttempt = 0, headTimer = 0, rowTimer = 0, point = null;
+  let text = "", dragging = false, copyAttempt = 0, rowTimer = 0, point = null;
   const command = (type, fields = {}) => canvas.contentWindow?.postMessage({ type, epoch, ...fields }, "*");
   const element = (tag, className, value) => {
     const el = document.createElement(tag);
@@ -51,7 +51,7 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     headTip.textContent = !hasRoom.matches ? noRoom : "Show inspector";
     if (!reload && open === !panel.hidden) return;
     const focusMoved = panel.contains(document.activeElement) || document.activeElement === show;
-    headTooltip(false);
+    clearShowTip(); clearHideTip();
     reset();
     panel.hidden = !open;
     panel.parentElement.toggleAttribute("data-inspector", open);
@@ -66,15 +66,24 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
   hide.addEventListener("click", () => { wanted = false; mode(true); });
   hasRoom.addEventListener("change", () => mode(false));
   canvas.addEventListener("load", () => { if (wanted) mode(false, true); });
-  function headTooltip(on) {
-    clearTimeout(headTimer);
-    headTip.hidden = !on;
-    if (on) show.setAttribute("aria-describedby", headTip.id);
-    else show.removeAttribute("aria-describedby");
+  function bindHeadTooltip(button, tip) {
+    let timer = 0;
+    function display() {
+      tip.hidden = false;
+      button.setAttribute("aria-describedby", tip.id);
+    }
+    function dismiss() {
+      clearTimeout(timer);
+      tip.hidden = true;
+      button.removeAttribute("aria-describedby");
+    }
+    button.addEventListener("pointerenter", () => { timer = setTimeout(display, TIP_DELAY_MS); });
+    button.addEventListener("focus", () => { if (button.matches(":focus-visible")) display(); });
+    for (const type of ["pointerleave", "blur", "pointerdown"]) button.addEventListener(type, dismiss);
+    return dismiss;
   }
-  show.addEventListener("pointerenter", () => { headTimer = setTimeout(() => headTooltip(true), TIP_DELAY_MS); });
-  show.addEventListener("focus", () => { if (show.matches(":focus-visible")) headTooltip(true); });
-  for (const type of ["pointerleave", "blur", "pointerdown"]) show.addEventListener(type, () => headTooltip(false));
+  const clearShowTip = bindHeadTooltip(show, headTip);
+  const clearHideTip = bindHeadTooltip(hide, $("inspector-hide-tip"));
   mode(false);
 
   async function copy(value) {
@@ -151,7 +160,7 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     if (typeof to === "number") { event.preventDefault(); rows[clamp(to, 0, rows.length - 1)].focus(); }
   });
   function render(message) {
-    const hadFocus = body.contains(document.activeElement) || menu.contains(document.activeElement);
+    const hadFocus = document.activeElement === trigger || body.contains(document.activeElement) || menu.contains(document.activeElement);
     closeMenu(false); clearTip();
     selection = message.seq; nodes = message.nodes; copyAttempt++;
     body.replaceChildren(); status.replaceChildren();
@@ -285,7 +294,7 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     },
     blocks(target) { return dragging || panel.contains(target) || !menu.hidden; },
     menuOpen() { return !menu.hidden; },
-    clearText() { if (!panel.hidden) command("inspect-clear-text"); },
+    clearSelection() { if (wanted) command("inspect-clear"); },
     syncOverlay() { if (!panel.hidden) command("inspect-overlay", { open: !menu.hidden || popupOpenNow() }); },
     wheel,
   };

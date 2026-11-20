@@ -404,7 +404,7 @@ function chooseTool(next) {
   }
   pendingTool = null;
   tool = next;
-  if (next === "hand") inspector.clearText();
+  if (next === "hand") inspector.clearSelection();
   for (const button of toolButtons) {
     const own = button.dataset.tool === tool;
     button.setAttribute("aria-pressed", String(own));

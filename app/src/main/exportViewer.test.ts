@@ -1420,19 +1420,20 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
 
   test("Hide inspector shows its tooltip on hover and keyboard focus", async () => {
     const frame = await openCanvas(twoFrames);
-    await showInspector(frame);
+    const show = frame.getByRole("button", { name: "Show inspector", exact: true });
     const hide = frame.getByRole("button", { name: "Hide inspector", exact: true });
     const tip = frame.getByRole("tooltip").filter({ hasText: "Hide inspector" });
-    await hide.hover();
-    await expect.poll(() => tip.isVisible()).toBe(true);
-    await frame.locator("#board").hover({ position: { x: 2, y: 2 } });
-    await expect.poll(() => tip.isVisible()).toBe(false);
-    await hide.press("Tab");
-    await frame.page().keyboard.press("Shift+Tab");
+    await show.press("Enter");
     expect(await hide.evaluate(el => document.activeElement === el)).toBe(true);
     expect(await tip.isVisible()).toBe(true);
     await hide.press("Enter");
     expect(await frame.evaluate(() => document.activeElement?.id)).toBe("inspector-show");
+    await show.click();
+    await frame.locator("#board").focus();
+    expect(await tip.isVisible()).toBe(false);
+    await hide.hover();
+    await expect.poll(() => tip.isVisible()).toBe(true);
+    expect(await hide.getAttribute("aria-describedby")).toBe(await tip.getAttribute("id"));
   });
 
   test("a folded viewer leaves canvas clicks and hover alone", async () => {

@@ -212,7 +212,11 @@ function canvasInspection(post) {
         if (open) inspect(selected);
         return;
       }
-      if (!open || data.epoch !== epoch) return;
+      if (data.epoch !== epoch) return;
+      if (!open) {
+        if (data.type === "inspect-clear") selected = null;
+        return;
+      }
       if (data.type === "inspect-escape") {
         if (range || press?.state === "drag") clearText();
         else if (selected) inspect(inspectCanvas.escapeTarget(inspectCanvas.framesOf(selected), selected.hasAttribute("data-doan-frame")));
