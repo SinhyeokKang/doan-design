@@ -67,6 +67,7 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
     void readEntry();
     return () => {
       offWatch(); offAuth();
+      current.current = null;
       if (locked.current) { locked.current = false; live.current.onLock(false); }
     };
   }, []);
@@ -153,13 +154,19 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
   const removeFailed = () => { const open = current.current; if (open?.kind === "remove") setDialog({ ...open, busy: false, failed: true }); };
 
   const openAdd = () => setDialog({ kind: "add", value: "", error: null, busy: false });
-  const closeAdd = () => { setDialog(null); requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-mcp-add]")?.focus()); };
+  const closeAdd = () => {
+    const open = current.current;
+    if (open?.kind !== "add" || open.busy) return;
+    setDialog(null);
+    requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-mcp-add]")?.focus());
+  };
   const submitAdd = async () => {
     const open = current.current;
     if (open?.kind !== "add" || open.busy || !open.value.trim()) return;
-    setDialog({ ...open, busy: true });
+    const submission = { ...open, busy: true };
+    setDialog(submission);
     const reply = await window.doan.addMcpServer(open.value).catch(() => ({ ok: false as const, reason: "write_failed" as const }));
-    if (current.current?.kind !== "add") return;
+    if (current.current !== submission) return;
     if (reply.ok) { pending.current = { kind: "added", name: reply.name }; setDialog(null); return; }
     setDialog({ kind: "add", value: open.value, error: addError(reply), busy: false });
   };
@@ -216,7 +223,7 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
       </section>;
     })}
     <p className="ob-live" role="status">{announced}</p>
-    {dialog?.kind === "add" && <AddServerDialog dialog={dialog} change={value => setDialog({ ...dialog, value, error: null })} submit={() => void submitAdd()} close={closeAdd} />}
+    {dialog?.kind === "add" && <AddServerDialog dialog={dialog} change={value => { if (current.current === dialog && !dialog.busy) setDialog({ ...dialog, value, error: null }); }} submit={() => void submitAdd()} close={closeAdd} />}
     {dialog?.kind === "remove" && <RemoveAlert label={dialog.label} busy={dialog.busy} failed={dialog.failed} confirm={confirmRemove} close={closeRemove} />}
   </>;
 }
@@ -270,13 +277,13 @@ function AddServerDialog({ dialog, change, submit, close }: { dialog: Extract<Di
       <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="mcp-add-title">Add server by URL</h3>
         <p className="doan-dialog-description">Enter the address of a remote MCP server. It must start with https://.</p></div></div>
       <div className="field-group">
-        <input className="doan-input" aria-label="Server URL" placeholder="https://mcp.example.com/mcp" spellCheck={false} value={dialog.value} autoFocus
+        <input className="doan-input" aria-label="Server URL" placeholder="https://mcp.example.com/mcp" spellCheck={false} readOnly={dialog.busy} value={dialog.value} autoFocus
           aria-invalid={dialog.error ? true : undefined} aria-describedby={dialog.error ? "mcp-add-error" : undefined} onChange={event => change(event.target.value)} />
         {dialog.error && <p className="settings-msg error selectable" role="alert" id="mcp-add-error"><AlertIcon /><span>{dialog.error}</span></p>}
       </div>
       <div className="doan-dialog-actions">
         {/* Default-size actions, as the compact dialogs are drawn (40px); Settings' row buttons stay sm. */}
-        <button type="button" className="doan-button" data-ui-variant="subtle" onClick={close}>Cancel</button>
+        <button type="button" className="doan-button" data-ui-variant="subtle" aria-disabled={dialog.busy || undefined} data-disabled={dialog.busy ? "" : undefined} onClick={close}>Cancel</button>
         {/* Busy keeps Add focusable (aria-disabled) with the spinner inside; only an empty field disables it. submitAdd
             ignores a press while busy. */}
         <button type="submit" className="doan-button" data-ui-variant="prominent" disabled={!dialog.busy && !dialog.value.trim()} aria-disabled={dialog.busy || undefined} aria-busy={dialog.busy || undefined}>

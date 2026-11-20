@@ -56,6 +56,8 @@ export function SettingsNotifications({ preferences, save }: { preferences: Pref
       return ok;
     }), pressed);
   };
+  const opening = useRetry();
+  const linkFailed = opening.failures > 0;
   const sendTest = () => { void window.doan.sendTestNotification().catch(() => null).then(reply => setTest(reply?.kind === "sent" ? "sent" : "failed")); };
   const sw = (key: keyof NotificationPreferences, label: string, disabled: boolean) => <button type="button" className="doan-switch" role="switch" aria-checked={notifications?.[key] ?? true} aria-label={label}
     disabled={disabled} onClick={() => write(key, { notifications: { [key]: !(notifications?.[key] ?? true) } })} />;
@@ -69,7 +71,7 @@ export function SettingsNotifications({ preferences, save }: { preferences: Pref
       <div className="settings-section-header"><div className="settings-header-copy"><h2 className="settings-section-title" id="settings-notifications-delivery">Delivery</h2></div></div>
       <div className="doan-settings-group" data-layout="rows">
         <div className="doan-preference-row">
-          <div className="doan-preference-row-content"><span className="doan-preference-row-label">Desktop notifications</span><span className="doan-preference-row-description">Only while Doan isn’t the active window. Clicking one opens the conversation.</span></div>
+          <div className="doan-preference-row-content"><span className="doan-preference-row-label">Desktop notifications</span><span className="doan-preference-row-description">Notifications can appear when the main window is inactive, except for the conversation you’re viewing in a prototype.</span></div>
           <div className="doan-preference-row-trailing">{sw("enabled", "Desktop notifications", off)}</div>
           {error("enabled")}
         </div>
@@ -78,8 +80,13 @@ export function SettingsNotifications({ preferences, save }: { preferences: Pref
           <div className={hint.error ? "doan-notice error stacked" : "doan-notice stacked"} role={hint.role}><AlertIcon /><span className="ob-notice-text selectable">{hint.text}</span>
             <div className="ob-notice-actions">
               <button type="button" className="doan-button" data-ui-variant="panel" data-ui-size="sm" onClick={sendTest}>Send test notification</button>
-              <button type="button" className="doan-button" data-ui-variant="panel" data-ui-size="sm" onClick={() => void window.doan.openNotificationSettings().catch(console.error)}>Open System Settings ↗</button>
-            </div></div>
+              <button type="button" className="doan-button" data-ui-variant="panel" data-ui-size="sm" aria-busy={opening.running || undefined} aria-disabled={opening.running || undefined}
+                aria-describedby={linkFailed ? "settings-notifications-open-error" : undefined} onClick={() => opening.run(() => window.doan.openNotificationSettings())}>
+                {opening.running && <span className="doan-spinner" aria-hidden="true" />}Open System Settings ↗</button>
+            </div>
+            {linkFailed && <p className="settings-msg error selectable basis-full" role="alert" id="settings-notifications-open-error"><AlertIcon />
+              <span>{announcedAgain("Couldn’t open System Settings. On your Mac, go to System Settings › Notifications › Doan.", opening.failures - 1)}</span></p>}
+          </div>
         </div>}
       </div>
     </section>
