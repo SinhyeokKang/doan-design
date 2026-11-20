@@ -6,7 +6,7 @@ import { MCP_PROVIDERS, PRESETS, type ConnectorServer, type McpProvider } from "
 // unreadable connectors file is not read as defaults: the providers keep Doan's registrations, so an empty list
 // would drift from them (ARCHITECTURE §7 'MCP connectors'). Exact keys keep anything else from riding along.
 
-// everConnected: per server, presets included, provider connection history since the last confirmed account change.
+// everConnected: per server, presets included, provider connection history since the last sign-out or confirmed account change.
 export interface ConnectorsFile { v: 1; servers: ConnectorServer[]; everConnected: Record<string, McpProvider[]> }
 // broken: unreadable or invalid. newer: a later Doan wrote it; never read or written.
 export type ConnectorsRead = { ok: true; file: ConnectorsFile } | { ok: false; code: "broken" | "newer" };
