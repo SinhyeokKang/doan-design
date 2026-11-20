@@ -182,7 +182,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     // Antigravity's question is single choice with no Other: Send replies with the chosen option, Skip as cancelled.
     answerQuestion(id, input) {
       const pending = permissions.get(id);
-      if (!pending || pending.kind !== "question" || state.terminal) return "stale";
+      if (!pending || pending.kind !== "question" || state.terminal || ending()) return "stale";
       const answer = questionAnswer([pending.question], input);
       if (!answer) return "bad_request";
       const index = answer.outcome === "answered" ? answer.answers["0"]!.selected[0]! : -1;
