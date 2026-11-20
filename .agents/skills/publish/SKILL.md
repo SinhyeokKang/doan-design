@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Publish
 
-`main` changes in two ways only: `/release` (a versioned release of everything on `develop`) and this skill (public-facing documentation that should not wait for the next release, such as a README fix or a landing page update). `/publish` never moves app, CLI, workflow or build code to `main`; that only goes out with `/release`.
+`main` changes in two ways only: `/release` (a versioned release from `develop` or a hotfix from the last stable tag) and this skill (public-facing documentation that should not wait for the next release, such as a README fix or a landing page update). `/publish` never moves app, CLI, workflow or build code to `main`; that only goes out with `/release`.
 
 The maintainer's invocation approves the PR merge into `main` and the merge of `main` back into `develop`. The skill stops only on a failure and reports it.
 

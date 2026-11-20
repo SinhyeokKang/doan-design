@@ -18,7 +18,7 @@ PRODUCT §5 'Deferred'에 따르면 웹(doan.design)의 스택은 앱이 완성�
 ## 섹션 (드래프트 기준)
 
 1. 내비게이션: 로고, Features, GitHub, Download
-2. Hero: 워드마크 `Doan`, Welcome 카피, Download for macOS + View on GitHub, 단체 사진
+2. Hero: 워드마크 `Doan`, Welcome 카피, Download for Mac + View on GitHub, 단체 사진
 3. 영상: 제목·설명 + 앱 창만 담은 데모 영상(영상은 아직 없다, 포스터는 readme-features hero 프레임의 앱 창)
 4. Feature 5개: Doany·Dungdung·Puri·Popo·Dori가 한 기능씩 맡는다
 5. 마무리 CTA: 다운로드 + GitHub
