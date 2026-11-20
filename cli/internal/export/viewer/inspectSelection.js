@@ -6,6 +6,27 @@ function canvasInspection(post) {
   let alt = false, meta = false, pan = false, overlay = false;
   let press = null, range = null, copied = "", dragged = false, cursor = null;
   let lastMarks = "", marksFrame = 0;
+  // The shell has one direct frame (this canvas) and adds a second only while Select can claim
+  // input. A command names its particular sibling so late delivery cannot claim a newer press.
+  function inputWindow(name) {
+    if (parent.length !== 2 || parent[0] !== window) return null;
+    if (name === undefined) return parent[1];
+    if (!name) return null;
+    try { return parent.frames[name] === parent[1] ? parent[1] : null; }
+    catch (error) {
+      if (error.name !== "SecurityError") throw error;
+      return null; // Cross-origin named access throws when the named frame no longer exists.
+    }
+  }
+  let pressWindow = null, downId = null, cancelledPress = false;
+  let modeWindow = null, readyWindow = null, acknowledged = false, pendingClicks = [];
+  function acceptClicks(owner) {
+    readyWindow = owner;
+    if (owner) {
+      for (const click of pendingClicks) if (click.owner === owner) inspect(targetOf(click.target, click.direct));
+    }
+    pendingClicks = pendingClicks.filter(click => !click.owner.closed && click.owner !== owner);
+  }
   const emit = (type, fields) => post({ type, ...fields, epoch, seq: ++seq });
   const targetOf = (element, direct = meta) => {
     if (!(element instanceof Element) || !element.isConnected || element === document.body || element === document.documentElement) return null;
@@ -77,6 +98,7 @@ function canvasInspection(post) {
   function inspect(element) {
     selected = element?.isConnected ? element : null;
     preview = null;
+    if (!open) return;
     const nodes = elementNodes();
     menuNodes = nodes;
     const rows = selected ? inspectCanvas.inspectElement(selected) : [];
@@ -125,9 +147,23 @@ function canvasInspection(post) {
     sendText(true);
   }
   function listen() {
-    const on = (type, handler) => addEventListener(type, event => { if (open) handler(event); }, { capture: true });
+    const on = (type, handler) => addEventListener(type, event => {
+      if (type === "pointerdown" && event.isTrusted) {
+        pressWindow = !event.altKey && event.button === 0 && !event.ctrlKey ? inputWindow() : null;
+        cancelledPress = false;
+        downId = event.pointerId;
+      }
+      if (open || (pressWindow && (!pressWindow.closed || type === "click"))) handler(event);
+    }, { capture: true });
     for (const type of ["pointerdown", "mousedown", "click", "dblclick"]) on(type, event => {
-      if (!event.isTrusted || pan) return;
+      const owner = inputWindow();
+      if (!event.isTrusted) return;
+      if (type === "click" && event.detail && pressWindow && (cancelledPress || pressWindow !== owner)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+      if (!owner) return;
       if (type === "pointerdown") {
         emit("inspect-press", {});
         if (event.button === 0 && !event.ctrlKey) { clearText(); dragged = false; }
@@ -144,10 +180,15 @@ function canvasInspection(post) {
           const start = inspectCanvas.textStart(event);
           if (start) press = { ...start, state: "press" };
         }
-      } else if (type === "click" && !dragged) inspect(targetOf(event.target));
+      } else if (type === "click" && !dragged && (!event.detail || pressWindow === owner)) {
+        // A close and reopen may both be in flight. Step from the selection for this opening,
+        // once the shell has accepted its epoch, using the element hit by the original click.
+        if (owner === readyWindow) inspect(targetOf(event.target));
+        else pendingClicks.push({ owner, target: event.target, direct: meta });
+      }
     });
     on("pointermove", event => {
-      if (!event.isTrusted || pan) return;
+      if (!event.isTrusted || !inputWindow()) return;
       meta = event.metaKey; alt = event.altKey; hovered = event.target;
       if (press?.pointerId === event.pointerId) {
         if (!(event.buttons & 1)) finishDrag();
@@ -168,6 +209,10 @@ function canvasInspection(post) {
     });
     on("pointerout", event => { if (!event.relatedTarget) { hovered = null; marks(); } });
     for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) on(type, event => {
+      if (downId === event.pointerId) {
+        if (type !== "pointerup") cancelledPress = true;
+        downId = null;
+      }
       if (press?.pointerId === event.pointerId) {
         finishDrag();
         hovered = document.elementFromPoint(event.clientX, event.clientY);
@@ -203,17 +248,34 @@ function canvasInspection(post) {
     isOpen: () => open,
     command(data) {
       if (data.type === "inspect-mode" && Number.isSafeInteger(data.epoch) && data.epoch > epoch) {
-        if (open) clearText();
+        const livePress = !cancelledPress && pressWindow && !pressWindow.closed;
+        if (!livePress) clearText();
         open = data.open === true;
+        modeWindow = open ? inputWindow(data.input) : null;
+        acknowledged = false;
+        acceptClicks(null);
         overlay = false;
         epoch = data.epoch;
         seq = 0; hovered = null; preview = null; tree = []; alt = false; meta = false; lastMarks = "";
         if (!data.retain) selected = null;
-        if (open) inspect(selected);
+        if (open) {
+          inspect(selected);
+          if (range) sendText(press?.state === "drag");
+        }
         return;
       }
-      if (!open || data.epoch !== epoch) return;
-      if (data.type === "inspect-escape") {
+      if (data.epoch !== epoch) return;
+      if (!open) {
+        if (data.type === "inspect-clear") selected = null;
+        return;
+      }
+      if (data.type === "inspect-input") {
+        modeWindow = inputWindow(data.input);
+        if (acknowledged) acceptClicks(modeWindow);
+      } else if (data.type === "inspect-ready") {
+        acknowledged = true;
+        if (!pan && modeWindow === inputWindow()) acceptClicks(modeWindow);
+      } else if (data.type === "inspect-escape") {
         if (range || press?.state === "drag") clearText();
         else if (selected) inspect(inspectCanvas.escapeTarget(inspectCanvas.framesOf(selected), selected.hasAttribute("data-doan-frame")));
       } else if (data.type === "inspect-clear") { clearText(); inspect(null); }
@@ -227,7 +289,10 @@ function canvasInspection(post) {
       else if (data.type === "inspect-clear-text") clearText();
       else if (data.type === "inspect-extend") extend(data.x, data.y);
     },
-    pan(on) { pan = on; marks(); },
+    pan(on) {
+      pan = on;
+      marks();
+    },
     layout() {
       if (!open) return;
       if (selected && !selected.isConnected) inspect(null);

@@ -7,7 +7,7 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
   const hasRoom = matchMedia("(min-width: 657px)");
   const noRoom = "No room for the inspector. Widen the browser window.";
   let wanted = false, epoch = 0, seq = 0, selection = 0, nodes = [];
-  let text = "", dragging = false, copyAttempt = 0, headTimer = 0, rowTimer = 0, point = null;
+  let text = "", dragging = false, copyAttempt = 0, rowTimer = 0, point = null;
   const command = (type, fields = {}) => canvas.contentWindow?.postMessage({ type, epoch, ...fields }, "*");
   const element = (tag, className, value) => {
     const el = document.createElement(tag);
@@ -43,38 +43,68 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     $("inspect-empty").hidden = false; body.hidden = true;
     $("inspect-title").hidden = false; wrap.hidden = true; wrap.classList.remove("doan-insp-pick");
   }
-  function mode(focus, reload = false) {
+  // The sandbox can read sibling WindowProxy identities synchronously. This empty context marks
+  // which opening owns a native press before inspect-mode arrives, without intercepting hit tests.
+  let inputMarker = null, inputId = 0, acknowledged = false;
+  function syncInputWindow(panning) {
+    if (panel.hidden || panning) {
+      inputMarker?.remove();
+      inputMarker = null;
+    } else if (!inputMarker) {
+      inputMarker = document.createElement("iframe");
+      inputMarker.name = "doan-inspector-input-" + ++inputId;
+      inputMarker.hidden = true;
+      inputMarker.setAttribute("sandbox", "");
+      panel.append(inputMarker);
+    }
+  }
+  function mode(focus, reason) {
     const open = wanted && hasRoom.matches;
     show.setAttribute("aria-disabled", String(!hasRoom.matches));
     if (!hasRoom.matches) show.setAttribute("aria-description", noRoom);
     else show.removeAttribute("aria-description");
     headTip.textContent = !hasRoom.matches ? noRoom : "Show inspector";
-    if (!reload && open === !panel.hidden) return;
+    if (!reason && open === !panel.hidden) return;
     const focusMoved = panel.contains(document.activeElement) || document.activeElement === show;
-    headTooltip(false);
+    clearShowTip(); clearHideTip();
     reset();
+    syncInputWindow(true);
     panel.hidden = !open;
+    syncInputWindow(panTold);
     panel.parentElement.toggleAttribute("data-inspector", open);
     $("inspector-show-wrap").hidden = open; $("inspector-sep").hidden = open;
     show.setAttribute("aria-expanded", String(open));
-    epoch++; seq = 0;
-    command("inspect-mode", { open, retain: wanted });
+    epoch++; seq = 0; acknowledged = false;
+    command("inspect-mode", { open, retain: wanted && reason !== "clear", input: inputMarker?.name ?? null });
     if (focus || focusMoved) (open ? hide : show).focus({ preventScroll: true });
   }
   show.addEventListener("mousedown", event => event.preventDefault());
   show.addEventListener("click", () => { if (hasRoom.matches) { wanted = true; mode(true); } });
   hide.addEventListener("click", () => { wanted = false; mode(true); });
   hasRoom.addEventListener("change", () => mode(false));
-  canvas.addEventListener("load", () => { if (wanted) mode(false, true); });
-  function headTooltip(on) {
-    clearTimeout(headTimer);
-    headTip.hidden = !on;
-    if (on) show.setAttribute("aria-describedby", headTip.id);
-    else show.removeAttribute("aria-describedby");
+  canvas.addEventListener("load", () => { if (wanted) mode(false, "reload"); });
+  function bindHeadTooltip(button, tip) {
+    let timer = 0;
+    function display() {
+      tip.hidden = false;
+      button.setAttribute("aria-describedby", tip.id);
+    }
+    function dismiss() {
+      clearTimeout(timer);
+      tip.hidden = true;
+      button.removeAttribute("aria-describedby");
+    }
+    button.addEventListener("pointerenter", () => { timer = setTimeout(display, TIP_DELAY_MS); });
+    button.addEventListener("focus", () => { if (button.matches(":focus-visible")) display(); });
+    for (const type of ["pointerleave", "blur", "pointerdown"]) button.addEventListener(type, dismiss);
+    return dismiss;
   }
-  show.addEventListener("pointerenter", () => { headTimer = setTimeout(() => headTooltip(true), TIP_DELAY_MS); });
-  show.addEventListener("focus", () => { if (show.matches(":focus-visible")) headTooltip(true); });
-  for (const type of ["pointerleave", "blur", "pointerdown"]) show.addEventListener(type, () => headTooltip(false));
+  const clearShowTip = bindHeadTooltip(show, headTip);
+  const clearHideTip = bindHeadTooltip(hide, $("inspector-hide-tip"));
+  // Menu handlers can stop propagation. Dismiss the hint without consuming their Escape or the selection step.
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !event.isComposing && event.keyCode !== 229) clearHideTip();
+  }, true);
   mode(false);
 
   async function copy(value) {
@@ -151,7 +181,7 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     if (typeof to === "number") { event.preventDefault(); rows[clamp(to, 0, rows.length - 1)].focus(); }
   });
   function render(message) {
-    const hadFocus = body.contains(document.activeElement) || menu.contains(document.activeElement);
+    const hadFocus = document.activeElement === trigger || body.contains(document.activeElement) || menu.contains(document.activeElement);
     closeMenu(false); clearTip();
     selection = message.seq; nodes = message.nodes; copyAttempt++;
     body.replaceChildren(); status.replaceChildren();
@@ -232,7 +262,8 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     if (panel.hidden || panTold || event.button !== 0 || event.ctrlKey || event.altKey) return;
     if (event.target === board || event.target === $("spacer")) {
       board.focus({ preventScroll: true });
-      command("inspect-clear");
+      // A blank-board click also clears canvas input still waiting for the previous epoch.
+      mode(false, "clear");
     }
   });
   document.addEventListener("selectionchange", () => {
@@ -264,8 +295,10 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
       const message = inspectorMessages.parseMessage(event, canvas.contentWindow, epoch, seq, document.activeElement === canvas);
       if (!message) return;
       seq = message.seq;
-      if (message.type === "inspection") render(message);
-      else if (message.type === "inspect-marks") {
+      if (message.type === "inspection") {
+        if (!acknowledged) { acknowledged = true; command("inspect-ready"); }
+        render(message);
+      } else if (message.type === "inspect-marks") {
         setBox($("selected-mark"), message.selected); setBox($("hover-mark"), message.hover);
       } else if (message.type === "inspect-press") {
         closeMenu(false);
@@ -285,7 +318,11 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     },
     blocks(target) { return dragging || panel.contains(target) || !menu.hidden; },
     menuOpen() { return !menu.hidden; },
-    clearText() { if (!panel.hidden) command("inspect-clear-text"); },
+    pan(on) {
+      syncInputWindow(on);
+      if (inputMarker) command("inspect-input", { input: inputMarker.name });
+    },
+    clearSelection() { if (wanted) command("inspect-clear"); },
     syncOverlay() { if (!panel.hidden) command("inspect-overlay", { open: !menu.hidden || popupOpenNow() }); },
     wheel,
   };
