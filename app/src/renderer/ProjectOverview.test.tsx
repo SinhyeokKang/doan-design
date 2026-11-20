@@ -131,6 +131,7 @@ test("while the list is read the title is unavailable and the composer is a new 
   expect(titleTag(loading)).not.toMatch(/ disabled=""/);
   expect(loading).toContain('placeholder="Ask or describe what to design, / for presets"');
   expect(loading).not.toContain("Loading conversation");
+  expect(loading).toContain('<div class="thread-loading" role="status"></div>');
   const failed = render("error");
   expect(titleTag(failed)).not.toContain("disabled");
 });
