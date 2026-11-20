@@ -1832,6 +1832,35 @@ it("reports a missing rendered frame and falls back to the first id match after 
   } finally { h.controller.dispose(); }
 });
 
+describe("explicit frame opens before the iframe has a viewport", () => {
+  const frames = ["current", "proposed", "last"].map((id, index) => ({ id, x: 48, y: 159 + index * 188, width: 704, height: 188 }));
+  const unmeasured = frames.map(({ id }) => ({ id, x: 0, y: 0, width: 0, height: 0 }));
+
+  it.each([false, true])("fits the requested frame from its measured rect (reload %s)", reload => {
+    const h = selectionHarness();
+    try {
+      const found = vi.fn();
+      h.controller.openCanvas("/repo", h.other, { frame: "proposed" }, { found });
+      h.layout({ href: h.other.url, frames: unmeasured, viewport: 0, height: 0 });
+      if (reload) h.controller.command("reload");
+      h.layout({ href: h.other.url, frames, height: 987 });
+      expect(h.state().currentFrame).toBe(1);
+      expect(found).toHaveBeenCalledExactlyOnceWith(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it.each(["last", "absent"])("honours a newer request for %s during remeasurement", id => {
+    const h = selectionHarness();
+    try {
+      h.controller.openCanvas("/repo", h.other, { frame: "proposed" });
+      h.layout({ href: h.other.url, frames: unmeasured, viewport: 0, height: 0 });
+      h.controller.openCanvas("/repo", h.other, { frame: id });
+      h.layout({ href: h.other.url, frames, height: 987 });
+      expect(h.state().currentFrame).toBe(id === "last" ? 2 : 0);
+    } finally { h.controller.dispose(); }
+  });
+});
+
 it("keeps a picked frame through a live reload of the same canvas before its first layout", () => {
   const h = selectionHarness();
   try {
