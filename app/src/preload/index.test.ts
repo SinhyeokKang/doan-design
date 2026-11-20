@@ -141,6 +141,10 @@ test("the old wizard and Connections calls are gone; the folder picker uses a fi
 test("project remove, locate and reveal use fixed channels", async () => {
   await api.removeProjects([ROOT]);
   expect(mocks.invoke).toHaveBeenLastCalledWith("folders:remove", { paths: [ROOT] });
+  await api.removeProjects([ROOT], true);
+  expect(mocks.invoke).toHaveBeenLastCalledWith("folders:remove", { paths: [ROOT], group: true });
+  await api.interruptProjectTurn({ conversationId: "c1", turnId: "t1" });
+  expect(mocks.invoke).toHaveBeenLastCalledWith("conversation:interrupt", { conversationId: "c1", turnId: "t1", forRemoval: true });
   await api.locateProject(ROOT);
   expect(mocks.invoke).toHaveBeenLastCalledWith("folders:locate", { path: ROOT });
   await api.revealProject(ROOT);

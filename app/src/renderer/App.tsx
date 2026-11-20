@@ -285,6 +285,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // launch restore reads main's whole list, so it can wait for a saved worktree that is still being read.
   const [entries, setEntries] = useState<FolderEntry[]>([]);
   const [allEntries, setAllEntries] = useState<FolderEntry[]>([]);
+  const allEntriesRef = useRef(allEntries);
   // The group's selection before it moved to an auto-registered worktree, by that worktree, in memory.
   const beforeAuto = useRef(new Map<string, string>());
   const [state, setState] = useState(initialCanvasState);
@@ -378,7 +379,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       ? live.current.openCanvasConversation(root, row, conversation.conversationId, { kind: "notification", permission: conversation.waiting })
       : live.current.openShellCanvas(root, row),
     goHome: () => live.current.home(),
-    removeNow: paths => live.current.removeNow(paths),
+    removeNow: (paths, group) => live.current.removeNow(paths, group),
     toast: (message, label, run) => live.current.toast.show(message, label, run),
     sent: request => setHomeMemory(previous => {
       const next = { ...previous, lastRoot: request.root, lastProvider: request.runtime,
@@ -616,6 +617,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
         forgetConversations(removed);
       }
       entriesRef.current = next;
+      allEntriesRef.current = all;
       setEntries(next); setAllEntries(all); instance.updateEntries(next, all); setFoldersSeen(true);
       live.current.leaveVanished(before, next);
     });
@@ -1135,7 +1137,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // names what would go and main refuses a removal of an unlisted path.
   useEffect(() => {
     const removing = homeRun.current.removing;
-    if (removing && !removing.paths.every(path => allEntries.some(entry => entry.path === path))) { homeRun.current.closeRemove(); modalClosed(); }
+    if (!removing) return;
+    if (removing.paths.some(path => allEntries.some(entry => entry.path === path))) return;
+    homeRun.current.closeRemove(); modalClosed();
   }, [allEntries]);
   // The row the Move to Trash dialog asks about left the list: the dialog closes. A folder still loading keeps it.
   useEffect(() => {
@@ -1481,19 +1485,30 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     return () => { window.removeEventListener("dragover", refuse); window.removeEventListener("drop", refuse); };
   }, []);
   // A running Home conversation is stopped first, and only after the person agrees.
-  function remove(paths: string[]): Promise<void> {
+  function remove(paths: string[], currentGroup?: (paths: string[]) => string[]): Promise<void> {
     cancelRestore();
     rememberFocus();
-    return homeRun.current.remove(paths, removalQuestionLabel(cards, paths, names));
+    return homeRun.current.remove(paths, removalQuestionLabel(cards, paths, names), currentGroup);
+  }
+  function cancelRemove() {
+    if (homeRun.current.removing?.pending) return;
+    homeRun.current.cancelRemove();
+    modalClosed();
   }
   // A project's Remove from Doan (the sidebar, the problem overlay, Project Settings) takes the whole group as
   // `doan remove` does, an auto-registered worktree hidden from the shown rows included (PRODUCT §5 item 1).
-  const removeProject = (shown: string[]) => remove(groupRoots(allEntries, shown));
-  async function removeNow(paths: string[]) {
+  const removeProject = (shown: string[]) => {
+    const roots = (paths: string[]) => {
+      const anchor = paths.find(root => allEntriesRef.current.some(entry => entry.path === root));
+      return anchor ? groupRoots(allEntriesRef.current, [anchor]) : [];
+    };
+    return remove(roots(shown), roots);
+  };
+  async function removeNow(paths: string[], group?: true) {
     cancelRestore();
-    const result = await window.doan.removeProjects(paths);
-    if (result.kind !== "removed") throw new Error("Project removal unavailable");
-    forgetRemoved(paths);
+    const result = group ? await window.doan.removeProjects(paths, group) : await window.doan.removeProjects(paths);
+    if (result.kind === "removed") forgetRemoved(paths);
+    return result;
   }
   // What the window forgets about roots it or `doan remove` (folders:removed) took out of the list. Going Home is the
   // entries effect's, as for any vanished root. A second pass for the same roots sets no state, so the CLI's event for
@@ -2742,11 +2757,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   </main>
   {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} kept={projectKeepsLocal(allEntries, setup)} notGit={allEntries.some(entry => entry.path === setup && entry.kind === "uninitialized" && entry.notGit === true)} onClose={() => { pressEnded(setup, "setUp"); setSetup(null); modalClosed(); }} onRerooted={(root, message) => { choose(root); setSetup(null); setHighlight([root]); toast.show(message); modalClosed(); }} />}
   {quickOpen && <QuickOpen entries={entries} conversations={conversationLists} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
-  {run.removing && <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="project-remove-title" aria-describedby="project-remove-body" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); if (!run.removing?.pending) { run.cancelRemove(); modalClosed(); } }}
-    onKeyDown={event => { if (event.key === "Escape" && run.removing?.pending) event.preventDefault(); }}>
+  {run.removing && <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="project-remove-title" aria-describedby="project-remove-body" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); cancelRemove(); }}
+    onKeyDown={event => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); cancelRemove(); } }}>
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="project-remove-title">{run.removing.title}</h3><p className="doan-dialog-description" id="project-remove-body">{run.removing.body}</p></div></div>
     {run.removing.error && <p className="doan-notice error" role="alert" id="project-remove-error"><AlertIcon /><span className="selectable">{run.removing.error}</span></p>}
-    <div className="doan-dialog-actions">{!run.removing.pending && <button type="button" className="doan-button" data-ui-variant="subtle" autoFocus={!run.removing.error} onClick={() => { run.cancelRemove(); modalClosed(); }}>{run.removing.cancel}</button>}
+    <div className="doan-dialog-actions">{!run.removing.pending && <button type="button" className="doan-button" data-ui-variant="subtle" autoFocus={!run.removing.error} onClick={cancelRemove}>{run.removing.cancel}</button>}
       <button type="button" className="doan-button" data-ui-variant="prominent" aria-busy={run.removing.pending || undefined} aria-disabled={run.removing.pending || undefined}
         aria-describedby={run.removing.error ? "project-remove-error" : undefined} onClick={() => { modalClosed(); void run.confirmRemove(); }}>
         {run.removing.pending ? <><span className="doan-spinner" aria-hidden="true" />{run.removing.confirm}</> : run.removing.confirm}</button></div>

@@ -1351,6 +1351,21 @@ describe("removing", () => {
     expect(mocks.shell.remove).not.toHaveBeenCalled();
   });
 
+  test("the menu checks project work and the entire current group immediately before removal", async () => {
+    const contents = window().webContents;
+    const service = mocks.conversationService as unknown as { projectRemovalBusy(roots: string[]): boolean };
+    const busy = vi.spyOn(service, "projectRemovalBusy").mockReturnValueOnce(true);
+    expect(await invoke("folders:remove", contents, null, { paths: [APP, WT], group: true })).toEqual({ kind: "busy" });
+    expect(busy).toHaveBeenCalledWith([APP, WT]);
+    const third = "/code/new";
+    const hidden = { path: third, kind: "notFound", lastCommon: `${APP}/.git`, autoRegistered: true };
+    mocks.shell.entries.mockReturnValue([...entries, hidden]);
+    expect(await invoke("folders:remove", contents, null, { paths: [APP, WT], group: true })).toEqual({ kind: "groupChanged", paths: [APP, WT, third] });
+    expect(mocks.shell.remove).not.toHaveBeenCalled();
+    expect(await invoke("folders:remove", contents, null, { paths: [WT] })).toEqual({ kind: "removed" });
+    expect(mocks.shell.remove).toHaveBeenCalledWith([WT]);
+  });
+
   test("removes a row or a card", async () => {
     const contents = window().webContents;
     expect(await invoke("folders:remove", contents, null, { paths: [WT] })).toEqual({ kind: "removed" });

@@ -378,6 +378,109 @@ function homeFixture(canvases: { path: string; id?: string }[] = [], options: { 
   return { dir, service, store, runners, open, prepare, listed, changes, published, owner, drafts, deleted, passBindingWindow: () => { skew += 10_001; } };
 }
 const homeRequest = { root: "/repo", mode: "newDesign" as const, runtime: "claude" as const, text: "Make a pricing page", anchors: [] };
+it("guards a project removal while its unindexed first turn is preparing and excludes a canvas start", async () => {
+  const h = homeFixture();
+  for (const start of [homeRequest, { ...homeRequest, mode: "new" as const, canvas: { path: ".doan/canvases/probe.html" } }]) {
+    let refuse!: (error: Error) => void;
+    h.prepare.mockImplementationOnce(() => new Promise((_resolve, reject) => { refuse = reject; }));
+    const result = h.service.start(start);
+    expect(h.service.list("/repo")).toEqual([]);
+    expect(h.service.projectRemovalBusy(["/repo"])).toBe(start === homeRequest);
+    expect(h.service.projectRemovalBusy(["/elsewhere"])).toBe(false);
+    refuse(new Error("refused")); await expect(result).rejects.toThrow();
+    expect(h.service.projectRemovalBusy(["/repo"])).toBe(false);
+  }
+});
+
+it("a removal waits for a project turn’s actual group exit after a failed write, and a bounded retry never repeats its Stop", async () => {
+  vi.useFakeTimers();
+  try {
+    const h = homeFixture();
+    const { conversationId: id } = await h.service.start(homeRequest);
+    const turn = h.store.read(id)[0]!.turnId;
+    expect(h.service.list("/repo")[0]).toMatchObject({ projectTurnId: turn });
+    vi.spyOn(h.store, "append").mockImplementationOnce(() => { throw new Error("disk full"); });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    h.service.receive(id, { type: "activity", kind: "read", summary: "Read file" });
+    const stop = h.service.interruptProjectTurn(id, turn);
+    const timedOut = expect(stop).rejects.toThrow("stop_pending");
+    await vi.advanceTimersByTimeAsync(30_000); await timedOut;
+    expect(h.service.projectRemovalBusy(["/repo"])).toBe(true);
+    const closes = vi.mocked(h.runners[0]!.close).mock.calls.length;
+    const again = h.service.interruptProjectTurn(id, turn);
+    h.open.mock.calls[0]![2]();
+    await vi.advanceTimersByTimeAsync(200); await again;
+    expect(h.runners[0]!.close).toHaveBeenCalledTimes(closes);
+    expect(h.service.projectRemovalBusy(["/repo"])).toBe(false);
+  } finally { vi.useRealTimers(); }
+});
+
+it("a native start still pending after Stop cannot outlive project removal or stop a replacement turn", async () => {
+  vi.useFakeTimers();
+  try {
+    const h = homeFixture();
+    let finish!: () => void;
+    const native = new Promise<void>(resolve => { finish = resolve; });
+    const runner: Runner = { sessionId: "codex-server", answer: () => false, send: () => native, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) };
+    h.open.mockResolvedValueOnce(runner);
+    h.prepare.mockResolvedValueOnce({ runtime: "codex", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} });
+    const { conversationId: id } = await h.service.start({ ...homeRequest, runtime: "codex" });
+    const turn = h.store.read(id)[0]!.turnId;
+    await expect(h.service.interruptProjectTurn(id, "replaced-turn")).rejects.toThrow();
+    expect(runner.close).not.toHaveBeenCalled();
+    let settled = false;
+    const stop = h.service.interruptProjectTurn(id, turn).then(() => { settled = true; });
+    await vi.advanceTimersByTimeAsync(10_100);
+    expect(settled).toBe(false);
+    expect(h.service.projectRemovalBusy(["/repo"])).toBe(true);
+    finish(); h.open.mock.calls[0]![2]();
+    await vi.advanceTimersByTimeAsync(200);
+    await stop;
+    expect(h.service.projectRemovalBusy(["/repo"])).toBe(false);
+  } finally { vi.useRealTimers(); }
+});
+
+it("still recognizes an already targeted project turn if it binds to a canvas while its failed shutdown is retried", async () => {
+  vi.useFakeTimers();
+  try {
+    const h = homeFixture();
+    const { conversationId: id } = await h.service.start(homeRequest);
+    const turn = h.store.read(id)[0]!.turnId;
+    vi.mocked(h.runners[0]!.close).mockRejectedValueOnce(new Error("close failed"));
+    const first = expect(h.service.interruptProjectTurn(id, turn)).rejects.toThrow("stop_failed");
+    await vi.advanceTimersByTimeAsync(200); await first;
+    h.store.save(h.store.list().map(m => ({ ...m, canvas: { path: ".doan/canvases/new.html" } })));
+    await vi.advanceTimersByTimeAsync(11_000);
+    expect(h.service.list("/repo")[0]).toMatchObject({ canvas: { path: ".doan/canvases/new.html" }, projectTurnId: turn, working: true });
+    const retry = h.service.interruptProjectTurn(id, turn);
+    h.open.mock.calls[0]![2]();
+    await vi.advanceTimersByTimeAsync(200); await retry;
+    expect(h.service.projectRemovalBusy(["/repo"])).toBe(false);
+  } finally { vi.useRealTimers(); }
+});
+
+it("accepts the observed exit of a reused Codex server while an indexed next turn is still preparing", async () => {
+  vi.useFakeTimers();
+  try {
+    const h = homeFixture();
+    const prepared = { runtime: "codex" as const, configDir: "/profile", cwd: "/repo", command: "/fake", env: {} };
+    h.prepare.mockResolvedValueOnce(prepared);
+    const { conversationId: id } = await h.service.start({ ...homeRequest, runtime: "codex" });
+    h.service.receive(id, { type: "turn.done" });
+    await vi.advanceTimersByTimeAsync(11_000);
+    let admit!: () => void;
+    h.prepare.mockImplementationOnce(() => new Promise(resolve => { admit = () => resolve(prepared); }));
+    const sending = expect(h.service.send(id, "again", [])).rejects.toThrow("busy");
+    const turn = h.service.list("/repo")[0]!.projectTurnId!;
+    const stopping = h.service.interruptProjectTurn(id, turn);
+    const stopped = expect(stopping).resolves.toBeUndefined();
+    h.open.mock.calls[0]![2](); admit();
+    await vi.advanceTimersByTimeAsync(200);
+    await sending; await stopped;
+    expect(h.service.projectRemovalBusy(["/repo"])).toBe(false);
+  } finally { vi.useRealTimers(); }
+});
+
 it("runs a Home start with its chosen model and effort, records them, and applies them again on the next send", async () => {
   const h = homeFixture();
   const id = (await h.service.start({ ...homeRequest, model: "sonnet", effort: "low" })).conversationId;

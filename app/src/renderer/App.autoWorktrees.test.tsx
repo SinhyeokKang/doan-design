@@ -282,7 +282,28 @@ test.each([
   doan.removeProjects = vi.fn(async () => ({ kind: "removed" }));
   press(); render();
   await confirmRemove();
-  expect(doan.removeProjects).toHaveBeenCalledWith([MAIN, OTHER, W]);
+  expect(doan.removeProjects).toHaveBeenCalledWith([MAIN, OTHER, W], true);
+});
+
+test("a hidden worktree added after the project dialog opens requires confirming the enlarged group", async () => {
+  await start([main(), other()]);
+  doan.removeProjects = vi.fn(async () => ({ kind: "removed" }));
+  (sidebar() as unknown as { remove(roots: string[]): void }).remove([MAIN, OTHER]); render();
+  folders([main(), other(), hiddenW()]);
+  await confirmRemove();
+  expect(doan.removeProjects).not.toHaveBeenCalled();
+  expect(all(tree).find(el => el.props.id === "project-remove-body")?.props.children).toContain("3 worktrees");
+  await confirmRemove();
+  expect(doan.removeProjects).toHaveBeenCalledExactlyOnceWith([MAIN, OTHER, W], true);
+});
+
+test("a status-line removal still names and removes only its worktree when another joins the group", async () => {
+  await start([main(), other()]);
+  doan.removeProjects = vi.fn(async () => ({ kind: "removed" }));
+  (sidebar() as unknown as { action(name: string, root: string): void }).action("remove", OTHER); render();
+  folders([main(), other(), hiddenW()]);
+  await confirmRemove();
+  expect(doan.removeProjects).toHaveBeenCalledExactlyOnceWith([OTHER]);
 });
 
 test("a launch restore on an auto-registered worktree waits while it is read, though the row is hidden meanwhile", async () => {

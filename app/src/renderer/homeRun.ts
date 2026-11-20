@@ -1,3 +1,4 @@
+import type { RemoveResult } from "../main/index";
 import type { ScheduledSend } from "../main/conversation/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
@@ -39,7 +40,7 @@ export interface HomeRunHost {
   // to, opened with that conversation in its panel (an entry: a toast's or notification's Open).
   openCanvas(root: string, row: CanvasRow, conversation?: { conversationId: string; waiting: boolean }): void;
   goHome(): void;
-  removeNow(paths: string[]): Promise<void>;
+  removeNow(paths: string[], group?: true): Promise<void | RemoveResult>;
   toast(message: string, action?: string, run?: () => void): void;
   // ui-state's Home memory after a send.
   sent(request: StartInput): void;
@@ -54,11 +55,16 @@ export interface HomeRunHost {
 // drew: the path of the canvas the turn made, until main binds it.
 interface Extras { atStart: string[]; checked: string[]; canvasOpens: number; toasted: string | null; opened: boolean; endedAt?: number; endRead?: number; drew?: string }
 interface Pending { conversationId: string; root: string; moves: number; sawModal: boolean }
-interface RemovalTarget { conversationId: string; waiting: boolean; label: string }
+interface RemovalTarget { conversationId: string; turnId: string; waiting: boolean; label: string; name: string }
 interface Removing extends ReturnType<typeof removalConfirm> {
+  currentGroup?: (paths: string[]) => string[];
+  outstanding?: RemovalTarget[];
   paths: string[]; project: string; stopped: RemovalTarget[]; pending: boolean; error: string | null;
 }
 
+function sameRemovalTurn(a: RemovalTarget, b: RemovalTarget): boolean {
+  return a.conversationId === b.conversationId && a.turnId === b.turnId;
+}
 function conversationsIn(targets: RemovalTarget[]) {
   const labels = new Intl.ListFormat("en").format(targets.map(target => target.label));
   return targets.length === 1 ? `conversation in ${labels}` : `conversations in ${labels}`;
@@ -75,6 +81,7 @@ function isText(event: ConversationEvent) { return event.type === "message.delta
 // judgement, a queue about to go out, a send waiting for the previous process. Main binds a canvas only after a turn
 // ends, so a working conversation with a canvas is a canvas one.
 const holdsRoot = (c: ConversationSummary) => c.working && !c.canvas;
+const removalTarget = (c: ConversationSummary) => c.working && (!c.canvas || c.projectTurnId !== undefined);
 // What keeps Home from starting another project conversation in the root: one that holds it, unless it waits for the
 // person's answer (main's projectBusy). The removal guard still counts a waiting one, which it stops first.
 export const blocksStart = (c: ConversationSummary) => holdsRoot(c) && c.phase !== "waiting";
@@ -488,10 +495,10 @@ export class HomeRun {
   }
 
   // Nothing is removed before the person agrees; a running conversation is stopped first.
-  remove(paths: string[], project: string): Promise<void> {
+  remove(paths: string[], project: string, currentGroup?: (paths: string[]) => string[]): Promise<void> {
     const merged = this.merged();
-    const running = paths.flatMap(root => (merged.get(root) ?? []).filter(holdsRoot)).map(c => ({ conversationId: c.conversationId, waiting: c.phase === "waiting" }));
-    this.removing = { paths, project, stopped: [], pending: false, error: null, ...removalConfirm(running, project, paths.length) };
+    const running = paths.flatMap(root => (merged.get(root) ?? []).filter(removalTarget)).map(c => ({ conversationId: c.conversationId, waiting: c.phase === "waiting" }));
+    this.removing = { paths, project, ...(currentGroup ? { currentGroup } : {}), stopped: [], pending: false, error: null, ...removalConfirm(running, project, paths.length) };
     this.host.changed();
     return Promise.resolve();
   }
@@ -512,27 +519,48 @@ export class HomeRun {
       this.host.changed();
     };
 
+    const changedGroup = (current = dialog.currentGroup?.(paths)) => {
+      if (!current || (current.length === paths.length && current.every(root => paths.includes(root)))) return false;
+      if (!current.length) { this.closeRemove(); return true; }
+      const lists = this.merged();
+      const targets = current.flatMap(root => (lists.get(root) ?? []).filter(removalTarget)).map(c => ({ conversationId: c.conversationId, waiting: c.phase === "waiting" }));
+      const question = removalConfirm(targets, project, current.length);
+      delete dialog.outstanding;
+      Object.assign(dialog, question, { paths: current, pending: false, error: null,
+        body: `The project now has ${current.length} registered ${current.length === 1 ? "worktree" : "worktrees"}. ${question.body}` });
+      this.host.changed();
+      return true;
+    };
+    if (changedGroup()) return;
     // Read main at the press: a listChanged notice (or its follow-up read) may still be on the way.
     let running: RemovalTarget[];
     try {
       const lists = await Promise.all(paths.map(root => window.doan.listConversations({ root })));
-      if (this.removing !== dialog) return;
+      if (this.removing !== dialog || changedGroup()) return;
       const entries = this.host.view().entries;
       running = lists.flatMap((list, i) => {
         if (!Array.isArray(list)) throw new Error(list.error);
         const root = paths[i]!, entry = entries.find(item => item.path === root);
         const label = entry ? worktreeLabel(entry) : root;
-        const targets = list.filter(holdsRoot);
-        return targets.filter(c => !stopped.some(done => done.conversationId === c.conversationId))
-          .map(c => ({ conversationId: c.conversationId, waiting: c.phase === "waiting", label: targets.length > 1 ? `${label} (“${c.title || c.conversationId}”)` : label }));
+        const targets = list.filter(removalTarget);
+        return targets.map(c => {
+          if (!c.projectTurnId) throw new Error("Project turn not yet identified");
+          return { conversationId: c.conversationId, turnId: c.projectTurnId, name: c.title ? `“${c.title}” in ${label}` : `the conversation in ${label}`, waiting: c.phase === "waiting", label: targets.length > 1 ? `${label} (“${c.title || c.conversationId}”)` : label };
+        }).filter(target => !stopped.some(done => sameRemovalTurn(done, target)));
       });
     } catch {
       if (this.removing === dialog) recover("Couldn’t check the project’s conversations.", `Retry to check the conversations before removing ${project}.`);
       return;
     }
     // A plain removal, or a confirmation for fewer conversations, did not authorize stopping additional work.
-    if (running.length > dialog.conversations.length) {
-      Object.assign(dialog, removalConfirm(running, project, paths.length), { pending: false, error: null });
+    const outstanding = dialog.outstanding;
+    if (running.length > dialog.conversations.length || (outstanding && running.some(target => !outstanding.some(previous => sameRemovalTurn(previous, target))))) {
+      const question = removalConfirm(running, project, paths.length);
+      if (dialog.outstanding) {
+        const names = new Intl.ListFormat("en").format(running.map(target => target.name));
+        question.body = `The running conversations changed. Doan will stop ${names}, then remove ${project} from your project list. Files and Git worktrees stay on disk.`;
+      }
+      Object.assign(dialog, question, { outstanding: running, pending: false, error: null });
       this.host.changed();
       return;
     }
@@ -544,12 +572,13 @@ export class HomeRun {
         confirm: "Stopping…", error: null,
       });
       this.host.changed();
-      const replies = await Promise.allSettled(running.map(target => window.doan.interruptConversation({ conversationId: target.conversationId })));
+      const replies = await Promise.allSettled(running.map(target => window.doan.interruptProjectTurn({ conversationId: target.conversationId, turnId: target.turnId })));
       if (this.removing !== dialog) return;
       const failed: RemovalTarget[] = [];
       replies.forEach((reply, i) => {
         (reply.status === "fulfilled" && reply.value === undefined ? stopped : failed).push(running[i]!);
       });
+      dialog.outstanding = failed;
       dialog.conversations = failed.map(target => target.conversationId);
       if (failed.length) {
         const remaining = failed.length === 1 ? "the remaining conversation" : `the remaining ${failed.length} conversations`;
@@ -558,7 +587,16 @@ export class HomeRun {
       }
     }
     try {
-      await this.host.removeNow(paths);
+      if (changedGroup()) return;
+      const result = dialog.currentGroup ? await this.host.removeNow(paths, true) : await this.host.removeNow(paths);
+      if (this.removing !== dialog) return;
+      if (result?.kind === "groupChanged") { changedGroup(result.paths); return; }
+      if (result?.kind === "busy") {
+        dialog.outstanding = [];
+        recover("Project work is still active.", `Retry to check the conversations before removing ${project}.`);
+        return;
+      }
+      if (result?.kind === "unavailable") throw new Error("Project removal unavailable");
     } catch {
       if (this.removing === dialog) recover(`Couldn’t remove ${project} from your project list.`, `Retry to remove ${project}.`);
       return;

@@ -18,6 +18,8 @@ export interface ConversationSummary {
   // waiting for its judgement, a queue about to go out, or a send waiting for the previous process. A project
   // conversation that works holds its root (project_busy).
   working: boolean;
+  // The live generation to which a project removal Stop must be addressed.
+  projectTurnId?: string;
   // The history could not be read (corrupt, over the size limit, or a line from a newer build); only this row fails.
   readError?: true;
   // What started this canvas conversation when the person did not: a handoff (its first message names the earlier
@@ -50,11 +52,12 @@ const COMMAND = "Running a command";
 // returned: a returned draft waits (drafts.ts). suggestion: the suggestion main holds for this conversation.
 // background and stopping: memory-only facts of the run (service.ts list).
 // limitResetsAt and scheduledAt: the usage-limit facts main holds in memory (service.ts list).
-export function conversationSummary(m: ConversationMetadata, read: { ok: true; events: readonly ConversationEvent[] } | { ok: false }, live: { live: boolean; queued: number; working: boolean; returned?: boolean; suggestion?: string; background?: { turnId: string; stopping?: true }; stopping?: true; limitResetsAt?: string; scheduledAt?: string }): ConversationSummary {
+export function conversationSummary(m: ConversationMetadata, read: { ok: true; events: readonly ConversationEvent[] } | { ok: false }, live: { live: boolean; queued: number; working: boolean; projectTurnId?: string; returned?: boolean; suggestion?: string; background?: { turnId: string; stopping?: true }; stopping?: true; limitResetsAt?: string; scheduledAt?: string }): ConversationSummary {
   const base = {
     conversationId: m.conversationId, ...(m.canvas ? { canvas: m.canvas } : {}), title: m.title,
     owner: m.owner.kind, provider: m.session.runtime, ...(m.model ? { model: m.model } : {}), ...(m.effort ? { effort: m.effort } : {}),
     ...(m.fast ? { fast: true as const } : {}), ...(m.permissionMode ? { permissionMode: m.permissionMode } : {}), fromHome: m.fromHome === true, queued: live.queued, working: live.working,
+    ...(live.projectTurnId ? { projectTurnId: live.projectTurnId } : {}),
     ...(live.returned ? { returnedDraft: true as const } : {}),
     ...(live.background ? { background: live.background } : {}), ...(live.stopping ? { stopping: true as const } : {}),
     ...(live.limitResetsAt ? { limitResetsAt: live.limitResetsAt } : {}), ...(live.scheduledAt ? { scheduledAt: live.scheduledAt } : {}),

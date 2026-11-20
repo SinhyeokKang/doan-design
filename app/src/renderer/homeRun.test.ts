@@ -27,7 +27,7 @@ beforeEach(() => {
   doan = {
     startConversation: vi.fn(() => start.promise),
     readConversation: vi.fn(async () => ({ events: [], lastSeq: 0, turn: "starting" })),
-    interruptConversation: vi.fn(async () => {}),
+    interruptProjectTurn: vi.fn(async () => {}),
     listConversations: vi.fn(async () => []),
     markConversationSeen: vi.fn(async () => {}),
     attachmentsFromPaths: vi.fn(async () => []),
@@ -56,7 +56,7 @@ function harness(entries: FolderEntry[] = [list(ROOT, ["a"])]) {
     sent: vi.fn(),
     changed: vi.fn(),
   };
-  doan.interruptConversation!.mockImplementation(async () => { order.push("interrupt"); });
+  doan.interruptProjectTurn!.mockImplementation(async () => { order.push("interrupt"); });
   const run = new HomeRun(host);
   return { run, host, view, order, history, accept: () => accept(), commit: () => commit(), arrive: () => { if (accept()) commit(); }, unavailable: () => unavailable() };
 }
@@ -285,12 +285,12 @@ test("removing a project asks; with a running Home conversation Cancel keeps bot
   h.run.cancelRemove();
   expect(h.run.removing).toBeNull();
   expect(h.host.removeNow).not.toHaveBeenCalled();
-  expect(doan.interruptConversation).not.toHaveBeenCalled();
+  expect(doan.interruptProjectTurn).not.toHaveBeenCalled();
   await h.run.remove([ROOT], "doan");
   lists({ [ROOT]: [summary({ phase: "running" })] });
   await h.run.confirmRemove();
   expect(h.order).toEqual(["interrupt", "remove"]);
-  expect(doan.interruptConversation).toHaveBeenCalledWith({ conversationId: "c1" });
+  expect(doan.interruptProjectTurn).toHaveBeenCalledWith({ conversationId: "c1", turnId: "turn-1" });
   // Without a running conversation the removal still asks first, and removes only once confirmed.
   lists({});
   const idle = harness();
@@ -299,7 +299,7 @@ test("removing a project asks; with a running Home conversation Cancel keeps bot
   expect(idle.host.removeNow).not.toHaveBeenCalled();
   await idle.run.confirmRemove();
   expect(idle.host.removeNow).toHaveBeenCalledWith([ROOT]);
-  expect(doan.interruptConversation).toHaveBeenCalledTimes(1);
+  expect(doan.interruptProjectTurn).toHaveBeenCalledTimes(1);
 });
 
 test.each(["error reply", "rejected request"])("partial removal retains the group and retries only outstanding stops after a %s", async failure => {
@@ -312,12 +312,12 @@ test.each(["error reply", "rejected request"])("partial removal retains the grou
   // Main knows about a different conversation before the renderer gets a list-changed notice.
   lists({ [ROOT]: [running("current")], [OTHER]: [running("other")] });
   const stop = deferred<void>();
-  doan.interruptConversation!.mockImplementationOnce(() => stop.promise);
-  if (failure === "error reply") doan.interruptConversation!.mockResolvedValueOnce({ error: "busy" });
-  else doan.interruptConversation!.mockRejectedValueOnce(new Error("disconnected"));
+  doan.interruptProjectTurn!.mockImplementationOnce(() => stop.promise);
+  if (failure === "error reply") doan.interruptProjectTurn!.mockResolvedValueOnce({ error: "busy" });
+  else doan.interruptProjectTurn!.mockRejectedValueOnce(new Error("disconnected"));
   const first = h.run.confirmRemove();
   await flush();
-  expect(doan.interruptConversation!.mock.calls).toEqual([[{ conversationId: "current" }], [{ conversationId: "other" }]]);
+  expect(doan.interruptProjectTurn!.mock.calls).toEqual([[{ conversationId: "current", turnId: "turn-1" }], [{ conversationId: "other", turnId: "turn-1" }]]);
   expect(h.host.removeNow).not.toHaveBeenCalled();
   expect(h.run.removing?.title).toBe("Stopping conversations…");
   await h.run.confirmRemove();
@@ -330,14 +330,34 @@ test.each(["error reply", "rejected request"])("partial removal retains the grou
     error: "Couldn’t stop the conversation in acme." });
   if (failure === "error reply") {
     await h.run.confirmRemove();
-    expect(doan.interruptConversation!.mock.calls.map(([input]) => input.conversationId)).toEqual(["current", "other", "other"]);
+    expect(doan.interruptProjectTurn!.mock.calls.map(([input]) => input.conversationId)).toEqual(["current", "other", "other"]);
     expect(h.host.removeNow).toHaveBeenCalledExactlyOnceWith([ROOT, OTHER]);
   } else {
     h.run.cancelRemove();
     expect(h.run.removing).toBeNull();
-    expect(doan.interruptConversation).toHaveBeenCalledTimes(2);
+    expect(doan.interruptProjectTurn).toHaveBeenCalledTimes(2);
     expect(h.host.removeNow).not.toHaveBeenCalled();
   }
+});
+
+test.each(["new turn in the stopped conversation", "different conversation replacing the failure"])("Retry reconfirms a %s and binds its next Stop to the turn", async scenario => {
+  const h = harness([list(ROOT, []), list(OTHER, [])]);
+  const running = (id: string, turn: string) => ({ ...summary({ conversationId: id, phase: "running" }), projectTurnId: turn });
+  const main = running("main", "m1"), payment = running("payment", "p1");
+  lists({ [ROOT]: [main], [OTHER]: [payment] });
+  h.run.entriesChanged(); await flush();
+  await h.run.remove([ROOT, OTHER], "Checkout");
+  doan.interruptProjectTurn!.mockResolvedValueOnce(undefined).mockResolvedValueOnce({ error: "busy" });
+  await h.run.confirmRemove();
+  const replacement = scenario.startsWith("new") ? running("main", "m2") : running("shipping", "s1");
+  lists(scenario.startsWith("new") ? { [ROOT]: [replacement], [OTHER]: [payment] } : { [OTHER]: [replacement] });
+  await h.run.confirmRemove();
+  expect(h.run.removing?.confirm).toBe("Stop and remove");
+  expect(doan.interruptProjectTurn).toHaveBeenCalledTimes(2);
+  expect(h.host.removeNow).not.toHaveBeenCalled();
+  await h.run.confirmRemove();
+  expect(doan.interruptProjectTurn).toHaveBeenCalledWith({ conversationId: replacement.conversationId, turnId: replacement.projectTurnId });
+  expect(h.host.removeNow).toHaveBeenCalledOnce();
 });
 
 test("a plain removal that finds new work asks for Stop and remove before interrupting it", async () => {
@@ -346,12 +366,12 @@ test("a plain removal that finds new work asks for Stop and remove before interr
   lists({ [ROOT]: [summary({ phase: "running" })] });
   await h.run.confirmRemove();
   expect(h.host.removeNow).not.toHaveBeenCalled();
-  expect(doan.interruptConversation).not.toHaveBeenCalled();
+  expect(doan.interruptProjectTurn).not.toHaveBeenCalled();
   expect(h.run.removing?.confirm).toBe("Stop and remove");
   // The work ended before the second press.
   lists({});
   await h.run.confirmRemove();
-  expect(doan.interruptConversation).not.toHaveBeenCalled();
+  expect(doan.interruptProjectTurn).not.toHaveBeenCalled();
   expect(h.host.removeNow).toHaveBeenCalledExactlyOnceWith([ROOT]);
 });
 
@@ -482,7 +502,7 @@ test("a new canvas in a root with two live project turns neither opens nor toast
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   conversationId: "c1", title: "Draw it", owner: "doan", provider: "claude", fromHome: true,
   phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "",
-  working: patch.phase !== undefined && patch.phase !== "ended", ...patch,
+  working: patch.phase !== undefined && patch.phase !== "ended", ...(!patch.canvas ? { projectTurnId: "turn-1" } : {}), ...patch,
 });
 function lists(byRoot: Record<string, ConversationSummary[]>) {
   doan.listConversations!.mockImplementation(async ({ root }: { root: string }) => byRoot[root] ?? []);

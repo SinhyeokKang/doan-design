@@ -1,3 +1,4 @@
+import { groupRoots as removalGroup } from "../renderer/homeCards";
 import { parseActivityRoots, readShellActivity } from "./shellActivity";
 import { ConversationService, resolveListedCanvas } from "./conversation/service";
 import { ConversationStore } from "./conversation/store";
@@ -146,7 +147,7 @@ export type MenuCommand = "home" | "quickOpen" | "newConversation" | "pickFromCa
 // projectSettings: the "settings" screen is the Project Settings page, which enables the menu as Settings does; only
 // `doan remove`'s busy sentence tells the two apart.
 export interface MenuInputs { screen: Screen; modal: boolean; choose?: boolean; locked?: boolean; overview?: boolean; pickerAvailable?: boolean; sidebarHidden?: boolean; projectSettings?: boolean }
-export type RemoveResult = { kind: "removed" } | { kind: "unavailable" };
+export type RemoveResult = { kind: "removed" } | { kind: "unavailable" } | { kind: "busy" } | { kind: "groupChanged"; paths: string[] };
 export type LocateResult = { kind: "located"; root: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
 // The onboarding Project step's folder picker: a path only. Inspection, registration and setup go through the
 // onboarding session, so picking a folder changes nothing.
@@ -1489,11 +1490,19 @@ async function start(): Promise<void> {
   }
   // A row or a whole card.
   handle("folders:remove", { kind: "unavailable" }, (event, value: unknown): Promise<RemoveResult> | RemoveResult => {
-    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("paths" in value)) return { kind: "unavailable" };
+    if (!fromWindow(event) || typeof value !== "object" || value === null || !("paths" in value) || Object.keys(value).some(key => key !== "paths" && key !== "group") || ("group" in value && value.group !== true)) return { kind: "unavailable" };
     const paths: unknown = value.paths;
     const stored = ready.entries();
     if (!Array.isArray(paths) || paths.length === 0 || new Set(paths).size !== paths.length ||
-      !paths.every((path) => stored.some((entry) => entry.path === path))) return { kind: "unavailable" };
+      !paths.every(path => typeof path === "string")) return { kind: "unavailable" };
+    if ("group" in value) {
+      const anchor = paths.find(path => stored.some(entry => entry.path === path));
+      if (!anchor) return { kind: "unavailable" };
+      const current = removalGroup(stored, [anchor]);
+      if (current.length !== paths.length || current.some(root => !paths.includes(root))) return { kind: "groupChanged", paths: current };
+    }
+    if (!paths.every(path => stored.some(entry => entry.path === path))) return { kind: "unavailable" };
+    if (conversationService.projectRemovalBusy(paths)) return { kind: "busy" };
     return removeRoots(paths.map(String)).then((removed): RemoveResult => removed.kind === "removed" ? { kind: "removed" } : removed);
   });
   handle("folders:locate", { kind: "unavailable" }, async (event, value: unknown): Promise<LocateResult> => {

@@ -203,7 +203,7 @@ test("a CLI removal of the open project's group goes Home, leaves the sidebar an
 test("a CLI removal leaves the same window state as the menu's Remove from Doan", async () => {
   await menuRemoval();
   const byMenu = windowState();
-  expect(doan.removeProjects).toHaveBeenCalledExactlyOnceWith(["/w/a", "/w/b"]);
+  expect(doan.removeProjects).toHaveBeenCalledExactlyOnceWith(["/w/a", "/w/b"], true);
   reset();
   await cliRemoval();
   expect(windowState()).toEqual(byMenu);

@@ -215,6 +215,8 @@ interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runn
   starting?: { root: string; canvas?: Canvas };
   // A Stop came while this send was prepared, before acceptance: the send is refused at its next check and never runs.
   cancelled?: true;
+  // A project removal can be retried before the interrupted runner's process group reports its exit.
+  removalStop?: { turnId: string; root: string; state: "pending" | "accepted" | "failed" };
   // The accepted turn's provider command (providerCommands.ts commandName), absent for a message.
   command?: string;
   // The permission mode a Codex turn of a Doan connection stated on its thread (turn/start), absent for a command turn,
@@ -795,6 +797,52 @@ export class ConversationService {
     for (const live of this.live.values()) if (this.preparing(live) && live.starting?.root === root && live.starting.canvas) canvases.push(live.starting.canvas);
     return canvases;
   }
+  // The menu removes project conversations only. A first send is invisible to the index until acceptance.
+  projectRemovalBusy(roots: readonly string[]): boolean {
+    for (const [id, live] of this.live) {
+      if (live.starting && !live.starting.canvas && roots.includes(live.starting.root) && this.preparing(live)) return true;
+      if (live.removalStop && roots.includes(live.removalStop.root) && this.removalStopping(id, live)) return true;
+    }
+    return this.store.list().some(m => !m.canvas && roots.includes(m.root) && this.working(m.conversationId));
+  }
+  private removalStopping(id: string, live: Live): boolean {
+    const stop = live.removalStop;
+    return !!stop && stop.turnId === live.turnId && !live.exited && (stop.state === "pending" || this.reservations.some(r => r.owner === id));
+  }
+  // A Stop acknowledgement may precede the native turn/start reply, group exit and binding judgement.
+  // End the project target's runner so even a reusable Codex server must confirm exit before removal.
+  async interruptProjectTurn(id: string, turnId: string): Promise<void> {
+    const live = this.live.get(id), m = this.metadata(id);
+    if (!live || !turnId || live.turnId !== turnId) throw new Error("turn_changed");
+    // A folder refresh can bind a stopped project turn before its runner finishes closing.
+    if (m.canvas && live.removalStop?.turnId !== turnId) throw new Error("turn_changed");
+    if (!this.working(id) && !this.removalStopping(id, live)) return;
+    let stop = live.removalStop;
+    if (!stop || stop.turnId !== turnId || stop.state === "failed") {
+      const attempt: NonNullable<Live["removalStop"]> = { turnId, root: m.root, state: "pending" };
+      live.removalStop = stop = attempt;
+      const runner = live.runner;
+      if (runner) live.closed = true;
+      // Record the person's interruption and cancel the queue before closing the runner; close alone
+      // may deliver an appQuit event. This path owns the single runner shutdown.
+      const interrupt = this.interrupt(id, turnId, true);
+      const close = runner?.close();
+      void Promise.all([interrupt, close]).then(() => { attempt.state = "accepted"; }, () => { attempt.state = "failed"; });
+    }
+    // The acknowledgement and process callback are independent. A timeout keeps the same attempt for
+    // Retry, which observes its progress without interrupting that turn twice.
+    const until = performance.now() + this.exitWaitMs + BIND_GRACE_MS;
+    for (;;) {
+      if (stop.state === "failed") throw new Error("stop_failed");
+      const current = this.live.get(id);
+      // Exit deletes a still-preparing live entry. Only its replacement owns a different turn.
+      if (current && (current !== live || current.turnId !== turnId)) throw new Error("turn_changed");
+      if (stop.state === "accepted" && !this.removalStopping(id, live) && !this.working(id)) return;
+      const left = until - performance.now();
+      if (left <= 0) throw new Error("stop_pending");
+      await new Promise<void>(resolve => setTimeout(resolve, Math.min(100, left)));
+    }
+  }
   // Roots with a start or send main has not accepted yet, or a send waiting for its previous turn's judgement or process:
   // running for the person though liveTurns counts only accepted turns, so `doan remove` (cliRemove.ts) refuses for
   // them as restartHolds holds the restart (POSTMORTEM 2026-11-17 'A quit before main accepted a send…').
@@ -855,7 +903,9 @@ export class ConversationService {
       const queued = this.drafts.queued(m.conversationId).length, working = this.working(m.conversationId);
       const limit = this.limitOf(m), schedule = this.schedules.get(m.conversationId);
       const scheduledAt = schedule && !working && queued ? new Date(schedule.reset).toISOString() : undefined;
-      return conversationSummary(m, read, { live: this.ran(m.conversationId), queued, working, returned: !!this.drafts.returned(m.conversationId), ...(suggestion ? { suggestion } : {}), ...(background ? { background } : {}), ...(stopping ? { stopping: true as const } : {}),
+      const stoppingRemoval = !!live && this.removalStopping(m.conversationId, live);
+      return conversationSummary(m, read, { live: this.ran(m.conversationId), queued, working: working || stoppingRemoval,
+        ...((!m.canvas && working || stoppingRemoval) && live?.turnId ? { projectTurnId: live.turnId } : {}), returned: !!this.drafts.returned(m.conversationId), ...(suggestion ? { suggestion } : {}), ...(background ? { background } : {}), ...(stopping ? { stopping: true as const } : {}),
         ...(limit !== null ? { limitResetsAt: new Date(limit).toISOString() } : {}), ...(scheduledAt ? { scheduledAt } : {}) });
     });
   }
@@ -883,10 +933,10 @@ export class ConversationService {
   }
   // turnId: the turn a Stop was pressed for. A Stop of a done turn's background work (its line) ends that turn's group
   // and writes nothing; one that names a turn no longer current does nothing, so a late press never stops a newer send.
-  async interrupt(id: string, turnId?: string): Promise<void> {
+  async interrupt(id: string, turnId?: string, closingForRemoval = false): Promise<void> {
     this.metadata(id);
     const current = this.live.get(id);
-    if (turnId !== undefined && current?.background && !current.busy) {
+    if (!closingForRemoval && turnId !== undefined && current?.background && !current.busy) {
       const background = current.background;
       if (background.turnId !== turnId || background.stopping) return;
       current.background = { ...background, stopping: true }; this.changedOf(id);
@@ -912,7 +962,7 @@ export class ConversationService {
     // turn ends once it is gone (releaseFailed).
     if (!live.failedPersistence) { live.stopping = true; this.changedOf(id); }
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the runner's stop() can flip this synchronously
-    const stop = live.failedPersistence ? live.runner?.close() : live.runner?.stop(); if (live.busy) this.receive(id, { type: "interrupted", reason: "user" }); await stop;
+    const stop = closingForRemoval ? undefined : live.failedPersistence ? live.runner?.close() : live.runner?.stop(); if (live.busy) this.receive(id, { type: "interrupted", reason: "user" }); await stop;
   }
   // The preparation of a list read (models, project skills); a quit or a stop of the provider during it refuses the read and frees its lease.
   async prepareListing(root: string, runtime: Provider): Promise<Prepared> {
