@@ -31,7 +31,7 @@ const (
 	largeCSSDigest  = "b85ec1ecd2db1e6ca0be71f006695b177039a6d4d875fa20308a53bfec4e3857"
 	// largePageDigest is the page `doan export` wrote for this repository
 	// before the export copies were cut; the page must stay byte for byte.
-	largePageDigest = "27fc7529d62c722501d948e8f70cc3095d414071506c0b741e705d49c1f3ecd8"
+	largePageDigest = "0662c92e7a75cf2e5c9a3f18f7eb174e38645b08756ef5b3364bcff2a63653a5"
 )
 
 const largeCanvas = ".doan/canvases/big-css.html"

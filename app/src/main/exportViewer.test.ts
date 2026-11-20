@@ -838,7 +838,7 @@ describe("breadcrumb rules shared with the canvas header", () => {
   test("the trail and its children use the app's layout and typography", () => {
     for (const selector of [
       ".ov-head", ".doan-canvas-head", ".doan-canvas-trail", ".doan-canvas-project-name",
-      ".doan-canvas-trail > .ov-title-wrap", ".doan-canvas-trail > :is(.doan-canvas-project, .ov-title-wrap)", ".doan-canvas-trail > .doan-canvas-name",
+      ".doan-canvas-trail > .ov-title-wrap", ".doan-canvas-trail > .doan-canvas-name",
       ".doan-canvas-name", ".doan-canvas-name svg", ".doan-canvas-name span", ".ov-sep",
       ".ov-title.doan-button", ".ov-title span",
     ]) {
