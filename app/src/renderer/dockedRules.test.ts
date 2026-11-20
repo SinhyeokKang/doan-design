@@ -116,6 +116,11 @@ describe("dockedAvailability", () => {
     expect(dockedAvailability(input({ auth: auth(status("codex")) })).reason)
       .toEqual({ text: "Claude Code isn’t connected.", action: { label: "Open Agents settings", target: { section: "agents", provider: "claude" } } });
   });
+  test("an existing Codex conversation keeps its Update recovery for an incompatible version", () => {
+    const incompatible = auth(status("codex", {}, { ...FACTS, version: "incompatible" }));
+    expect(dockedAvailability(input({ mode: { ...EXISTING, provider: "codex" }, auth: incompatible })))
+      .toEqual({ enabled: false, reason: { text: "Codex needs an update.", action: { label: "Update", target: { section: "agents", provider: "codex" } } } });
+  });
   test("new-conversation mode uses Home's agent reasons", () => {
     const fresh = { kind: "new", root: "/r" } as const;
     expect(dockedAvailability(input({ mode: fresh, provider: null })).reason).toEqual({ text: "No agent is ready to run.", noAgent: true });
