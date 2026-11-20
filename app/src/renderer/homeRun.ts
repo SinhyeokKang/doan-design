@@ -55,7 +55,7 @@ export interface HomeRunHost {
 // drew: the path of the canvas the turn made, until main binds it.
 interface Extras { atStart: string[]; checked: string[]; canvasOpens: number; toasted: string | null; opened: boolean; endedAt?: number; endRead?: number; drew?: string }
 interface Pending { conversationId: string; root: string; moves: number; sawModal: boolean }
-interface RemovalTarget { conversationId: string; turnId: string; waiting: boolean; label: string; name: string }
+interface RemovalTarget { conversationId: string; turnId: string; waiting: boolean; root: string; worktree: string; title: string }
 interface Removing extends ReturnType<typeof removalConfirm> {
   currentGroup?: (paths: string[]) => string[] | null;
   outstanding?: RemovalTarget[];
@@ -65,8 +65,20 @@ interface Removing extends ReturnType<typeof removalConfirm> {
 function sameRemovalTurn(a: RemovalTarget, b: RemovalTarget): boolean {
   return a.conversationId === b.conversationId && a.turnId === b.turnId;
 }
-function conversationsIn(targets: RemovalTarget[]) {
-  const labels = new Intl.ListFormat("en").format(targets.map(target => target.label));
+function removalLabels(target: RemovalTarget, group: RemovalTarget[]) {
+  const location = group.some(peer => peer.worktree === target.worktree && peer.root !== target.root)
+    ? target.root : target.worktree;
+  const siblings = group.filter(peer => peer.root === target.root && !sameRemovalTurn(peer, target));
+  let title = target.title ? `“${target.title}”` : target.conversationId;
+  if (siblings.some(peer => peer.conversationId === target.conversationId)) title += ` · ${target.turnId}`;
+  else if (target.title && siblings.some(peer => peer.title === target.title)) title += ` · ${target.conversationId}`;
+  return {
+    label: siblings.length ? `${location} (${title})` : location,
+    name: `${target.title || siblings.length ? title : "the conversation"} in ${location}`,
+  };
+}
+function conversationsIn(targets: RemovalTarget[], group: RemovalTarget[]) {
+  const labels = new Intl.ListFormat("en").format(targets.map(target => removalLabels(target, group).label));
   return targets.length === 1 ? `conversation in ${labels}` : `conversations in ${labels}`;
 }
 
@@ -514,7 +526,7 @@ export class HomeRun {
     dialog.pending = true;
     this.host.changed();
     const recover = (error: string, action: string) => {
-      const prior = stopped.length ? `The ${conversationsIn(stopped)} stopped. ` : "";
+      const prior = stopped.length ? `The ${conversationsIn(stopped, [...stopped, ...(dialog.outstanding ?? [])])} stopped. ` : "";
       Object.assign(dialog, { pending: false, title: `${project} is still in Doan`, body: prior + action, cancel: "Keep project", confirm: "Retry", error });
       this.host.changed();
     };
@@ -543,11 +555,11 @@ export class HomeRun {
       running = lists.flatMap((list, i) => {
         if (!Array.isArray(list)) throw new Error(list.error);
         const root = paths[i]!, entry = entries.find(item => item.path === root);
-        const label = entry ? worktreeLabel(entry) : root;
+        const worktree = entry ? worktreeLabel(entry) : root;
         const targets = list.filter(removalTarget);
         return targets.map(c => {
           if (!c.projectTurnId) throw new Error("Project turn not yet identified");
-          return { conversationId: c.conversationId, turnId: c.projectTurnId, name: c.title ? `“${c.title}” in ${label}` : `the conversation in ${label}`, waiting: c.phase === "waiting", label: targets.length > 1 ? `${label} (“${c.title || c.conversationId}”)` : label };
+          return { conversationId: c.conversationId, turnId: c.projectTurnId, waiting: c.phase === "waiting", root, worktree, title: c.title };
         }).filter(target => !stopped.some(done => sameRemovalTurn(done, target)));
       });
     } catch {
@@ -559,7 +571,8 @@ export class HomeRun {
     if (running.length > dialog.conversations.length || (outstanding && running.some(target => !outstanding.some(previous => sameRemovalTurn(previous, target))))) {
       const question = removalConfirm(running, project, paths.length);
       if (dialog.outstanding) {
-        const names = new Intl.ListFormat("en").format(running.map(target => target.name));
+        const group = [...stopped, ...running];
+        const names = new Intl.ListFormat("en").format(running.map(target => removalLabels(target, group).name));
         question.body = `The running conversations changed. Doan will stop ${names}, then remove ${project} from your project list. Files and Git worktrees stay on disk.`;
       }
       Object.assign(dialog, question, { outstanding: running, pending: false, error: null });
@@ -584,7 +597,7 @@ export class HomeRun {
       dialog.conversations = failed.map(target => target.conversationId);
       if (failed.length) {
         const remaining = failed.length === 1 ? "the remaining conversation" : `the remaining ${failed.length} conversations`;
-        recover(`Couldn’t stop the ${conversationsIn(failed)}.`, `Retry to stop ${remaining} and remove ${project}.`);
+        recover(`Couldn’t stop the ${conversationsIn(failed, [...stopped, ...failed])}.`, `Retry to stop ${remaining} and remove ${project}.`);
         return;
       }
     }

@@ -340,6 +340,28 @@ test.each(["error reply", "rejected request"])("partial removal retains the grou
   }
 });
 
+test.each(["same title in one worktree", "same worktree label"])("partial removal distinguishes targets with the %s, including after Retry", async scenario => {
+  const together = scenario === "same title in one worktree";
+  const other = "/elsewhere/doan";
+  const paths = together ? [ROOT] : [ROOT, other];
+  const h = harness(paths.map(root => list(root, [])));
+  const first = summary({ conversationId: "first-id", phase: "waiting", title: "Draw checkout" });
+  const second = summary({ conversationId: "second-id", phase: "running", title: "Draw checkout" });
+  lists(together ? { [ROOT]: [first, second] } : { [ROOT]: [first], [other]: [second] });
+  h.run.entriesChanged(); await flush();
+  await h.run.remove(paths, "Checkout");
+  doan.interruptProjectTurn!.mockResolvedValueOnce(undefined).mockResolvedValue({ error: "busy" });
+  await h.run.confirmRemove();
+  const stopped = together ? "first-id" : ROOT, failed = together ? "second-id" : other;
+  expect(h.run.removing?.body).toContain(stopped);
+  expect(h.run.removing?.error).toContain(failed);
+  lists(together ? { [ROOT]: [second] } : { [other]: [second] });
+  await h.run.confirmRemove();
+  expect(h.run.removing?.body).toContain(stopped);
+  expect(h.run.removing?.error).toContain(failed);
+  expect(doan.interruptProjectTurn!.mock.calls.map(([target]) => target.conversationId)).toEqual(["first-id", "second-id", "second-id"]);
+});
+
 test.each(["new turn in the stopped conversation", "different conversation replacing the failure"])("Retry reconfirms a %s and binds its next Stop to the turn", async scenario => {
   const h = harness([list(ROOT, []), list(OTHER, [])]);
   const running = (id: string, turn: string) => ({ ...summary({ conversationId: id, phase: "running" }), projectTurnId: turn });
