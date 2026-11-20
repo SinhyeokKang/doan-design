@@ -1469,11 +1469,11 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
 
   // Hold the shell's commands in delivery order at the sandbox boundary. Mouse input still goes
   // through Chromium's hit testing. Releasing the queue can split a physical down/up gesture.
-  const openingGesture = async () => {
+  const openingGesture = async (reopen = false) => {
     const frame = await openCanvas('<section data-doan-frame="cart" data-doan-title="Cart"><button style="width:100%;height:180px" onpointerdown="this.dataset.pressed=1" onclick="this.textContent=\'Activated\'">Buy</button></section>', 320, undefined, () => {
       const held: MessageEvent[] = [];
       const hold = (event: MessageEvent) => {
-        if (event.source === parent && event.data?.type?.startsWith("inspect-")) {
+        if (!document.documentElement.dataset.pass && event.source === parent && event.data?.type?.startsWith("inspect-")) {
           event.stopImmediatePropagation();
           const { data, origin, source } = event;
           held.push(new MessageEvent("message", { data, origin, source }));
@@ -1487,8 +1487,16 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
       }, { once: true });
     });
     const canvas = frame.childFrames()[0]!;
+    if (reopen) {
+      await canvas.evaluate(() => { document.documentElement.dataset.pass = "true"; });
+      await showInspector(frame);
+      await canvas.getByRole("button").click();
+      await frame.getByRole("button", { name: "Cart, frame. Elements in this frame", exact: true }).waitFor();
+      await canvas.evaluate(() => { delete document.documentElement.dataset.pass; });
+      await frame.getByRole("button", { name: "Hide inspector" }).press("Enter");
+    }
     await frame.getByRole("button", { name: "Show inspector" }).click();
-    await canvas.locator("html[data-held-mode]").waitFor({ state: "attached", timeout: 3000 });
+    await canvas.locator(`html[data-held-mode="${reopen ? 3 : 1}"]`).waitFor({ state: "attached", timeout: 3000 });
     await frame.waitForFunction(inset => {
       const board = document.getElementById("board")!;
       const stage = document.getElementById("stage")!;
@@ -1506,9 +1514,17 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     const { frame, button, mouse, deliver } = await openingGesture();
     await mouse.down();
     if (timing === "before press ends") {
+      await frame.evaluate(() => {
+        const canvas = document.querySelector<HTMLIFrameElement>("#canvas")!;
+        function received(event: MessageEvent) {
+          if (event.source !== canvas.contentWindow || event.data?.type !== "inspection") return;
+          canvas.dataset.initialReply = "true";
+          window.removeEventListener("message", received);
+        }
+        window.addEventListener("message", received);
+      });
       await deliver();
-      // A round trip ensures the shell processed the initial inspection while the button is held.
-      await dom.flush(frame.childFrames()[0]!);
+      await frame.locator("#canvas[data-initial-reply]").waitFor({ state: "attached" });
     }
     await mouse.up();
     if (timing === "after release") await deliver();
@@ -1518,17 +1534,69 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     expect(await frame.locator("#selected-mark").isVisible()).toBe(true);
   });
 
-  test("a change to Hand during the opening press cancels selection even after returning to Select", async () => {
+  test.each(["Hand", "Space", "panel yield", "close and reopen", "lost capture"])("%s during the opening press cannot leave a selection on release", async action => {
     const { frame, button, mouse, deliver } = await openingGesture();
     await mouse.down();
-    await frame.page().keyboard.press("h");
-    await frame.page().keyboard.press("v");
+    if (action === "Hand") {
+      await frame.page().keyboard.press("h");
+      await expect.poll(() => frame.locator('[data-tool="hand"]').getAttribute("aria-pressed")).toBe("true");
+      await frame.page().keyboard.press("v");
+    } else if (action === "Space") {
+      await frame.page().keyboard.down("Space");
+      await expect.poll(() => frame.locator("#board").getAttribute("data-pan")).toBe("");
+      await frame.page().keyboard.up("Space");
+    } else if (action === "panel yield") {
+      await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "656px"; });
+      await frame.locator("#inspector").waitFor({ state: "hidden" });
+      await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "800px"; });
+      await frame.locator("#inspector").waitFor();
+    } else if (action === "close and reopen") {
+      await frame.getByRole("button", { name: "Hide inspector" }).press("Enter");
+      await frame.getByRole("button", { name: "Show inspector" }).press("Enter");
+    } else {
+      const target = frame.childFrames()[0]!.getByRole("button");
+      const box = (await target.boundingBox())!;
+      await target.evaluate(el => el.setPointerCapture(1));
+      await mouse.move(box.x + box.width / 2 + 1, box.y + box.height / 2);
+      await target.evaluate(el => el.releasePointerCapture(1));
+      await mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    }
     await mouse.up();
     await deliver();
     await dom.flush(frame.childFrames()[0]!);
     expect(await button.getAttribute("data-pressed")).toBeNull();
     expect(await button.textContent()).toBe("Buy");
     expect(await frame.locator("#inspect-empty").isVisible()).toBe(true);
+  });
+
+  test("the first click after reopening steps from the new inspector's empty selection", async () => {
+    const { frame, mouse, deliver } = await openingGesture(true);
+    await mouse.down(); await mouse.up();
+    await deliver();
+    await frame.getByRole("button", { name: "Cart, frame. Elements in this frame", exact: true }).waitFor({ timeout: 3000 });
+  });
+
+  test("Option-click during opening reaches the canvas control", async () => {
+    const { frame, button, mouse, deliver } = await openingGesture();
+    await frame.page().keyboard.down("Alt");
+    try { await mouse.down(); await mouse.up(); }
+    finally { await frame.page().keyboard.up("Alt"); }
+    await deliver();
+    expect(await button.getAttribute("data-pressed")).toBe("1");
+    expect(await button.textContent()).toBe("Activated");
+    expect(await frame.locator("#inspect-empty").isVisible()).toBe(true);
+  });
+
+  test("releasing Option inside the canvas restores the opening inspector's plain click", async () => {
+    const { frame, button, mouse, deliver } = await openingGesture();
+    await frame.page().keyboard.down("Alt");
+    try { await mouse.down(); await mouse.up(); }
+    finally { await frame.page().keyboard.up("Alt"); }
+    expect(await button.getAttribute("data-pressed")).toBe("1");
+    expect(await button.textContent()).toBe("Activated");
+    await mouse.down(); await mouse.up();
+    await deliver();
+    await frame.getByRole("button", { name: "Cart, frame. Elements in this frame", exact: true }).waitFor({ timeout: 3000 });
   });
 
   test("a folded viewer leaves canvas clicks and hover alone", async () => {
