@@ -1271,8 +1271,8 @@ describe("tool wiring", () => {
 // The page `assemble` writes (cli/internal/export/assemble.go), filled here in one pass over shell.html: a canvas of
 // `body` at `width`, with lib.js and measure.js at the top of its head; without them (`reports: false`) the canvas never
 // reports a layout, so the page stays before its first view until the timeout.
-const viewerPage = (body: string, { width = 800, reports = true, scripted = true } = {}, beforeShell?: () => void): string => {
-  const head = reports ? `<script>(function () {\n${lib}\n${canvasInspectScripts}\n${measure}\n})();</script>` : "";
+const viewerPage = (body: string, { width = 800, reports = true, scripted = true } = {}, beforeShell?: () => void, beforeCanvas?: () => void): string => {
+  const head = reports ? `<script>(function () {\n${beforeCanvas ? `(${beforeCanvas})();` : ""}\n${lib}\n${canvasInspectScripts}\n${measure}\n})();</script>` : "";
   const canvas = `<!doctype html><html><head>${head}</head><body style="margin:0">${body}</body></html>`;
   const values: Record<string, string> = {
     PROJECT: "northwind-customer-portal", INITIAL: "N", HUE: "indigo",
@@ -1293,8 +1293,8 @@ afterAll(async () => { await dom?.close(); }, 30_000);
 describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
 
   // The viewer at 800 × 500 inside the test window, once its first view is drawn.
-  const open = async (body: string, width = 800, beforeShell?: () => void): Promise<Frame> => {
-    const frame = await dom.load(viewerPage(body, { width }, beforeShell));
+  const open = async (body: string, width = 800, beforeShell?: () => void, beforeCanvas?: () => void): Promise<Frame> => {
+    const frame = await dom.load(viewerPage(body, { width }, beforeShell, beforeCanvas));
     await frame.evaluate(() => {
       const host = window.frameElement as HTMLElement;
       host.style.width = "800px";
@@ -1359,6 +1359,176 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     expect(await show.getAttribute("aria-disabled")).toBe("true");
     await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "657px"; });
     await panel.getByRole("button", { name: /<b>Item<\/b>/ }).waitFor();
+  });
+
+  const compactCart = '<section data-doan-frame="cart" data-doan-title="Cart" style="height:180px">Cart</section>';
+
+  test("Escape returns from the element menu to its trigger, then to the board", async () => {
+    // Keep the entire target in view so selecting it needs no board scroll after the panel opens.
+    const frame = await openCanvas(compactCart, 320);
+    await showInspector(frame);
+    await frame.frameLocator("#canvas").locator('[data-doan-frame="cart"]').click();
+    const trigger = frame.getByRole("button", { name: "Cart, frame. Elements in this frame", exact: true });
+    await trigger.press("Enter");
+    await frame.getByRole("treeitem").first().waitFor();
+    await frame.page().keyboard.press("Escape");
+    expect(await trigger.evaluate(el => document.activeElement === el)).toBe(true);
+    await frame.page().keyboard.press("Escape");
+    await frame.locator("#inspect-empty").waitFor();
+    expect(await frame.evaluate(() => document.activeElement?.id)).toBe("board");
+  });
+
+  test("Space preserves the inspected frame while switching to Hand clears it", async () => {
+    const frame = await openCanvas(compactCart, 320);
+    await showInspector(frame);
+    await frame.frameLocator("#canvas").locator("section").click();
+    const mark = frame.locator("#selected-mark");
+    await mark.waitFor();
+    const board = frame.locator("#board");
+    await board.focus();
+    await frame.page().keyboard.down("Space");
+    try {
+      await mark.waitFor({ state: "hidden" });
+    } finally { await frame.page().keyboard.up("Space"); }
+    await mark.waitFor();
+    expect(await frame.locator(".doan-insp-row").count()).toBeGreaterThan(0);
+    await frame.locator('[data-tool="hand"]').click();
+    await expect.poll(() => frame.locator("#inspect-empty").isVisible()).toBe(true);
+    await frame.locator('[data-tool="select"]').click();
+    expect(await frame.locator(".doan-insp-row").count()).toBe(0);
+    expect(await mark.isHidden()).toBe(true);
+  });
+
+  test("switching to Hand while the inspector yields clears the retained frame", async () => {
+    const frame = await openCanvas(compactCart, 320);
+    await showInspector(frame);
+    await frame.frameLocator("#canvas").locator("section").click();
+    await frame.locator("#selected-mark").waitFor();
+    await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "656px"; });
+    await frame.locator("#inspector").waitFor({ state: "hidden" });
+    await frame.locator('[data-tool="hand"]').click();
+    await frame.locator('[data-tool="select"]').click();
+    await frame.evaluate(() => new Promise<void>(resolve => {
+      const canvas = document.querySelector<HTMLIFrameElement>("#canvas")!;
+      function inspected(event: MessageEvent) {
+        if (event.source !== canvas.contentWindow || event.data?.type !== "inspection") return;
+        window.removeEventListener("message", inspected);
+        resolve();
+      }
+      window.addEventListener("message", inspected);
+      (window.frameElement as HTMLElement).style.width = "800px";
+    }));
+    expect(await frame.locator("#inspect-empty").isVisible()).toBe(true);
+  });
+
+  test("Hide inspector shows its tooltip on hover and keyboard focus", async () => {
+    const frame = await openCanvas(compactCart, 320);
+    const show = frame.getByRole("button", { name: "Show inspector", exact: true });
+    const hide = frame.getByRole("button", { name: "Hide inspector", exact: true });
+    const tip = frame.getByRole("tooltip").filter({ hasText: "Hide inspector" });
+    await show.press("Enter");
+    expect(await hide.evaluate(el => document.activeElement === el)).toBe(true);
+    expect(await tip.isVisible()).toBe(true);
+    await frame.page().keyboard.press("Escape");
+    expect(await tip.isVisible()).toBe(false);
+    expect(await hide.getAttribute("aria-describedby")).toBeNull();
+    expect(await hide.evaluate(el => document.activeElement === el)).toBe(true);
+    await hide.press("Enter");
+    expect(await frame.evaluate(() => document.activeElement?.id)).toBe("inspector-show");
+    await showInspector(frame);
+    await frame.locator("#board").focus();
+    expect(await tip.isVisible()).toBe(false);
+    await hide.dispatchEvent("pointerenter");
+    await tip.waitFor({ timeout: 3000 });
+    expect(await hide.getAttribute("aria-describedby")).toBe(await tip.getAttribute("id"));
+  });
+
+  test("Escape cancels a pending Hide inspector tooltip and steps a selection with a visible tooltip", async () => {
+    const frame = await openCanvas(compactCart, 320);
+    await showInspector(frame);
+    const hide = frame.getByRole("button", { name: "Hide inspector", exact: true });
+    const tip = frame.getByRole("tooltip").filter({ hasText: "Hide inspector" });
+    const board = frame.locator("#board");
+    await board.focus();
+    // Opening the inspector can leave the pointer over Hide. Start outside for one fresh hover.
+    await board.hover({ position: { x: 12, y: 12 } });
+    await hide.hover();
+    await frame.page().keyboard.press("Escape");
+    await frame.evaluate(delay => new Promise(resolve => setTimeout(resolve, delay)), v.TIP_DELAY_MS + 50);
+    expect(await tip.isVisible()).toBe(false);
+    expect(await hide.getAttribute("aria-describedby")).toBeNull();
+
+    await frame.frameLocator("#canvas").locator("section").click();
+    await frame.getByRole("button", { name: "Cart, frame. Elements in this frame" }).press("Tab");
+    expect(await tip.isVisible()).toBe(true);
+    await frame.page().keyboard.press("Escape");
+    await frame.locator("#inspect-empty").waitFor();
+    expect(await tip.isVisible()).toBe(false);
+    expect(await hide.getAttribute("aria-describedby")).toBeNull();
+  });
+
+  // Hold the shell's commands in delivery order at the sandbox boundary. Mouse input still goes
+  // through Chromium's hit testing. Releasing the queue can split a physical down/up gesture.
+  const openingGesture = async () => {
+    const frame = await openCanvas('<section data-doan-frame="cart" data-doan-title="Cart"><button style="width:100%;height:180px" onpointerdown="this.dataset.pressed=1" onclick="this.textContent=\'Activated\'">Buy</button></section>', 320, undefined, () => {
+      const held: MessageEvent[] = [];
+      const hold = (event: MessageEvent) => {
+        if (event.source === parent && event.data?.type?.startsWith("inspect-")) {
+          event.stopImmediatePropagation();
+          const { data, origin, source } = event;
+          held.push(new MessageEvent("message", { data, origin, source }));
+          if (data.type === "inspect-mode") document.documentElement.dataset.heldMode = String(data.epoch);
+        }
+      };
+      window.addEventListener("message", hold, true);
+      document.addEventListener("deliver", () => {
+        window.removeEventListener("message", hold, true);
+        for (const event of held) window.dispatchEvent(event);
+      }, { once: true });
+    });
+    const canvas = frame.childFrames()[0]!;
+    await frame.getByRole("button", { name: "Show inspector" }).click();
+    await canvas.locator("html[data-held-mode]").waitFor({ state: "attached", timeout: 3000 });
+    await frame.waitForFunction(inset => {
+      const board = document.getElementById("board")!;
+      const stage = document.getElementById("stage")!;
+      return parseFloat(stage.style.left) === Math.max(inset, (board.clientWidth - 320) / 2);
+    }, FIT_INSET.left);
+    const button = canvas.getByRole("button");
+    const box = (await button.boundingBox())!;
+    const mouse = frame.page().mouse;
+    await mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    const deliver = () => canvas.evaluate(() => { document.dispatchEvent(new Event("deliver")); });
+    return { frame, button, mouse, deliver };
+  };
+
+  test.each(["before press ends", "after release"])("the first canvas click selects when inspector mode arrives %s", async timing => {
+    const { frame, button, mouse, deliver } = await openingGesture();
+    await mouse.down();
+    if (timing === "before press ends") {
+      await deliver();
+      // A round trip ensures the shell processed the initial inspection while the button is held.
+      await dom.flush(frame.childFrames()[0]!);
+    }
+    await mouse.up();
+    if (timing === "after release") await deliver();
+    expect(await button.getAttribute("data-pressed")).toBeNull();
+    expect(await button.textContent()).toBe("Buy");
+    await frame.getByRole("button", { name: "Cart, frame. Elements in this frame", exact: true }).waitFor({ timeout: 3000 });
+    expect(await frame.locator("#selected-mark").isVisible()).toBe(true);
+  });
+
+  test("a change to Hand during the opening press cancels selection even after returning to Select", async () => {
+    const { frame, button, mouse, deliver } = await openingGesture();
+    await mouse.down();
+    await frame.page().keyboard.press("h");
+    await frame.page().keyboard.press("v");
+    await mouse.up();
+    await deliver();
+    await dom.flush(frame.childFrames()[0]!);
+    expect(await button.getAttribute("data-pressed")).toBeNull();
+    expect(await button.textContent()).toBe("Buy");
+    expect(await frame.locator("#inspect-empty").isVisible()).toBe(true);
   });
 
   test("a folded viewer leaves canvas clicks and hover alone", async () => {
