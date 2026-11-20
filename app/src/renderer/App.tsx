@@ -68,7 +68,7 @@ import { CanvasConversations } from "./RightPanel";
 import { CanvasRun, type CanvasTarget } from "./canvasRun";
 import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle, composerFixed, settleChips } from "./CanvasConversationPanel";
 import { captureAvailability } from "./canvasCapture";
-import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT, sidebarRowRequest } from "./canvasConversation";
+import { DRAWING_PREVIEW_REASON, canvasUnlistedText, DUPLICATE_CANVAS_TEXT, sidebarRowRequest } from "./canvasConversation";
 import { canvasStrongestSignal, panelOpenFor, type CanvasSignal, type PanelArrival, type PanelFocus, type PanelTrigger } from "./rightPanelOpen";
 import { HANDOFF_WAIT_MS, handoffArrival, handoffGoneText, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
 import { bubbleAddAvailability, PICKER_UNAVAILABLE, pickerAvailability, targetAnchor, type CanvasLoad, type Rect } from "./canvasPicker";
@@ -512,6 +512,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     listRetry: root => homeRun.current.listRetry(root),
     markSeen: (id, seq) => homeRun.current.markSeenThrough(id, seq),
     focused: () => document.hasFocus(),
+    readsProjectThreads: true,
     drawing: (root, canvas) => homeRun.current.drawing(root, canvas),
     remembered: (root, canvas) => !memoryRead.current ? undefined : sharedCanvasId(root, canvas) ? null : conversationByCanvas.current[root]?.[conversationCanvasKey(canvas)] ?? null,
     remember: (root, canvas, conversationId) => {
@@ -2088,7 +2089,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // composer that takes no input.
   const duplicated = panelCanvas?.row.id !== undefined && entry?.kind === "list" && entry.canvases.filter(row => row.id === panelCanvas.row.id).length > 1;
   const panelProject = panelTarget ? cards.find(card => card.rows.some(row => row.path === panelTarget.root))?.name ?? projectNames(entries.map(entry => entry.path)).get(panelTarget.root) ?? panelTarget.root : "";
-  const panelBlocked = !panelTarget ? null : state.unlisted ? canvasUnlistedText(panelProject) : duplicated ? DUPLICATE_CANVAS_TEXT : null;
+  const panelBlocked = !panelTarget ? null : state.unlisted ? canvasUnlistedText(panelProject) : duplicated ? DUPLICATE_CANVAS_TEXT : canvasRun.current!.drawingPreview() ? DRAWING_PREVIEW_REASON : null;
   // The folded panel's badge: the strongest signal across the canvas's conversations, working included.
   const panelBadge = panelTarget && Array.isArray(panelList) && !rightPanel.open ? canvasStrongestSignal(panelList, panelTarget.canvas, homeRun.current.seenPending()) : null;
   // Show conversation: with a badge the panel unfolds on the conversation it stands for, focus on its request when it
@@ -2709,7 +2710,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     {topBar(false)}
     {sidebar(false)}
     {strip}
-    <CanvasPane navigation={card && loadedRoot ? { card, root: loadedRoot, homeDirectory, overview: () => showShellOverview(loadedRoot), worktree: switchCanvasWorktree } : null}
+    <CanvasPane navigation={card && loadedRoot ? { card, root: loadedRoot, homeDirectory, worktree: switchCanvasWorktree } : null}
       viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} view={canvasView.current} command={command} covered={overview !== null || overlaid} overlaid={overlaid}
       zoomTo={scale => controller.current?.zoomTo(scale)} onToolbarEscape={event => controller.current?.toolbarEscape(event)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: showPanel, badge: panelBadge }}
       inspector={{ open: inspectorPanel.open, fits: canvasPanels.inspectorFits, show: () => foldInspector(true), focused: node => { inspectorShowFocused.current = node; } }}

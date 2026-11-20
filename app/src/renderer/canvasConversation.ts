@@ -14,6 +14,7 @@ import { byActivity, menuItem, type MenuItem } from "./overviewConversation";
 // refusals. The canvas host owns the reads and every call to main; these
 // functions only decide.
 
+export const DRAWING_PREVIEW_REASON = "You can reply here when this conversation moves to the canvas.";
 export const DRAWING_TEXT = "A project conversation is drawing this canvas. Sending here starts a separate conversation.";
 export const PROMOTED_TEXT = "A project conversation moved to this canvas.";
 // Shown above the composer with Open on `open`.

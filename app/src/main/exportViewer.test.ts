@@ -849,12 +849,9 @@ describe("breadcrumb rules shared with the canvas header", () => {
   });
 
   test("the static project crumb has the app's shrink priority with only a leading inset", () => {
-    const appProject = declarations(stylesCss, ".doan-canvas-project.doan-button");
-    expect(declarations(shellCss, ".doan-canvas-project")).toEqual([
-      "display: inline-flex", "align-items: center", "padding-left: var(--space-2)",
-      "font-size: var(--type-label-sm-size)", "line-height: var(--type-label-sm-line-height)",
-      ...appProject.map(d => d.replace("2 * var(--space-2)", "var(--space-2)")),
-    ]);
+    // The app sets its label tracking explicitly. The standalone viewer keeps its inherited tracking.
+    const appCrumb = declarations(stylesCss, ".doan-canvas-project").filter(rule => !rule.startsWith("letter-spacing:"));
+    expect(declarations(shellCss, ".doan-canvas-project")).toEqual(appCrumb);
   });
 
   test("the viewer uses the app's container breakpoints and hide rules", () => {

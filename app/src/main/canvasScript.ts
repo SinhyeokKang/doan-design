@@ -749,8 +749,16 @@ export function canvasScript(lib: CanvasLib): void {
     }, deadline - performance.now());
   };
 
+  const failedSheets = new WeakSet<HTMLLinkElement>();
   const send = () => {
-    if (firstLayoutAt === null) firstLayoutAt = performance.now();
+    if (firstLayoutAt === null) {
+      // Unstyled frame rects can already be nonzero. Resizing to that height can also
+      // make the stylesheet's later growth look like a document chasing its viewport.
+      if (document.readyState !== "complete" && Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet" i][href]:not([rel~="alternate" i])')).some(
+        link => !link.sheet && !link.disabled && !failedSheets.has(link) && (!link.media || matchMedia(link.media).matches),
+      )) return;
+      firstLayoutAt = performance.now();
+    }
     tryPending();
     const html = document.documentElement;
     const { list, truncated, bottom, gotos } = frames();
@@ -784,6 +792,13 @@ export function canvasScript(lib: CanvasLib): void {
 
   // The first layout and measure replies skip rAF: an iframe outside the
   // viewport gets no animation frames, so a batched reply would never come.
+  const stylesheetSettled = (event: Event) => {
+    if (firstLayoutAt !== null || !(event.target instanceof HTMLLinkElement)) return;
+    if (event.type === "error") failedSheets.add(event.target);
+    if (started) send();
+  };
+  document.addEventListener("load", stylesheetSettled, true);
+  document.addEventListener("error", stylesheetSettled, true);
   const start = () => {
     started = true;
     const resized = new ResizeObserver(schedule);
@@ -792,7 +807,7 @@ export function canvasScript(lib: CanvasLib): void {
     if (document.body) resized.observe(document.body);
     new MutationObserver(schedule).observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
     addEventListener("resize", schedule);
-    addEventListener("load", schedule);
+    addEventListener("load", () => { if (firstLayoutAt === null) send(); else schedule(); });
     addEventListener("load", tryPending);
     // Inner scrollers move the selected element without resizing anything.
     addEventListener("scroll", schedule, { capture: true, passive: true });

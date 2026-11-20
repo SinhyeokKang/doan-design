@@ -95,6 +95,7 @@ export interface ConversationThreadProps {
   // The id of the canvas the thread belongs to (the canvas panel's), null in the Overview. A chip into it is named from
   // `frames` while the canvas has a layout and follows `locateDisabled`; every other chip names its canvas.
   openCanvasId?: string | null;
+  openCanvasPath?: string;
   // The canvas rows of the conversation's root, which name another canvas's chips and that canvas.
   canvasRows?: readonly CanvasRow[];
   // The last turn's indicator state (turnStatus) and start; without it no turn indicator shows.
@@ -912,7 +913,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         return [provider, props.project, canvas, props.canvasListed(canvas), !!props.onOpenHandoff];
       }
       case "handoffCard": return [props.project, props.canvasListed(entry.origin.canvas), !!props.onOpenHandoff];
-      case "marker": return [props.project, props.canvasListed(entry.canvas), openCanvasId];
+      case "marker": return [props.project, props.canvasListed(entry.canvas), openCanvasId, props.openCanvasPath];
       default: return [];
     }
   };
@@ -974,7 +975,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       case "marker": {
         const canvas = entry.canvas, listed = props.canvasListed(canvas), name = canvasStem(canvas.path);
         // On the panel of the canvas it moved to, "Moved to" and Open would point at the screen already shown.
-        if (openCanvasId !== null && canvas.id === openCanvasId) return <div className="marker"><span><ArrowUpRight aria-hidden="true" />{`Moved here from ${props.project} Overview`}</span></div>;
+        if (canvas.id !== undefined ? canvas.id === openCanvasId : openCanvasId === null && canvas.path === props.openCanvasPath) return <div className="marker"><span><ArrowUpRight aria-hidden="true" />{`Moved here from ${props.project} Overview`}</span></div>;
         return <div className="marker"><span><ArrowUpRight aria-hidden="true" />{listed ? `Moved to ${name}` : `Moved to ${name} · No longer in ${props.project}`}</span>
           <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="trigger" disabled={!listed} onClick={() => latest.current.onOpenCanvas(canvas)}>Open</button></div>;
       }
