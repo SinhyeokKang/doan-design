@@ -52,6 +52,7 @@ function started(result: Started): AuthStartReply { return result.ok ? { ok: tru
 export class AuthIpc {
   private revision = 0;
   private facts = new Map<Provider, ToolFacts>();
+  private probeGeneration = new Map<Provider, number>();
   private probed: Promise<void> | null = null;
   // The latest sign-in link of each current attempt; open-link opens only this, never a URL from a window.
   private links = new Map<string, AuthPrompt>();
@@ -140,8 +141,11 @@ export class AuthIpc {
   }
 
   private async refresh(provider: Provider, publish: boolean): Promise<void> {
+    const generation = (this.probeGeneration.get(provider) ?? 0) + 1;
+    this.probeGeneration.set(provider, generation);
     // A probe that breaks its contract must not leave every later read rejected.
     const facts = await this.options.probe(provider).catch(() => UNPROBED);
+    if (this.probeGeneration.get(provider) !== generation) return;
     const previous = this.facts.get(provider) ?? UNPROBED;
     this.facts.set(provider, facts);
     if (publish && JSON.stringify(previous) !== JSON.stringify(facts)) this.changed();
