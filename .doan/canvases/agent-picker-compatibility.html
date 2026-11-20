@@ -1,0 +1,70 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="doan:canvas" content="agent-picker-compatibility"><meta name="doan:width" content="1552"><title>Agent version recovery</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../assets/ds-canvas.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<style>
+.ob-notice-title, .ob-notice-body { display: block; }
+.ob-notice-title { font-weight: var(--type-weight-medium); }
+.ob-notice-title + .ob-notice-body { margin-top: var(--space-1); }
+.ob-notice-text { flex: 1 1 240px; min-width: 0; }
+.ob-notice-actions { flex: none; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.logo { width: var(--size-icon); height: var(--size-icon); object-fit: contain; flex: none; }
+.agent-popover { width: 300px; }
+.agent-group { padding: var(--space-1) 0; }
+.agent-head { display: flex; align-items: center; gap: var(--space-2); }
+.agent-note { display: inline-flex; align-items: center; gap: var(--space-1h); margin-left: auto; }
+.menu-note { padding: var(--space-1) var(--space-3) var(--space-2); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
+.settings-section-header { margin-bottom: var(--space-3); }
+.settings-title { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-medium); outline: none; }
+.settings-section-title { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
+.doan-preference-row[data-has-icon] { grid-template-columns: auto minmax(0, 1fr) auto; }
+.doan-preference-row-icon { display: flex; align-items: center; justify-content: center; width: var(--size-icon-lg); height: var(--size-icon-lg); color: var(--text-subtle); }
+.doan-preference-row-icon > :is(svg, img) { width: 100%; height: 100%; object-fit: contain; }
+.doan-preference-row-extra { grid-column: 1 / -1; margin-top: var(--space-3); }
+.doan-preference-row[data-has-icon] > .doan-preference-row-extra { grid-column: 2 / -1; }
+.settings-help { margin-top: var(--space-1); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.settings-menu-link { display: flex; gap: var(--space-2); align-items: center; }
+.settings-menu-link svg { width: var(--size-icon); height: var(--size-icon); color: var(--text-subtle); }
+.settings-title .project-settings-thumbnail.shell-thumbnail { width: var(--size-control-sm); height: var(--size-control-sm); font-size: var(--type-body-sm-size); line-height: var(--size-control-sm); letter-spacing: var(--type-body-sm-letter-spacing); }
+body { padding: var(--space-8); width: 1552px; background: var(--bg-app); }
+.intro { max-width: 850px; margin-bottom: var(--space-8); }
+.intro h1 { font-size: var(--type-heading-size); font-weight: var(--type-weight-medium); }
+.intro p, figcaption p { margin-top: var(--space-1); color: var(--text-subtle); }
+.sources, figcaption p { font-size: var(--type-caption-size); }
+.board { display: grid; grid-template-columns: 520px 1fr; gap: var(--space-10) var(--space-6); }
+figcaption { margin-bottom: var(--space-6); }
+figcaption strong { font-weight: var(--type-weight-medium); }
+.frame { display: grid; place-items: center; min-height: var(--doan-viewport-height, 320px); border-radius: var(--radius-container); background: var(--surface-panel); }
+.menu-stack { display: grid; justify-items: end; gap: var(--space-2); padding: var(--space-6); }
+.agent-popover { position: static; }
+.doan-menu-item { width: 100%; text-align: start; }
+.crumb-trigger { display: inline-flex; gap: var(--space-1); align-items: center; }
+.crumb-trigger svg { width: var(--size-icon); height: var(--size-icon); }
+.settings { width: 100%; max-width: 48rem; padding: var(--space-8) var(--space-6); }
+.settings-title { margin: 0 0 var(--space-6); padding-inline: calc(var(--space-4) + 1px); }
+.settings-section-header { padding-inline: calc(var(--space-4) + 1px); }
+</style></head><body><header class="intro"><h1>Agent version recovery</h1>
+<p>Compare the same connected Codex account in two situations. In each Home picker, press the action under Codex to see the corresponding row in Settings.</p>
+<p class="sources">UX audit 8. Only the incompatible picker status and action are proposed. The picker and both Settings rows follow ComposerParts.tsx, SettingsAgents.tsx, agentAuthView.ts and Onboarding.tsx. The examples show one connected provider.</p></header><div class="board">
+<figure><figcaption><strong>Home · Incompatible version</strong><p>The version meets the minimum, but Doan and Codex cannot communicate.</p></figcaption>
+<section class="frame" id="incompatible-picker" data-doan-frame="incompatible-picker" data-doan-title="Home · Incompatible version" data-doan-prototype="520x320" data-doan-implements="app/src/renderer/ComposerParts.tsx"><div class="menu-stack"><div class="doan-floating doan-menu agent-popover" role="menu" aria-label="Agent and model">
+<div class="agent-group"><div class="doan-menu-head agent-head"><img class="logo" src="../assets/provider-logos/codex.png" alt=""><span>Codex</span><span class="agent-note" data-doan-id="incompatible-picker-status">Incompatible version</span></div>
+<button class="doan-menu-item" role="menuitem" data-doan-id="incompatible-picker-action" data-doan-goto="incompatible-settings">Open Agents settings</button></div>
+<div class="doan-menu-sep"></div><p class="menu-note">No agent is ready to run.</p><button class="doan-menu-item settings-menu-link" role="menuitem"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"></path><circle cx="12" cy="12" r="3"></circle></svg>Sign in to an agent</button></div>
+<button class="doan-button crumb-trigger" aria-expanded="true" data-ui-size="sm" data-ui-variant="trigger">No agent ready<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></div></section></figure>
+<figure><figcaption><strong>Settings › Agents · Compatibility</strong><p>The existing notice explains what to update and offers Check again.</p></figcaption>
+<section class="frame" id="incompatible-settings" data-doan-frame="incompatible-settings" data-doan-title="Settings › Agents · Compatibility" data-doan-prototype="944x320" data-doan-implements="app/src/renderer/SettingsAgents.tsx"><div class="settings"><h2 class="settings-title">Agents</h2><div class="settings-section-header"><h3 class="settings-section-title">Connected</h3></div><div class="doan-settings-group" data-layout="rows">
+<div class="doan-preference-row" data-has-icon role="group" aria-label="Codex" data-doan-id="incompatible-settings-row"><span class="doan-preference-row-icon"><img class="logo" src="../assets/provider-logos/codex.png" alt=""></span><div class="doan-preference-row-content"><span class="doan-preference-row-label">Codex</span><span class="doan-preference-row-description">alex@example.com</span></div>
+<div class="doan-preference-row-trailing"><button class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Sign out</button></div>
+<div class="doan-preference-row-extra"><div class="doan-notice error" role="alert"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle doan-alert-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg><span class="ob-notice-text"><strong class="ob-notice-title">Doan can’t run this Codex version</strong><span class="ob-notice-body">Update Codex or wait for a Doan update, then check again.</span></span><div class="ob-notice-actions"><button class="doan-button" data-ui-size="sm" data-ui-variant="prominent">Check again</button></div></div></div></div></div></div></section></figure>
+<figure><figcaption><strong>Home · Below the minimum version</strong><p>The installed version is too old. The existing Update action opens its settings row.</p></figcaption>
+<section class="frame" id="old-picker" data-doan-frame="old-picker" data-doan-title="Home · Below the minimum version" data-doan-prototype="520x320" data-doan-implements="app/src/renderer/ComposerParts.tsx"><div class="menu-stack"><div class="doan-floating doan-menu agent-popover" role="menu" aria-label="Agent and model">
+<div class="agent-group"><div class="doan-menu-head agent-head"><img class="logo" src="../assets/provider-logos/codex.png" alt=""><span>Codex</span><span class="agent-note" data-doan-id="old-picker-status">Needs an update</span></div>
+<button class="doan-menu-item" role="menuitem" data-doan-id="old-picker-action" data-doan-goto="old-settings">Update</button></div>
+<div class="doan-menu-sep"></div><p class="menu-note">No agent is ready to run.</p><button class="doan-menu-item settings-menu-link" role="menuitem"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"></path><circle cx="12" cy="12" r="3"></circle></svg>Sign in to an agent</button></div>
+<button class="doan-button crumb-trigger" aria-expanded="true" data-ui-size="sm" data-ui-variant="trigger">No agent ready<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></div></section></figure>
+<figure><figcaption><strong>Settings › Agents · Update</strong><p>The existing row offers Update for Codex.</p></figcaption>
+<section class="frame" id="old-settings" data-doan-frame="old-settings" data-doan-title="Settings › Agents · Update" data-doan-prototype="944x320" data-doan-implements="app/src/renderer/SettingsAgents.tsx"><div class="settings"><h2 class="settings-title">Agents</h2><div class="settings-section-header"><h3 class="settings-section-title">Connected</h3></div><div class="doan-settings-group" data-layout="rows">
+<div class="doan-preference-row" data-has-icon role="group" aria-label="Codex" data-doan-id="old-settings-row"><span class="doan-preference-row-icon"><img class="logo" src="../assets/provider-logos/codex.png" alt=""></span><div class="doan-preference-row-content"><span class="doan-preference-row-label">Codex</span><span class="doan-preference-row-description">This version is older than Doan supports.</span></div>
+<div class="doan-preference-row-trailing"><button class="doan-button" data-ui-size="sm" data-ui-variant="prominent">Update</button><button class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Sign out</button></div>
+<p class="doan-preference-row-extra settings-help">After you update it, Doan checks again when you return.</p></div></div></div></section></figure>
+</div></body></html>
