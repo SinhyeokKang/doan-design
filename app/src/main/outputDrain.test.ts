@@ -40,7 +40,7 @@ function fakeChild() {
   };
 }
 
-async function accepted(runtime: "codex" | "cursor") {
+async function accepted(runtime: "codex" | "cursor", text = "hello") {
   const root = temp(), fake = fakeChild(), store = new ConversationStore(root);
   const release = vi.fn(async () => {});
   const service = new ConversationService(store, async () => ({
@@ -53,9 +53,9 @@ async function accepted(runtime: "codex" | "cursor") {
     if (method === "initialize") fake.line({ jsonrpc: "2.0", id, result: { protocolVersion: 1 } });
     if (method === "session/new") fake.line({ jsonrpc: "2.0", id, result: { sessionId: "s" } });
     if (method === "thread/start") fake.line({ id, result: { thread: { id: "s" } } });
-    if (method === "turn/start" || method === "session/prompt") promptId = id;
+    if (method === "turn/start" || method === "thread/compact/start" || method === "session/prompt") promptId = id;
   });
-  const { conversationId } = await service.start({ root, runtime, mode: "new", text: "hello", anchors: [] });
+  const { conversationId } = await service.start({ root, runtime, mode: "new", text, anchors: [] });
   await nextTurn();
   expect(promptId).toBeDefined();
   return { ...fake, promptId, release, history: () => store.read(conversationId) };
@@ -109,13 +109,19 @@ it.each(["codex", "cursor"] as const)("stops the %s group at leader exit and bou
   run.close();
 });
 
-it("consumes a pending turn/start reply when its RPC deadline falls in the exit grace", async () => {
+it.each(["turn/start", "thread/compact/start"])("consumes the final %s replies across its start deadline", async method => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
-  const run = await accepted("codex");
+  const compact = method === "thread/compact/start";
+  const run = await accepted("codex", compact ? "/compact" : "hello");
+  if (compact) {
+    run.line({ id: run.promptId, result: {} });
+    await nextTurn();
+  }
   await vi.advanceTimersByTimeAsync(9900);
   run.gone(); run.exit(0);
   await vi.advanceTimersByTimeAsync(150);
-  run.line({ id: run.promptId, result: { turn: { id: "native" } } });
+  if (compact) run.line({ method: "turn/started", params: { threadId: "s", turn: { id: "native" } } });
+  else run.line({ id: run.promptId, result: { turn: { id: "native" } } });
   run.line({ method: "turn/completed", params: { threadId: "s", turn: { id: "native", status: "completed" } } });
   run.close();
   await nextTurn();
@@ -152,4 +158,19 @@ it("classifies clone stderr delivered after git exits and stops the group before
   await nextTurn();
   run.child.stderr.end("fatal: Repository not found\n");
   expect(await cloning).toEqual({ kind: "failed", code: "repository_unreachable" });
+});
+
+it("bounds inherited clone stderr from leader exit while a surviving group still holds ownership", async () => {
+  vi.useFakeTimers();
+  const run = fakeChild();
+  const clone = spawnClone("/fake", [], {});
+  const gone = vi.fn(); void clone.gone.then(gone);
+  run.exit(1);
+  await clone.exit; clone.stop();
+  await vi.advanceTimersByTimeAsync(500);
+  expect(run.child.stderr.destroyed).toBe(true);
+  expect(gone).not.toHaveBeenCalled();
+  run.gone();
+  await vi.advanceTimersByTimeAsync(100);
+  expect(gone).toHaveBeenCalledOnce();
 });
