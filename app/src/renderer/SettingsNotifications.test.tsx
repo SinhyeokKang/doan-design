@@ -76,7 +76,7 @@ test("Delivery and Notify me about: four switches with the design's copy, the pe
   render();
   expect(switches().map(element => [element.props["aria-label"], element.props["aria-checked"], !!element.props.disabled, element.props.className])).toEqual([
     ["Desktop notifications", true, false, "doan-switch"], ["Approval requests", true, false, "doan-switch"], ["Finished", true, false, "doan-switch"], ["Couldn’t finish", true, false, "doan-switch"]]);
-  for (const copy of ["Delivery", "Notify me about", "Only while Doan isn’t the active window. Clicking one opens the conversation.", "An agent is waiting for you to allow or deny an action, or to answer a question.",
+  for (const copy of ["Delivery", "Notify me about", "Notifications can appear when the main window is inactive, except for the conversation you’re viewing in a prototype.", "An agent is waiting for you to allow or deny an action, or to answer a question.",
     "An agent finished its turn.", "An agent stopped because of an error. Stops you make aren’t announced.", "If no notification appears, allow Doan in System Settings › Notifications."]) expect(text()).toContain(copy);
   expect(button("Send test notification")).toBeDefined();
   expect(button("Open System Settings ↗")).toBeDefined();
@@ -89,7 +89,7 @@ test("the permission hint's actions sit inside its notice, stacked, as panel but
   expect(notice.props.className).toBe("doan-notice stacked");
   const inside = all(notice);
   for (const label of ["Send test notification", "Open System Settings ↗"]) {
-    const found = inside.find(element => element.type === "button" && element.props.children === label);
+    const found = inside.find(element => element.type === "button" && words(element.props.children) === label);
     expect(found?.props["data-ui-variant"], label).toBe("panel");
   }
   expect(all(tree).some(element => element.props.className === "ob-state-actions")).toBe(false);
@@ -240,4 +240,45 @@ test("Retry keeps the failure line while its save is out, busy and named Retry; 
   click("Retry"); render();
   answer({ ok: true, snapshot: snapshot() }); await flush(); render();
   expect(text()).not.toContain("Couldn’t save");
+});
+
+test.each(["false", "rejection"])("an OS settings %s keeps the permission hint and retries in place", async failure => {
+  render();
+  const open = "Open System Settings ↗";
+  const route = "Couldn’t open System Settings. On your Mac, go to System Settings › Notifications › Doan.";
+  if (failure === "false") doan.openNotificationSettings!.mockResolvedValueOnce(false);
+  else doan.openNotificationSettings!.mockRejectedValueOnce(new Error("failed to launch"));
+  click(open); await flush(); render();
+  const notice = () => all(tree).find(element => element.props.className === "doan-notice stacked")!;
+  const error = () => all(notice()).find(element => element.props.role === "alert");
+  expect(words(error()?.props.children)).toBe(route);
+  expect(button(open).props["aria-describedby"]).toBe(error()!.props.id);
+  expect(words(notice().props.children)).toContain("If no notification appears");
+  let resolve!: (opened: boolean) => void;
+  doan.openNotificationSettings!.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+  click(open); render(); click(open);
+  expect(doan.openNotificationSettings).toHaveBeenCalledTimes(2);
+  expect(button(open).props).toMatchObject({ "aria-busy": true, "aria-disabled": true });
+  expect(words(error()?.props.children)).toBe(route);
+  resolve(true); await flush(); render();
+  expect(error()).toBeUndefined();
+  expect(button(open).props["aria-describedby"]).toBeUndefined();
+  expect(words(notice().props.children)).toContain("If no notification appears");
+  expect(doan.sendTestNotification).not.toHaveBeenCalled();
+});
+
+test.each([
+  ["sent", "status", "Test notification sent. If you didn’t see it, allow Doan in System Settings › Notifications."],
+  ["failed", "alert", "Doan isn’t allowed to show notifications. Allow it in System Settings › Notifications."],
+])("a %s test result and a launch error have independent live regions", async (kind, role, message) => {
+  doan.sendTestNotification!.mockResolvedValueOnce({ kind });
+  doan.openNotificationSettings!.mockResolvedValueOnce(false);
+  render();
+  click("Send test notification"); await flush(); render();
+  click("Open System Settings ↗"); await flush(); render();
+  const permission = all(tree).find(element => String(element.props.className).includes("settings-permission"))!;
+  const regions = all(permission).filter(element => ["alert", "status"].includes(String(element.props.role)));
+  expect(regions.map(element => [element.props.role, words(element.props.children)])).toEqual([
+    [role, message], ["alert", "Couldn’t open System Settings. On your Mac, go to System Settings › Notifications › Doan."],
+  ]);
 });
