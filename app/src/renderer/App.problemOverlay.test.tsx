@@ -863,3 +863,34 @@ test("a canvas closed for a missing or not set up root leaves no empty canvas st
   harness.setState!({ ...initialCanvasState(), status: "missing", message: "a.html is no longer in the list. It was deleted or moved." }); render();
   expect(all((pane()!.type as (props: unknown) => ReactNode)(pane()!.props)).filter(element => element.props.className === "canvas-status")).toHaveLength(1);
 });
+
+test("project Retry locks before the loading notification, and a late rejection cannot unlock a newer retry", async () => {
+  const rejectors: ((reason: Error) => void)[] = [];
+  doan.reopenFolder!.mockImplementation(() => new Promise<void>((_, reject) => rejectors.push(reject)));
+  render(); folders([configError()]); toOverview();
+  dom(element("retry", ["problem-overlay", "workspace"]));
+  focused.length = 0;
+  const press = overlay()!.onAction;
+  press("retry"); press("retry"); render();
+  expect(doan.reopenFolder).toHaveBeenCalledTimes(1);
+  expect(overlay()).toMatchObject({ view: { busy: true }, pressed: "retry" });
+  folders([configError(), listed("/w/b")]);
+  overlay()!.onAction("retry");
+  expect(doan.reopenFolder).toHaveBeenCalledTimes(1);
+  // A watcher can publish a different problem before the requested read starts.
+  folders([cliError()]);
+  expect(focused).toEqual([]);
+  expect(overlay()!.announcement.trim()).toBe("Doan couldn’t read a");
+  overlay()!.onAction("retry");
+  expect(doan.reopenFolder).toHaveBeenCalledTimes(1);
+  expect(overlay()).toMatchObject({ view: { entryKind: "cliError", busy: true }, pressed: "retry" });
+  folders([loading()]); folders([configError()]);
+  expect(overlay()?.view.busy).toBe(false);
+  overlay()!.onAction("retry"); render();
+  rejectors[0]!(new Error("obsolete request")); await flush();
+  expect(overlay()).toMatchObject({ view: { busy: true }, pressed: "retry" });
+  rejectors[1]!(new Error("request refused")); await flush();
+  expect(overlay()?.view.busy).toBe(false);
+  overlay()!.onAction("retry");
+  expect(doan.reopenFolder).toHaveBeenCalledTimes(3);
+});

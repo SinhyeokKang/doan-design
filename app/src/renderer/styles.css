@@ -702,6 +702,7 @@ body:has(.shell-top) { background: transparent; }
    draft round 3); the page scrolls whole, its footer included. The shared Project screen is sized for first run's
    14/20 body text and plain numerals (.ob-overlay); without them it inherits the app body's 13px/normal. */
 .add-panel { display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-variant-numeric: normal; }
+.add-panel:has(> .problem-overlay) { overflow: hidden; }
 /* The ways out of a locked Add Projects page are aria-disabled, not disabled, so they keep their place in the focus
    order; they take the disabled ink and no hover (draft frames cloning and selecting). */
 .shell-modes button[aria-disabled="true"], .shell-search[aria-disabled="true"], .shell-side .row[aria-disabled="true"], .shell-side .row[aria-disabled="true"] :is(.shell-project-name, .shell-branch), .shell-top .shell-history .doan-icon-button[aria-disabled="true"], .doan-menu-item[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
@@ -2129,8 +2130,8 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .pw-frame { position: absolute; top: 0; left: 0; display: block; border: 0; transform-origin: 0 0; }
 .pw-snapshot { display: block; width: 100%; height: 100%; }
 /* The problem overlay over the content panel only, so the header stays usable. */
-.pw-panel > .problem-overlay { position: absolute; inset: 0; z-index: 5; display: flex; border-radius: inherit; overflow-y: auto; padding-block: var(--space-6); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
-@media (prefers-reduced-transparency: reduce) { .pw-panel > .problem-overlay { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+:is(.pw-panel, .add-panel) > .problem-overlay { position: absolute; inset: 0; z-index: 5; display: flex; border-radius: inherit; overflow-y: auto; padding-block: var(--space-6); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
+@media (prefers-reduced-transparency: reduce) { :is(.pw-panel, .add-panel) > .problem-overlay { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 /* Standard ink, so the body holds over a dark frame under the 60% overlay. */
 .pw-panel .problem-heading p { color: var(--text-standard); }
 .pw-drawer-empty { white-space: normal; padding-bottom: var(--space-2); }

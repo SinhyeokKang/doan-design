@@ -336,6 +336,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const historyRef = useRef(history); historyRef.current = history;
   const navigationIntent = useRef(0);
   const entriesRef = useRef(entries); entriesRef.current = entries;
+  // Retry must lock before main publishes loading. A later retry of the same root owns a different token.
+  const overlayRetries = useRef(new Map<string, symbol>());
+  const [, redrawRetry] = useState(0);
   const shellRef = useRef(shellProjects); shellRef.current = shellProjects;
   const expandedRef = useRef(expanded); expandedRef.current = expanded;
   // Why the open canvas was closed (its ID now shared by another canvas), shown on its project's Overview until another
@@ -584,6 +587,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     controller.current = instance;
     const stopFolders = window.doan.onFolders((all, focus) => {
       const next = shownFolders(all), before = entriesRef.current;
+      for (const root of overlayRetries.current.keys()) {
+        const kind = next.find(row => row.path === root)?.kind;
+        if (kind === undefined || (kind !== "loading" && before.find(row => row.path === root)?.kind === "loading")) overlayRetries.current.delete(root);
+      }
       if (focus) {
         const located = locateFrom.current === focus.from;
         if (!located) setLoadedRoot(root => root === focus.from ? focus.root : root);
@@ -1974,8 +1981,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     return () => clearTimeout(timer);
   }, [loadingRoot]);
   const lastOverlay = useRef<{ root: string | null; shown: ShownOverlay }>({ root: null, shown: null });
-  const problem = body !== null && entry ? problemView(entry, projectLabel(entry.path), homeDirectory,
+  const folderProblem = body !== null && entry ? problemView(entry, projectLabel(entry.path), homeDirectory,
     { slow: slowRoot !== null && slowRoot === loadingRoot, shown: lastOverlay.current.root === loadedRoot ? lastOverlay.current.shown : null }) : null;
+  const retryPending = loadedRoot !== null && overlayRetries.current.has(loadedRoot);
+  const problem = retryPending && folderProblem?.kind === "problem" ? { ...folderProblem, busy: true } : folderProblem;
   lastOverlay.current = { root: loadedRoot, shown: problem === null ? null : problem.kind === "reading" ? { kind: "reading" } : { kind: "problem", entryKind: problem.entryKind, ...(problem.newer ? { newer: true } : {}) } };
   const scene = problem?.kind === "problem" ? problem : null;
   const overlaid = problem !== null;
@@ -2007,13 +2016,24 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     setPressed(current => current?.root === root && current.name === name ? null : current);
   };
   const overlayAction = (name: RowAction) => {
-    if (!scene || scene.busy || loadedRoot === null) return;
+    if (!scene || scene.busy || loadedRoot === null || overlayRetries.current.has(loadedRoot)) return;
     if (name === "details") { setDetails(detailsOpen ? null : { root: loadedRoot, kind: scene.entryKind }); return; }
     const root = loadedRoot;
     // The overlay's Remove from Doan is the project's, as the sidebar menu's and Project Settings' are (PRODUCT §5 item
     // 1): every registered worktree of the group, not only the open one.
     if (name === "remove") { void removeProject([root]); return; }
-    if (name === "retry" || name === "locate" || name === "setUp") setPressed({ root, name });
+    if (name === "retry") {
+      const token = Symbol();
+      overlayRetries.current.set(root, token);
+      redrawRetry(n => n + 1);
+      void action(name, root, undefined, () => {
+        if (overlayRetries.current.get(root) !== token || entriesRef.current.find(row => row.path === root)?.kind === "loading") return;
+        overlayRetries.current.delete(root);
+        redrawRetry(n => n + 1);
+      });
+      return;
+    }
+    if (name === "locate" || name === "setUp") setPressed({ root, name });
     void action(name, root, undefined, () => pressEnded(root, name));
   };
   // The polite live region's text: the heading, when a scene shows or comes back from a read without taking focus.
@@ -2033,13 +2053,15 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       const active = document.activeElement;
       const left = !active || active === document.body || !(active instanceof HTMLElement) || !active.isConnected
         || active.closest(".problem-overlay, .workspace > :is(.ov-main, .right-stack, .doan-canvas-panel, .doan-insp-column, .doan-conv-column, .doan-overview-handle)") !== null;
-      if (arrived || left) { setAnnouncement(null); focusHeading(); }
+      // A watcher can change the error while the same focused Retry is still pending.
+      const retryStillFocused = retryPending && active === recoveryFocus.current?.element && active.isConnected;
+      if (arrived || (left && !retryStillFocused)) { setAnnouncement(null); focusHeading(); }
       else announce(sceneHeading);
       return;
     }
     if (seen.busy && !busy) { announce(sceneHeading); return; }
     if (headingPending.current === sceneRef.current && !modal) focusHeading();
-  }, [sceneKey, sceneHeading, arrivalSeq, entryKey, busy, modal]);
+  }, [sceneKey, sceneHeading, arrivalSeq, entryKey, busy, modal, retryPending]);
   // A pick or a capture on the covered canvas ends as the overlay shows (ARCHITECTURE §7 'Problem overlay').
   useEffect(() => {
     if (!overlaid) return;
@@ -2731,7 +2753,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
           onOpenHandoff={(canvas, id) => openConversationCanvas(panelTarget.root, canvas, id, { kind: "promotion" })} work={work} />}
       </ConversationPanel></>}
     {/* Its own key space: the Overview beside it is keyed by the same root, and siblings sharing a key remount on every render. */}
-    {problem && <ProblemOverlay key={`problem\n${loadedRoot}`} view={problem} details={detailsOpen} detail={detailText} pressed={pressed && pressed.root === loadedRoot ? pressed.name : null}
+    {problem && <ProblemOverlay key={`problem\n${loadedRoot}`} view={problem} details={detailsOpen} detail={detailText} pressed={retryPending ? "retry" : pressed && pressed.root === loadedRoot ? pressed.name : null}
       announcement={announcement ? `${announcement.text}${announcement.seq % 2 ? "" : "\u00a0"}` : ""} onAction={overlayAction} />}
   </main>
   {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} kept={projectKeepsLocal(allEntries, setup)} notGit={allEntries.some(entry => entry.path === setup && entry.kind === "uninitialized" && entry.notGit === true)} onClose={() => { pressEnded(setup, "setUp"); setSetup(null); modalClosed(); }} onRerooted={(root, message) => { choose(root); setSetup(null); setHighlight([root]); toast.show(message); modalClosed(); }} />}

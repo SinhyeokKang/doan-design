@@ -129,6 +129,20 @@ Reference: `.doan/canvases/doan-add-projects.html`, 11 full-window frames at 123
 - **Sidebar.** The page reuses the shipped Home sidebar: canvas names take `--text-subtle` (the draft drew them standard) and icon-only header buttons inherit the app body's 13px/normal.
 - **Choose another folder under a local setup** is on the page only; first run keeps its shipped setup panel. Where a setup error's recovery already offers it, it is not repeated.
 
+### First-read recovery
+
+The [first-read canvas](../../.doan/canvases/add-projects-first-read.html) uses 1024 × 620 window frames with a 780 × 556 content panel. The failed and retrying frames keep the choose form inert and hidden from the accessibility tree. The ready frame restores that form.
+
+| Frame and element | Draft | App |
+|---|---|---|
+| Failed and retrying · overlay | 780 × 556, 60% white, 8px backdrop blur | Same. Reduce transparency gives the panel and overlay the same opaque white and removes the blur. |
+| Failed · icon, heading and explanation | 32 × 32 icon, 24/26.4px heading, 14/20px explanation in rgb(82, 82, 82) | Same |
+| Retrying · keyboard-focused Retry | 32px high, white label on black, 14 × 14 spinner, 2px solid outline with 2px offset | Same. Its accessible name stays “Retry” with both busy and disabled states set. |
+| Ready · choose form and heading | 560px column, heading “Add a project” at 32/35.2px | Same. Recovery focuses the heading while the person is waiting in the panel. |
+| Ready · panel scroll area and column side margins | Default scrollbar, 765px available, 102.5px margins | Shared thin scrollbar, 769px available, 104.5px margins |
+
+The app's polite status announces a repeated failure, or the first failure when focus moved into the shell. This adds visually hidden text to the overlay’s aggregate text. The other aggregate text differences are line breaks in the canvas markup. The ready form retains the shipped Add Projects scrollbar described above.
+
 ### Project step notices and Add project
 
 Reference: `.doan/canvases/new-project-folder.html`, frames `card-busy`, `shipped-notices-choose`, `-url`, `-setup`, `-clone`, and `after-create`'s page tiles for the footer, measured at 1238 × 780: every difference is fixture or canvas context, a New folder part (measured under 'New folder') or one of two tiles not driven, and none is an implementation difference or a documented one. Reached for real: the folder sheet held open, a URL check and a folder check held (CLI wrapper), selecting held, cloning held at a local git server and cancelled, both drop notices, `project_unavailable` from the card and from a URL screen, `config_invalid` and `project_unreadable` (reported when the folder is added, so on that folder's screen after Add project), `invalid_url`, `access_failed` (a refused clone), the found checkout, `remote_mismatch`, the inside-project destination, `destination_exists`, the setup panel, its `git init` line, `init_failed` (a read-only folder), a set-up folder and a candidate list; and in first run (agent readiness forged): a failed 'Your projects' pick, `config_invalid`, `remote_mismatch` and a cancelled clone.
