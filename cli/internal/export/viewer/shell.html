@@ -6,9 +6,9 @@
   upper-case name in double braces. This comment names them without braces on purpose: it is part
   of the file the replacement runs over.
 
-    NAME    the canvas name (file stem) as HTML text: escape & < > " ', so a name can neither close
-            a tag nor start one. Used only in text positions (title, header).
-    PROJECT, INITIAL   the project folder name and thumbnail initial, escaped as HTML text.
+    NAME, PROJECT    the canvas file stem and project folder name, escaped for HTML text and
+                     double-quoted header attributes.
+    INITIAL the project's thumbnail initial, escaped as HTML text.
     HUE     the thumbnail color from the fixed project palette.
     WIDTH   doan:width as a decimal integer. The CSS-only view (no JavaScript) sizes the iframe
             with it; shell.js reads the same number from META.
@@ -39,9 +39,9 @@
 <div class="doan-canvas-panel">
 <header class="ov-head doan-canvas-head">
   <nav class="doan-canvas-trail" aria-label="Breadcrumb">
-    <span class="doan-canvas-project"><span class="shell-thumbnail hue-{{HUE}}" aria-hidden="true">{{INITIAL}}</span><span class="doan-canvas-project-name">{{PROJECT}}</span></span>
+    <span class="doan-canvas-project" role="img" aria-label="{{PROJECT}}" title="{{PROJECT}}"><span class="shell-thumbnail hue-{{HUE}}" aria-hidden="true">{{INITIAL}}</span><span class="doan-canvas-project-name">{{PROJECT}}</span></span>
     <span class="ov-sep doan-canvas-sep-root" aria-hidden="true">/</span>
-    <span class="doan-canvas-name" id="name"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg><span>{{NAME}}</span></span>
+    <span class="doan-canvas-name" id="name" role="img" aria-label="{{NAME}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg><span>{{NAME}}</span></span>
     <span class="ov-sep" aria-hidden="true">/</span>
     <span class="ov-title-wrap">
       <button type="button" class="ov-title doan-button doan-frame-trigger" id="drawer-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="drawer" aria-label="Frames" disabled><span id="drawer-label">Frames</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>

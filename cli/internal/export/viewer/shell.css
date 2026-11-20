@@ -182,10 +182,16 @@ svg { display: block; flex: none; }
 html:not(.js) :is(.ov-sep:not(.doan-canvas-sep-root), .ov-title-wrap, .doan-canvas-head-tools) { display: none; }
 /* Container queries measure the content box, inside the two 16px header insets. */
 @container doan-canvas-head (width < 688px) {
-  .doan-canvas-project-name, .doan-canvas-zoom > .doan-icon-button { display: none; }
+  .js .doan-canvas-zoom > .doan-icon-button { display: none; }
 }
 @container doan-canvas-head (width < 568px) {
-  .doan-canvas-trail > :is(.doan-canvas-project, .doan-canvas-sep-root) { display: none; }
+  .js .doan-canvas-project-name { display: none; }
+}
+@container doan-canvas-head (width < 488px) {
+  .js .doan-frame-trigger > span { display: none; }
+}
+@container doan-canvas-head (width < 408px) {
+  .js .doan-canvas-name > span { display: none; }
 }
 
 /* ── Buttons (ds/controls.css) ───────────────────────────────────────────────── */

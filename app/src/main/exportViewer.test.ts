@@ -729,7 +729,7 @@ describe("viewer files", () => {
     const body = shellHtml.replace(/<!--[\s\S]*?-->/, "");
     const counts = new Map<string, number>();
     for (const m of body.matchAll(/\{\{([A-Za-z_]+)\}\}/g)) counts.set(m[1]!, (counts.get(m[1]!) ?? 0) + 1);
-    expect(Object.fromEntries(counts)).toEqual({ PROJECT: 1, INITIAL: 1, HUE: 1, NAME: 2, WIDTH: 1, META: 1, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
+    expect(Object.fromEntries(counts)).toEqual({ PROJECT: 3, INITIAL: 1, HUE: 1, NAME: 3, WIDTH: 1, META: 1, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
     // The comment documents the placeholders by name: a brace form in it would be replaced too.
     expect(shellHtml.match(/<!--[\s\S]*?-->/)?.[0]).not.toContain("{{");
     for (const name of ["lib.js", "measure.js", "shell.js", "shell.css"]) expect(files[name], name).not.toContain("{{");
