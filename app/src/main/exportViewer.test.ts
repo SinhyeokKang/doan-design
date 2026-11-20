@@ -1361,6 +1361,80 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     await panel.getByRole("button", { name: /<b>Item<\/b>/ }).waitFor();
   });
 
+  test("Escape returns from the element menu to its trigger, then to the board", async () => {
+    const frame = await openCanvas(twoFrames);
+    await showInspector(frame);
+    await frame.frameLocator("#canvas").locator("section").first().click({ position: { x: 12, y: 12 } });
+    const trigger = frame.getByRole("button", { name: /Elements in this frame/ });
+    await trigger.press("Enter");
+    await frame.getByRole("treeitem").first().waitFor();
+    await frame.page().keyboard.press("Escape");
+    expect(await trigger.evaluate(el => document.activeElement === el)).toBe(true);
+    await frame.page().keyboard.press("Escape");
+    await frame.locator("#inspect-empty").waitFor();
+    expect(await frame.evaluate(() => document.activeElement?.id)).toBe("board");
+  });
+
+  test("Space preserves the inspected frame while switching to Hand clears it", async () => {
+    const frame = await openCanvas(twoFrames);
+    await showInspector(frame);
+    await frame.frameLocator("#canvas").locator("section").first().click({ position: { x: 12, y: 12 } });
+    const mark = frame.locator("#selected-mark");
+    await mark.waitFor();
+    const board = frame.locator("#board");
+    await board.focus();
+    await frame.page().keyboard.down("Space");
+    try {
+      await mark.waitFor({ state: "hidden" });
+    } finally { await frame.page().keyboard.up("Space"); }
+    await mark.waitFor();
+    expect(await frame.locator(".doan-insp-row").count()).toBeGreaterThan(0);
+    await frame.locator('[data-tool="hand"]').click();
+    await expect.poll(() => frame.locator("#inspect-empty").isVisible()).toBe(true);
+    await frame.locator('[data-tool="select"]').click();
+    expect(await frame.locator(".doan-insp-row").count()).toBe(0);
+    expect(await mark.isHidden()).toBe(true);
+  });
+
+  test("switching to Hand while the inspector yields clears the retained frame", async () => {
+    const frame = await openCanvas(twoFrames);
+    await showInspector(frame);
+    await frame.frameLocator("#canvas").locator("section").first().click({ position: { x: 12, y: 12 } });
+    await frame.locator("#selected-mark").waitFor();
+    await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "656px"; });
+    await frame.locator("#inspector").waitFor({ state: "hidden" });
+    await frame.locator('[data-tool="hand"]').click();
+    await frame.locator('[data-tool="select"]').click();
+    await frame.evaluate(() => new Promise<void>(resolve => {
+      const canvas = document.querySelector<HTMLIFrameElement>("#canvas")!;
+      function inspected(event: MessageEvent) {
+        if (event.source !== canvas.contentWindow || event.data?.type !== "inspection") return;
+        window.removeEventListener("message", inspected);
+        resolve();
+      }
+      window.addEventListener("message", inspected);
+      (window.frameElement as HTMLElement).style.width = "800px";
+    }));
+    expect(await frame.locator("#inspect-empty").isVisible()).toBe(true);
+  });
+
+  test("Hide inspector shows its tooltip on hover and keyboard focus", async () => {
+    const frame = await openCanvas(twoFrames);
+    await showInspector(frame);
+    const hide = frame.getByRole("button", { name: "Hide inspector", exact: true });
+    const tip = frame.getByRole("tooltip").filter({ hasText: "Hide inspector" });
+    await hide.hover();
+    await expect.poll(() => tip.isVisible()).toBe(true);
+    await frame.locator("#board").hover({ position: { x: 2, y: 2 } });
+    await expect.poll(() => tip.isVisible()).toBe(false);
+    await hide.press("Tab");
+    await frame.page().keyboard.press("Shift+Tab");
+    expect(await hide.evaluate(el => document.activeElement === el)).toBe(true);
+    expect(await tip.isVisible()).toBe(true);
+    await hide.press("Enter");
+    expect(await frame.evaluate(() => document.activeElement?.id)).toBe("inspector-show");
+  });
+
   test("a folded viewer leaves canvas clicks and hover alone", async () => {
     const frame = await openCanvas('<section data-doan-frame="f" style="height:250px;padding:12px"><button onclick="this.textContent=\'Clicked\'">Click</button></section>', 320);
     const button = frame.frameLocator("#canvas").getByRole("button");
