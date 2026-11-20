@@ -454,8 +454,8 @@ describe("prototype window styles", () => {
   const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 
   test("the overlay covers the content panel only, opaque under Reduce transparency", () => {
-    expect(css).toMatch(/\.pw-panel > \.problem-overlay \{[^}]*position: absolute; inset: 0;[^}]*background: color-mix\(in srgb, var\(--surface-panel\) 60%, transparent\);[^}]*backdrop-filter: blur\(var\(--blur-sm\)\);/);
-    expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\) \{ \.pw-panel > \.problem-overlay \{ background: var\(--surface-panel\);/);
+    expect(css).toMatch(/:is\(\.pw-panel, \.add-panel\) > \.problem-overlay \{[^}]*position: absolute; inset: 0;[^}]*background: color-mix\(in srgb, var\(--surface-panel\) 60%, transparent\);[^}]*backdrop-filter: blur\(var\(--blur-sm\)\);/);
+    expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\) \{ :is\(\.pw-panel, \.add-panel\) > \.problem-overlay \{ background: var\(--surface-panel\);/);
   });
 
   test("the panel sits 8px inside the window under a --size-chrome header, as fit.ts sizes the window", () => {
@@ -513,7 +513,7 @@ describe("prototype window styles", () => {
 
   // The panel no longer clips, so the overlay rounds its own corners over the panel's.
   test("the state overlay keeps the panel's corners", () => {
-    expect(css).toMatch(/\.pw-panel > \.problem-overlay \{[^}]*border-radius: inherit;/);
+    expect(css).toMatch(/:is\(\.pw-panel, \.add-panel\) > \.problem-overlay \{[^}]*border-radius: inherit;/);
   });
 });
 

@@ -148,7 +148,11 @@ test("a failed first read leaves the shell available and retries in place until 
   };
   doan.readAddPage!.mockRejectedValueOnce(new Error("first read"));
   render(page); await flush(); render(page);
+  // Child hooks during the static draw belong to the backdrop, not to PageBody's later mount.
+  const { states, refs, effects } = hooks;
+  hooks.states = []; hooks.refs = []; hooks.effects = [];
   const html = renderToStaticMarkup(pageTree);
+  Object.assign(hooks, { states, refs, effects });
   expect(html).toMatch(/<header>Navigation<\/header><aside>Projects<\/aside><main/);
   expect(html).toMatch(/inert=""[^>]*aria-hidden="true"[^>]*>[\s\S]*Choose folder/);
   expect(html).toContain("Couldn’t open Add Projects");
