@@ -1724,7 +1724,8 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
   });
 
   test("a canvas press arriving after focus moved to the drawer leaves the drawer open", async () => {
-    const frame = await openCanvas(twoFrames, 800, () => {
+    // Keep Cart in view so Playwright need not scroll the board to deliver the canvas click.
+    const frame = await openCanvas(compactCart, 320, () => {
       const canvas = document.querySelector<HTMLIFrameElement>("#canvas")!;
       const pending: MessageEvent[] = [];
       // Hold the press and subsequent messages in order until the real click produces its selection.
@@ -1744,7 +1745,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
       window.addEventListener("message", hold);
     });
     await showInspector(frame);
-    await frame.frameLocator("#canvas").locator("section").first().click({ position: { x: 25, y: 10 } });
+    await frame.frameLocator("#canvas").locator('[data-doan-frame="cart"]').click();
     await expect.poll(() => frame.locator("#element-trigger").textContent()).toBe("Cart");
     expect(await frame.locator("#drawer").isVisible()).toBe(true);
     expect(await frame.locator("#drawer").evaluate(el => el.contains(document.activeElement))).toBe(true);
