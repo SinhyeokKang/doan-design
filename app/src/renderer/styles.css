@@ -1470,7 +1470,7 @@ button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-ba
 /* The same dashed box as the sidebar's empty groups, inset like the list's rows. */
 .rp-empty { margin: 0 var(--space-2) var(--space-2); padding: var(--space-4); border: 1px dashed var(--border-standard); border-radius: var(--radius-chip); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .rp-empty p + p { margin-top: var(--space-2); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
-.rp-loading { padding: var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.rp-loading { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .rp-error { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); color: var(--text-danger); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 /* A list read failure is an inline error (DESIGN 'No coloured edge stripes'): the alert icon, the sentence taking the
    rest of the row, Retry at its end. */

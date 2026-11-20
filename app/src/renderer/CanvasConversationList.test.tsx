@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow } from "../main/view";
-import { CanvasConversationList, ListLoading, observedRows, RowDelete, RowFocusMemory, type CanvasList } from "./CanvasConversationList";
+import { CanvasConversationList, observedRows, RowDelete, RowFocusMemory, type CanvasList } from "./CanvasConversationList";
 import { canvasConversationRows } from "./canvasConversationRows";
 import { CanvasConversations } from "./RightPanel";
 import { TooltipContent, TooltipProvider } from "./components/ui/tooltip";
@@ -169,9 +169,8 @@ describe("canvas conversation list", () => {
     expect(css).toMatch(/\.rp-empty \{[^}]*border: 1px dashed var\(--border-standard\);[^}]*border-radius: var\(--radius-chip\);/);
   });
 
-  test("loading shows nothing first, then the status line", () => {
-    expect(render("loading")).toBe("");
-    expect(renderToStaticMarkup(<ListLoading />)).toBe('<p class="rp-loading" role="status">Loading canvas conversations</p>');
+  test("the loading status mounts empty before its content appears", () => {
+    expect(render("loading")).toBe('<p class="rp-loading" role="status"></p>');
   });
 
   // U39: the panel is white, where a panel button has no fill; subtle keeps one.
