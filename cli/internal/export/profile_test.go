@@ -30,7 +30,7 @@ const (
 	largeRepoDigest = "2a3cfcf21069ac06c0aecac9d04b5bd444ab5addf8f6a63beb39959eb877a741"
 	largeCSSDigest  = "b85ec1ecd2db1e6ca0be71f006695b177039a6d4d875fa20308a53bfec4e3857"
 	// Pin the assembled page separately so viewer edits leave the input fixtures intact.
-	largePageDigest = "d45261239f9dde5c23ad257eca8993f955925fc3b9246d943371075fe03dc6b8"
+	largePageDigest = "c8ce7e87d6442dcae196ff1f165790d1e0b12747d619ed54e84ebe72477f9b13"
 )
 
 const largeCanvas = ".doan/canvases/big-css.html"

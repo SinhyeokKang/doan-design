@@ -156,12 +156,12 @@ function canvasInspection(post) {
     for (const type of ["pointerdown", "mousedown", "click", "dblclick"]) on(type, event => {
       const owner = inputWindow();
       if (!event.isTrusted) return;
-      if (type === "click" && event.detail && pressWindow && (cancelledPress || pressWindow !== owner || pan)) {
+      if (type === "click" && event.detail && pressWindow && (cancelledPress || pressWindow !== owner)) {
         event.preventDefault();
         event.stopImmediatePropagation();
         return;
       }
-      if (!owner || pan) return;
+      if (!owner) return;
       if (type === "pointerdown") {
         emit("inspect-press", {});
         if (event.button === 0 && !event.ctrlKey) { clearText(); dragged = false; }
@@ -186,7 +186,7 @@ function canvasInspection(post) {
       }
     });
     on("pointermove", event => {
-      if (!event.isTrusted || pan) return;
+      if (!event.isTrusted || !inputWindow()) return;
       meta = event.metaKey; alt = event.altKey; hovered = event.target;
       if (press?.pointerId === event.pointerId) {
         if (!(event.buttons & 1)) finishDrag();

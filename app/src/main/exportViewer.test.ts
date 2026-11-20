@@ -1569,6 +1569,56 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     expect(await frame.locator("#inspect-empty").isVisible()).toBe(true);
   });
 
+  test("a new click after Space release selects while the canvas still has the pan command", async () => {
+    const frame = await openCanvas('<section data-doan-frame="cart" data-doan-title="Cart"><button style="width:100%;height:180px" onpointerdown="this.dataset.pressed=1">Buy</button></section>', 320, undefined, () => {
+      const holdPanEnd = (event: MessageEvent) => {
+        if (event.source !== parent || event.data?.type !== "pan") return;
+        if (event.data.pan) { document.documentElement.dataset.panning = "true"; return; }
+        event.stopImmediatePropagation();
+        document.documentElement.dataset.panEndHeld = "true";
+        window.removeEventListener("message", holdPanEnd, true);
+        const { data, origin, source } = event;
+        document.addEventListener("deliver", () => window.dispatchEvent(new MessageEvent("message", { data, origin, source })), { once: true });
+      };
+      window.addEventListener("message", holdPanEnd, true);
+    });
+    await showInspector(frame);
+    const canvas = frame.childFrames()[0]!;
+    await frame.locator("#board").focus();
+    await frame.page().keyboard.down("Space");
+    await canvas.locator("html[data-panning]").waitFor({ state: "attached" });
+    await frame.page().keyboard.up("Space");
+    await canvas.locator("html[data-pan-end-held]").waitFor({ state: "attached" });
+    const button = canvas.getByRole("button");
+    await button.click();
+    expect(await button.getAttribute("data-pressed")).toBeNull();
+    await canvas.evaluate(() => document.dispatchEvent(new Event("deliver")));
+    await frame.getByRole("button", { name: "Cart, frame. Elements in this frame", exact: true }).waitFor({ timeout: 3000 });
+  });
+
+  test.each([false, true])("board whitespace supersedes an opening click and allows a later click (%s)", async clickAgain => {
+    const { frame, button, mouse, deliver } = await openingGesture();
+    await mouse.down(); await mouse.up();
+    await frame.locator("#board").click({ position: { x: 4, y: 4 } });
+    if (clickAgain) await button.click();
+    const canvas = frame.childFrames()[0]!;
+    await canvas.evaluate(() => {
+      window.addEventListener("message", event => {
+        if (event.source === parent && event.data?.type === "inspect-ready") document.documentElement.dataset.ack = "true";
+      });
+    });
+    await deliver();
+    await canvas.locator("html[data-ack]").waitFor({ state: "attached", timeout: 3000 });
+    await dom.flush(canvas);
+    await dom.flush(frame);
+    if (clickAgain) {
+      await frame.getByRole("button", { name: "Cart, frame. Elements in this frame", exact: true }).waitFor({ timeout: 3000 });
+    } else {
+      expect(await frame.locator("#inspect-empty").isVisible()).toBe(true);
+      expect(await frame.locator("#selected-mark").isHidden()).toBe(true);
+    }
+  });
+
   test("the first click after reopening steps from the new inspector's empty selection", async () => {
     const { frame, mouse, deliver } = await openingGesture(true);
     await mouse.down(); await mouse.up();

@@ -58,13 +58,13 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
       panel.append(inputMarker);
     }
   }
-  function mode(focus, reload = false) {
+  function mode(focus, reason) {
     const open = wanted && hasRoom.matches;
     show.setAttribute("aria-disabled", String(!hasRoom.matches));
     if (!hasRoom.matches) show.setAttribute("aria-description", noRoom);
     else show.removeAttribute("aria-description");
     headTip.textContent = !hasRoom.matches ? noRoom : "Show inspector";
-    if (!reload && open === !panel.hidden) return;
+    if (!reason && open === !panel.hidden) return;
     const focusMoved = panel.contains(document.activeElement) || document.activeElement === show;
     clearShowTip(); clearHideTip();
     reset();
@@ -75,14 +75,14 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     $("inspector-show-wrap").hidden = open; $("inspector-sep").hidden = open;
     show.setAttribute("aria-expanded", String(open));
     epoch++; seq = 0; acknowledged = false;
-    command("inspect-mode", { open, retain: wanted });
+    command("inspect-mode", { open, retain: wanted && reason !== "clear" });
     if (focus || focusMoved) (open ? hide : show).focus({ preventScroll: true });
   }
   show.addEventListener("mousedown", event => event.preventDefault());
   show.addEventListener("click", () => { if (hasRoom.matches) { wanted = true; mode(true); } });
   hide.addEventListener("click", () => { wanted = false; mode(true); });
   hasRoom.addEventListener("change", () => mode(false));
-  canvas.addEventListener("load", () => { if (wanted) mode(false, true); });
+  canvas.addEventListener("load", () => { if (wanted) mode(false, "reload"); });
   function bindHeadTooltip(button, tip) {
     let timer = 0;
     function display() {
@@ -262,7 +262,8 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     if (panel.hidden || panTold || event.button !== 0 || event.ctrlKey || event.altKey) return;
     if (event.target === board || event.target === $("spacer")) {
       board.focus({ preventScroll: true });
-      command("inspect-clear");
+      // A blank-board click also clears canvas input still waiting for the previous epoch.
+      mode(false, "clear");
     }
   });
   document.addEventListener("selectionchange", () => {
