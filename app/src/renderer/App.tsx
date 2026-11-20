@@ -107,7 +107,7 @@ import { missingCanvasMessage, openLinkRefusal, removedCanvasMessage, sameShownC
 import { blockedLinkMessage, blockedReason, decideOpen, type OpenPage } from "./openDecision";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
 import { conversationCanvasKey, withoutCanvas, withoutConversation, withoutRoots, withoutUnlisted, type HomeMemory, type UiState, type ShellProject } from "../restore/uiState";
-import { emptyComposer } from "./HomeComposerView";
+import { emptyComposer, forgetHomeStarts } from "./HomeComposerView";
 import { attachmentLimit, defaultProject, type AttachmentDraft } from "./homeComposer";
 import { OverviewRun } from "./overviewRun";
 import { DockedSupport } from "./dockedSupport";
@@ -964,6 +964,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (!memoryRead.current) for (const root of roots) { memoryTouched.current.add(root); canvasMemoryRemoved.current.add(root); }
     conversationByRoot.current = withoutRoots(conversationByRoot.current, roots);
     conversationByCanvas.current = withoutRoots(conversationByCanvas.current, roots); setMemoryTick(tick => tick + 1);
+    forgetHomeStarts(composerMemory, roots);
     overviewRun.current?.forgetRoots(roots);
     canvasRun.current?.forgetRoots(roots);
     homeRun.current.forgetRoots(roots);
