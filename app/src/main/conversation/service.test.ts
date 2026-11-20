@@ -433,7 +433,11 @@ it("a native start still pending after Stop cannot outlive project removal or st
     await vi.advanceTimersByTimeAsync(10_100);
     expect(settled).toBe(false);
     expect(h.service.projectRemovalBusy(["/repo"])).toBe(true);
+    expect(h.service.list("/repo")[0]?.working).toBe(true);
+    h.changes.length = 0;
     finish(); h.open.mock.calls[0]![2]();
+    expect(h.changes).toContain("/repo");
+    expect(h.service.list("/repo")[0]?.working).toBe(false);
     await vi.advanceTimersByTimeAsync(200);
     await stop;
     expect(h.service.projectRemovalBusy(["/repo"])).toBe(false);
@@ -455,6 +459,50 @@ it("still recognizes an already targeted project turn if it binds to a canvas wh
     const retry = h.service.interruptProjectTurn(id, turn);
     h.open.mock.calls[0]![2]();
     await vi.advanceTimersByTimeAsync(200); await retry;
+    expect(h.service.projectRemovalBusy(["/repo"])).toBe(false);
+  } finally { vi.useRealTimers(); }
+});
+
+it.each(["before", "after"] as const)("closes a starting project runner registered %s removal, once, and waits for its exit", async order => {
+  vi.useFakeTimers();
+  try {
+    const h = homeFixture();
+    const { conversationId: id } = await h.service.start(homeRequest);
+    h.service.receive(id, { type: "turn.done" });
+    h.open.mock.calls[0]![2]();
+    await vi.advanceTimersByTimeAsync(11_000);
+    const cleanup = vi.fn(async () => {});
+    const runner = h.runners[0]!;
+    let ready!: () => void;
+    h.open.mockImplementationOnce((_input, _emit, _exit, register) => {
+      if (order === "before") register(cleanup);
+      return new Promise((resolve, reject) => {
+        ready = order === "before" ? () => reject(new Error("handshake closed")) : () => resolve(runner);
+      });
+    });
+    const sending = h.service.send(id, "again", []).then(() => "sent", (error: Error) => error.message);
+    await vi.advanceTimersByTimeAsync(0);
+    const turn = h.service.list("/repo")[0]!.projectTurnId!;
+    const removing = h.service.interruptProjectTurn(id, turn).then(() => "stopped", (error: Error) => error.message);
+    if (order === "after") {
+      await vi.advanceTimersByTimeAsync(21_000);
+      expect(await removing).toBe("stop_pending");
+      expect(h.service.projectRemovalBusy(["/repo"])).toBe(true);
+      h.open.mock.calls[1]![3](cleanup);
+    }
+    await vi.advanceTimersByTimeAsync(100);
+    const callsBeforeReady = cleanup.mock.calls.length;
+    ready();
+    expect(await sending).toBe(order === "before" ? "handshake closed" : "busy");
+    expect(callsBeforeReady).toBe(1);
+    const retry = h.service.interruptProjectTurn(id, turn);
+    expect(runner.close).not.toHaveBeenCalled();
+    expect(h.service.projectRemovalBusy(["/repo"])).toBe(true);
+    h.open.mock.calls[1]![2]();
+    await vi.advanceTimersByTimeAsync(200);
+    await retry;
+    expect(await removing).toBe(order === "before" ? "stopped" : "stop_pending");
+    expect(cleanup).toHaveBeenCalledOnce();
     expect(h.service.projectRemovalBusy(["/repo"])).toBe(false);
   } finally { vi.useRealTimers(); }
 });

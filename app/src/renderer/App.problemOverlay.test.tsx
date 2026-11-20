@@ -371,7 +371,7 @@ test("Remove from Doan on the overlay asks first, then goes Home from the Overvi
     overlay()!.onAction("remove"); render();
     expect(removalDialog(), String(onCanvas)).toBeDefined();
     (dialogButton("Remove from Doan").props.onClick as () => void)(); await flush();
-    expect(doan.removeProjects).toHaveBeenCalledWith(["/w/a"]);
+    expect(doan.removeProjects).toHaveBeenCalledWith(["/w/a"], true);
     folders([listed("/w/c")]);
     expect(find(Home), String(onCanvas)).toHaveLength(1);
   }
@@ -391,7 +391,7 @@ test("Remove from Doan on the overlay removes the whole project group", async ()
   const title = all(dialog!).map(element => element.props.children).find(children => typeof children === "string" && children.startsWith("Remove "));
   expect(title).toMatch(/^Remove [^()]+ from Doan\?$/);
   (dialogButton("Remove from Doan").props.onClick as () => void)(); await flush();
-  expect(doan.removeProjects).toHaveBeenCalledWith(["/w/a", "/w/b"]);
+  expect(doan.removeProjects).toHaveBeenCalledWith(["/w/a", "/w/b"], true);
 });
 
 test("heading focus: on entry; not from the sidebar, where the live region reads the heading; again when the kind changes; from the covered body", () => {

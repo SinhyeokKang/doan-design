@@ -1366,6 +1366,18 @@ describe("removing", () => {
     expect(mocks.shell.remove).toHaveBeenCalledWith([WT]);
   });
 
+  test("holds only a whole-group removal while a registered worktree has no known Git group", async () => {
+    const contents = window().webContents;
+    mocks.shell.entries.mockReturnValue([entries[0]!, { path: WT, kind: "loading" }]);
+    expect(await invoke("folders:remove", contents, null, { paths: [APP], group: true })).toEqual({ kind: "loading" });
+    expect(mocks.shell.remove).not.toHaveBeenCalled();
+    expect(await invoke("folders:remove", contents, null, { paths: [APP] })).toEqual({ kind: "removed" });
+    const unrelated = { path: "/code/unrelated", kind: "loading", lastCommon: "/code/else/.git" };
+    mocks.shell.entries.mockReturnValue([...entries, unrelated]);
+    expect(await invoke("folders:remove", contents, null, { paths: [APP], group: true })).toEqual({ kind: "groupChanged", paths: [APP, WT] });
+    expect(await invoke("folders:remove", contents, null, { paths: [APP, WT], group: true })).toEqual({ kind: "removed" });
+  });
+
   test("removes a row or a card", async () => {
     const contents = window().webContents;
     expect(await invoke("folders:remove", contents, null, { paths: [WT] })).toEqual({ kind: "removed" });

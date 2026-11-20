@@ -147,7 +147,7 @@ export type MenuCommand = "home" | "quickOpen" | "newConversation" | "pickFromCa
 // projectSettings: the "settings" screen is the Project Settings page, which enables the menu as Settings does; only
 // `doan remove`'s busy sentence tells the two apart.
 export interface MenuInputs { screen: Screen; modal: boolean; choose?: boolean; locked?: boolean; overview?: boolean; pickerAvailable?: boolean; sidebarHidden?: boolean; projectSettings?: boolean }
-export type RemoveResult = { kind: "removed" } | { kind: "unavailable" } | { kind: "busy" } | { kind: "groupChanged"; paths: string[] };
+export type RemoveResult = { kind: "removed" } | { kind: "unavailable" } | { kind: "busy" } | { kind: "loading" } | { kind: "groupChanged"; paths: string[] };
 export type LocateResult = { kind: "located"; root: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
 // The onboarding Project step's folder picker: a path only. Inspection, registration and setup go through the
 // onboarding session, so picking a folder changes nothing.
@@ -1499,6 +1499,7 @@ async function start(): Promise<void> {
       const anchor = paths.find(path => stored.some(entry => entry.path === path));
       if (!anchor) return { kind: "unavailable" };
       const current = removalGroup(stored, [anchor]);
+      if (!current) return { kind: "loading" };
       if (current.length !== paths.length || current.some(root => !paths.includes(root))) return { kind: "groupChanged", paths: current };
     }
     if (!paths.every(path => stored.some(entry => entry.path === path))) return { kind: "unavailable" };

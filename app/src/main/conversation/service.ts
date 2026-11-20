@@ -216,7 +216,7 @@ interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runn
   // A Stop came while this send was prepared, before acceptance: the send is refused at its next check and never runs.
   cancelled?: true;
   // A project removal can be retried before the interrupted runner's process group reports its exit.
-  removalStop?: { turnId: string; root: string; state: "pending" | "accepted" | "failed" };
+  removalStop?: { turnId: string; root: string; interrupt?: "pending" | "done" | "failed"; close?: "pending" | "done" | "failed" };
   // The accepted turn's provider command (providerCommands.ts commandName), absent for a message.
   command?: string;
   // The permission mode a Codex turn of a Doan connection stated on its thread (turn/start), absent for a command turn,
@@ -601,7 +601,8 @@ export class ConversationService {
       // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the send awaits
       if (!this.working(id)) this.giveBack(id, live.cancelled ? "interrupted" : reason(error));
       this.changedOf(id);
-      if (opening) void live.runner?.close(); throw error;
+      if (opening && !this.closeRemovalRunner(live)) void live.runner?.close();
+      throw error;
     }
   }
   // A Codex server's fence holds only the modes of its mechanism: Full access runs inside the outer sandbox-exec, the
@@ -696,7 +697,10 @@ export class ConversationService {
     if (key) { this.handoffKeys.set(key, id); live.handoffKey = key; } else delete live.handoffKey;
     const release = () => { freeLease(input); if (key) this.handoffKeys.delete(key); };
     try {
-      return await this.open({ ...input, env: { ...input.env, DOAN_CONVERSATION_ID: id, ...(key ? { DOAN_HANDOFF: key } : {}) } }, event => { if (this.live.get(id) === live) this.receive(id, event); }, () => { release(); if (this.live.get(id) === live) this.exited(id); }, stop => { spawned = true; live.cleanup = stop; if (this.quitting || this.stopped(live)) void stop(); });
+      return await this.open({ ...input, env: { ...input.env, DOAN_CONVERSATION_ID: id, ...(key ? { DOAN_HANDOFF: key } : {}) } }, event => { if (this.live.get(id) === live) this.receive(id, event); }, () => { release(); if (this.live.get(id) === live) this.exited(id); }, stop => {
+        spawned = true; live.cleanup = stop;
+        if (!this.closeRemovalRunner(live) && (this.quitting || this.stopped(live))) void stop();
+      });
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the spawn callback sets this while the runner opens
     } catch (error) { if (!spawned) release(); throw error; }
   }
@@ -807,7 +811,22 @@ export class ConversationService {
   }
   private removalStopping(id: string, live: Live): boolean {
     const stop = live.removalStop;
-    return !!stop && stop.turnId === live.turnId && !live.exited && (stop.state === "pending" || this.reservations.some(r => r.owner === id));
+    return !!stop && stop.turnId === live.turnId && !live.exited && (stop.interrupt === "pending" || this.reservations.some(r => r.owner === id));
+  }
+  // A provider can register its process before its handshake yields a Runner. The removal owns one
+  // close across registration, the interrupted send's unwind and any retry while that group exits.
+  private closeRemovalRunner(live: Live): boolean {
+    const attempt = live.removalStop;
+    if (!attempt || attempt.turnId !== live.turnId) return false;
+    if (attempt.close || live.exited) return true;
+    const runner = live.runner;
+    const close = runner ? () => runner.close() : live.cleanup;
+    if (close) {
+      live.closed = true;
+      attempt.close = "pending";
+      void Promise.resolve().then(close).then(() => { attempt.close = "done"; }, () => { attempt.close = "failed"; });
+    }
+    return true;
   }
   // A Stop acknowledgement may precede the native turn/start reply, group exit and binding judgement.
   // End the project target's runner so even a reusable Codex server must confirm exit before removal.
@@ -817,27 +836,25 @@ export class ConversationService {
     // A folder refresh can bind a stopped project turn before its runner finishes closing.
     if (m.canvas && live.removalStop?.turnId !== turnId) throw new Error("turn_changed");
     if (!this.working(id) && !this.removalStopping(id, live)) return;
-    let stop = live.removalStop;
-    if (!stop || stop.turnId !== turnId || stop.state === "failed") {
-      const attempt: NonNullable<Live["removalStop"]> = { turnId, root: m.root, state: "pending" };
-      live.removalStop = stop = attempt;
-      const runner = live.runner;
-      if (runner) live.closed = true;
-      // Record the person's interruption and cancel the queue before closing the runner; close alone
-      // may deliver an appQuit event. This path owns the single runner shutdown.
-      const interrupt = this.interrupt(id, turnId, true);
-      const close = runner?.close();
-      void Promise.all([interrupt, close]).then(() => { attempt.state = "accepted"; }, () => { attempt.state = "failed"; });
+    const stop: NonNullable<Live["removalStop"]> = live.removalStop?.turnId === turnId ? live.removalStop : { turnId, root: m.root };
+    live.removalStop = stop;
+    const failed = () => stop.interrupt === "failed" || stop.close === "failed";
+    // Record the person's interruption before closing the runner: close alone may deliver an appQuit event.
+    if (!stop.interrupt || stop.interrupt === "failed") {
+      stop.interrupt = "pending";
+      void this.interrupt(id, turnId, true).then(() => { stop.interrupt = "done"; }, () => { stop.interrupt = "failed"; });
     }
+    if (stop.close === "failed") delete stop.close;
+    this.closeRemovalRunner(live);
     // The acknowledgement and process callback are independent. A timeout keeps the same attempt for
     // Retry, which observes its progress without interrupting that turn twice.
     const until = performance.now() + this.exitWaitMs + BIND_GRACE_MS;
     for (;;) {
-      if (stop.state === "failed") throw new Error("stop_failed");
+      if (failed()) throw new Error("stop_failed");
       const current = this.live.get(id);
       // Exit deletes a still-preparing live entry. Only its replacement owns a different turn.
       if (current && (current !== live || current.turnId !== turnId)) throw new Error("turn_changed");
-      if (stop.state === "accepted" && !this.removalStopping(id, live) && !this.working(id)) return;
+      if (stop.interrupt === "done" && stop.close !== "pending" && !this.removalStopping(id, live) && !this.working(id)) return;
       const left = until - performance.now();
       if (left <= 0) throw new Error("stop_pending");
       await new Promise<void>(resolve => setTimeout(resolve, Math.min(100, left)));
@@ -1886,10 +1903,12 @@ export class ConversationService {
     try { if (deferNotice) this.publish(saved, true); else this.publish(saved); } catch (error) { console.error("doan: persisted conversation event could not be delivered", error); }
   }
   private exited(id: string): void {
+    const live = this.live.get(id);
+    const stoppingRemoval = live && this.removalStopping(id, live);
     // The reservation goes first (POSTMORTEM 2026-10-27); a held end is written after the transcript was read.
     this.reservations = releaseReservation(this.reservations, id, "process_exited");
     this.waits.get(id)?.wake();
-    const live = this.live.get(id); if (!live) return; live.exited = true; live.exitedAt = Date.now(); delete live.runner; delete live.stage;
+    if (!live) return; live.exited = true; live.exitedAt = Date.now(); delete live.runner; delete live.stage;
     if (live.background) { delete live.background; this.changedOf(id); }
     if (!live.accepted) this.live.delete(id);
     if (live.held) this.writeHeld(id, live, true);
@@ -1901,6 +1920,7 @@ export class ConversationService {
     if (live.lookup) this.endLookup(id, live, true);
     this.groupGone(id, live);
     this.releaseFailed(id, live);
+    if (stoppingRemoval && !this.working(id)) this.changedOf(id);
   }
   // The finished turn's group is gone: its judgements need only the watcher now (promotionDeadline).
   private groupGone(id: string, live: Live): void {

@@ -360,6 +360,28 @@ test.each(["new turn in the stopped conversation", "different conversation repla
   expect(h.host.removeNow).toHaveBeenCalledOnce();
 });
 
+test("a group still loading in main stays registered until its full membership is confirmed", async () => {
+  const h = harness();
+  let roots: string[] | null = null;
+  lists({ [ROOT]: [summary({ phase: "running" })] });
+  h.run.entriesChanged(); await flush();
+  await h.run.remove([ROOT], "Checkout", () => roots);
+  await h.run.confirmRemove();
+  expect(doan.interruptProjectTurn).not.toHaveBeenCalled();
+  expect(h.host.removeNow).not.toHaveBeenCalled();
+  expect(h.run.removing?.error).toBe("Doan is still loading a project.");
+  roots = [ROOT];
+  lists({});
+  vi.mocked(h.host.removeNow).mockResolvedValueOnce({ kind: "loading" });
+  await h.run.confirmRemove();
+  expect(h.run.removing).toMatchObject({ error: "Doan is still loading a project.", cancel: "Keep project", confirm: "Retry" });
+  vi.mocked(h.host.removeNow).mockResolvedValueOnce({ kind: "groupChanged", paths: [ROOT, OTHER] });
+  await h.run.confirmRemove();
+  expect(h.run.removing?.paths).toEqual([ROOT, OTHER]);
+  expect(h.run.removing?.body).toContain("2 registered worktrees");
+  expect(h.host.removeNow).toHaveBeenCalledTimes(2);
+});
+
 test("a plain removal that finds new work asks for Stop and remove before interrupting it", async () => {
   const h = harness();
   await h.run.remove([ROOT], "Checkout");

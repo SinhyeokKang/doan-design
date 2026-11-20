@@ -1485,7 +1485,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     return () => { window.removeEventListener("dragover", refuse); window.removeEventListener("drop", refuse); };
   }, []);
   // A running Home conversation is stopped first, and only after the person agrees.
-  function remove(paths: string[], currentGroup?: (paths: string[]) => string[]): Promise<void> {
+  function remove(paths: string[], currentGroup?: (paths: string[]) => string[] | null): Promise<void> {
     cancelRestore();
     rememberFocus();
     return homeRun.current.remove(paths, removalQuestionLabel(cards, paths, names), currentGroup);
@@ -1502,7 +1502,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       const anchor = paths.find(root => allEntriesRef.current.some(entry => entry.path === root));
       return anchor ? groupRoots(allEntriesRef.current, [anchor]) : [];
     };
-    return remove(roots(shown), roots);
+    return remove(roots(shown) ?? shown, roots);
   };
   async function removeNow(paths: string[], group?: true) {
     cancelRestore();

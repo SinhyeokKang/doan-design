@@ -57,7 +57,7 @@ interface Extras { atStart: string[]; checked: string[]; canvasOpens: number; to
 interface Pending { conversationId: string; root: string; moves: number; sawModal: boolean }
 interface RemovalTarget { conversationId: string; turnId: string; waiting: boolean; label: string; name: string }
 interface Removing extends ReturnType<typeof removalConfirm> {
-  currentGroup?: (paths: string[]) => string[];
+  currentGroup?: (paths: string[]) => string[] | null;
   outstanding?: RemovalTarget[];
   paths: string[]; project: string; stopped: RemovalTarget[]; pending: boolean; error: string | null;
 }
@@ -495,7 +495,7 @@ export class HomeRun {
   }
 
   // Nothing is removed before the person agrees; a running conversation is stopped first.
-  remove(paths: string[], project: string, currentGroup?: (paths: string[]) => string[]): Promise<void> {
+  remove(paths: string[], project: string, currentGroup?: (paths: string[]) => string[] | null): Promise<void> {
     const merged = this.merged();
     const running = paths.flatMap(root => (merged.get(root) ?? []).filter(removalTarget)).map(c => ({ conversationId: c.conversationId, waiting: c.phase === "waiting" }));
     this.removing = { paths, project, ...(currentGroup ? { currentGroup } : {}), stopped: [], pending: false, error: null, ...removalConfirm(running, project, paths.length) };
@@ -519,7 +519,9 @@ export class HomeRun {
       this.host.changed();
     };
 
+    const loadingGroup = () => recover("Doan is still loading a project.", `Retry when loading finishes to check the worktrees registered for ${project}.`);
     const changedGroup = (current = dialog.currentGroup?.(paths)) => {
+      if (current === null) { loadingGroup(); return true; }
       if (!current || (current.length === paths.length && current.every(root => paths.includes(root)))) return false;
       if (!current.length) { this.closeRemove(); return true; }
       const lists = this.merged();
@@ -591,6 +593,7 @@ export class HomeRun {
       const result = dialog.currentGroup ? await this.host.removeNow(paths, true) : await this.host.removeNow(paths);
       if (this.removing !== dialog) return;
       if (result?.kind === "groupChanged") { changedGroup(result.paths); return; }
+      if (result?.kind === "loading") { loadingGroup(); return; }
       if (result?.kind === "busy") {
         dialog.outstanding = [];
         recover("Project work is still active.", `Retry to check the conversations before removing ${project}.`);
