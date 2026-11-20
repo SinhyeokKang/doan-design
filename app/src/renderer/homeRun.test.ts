@@ -834,24 +834,28 @@ test.each(["navigation", "provider gone"])("Edit on Home discards only the newly
   doan.readConversation!.mockResolvedValue({ events: [event("c1", { type: "user.message", text: "Look", anchors: [], attachments: [file] })] });
   doan.removeAttachment = vi.fn(async () => true);
   const issued = deferred<unknown>();
-  doan.attachmentsFromPaths!.mockReturnValueOnce(issued.promise);
+  const files = (id: string) => [{ ok: true, attachment: { ...file, id, pasted: false } }];
+  doan.attachmentsFromPaths!.mockResolvedValueOnce(files("owned")).mockReturnValueOnce(issued.promise);
   const h = harness();
   h.run.entriesChanged();
   await flush();
+  await h.run.editOnHome("c1");
+  const prior = h.run.restore;
+  expect(prior?.request.attachments.map(chip => chip.id)).toEqual(["owned"]);
   const editing = h.run.editOnHome("c1");
   await flush();
-  expect(doan.attachmentsFromPaths).toHaveBeenCalledOnce();
+  expect(doan.attachmentsFromPaths).toHaveBeenCalledTimes(2);
   if (cause === "navigation") h.run.personNavigated();
   else {
     lists({ [ROOT]: [] });
     h.run.listChanged(ROOT);
     await flush();
   }
-  issued.resolve([{ ok: true, attachment: { ...file, id: "fresh", pasted: false } }]);
+  issued.resolve(files("fresh"));
   await editing;
   expect(doan.removeAttachment.mock.calls).toEqual([["fresh"]]);
-  expect(h.host.goHome).not.toHaveBeenCalled();
-  expect(h.run.restore).toBeNull();
+  expect(h.host.goHome).toHaveBeenCalledOnce();
+  expect(h.run.restore).toBe(prior);
 });
 
 test("Edit on Home gives way to a move the person makes while the record is read", async () => {

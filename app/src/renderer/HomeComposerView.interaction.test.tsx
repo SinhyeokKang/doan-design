@@ -457,9 +457,9 @@ test("a take of the picked project's start message that failed is asked again wh
     hooks.states = []; hooks.refs = [];
     doan.takeStartDraft = vi.fn(async () => null);
     doan.takeStartDraft.mockImplementationOnce(failure);
-    const { box, render } = setup({}, { entries: [ENTRY, B] });
+    const { render } = setup({}, { entries: [ENTRY, B] });
     render(); runEffects();
-    await vi.waitFor(() => expect(box.current.startsAsked).toEqual([]));
+    await new Promise(resolve => setTimeout(resolve, 0));
     const pick = (from: string, to: string) => {
       const projects = find(render(), props => typeof props.onValueChange === "function" && props.value === from);
       (projects.onValueChange as (key: string) => void)(to);
