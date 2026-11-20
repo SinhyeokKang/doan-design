@@ -284,6 +284,20 @@ describe("sign-in", () => {
       expect(text).toContain("doan: antigravity sign-in failed: the server refused authenticate (code -32000)");
       leaksNothing(text);
     });
+    it("reads the ACP initialize refusal after exit even when the open deadline falls during the drain", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        const m = manager({ adapters: withAcp() }); await m.load();
+        const run = started(await m.signIn("antigravity", 7));
+        const p = await acpRequest("initialize"); stopReleases = false;
+        await vi.advanceTimersByTimeAsync(59_900);
+        p.finish(1, false);
+        await vi.advanceTimersByTimeAsync(150);
+        p.print(JSON.stringify({ jsonrpc: "2.0", id: p.requests()[0]!.id, error: { code: -32000, message: "refused" } }) + "\n"); p.release();
+        await run.done;
+        expect(logged()).toContain("the server refused initialize (code -32000)");
+      } finally { vi.useRealTimers(); }
+    });
     it("keeps final stderr delivered after a refused ACP reply until the pipes close", async () => {
       const m = manager({ adapters: withAcp() }); await m.load();
       const run = started(await m.signIn("antigravity", 7));

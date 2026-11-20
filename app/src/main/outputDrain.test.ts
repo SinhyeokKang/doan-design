@@ -109,6 +109,32 @@ it.each(["codex", "cursor"] as const)("stops the %s group at leader exit and bou
   run.close();
 });
 
+it("consumes a pending turn/start reply when its RPC deadline falls in the exit grace", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+  const run = await accepted("codex");
+  await vi.advanceTimersByTimeAsync(9900);
+  run.gone(); run.exit(0);
+  await vi.advanceTimersByTimeAsync(150);
+  run.line({ id: run.promptId, result: { turn: { id: "native" } } });
+  run.line({ method: "turn/completed", params: { threadId: "s", turn: { id: "native", status: "completed" } } });
+  run.close();
+  await nextTurn();
+  expect(run.history().filter(e => e.type === "turn.done" || e.type === "turn.failed")).toEqual([expect.objectContaining({ type: "turn.done" })]);
+});
+
+it("reads a final ACP initialize error across the handshake deadline", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const run = fakeChild();
+  const opening = openRunner({ runtime: "cursor", command: "/fake", cwd: "/tmp", configDir: "/tmp", env: {} }, () => {}, () => {}, () => {})
+    .then(() => "opened", (error: Error) => error.message);
+  await vi.advanceTimersByTimeAsync(59_900);
+  run.gone(); run.exit(1);
+  await vi.advanceTimersByTimeAsync(150);
+  run.line({ jsonrpc: "2.0", id: 1, error: { code: -32001, message: "Authentication required" } });
+  run.close();
+  expect(await opening).toBe("not_logged_in");
+});
+
 it("classifies clone stderr delivered after git exits and stops the group before the pipe closes", async () => {
   const root = temp(), run = fakeChild();
   let spawned!: () => void;
