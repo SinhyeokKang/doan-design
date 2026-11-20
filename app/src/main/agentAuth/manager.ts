@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ACP_PROTOCOL_VERSION, AcpConnection, AcpError } from "../conversation/acp";
 import { CodexDispatcher, RpcError } from "../conversation/dispatcher";
-import { OwnedGroup } from "../conversation/process";
+import { drainOutput, OwnedGroup } from "../conversation/process";
 import { object } from "../conversation/sessions";
 import { AUTH_LINK_FILE, BROWSER_HOOK, callbackAddress, INSTALL_FAILED, forwardCallback, signInLink, type SignInLink } from "./antigravity";
 import { probeShell } from "../onboarding/machine";
@@ -19,6 +19,7 @@ import { authStatus, checkVerdict, initialAuthState, transition } from "./state"
 import type { AuthStorage, CleanupRecord } from "./storage";
 import { PROVIDERS, type AccountConnection, type AuthEvent, type AuthMetadata, type AuthRejection, type AuthState, type AuthStatusDto, type AuthTransition, type CheckResult, type Provider, type SignInResult, type ToolFacts } from "./types";
 
+// exit is the leader alone. gone also waits for the group and its bounded output drain.
 export interface AuthProcess { onOutput(listener: (text: string, stream?: "stderr") => void): void; exit: Promise<number | null>; gone: Promise<void>; stop(): void; write?(text: string): void }
 export type Spawn = (command: string, args: string[], options: { cwd: string; env: Record<string, string>; input?: boolean }) => AuthProcess;
 export interface AuthPrompt { provider: Provider; attemptId: string; owner: number; url: string }
@@ -63,7 +64,6 @@ export interface AuthManagerOptions {
 export interface WriteOptions { stop?: boolean }
 interface Run { code: number | null; stdout: string; stderr: string }
 const OUTPUT_LIMIT = 1024 * 1024;
-const OUTPUT_GRACE_MS = 500;
 const QUIT_WAIT_MS = 5000;
 const ACP_OPEN_MS = 60_000;
 const LINK_POLL_MS = 100;
@@ -644,7 +644,9 @@ export class AuthManager {
     // protocol details are acp.ts's own fixed sentences, never server text.
     const acp = new AcpConnection(line => { if (!child.write) throw new Error("process_exited"); child.write(line); },
       (_params, id) => acp.respond(id, { outcome: { outcome: "cancelled" } }), () => {}, detail => { failure = protocol = detail; child.stop(); });
-    void child.exit.then(code => { exited = true; exitCode = code; });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    void child.exit.then(code => { exited = true; exitCode = code; clearTimeout(timer); acp.clearDeadlines(); child.stop(); });
+    void child.gone.then(() => acp.close());
     let errors = "", withheld = 0;
     const events: string[] = [];
     child.onOutput((text, stream) => {
@@ -659,11 +661,11 @@ export class AuthManager {
         if (link && onLink(link)) child.stop();
       }
     });
-    let timer: ReturnType<typeof setTimeout> | undefined;
     const exchange = async () => {
       await this.acpOpen(provider, acp);
+      if (exited) throw new Error("the ACP server exited");
       stage = method;
-      if (timeoutMs !== null) timer = setTimeout(() => { stopped = true; failure ||= `the server was stopped after ${timeoutMs} ms without an answer`; child.stop(); }, timeoutMs);
+      if (timeoutMs !== null) timer = setTimeout(() => { stopped = true; failure ||= `the server was stopped after ${timeoutMs} ms without an answer`; acp.close(); child.stop(); }, timeoutMs);
       return acp.request(method, params, null);
     };
     const reason = (error: unknown) => {
@@ -675,14 +677,15 @@ export class AuthManager {
       if (exited) return `the server exited (code ${exitCode})`;
       return "the exchange failed";
     };
-    let result: unknown;
-    try { result = await Promise.race([exchange(), child.exit.then(() => { throw new Error(failure || "the ACP server exited"); })]); }
-    catch (error) { if (this.stopRequests.has(attemptId)) throw new Cancelled(); throw new ServerError(message(error), reason(error), [...events], withheld); }
+    let result: unknown, refused: { detail: string; reason: string } | undefined;
+    try { result = await exchange(); }
+    catch (error) { refused = { detail: failure || message(error), reason: reason(error) }; }
     finally {
       clearTimeout(timer); acp.close(); child.stop(); await child.gone;
       owned.delete(child); if (!owned.size) this.processes.delete(attemptId);
     }
     if (this.stopRequests.has(attemptId)) throw new Cancelled();
+    if (refused) throw new ServerError(refused.detail, refused.reason, events, withheld);
     return result;
   }
 
@@ -693,7 +696,7 @@ export class AuthManager {
     this.lookups.set(attemptId, controller);
     if (this.stopRequests.has(attemptId)) controller.abort();
     let late = false, timer: ReturnType<typeof setTimeout> | undefined;
-    const arm = () => { timer ??= setTimeout(() => { late = true; controller.abort(); }, IDENTITY_MS); };
+    const arm = () => timer ??= setTimeout(() => { late = true; controller.abort(); }, IDENTITY_MS);
     try {
       const codex = this.adapters[provider].identity === "codex-app-server";
       if (!codex) arm();
@@ -711,22 +714,23 @@ export class AuthManager {
   // account/read from a short app-server in the profile, with a Codex conversation's store and handshake. The
   // dispatcher is the conversation runner's: AcpConnection refuses Codex messages, which carry no jsonrpc field.
   // arm starts the budget once the CLI is located: the login-shell probe is the status run's cost as well, not the lookup's.
-  private async codexEmail(provider: Provider, attemptId: string, profile: string, signal: AbortSignal, arm: () => void): Promise<string | undefined> {
+  private async codexEmail(provider: Provider, attemptId: string, profile: string, signal: AbortSignal, arm: () => ReturnType<typeof setTimeout>): Promise<string | undefined> {
     let child: AuthProcess;
     try {
       const { command, env, profileDir } = await this.launch(provider, attemptId, {}, profile);
       if (signal.aborted) throw new Cancelled();
-      arm();
       child = this.options.spawn(command, [...this.adapters[provider].args, "app-server"], { cwd: profileDir, env, input: true });
     } catch (error) { throw error instanceof Cancelled ? error : new LookupFailure("the app-server could not be started"); }
     const owned = this.processes.get(attemptId) ?? new Set();
     owned.add(child); this.processes.set(attemptId, owned);
-    const stop = () => child.stop();
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the signal can abort while the app-server is spawned
-    if (signal.aborted) stop(); else signal.addEventListener("abort", stop, { once: true });
     let broken = false, buffer = "", stage = "initialize";
     const send = (value: unknown) => { if (!child.write) throw new Error("process_exited"); child.write(JSON.stringify(value) + "\n"); };
     const dispatcher = new CodexDispatcher(send, () => {}, () => { broken = true; child.stop(); });
+    const deadline = arm();
+    void child.exit.then(() => { clearTimeout(deadline); dispatcher.clearDeadlines(); child.stop(); });
+    const stop = () => { dispatcher.close(); child.stop(); };
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the signal can abort while the app-server is spawned
+    if (signal.aborted) stop(); else signal.addEventListener("abort", stop, { once: true });
     child.onOutput((text, stream) => {
       if (stream === "stderr" || broken) return;
       buffer += text;
@@ -746,7 +750,8 @@ export class AuthManager {
       stage = "account/read";
       return codexAccountEmail(await dispatcher.request("account/read", { refreshToken: false }));
     };
-    try { return await Promise.race([exchange(), child.exit.then(() => { throw new Error("process_exited"); })]); }
+    void child.gone.then(() => dispatcher.close());
+    try { return await exchange(); }
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the protocol handlers set this during the exchange
     catch (error) { throw new LookupFailure(broken ? "the app-server broke the protocol" : error instanceof RpcError ? `the app-server refused ${stage}` : "the app-server exited"); }
     finally {
@@ -1005,8 +1010,6 @@ export const spawnAuthProcess: Spawn = (command, args, { cwd, env, input }) => {
   const stdout = child.stdout!, stderr = child.stderr!;
   // The group can be gone in the same tick as the leader's exit while its output is still in the pipe, so gone waits
   // for both pipes to close too. A process that left the group can hold them open for good: a grace bounds that wait.
-  const closed = Promise.all([stdout, stderr].map(stream => new Promise<void>(resolve => { stream.once("close", () => resolve()); }))).then(() => {});
-  const gone = groupGone.then(() => Promise.race([closed, new Promise<void>(resolve => { setTimeout(resolve, OUTPUT_GRACE_MS).unref(); })]));
   const group = child.pid ? new OwnedGroup(child.pid, undefined, undefined, release) : null;
   const exit = new Promise<number | null>(resolve => {
     child.once("error", () => { resolve(null); if (group) group.childExited(); else release(); });
@@ -1016,6 +1019,7 @@ export const spawnAuthProcess: Spawn = (command, args, { cwd, env, input }) => {
       setTimeout(() => void group?.stop(), 2000).unref();
     });
   });
+  const gone = Promise.all([groupGone, exit.then(drainOutput(stdout, stderr))]).then(() => {});
   stdout.setEncoding("utf8"); stderr.setEncoding("utf8");
   return {
     onOutput: listener => { stdout.on("data", (text: string) => listener(text)); stderr.on("data", (text: string) => listener(text, "stderr")); },
