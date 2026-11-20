@@ -67,7 +67,7 @@ Write the canvas at the path the request names (one HTML file, ARCHITECTURE §1 
 ### 4. Hand over for review
 
 The user reviews the draft in the doan app. Tell them how to open it when it is not already open: build the CLI and start a dev run with the commands and isolation in AGENTS 'Commands' (a temporary `HOME`, a fake `SHELL`, and `CLAUDE_CONFIG_DIR` / `CODEX_HOME` unset or overridden, besides the temporary userData),
-then add this repo through the Add Projects page (File > Add Project…, ⌘O) and open the canvas. Stop here and report. Feedback comes back through this conversation or the conductor, often pointing at frames and elements the user put into a message as chips in the canvas's conversation panel, then `/design-draft <slug> --revise`. Loop until the user confirms; record the confirmation in the feature documents (`orch.md` decision log under `/orchestrate`, otherwise `design.md`).
+then add this repo through the Add Projects page (File > Add Projects…, ⌘O) and open the canvas. Stop here and report. Feedback comes back through this conversation or the conductor, often pointing at frames and elements the user put into a message as chips in the canvas's conversation panel, then `/design-draft <slug> --revise`. Loop until the user confirms; record the confirmation in the feature documents (`orch.md` decision log under `/orchestrate`, otherwise `design.md`).
 
 ### 5. Commit
 
