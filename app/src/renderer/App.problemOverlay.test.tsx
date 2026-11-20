@@ -416,6 +416,41 @@ test("heading focus: on entry; not from the sidebar, where the live region reads
   expect(focused).toEqual(["heading"]);
 });
 
+test("an inactive arrival finds the current heading on activation and after the platform restores focus", () => {
+  vi.useFakeTimers();
+  const win = activatableWindow();
+  render(); folders([notFound()]);
+  dom(element("row", ["shell-side"]), {}, false);
+  toOverview();
+  expect(focused).toEqual(["heading"]);
+  dom(BODY, { [HEADING]: element("redrawn heading") });
+  win.dispatchEvent(new Event("focus"));
+  vi.advanceTimersByTime(0);
+  expect(focused).toEqual(["heading", "redrawn heading", "redrawn heading"]);
+});
+
+test("an inactive arrival yields to a pointer choice, a modal or a replacement scene announced from the sidebar", () => {
+  for (const change of ["pointer", "modal", "scene"]) {
+    reset(); vi.useFakeTimers();
+    const win = activatableWindow();
+    render(); folders([notFound()]);
+    dom(BODY, {}, false);
+    toOverview();
+    expect(focused).toEqual(["heading"]);
+    if (change === "pointer") win.dispatchEvent(new Event("pointerdown"));
+    if (change === "modal") { sidebar().remove(["/w/a"]); render(); expect(removalDialog()).toBeDefined(); }
+    if (change === "scene") {
+      dom(element("row", ["shell-side"]), {}, false);
+      folders([uninitialized()]);
+      expect(overlay()!.announcement.trim()).toBe("a isn’t set up");
+    }
+    focused.length = 0;
+    win.dispatchEvent(new Event("focus"));
+    vi.advanceTimersByTime(0);
+    expect(focused, change).toEqual([]);
+  }
+});
+
 test("heading focus waits while the Remove alert or the Set Up form is open", async () => {
   render(); folders([listed("/w/a"), listed("/w/c")]);
   toOverview();
