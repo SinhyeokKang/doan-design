@@ -20,7 +20,7 @@ import {
 import type { BuddyId } from "./buddies";
 import { Buddy, type BuddyHandle } from "./Doany";
 import { plainText, textSegments, typedText } from "./anchorField";
-import { draftFrom } from "./conversationStore";
+import { dropAttachment, restoreStartDraft } from "./conversationStore";
 import { cardRow, chipClass, groupProjects } from "./homeCards";
 import { generationOf, modelsKey } from "./dockedSupport";
 import {
@@ -81,15 +81,22 @@ export interface ComposerMemory {
   // The last `select` and `restore` requests already applied, so a later visit does not apply them again.
   seen: { select: number; restore: number };
   // Roots whose start message a quit stopped main was asked for (main hands one over once, so once a run is enough).
-  startsAsked: string[];
+  startsAsked: Map<string, symbol>;
+  // A recovered start waits for an in-flight send before it can enter the field.
+  waitingStarts: Map<string, { land(): void; discard(): void }>;
 }
 export function emptyComposer(): ComposerMemory {
-  return { text: "", preset: null, attachments: [], root: null, provider: null, models: {}, efforts: {}, permissions: {}, fast: {}, lists: {}, presets: undefined, auth: undefined, thumbnails: {}, lastKeys: {}, lastIds: {}, sending: null, generation: 0, notice: null, greeting: null, seen: { select: 0, restore: 0 }, startsAsked: [] };
+  return { text: "", preset: null, attachments: [], root: null, provider: null, models: {}, efforts: {}, permissions: {}, fast: {}, lists: {}, presets: undefined, auth: undefined, thumbnails: {}, lastKeys: {}, lastIds: {}, sending: null, generation: 0, notice: null, greeting: null, seen: { select: 0, restore: 0 }, startsAsked: new Map(), waitingStarts: new Map() };
 }
 
 const mountsByMemory = new WeakMap<object, Set<() => void>>();
-// What waits for the start in flight to settle, by memory (takeStartDraft's reply below).
-const afterSendByMemory = new WeakMap<object, (() => void)[]>();
+export function forgetHomeStarts(memory: { current: ComposerMemory }, roots: readonly string[]): void {
+  for (const root of roots) {
+    memory.current.startsAsked.delete(root);
+    memory.current.waitingStarts.get(root)?.discard();
+    memory.current.waitingStarts.delete(root);
+  }
+}
 function viewers(memory: { current: ComposerMemory }): Set<() => void> {
   let mounts = mountsByMemory.get(memory);
   if (!mounts) { mounts = new Set(); mountsByMemory.set(memory, mounts); }
@@ -197,9 +204,9 @@ export function HeroComposer(props: HeroComposerProps) {
     memory.current = { ...current, ...(typeof patch === "function" ? patch(current) : patch) };
     for (const draw of viewers(memory)) draw();
     if (current.sending && !memory.current.sending) {
-      const waiting = afterSendByMemory.get(memory) ?? [];
-      afterSendByMemory.delete(memory);
-      for (const run of waiting) run();
+      const waiting = [...current.waitingStarts.values()];
+      current.waitingStarts.clear();
+      for (const start of waiting) start.land();
     }
   };
   const m = memory.current;
@@ -524,18 +531,16 @@ export function HeroComposer(props: HeroComposerProps) {
   // One that comes while a start is out waits for it to settle: that start's success clears only the draft it sent.
   // A take main answered with an error kept the draft there (preload takeStartDraft): the next pick asks again.
   useEffect(() => {
-    if (!root || memory.current.startsAsked.includes(root)) return;
-    update(current => ({ startsAsked: [...current.startsAsked, root] }));
-    void window.doan.takeStartDraft({ root }).catch(() => ({ error: "unknown" })).then(async reply => {
-      if (reply && "error" in reply) update(current => ({ startsAsked: current.startsAsked.filter(asked => asked !== root) }));
-      if (!reply || "error" in reply) return;
-      const returned = await draftFrom(window.doan, reply.text, reply.anchors, reply.attachments);
+    if (!root) return;
+    restoreStartDraft(window.doan, memory.current.startsAsked, root, { root }, returned => {
       const body = plainText(returned.segments);
       const land = () => update(current => ({ root, text: current.text && body ? `${current.text}\n\n${body}` : current.text || body, preset: current.preset ?? returned.preset, attachments: [...current.attachments, ...returned.attachments] }));
-      if (memory.current.sending) afterSendByMemory.set(memory, [...afterSendByMemory.get(memory) ?? [], land]);
+      if (memory.current.sending) memory.current.waitingStarts.set(root, { land, discard: () => {
+        for (const attachment of returned.attachments) dropAttachment(window.doan, attachment);
+      } });
       else land();
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- only a newly picked root asks; startsAsked lives in memory, which update writes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only a newly picked root asks; the take survives a change of mount in composer memory.
   }, [root]);
   // Edit on Home: a different draft is never replaced without asking.
   useEffect(() => {

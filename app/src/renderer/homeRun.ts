@@ -7,6 +7,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { conversationCanvasMatch } from "./canvasConversationRows";
 import { conversationWork, scheduledOf, slotKeyOf, slotsFromList } from "./conversationList";
+import { dropAttachment } from "./conversationStore";
 import { asksPerson, stripState, type StripState } from "./conversationStrip";
 import { mergeEvents } from "../main/conversation/state";
 import { LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
@@ -326,7 +327,14 @@ export class HomeRun {
     if (kept?.conversationId === conversationId) { this.restoreTo(kept); return; }
     const moves = this.moves;
     const request = await this.rebuild(conversationId, root).catch(() => null);
-    if (request && moves === this.moves) this.restoreTo(request);
+    if (!request) return;
+    const summary = this.summary(conversationId);
+    const provider = summary?.provider ?? this.conversations.find(item => item.conversationId === conversationId)?.provider;
+    if (!provider || moves !== this.moves) {
+      for (const attachment of request.attachments) dropAttachment(window.doan, attachment);
+      return;
+    }
+    this.restoreTo({ ...request, provider, model: summary?.model ?? null, effort: summary?.effort ?? null });
   }
   // Dismiss records the conversation as seen in main, so a reload does not bring it back.
   dismiss(conversationId: string): void {
@@ -690,7 +698,7 @@ export class HomeRun {
 
   // Edit on Home
 
-  private async rebuild(conversationId: string, root: string): Promise<LastRequest | null> {
+  private async rebuild(conversationId: string, root: string): Promise<Omit<LastRequest, "provider" | "model" | "effort"> | null> {
     const tracked = this.events.get(conversationId);
     const read = tracked ? null : await window.doan.readConversation({ conversationId });
     const events = tracked ?? (read && !("error" in read) ? read.events : []);
@@ -708,11 +716,8 @@ export class HomeRun {
       else if (result?.ok && result.attachment.thumbnail) thumbnails[key] = result.attachment.thumbnail;
       return chip;
     });
-    const summary = this.summary(conversationId);
-    const provider = summary?.provider ?? this.conversations.find(item => item.conversationId === conversationId)?.provider;
-    if (!provider) return null;
     // The preset comes back by id; Home's list fills in the rest when it has it.
-    return { root, text: body, preset: preset ? { ...preset, description: "", scope: "" } : null, attachments, provider, model: summary?.model ?? null, effort: summary?.effort ?? null, ...(Object.keys(thumbnails).length ? { thumbnails } : {}) };
+    return { root, text: body, preset: preset ? { ...preset, description: "", scope: "" } : null, attachments, ...(Object.keys(thumbnails).length ? { thumbnails } : {}) };
   }
   private restoreTo(request: LastRequest): void {
     this.restore = { request, seq: (this.restore?.seq ?? 0) + 1 };
