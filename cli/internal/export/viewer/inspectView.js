@@ -45,14 +45,14 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
   }
   // The sandbox can read sibling WindowProxy identities synchronously. This empty context marks
   // which opening owns a native press before inspect-mode arrives, without intercepting hit tests.
-  let inputMarker = null, acknowledged = false;
+  let inputMarker = null, inputId = 0, acknowledged = false;
   function syncInputWindow(panning) {
     if (panel.hidden || panning) {
       inputMarker?.remove();
       inputMarker = null;
     } else if (!inputMarker) {
       inputMarker = document.createElement("iframe");
-      inputMarker.name = "doan-inspector-input";
+      inputMarker.name = "doan-inspector-input-" + ++inputId;
       inputMarker.hidden = true;
       inputMarker.setAttribute("sandbox", "");
       panel.append(inputMarker);
@@ -75,7 +75,7 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     $("inspector-show-wrap").hidden = open; $("inspector-sep").hidden = open;
     show.setAttribute("aria-expanded", String(open));
     epoch++; seq = 0; acknowledged = false;
-    command("inspect-mode", { open, retain: wanted && reason !== "clear" });
+    command("inspect-mode", { open, retain: wanted && reason !== "clear", input: inputMarker?.name ?? null });
     if (focus || focusMoved) (open ? hide : show).focus({ preventScroll: true });
   }
   show.addEventListener("mousedown", event => event.preventDefault());
@@ -318,7 +318,10 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     },
     blocks(target) { return dragging || panel.contains(target) || !menu.hidden; },
     menuOpen() { return !menu.hidden; },
-    syncInputWindow,
+    pan(on) {
+      syncInputWindow(on);
+      if (inputMarker) command("inspect-input", { input: inputMarker.name });
+    },
     clearSelection() { if (wanted) command("inspect-clear"); },
     syncOverlay() { if (!panel.hidden) command("inspect-overlay", { open: !menu.hidden || popupOpenNow() }); },
     wheel,

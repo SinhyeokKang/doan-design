@@ -1569,18 +1569,23 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     expect(await frame.locator("#inspect-empty").isVisible()).toBe(true);
   });
 
-  test("a new click after Space release selects while the canvas still has the pan command", async () => {
+  test.each([false, true])("a new click after Space release selects with a delayed pan command and intervening board clear (%s)", async clearBoard => {
     const frame = await openCanvas('<section data-doan-frame="cart" data-doan-title="Cart"><button style="width:100%;height:180px" onpointerdown="this.dataset.pressed=1">Buy</button></section>', 320, undefined, () => {
+      const held: MessageEvent[] = [];
       const holdPanEnd = (event: MessageEvent) => {
-        if (event.source !== parent || event.data?.type !== "pan") return;
-        if (event.data.pan) { document.documentElement.dataset.panning = "true"; return; }
-        event.stopImmediatePropagation();
-        document.documentElement.dataset.panEndHeld = "true";
-        window.removeEventListener("message", holdPanEnd, true);
+        if (event.source !== parent) return;
         const { data, origin, source } = event;
-        document.addEventListener("deliver", () => window.dispatchEvent(new MessageEvent("message", { data, origin, source })), { once: true });
+        if (data?.type === "pan" && data.pan) document.documentElement.dataset.panning = "true";
+        if (data?.type === "pan" && !data.pan) document.documentElement.dataset.panEndHeld = "true";
+        if (!document.documentElement.dataset.panEndHeld) return;
+        event.stopImmediatePropagation();
+        held.push(new MessageEvent("message", { data, origin, source }));
       };
       window.addEventListener("message", holdPanEnd, true);
+      document.addEventListener("deliver", () => {
+        window.removeEventListener("message", holdPanEnd, true);
+        for (const event of held) window.dispatchEvent(event);
+      }, { once: true });
     });
     await showInspector(frame);
     const canvas = frame.childFrames()[0]!;
@@ -1589,6 +1594,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     await canvas.locator("html[data-panning]").waitFor({ state: "attached" });
     await frame.page().keyboard.up("Space");
     await canvas.locator("html[data-pan-end-held]").waitFor({ state: "attached" });
+    if (clearBoard) await frame.locator("#board").click({ position: { x: 4, y: 4 } });
     const button = canvas.getByRole("button");
     await button.click();
     expect(await button.getAttribute("data-pressed")).toBeNull();

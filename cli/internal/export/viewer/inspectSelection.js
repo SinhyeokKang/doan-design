@@ -6,14 +6,16 @@ function canvasInspection(post) {
   let alt = false, meta = false, pan = false, overlay = false;
   let press = null, range = null, copied = "", dragged = false, cursor = null;
   let lastMarks = "", marksFrame = 0;
-  // A named sibling is visible across opaque origins. Its identity changes on reveal or leaving
-  // pan, so a native click cannot finish a press that belonged to a different inspection.
-  function inputWindow() {
-    if (parent.length < 2) return null;
-    try { return parent.frames["doan-inspector-input"] ?? null; }
+  // The shell has one direct frame (this canvas) and adds a second only while Select can claim
+  // input. A command names its particular sibling so late delivery cannot claim a newer press.
+  function inputWindow(name) {
+    if (parent.length !== 2 || parent[0] !== window) return null;
+    if (name === undefined) return parent[1];
+    if (!name) return null;
+    try { return parent.frames[name] === parent[1] ? parent[1] : null; }
     catch (error) {
       if (error.name !== "SecurityError") throw error;
-      return null; // Cross-origin named access throws when only unrelated siblings exist.
+      return null; // Cross-origin named access throws when the named frame no longer exists.
     }
   }
   let pressWindow = null, downId = null, cancelledPress = false;
@@ -249,7 +251,7 @@ function canvasInspection(post) {
         const livePress = !cancelledPress && pressWindow && !pressWindow.closed;
         if (!livePress) clearText();
         open = data.open === true;
-        modeWindow = open ? inputWindow() : null;
+        modeWindow = open ? inputWindow(data.input) : null;
         acknowledged = false;
         acceptClicks(null);
         overlay = false;
@@ -267,7 +269,10 @@ function canvasInspection(post) {
         if (data.type === "inspect-clear") selected = null;
         return;
       }
-      if (data.type === "inspect-ready") {
+      if (data.type === "inspect-input") {
+        modeWindow = inputWindow(data.input);
+        if (acknowledged) acceptClicks(modeWindow);
+      } else if (data.type === "inspect-ready") {
         acknowledged = true;
         if (!pan && modeWindow === inputWindow()) acceptClicks(modeWindow);
       } else if (data.type === "inspect-escape") {
@@ -286,8 +291,6 @@ function canvasInspection(post) {
     },
     pan(on) {
       pan = on;
-      modeWindow = on ? null : inputWindow();
-      if (acknowledged) acceptClicks(modeWindow);
       marks();
     },
     layout() {
