@@ -758,11 +758,14 @@ export class CanvasController {
       target?.opened?.();
       if (frameId !== undefined) {
         this.pendingLocate = null;
-        const frames = this.state.layout?.frames ?? [];
-        const index = target?.index !== undefined && frames[target.index]?.id === frameId ? target.index : frames.findIndex(frame => frame.id === frameId);
-        if (index >= 0) this.jump(index);
-        if (this.loading && !this.state.layout) this.pendingFrame = { id: frameId, ...target };
-        else target?.found?.(index >= 0);
+        this.jumpTo = null;
+        if (this.loading) this.pendingFrame = { id: frameId, ...target };
+        else {
+          const frames = this.state.layout?.frames ?? [];
+          const index = target?.index !== undefined && frames[target.index]?.id === frameId ? target.index : frames.findIndex(frame => frame.id === frameId);
+          if (index >= 0) this.jump(index);
+          target?.found?.(index >= 0);
+        }
       }
       if (element !== undefined) {
         this.pendingFrame = null;
@@ -1692,6 +1695,9 @@ export class CanvasController {
       const frame = this.frame;
       this.remeasureTimer = setTimeout(() => { if (frame === this.frame) this.post({ type: "measure" }); }, REMEASURE_MS);
     }
+    // A hidden iframe can report every frame at the origin before receiving its viewport.
+    // Leave the open pending for the measurement requested above, including across a reload.
+    if (this.loading && this.pendingFrame !== null && message.viewport === 0 && this.frameHeight > 0) return;
     this.lastHref = message.href;
     clearTimeout(this.answerTimer);
     if (newDocument) {
