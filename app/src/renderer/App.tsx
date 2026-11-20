@@ -588,7 +588,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       const next = shownFolders(all), before = entriesRef.current;
       for (const root of overlayRetries.current.keys()) {
         const kind = next.find(row => row.path === root)?.kind;
-        if (kind !== "loading" && kind !== before.find(row => row.path === root)?.kind) overlayRetries.current.delete(root);
+        if (kind === undefined || (kind !== "loading" && before.find(row => row.path === root)?.kind === "loading")) overlayRetries.current.delete(root);
       }
       if (focus) {
         const located = locateFrom.current === focus.from;

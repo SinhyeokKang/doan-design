@@ -875,6 +875,11 @@ test("project Retry locks before the loading notification, and a late rejection 
   folders([configError(), listed("/w/b")]);
   overlay()!.onAction("retry");
   expect(doan.reopenFolder).toHaveBeenCalledTimes(1);
+  // A watcher can publish a different problem before the requested read starts.
+  folders([cliError()]);
+  overlay()!.onAction("retry");
+  expect(doan.reopenFolder).toHaveBeenCalledTimes(1);
+  expect(overlay()).toMatchObject({ view: { entryKind: "cliError", busy: true }, pressed: "retry" });
   folders([loading()]); folders([configError()]);
   expect(overlay()?.view.busy).toBe(false);
   overlay()!.onAction("retry"); render();
