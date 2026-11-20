@@ -296,6 +296,11 @@ export class McpService implements McpConversationFacts {
   // name and URL hash, not profile: a failed logout is recorded and blocks that server's Connect until a retry succeeds.
   async logoutForAuth(provider: Provider, request: McpLogoutRequest): Promise<{ failed: string[] }> {
     if (!mcpProvider(provider)) return { failed: [] };
+    const { previousAccountId, nextAccountId } = request;
+    if (request.kind === "signOut" || (previousAccountId !== null && nextAccountId !== null && previousAccountId !== nextAccountId)) {
+      this.checks.delete(provider);
+      this.options.store.patch({ clearHistory: provider });
+    }
     // A Claude sign-out (its `auth logout` clears MCP tokens) or a same-account replacement logs nothing out, so the
     // provider's list (a network health check) is not read.
     const probe: McpLogoutInput = { provider, kind: request.kind, previousAccountId: request.previousAccountId, nextAccountId: request.nextAccountId, servers: [PRESETS[0]!.name] };
