@@ -61,6 +61,10 @@ async function panel(list: ListView, setup: (run: CanvasRun) => void = () => {},
   return renderToStaticMarkup(<TooltipProvider>{<CanvasConversation {...props} /> as ReactElement}</TooltipProvider>);
 }
 
+test("a pending first list read mounts an empty loading status", async () => {
+  expect(await panel("loading")).toContain('<div class="thread-loading" role="status"></div>');
+});
+
 test("a list that can't be read says so with Retry, and the composer stays a new conversation", async () => {
   const out = await panel("error");
   expect(out).toContain("<span class=\"strip-text selectable\"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span>");
