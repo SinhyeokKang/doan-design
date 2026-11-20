@@ -562,7 +562,7 @@ describe("provider ready: pending logouts and reconcile", () => {
     const s = service();
     expect(row(s, "claude", "doan-notion")?.view.blocked).toBe(false);
     s.refresh(); await s.idle();
-    expect(row(s, "claude", "doan-notion")?.view).toMatchObject({ status: "reconnect_needed", action: "reconnect", blocked: true });
+    expect(row(s, "claude", "doan-notion")?.view).toMatchObject({ status: "not_connected", action: "connect", blocked: true });
     s.connect("claude", "doan-notion");
     await s.idle();
     expect(row(s, "claude", "doan-notion")?.failure).toBe("pending_logout");
@@ -623,16 +623,38 @@ describe("sign-out and replacement logout", () => {
   it("a Claude replacement logs out only when the account changed; a failed logout blocks that Claude Connect", async () => {
     cli.registered.claude.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
     cli.registered.claude.set("doan-figma", { url: "https://mcp.figma.com/mcp", auth: true });
+    const custom = { name: "doan-example-com", url: "https://example.com/mcp" };
+    store.patch({ add: custom });
+    for (const name of ["doan-notion", "doan-figma", custom.name]) {
+      store.patch({ everConnected: { name, provider: "claude", value: true } });
+    }
+    store.patch({ everConnected: { name: "doan-notion", provider: "codex", value: true } });
+    const history = fileJson().everConnected;
     const s = service();
     expect(await s.logoutForAuth("claude", request("claude", { kind: "replace", previousAccountId: "a1", nextAccountId: "a1" }))).toEqual({ failed: [] });
     expect(cli.commands("claude")).toEqual([]);
+    expect(fileJson().everConnected).toEqual(history);
     cli.failing.add("claude logout doan-figma");
     expect(await s.logoutForAuth("claude", request("claude", { kind: "replace", previousAccountId: "a1", nextAccountId: "a2" }))).toEqual({ failed: ["doan-figma"] });
     expect(logouts("claude")).toEqual([["mcp", "logout", "doan-notion"], ["mcp", "logout", "doan-figma"]]);
     expect(cli.registered.claude.has("doan-figma")).toBe(true);
     expect(store.blocked("claude", "doan-figma")).toBe(true);
     await s.idle();
-    expect(row(s, "claude", "doan-figma")?.view).toMatchObject({ status: "reconnect_needed", blocked: true });
+    expect(row(s, "claude", "doan-notion")?.view).toMatchObject({ status: "not_connected", action: "connect", blocked: false });
+    expect(row(s, "claude", "doan-figma")?.view).toMatchObject({ status: "not_connected", action: "connect", blocked: true });
+    expect(fileJson()).toEqual({ v: 1, servers: [custom], everConnected: { "doan-notion": ["codex"] } });
+  });
+
+  it.each([
+    ["codex", null, null], ["claude", "a1", null], ["claude", null, "a2"], ["claude", null, null],
+  ] as const)("keeps %s history when replacement cannot compare %s with %s", async (provider, previousAccountId, nextAccountId) => {
+    cli.registered[provider].set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
+    store.patch({ everConnected: { name: "doan-notion", provider, value: true } });
+    const s = service();
+    await s.logoutForAuth(provider, request(provider, { kind: "replace", previousAccountId, nextAccountId }));
+    await s.idle();
+    expect(logouts(provider)).toContainEqual(["mcp", "logout", "doan-notion"]);
+    expect(row(s, provider, "doan-notion")?.view).toMatchObject({ status: "reconnect_needed", action: "reconnect" });
   });
 
   it("a Claude sign-out adds no MCP step: its auth logout clears the MCP tokens", async () => {
@@ -833,14 +855,14 @@ describe("review fixes", () => {
     await s.idle();
   });
 
-  it("an unknown pending state shows the blocked line and Reconnect on read or unread rows", async () => {
+  it("an unknown pending state offers Connect with its blocked line on rows without connection history", async () => {
     writeFileSync(join(dir, "mcp-connectors-pending.json"), "{broken");
     cli.registered.codex.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
     cli.failing.add("claude get doan-figma");
     const s = service();
     s.refresh();
     await s.idle();
-    expect(row(s, "codex", "doan-notion")?.view).toMatchObject({ status: "reconnect_needed", action: "reconnect", blocked: true });
+    expect(row(s, "codex", "doan-notion")?.view).toMatchObject({ status: "not_connected", action: "connect", blocked: true });
     expect(row(s, "codex", "doan-figma")?.view).toMatchObject({ status: "not_connected", action: "connect", blocked: true });
     expect(row(s, "claude", "doan-figma")?.view).toMatchObject({ status: "check_failed", action: "connect", blocked: true });
   });
