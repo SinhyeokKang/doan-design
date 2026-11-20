@@ -1,9 +1,11 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer, type Socket } from "node:net";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { join, resolve } from "node:path";
+import { readRegularFileNoFollowSync } from "../../app/src/main/regularFile.ts";
+import { ATTRIBUTES_BYTES, CANVAS_BYTES, MANIFEST_BYTES, readArtifact, resolveOnDisk } from "./artifact.ts";
 import { contentHash } from "./work.ts";
 
 // A stand-in for the app's side of `doan active`: runtime.v1 on disk and
@@ -340,7 +342,7 @@ const INIT_CONFIG = JSON.stringify({ v: 1 }, null, 2) + "\n";
 // recorded with its content in `manifest`, which changedFiles() reads to keep
 // the app's writes apart from the agent's.
 export function initializeRepo(root: string, changes: string[], manifest: string): void {
-  const written: Record<string, string> = existsSync(manifest) ? JSON.parse(readFileSync(manifest, "utf8")) : {};
+  const written: Record<string, string> = existsSync(manifest) ? JSON.parse(readArtifact(manifest, MANIFEST_BYTES).toString("utf8")) : {};
   if (changes.includes(".doan/canvases/")) mkdirSync(join(root, ".doan/canvases"), { recursive: true });
   if (changes.includes(".doan/config.json")) {
     mkdirSync(join(root, ".doan"), { recursive: true });
@@ -349,7 +351,7 @@ export function initializeRepo(root: string, changes: string[], manifest: string
   }
   // Like init, adds only the attribute lines that are missing.
   if (changes.includes(".gitattributes") || changes.includes(".doan/config.json")) {
-    let attributes = existsSync(join(root, ".gitattributes")) ? readFileSync(join(root, ".gitattributes"), "utf8") : "";
+    let attributes = existsSync(join(root, ".gitattributes")) ? readArtifact(join(root, ".gitattributes"), ATTRIBUTES_BYTES).toString("utf8") : "";
     const present = attributes.split("\n").map(line => line.replace(/\r$/, ""));
     const missing = ATTRIBUTE_LINES.filter(line => !present.includes(line));
     if (missing.length > 0) {
@@ -365,8 +367,8 @@ export function initializeRepo(root: string, changes: string[], manifest: string
 
 // Whether the canvas draws a frame with this id. The app also lists frames a canvas script draws at runtime; the fake's
 // canvases declare theirs in markup.
-function hasFrame(root: string, path: string, frame: string): boolean {
-  try { return [...readFileSync(join(root, path), "utf8").matchAll(/\bdata-doan-frame="([^"]*)"/g)].some(match => match[1] === frame); } catch { return false; }
+function hasFrame(canvas: Buffer, frame: string): boolean {
+  return [...canvas.toString("utf8").matchAll(/\bdata-doan-frame="([^"]*)"/g)].some(match => match[1] === frame);
 }
 
 export interface FakeApp { runtimePath: string; onboardingLog: string; workLog: string; openLog: string; handoffLog: string; prototypeLog: string; close(): Promise<void> }
@@ -394,11 +396,8 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
   const paths = new Set<string>();
   const handoffTaken = new Set<string>();
   const contents = (path: string): Buffer | null => {
-    const target = join(o.root, path);
     try {
-      const rel = relative(realpathSync(o.root), realpathSync(target));
-      if (rel === ".." || rel.startsWith("../") || isAbsolute(rel)) return null;
-      return readFileSync(target);
+      return readRegularFileNoFollowSync(resolveOnDisk(o.root, path), CANVAS_BYTES);
     } catch {
       // Missing or unreadable content has no snapshot; it must not stop logging.
       return null;
@@ -431,14 +430,19 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
       const fail = (code: string, message: string) => ({ v: 4, ok: false, error: { code, message } });
       // The app's order: shape, token, project, then the canvas list. The list is the canvases on disk; the fake has
       // no locked page, dialog or first run, so it never answers busy or not_ready.
-      const response = !validOpenRequest(parsed) ? fail("bad_request", "The request is not an app-socket v4 request.")
-        : parsed.token !== token ? fail("bad_token", "The token does not match this app.")
-        : parsed.root !== o.root ? fail("project_not_open", "The project is not open in Doan.")
-        : snapshot(parsed.path as string) === null ? fail("canvas_not_found", "The canvas is not in this project's list.")
-        : { v: 4, ok: true, opened: true, frame: parsed.frame === undefined ? "none" : hasFrame(o.root, parsed.path as string, parsed.frame as string) ? "found" : "missing" };
-      // The canvas's hash when the request arrived, so a check can tell an open that followed the edit from an earlier one.
       const hashes: Record<string, string | null> = {};
-      if (response.ok && typeof parsed.path === "string") hashes[parsed.path] = snapshot(parsed.path);
+      const open = () => {
+        if (!validOpenRequest(parsed)) return fail("bad_request", "The request is not an app-socket v4 request.");
+        if (parsed.token !== token) return fail("bad_token", "The token does not match this app.");
+        if (parsed.root !== o.root) return fail("project_not_open", "The project is not open in Doan.");
+        const path = parsed.path as string;
+        const canvas = contents(path);
+        if (!canvas) return fail("canvas_not_found", "The canvas is not in this project's list.");
+        hashes[path] = contentHash(canvas);
+        const frame = parsed.frame === undefined ? "none" : hasFrame(canvas, parsed.frame as string) ? "found" : "missing";
+        return { v: 4, ok: true, opened: true, frame };
+      };
+      const response = open();
       if (!validOpenResponse(response)) throw new Error(`the eval fake app built an invalid v4 reply: ${JSON.stringify(response)}`);
       const { token: _token, ...request } = parsed;
       appendFileSync(openLog, JSON.stringify({ request, response, at: new Date().toISOString(), hashes }) + "\n", { mode: 0o600 });

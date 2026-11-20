@@ -536,6 +536,12 @@ test("search matches every token over title, id, scope and description, NFC and 
   expect(ids(rows, "lay")).toEqual(["b", "a"]);
 });
 
+test("a skill word start outranks a preset substring after a supplementary letter", () => {
+  const presets = [{ id: "a", title: "𠮷art", description: "", scope: "" }];
+  const skills = [{ kind: "skill", name: "b", description: "x art" }] as const;
+  expect(searchDrawer(presets, skills, "art").map(row => row.key)).toEqual(["skill:b", "preset:a"]);
+});
+
 test("the list view is loading until the first reply", () => {
   expect(presetListView(undefined, { project: "doan-design", suggested: [], query: "", tab: null })).toEqual({ kind: "loading", text: "Loading presets" });
 });

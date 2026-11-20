@@ -119,6 +119,31 @@ describe("agent auth IPC", () => {
     await t.ipc.refreshTools("claude");
     expect((await t.ipc.read()).providers[0]!.readiness).not.toMatchObject({ cause: "version_unknown" });
   });
+  it("keeps the facts and revision from Retry when an older provider probe finishes later", async () => {
+    const missing: ToolFacts = { cli: "missing", version: "unknown", tools: "ready" };
+    const t = ipc(async () => missing);
+    const initial = await t.ipc.read();
+    t.options.publish.mockClear();
+
+    let finishOlder!: (facts: ToolFacts) => void;
+    let finishRetry!: (facts: ToolFacts) => void;
+    t.options.probe
+      .mockImplementationOnce(() => new Promise(resolve => { finishOlder = resolve; }))
+      .mockImplementationOnce(() => new Promise(resolve => { finishRetry = resolve; }));
+    const older = t.ipc.refreshTools("cursor");
+    expect(await t.ipc.handle(AUTH_CHANNELS.check, { provider: "cursor" }, 7)).toEqual({ ok: true });
+    finishRetry(ready);
+    await vi.waitFor(() => expect(t.options.publish).toHaveBeenCalledOnce());
+    const retry = t.ipc.latest();
+    expect(retry.revision).toBeGreaterThan(initial.revision);
+    expect(t.ipc.toolFacts("cursor")).toEqual(ready);
+
+    finishOlder(missing);
+    await older;
+    expect(t.ipc.toolFacts("cursor")).toEqual(ready);
+    expect(t.ipc.latest()).toEqual(retry);
+    expect(t.options.publish).toHaveBeenCalledOnce();
+  });
   it("sends a sign-in link only to its owner and opens only that attempt's link", async () => {
     const t = ipc();
     await t.ipc.handle(AUTH_CHANNELS.signIn, { provider: "copilot" }, 7);
