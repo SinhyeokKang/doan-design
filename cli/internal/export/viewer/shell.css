@@ -162,7 +162,6 @@ svg { display: block; flex: none; }
   padding-left: var(--space-2);
   font-size: var(--type-label-sm-size);
   line-height: var(--type-label-sm-line-height);
-  letter-spacing: var(--type-label-sm-letter-spacing);
   flex: 0 1e8 auto;
   min-width: calc(var(--size-icon) + var(--space-2) + var(--space-2) + var(--size-control));
   min-width: calc-size(max-content, min(size, var(--size-icon) + var(--space-2) + var(--space-2) + var(--size-control)));
