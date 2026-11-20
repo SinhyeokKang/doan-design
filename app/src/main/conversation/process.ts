@@ -70,7 +70,7 @@ export function drainOutput(...pipes: Readable[]): () => Promise<void> {
 
 // Losing either direction of the protocol stops descendants immediately. The service's exited() can fail
 // an accepted turn and release its lease, so it follows both the final protocol events and actual group exit.
-export function ownProtocolProcess(child: ChildProcessWithoutNullStreams, endTransport: () => void, exited: () => void) {
+export function ownProtocolProcess(child: ChildProcessWithoutNullStreams, clearDeadlines: () => void, endTransport: () => void, exited: () => void) {
   const drain = drainOutput(child.stdout, child.stderr);
   let release!: () => void;
   const gone = new Promise<void>(resolve => { release = resolve; });
@@ -78,7 +78,7 @@ export function ownProtocolProcess(child: ChildProcessWithoutNullStreams, endTra
   let ending = false;
   const end = () => {
     if (ending) return;
-    ending = true;
+    ending = true; clearDeadlines();
     if (group) void group.stop(); else release();
     void drain().then(() => { endTransport(); return gone; }).then(exited);
   };

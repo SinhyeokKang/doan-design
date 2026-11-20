@@ -170,7 +170,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     dispatcher.end(); starting?.wake(); turnStarted?.(undefined);
   };
   child.stderr.resume();
-  const { group, ending, write: writeLine } = ownProtocolProcess(child, transportDied, exited);
+  const { group, ending, write: writeLine } = ownProtocolProcess(child, () => dispatcher.clearDeadlines(), transportDied, exited);
   if (group) registerStop(() => { dispatcher.close(); return group.stop(); });
   try {
     const resume = !!input.sessionId, judge = verdicts(input);
@@ -235,7 +235,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     const early = queued.map(startedTurn).find(id => id !== undefined);
     if (early !== undefined) return Promise.resolve(early);
     return new Promise(resolve => {
-      const timer = setTimeout(() => settle(undefined), COMPACTION_START_MS); timer.unref();
+      const timer = setTimeout(() => { if (!ending()) settle(undefined); }, COMPACTION_START_MS); timer.unref();
       const settle = (id: string | undefined) => { clearTimeout(timer); turnStarted = undefined; resolve(id); };
       turnStarted = settle;
     });

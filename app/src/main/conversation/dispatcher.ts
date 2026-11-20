@@ -94,6 +94,8 @@ export class CodexDispatcher {
     }
   }
   stop(reason: "user" | "appQuit"): void { this.state = { ...this.state, stop: reason }; this.expire(); }
+  // The leader has exited. Its bounded output drain now decides which requests received no reply.
+  clearDeadlines(): void { for (const entry of this.pending.values()) clearTimeout(entry.timer); }
   close(): void {
     if (this.closed) return; this.closed = true; this.expire();
     // A protocol failure closes before the transport ends and end() then returns early, so the cache goes here.

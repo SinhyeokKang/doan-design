@@ -645,7 +645,7 @@ export class AuthManager {
     const acp = new AcpConnection(line => { if (!child.write) throw new Error("process_exited"); child.write(line); },
       (_params, id) => acp.respond(id, { outcome: { outcome: "cancelled" } }), () => {}, detail => { failure = protocol = detail; child.stop(); });
     let timer: ReturnType<typeof setTimeout> | undefined;
-    void child.exit.then(code => { exited = true; exitCode = code; clearTimeout(timer); child.stop(); });
+    void child.exit.then(code => { exited = true; exitCode = code; clearTimeout(timer); acp.clearDeadlines(); child.stop(); });
     void child.gone.then(() => acp.close());
     let errors = "", withheld = 0;
     const events: string[] = [];
@@ -719,15 +719,15 @@ export class AuthManager {
     try {
       const { command, env, profileDir } = await this.launch(provider, attemptId, {}, profile);
       if (signal.aborted) throw new Cancelled();
-      const deadline = arm();
       child = this.options.spawn(command, [...this.adapters[provider].args, "app-server"], { cwd: profileDir, env, input: true });
-      void child.exit.then(() => { clearTimeout(deadline); child.stop(); });
     } catch (error) { throw error instanceof Cancelled ? error : new LookupFailure("the app-server could not be started"); }
     const owned = this.processes.get(attemptId) ?? new Set();
     owned.add(child); this.processes.set(attemptId, owned);
     let broken = false, buffer = "", stage = "initialize";
     const send = (value: unknown) => { if (!child.write) throw new Error("process_exited"); child.write(JSON.stringify(value) + "\n"); };
     const dispatcher = new CodexDispatcher(send, () => {}, () => { broken = true; child.stop(); });
+    const deadline = arm();
+    void child.exit.then(() => { clearTimeout(deadline); dispatcher.clearDeadlines(); child.stop(); });
     const stop = () => { dispatcher.close(); child.stop(); };
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the signal can abort while the app-server is spawned
     if (signal.aborted) stop(); else signal.addEventListener("abort", stop, { once: true });
@@ -1010,7 +1010,6 @@ export const spawnAuthProcess: Spawn = (command, args, { cwd, env, input }) => {
   const stdout = child.stdout!, stderr = child.stderr!;
   // The group can be gone in the same tick as the leader's exit while its output is still in the pipe, so gone waits
   // for both pipes to close too. A process that left the group can hold them open for good: a grace bounds that wait.
-  const gone = groupGone.then(drainOutput(stdout, stderr));
   const group = child.pid ? new OwnedGroup(child.pid, undefined, undefined, release) : null;
   const exit = new Promise<number | null>(resolve => {
     child.once("error", () => { resolve(null); if (group) group.childExited(); else release(); });
@@ -1020,6 +1019,7 @@ export const spawnAuthProcess: Spawn = (command, args, { cwd, env, input }) => {
       setTimeout(() => void group?.stop(), 2000).unref();
     });
   });
+  const gone = Promise.all([groupGone, exit.then(drainOutput(stdout, stderr))]).then(() => {});
   stdout.setEncoding("utf8"); stderr.setEncoding("utf8");
   return {
     onOutput: listener => { stdout.on("data", (text: string) => listener(text)); stderr.on("data", (text: string) => listener(text, "stderr")); },

@@ -97,7 +97,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     if (dead) return; dead = true; acp.close();
     if (prompting) apply(failure ? acpPromptFailed(state, failure) : acpEnded(state));
   };
-  const { group, ending, write } = ownProtocolProcess(child, transportDied, exited);
+  const { group, ending, write } = ownProtocolProcess(child, () => acp.clearDeadlines(), transportDied, exited);
   if (group) registerStop(() => { expire(); acp.close(); return group.stop(); });
   // A failed request answers nothing about the protocol shape here, so only replies are judged, before any refusal.
   const judge = (verdict: HandshakeVerdict) => { if (verdict === "incompatible") input.incompatible?.(); else if (verdict === "compatible") input.compatible?.(); };

@@ -81,12 +81,13 @@ export const spawnClone: CloneSpawn = (command, args, env) => {
   child.stderr!.setEncoding("utf8");
   child.stderr!.on("data", (chunk: string) => { text = (text + chunk).slice(-STDERR_LIMIT); });
   let release!: () => void;
-  const gone = new Promise<void>(resolve => { release = resolve; }).then(drainOutput(child.stderr!));
+  const groupGone = new Promise<void>(resolve => { release = resolve; });
   const group = child.pid ? new OwnedGroup(child.pid, undefined, undefined, release) : null;
   const exit = new Promise<number | null>(resolve => {
     child.once("error", () => { resolve(null); if (group) group.childExited(); else release(); });
     child.once("exit", code => { resolve(code); group?.childExited(); });
   });
+  const gone = Promise.all([groupGone, exit.then(drainOutput(child.stderr!))]).then(() => {});
   return { exit, gone, stop: () => { void group?.stop(); }, stderr: () => text };
 };
 
