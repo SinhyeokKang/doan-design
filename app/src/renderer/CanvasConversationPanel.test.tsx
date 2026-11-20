@@ -80,13 +80,14 @@ test("the thread notice's Retry runs while the list is read again, and a repeate
   expect(again).toContain("<span>Try again. You can still start a new conversation.\u00a0</span>");
 });
 
-// DESIGN 'Notices': the panel's agent notice is the shared one (body-sm, 12/16 padding).
-test("a project conversation drawing the canvas is the shared notice with Open", async () => {
+test("the drawing preview locks the composer and leaves the thread outside the lock", async () => {
   drawing = "proj";
-  const out = await panel([]);
-  expect(out).toContain('<div class="doan-notice thread-notice" role="status">');
-  expect(out).toContain("A project conversation is drawing this canvas.");
-  expect(out).toContain('aria-label="Open the project conversation"');
+  const { canvas: _canvas, ...project } = summary("proj");
+  const out = await panel([project]);
+  expect(out).not.toContain('aria-label="Open the project conversation"');
+  expect(out).toMatch(/class="cp-foot"[^>]*inert/);
+  expect(out).toContain('contenteditable="false"');
+  expect(out).toContain('class="cp-scroll"');
 });
 
 test("a canvas with a terminal session offers it first, with the time doan check linked it", async () => {

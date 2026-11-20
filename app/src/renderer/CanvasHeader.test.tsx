@@ -18,7 +18,7 @@ const opened = (over: Partial<CanvasState> = {}): CanvasState => ({ ...initialCa
 
 type Inspector = { open: boolean; fits: boolean; show(): void };
 const navigation: CanvasHeaderNavigation = { card: { key: "c", name: "Demo", rows: [{ kind: "list", path: "/repo", servedRev: 0, canvases: [row], git: { branch: "main", common: "c", worktrees: [] } }] },
-  root: "/repo", homeDirectory: null, overview: vi.fn(), worktree: vi.fn() };
+  root: "/repo", homeDirectory: null, worktree: vi.fn() };
 const html = (state: CanvasState, panel?: { open: boolean; show(): void; badge?: Pick<CanvasSignal, "kind" | "label"> | null }, view: CanvasViewFields = canvasViewFields(state), inspector?: Inspector) => renderToStaticMarkup(<TooltipProvider>{<CanvasHeader navigation={navigation} state={state} view={new CanvasViewStore(view)} command={vi.fn()} zoomTo={vi.fn()} selectFrame={vi.fn()} {...(panel ? { panel } : {})} {...(inspector ? { inspector } : {})} /> as ReactElement}</TooltipProvider>);
 const button = (markup: string, label: string) => markup.match(new RegExp(`<button[^>]*aria-label="${label}"[^>]*>`))?.[0] ?? "";
 
@@ -58,7 +58,9 @@ describe("CanvasHeader", () => {
   it("starts the Breadcrumb with the project and its worktree switch, followed by the canvas and frame", () => {
     const nav = html(opened()).match(/<nav[^>]*aria-label="Breadcrumb"[^>]*>(.+?)<\/nav>/)?.[1];
     expect(nav).toBeDefined();
-    const parts = ["Demo Overview", "Worktree: main", "doan-canvas-name", "doan-frame-trigger"].map(text => nav!.indexOf(text));
+    expect(nav).toMatch(/<span class="doan-canvas-project"[^>]*><span class="shell-thumbnail hue-\d" aria-hidden="true">D<\/span><span class="doan-canvas-project-name">Demo<\/span>/);
+    expect(nav).not.toContain("Demo Overview");
+    const parts = ["doan-canvas-project", "Worktree: main", "doan-canvas-name", "doan-frame-trigger"].map(text => nav!.indexOf(text));
     expect(parts.every(i => i >= 0)).toBe(true);
     expect(parts).toEqual([...parts].sort((a, b) => a - b));
     expect(nav).not.toContain("Zoom out");

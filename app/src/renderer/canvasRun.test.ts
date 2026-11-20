@@ -380,12 +380,41 @@ test("a send reply from another canvas leaves this canvas's promotion notice", (
   expect(back.run.view()).toMatchObject({ notice });
 });
 
-test("a project conversation drawing this canvas is announced in the new conversation state, without holding Send", () => {
+test("the automatically empty canvas tracks its drawing thread and follows its binding", () => {
   const h = harness();
   h.state.drawing = P;
   h.run.show(checkout);
   h.answer([summary(P, { canvas: null, working: true, phase: "running" })]);
+  expect(h.run.view()).toEqual({ kind: "conversation", conversationId: P, preview: true, notice: null });
+  expect(doan.readConversation).toHaveBeenCalledWith({ conversationId: P });
+  expect(h.remember).not.toHaveBeenCalled();
+  h.state.drawing = null;
+  h.answer([promoted()]);
+  expect(h.run.view()).toEqual({ kind: "conversation", conversationId: P, notice: null });
+  expect(doan.readConversation).toHaveBeenCalledTimes(1);
+});
+
+test("a drawing that ends without binding restores the canvas draft and New", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([summary(P, { canvas: null })]);
+  h.store.setDrafts(() => new Map([[canvasKey(checkout), writing("canvas draft")]]));
+  h.state.drawing = P;
+  h.run.sync();
+  expect(h.run.view()).toMatchObject({ conversationId: P, preview: true });
+  h.state.drawing = null;
+  h.run.sync();
+  expect(h.run.view()).toMatchObject({ kind: "new", notice: null });
+  expect(h.store.drafts.get(canvasKey(checkout))).toEqual(writing("canvas draft"));
+});
+
+test("the prototype offers Open without reading the unbound project thread", () => {
+  const h = harness({ prototype: true });
+  h.state.drawing = P;
+  h.run.show(checkout);
+  h.answer([]);
   expect(h.run.view()).toMatchObject({ kind: "new", notice: { kind: "drawing", text: DRAWING_TEXT, open: P } });
+  expect(doan.readConversation).not.toHaveBeenCalled();
 });
 
 test("the terminal session is asked once per visit, holds Send until it answers, and a late answer is dropped", async () => {
