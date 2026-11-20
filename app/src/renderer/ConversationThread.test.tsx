@@ -308,7 +308,7 @@ describe("thread items", () => {
 
 describe("loading and read errors", () => {
   test("nothing shows before 300ms of loading", () => {
-    expect(html(null)).toBe('<div class="conversation-thread"></div>');
+    expect(html(null)).toBe('<div class="conversation-thread"><div class="thread-loading" role="status"></div></div>');
   });
   test("a read error replaces the thread with a notice and Retry", () => {
     const out = html("error");

@@ -714,3 +714,67 @@ describe("the terminal session after it was resumed", () => {
   });
 });
 
+
+describe("read persistence across windows", () => {
+  const folded = { panel: { open: false, width: 280 } };
+  const ending = (conversationId: string, seq: number) => ({ v: 1 as const, conversationId, seq, type: "turn.done" as const, turnId: "t" + seq, at: "2026-11-01T12:00:00.000Z" });
+  const unread = summary({ conversationId: "B", unseen: true });
+  const other = summary({ conversationId: "A", lastActivityAt: "2026-11-01T12:05:00.000Z" });
+
+  beforeEach(() => {
+    calls.readConversation!.mockImplementation(async ({ conversationId }: { conversationId: string }) =>
+      ({ events: conversationId === "B" ? [ending("B", 4)] : [], lastSeq: conversationId === "B" ? 4 : 0 }));
+  });
+
+  test.each(["error reply", "rejection"])("a failed mark (%s) restores its badge and reopening retries that ending", async failure => {
+    const mark = calls.markConversationSeen!;
+    if (failure === "error reply") mark.mockResolvedValueOnce({ error: "unknown" });
+    else mark.mockRejectedValueOnce(new Error("read marker not saved"));
+    await playing(folded, [other, unread]);
+    run.unfoldTarget();
+    run.setView(view());
+    await flush();
+    expect(mark).toHaveBeenCalledTimes(1);
+    run.setView(view(folded));
+    run.run.select("A");
+    expect(run.button().badge).toBe("unseen");
+    run.unfoldTarget();
+    run.setView(view());
+    await flush();
+    expect(run.shown()).toMatchObject({ conversationId: "B" });
+    expect(mark.mock.calls).toEqual([[{ conversationId: "B", seq: 4 }], [{ conversationId: "B", seq: 4 }]]);
+    expect(run.button().badge).toBeNull();
+  });
+
+  test("a late refusal of an earlier ending keeps the later successful mark until a fresh snapshot", async () => {
+    let fail!: (reply: { error: string }) => void;
+    calls.markConversationSeen!.mockImplementationOnce(() => new Promise(resolve => { fail = resolve; }));
+    await playing({}, [unread]);
+    event!(ending("B", 6));
+    await flush();
+    expect(calls.markConversationSeen!.mock.calls.map(([request]) => request.seq)).toEqual([4, 6]);
+    run.setView(view(folded));
+    fail({ error: "unknown" });
+    await flush();
+    expect(run.button().badge).toBeNull();
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [unread]);
+    expect(run.button().badge).toBe("unseen");
+  });
+
+  test("a mark refused after a newer list uses the persisted rows and leaves another conversation's mark alone", async () => {
+    let fail!: (reply: { error: string }) => void;
+    calls.readConversation!.mockImplementation(async ({ conversationId }: { conversationId: string }) => ({ events: [ending(conversationId, 4)], lastSeq: 4 }));
+    calls.markConversationSeen!.mockImplementationOnce(() => new Promise(resolve => { fail = resolve; }));
+    await playing({}, [unread]);
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [summary({ conversationId: "B" }), { ...other, unseen: true }]);
+    run.run.select("A");
+    await flush();
+    run.setView(view(folded));
+    fail({ error: "unknown" });
+    await flush();
+    expect(run.seen().has("A")).toBe(true);
+    expect(run.button().badge).toBeNull();
+  });
+});

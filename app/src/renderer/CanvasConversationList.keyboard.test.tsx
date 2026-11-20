@@ -5,7 +5,7 @@ import type { CanvasRow } from "../main/view";
 
 // ↑/↓, Home and End from a focused row Delete move between rows only.
 // The list's hooks run as plain state (App.conversationPanel.test.tsx), so its own key handling runs without a DOM.
-const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0 }));
+const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0, layouts: [] as (() => void)[] }));
 vi.mock("react", async original => {
   const actual = await original<typeof import("react")>();
   return {
@@ -16,7 +16,7 @@ vi.mock("react", async original => {
       return [hooks.states[index], (next: unknown) => { hooks.states[index] = typeof next === "function" ? (next as (value: unknown) => unknown)(hooks.states[index]) : next; }];
     },
     useRef: (value: unknown) => { const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
-    useEffect: () => {}, useLayoutEffect: () => {},
+    useEffect: () => {}, useLayoutEffect: (effect: () => void) => { hooks.layouts.push(effect); },
     useId: () => "id",
   };
 });
@@ -36,10 +36,10 @@ const noop = () => {};
 let focused: string[];
 let tree: ReactElement<Record<string, unknown>>;
 
-function render() {
-  hooks.cursor = 0; hooks.refCursor = 0;
-  tree = CanvasConversationList({ list: rows, project: "acme", thumbnails: new Map(), open: noop, retry: noop, onVisible: noop, onDelete: noop, scroller: { current: null }, title: { current: null } }) as ReactElement<Record<string, unknown>>;
-  (tree.props.ref as { current: unknown }).current = { querySelector: (selector: string) => ({ focus: () => focused.push(/data-key="([^"]+)"/.exec(selector)![1]!) }) };
+function render(list: Parameters<typeof CanvasConversationList>[0]["list"] = rows, retryButton: object | null = null) {
+  hooks.cursor = 0; hooks.refCursor = 0; hooks.layouts = [];
+  tree = CanvasConversationList({ list, project: "acme", thumbnails: new Map(), open: noop, retry: noop, onVisible: noop, onDelete: noop, scroller: { current: null }, title: { current: { focus: () => focused.push("heading") } as HTMLElement } }) as ReactElement<Record<string, unknown>>;
+  if (tree.props.ref) (tree.props.ref as { current: unknown }).current = { contains: (node: unknown) => node !== null && node === retryButton, querySelector: (selector: string) => ({ focus: () => focused.push(/data-key="([^"]+)"/.exec(selector)?.[1] ?? rows[0]!.key) }) };
 }
 type RowProps = { item: { key: string }; tabbable: boolean; focus(): void; blur(to: unknown): void; children: ReactElement<Parameters<typeof RowDelete>[0]> };
 const rowOf = (key: string) => (tree.props.children as ReactElement<RowProps>[]).find(row => row.props.item.key === key)!.props;
@@ -81,4 +81,30 @@ test("a Delete focused by itself (a click) moves from its own row, not the list'
   rowOf("c3").children.props.onFocus(); render();
   press("ArrowDown");
   expect(focused).toEqual(["c4"]);
+});
+
+test.each([true, false])("removing the focused Retry moves to the first row or, if empty, the heading (empty %s)", empty => {
+  const button = { isConnected: true }, body = {};
+  const doc = { body, activeElement: button as object, hasFocus: () => true };
+  vi.stubGlobal("document", doc);
+  render("error", button);
+  for (const effect of hooks.layouts) effect();
+  render(empty ? [] : rows);
+  doc.activeElement = body;
+  button.isConnected = false;
+  for (const effect of hooks.layouts) effect();
+  expect(focused).toEqual([empty ? "heading" : "c1"]);
+});
+
+test("a person who leaves Retry before the empty list arrives keeps focus", () => {
+  const button = { isConnected: true }, elsewhere = { isConnected: true };
+  const doc = { body: {}, activeElement: button, hasFocus: () => true };
+  vi.stubGlobal("document", doc);
+  render("error", button);
+  for (const effect of hooks.layouts) effect();
+  doc.activeElement = elsewhere;
+  render([]);
+  button.isConnected = false;
+  for (const effect of hooks.layouts) effect();
+  expect(focused).toEqual([]);
 });
