@@ -1,3 +1,4 @@
+import { queryTokens, searchText, tokenScore } from "./searchTokens";
 import { requestLines, splitRequestLines } from "../main/conversation/requestLines";
 import { skillWords } from "./skillWords";
 import { trimBlankLines } from "./composerLists";
@@ -468,21 +469,6 @@ export function suggestedPrompts(entry: FolderEntry | null, project: string, pre
   });
 }
 
-function searchText(text: string): string { return text.toLowerCase().normalize("NFC"); }
-
-// Quick Open's scoring (quickOpen.ts tokenScore): prefix 3, word start 2, substring 1.
-function tokenScore(fields: readonly string[], token: string): number {
-  let score = 0;
-  for (const field of fields) {
-    if (field.startsWith(token)) return 3;
-    for (let at = field.indexOf(token); at !== -1; at = field.indexOf(token, at + 1)) {
-      score = Math.max(score, at > 0 && !/[\p{L}\p{N}]/u.test(field.charAt(at - 1)) ? 2 : 1);
-      if (score === 2) break;
-    }
-  }
-  return score;
-}
-
 export type ProjectSkillSummary = SkillSummary;
 export interface PresetRow {
   kind: "preset" | "skill" | "command"; key: string; icon: string;
@@ -520,7 +506,7 @@ const byName = (rows: readonly ProjectSkillSummary[]) => [...rows].sort((a, b) =
 
 // Rows in order: presets, then skills, then commands, each kind in name order.
 export function searchDrawer(presets: readonly PresetSummary[], rows: readonly ProjectSkillSummary[], query: string): PresetRow[] {
-  const trimmed = query.trim(), tokens = searchText(trimmed).split(/\s+/).filter(Boolean);
+  const trimmed = query.trim(), tokens = queryTokens(query);
   const { skills, commands } = splitRows(rows);
   const entries = [
     ...presets.map(p => ({ row: presetRow(p, true), fields: [p.title, p.id, p.scope, p.description] })),

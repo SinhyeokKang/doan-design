@@ -130,6 +130,17 @@ describe("quick open matching", () => {
     expect(searchMatch(index, "실패", null, commonOf).map((entry) => entry.path)).toEqual([".doan/canvases/결제 실패.html", ".doan/canvases/결제실패.html"]);
   });
 
+  it("ranks a match after a supplementary letter below a word start", () => {
+    const index = searchIndex([folder("/repo", [
+      canvas(".doan/canvases/𠮷art.html"), canvas(".doan/canvases/x art.html"), canvas(".doan/canvases/art.html"),
+    ])]);
+    expect(searchMatch(index, "art", null, commonOf).map(entry => entry.label)).toEqual(["art", "x art", "𠮷art"]);
+  });
+
+  it("highlights a later word start over a substring after a supplementary letter", () => {
+    expect(matchPositions("𠮷art x art", "art")).toEqual([7, 8, 9]);
+  });
+
   it("breaks ties by current root, common repo, then other roots with stable saved order", () => {
     const index = searchIndex([folder("/other", [canvas(".doan/canvases/card.html")]), folder("/sibling", [canvas(".doan/canvases/card.html")]), folder("/repo", [canvas(".doan/canvases/card.html")])]);
     expect(searchMatch(index, "card", "/repo", commonOf).map((entry) => entry.root)).toEqual(["/repo", "/sibling", "/other"]);
