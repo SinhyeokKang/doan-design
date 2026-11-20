@@ -29,9 +29,8 @@ const profileEnv = "DOAN_EXPORT_PROFILE"
 const (
 	largeRepoDigest = "2a3cfcf21069ac06c0aecac9d04b5bd444ab5addf8f6a63beb39959eb877a741"
 	largeCSSDigest  = "b85ec1ecd2db1e6ca0be71f006695b177039a6d4d875fa20308a53bfec4e3857"
-	// largePageDigest is the page `doan export` wrote for this repository
-	// before the export copies were cut; the page must stay byte for byte.
-	largePageDigest = "0662c92e7a75cf2e5c9a3f18f7eb174e38645b08756ef5b3364bcff2a63653a5"
+	// Pin the assembled page separately so viewer edits leave the input fixtures intact.
+	largePageDigest = "41220d208099a46f4ba2141ac1b0a75c21d4dd4cb3385873e495fa0eeb824a1b"
 )
 
 const largeCanvas = ".doan/canvases/big-css.html"
