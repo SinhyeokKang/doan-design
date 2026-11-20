@@ -2,6 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, ty
 import { Trash2 } from "lucide-react";
 import { AlertIcon } from "./AlertIcon";
 import { canvasRowProblemText, type CanvasConversationRow } from "./canvasConversationRows";
+import { LOADING_DELAY_MS } from "./ConversationThread";
 import { ConversationHead } from "./ConversationLine";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { DELETE_TOOLTIP, deleteItemLabel } from "./conversationDelete";
@@ -16,8 +17,6 @@ import { useActivationFocus } from "./activationFocus";
 // The Overview's right panel body: one row per canvas conversation.
 
 export type CanvasList = readonly CanvasConversationRow[] | "loading" | "error";
-
-const LOADING_DELAY_MS = 300;
 
 // The row that holds focus, for handing focus on when it leaves the list. A blur to nowhere (window
 // blur, the row's removal) keeps it; focus on another element or pointer input outside the rows ends it, so a row
@@ -56,14 +55,9 @@ export interface CanvasConversationListProps {
 }
 
 export function CanvasConversationList({ list, project, thumbnails, open, retry, listRetry = LIST_RETRY_IDLE, onVisible, onDelete, scroller, title }: CanvasConversationListProps) {
-  const loading = list === "loading";
-  const [slow, setSlow] = useState(false);
-  useEffect(() => {
-    setSlow(false);
-    if (!loading) return;
-    const timer = setTimeout(() => setSlow(true), LOADING_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [loading]);
+  const errorBox = useRef<HTMLDivElement>(null);
+  // Removal drops focus to the body during commit, so check who holds it before the list replaces Retry.
+  const retryFocused = errorBox.current?.contains(document.activeElement) === true;
 
   const rows = Array.isArray(list) ? list : [];
   const keys = rows.map(item => item.key);
@@ -78,6 +72,10 @@ export function CanvasConversationList({ list, project, thumbnails, open, retry,
   // A row can leave while the window is in the background (a terminal, the prototype window), so the hand-off is made
   // again on activation (POSTMORTEM 2026-11-17).
   const handFocus = useActivationFocus();
+  useLayoutEffect(() => {
+    if (!retryFocused || !Array.isArray(list) || (document.activeElement && document.activeElement !== document.body)) return;
+    handFocus(() => { if (tabKey !== null) focusKey(tabKey); else title.current?.focus(); });
+  }, [retryFocused, list, tabKey, handFocus, title]);
   useLayoutEffect(() => {
     const before = previous.current;
     previous.current = keys;
@@ -108,9 +106,9 @@ export function CanvasConversationList({ list, project, thumbnails, open, retry,
     return () => { observer.disconnect(); report.current([]); };
   }, [observed]);
 
-  if (list === "loading") return slow ? <ListLoading /> : null;
+  if (list === "loading") return <ListLoading />;
   // The panel is white, where a panel button has no fill of its own; subtle keeps one.
-  if (list === "error") return <div className="rp-error" role="status"><AlertIcon /><span>{announcedAgain(LIST_FAILED_TEXT, listRetry.failures)}</span>
+  if (list === "error") return <div ref={errorBox} className="rp-error" role="status"><AlertIcon /><span>{announcedAgain(LIST_FAILED_TEXT, listRetry.failures)}</span>
     {listRetryButton(listRetry, "subtle", retry)}</div>;
   if (rows.length === 0) return <div className="rp-empty"><p>No canvas conversations yet.</p><p>When a conversation draws or edits a canvas, the canvas shows here.</p></div>;
   return <ul className="rp-list" role="list" ref={listRef} onKeyDown={event => {
@@ -127,8 +125,10 @@ export function CanvasConversationList({ list, project, thumbnails, open, retry,
   </ul>;
 }
 
-export function ListLoading() {
-  return <p className="rp-loading" role="status">Loading canvas conversations</p>;
+function ListLoading() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { const timer = setTimeout(() => setSlow(true), LOADING_DELAY_MS); return () => clearTimeout(timer); }, []);
+  return <p className="rp-loading" role="status">{slow && <><span className="doan-spinner" aria-hidden="true" />Loading canvas conversations</>}</p>;
 }
 
 // No glyph without a ready preview: the inset fill only, named for screen readers. A ready image stays while a new
