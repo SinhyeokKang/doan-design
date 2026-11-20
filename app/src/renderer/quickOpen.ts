@@ -115,6 +115,12 @@ export function conversationEntries(lists: ConversationLists, rowsOf: (root: str
   return index;
 }
 
+function isWordStart(field: string, at: number): boolean {
+  // indexOf returns a UTF-16 offset. The preceding code point can span two code units.
+  const previous = Array.from(field.slice(Math.max(0, at - 2), at)).at(-1) ?? "";
+  return !/[\p{L}\p{N}]/u.test(previous);
+}
+
 function tokenScore(fields: readonly string[], token: string): number {
   let score = 0;
   for (const field of fields) {
@@ -123,7 +129,7 @@ function tokenScore(fields: readonly string[], token: string): number {
     if (at === -1) continue;
     score = Math.max(score, 1);
     while (at > 0) {
-      if (!/[\p{L}\p{N}]/u.test(field.slice(at - 1, at))) {
+      if (isWordStart(field, at)) {
         score = 2;
         break;
       }
@@ -138,7 +144,7 @@ function tokenStart(field: string, token: string): number {
   if (field.startsWith(token)) return 0;
   const first = field.indexOf(token);
   for (let at = first; at > 0; at = field.indexOf(token, at + 1)) {
-    if (!/[\p{L}\p{N}]/u.test(field.slice(at - 1, at))) return at;
+    if (isWordStart(field, at)) return at;
   }
   return first;
 }
