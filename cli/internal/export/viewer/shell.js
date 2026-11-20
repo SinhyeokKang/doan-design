@@ -389,6 +389,7 @@ function syncSurface() {
   if (pan !== panTold && canvas.contentWindow) {
     panTold = pan;
     canvas.contentWindow.postMessage({ type: "pan", pan }, "*");
+    inspector.pan(pan);
     // Once the pointer has moved over the panning board the page holds the cursor, and after the pan
     // Chromium recomputes it over the iframe only when the iframe's own cursor value changes, and only
     // reliably once a frame without the pan has been drawn. Its computed cursor starts as auto.
@@ -404,7 +405,7 @@ function chooseTool(next) {
   }
   pendingTool = null;
   tool = next;
-  if (next === "hand") inspector.clearText();
+  if (next === "hand") inspector.clearSelection();
   for (const button of toolButtons) {
     const own = button.dataset.tool === tool;
     button.setAttribute("aria-pressed", String(own));

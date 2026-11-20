@@ -885,7 +885,7 @@ test("Remove from Doan on the page asks first for the page's whole group; Cancel
   projectPage()!.props.onRemove(); render();
   click(dialogButton("Remove from Doan"));
   await Promise.resolve(); await Promise.resolve(); render();
-  expect(doan.removeProjects).toHaveBeenCalledWith(["/w/a", "/w/b"]);
+  expect(doan.removeProjects).toHaveBeenCalledWith(["/w/a", "/w/b"], true);
   expect(harness.toast.show).not.toHaveBeenCalled();
   folders([listed("/w/c")]);
   projectPage()!.props.onGone(); render();
@@ -910,7 +910,12 @@ test("the sidebar menu and the problem overlay ask first too; Escape removes not
     open();
     expect(removalTitle(), name).toBe(title);
     expect(doan.removeProjects, name).not.toHaveBeenCalled();
-    (removalDialog()!.props.onCancel as (event: { preventDefault(): void }) => void)({ preventDefault: vi.fn() }); render();
+    if (name === "sidebar menu") {
+      const escape = { key: "Escape", nativeEvent: { isComposing: false }, preventDefault: vi.fn() };
+      (removalDialog()!.props.onKeyDown as (event: typeof escape) => void)(escape);
+      expect(escape.preventDefault).toHaveBeenCalledOnce();
+    } else (removalDialog()!.props.onCancel as (event: { preventDefault(): void }) => void)({ preventDefault: vi.fn() });
+    render();
     expect(removalDialog(), name).toBeUndefined();
     expect(focused, name).toEqual(["menu"]);
     expect(doan.removeProjects, name).not.toHaveBeenCalled();
@@ -931,15 +936,16 @@ test("with a running conversation only its Stop and remove confirmation shows", 
   doan.removeProjects = removed();
   const run = hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as InstanceType<typeof HomeRun>;
   vi.spyOn(run as unknown as { merged(): Map<string, unknown[]> }, "merged").mockReturnValue(new Map([["/w/a", [{ conversationId: "c1", working: true, phase: "running" }]]]));
-  doan.interruptConversation = vi.fn(async () => {});
+  doan.listConversations!.mockResolvedValue([{ conversationId: "c1", projectTurnId: "t1", working: true, phase: "running" }]);
+  doan.interruptProjectTurn = vi.fn(async () => {});
   find<{ remove(roots: string[]): void }>(ShellSidebar)[0]!.props.remove(["/w/a"]); render();
   expect(all(tree).filter(element => element.type === "dialog")).toHaveLength(1);
   expect(removalTitle()).toBe("Stop the conversation and remove a?");
   click(dialogButton("Stop and remove"));
   for (let i = 0; i < 4; i++) await Promise.resolve();
   render();
-  expect(doan.interruptConversation).toHaveBeenCalledWith({ conversationId: "c1" });
-  expect(doan.removeProjects).toHaveBeenCalledWith(["/w/a"]);
+  expect(doan.interruptProjectTurn).toHaveBeenCalledWith({ conversationId: "c1", turnId: "t1" });
+  expect(doan.removeProjects).toHaveBeenCalledWith(["/w/a"], true);
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 

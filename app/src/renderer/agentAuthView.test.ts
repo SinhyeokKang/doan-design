@@ -314,7 +314,7 @@ test("Home's short status names why a connected provider can't run, with no acti
   expect(short(dto("antigravity", { account: ACCOUNT }))).toBe("Checks your connection when you send.");
   expect(short(dto("codex", { account: ACCOUNT, expired: true }))).toBe("Sign-in expired");
   expect(short(dto("cursor", { account: ACCOUNT, verified: true, facts: { version: "unsupported" } }))).toBe("Needs an update");
-  expect(short(dto("codex", { account: ACCOUNT, verified: true, facts: { version: "incompatible" } }))).toBe("Needs an update");
+  expect(short(dto("codex", { account: ACCOUNT, verified: true, facts: { version: "incompatible" } }))).toBe("Incompatible version");
   expect(short(dto("copilot", { account: ACCOUNT, verified: true, facts: { cli: "missing" } }))).toBe("Not installed");
   for (const facts of [{ version: "unknown" }, { tools: "missing" }] as Partial<ToolFacts>[])
     expect(short(dto("copilot", { account: ACCOUNT, verified: true, facts }))).toBe("Not available right now");
@@ -327,6 +327,7 @@ test("the unavailable reason names the provider and the picker's cause", () => {
   expect(reason(dto("codex"))).toBe("Codex isn’t signed in");
   expect(reason(dto("codex", { account: ACCOUNT, expired: true }))).toBe("Codex’s sign-in expired");
   expect(reason(dto("codex", { account: ACCOUNT, verified: true, facts: { version: "unsupported" } }))).toBe("Codex needs an update");
+  expect(reason(dto("codex", { account: ACCOUNT, verified: true, facts: { version: "incompatible" } }))).toBe("Doan can’t run this Codex version");
   expect(reason(dto("codex", { account: ACCOUNT, verified: true, facts: { cli: "missing" } }))).toBe("Codex isn’t installed");
   expect(reason(dto("codex", { account: ACCOUNT, verified: true, facts: { tools: "missing" } }))).toBe("Codex isn’t available right now");
 });
@@ -414,7 +415,7 @@ test("settings context: Home's picker offers one Settings action per group that 
   const target = (provider: Provider) => ({ section: "agents", provider });
   expect(pickerAction(dto("codex", { account: ACCOUNT, verified: true, expired: true }))).toEqual({ label: "Sign in again", target: target("codex") });
   expect(pickerAction(dto("copilot", { account: ACCOUNT, verified: true, facts: { version: "unsupported" } }))).toEqual({ label: "Update", target: target("copilot") });
-  expect(pickerAction(dto("cursor", { account: ACCOUNT, verified: true, facts: { version: "incompatible" } }))).toEqual({ label: "Update", target: target("cursor") });
+  expect(pickerAction(dto("codex", { account: ACCOUNT, verified: true, facts: { version: "incompatible" } }))).toEqual({ label: "Open Agents settings", target: target("codex") });
   expect(pickerAction(dto("claude", { account: ACCOUNT, verified: true, facts: { tools: "failed" } }))).toEqual({ label: "Open Agents settings", target: target("claude") });
   expect(pickerAction(dto("claude", { account: { id: "acct-1", workspace: null, email: "ada@example.com" }, verified: true }))).toEqual({ label: "Open Agents settings", target: target("claude") });
   // Ready and unverified run (main checks on send); a provider without a connection is not in the picker.

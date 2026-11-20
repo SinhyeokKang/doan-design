@@ -147,7 +147,7 @@ func notOpenMessage(root string) string {
 // checkout of an added one.
 func notOpenSteps(after string) []string {
 	return []string{
-		"Tell the user Doan does not have the folder at the path in the message open and ask them to add that path in Doan (Add Projects)" + after,
+		"Tell the user Doan does not have the folder at the path in the message open and ask them to add that path in Doan (File > Add Projects…)" + after,
 		"If they say Doan already has a project with this name, ask them to compare its path (Project Settings shows it) with the path in the message: a different path is another checkout or worktree, so add this path too or work in the folder Doan has open",
 	}
 }

@@ -166,6 +166,20 @@ Settings is a page of the main window, like Add Projects: the shell's header and
 - **Lock ink on the current tab and Back.** The current Settings tab is `aria-disabled` and dimmed while the page is locked, like every header tab on a locked page; the draft leaves it unmarked. Locked Back takes the disabled ink and default cursor; the draft marks it without the shipped ink.
 - **Switch thumb** is the button's `::before`, not a child span; its values match the draft's span.
 
+### Opening macOS notification settings
+
+The three frames in [the notification settings canvas](../../.doan/canvases/notification-settings-open.html) were paired with Settings › Notifications in Electron at a 768px content-column width. The failed and retrying states use a refused open followed by a pending keyboard retry on the same button.
+
+| Frame | Permission box, draft / app | Open button, draft / app | Launch error, draft / app |
+|---|---|---|---|
+| Default | 686 × 84 / 686 × 84 | 191.45 × 32 / 191.45 × 32 | Absent / absent |
+| Failed | 686 × 112 / 686 × 112 | 191.45 × 32 / 191.45 × 32 | 654 × 20 / 654 × 20 |
+| Retrying | 686 × 112 / 686 × 112 | 213.45 × 32 / 213.45 × 32 | 654 × 20 / 654 × 20 |
+
+The error follows both buttons, with a 16px icon, 6px gap and 14px/20px danger text. Its text describes the Open button in the accessibility tree. Tab focuses the button in every frame with a 2px black outline. During retry it stays focusable, busy and disabled, with a 14px spinner. The spinner’s rotating bounding rectangle varies with animation phase. The canvas board intercepts pointer hover. When Chromium applies the hover state directly, the button fill matches the app in all three states.
+
+The Delivery subtitle describes main-window inactivity and the viewed prototype conversation. At this width it wraps to two lines and adds 16px to the row. The permission hint owns its note, status or alert role so its actions and the launch error can be announced separately. The app centers the column within the full Settings panel and inherits its body tracking on layout containers. The draft frame has no outer column margin and uses normal tracking on these containers.
+
 ### States not in the draft
 
 - The read-stage notice "Doan couldn’t read its saved settings, so defaults apply." and the newer-file notice above a category's groups (`.settings-notice`, 12px below); the save failure under New conversations (`.settings-save-error`, 12px above, 17px inset). Not measured against a draft.
@@ -295,7 +309,7 @@ Reference: `.doan/canvases/mcp-connectors.html`, frames `agents`, `one-agent`, `
 | Item actions | In the trailing column, 8px apart: `sm` buttons 32 high, Connect and Reconnect `prominent`, Disconnect `subtle`; a URL server's … is a 32px `doan-icon-button` in `--text-subtle` with a 16px Ellipsis after the button; its menu is the shared `doan-menu` (one Remove item, 32 high) | |
 | Lines under an item | `.doan-preference-row-extra` from the text column: Reconnect needed's helper and the pending-logout line as `settings-help` (caption `--text-subtle`, 4px below); the waiting, failure and running-turn notices in a line 12px below: the default `doan-notice` (inset fill, 12 / 16 padding, 16px corner, 6px gap, a 16px icon or spinner 2px down) with its actions inside it, `sm` `panel`: Claude Code's Cancel and Open again stacked on their own row at its end, 8px under the text; Codex's Cancel and a failure's single Retry inline at its end | 'Lines under a row'. |
 | Disabled | Checking, Disconnecting and Removing keep the row's button disabled (`--affordance-disabled`, `--text-disabled`); a busy section's other Connect buttons have the same look through `data-disabled` but stay focusable (`aria-disabled`) for their tooltip | |
-| URL dialog | Compact dialog 400 wide, 32px padding, 28px corner, 16px between parts: title, description, the URL field (40 high, 20px corner), Cancel `subtle` and Add `prominent` default-size (40 high, 24px inline padding); an invalid field takes the danger border (`aria-invalid`) and the inline error sits 8px under it in one group with it (`.field-group`; `settings-msg error`, 16px icon, `role=alert`). Add is `disabled` only while the field is empty; while its request is out it keeps its fill with the 14 px in-button spinner, `aria-busy` and `aria-disabled`, so focus stays on it | |
+| URL dialog | Compact dialog 400 wide, 32px padding, 28px corner, 16px between parts: title, description, the URL field (40 high, 20px corner), Cancel `subtle` and Add `prominent` default-size (40 high, 24px inline padding); an invalid field takes the danger border (`aria-invalid`) and the inline error sits 8px under it in one group with it (`.field-group`; `settings-msg error`, 16px icon, `role=alert`). Add is `disabled` only while the field is empty; while its request is out it keeps its fill with the 14 px in-button spinner, `aria-busy` and `aria-disabled`, so focus stays on it. The submitted URL is read-only and Cancel stays focusable with its disabled appearance. Cancel and Escape cannot dismiss the pending dialog. After failure the URL is editable again, with its value preserved and its error linked to the field | |
 | Remove alert | The same compact dialog as an `alertdialog` named by its title, Cancel focused, Remove `prominent`, default-size actions; the page is locked behind it. While the removal is out Remove is busy (spinner, `aria-busy`, `aria-disabled`) and Cancel takes the disabled look with Escape refused; the server leaving the list closes it and focuses the next item; a failure shows “Couldn’t remove <name> from Doan’s agents. Try again.” as `doan-notice error` (`role=alert`) above the actions, Remove described by it and the retry, while the row behind it hides its own copy of that line | |
 | Live region | One page live region (`.ob-live`, `role=status`); the accessibility tree shows no other live node on the page | |
 

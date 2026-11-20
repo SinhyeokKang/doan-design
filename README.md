@@ -28,7 +28,7 @@
 - **Every agent can read it.** Claude Code, Codex, Cursor, Antigravity and GitHub Copilot read the same file through the same `doan` skill, with no upload step.
 - **It knows your code.** Canvases use the repo's real token CSS, frames name the files that implement them, and `doan check` flags convention, token and external-resource problems.
 - **Point instead of describing.** Put the exact frame, element or spot into your message, and the agent gets it as an anchor.
-- **Share without the repo.** Export a canvas as one HTML file that a reviewer opens in any browser.
+- **Share without the repo.** Export a canvas as one HTML file that a reviewer opens in a browser.
 
 ## Features
 
@@ -50,7 +50,7 @@ The agent writes each canvas as an HTML file in your repo, next to the code, wit
 
 ### Talk on the canvas
 
-Each canvas has its own conversation. Point at frames, elements and spots as chips, or capture an area of the board; the agent gets them as anchors.
+A canvas can have several conversations. Send a frame, element or spot as an anchor chip, or attach an image of an area of the board.
 
 </td>
 <td width="50%">
@@ -98,7 +98,7 @@ Doan sets up the `doan` command and skill for all five agents. A terminal agent 
 
 ### Export
 
-Save a canvas as one HTML file that opens in any browser without Doan, the repo or a network, and send it to a reviewer. External URLs a canvas links still load from the internet.
+Save a canvas as one HTML file that opens in a browser without Doan, the repo or a network, and send it to a reviewer. External URLs a canvas links still load from the internet.
 
 </td>
 <td width="50%">
@@ -145,9 +145,9 @@ Pick a design preset — shape, critique, harden, clarify and more — and the a
 | `doan open <canvas> --frame <id>` | Open a canvas in the app, at a frame; with `--prototype`, play that frame alone in the prototype window |
 | `doan handoff <canvas> --message <text>` | From a Doan canvas conversation, hand the work to a new conversation on a new canvas the turn created, once per new canvas |
 | `doan remove` | Take this project out of Doan's list when you ask; its files and Git worktrees stay on disk |
-| `doan export <canvas> -o <file>` | Save a canvas as one HTML file that opens in any browser; with `--frame <id> --prototype`, a file that plays that frame and the frames linked to it |
+| `doan export <canvas> -o <file>` | Save a canvas as one HTML file that opens in a browser; with `--frame <id> --prototype`, a file that plays that frame and the frames linked to it |
 | `doan skill` · `doan design-skill [<id>]` | Print the guide agents follow, and the design presets |
-| `doan onboarding` | Let an agent run first-time setup for you |
+| `doan onboarding` | Let an agent guide first-time setup or add a project later |
 
 A typical agent turn:
 
@@ -183,7 +183,7 @@ Twenty design briefs, adapted from [Impeccable](https://github.com/pbakaus/impec
 | Antigravity | ✓ | ✓ | — |
 | GitHub Copilot | ✓ | ✓ | — |
 
-Claude Code, Codex, Cursor and GitHub Copilot run through their installed CLI, which first run offers to install or update; Doan downloads Antigravity's agent server itself. First run then signs in to each.
+Claude Code, Codex, Cursor and GitHub Copilot run through their installed CLI, which first run offers to install or update; Doan downloads Antigravity's agent server itself. You can continue first run with one ready agent and connect the others later in Settings.
 
 ## Install
 
@@ -220,7 +220,7 @@ go test ./... && npm --prefix app test      # Go and TypeScript tests
 npm --prefix app run package                # unsigned app/dist/mac-arm64/Doan.app with the bundled CLI
 ```
 
-To run the CLI directly: `go run ./cli/cmd/doan <command> --repo <path> [--json]`. Development and verification commands are listed in [AGENTS.md](./AGENTS.md) 'Commands'.
+To list a test repository’s canvases with the development CLI, run `go run ./cli/cmd/doan ls --repo <path> --json`. Development and verification commands are listed in [AGENTS.md](./AGENTS.md) 'Commands'.
 
 ### Documents
 

@@ -702,6 +702,7 @@ body:has(.shell-top) { background: transparent; }
    draft round 3); the page scrolls whole, its footer included. The shared Project screen is sized for first run's
    14/20 body text and plain numerals (.ob-overlay); without them it inherits the app body's 13px/normal. */
 .add-panel { display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-variant-numeric: normal; }
+.add-panel:has(> .problem-overlay) { overflow: hidden; }
 /* The ways out of a locked Add Projects page are aria-disabled, not disabled, so they keep their place in the focus
    order; they take the disabled ink and no hover (draft frames cloning and selecting). */
 .shell-modes button[aria-disabled="true"], .shell-search[aria-disabled="true"], .shell-side .row[aria-disabled="true"], .shell-side .row[aria-disabled="true"] :is(.shell-project-name, .shell-branch), .shell-top .shell-history .doan-icon-button[aria-disabled="true"], .doan-menu-item[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
@@ -1469,7 +1470,7 @@ button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-ba
 /* The same dashed box as the sidebar's empty groups, inset like the list's rows. */
 .rp-empty { margin: 0 var(--space-2) var(--space-2); padding: var(--space-4); border: 1px dashed var(--border-standard); border-radius: var(--radius-chip); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .rp-empty p + p { margin-top: var(--space-2); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
-.rp-loading { padding: var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.rp-loading { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .rp-error { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); color: var(--text-danger); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 /* A list read failure is an inline error (DESIGN 'No coloured edge stripes'): the alert icon, the sentence taking the
    rest of the row, Retry at its end. */
@@ -1493,17 +1494,39 @@ button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-ba
 .doan-canvas-head { flex: none; background: var(--surface-panel); container: doan-canvas-head / inline-size; }
 .doan-canvas-trail { display: flex; align-items: center; gap: var(--space-2); flex: 0 1 auto; min-width: 0; }
 /* The switch yields to its label floor first, then the project, then the frame and finally the canvas name. */
-.doan-canvas-trail > .wt-chip { flex: 0 1e12 auto; min-width: calc-size(max-content, min(size, 2 * var(--space-chip-inset) + var(--size-icon-xs) + var(--space-1) + var(--space-12))); }
-.doan-canvas-project.doan-button { flex: 0 1e8 auto; min-width: calc(var(--size-icon) + 2 * var(--space-2)); gap: var(--space-2); color: var(--text-subtle); font-weight: var(--type-weight-regular); }
+.doan-canvas-trail > .wt-chip { margin-inline-start: calc(-1 * var(--space-1)); flex: 0 1e12 auto; min-width: calc-size(max-content, min(size, 2 * var(--space-chip-inset) + var(--size-icon-xs) + var(--space-1) + var(--space-12))); }
+.doan-canvas-project.doan-button {
+  flex: 0 1e8 auto;
+  min-width: calc(var(--size-icon) + 2 * var(--space-2) + var(--space-2) + var(--size-control));
+  min-width: calc-size(max-content, min(size, var(--size-icon) + 2 * var(--space-2) + var(--space-2) + var(--size-control)));
+  gap: var(--space-2);
+  color: var(--text-subtle);
+  font-weight: var(--type-weight-regular);
+}
 .doan-canvas-project-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.doan-canvas-trail > .ov-title-wrap { flex: 0 10000 auto; min-width: calc(2 * var(--space-2) + var(--space-1h) + var(--size-icon)); }
+.doan-canvas-trail > .ov-title-wrap {
+  flex: 0 10000 auto;
+  min-width: calc(2 * var(--space-2) + var(--space-1h) + var(--size-icon) + var(--size-control));
+  min-width: calc-size(max-content, min(size, 2 * var(--space-2) + var(--space-1h) + var(--size-icon) + var(--size-control)));
+}
 .doan-canvas-trail > .doan-canvas-name { flex: 0 1 auto; max-width: 40cqi; min-width: calc(var(--space-2) + var(--size-icon)); }
 /* Container queries read the content box, 32px narrower than the full header. */
 @container doan-canvas-head (width < 688px) {
-  .doan-canvas-project-name, .doan-canvas-zoom > .doan-icon-button { display: none; }
+  .doan-canvas-zoom > .doan-icon-button { display: none; }
+}
+@container doan-canvas-head (width < 628px) {
+  .doan-canvas-trail > .wt-chip { display: none; }
 }
 @container doan-canvas-head (width < 568px) {
-  .doan-canvas-trail > :is(.doan-canvas-project, .wt-chip, .doan-canvas-sep-root) { display: none; }
+  .doan-canvas-trail > .doan-canvas-project { min-width: max-content; }
+  .doan-canvas-project-name { display: none; }
+}
+@container doan-canvas-head (width < 488px) {
+  .doan-canvas-trail > .ov-title-wrap { min-width: max-content; }
+  .doan-frame-trigger > span { display: none; }
+}
+@container doan-canvas-head (width < 408px) {
+  .doan-canvas-name > span { display: none; }
 }
 .doan-canvas-name { display: inline-flex; align-items: center; gap: var(--space-1h); flex: none; max-width: 40%; min-width: 0; padding-left: var(--space-2); color: var(--text-subtle); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); }
 .doan-canvas-name svg { width: var(--size-icon); height: var(--size-icon); flex: none; }
@@ -2107,8 +2130,8 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .pw-frame { position: absolute; top: 0; left: 0; display: block; border: 0; transform-origin: 0 0; }
 .pw-snapshot { display: block; width: 100%; height: 100%; }
 /* The problem overlay over the content panel only, so the header stays usable. */
-.pw-panel > .problem-overlay { position: absolute; inset: 0; z-index: 5; display: flex; border-radius: inherit; overflow-y: auto; padding-block: var(--space-6); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
-@media (prefers-reduced-transparency: reduce) { .pw-panel > .problem-overlay { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+:is(.pw-panel, .add-panel) > .problem-overlay { position: absolute; inset: 0; z-index: 5; display: flex; border-radius: inherit; overflow-y: auto; padding-block: var(--space-6); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
+@media (prefers-reduced-transparency: reduce) { :is(.pw-panel, .add-panel) > .problem-overlay { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 /* Standard ink, so the body holds over a dark frame under the 60% overlay. */
 .pw-panel .problem-heading p { color: var(--text-standard); }
 .pw-drawer-empty { white-space: normal; padding-bottom: var(--space-2); }

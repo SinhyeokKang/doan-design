@@ -8,7 +8,7 @@
     "dev": "electron-vite dev",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc -p ../eval",
-    "lint": "oxlint --type-aware --max-warnings 80 src runtime && npm run lint:eval",
+    "lint": "oxlint --type-aware --max-warnings 78 src runtime && npm run lint:eval",
     "lint:eval": "cd .. && OXLINT_TSGOLINT_PATH=app/node_modules/.bin/tsgolint app/node_modules/.bin/oxlint --type-aware -c app/.oxlintrc.json --ignore-pattern '**/*.test.ts' --max-warnings 0 eval",
     "package": "node scripts/package.mjs"
   },
@@ -45,7 +45,7 @@
     "vite": "8.3.4",
     "vitest": "5.0.5"
   },
-  "version": "0.1.23",
+  "version": "0.1.24",
   "productName": "Doan",
   "build": {
     "protocols": [{ "name": "Doan canvas", "schemes": ["doan"] }],

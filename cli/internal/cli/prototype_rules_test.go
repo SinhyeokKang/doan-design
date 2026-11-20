@@ -152,7 +152,7 @@ func TestPrototypeReplyGuidance(t *testing.T) {
 		return strings.Join(failure.NextSteps, "\n")
 	}
 	for _, tt := range []struct{ line, want string }{
-		{`{"v":6,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "Add Projects"},
+		{`{"v":6,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "File > Add Projects…"},
 		{`{"v":6,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "Project Settings"},
 		{`{"v":6,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "another checkout or worktree"},
 		{`{"v":6,"ok":false,"error":{"code":"canvas_not_found","message":"m"}}`, "doan ls"},

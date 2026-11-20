@@ -29,6 +29,11 @@ export interface PrototypeRunHost {
   focused(): boolean;
 }
 
+interface SeenMark {
+  key: string;
+  confirmFromRead: number | null;
+}
+
 export class PrototypeConversationRun {
   readonly store: ConversationStore;
   readonly run: CanvasRun;
@@ -50,8 +55,8 @@ export class PrototypeConversationRun {
   private listFailures = 0;
   private reading: { epoch: number; views: number; again: boolean } | null = null;
   private views = 0;
-  // Main answered a read with "not_playing": it plays a canvas this window has no view of yet, so list changes went
-  // unread. The next view reads again, even of this same canvas (A, B, A coalesced into one view of A).
+  // A list change or confirmation could not be read for this canvas. The next available view reads again,
+  // even of this same canvas (A, B, A coalesced into one view of A).
   private missed = false;
   private reads = 0;
   private applied = 0;
@@ -63,8 +68,8 @@ export class PrototypeConversationRun {
   // What main last heard the open panel shows, with the target and the view's run it was sent under (undefined:
   // nothing sent yet).
   private showing: { id: string | null; key: string | null; gen: number | null } | undefined = undefined;
-  // Conversations this window marked seen, until a list read says so too.
-  private seenIds = new Set<string>();
+  // Only a list read started after a successful write can supersede that mark, including with a newer unread ending.
+  private seenMarks = new Map<string, SeenMark>();
   // The project conversation drawing the playing canvas, by id only: main relays it from the main window, which reads
   // project conversations this window cannot.
   private drawingId: string | null = null;
@@ -88,7 +93,7 @@ export class PrototypeConversationRun {
       list, readsStarted: () => this.reads, readsApplied: () => this.applied,
       reread: root => { if (this.view?.root === root) this.read(); },
       listRetry: root => (this.view?.root === root ? this.listRetry() : LIST_RETRY_IDLE),
-      markSeen: (conversationId, seq) => { this.seenIds.add(conversationId); void calls.markConversationSeen({ conversationId, seq }).catch(console.error); },
+      markSeen: (conversationId, seq) => { void this.markSeen(conversationId, seq); },
       focused: () => host.focused(),
       drawing: root => (this.view?.root === root ? this.drawingId : null),
       promoted: root => (this.view?.root === root ? this.promotedId : null),
@@ -157,8 +162,10 @@ export class PrototypeConversationRun {
     // A row back from being read again (a folder reload) reads the list again: list changes meanwhile were dropped.
     const back = before !== null && before.canvasRow !== "present";
     if (view.canvasRow === "present" && (((this.listView === "loading" || back) && this.reading?.epoch !== this.epoch) || this.missed)) this.read();
+    // Close before showing the target so folding cannot retry a failed read mark.
+    if (!view.panel.open) this.run.panel(false);
     this.run.show(target);
-    this.run.panel(view.panel.open);
+    if (view.panel.open) this.run.panel(true);
     // Opening the panel takes the returned queue it left to the main window while folded, if that one has not.
     const shown = this.run.view();
     if (view.panel.open && !before?.panel.open && shown?.kind === "conversation") this.store.takeDraft(view.root, shown.conversationId);
@@ -214,7 +221,7 @@ export class PrototypeConversationRun {
   entry(): FolderEntry | null { return this.entryValue; }
   work(): readonly WorkItem[] { return this.workItems; }
   settings(): PrototypeComposerSettings | null { return this.settingsValue; }
-  seen(): ReadonlySet<string> { return this.seenIds; }
+  seen(): ReadonlySet<string> { return new Set(this.seenMarks.keys()); }
   // The panel head's title: the main window's title for the conversation shown, or the shell's own "Conversation".
   headTitle(): string { return prototypeHeadTitle(this.shown(), canvasConversationTitle(this.run, this.listView).title); }
   // The folded panel's button stands for the strongest signal across the playing canvas's conversations, as the main
@@ -223,7 +230,7 @@ export class PrototypeConversationRun {
   button(): ConversationButton {
     const signal = this.signal();
     const summary = signal && Array.isArray(this.listView) ? this.listView.find(c => c.conversationId === signal.conversationId) : undefined;
-    return conversationButton(summary, this.seenIds);
+    return conversationButton(summary);
   }
   // Show conversation with a badge opens on the conversation the badge stands for; without one the panel keeps what it
   // showed. Called just before the window asks main to open the panel.
@@ -234,7 +241,28 @@ export class PrototypeConversationRun {
   }
   private signal(): CanvasSignal | null {
     const target = this.target();
-    return target && Array.isArray(this.listView) ? canvasStrongestSignal(this.listView, target.canvas, this.seenIds) : null;
+    return target && Array.isArray(this.listView) ? canvasStrongestSignal(this.listView, target.canvas, this.seen()) : null;
+  }
+
+  private async markSeen(conversationId: string, seq: number): Promise<void> {
+    if (this.key === null) return;
+    const mark: SeenMark = { key: this.key, confirmFromRead: null };
+    this.seenMarks.set(conversationId, mark);
+    const reply = await this.calls.markConversationSeen({ conversationId, seq }).catch(() => ({ error: "unknown" }));
+    if (this.seenMarks.get(conversationId) !== mark) return;
+    if (reply && "error" in reply) {
+      this.seenMarks.delete(conversationId);
+      this.run.seenFailed(conversationId, seq);
+      this.host.changed();
+    } else {
+      mark.confirmFromRead = this.reads + 1;
+      // Marking an already persisted seq emits no list change. Confirm even when the last notification started
+      // its read before this reply: it may name a newer unseen ending.
+      if (this.key === mark.key) {
+        if (this.view?.canvasRow === "present") this.read();
+        else this.missed = true;
+      }
+    }
   }
 
   // The request names the canvas this view shows: main answers its rows only while it still plays that canvas.
@@ -271,7 +299,7 @@ export class PrototypeConversationRun {
       this.store.deleted(c.conversationId);
       this.run.deleted(c.conversationId);
     }
-    for (const id of this.seenIds) if (list.some(c => c.conversationId === id && !c.unseen)) this.seenIds.delete(id);
+    for (const [id, mark] of this.seenMarks) if (mark.key === this.key && mark.confirmFromRead !== null && n >= mark.confirmFromRead) this.seenMarks.delete(id);
     this.listView = list;
     this.listFailures = 0;
     this.applied = n;

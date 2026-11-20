@@ -285,6 +285,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // launch restore reads main's whole list, so it can wait for a saved worktree that is still being read.
   const [entries, setEntries] = useState<FolderEntry[]>([]);
   const [allEntries, setAllEntries] = useState<FolderEntry[]>([]);
+  const allEntriesRef = useRef(allEntries);
   // The group's selection before it moved to an auto-registered worktree, by that worktree, in memory.
   const beforeAuto = useRef(new Map<string, string>());
   const [state, setState] = useState(initialCanvasState);
@@ -335,6 +336,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const historyRef = useRef(history); historyRef.current = history;
   const navigationIntent = useRef(0);
   const entriesRef = useRef(entries); entriesRef.current = entries;
+  // Retry must lock before main publishes loading. A later retry of the same root owns a different token.
+  const overlayRetries = useRef(new Map<string, symbol>());
+  const [, redrawRetry] = useState(0);
   const shellRef = useRef(shellProjects); shellRef.current = shellProjects;
   const expandedRef = useRef(expanded); expandedRef.current = expanded;
   // Why the open canvas was closed (its ID now shared by another canvas), shown on its project's Overview until another
@@ -375,7 +379,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       ? live.current.openCanvasConversation(root, row, conversation.conversationId, { kind: "notification", permission: conversation.waiting })
       : live.current.openShellCanvas(root, row),
     goHome: () => live.current.home(),
-    removeNow: paths => live.current.removeNow(paths),
+    removeNow: (paths, group) => live.current.removeNow(paths, group),
     toast: (message, label, run) => live.current.toast.show(message, label, run),
     sent: request => setHomeMemory(previous => {
       const next = { ...previous, lastRoot: request.root, lastProvider: request.runtime,
@@ -583,6 +587,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     controller.current = instance;
     const stopFolders = window.doan.onFolders((all, focus) => {
       const next = shownFolders(all), before = entriesRef.current;
+      for (const root of overlayRetries.current.keys()) {
+        const kind = next.find(row => row.path === root)?.kind;
+        if (kind === undefined || (kind !== "loading" && before.find(row => row.path === root)?.kind === "loading")) overlayRetries.current.delete(root);
+      }
       if (focus) {
         const located = locateFrom.current === focus.from;
         if (!located) setLoadedRoot(root => root === focus.from ? focus.root : root);
@@ -609,6 +617,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
         forgetConversations(removed);
       }
       entriesRef.current = next;
+      allEntriesRef.current = all;
       setEntries(next); setAllEntries(all); instance.updateEntries(next, all); setFoldersSeen(true);
       live.current.leaveVanished(before, next);
     });
@@ -1124,12 +1133,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (previous && !previous.isConnected && previous.closest(".problem-overlay")) { focusResolved(); return; }
     focusCurrent(previous);
   }, [modal, entries]);
-  // A path the removal confirmation names left the list (a reroot, a removal elsewhere): it closes, since it no longer
-  // names what would go and main refuses a removal of an unlisted path.
+  // A surviving worktree can still anchor the group for a fresh confirmation. Without one the target is gone.
   useEffect(() => {
     const removing = homeRun.current.removing;
-    if (removing && !removing.paths.every(path => entries.some(entry => entry.path === path))) { homeRun.current.cancelRemove(); modalClosed(); }
-  }, [entries]);
+    if (!removing) return;
+    if (removing.paths.some(path => allEntries.some(entry => entry.path === path))) return;
+    homeRun.current.closeRemove(); modalClosed();
+  }, [allEntries]);
   // The row the Move to Trash dialog asks about left the list: the dialog closes. A folder still loading keeps it.
   useEffect(() => {
     if (!trashing) return;
@@ -1474,18 +1484,30 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     return () => { window.removeEventListener("dragover", refuse); window.removeEventListener("drop", refuse); };
   }, []);
   // A running Home conversation is stopped first, and only after the person agrees.
-  function remove(paths: string[]): Promise<void> {
+  function remove(paths: string[], currentGroup?: (paths: string[]) => string[] | null): Promise<void> {
     cancelRestore();
     rememberFocus();
-    return homeRun.current.remove(paths, removalQuestionLabel(cards, paths, names));
+    return homeRun.current.remove(paths, removalQuestionLabel(cards, paths, names), currentGroup);
+  }
+  function cancelRemove() {
+    if (homeRun.current.removing?.pending) return;
+    homeRun.current.cancelRemove();
+    modalClosed();
   }
   // A project's Remove from Doan (the sidebar, the problem overlay, Project Settings) takes the whole group as
   // `doan remove` does, an auto-registered worktree hidden from the shown rows included (PRODUCT §5 item 1).
-  const removeProject = (shown: string[]) => remove(groupRoots(allEntries, shown));
-  async function removeNow(paths: string[]) {
+  const removeProject = (shown: string[]) => {
+    const roots = (paths: string[]) => {
+      const anchor = paths.find(root => allEntriesRef.current.some(entry => entry.path === root));
+      return anchor ? groupRoots(allEntriesRef.current, [anchor]) : [];
+    };
+    return remove(roots(shown) ?? shown, roots);
+  };
+  async function removeNow(paths: string[], group?: true) {
     cancelRestore();
-    const result = await window.doan.removeProjects(paths);
+    const result = group ? await window.doan.removeProjects(paths, group) : await window.doan.removeProjects(paths);
     if (result.kind === "removed") forgetRemoved(paths);
+    return result;
   }
   // What the window forgets about roots it or `doan remove` (folders:removed) took out of the list. Going Home is the
   // entries effect's, as for any vanished root. A second pass for the same roots sets no state, so the CLI's event for
@@ -1508,13 +1530,20 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     beforeModal.current = button;
     const seq = ++trashSeq.current;
     changeTrashing({ root, row, plan: null, seq, move: { pending: false, failed: null } });
-    const answered = (plan: TrashPlanReply) => {
-      const current = trashingRef.current;
-      if (current?.seq !== seq) return;
-      if (plan.kind === "refused" && (plan.reason === "notListed" || plan.reason === "notFile")) { closeTrash(); live.current.toast.show(trashToast(canvasStem(row.path), plan)); return; }
-      changeTrashing({ ...current, plan });
-    };
-    window.doan.planCanvasTrash(root, row.path).then(answered, () => answered({ kind: "refused", reason: "failed" }));
+    void readTrashPlan(root, row.path).then(plan => applyTrashPlan(seq, plan));
+  }
+  function readTrashPlan(root: string, path: string): Promise<TrashPlanReply> {
+    return window.doan.planCanvasTrash(root, path).catch(() => ({ kind: "refused", reason: "failed" }));
+  }
+  function applyTrashPlan(seq: number, plan: TrashPlanReply) {
+    const current = trashingRef.current;
+    if (current?.seq !== seq) return;
+    if (plan.kind === "refused" && (plan.reason === "notListed" || plan.reason === "notFile")) {
+      closeTrash();
+      live.current.toast.show(trashToast(canvasStem(current.row.path), plan));
+      return;
+    }
+    changeTrashing({ ...current, plan });
   }
   function closeTrash() { changeTrashing(null); modalClosed(); }
   // Cancel and Escape: refused while the move is out, since cancelling would stop nothing.
@@ -1525,7 +1554,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // removal a trash, not a move to another canvas of the same id.
   function confirmTrash() {
     const current = trashingRef.current;
-    if (!current || current.move.pending) return;
+    if (!current || current.move.pending || current.plan?.kind !== "ready" || trashWorking(current.root, current.row)) return;
     changeTrashing({ ...current, move: { pending: true, failed: null } });
     const { root, row, seq } = current, marks = controller.current?.trash, mark = marks?.begin(root, row.path);
     const done = (reply: TrashReply) => {
@@ -1600,6 +1629,21 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     }
   }
   function sidebarRow(key: string): string { return `.shell-side [role="treeitem"][data-key="${CSS.escape(key)}"]`; }
+  const trashHeld = trashing !== null && trashWorking(trashing.root, trashing.row);
+  const busyTrash = trashing?.plan?.kind === "refused" && trashing.plan.reason === "busy" ? trashing : null;
+  useEffect(() => {
+    if (!busyTrash || trashHeld) return;
+    let closed = false, timer: ReturnType<typeof setTimeout>;
+    const refresh = async () => {
+      const plan = await readTrashPlan(busyTrash.root, busyTrash.row.path);
+      if (closed || trashingRef.current?.seq !== busyTrash.seq) return;
+      // Main can see a pending start or a binding before the renderer ever sees the work.
+      if (plan.kind === "refused" && plan.reason === "busy") timer = setTimeout(() => void refresh(), 1000);
+      else applyTrashPlan(busyTrash.seq, plan);
+    };
+    void refresh();
+    return () => { closed = true; clearTimeout(timer); };
+  }, [busyTrash, trashHeld]);
   // What keeps Move to Trash unavailable, for the menu and the open dialog alike (main judges again).
   function trashWorking(root: string, row: CanvasRow) {
     const list = homeRun.current.listState(root);
@@ -1937,8 +1981,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     return () => clearTimeout(timer);
   }, [loadingRoot]);
   const lastOverlay = useRef<{ root: string | null; shown: ShownOverlay }>({ root: null, shown: null });
-  const problem = body !== null && entry ? problemView(entry, projectLabel(entry.path), homeDirectory,
+  const folderProblem = body !== null && entry ? problemView(entry, projectLabel(entry.path), homeDirectory,
     { slow: slowRoot !== null && slowRoot === loadingRoot, shown: lastOverlay.current.root === loadedRoot ? lastOverlay.current.shown : null }) : null;
+  const retryPending = loadedRoot !== null && overlayRetries.current.has(loadedRoot);
+  const problem = retryPending && folderProblem?.kind === "problem" ? { ...folderProblem, busy: true } : folderProblem;
   lastOverlay.current = { root: loadedRoot, shown: problem === null ? null : problem.kind === "reading" ? { kind: "reading" } : { kind: "problem", entryKind: problem.entryKind, ...(problem.newer ? { newer: true } : {}) } };
   const scene = problem?.kind === "problem" ? problem : null;
   const overlaid = problem !== null;
@@ -1970,13 +2016,24 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     setPressed(current => current?.root === root && current.name === name ? null : current);
   };
   const overlayAction = (name: RowAction) => {
-    if (!scene || scene.busy || loadedRoot === null) return;
+    if (!scene || scene.busy || loadedRoot === null || overlayRetries.current.has(loadedRoot)) return;
     if (name === "details") { setDetails(detailsOpen ? null : { root: loadedRoot, kind: scene.entryKind }); return; }
     const root = loadedRoot;
     // The overlay's Remove from Doan is the project's, as the sidebar menu's and Project Settings' are (PRODUCT §5 item
     // 1): every registered worktree of the group, not only the open one.
     if (name === "remove") { void removeProject([root]); return; }
-    if (name === "retry" || name === "locate" || name === "setUp") setPressed({ root, name });
+    if (name === "retry") {
+      const token = Symbol();
+      overlayRetries.current.set(root, token);
+      redrawRetry(n => n + 1);
+      void action(name, root, undefined, () => {
+        if (overlayRetries.current.get(root) !== token || entriesRef.current.find(row => row.path === root)?.kind === "loading") return;
+        overlayRetries.current.delete(root);
+        redrawRetry(n => n + 1);
+      });
+      return;
+    }
+    if (name === "locate" || name === "setUp") setPressed({ root, name });
     void action(name, root, undefined, () => pressEnded(root, name));
   };
   // The polite live region's text: the heading, when a scene shows or comes back from a read without taking focus.
@@ -1996,13 +2053,15 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       const active = document.activeElement;
       const left = !active || active === document.body || !(active instanceof HTMLElement) || !active.isConnected
         || active.closest(".problem-overlay, .workspace > :is(.ov-main, .right-stack, .doan-canvas-panel, .doan-insp-column, .doan-conv-column, .doan-overview-handle)") !== null;
-      if (arrived || left) { setAnnouncement(null); focusHeading(); }
+      // A watcher can change the error while the same focused Retry is still pending.
+      const retryStillFocused = retryPending && active === recoveryFocus.current?.element && active.isConnected;
+      if (arrived || (left && !retryStillFocused)) { setAnnouncement(null); focusHeading(); }
       else announce(sceneHeading);
       return;
     }
     if (seen.busy && !busy) { announce(sceneHeading); return; }
     if (headingPending.current === sceneRef.current && !modal) focusHeading();
-  }, [sceneKey, sceneHeading, arrivalSeq, entryKey, busy, modal]);
+  }, [sceneKey, sceneHeading, arrivalSeq, entryKey, busy, modal, retryPending]);
   // A pick or a capture on the covered canvas ends as the overlay shows (ARCHITECTURE §7 'Problem overlay').
   useEffect(() => {
     if (!overlaid) return;
@@ -2694,15 +2753,19 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
           onOpenHandoff={(canvas, id) => openConversationCanvas(panelTarget.root, canvas, id, { kind: "promotion" })} work={work} />}
       </ConversationPanel></>}
     {/* Its own key space: the Overview beside it is keyed by the same root, and siblings sharing a key remount on every render. */}
-    {problem && <ProblemOverlay key={`problem\n${loadedRoot}`} view={problem} details={detailsOpen} detail={detailText} pressed={pressed && pressed.root === loadedRoot ? pressed.name : null}
+    {problem && <ProblemOverlay key={`problem\n${loadedRoot}`} view={problem} details={detailsOpen} detail={detailText} pressed={retryPending ? "retry" : pressed && pressed.root === loadedRoot ? pressed.name : null}
       announcement={announcement ? `${announcement.text}${announcement.seq % 2 ? "" : "\u00a0"}` : ""} onAction={overlayAction} />}
   </main>
   {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} kept={projectKeepsLocal(allEntries, setup)} notGit={allEntries.some(entry => entry.path === setup && entry.kind === "uninitialized" && entry.notGit === true)} onClose={() => { pressEnded(setup, "setUp"); setSetup(null); modalClosed(); }} onRerooted={(root, message) => { choose(root); setSetup(null); setHighlight([root]); toast.show(message); modalClosed(); }} />}
   {quickOpen && <QuickOpen entries={entries} conversations={conversationLists} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
-  {run.removing && <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="project-remove-title" aria-describedby="project-remove-body" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); run.cancelRemove(); modalClosed(); }}>
+  {run.removing && <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="project-remove-title" aria-describedby="project-remove-body" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); cancelRemove(); }}
+    onKeyDown={event => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); cancelRemove(); } }}>
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="project-remove-title">{run.removing.title}</h3><p className="doan-dialog-description" id="project-remove-body">{run.removing.body}</p></div></div>
-    <div className="doan-dialog-actions"><button type="button" className="doan-button" data-ui-variant="subtle" autoFocus onClick={() => { run.cancelRemove(); modalClosed(); }}>{run.removing.cancel}</button>
-      <button type="button" className="doan-button" data-ui-variant="prominent" onClick={() => { modalClosed(); void run.confirmRemove(); }}>{run.removing.confirm}</button></div>
+    {run.removing.error && <p className="doan-notice error" role="alert" id="project-remove-error"><AlertIcon /><span className="selectable">{run.removing.error}</span></p>}
+    <div className="doan-dialog-actions">{!run.removing.pending && <button type="button" className="doan-button" data-ui-variant="subtle" autoFocus={!run.removing.error} onClick={cancelRemove}>{run.removing.cancel}</button>}
+      <button type="button" className="doan-button" data-ui-variant="prominent" aria-busy={run.removing.pending || undefined} aria-disabled={run.removing.pending || undefined}
+        aria-describedby={run.removing.error ? "project-remove-error" : undefined} onClick={() => { modalClosed(); void run.confirmRemove(); }}>
+        {run.removing.pending ? <><span className="doan-spinner" aria-hidden="true" />{run.removing.confirm}</> : run.removing.confirm}</button></div>
   </dialog>}
   {deletingConversation && (() => {
     const { target, pending } = deletingConversation, summary = deleteSummary(target);
@@ -2713,7 +2776,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     return <ConversationDeleteDialog view={deleteDialogView(target.title, target.provider, draft, queued)} reason={availability.available ? null : availability.reason} pending={pending}
       cancel={closeDelete} confirm={() => void confirmDelete()} />;
   })()}
-  {trashing && <CanvasTrashDialog view={trashDialogView(canvasStem(trashing.row.path), trashing.row.path, trashing.plan, trashWorking(trashing.root, trashing.row), trashing.move)} cancel={cancelTrash} confirm={confirmTrash} />}
+  {trashing && <CanvasTrashDialog view={trashDialogView(canvasStem(trashing.row.path), trashing.row.path, trashing.plan, trashHeld, trashing.move)} cancel={cancelTrash} confirm={confirmTrash} />}
   {toast.element}
   <PrototypeClosedFocus controller={controller} toolbar={playButton} />
   <PrototypePlaying onChange={setPlaying} />

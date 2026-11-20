@@ -42,6 +42,12 @@ export function removalConfirm(running: readonly { conversationId: string; waiti
     body: `This removes ${count > 1 ? `its ${count} worktrees` : "it"} from Doan’s project list only. Files and Git worktrees stay on disk.`,
     cancel: "Cancel", confirm: "Remove from Doan",
   };
+  if (running.length > 1) return {
+    conversations: running.map(c => c.conversationId),
+    title: `Stop ${running.length} conversations and remove ${label}?`,
+    body: `Doan will stop ${running.length === 2 ? "both" : `all ${running.length}`} conversations, then remove ${label} from your project list. Files and Git worktrees stay on disk.`,
+    cancel: "Cancel", confirm: "Stop and remove",
+  };
   return {
     conversations: running.map(c => c.conversationId),
     title: `Stop the conversation and remove ${label}?`,

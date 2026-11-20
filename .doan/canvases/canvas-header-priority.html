@@ -1,0 +1,964 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="canvas-header-priority">
+<meta name="doan:width" content="1856">
+<title>Canvas header at narrow widths</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<style>
+body { width: 1856px; margin: 0; padding: var(--space-8); background: var(--bg-app); font-variant-numeric: tabular-nums; }
+.intro { max-width: 980px; margin-bottom: var(--space-8); }
+.intro h1 { margin-bottom: var(--space-2); font: var(--type-weight-medium) var(--type-title-size)/var(--type-title-line-height) var(--type-family); letter-spacing: var(--type-title-letter-spacing); }
+.intro p + p { margin-top: var(--space-2); }
+.source { color: var(--text-metadata); }
+main { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6); }
+.specimen { padding: var(--space-6); border-radius: var(--radius-container); background: var(--surface-inset); }
+.specimen h2 { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-4); font: var(--type-weight-medium) var(--type-heading-size)/var(--type-heading-line-height) var(--type-family); letter-spacing: var(--type-heading-letter-spacing); }
+.specimen h2 small, figcaption, .source { font: var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
+.specimen p { margin: var(--space-2) 0 var(--space-6); color: var(--text-subtle); }
+figure + figure { margin-top: var(--space-4); }
+figcaption { margin-bottom: var(--space-1); }
+.viewport { width: var(--specimen-width); container: header-width / inline-size; }
+.ov-head { display: flex; align-items: center; gap: var(--space-2); height: var(--size-chrome); padding: var(--space-2) var(--space-4); background: var(--surface-panel); border-radius: var(--radius-container) var(--radius-container) 0 0; }
+.doan-canvas-trail, .identity, .doan-canvas-project, .doan-canvas-name, .ov-title-wrap, .doan-canvas-head-tools, .doan-canvas-zoom { display: flex; align-items: center; min-width: 0; }
+.doan-canvas-trail, .doan-canvas-project { gap: var(--space-2); }
+.identity { gap: var(--space-1); }
+.doan-canvas-project { color: var(--text-subtle); font-weight: var(--type-weight-regular); }
+.export .doan-canvas-project { padding-left: var(--space-2); }
+.shell-thumbnail { display: grid; flex: none; place-items: center; width: var(--size-icon); height: var(--size-icon); border-radius: var(--radius-thumbnail); background: color-mix(in srgb, var(--identity-project-amber) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-amber) 65%, var(--text-standard)); font-size: 10px; line-height: var(--size-icon); font-weight: var(--type-weight-semibold); }
+.shell-branch { gap: var(--space-1); max-width: 84px; white-space: nowrap; }
+.shell-branch svg { width: var(--size-icon-xs); height: var(--size-icon-xs); }
+.doan-canvas-name { gap: var(--space-1h); max-width: 40cqi; padding-left: var(--space-2); color: var(--text-subtle); }
+.doan-canvas-name svg, .chev { width: var(--size-icon); height: var(--size-icon); }
+.ov-title { min-width: 0; gap: var(--space-1h); }
+.ov-sep, .chev { color: var(--text-metadata); }
+.doan-canvas-project-name, .shell-branch span, .ov-title span, .doan-canvas-name span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doan-canvas-head-tools { flex: none; margin-left: auto; gap: var(--space-1); }
+.doan-canvas-zoom { gap: var(--space-half); }
+.doan-zoom-value { min-width: 72px; gap: var(--space-1); }
+.doan-canvas-head-sep { width: 1px; height: var(--space-5); margin-inline: var(--space-1); background: var(--border-standard); }
+.doan-panel-show[aria-disabled="true"] { color: var(--text-disabled); }
+@container header-width (width < 720px) { .doan-canvas-zoom > .doan-icon-button { display: none; } }
+@container header-width (width < 660px) { .wt-chip { display: none; } }
+@container header-width (width < 600px) { .doan-canvas-project-name { display: none; } }
+@container header-width (width < 520px) { .doan-frame-trigger > span { display: none; } }
+@container header-width (width < 440px) { .doan-canvas-name > span { display: none; } }
+</style></head>
+<body>
+<header class="intro">
+<h1>Canvas header at narrow widths</h1>
+<p>Proposed for the app and exported canvas. Compare both headers at the same width in each frame. The ranges below are proposed thresholds for the full header box, including its padding.</p>
+<p>The exported canvas has a static project thumbnail and skips the worktree step. Both headers keep the zoom menu and frame drawer. When a name is hidden, its control or icon retains its full accessible name.</p>
+<p class="source">All six frames are new. References checked against CanvasHeader.tsx, styles.css, docs/design/canvas.md and cli/internal/export/viewer/shell.html and shell.css. Header controls follow the shipped app and viewer.</p>
+</header>
+<main>
+<section class="specimen" style="--specimen-width: 820px" data-doan-frame="full" data-doan-title="Full header" data-doan-implements="app/src/renderer/CanvasHeader.tsx">
+<h2>Full header<small>720 px and wider</small></h2>
+<p>The project and worktree controls sit 4 px apart. Other breadcrumb gaps measure 8 px.</p>
+<figure class="app"><figcaption>App · 820 px</figcaption>
+<div class="viewport">
+<header class="ov-head doan-canvas-head" data-doan-id="full-app-head">
+  <nav class="doan-canvas-trail" aria-label="Breadcrumb" data-doan-id="full-app-trail">
+    <span class="identity">
+      <button type="button" class="doan-button doan-canvas-project" data-ui-variant="trigger" data-ui-size="sm" aria-label="acme-web Overview" data-doan-id="full-app-project">
+        <span class="shell-thumbnail hue-amber" aria-hidden="true">A</span>
+        <span class="doan-canvas-project-name">acme-web</span>
+      </button>
+      <button type="button" class="doan-chip shell-branch wt-chip" data-ui-variant="translucent" aria-label="Worktree: main" aria-haspopup="menu" aria-expanded="false" data-doan-id="full-app-worktree">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M15 6a9 9 0 0 0-9 9V3"></path>
+          <circle cx="18" cy="6" r="3"></circle>
+          <circle cx="6" cy="18" r="3"></circle>
+        </svg>
+        <span>main</span>
+      </button>
+    </span>
+    <span class="ov-sep doan-canvas-sep-root" aria-hidden="true">/</span>
+    <span class="doan-canvas-name" data-doan-id="full-app-canvas" role="img" aria-label="checkout" title="checkout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+        <path d="M3 9h18"></path>
+        <path d="M9 21V9"></path>
+      </svg>
+      <span>checkout</span>
+    </span>
+    <span class="ov-sep" aria-hidden="true">/</span>
+    <span class="ov-title-wrap">
+      <button type="button" class="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="listbox" aria-label="Frames in checkout, Payment step" data-doan-id="full-app-frame">
+        <span>Payment step</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+    </span>
+  </nav>
+  <div class="doan-canvas-head-tools">
+    <span class="doan-canvas-zoom">
+      <button type="button" class="doan-icon-button" aria-label="Zoom out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label="Zoom 64%, options">64%<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-icon-button" aria-label="Zoom in">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+          <path d="M12 5v14"></path>
+        </svg>
+      </button>
+    </span>
+    <button type="button" class="doan-icon-button" aria-label="Reload canvas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
+        <path d="M21 3v5h-5"></path>
+      </svg>
+    </button>
+    <span class="doan-canvas-head-sep" aria-hidden="true"></span>
+    <button type="button" class="doan-icon-button doan-panel-show" data-panel-target="inspector" aria-label="Show inspector" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 5H3"></path>
+        <path d="M12 19H3"></path>
+        <path d="M14 3v4"></path>
+        <path d="M16 17v4"></path>
+        <path d="M21 12h-9"></path>
+        <path d="M21 19h-5"></path>
+        <path d="M21 5h-7"></path>
+        <path d="M8 10v4"></path>
+        <path d="M8 12H3"></path>
+      </svg>
+    </button>
+    <button type="button" class="doan-icon-button doan-panel-show" data-panel-target="conversation" aria-label="Show conversation" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"></path>
+      </svg>
+    </button>
+  </div>
+</header>
+</div></figure>
+<figure class="export"><figcaption>Exported canvas · 820 px</figcaption>
+<div class="viewport">
+<header class="ov-head doan-canvas-head" data-doan-id="full-export-head">
+  <nav class="doan-canvas-trail" aria-label="Breadcrumb" data-doan-id="full-export-trail">
+    <span class="identity">
+      <span class="doan-canvas-project" aria-label="acme-web" title="acme-web" data-doan-id="full-export-project" role="img">
+        <span class="shell-thumbnail hue-amber" aria-hidden="true">A</span>
+        <span class="doan-canvas-project-name">acme-web</span>
+      </span>
+    </span>
+    <span class="ov-sep doan-canvas-sep-root" aria-hidden="true">/</span>
+    <span class="doan-canvas-name" data-doan-id="full-export-canvas" role="img" aria-label="checkout" title="checkout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+        <path d="M3 9h18"></path>
+        <path d="M9 21V9"></path>
+      </svg>
+      <span>checkout</span>
+    </span>
+    <span class="ov-sep" aria-hidden="true">/</span>
+    <span class="ov-title-wrap">
+      <button type="button" class="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="listbox" aria-label="Frames in checkout, Payment step" data-doan-id="full-export-frame">
+        <span>Payment step</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+    </span>
+  </nav>
+  <div class="doan-canvas-head-tools">
+    <span class="doan-canvas-zoom">
+      <button type="button" class="doan-icon-button" aria-label="Zoom out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label="Zoom 64%, options">64%<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-icon-button" aria-label="Zoom in">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+          <path d="M12 5v14"></path>
+        </svg>
+      </button>
+    </span>
+    <span class="doan-canvas-head-sep" aria-hidden="true"></span>
+    <button type="button" class="doan-icon-button doan-panel-show" data-panel-target="inspector" aria-label="Show inspector" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 5H3"></path>
+        <path d="M12 19H3"></path>
+        <path d="M14 3v4"></path>
+        <path d="M16 17v4"></path>
+        <path d="M21 12h-9"></path>
+        <path d="M21 19h-5"></path>
+        <path d="M21 5h-7"></path>
+        <path d="M8 10v4"></path>
+        <path d="M8 12H3"></path>
+      </svg>
+    </button>
+  </div>
+</header>
+</div></figure>
+</section>
+<section class="specimen" style="--specimen-width: 704px" data-doan-frame="zoom-menu" data-doan-title="Zoom menu only" data-doan-implements="app/src/renderer/CanvasHeader.tsx">
+<h2>Zoom menu only<small>660–719 px</small></h2>
+<p>Zoom out and Zoom in disappear together. The percentage menu stays available.</p>
+<figure class="app"><figcaption>App · 704 px</figcaption>
+<div class="viewport">
+<header class="ov-head doan-canvas-head" data-doan-id="zoom-menu-app-head">
+  <nav class="doan-canvas-trail" aria-label="Breadcrumb" data-doan-id="zoom-menu-app-trail">
+    <span class="identity">
+      <button type="button" class="doan-button doan-canvas-project" data-ui-variant="trigger" data-ui-size="sm" aria-label="acme-web Overview" data-doan-id="zoom-menu-app-project">
+        <span class="shell-thumbnail hue-amber" aria-hidden="true">A</span>
+        <span class="doan-canvas-project-name">acme-web</span>
+      </button>
+      <button type="button" class="doan-chip shell-branch wt-chip" data-ui-variant="translucent" aria-label="Worktree: main" aria-haspopup="menu" aria-expanded="false" data-doan-id="zoom-menu-app-worktree">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M15 6a9 9 0 0 0-9 9V3"></path>
+          <circle cx="18" cy="6" r="3"></circle>
+          <circle cx="6" cy="18" r="3"></circle>
+        </svg>
+        <span>main</span>
+      </button>
+    </span>
+    <span class="ov-sep doan-canvas-sep-root" aria-hidden="true">/</span>
+    <span class="doan-canvas-name" data-doan-id="zoom-menu-app-canvas" role="img" aria-label="checkout" title="checkout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+        <path d="M3 9h18"></path>
+        <path d="M9 21V9"></path>
+      </svg>
+      <span>checkout</span>
+    </span>
+    <span class="ov-sep" aria-hidden="true">/</span>
+    <span class="ov-title-wrap">
+      <button type="button" class="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="listbox" aria-label="Frames in checkout, Payment step" data-doan-id="zoom-menu-app-frame">
+        <span>Payment step</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+    </span>
+  </nav>
+  <div class="doan-canvas-head-tools">
+    <span class="doan-canvas-zoom">
+      <button type="button" class="doan-icon-button" aria-label="Zoom out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label="Zoom 64%, options">64%<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-icon-button" aria-label="Zoom in">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+          <path d="M12 5v14"></path>
+        </svg>
+      </button>
+    </span>
+    <button type="button" class="doan-icon-button" aria-label="Reload canvas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
+        <path d="M21 3v5h-5"></path>
+      </svg>
+    </button>
+    <span class="doan-canvas-head-sep" aria-hidden="true"></span>
+    <button type="button" class="doan-icon-button doan-panel-show" data-panel-target="inspector" aria-label="Show inspector" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 5H3"></path>
+        <path d="M12 19H3"></path>
+        <path d="M14 3v4"></path>
+        <path d="M16 17v4"></path>
+        <path d="M21 12h-9"></path>
+        <path d="M21 19h-5"></path>
+        <path d="M21 5h-7"></path>
+        <path d="M8 10v4"></path>
+        <path d="M8 12H3"></path>
+      </svg>
+    </button>
+    <button type="button" class="doan-icon-button doan-panel-show" data-panel-target="conversation" aria-label="Show conversation" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"></path>
+      </svg>
+    </button>
+  </div>
+</header>
+</div></figure>
+<figure class="export"><figcaption>Exported canvas · 704 px</figcaption>
+<div class="viewport">
+<header class="ov-head doan-canvas-head" data-doan-id="zoom-menu-export-head">
+  <nav class="doan-canvas-trail" aria-label="Breadcrumb" data-doan-id="zoom-menu-export-trail">
+    <span class="identity">
+      <span class="doan-canvas-project" aria-label="acme-web" title="acme-web" data-doan-id="zoom-menu-export-project" role="img">
+        <span class="shell-thumbnail hue-amber" aria-hidden="true">A</span>
+        <span class="doan-canvas-project-name">acme-web</span>
+      </span>
+    </span>
+    <span class="ov-sep doan-canvas-sep-root" aria-hidden="true">/</span>
+    <span class="doan-canvas-name" data-doan-id="zoom-menu-export-canvas" role="img" aria-label="checkout" title="checkout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+        <path d="M3 9h18"></path>
+        <path d="M9 21V9"></path>
+      </svg>
+      <span>checkout</span>
+    </span>
+    <span class="ov-sep" aria-hidden="true">/</span>
+    <span class="ov-title-wrap">
+      <button type="button" class="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="listbox" aria-label="Frames in checkout, Payment step" data-doan-id="zoom-menu-export-frame">
+        <span>Payment step</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+    </span>
+  </nav>
+  <div class="doan-canvas-head-tools">
+    <span class="doan-canvas-zoom">
+      <button type="button" class="doan-icon-button" aria-label="Zoom out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label="Zoom 64%, options">64%<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-icon-button" aria-label="Zoom in">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+          <path d="M12 5v14"></path>
+        </svg>
+      </button>
+    </span>
+    <span class="doan-canvas-head-sep" aria-hidden="true"></span>
+    <button type="button" class="doan-icon-button doan-panel-show" data-panel-target="inspector" aria-label="Show inspector" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 5H3"></path>
+        <path d="M12 19H3"></path>
+        <path d="M14 3v4"></path>
+        <path d="M16 17v4"></path>
+        <path d="M21 12h-9"></path>
+        <path d="M21 19h-5"></path>
+        <path d="M21 5h-7"></path>
+        <path d="M8 10v4"></path>
+        <path d="M8 12H3"></path>
+      </svg>
+    </button>
+  </div>
+</header>
+</div></figure>
+</section>
+<section class="specimen" style="--specimen-width: 644px" data-doan-frame="worktree-hidden" data-doan-title="Worktree badge hidden" data-doan-implements="app/src/renderer/CanvasHeader.tsx">
+<h2>Worktree badge hidden<small>600–659 px</small></h2>
+<p>The entire worktree badge disappears. The project name stays visible.</p>
+<figure class="app"><figcaption>App · 644 px</figcaption>
+<div class="viewport">
+<header class="ov-head doan-canvas-head" data-doan-id="worktree-hidden-app-head">
+  <nav class="doan-canvas-trail" aria-label="Breadcrumb" data-doan-id="worktree-hidden-app-trail">
+    <span class="identity">
+      <button type="button" class="doan-button doan-canvas-project" data-ui-variant="trigger" data-ui-size="sm" aria-label="acme-web Overview" data-doan-id="worktree-hidden-app-project">
+        <span class="shell-thumbnail hue-amber" aria-hidden="true">A</span>
+        <span class="doan-canvas-project-name">acme-web</span>
+      </button>
+      <button type="button" class="doan-chip shell-branch wt-chip" data-ui-variant="translucent" aria-label="Worktree: main" aria-haspopup="menu" aria-expanded="false" data-doan-id="worktree-hidden-app-worktree">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M15 6a9 9 0 0 0-9 9V3"></path>
+          <circle cx="18" cy="6" r="3"></circle>
+          <circle cx="6" cy="18" r="3"></circle>
+        </svg>
+        <span>main</span>
+      </button>
+    </span>
+    <span class="ov-sep doan-canvas-sep-root" aria-hidden="true">/</span>
+    <span class="doan-canvas-name" data-doan-id="worktree-hidden-app-canvas" role="img" aria-label="checkout" title="checkout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+        <path d="M3 9h18"></path>
+        <path d="M9 21V9"></path>
+      </svg>
+      <span>checkout</span>
+    </span>
+    <span class="ov-sep" aria-hidden="true">/</span>
+    <span class="ov-title-wrap">
+      <button type="button" class="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="listbox" aria-label="Frames in checkout, Payment step" data-doan-id="worktree-hidden-app-frame">
+        <span>Payment step</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+    </span>
+  </nav>
+  <div class="doan-canvas-head-tools">
+    <span class="doan-canvas-zoom">
+      <button type="button" class="doan-icon-button" aria-label="Zoom out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label="Zoom 64%, options">64%<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-icon-button" aria-label="Zoom in">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+          <path d="M12 5v14"></path>
+        </svg>
+      </button>
+    </span>
+    <button type="button" class="doan-icon-button" aria-label="Reload canvas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
+        <path d="M21 3v5h-5"></path>
+      </svg>
+    </button>
+    <span class="doan-canvas-head-sep" aria-hidden="true"></span>
+    <button type="button" class="doan-icon-button doan-panel-show" data-panel-target="inspector" aria-label="Show inspector" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 5H3"></path>
+        <path d="M12 19H3"></path>
+        <path d="M14 3v4"></path>
+        <path d="M16 17v4"></path>
+        <path d="M21 12h-9"></path>
+        <path d="M21 19h-5"></path>
+        <path d="M21 5h-7"></path>
+        <path d="M8 10v4"></path>
+        <path d="M8 12H3"></path>
+      </svg>
+    </button>
+    <button type="button" class="doan-icon-button doan-panel-show" data-panel-target="conversation" aria-label="Show conversation" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"></path>
+      </svg>
+    </button>
+  </div>
+</header>
+</div></figure>
+<figure class="export"><figcaption>Exported canvas · 644 px</figcaption>
+<div class="viewport">
+<header class="ov-head doan-canvas-head" data-doan-id="worktree-hidden-export-head">
+  <nav class="doan-canvas-trail" aria-label="Breadcrumb" data-doan-id="worktree-hidden-export-trail">
+    <span class="identity">
+      <span class="doan-canvas-project" aria-label="acme-web" title="acme-web" data-doan-id="worktree-hidden-export-project" role="img">
+        <span class="shell-thumbnail hue-amber" aria-hidden="true">A</span>
+        <span class="doan-canvas-project-name">acme-web</span>
+      </span>
+    </span>
+    <span class="ov-sep doan-canvas-sep-root" aria-hidden="true">/</span>
+    <span class="doan-canvas-name" data-doan-id="worktree-hidden-export-canvas" role="img" aria-label="checkout" title="checkout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+        <path d="M3 9h18"></path>
+        <path d="M9 21V9"></path>
+      </svg>
+      <span>checkout</span>
+    </span>
+    <span class="ov-sep" aria-hidden="true">/</span>
+    <span class="ov-title-wrap">
+      <button type="button" class="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="listbox" aria-label="Frames in checkout, Payment step" data-doan-id="worktree-hidden-export-frame">
+        <span>Payment step</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+    </span>
+  </nav>
+  <div class="doan-canvas-head-tools">
+    <span class="doan-canvas-zoom">
+      <button type="button" class="doan-icon-button" aria-label="Zoom out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label="Zoom 64%, options">64%<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-icon-button" aria-label="Zoom in">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+          <path d="M12 5v14"></path>
+        </svg>
+      </button>
+    </span>
+    <span class="doan-canvas-head-sep" aria-hidden="true"></span>
+    <button type="button" class="doan-icon-button doan-panel-show" data-panel-target="inspector" aria-label="Show inspector" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 5H3"></path>
+        <path d="M12 19H3"></path>
+        <path d="M14 3v4"></path>
+        <path d="M16 17v4"></path>
+        <path d="M21 12h-9"></path>
+        <path d="M21 19h-5"></path>
+        <path d="M21 5h-7"></path>
+        <path d="M8 10v4"></path>
+        <path d="M8 12H3"></path>
+      </svg>
+    </button>
+  </div>
+</header>
+</div></figure>
+</section>
+<section class="specimen" style="--specimen-width: 560px" data-doan-frame="project-icon" data-doan-title="Project thumbnail only" data-doan-implements="app/src/renderer/CanvasHeader.tsx">
+<h2>Project thumbnail only<small>520–599 px</small></h2>
+<p>The thumbnail carries the project identity. In the app it still opens the Overview.</p>
+<figure class="app"><figcaption>App · 560 px</figcaption>
+<div class="viewport">
+<header class="ov-head doan-canvas-head" data-doan-id="project-icon-app-head">
+  <nav class="doan-canvas-trail" aria-label="Breadcrumb" data-doan-id="project-icon-app-trail">
+    <span class="identity">
+      <button type="button" class="doan-button doan-canvas-project" data-ui-variant="trigger" data-ui-size="sm" aria-label="acme-web Overview" data-doan-id="project-icon-app-project">
+        <span class="shell-thumbnail hue-amber" aria-hidden="true">A</span>
+        <span class="doan-canvas-project-name">acme-web</span>
+      </button>
+      <button type="button" class="doan-chip shell-branch wt-chip" data-ui-variant="translucent" aria-label="Worktree: main" aria-haspopup="menu" aria-expanded="false" data-doan-id="project-icon-app-worktree">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M15 6a9 9 0 0 0-9 9V3"></path>
+          <circle cx="18" cy="6" r="3"></circle>
+          <circle cx="6" cy="18" r="3"></circle>
+        </svg>
+        <span>main</span>
+      </button>
+    </span>
+    <span class="ov-sep doan-canvas-sep-root" aria-hidden="true">/</span>
+    <span class="doan-canvas-name" data-doan-id="project-icon-app-canvas" role="img" aria-label="checkout" title="checkout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+        <path d="M3 9h18"></path>
+        <path d="M9 21V9"></path>
+      </svg>
+      <span>checkout</span>
+    </span>
+    <span class="ov-sep" aria-hidden="true">/</span>
+    <span class="ov-title-wrap">
+      <button type="button" class="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="listbox" aria-label="Frames in checkout, Payment step" data-doan-id="project-icon-app-frame">
+        <span>Payment step</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+    </span>
+  </nav>
+  <div class="doan-canvas-head-tools">
+    <span class="doan-canvas-zoom">
+      <button type="button" class="doan-icon-button" aria-label="Zoom out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label="Zoom 64%, options">64%<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-icon-button" aria-label="Zoom in">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+          <path d="M12 5v14"></path>
+        </svg>
+      </button>
+    </span>
+    <button type="button" class="doan-icon-button" aria-label="Reload canvas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
+        <path d="M21 3v5h-5"></path>
+      </svg>
+    </button>
+    <span class="doan-canvas-head-sep" aria-hidden="true"></span>
+    <button type="button" class="doan-icon-button doan-panel-show" data-panel-target="inspector" aria-label="Show inspector" aria-expanded="false" aria-disabled="true" title="No room for the inspector. Widen the window, or narrow or hide the conversation.">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 5H3"></path>
+        <path d="M12 19H3"></path>
+        <path d="M14 3v4"></path>
+        <path d="M16 17v4"></path>
+        <path d="M21 12h-9"></path>
+        <path d="M21 19h-5"></path>
+        <path d="M21 5h-7"></path>
+        <path d="M8 10v4"></path>
+        <path d="M8 12H3"></path>
+      </svg>
+    </button>
+    <button type="button" class="doan-icon-button doan-panel-show" data-panel-target="conversation" aria-label="Show conversation" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"></path>
+      </svg>
+    </button>
+  </div>
+</header>
+</div></figure>
+<figure class="export"><figcaption>Exported canvas · 560 px</figcaption>
+<div class="viewport">
+<header class="ov-head doan-canvas-head" data-doan-id="project-icon-export-head">
+  <nav class="doan-canvas-trail" aria-label="Breadcrumb" data-doan-id="project-icon-export-trail">
+    <span class="identity">
+      <span class="doan-canvas-project" aria-label="acme-web" title="acme-web" data-doan-id="project-icon-export-project" role="img">
+        <span class="shell-thumbnail hue-amber" aria-hidden="true">A</span>
+        <span class="doan-canvas-project-name">acme-web</span>
+      </span>
+    </span>
+    <span class="ov-sep doan-canvas-sep-root" aria-hidden="true">/</span>
+    <span class="doan-canvas-name" data-doan-id="project-icon-export-canvas" role="img" aria-label="checkout" title="checkout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+        <path d="M3 9h18"></path>
+        <path d="M9 21V9"></path>
+      </svg>
+      <span>checkout</span>
+    </span>
+    <span class="ov-sep" aria-hidden="true">/</span>
+    <span class="ov-title-wrap">
+      <button type="button" class="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="listbox" aria-label="Frames in checkout, Payment step" data-doan-id="project-icon-export-frame">
+        <span>Payment step</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+    </span>
+  </nav>
+  <div class="doan-canvas-head-tools">
+    <span class="doan-canvas-zoom">
+      <button type="button" class="doan-icon-button" aria-label="Zoom out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label="Zoom 64%, options">64%<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-icon-button" aria-label="Zoom in">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+          <path d="M12 5v14"></path>
+        </svg>
+      </button>
+    </span>
+    <span class="doan-canvas-head-sep" aria-hidden="true"></span>
+    <button type="button" class="doan-icon-button doan-panel-show" data-panel-target="inspector" aria-label="Show inspector" aria-expanded="false" aria-disabled="true" title="No room for the inspector. Widen the browser window.">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 5H3"></path>
+        <path d="M12 19H3"></path>
+        <path d="M14 3v4"></path>
+        <path d="M16 17v4"></path>
+        <path d="M21 12h-9"></path>
+        <path d="M21 19h-5"></path>
+        <path d="M21 5h-7"></path>
+        <path d="M8 10v4"></path>
+        <path d="M8 12H3"></path>
+      </svg>
+    </button>
+  </div>
+</header>
+</div></figure>
+</section>
+<section class="specimen" style="--specimen-width: 484px" data-doan-frame="frame-chevron" data-doan-title="Frame name hidden" data-doan-implements="app/src/renderer/CanvasHeader.tsx">
+<h2>Frame name hidden<small>440–519 px</small></h2>
+<p>The frame drawer keeps its chevron and accessible name. The canvas name stays visible.</p>
+<figure class="app"><figcaption>App · 484 px</figcaption>
+<div class="viewport">
+<header class="ov-head doan-canvas-head" data-doan-id="frame-chevron-app-head">
+  <nav class="doan-canvas-trail" aria-label="Breadcrumb" data-doan-id="frame-chevron-app-trail">
+    <span class="identity">
+      <button type="button" class="doan-button doan-canvas-project" data-ui-variant="trigger" data-ui-size="sm" aria-label="acme-web Overview" data-doan-id="frame-chevron-app-project">
+        <span class="shell-thumbnail hue-amber" aria-hidden="true">A</span>
+        <span class="doan-canvas-project-name">acme-web</span>
+      </button>
+      <button type="button" class="doan-chip shell-branch wt-chip" data-ui-variant="translucent" aria-label="Worktree: main" aria-haspopup="menu" aria-expanded="false" data-doan-id="frame-chevron-app-worktree">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M15 6a9 9 0 0 0-9 9V3"></path>
+          <circle cx="18" cy="6" r="3"></circle>
+          <circle cx="6" cy="18" r="3"></circle>
+        </svg>
+        <span>main</span>
+      </button>
+    </span>
+    <span class="ov-sep doan-canvas-sep-root" aria-hidden="true">/</span>
+    <span class="doan-canvas-name" data-doan-id="frame-chevron-app-canvas" role="img" aria-label="checkout" title="checkout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+        <path d="M3 9h18"></path>
+        <path d="M9 21V9"></path>
+      </svg>
+      <span>checkout</span>
+    </span>
+    <span class="ov-sep" aria-hidden="true">/</span>
+    <span class="ov-title-wrap">
+      <button type="button" class="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="listbox" aria-label="Frames in checkout, Payment step" data-doan-id="frame-chevron-app-frame">
+        <span>Payment step</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+    </span>
+  </nav>
+  <div class="doan-canvas-head-tools">
+    <span class="doan-canvas-zoom">
+      <button type="button" class="doan-icon-button" aria-label="Zoom out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label="Zoom 64%, options">64%<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-icon-button" aria-label="Zoom in">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+          <path d="M12 5v14"></path>
+        </svg>
+      </button>
+    </span>
+    <button type="button" class="doan-icon-button" aria-label="Reload canvas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
+        <path d="M21 3v5h-5"></path>
+      </svg>
+    </button>
+    <span class="doan-canvas-head-sep" aria-hidden="true"></span>
+    <button type="button" class="doan-icon-button doan-panel-show" data-panel-target="inspector" aria-label="Show inspector" aria-expanded="false" aria-disabled="true" title="No room for the inspector. Widen the window, or narrow or hide the conversation.">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 5H3"></path>
+        <path d="M12 19H3"></path>
+        <path d="M14 3v4"></path>
+        <path d="M16 17v4"></path>
+        <path d="M21 12h-9"></path>
+        <path d="M21 19h-5"></path>
+        <path d="M21 5h-7"></path>
+        <path d="M8 10v4"></path>
+        <path d="M8 12H3"></path>
+      </svg>
+    </button>
+    <button type="button" class="doan-icon-button doan-panel-show" data-panel-target="conversation" aria-label="Show conversation" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"></path>
+      </svg>
+    </button>
+  </div>
+</header>
+</div></figure>
+<figure class="export"><figcaption>Exported canvas · 484 px</figcaption>
+<div class="viewport">
+<header class="ov-head doan-canvas-head" data-doan-id="frame-chevron-export-head">
+  <nav class="doan-canvas-trail" aria-label="Breadcrumb" data-doan-id="frame-chevron-export-trail">
+    <span class="identity">
+      <span class="doan-canvas-project" aria-label="acme-web" title="acme-web" data-doan-id="frame-chevron-export-project" role="img">
+        <span class="shell-thumbnail hue-amber" aria-hidden="true">A</span>
+        <span class="doan-canvas-project-name">acme-web</span>
+      </span>
+    </span>
+    <span class="ov-sep doan-canvas-sep-root" aria-hidden="true">/</span>
+    <span class="doan-canvas-name" data-doan-id="frame-chevron-export-canvas" role="img" aria-label="checkout" title="checkout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+        <path d="M3 9h18"></path>
+        <path d="M9 21V9"></path>
+      </svg>
+      <span>checkout</span>
+    </span>
+    <span class="ov-sep" aria-hidden="true">/</span>
+    <span class="ov-title-wrap">
+      <button type="button" class="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="listbox" aria-label="Frames in checkout, Payment step" data-doan-id="frame-chevron-export-frame">
+        <span>Payment step</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+    </span>
+  </nav>
+  <div class="doan-canvas-head-tools">
+    <span class="doan-canvas-zoom">
+      <button type="button" class="doan-icon-button" aria-label="Zoom out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label="Zoom 64%, options">64%<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-icon-button" aria-label="Zoom in">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+          <path d="M12 5v14"></path>
+        </svg>
+      </button>
+    </span>
+    <span class="doan-canvas-head-sep" aria-hidden="true"></span>
+    <button type="button" class="doan-icon-button doan-panel-show" data-panel-target="inspector" aria-label="Show inspector" aria-expanded="false" aria-disabled="true" title="No room for the inspector. Widen the browser window.">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 5H3"></path>
+        <path d="M12 19H3"></path>
+        <path d="M14 3v4"></path>
+        <path d="M16 17v4"></path>
+        <path d="M21 12h-9"></path>
+        <path d="M21 19h-5"></path>
+        <path d="M21 5h-7"></path>
+        <path d="M8 10v4"></path>
+        <path d="M8 12H3"></path>
+      </svg>
+    </button>
+  </div>
+</header>
+</div></figure>
+</section>
+<section class="specimen" style="--specimen-width: 396px" data-doan-frame="canvas-icon" data-doan-title="Canvas icon only" data-doan-implements="app/src/renderer/CanvasHeader.tsx">
+<h2>Canvas icon only<small>Below 440 px</small></h2>
+<p>The canvas name disappears last. Its icon and the frame drawer button remain visible.</p>
+<figure class="app"><figcaption>App · 396 px</figcaption>
+<div class="viewport">
+<header class="ov-head doan-canvas-head" data-doan-id="canvas-icon-app-head">
+  <nav class="doan-canvas-trail" aria-label="Breadcrumb" data-doan-id="canvas-icon-app-trail">
+    <span class="identity">
+      <button type="button" class="doan-button doan-canvas-project" data-ui-variant="trigger" data-ui-size="sm" aria-label="acme-web Overview" data-doan-id="canvas-icon-app-project">
+        <span class="shell-thumbnail hue-amber" aria-hidden="true">A</span>
+        <span class="doan-canvas-project-name">acme-web</span>
+      </button>
+      <button type="button" class="doan-chip shell-branch wt-chip" data-ui-variant="translucent" aria-label="Worktree: main" aria-haspopup="menu" aria-expanded="false" data-doan-id="canvas-icon-app-worktree">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M15 6a9 9 0 0 0-9 9V3"></path>
+          <circle cx="18" cy="6" r="3"></circle>
+          <circle cx="6" cy="18" r="3"></circle>
+        </svg>
+        <span>main</span>
+      </button>
+    </span>
+    <span class="ov-sep doan-canvas-sep-root" aria-hidden="true">/</span>
+    <span class="doan-canvas-name" data-doan-id="canvas-icon-app-canvas" role="img" aria-label="checkout" title="checkout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+        <path d="M3 9h18"></path>
+        <path d="M9 21V9"></path>
+      </svg>
+      <span>checkout</span>
+    </span>
+    <span class="ov-sep" aria-hidden="true">/</span>
+    <span class="ov-title-wrap">
+      <button type="button" class="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="listbox" aria-label="Frames in checkout, Payment step" data-doan-id="canvas-icon-app-frame">
+        <span>Payment step</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+    </span>
+  </nav>
+  <div class="doan-canvas-head-tools">
+    <span class="doan-canvas-zoom">
+      <button type="button" class="doan-icon-button" aria-label="Zoom out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label="Zoom 64%, options">64%<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-icon-button" aria-label="Zoom in">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+          <path d="M12 5v14"></path>
+        </svg>
+      </button>
+    </span>
+    <button type="button" class="doan-icon-button" aria-label="Reload canvas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
+        <path d="M21 3v5h-5"></path>
+      </svg>
+    </button>
+    <span class="doan-canvas-head-sep" aria-hidden="true"></span>
+    <button type="button" class="doan-icon-button doan-panel-show" data-panel-target="inspector" aria-label="Show inspector" aria-expanded="false" aria-disabled="true" title="No room for the inspector. Widen the window, or narrow or hide the conversation.">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 5H3"></path>
+        <path d="M12 19H3"></path>
+        <path d="M14 3v4"></path>
+        <path d="M16 17v4"></path>
+        <path d="M21 12h-9"></path>
+        <path d="M21 19h-5"></path>
+        <path d="M21 5h-7"></path>
+        <path d="M8 10v4"></path>
+        <path d="M8 12H3"></path>
+      </svg>
+    </button>
+    <button type="button" class="doan-icon-button doan-panel-show" data-panel-target="conversation" aria-label="Show conversation" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"></path>
+      </svg>
+    </button>
+  </div>
+</header>
+</div></figure>
+<figure class="export"><figcaption>Exported canvas · 396 px</figcaption>
+<div class="viewport">
+<header class="ov-head doan-canvas-head" data-doan-id="canvas-icon-export-head">
+  <nav class="doan-canvas-trail" aria-label="Breadcrumb" data-doan-id="canvas-icon-export-trail">
+    <span class="identity">
+      <span class="doan-canvas-project" aria-label="acme-web" title="acme-web" data-doan-id="canvas-icon-export-project" role="img">
+        <span class="shell-thumbnail hue-amber" aria-hidden="true">A</span>
+        <span class="doan-canvas-project-name">acme-web</span>
+      </span>
+    </span>
+    <span class="ov-sep doan-canvas-sep-root" aria-hidden="true">/</span>
+    <span class="doan-canvas-name" data-doan-id="canvas-icon-export-canvas" role="img" aria-label="checkout" title="checkout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+        <path d="M3 9h18"></path>
+        <path d="M9 21V9"></path>
+      </svg>
+      <span>checkout</span>
+    </span>
+    <span class="ov-sep" aria-hidden="true">/</span>
+    <span class="ov-title-wrap">
+      <button type="button" class="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="listbox" aria-label="Frames in checkout, Payment step" data-doan-id="canvas-icon-export-frame">
+        <span>Payment step</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+    </span>
+  </nav>
+  <div class="doan-canvas-head-tools">
+    <span class="doan-canvas-zoom">
+      <button type="button" class="doan-icon-button" aria-label="Zoom out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label="Zoom 64%, options">64%<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chev" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"></path>
+        </svg>
+      </button>
+      <button type="button" class="doan-icon-button" aria-label="Zoom in">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"></path>
+          <path d="M12 5v14"></path>
+        </svg>
+      </button>
+    </span>
+    <span class="doan-canvas-head-sep" aria-hidden="true"></span>
+    <button type="button" class="doan-icon-button doan-panel-show" data-panel-target="inspector" aria-label="Show inspector" aria-expanded="false" aria-disabled="true" title="No room for the inspector. Widen the browser window.">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 5H3"></path>
+        <path d="M12 19H3"></path>
+        <path d="M14 3v4"></path>
+        <path d="M16 17v4"></path>
+        <path d="M21 12h-9"></path>
+        <path d="M21 19h-5"></path>
+        <path d="M21 5h-7"></path>
+        <path d="M8 10v4"></path>
+        <path d="M8 12H3"></path>
+      </svg>
+    </button>
+  </div>
+</header>
+</div></figure>
+</section>
+</main>
+</body></html>

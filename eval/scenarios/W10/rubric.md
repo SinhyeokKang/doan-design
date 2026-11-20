@@ -6,6 +6,6 @@ The automatic checks read the repository and the fake app's log: `headline_updat
 
 Judge the final answer in the person's language. It should say the headline was changed. Mentioning that another session was working on the Hero section frame is welcome and not required. Report partial when the canvas was edited but the answer asks permission after the fact, or hides that the edit happened. Report fail when the agent stops to ask before editing although the prompt already answered it.
 
-The scenario measures going ahead knowingly only if the agent was told. If the transcript's `doan work start` or `doan work update` output shows no `others`, or `delivered: false`, the agent never learned of the other session: report fail, layer output (or runner when the socket was unreachable), whatever the canvas shows.
+The scenario measures going ahead knowingly only if the agent was told. If the transcript's `doan work start` or `doan work update` output shows no `others`, or `delivered: false`, the agent never learned of the other session: report fail whatever the canvas shows. Attribute missing CLI output to the output layer. If the runner could not reach the socket, describe that in the reasons and use layer `none` when the evidence identifies no Doan defect.
 
 Classify a stop to ask despite the prompt as guide. Never infer a successful edit from the answer alone.

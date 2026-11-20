@@ -244,7 +244,7 @@ func TestActiveAppErrors(t *testing.T) {
 		step    string
 	}{
 		{"bad_token", reply(`{"v":1,"ok":false,"error":{"code":"bad_token","message":"m"}}`), "app_not_running", "open Doan"},
-		{"project_not_open", reply(`{"v":1,"ok":false,"error":{"code":"project_not_open","message":"m"}}`), "project_not_open", "Ask the user to add this project in Doan (Add Project…), or work in the worktree that is open in Doan"},
+		{"project_not_open", reply(`{"v":1,"ok":false,"error":{"code":"project_not_open","message":"m"}}`), "project_not_open", "Ask the user to add this project in Doan (File > Add Projects…), or work in the worktree that is open in Doan"},
 		{"bad_request", reply(`{"v":1,"ok":false,"error":{"code":"bad_request","message":"m"}}`), "internal_error", ""},
 		{"response v 2", reply(`{"v":2}`), "app_protocol_mismatch", ""},
 		{"not json", reply(`<html>`), "internal_error", ""},
