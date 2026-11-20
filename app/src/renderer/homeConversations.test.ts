@@ -15,8 +15,8 @@ test("removing a project with a running conversation asks first and names the co
   const running = [{ conversationId: "c1", waiting: false }, { conversationId: "c2", waiting: true }];
   expect(removalConfirm(running, "doan-design", 1)).toEqual({
     conversations: ["c1", "c2"],
-    title: "Stop the conversation and remove doan-design?",
-    body: "A conversation is still running in doan-design. Doan stops it, then removes the project from the list. Files and Git worktrees stay on disk.",
+    title: "Stop 2 conversations and remove doan-design?",
+    body: "Doan will stop both conversations, then remove doan-design from your project list. Files and Git worktrees stay on disk.",
     cancel: "Cancel", confirm: "Stop and remove",
   });
   // Every one waiting for an answer: the confirmation says so.
