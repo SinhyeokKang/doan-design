@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
+import { rowDisplay } from "../renderer/inspectorRows";
 import type { InspectRow } from "./inspect";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { specificity } from "./cssomMatched";
@@ -10,12 +11,31 @@ test("conditional selectors keep the strongest argument while :where contributes
   expect(specificity(":where(#unused) :is(.a, #b):has(> span):nth-child(2 of .c)")).toEqual([1, 2, 1]);
 });
 
-describe("CSSOM inspector rows in the browser", () => {
+describe("CSSOM inspector rows in the browser", { timeout: 60_000 }, () => {
   let dom: ElectronDom;
   const script = readFileSync(new URL("../../../cli/internal/export/viewer/inspect.js", import.meta.url), "utf8");
   const load = (head: string, body: string) => dom.load(`<!doctype html><head>${head}<script>${script}</script></head><body>${body}</body>`);
   beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
   afterAll(async () => { await dom?.close(); }, 30_000);
+
+  test("scoped declarations supply the copied token and keep scoped-only rows visible within their limits", async () => {
+    const frame = await load(`<style>
+      :root { --inner: red; --outer: blue; --space: 8px }
+      @scope (.panel) to (.stop) {
+        :scope > .item { padding: var(--space) }
+        .item { color: var(--inner) }
+      }
+      .item { color: var(--outer) }
+    </style>`, '<section class="panel"><p class="item"></p><div class="stop"><p class="item"></p></div></section><p class="item"></p>');
+    const selections = await frame.evaluate(() => Array.from(document.querySelectorAll(".item"), el => inspectCanvas.inspectElement(el)));
+    const visible = selections.map(rows => rowDisplay(rows).groups.flatMap(group => group.rows)
+      .filter(row => row.label === "Text" || row.label === "Padding").map(row => [row.label, row.text, row.copy]));
+    expect(visible).toEqual([
+      [["Padding", "8px", "--space"], ["Text", "#ff0000", "--inner"]],
+      [["Text", "#0000ff", "--outer"]],
+      [["Text", "#0000ff", "--outer"]],
+    ]);
+  });
 
   test("reading an opaque stylesheet preserves animation time, pause and an ongoing transition", async () => {
     const frame = await load('<style>@keyframes turn{to{transform:rotate(1turn)}}.spin{animation:turn 20s linear infinite}.target{color:green}</style>', '<div class="spin"></div><button style="color:white; transition:color 20s linear">Button</button><p class="target">Inspect</p>');
