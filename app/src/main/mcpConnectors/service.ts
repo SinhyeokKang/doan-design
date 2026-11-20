@@ -79,7 +79,11 @@ const QUIT_WAIT_MS = 5000;
 const OUTPUT_LIMIT = 256 * 1024;
 const CODEX_CALLBACK_TIMEOUT = /timed out waiting for OAuth callback/i;
 
-class Failure extends Error { constructor(readonly code: McpFailure, detail?: string) { super(detail ?? code); } }
+class Failure extends Error {
+  constructor(readonly code: McpFailure, readonly exitCode: number | null = null) {
+    super(exitCode === null ? code : `${code}, exit ${exitCode}`);
+  }
+}
 interface Owner { stopped: boolean; processes: Set<AuthProcess> }
 interface Attempt extends Owner { id: string; name: string; kind: "connect" | "disconnect" | "remove"; providers: McpProvider[]; link: string | null; onLink: ((url: string) => void) | null }
 interface Run { code: number | null; output: string; timedOut: boolean }
@@ -382,9 +386,10 @@ export class McpService implements McpConversationFacts {
   }
 
   private async claudeConnect(attempt: Attempt, lease: Lease, server: ConnectorServer): Promise<void> {
-    let registered = await this.registered(attempt, lease, "claude", server.name);
+    const registration = await this.registered(attempt, lease, "claude", server.name);
+    let registered = registration.server;
     if (attempt.stopped) return;
-    if (registered === null) throw new Failure("failed", "the registration could not be read");
+    if (registered === null) throw new Failure("failed", registration.exitCode);
     if (registered && staleUrl(registered.url, server.url)) { await this.dropStale(attempt, lease, "claude", server.name); registered = false; }
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
     if (attempt.stopped) return;
@@ -408,16 +413,16 @@ export class McpService implements McpConversationFacts {
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
     if (attempt.stopped) return;
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the link timer sets this during the login
-    if (missing) throw new Failure("no_link", "the browser hook received no acceptable link");
+    if (missing) throw new Failure("no_link", login.code);
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the approval timer sets this during the login
-    if (late) throw new Failure("approval_timeout", "the browser approval did not come in time");
-    if (login.code !== 0) throw new Failure("failed", `login exited ${login.code}: ${tail(login.output)}`);
-    if (plaintext === null) throw new Failure("failed", "the profile could not be checked for a plaintext credential file");
-    if (plaintext) throw new Failure("storage_failed", "the CLI wrote a plaintext credential file");
+    if (late) throw new Failure("approval_timeout", login.code);
+    if (login.code !== 0) throw new Failure("failed", login.code);
+    if (plaintext === null) throw new Failure("failed", login.code);
+    if (plaintext) throw new Failure("storage_failed", login.code);
     const after = await this.claudeGet(attempt, lease, server.name);
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
     if (attempt.stopped) return;
-    if (!after.ok || !after.facts.registered || !after.facts.authenticated) throw new Failure("failed", "status after sign-in is not connected");
+    if (!after.ok || !after.facts.registered || !after.facts.authenticated) throw new Failure("failed", after.exitCode);
   }
 
   // `codex mcp add` starts the OAuth sign-in itself and opens the default browser; Doan opens nothing for Codex
@@ -426,8 +431,8 @@ export class McpService implements McpConversationFacts {
   private async codexConnect(attempt: Attempt, lease: Lease, server: ConnectorServer): Promise<void> {
     const listed = await this.codexList(attempt, lease);
     if (attempt.stopped) return;
-    if (!listed) throw new Failure("failed", "the server list could not be read");
-    let registered = listed.find(each => each.name === server.name) ?? false;
+    if (!listed.servers) throw new Failure("failed", listed.exitCode);
+    let registered = listed.servers.find(each => each.name === server.name) ?? false;
     if (registered && staleUrl(registered.url, server.url)) { await this.dropStale(attempt, lease, "codex", server.name); registered = false; }
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
     if (attempt.stopped) return;
@@ -435,12 +440,12 @@ export class McpService implements McpConversationFacts {
     const login = await this.run(attempt, lease, "codex", args, { timeoutMs: this.limits.approvalMs });
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
     if (attempt.stopped) return;
-    if (login.timedOut || CODEX_CALLBACK_TIMEOUT.test(login.output)) throw new Failure("approval_timeout", tail(login.output));
-    if (login.code !== 0) throw new Failure("failed", `login exited ${login.code}: ${tail(login.output)}`);
+    if (login.timedOut || CODEX_CALLBACK_TIMEOUT.test(login.output)) throw new Failure("approval_timeout", login.code);
+    if (login.code !== 0) throw new Failure("failed", login.code);
     const after = await this.codexList(attempt, lease);
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
     if (attempt.stopped) return;
-    if (after?.find(each => each.name === server.name)?.authenticated !== true) throw new Failure("failed", "status after sign-in is not connected");
+    if (after.servers?.find(each => each.name === server.name)?.authenticated !== true) throw new Failure("failed", after.exitCode);
   }
 
   // A registration under the server's name at another URL (its reconcile failed or has not run yet) would sign in to
@@ -455,7 +460,7 @@ export class McpService implements McpConversationFacts {
       try {
         const run = await this.run(attempt, lease, provider, COMMANDS[provider].logout(server.name), { timeoutMs: this.limits.commandMs });
         if (attempt.stopped) return;
-        if (run.code !== 0) throw new Failure("disconnect_failed", `logout exited ${run.code}: ${tail(run.output)}`);
+        if (run.code !== 0) throw new Failure("disconnect_failed", run.code);
       } finally { await lease.release(); }
       // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() or quit() can set these while the awaited call runs
       if (attempt.stopped || this.closed) return;
@@ -463,7 +468,7 @@ export class McpService implements McpConversationFacts {
       this.options.store.patch({ everConnected: { name: server.name, provider, value: false } });
       this.succeeded(provider, server.name, { registered: true, authenticated: false });
     } catch (error) {
-      this.failed(provider, server.name, attempt, error instanceof Failure && error.code !== "busy" && error.code !== "not_ready" ? new Failure("disconnect_failed", error.message) : error);
+      this.failed(provider, server.name, attempt, error instanceof Failure && error.code !== "busy" && error.code !== "not_ready" ? new Failure("disconnect_failed", error.exitCode) : error);
     }
   }
 
@@ -483,7 +488,7 @@ export class McpService implements McpConversationFacts {
       }
       if (attempt.stopped || this.closed) return;
       const written = this.options.store.patch({ remove: name });
-      if (!written.ok) throw new Failure("failed", `the connectors file was not written (${written.code})`);
+      if (!written.ok) throw new Error(`the connectors file was not written (${written.code})`);
       for (const provider of MCP_PROVIDERS) { this.failures.delete(key(provider, name)); this.checks.get(provider)?.delete(name); }
       for (const provider of touched) this.succeeded(provider, name);
     } catch (error) {
@@ -496,9 +501,9 @@ export class McpService implements McpConversationFacts {
   // Logs a registered server out and removes it from one profile; false when it was not registered. strict: any
   // failure throws; otherwise (reconcile) failures are logged and the next server goes on.
   private async unregister(owner: Owner, lease: Lease, provider: McpProvider, name: string, strict: boolean): Promise<boolean> {
-    const registered = await this.registered(owner, lease, provider, name);
+    const { server: registered, exitCode } = await this.registered(owner, lease, provider, name);
     if (owner.stopped) return false;
-    if (registered === null) { if (strict) throw new Failure("failed", "the registration could not be read"); return false; }
+    if (registered === null) { if (strict) throw new Failure("failed", exitCode); return false; }
     if (!registered) return false;
     const logout = await this.run(owner, lease, provider, COMMANDS[provider].logout(name), { timeoutMs: this.limits.commandMs });
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
@@ -507,7 +512,7 @@ export class McpService implements McpConversationFacts {
     if (logout.code !== 0) {
       const after = await this.facts(owner, lease, provider, name);
       if (!after.ok || (after.facts.registered && after.facts.authenticated)) {
-        if (strict) throw new Failure("failed", `logout exited ${logout.code}: ${tail(logout.output)}`);
+        if (strict) throw new Failure("failed", logout.code);
         console.error(`doan: ${provider} MCP logout of ${name} failed; its registration is kept`);
         return false;
       }
@@ -516,7 +521,7 @@ export class McpService implements McpConversationFacts {
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
     if (owner.stopped) return false;
     if (removed.code !== 0) {
-      if (strict) throw new Failure("failed", `remove exited ${removed.code}: ${tail(removed.output)}`);
+      if (strict) throw new Failure("failed", removed.code);
       console.error(`doan: ${provider} MCP server ${name} could not be removed`);
       return false;
     }
@@ -533,7 +538,7 @@ export class McpService implements McpConversationFacts {
       try {
         // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() or quit() can set these while the awaited call runs
         if (owner.stopped || this.closed) return;
-        const listed = provider === "claude" ? await this.claudeList(owner, lease) : await this.codexList(owner, lease);
+        const listed = provider === "claude" ? await this.claudeList(owner, lease) : (await this.codexList(owner, lease)).servers;
         // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() or quit() can set these while the awaited call runs
         if (owner.stopped || this.closed) return;
         if (!listed) throw new Error("the server list could not be read");
@@ -624,13 +629,16 @@ export class McpService implements McpConversationFacts {
   // Whether a server is registered, whatever its sign-in reads as: an unreachable server's health check gives Claude
   // no status Doan knows, and it must still be removable. A registration carries its URL (null when the output names
   // none). false: not registered; null: unreadable.
-  private async registered(owner: Owner, lease: Lease, provider: McpProvider, name: string): Promise<{ url: string | null } | false | null> {
-    if (provider === "codex") { const listed = await this.codexList(owner, lease); return listed ? listed.find(server => server.name === name) ?? false : null; }
+  private async registered(owner: Owner, lease: Lease, provider: McpProvider, name: string): Promise<{ server: { url: string | null } | false | null; exitCode: number | null }> {
+    if (provider === "codex") {
+      const { servers, exitCode } = await this.codexList(owner, lease);
+      return { server: servers ? servers.find(server => server.name === name) ?? false : null, exitCode };
+    }
     const run = await this.run(owner, lease, "claude", COMMANDS.claude.get(name), { timeoutMs: this.limits.commandMs });
     const facts = run.timedOut ? null : parseClaudeMcpGet(name, run.output, run.code ?? -1);
     const registration = { url: claudeMcpGetUrl(name, run.output) };
-    if (facts) return facts.registered && registration;
-    return run.code === 0 && run.output.split("\n")[0]?.trim() === `${name}:` ? registration : null;
+    if (facts) return { server: facts.registered && registration, exitCode: run.code };
+    return { server: run.code === 0 && run.output.split("\n")[0]?.trim() === `${name}:` ? registration : null, exitCode: run.code };
   }
 
   // One server's status: `claude mcp get <name>`, or its entry in `codex mcp list --json`.
@@ -649,16 +657,16 @@ export class McpService implements McpConversationFacts {
       return found.authenticated === null ? { ok: false, reason: "unparsable" } : { ok: true, facts: { registered: true, authenticated: found.authenticated } };
     };
   }
-  private async claudeGet(owner: Owner, lease: Lease, name: string): Promise<CheckOutcome> {
+  private async claudeGet(owner: Owner, lease: Lease, name: string): Promise<CheckOutcome & { exitCode: number | null }> {
     const run = await this.run(owner, lease, "claude", COMMANDS.claude.get(name), { timeoutMs: this.limits.commandMs });
-    if (run.timedOut) return { ok: false, reason: "timeout" };
+    if (run.timedOut) return { ok: false, reason: "timeout", exitCode: run.code };
     const facts = parseClaudeMcpGet(name, run.output, run.code ?? -1);
-    if (facts) return { ok: true, facts };
-    return { ok: false, reason: run.code === 0 || run.code === 1 ? "unparsable" : "failed" };
+    if (facts) return { ok: true, facts, exitCode: run.code };
+    return { ok: false, reason: run.code === 0 || run.code === 1 ? "unparsable" : "failed", exitCode: run.code };
   }
-  private async codexList(owner: Owner, lease: Lease): Promise<ListedServer[] | null> {
+  private async codexList(owner: Owner, lease: Lease): Promise<{ servers: ListedServer[] | null; exitCode: number | null }> {
     const run = await this.run(owner, lease, "codex", [...COMMANDS.codex.list], { timeoutMs: this.limits.commandMs });
-    return run.code === 0 ? codexMcpServers(run.output) : null;
+    return { servers: run.code === 0 ? codexMcpServers(run.output) : null, exitCode: run.code };
   }
   private async claudeList(owner: Owner, lease: Lease): Promise<ListedServer[] | null> {
     const run = await this.run(owner, lease, "claude", [...COMMANDS.claude.list], { timeoutMs: this.limits.commandMs });
@@ -666,19 +674,19 @@ export class McpService implements McpConversationFacts {
   }
   private async must(owner: Owner, lease: Lease, provider: McpProvider, args: string[]): Promise<void> {
     const run = await this.run(owner, lease, provider, args, { timeoutMs: this.limits.commandMs });
-    if (!owner.stopped && run.code !== 0) throw new Failure("failed", `${args.slice(0, 2).join(" ")} exited ${run.code}: ${tail(run.output)}`);
+    if (!owner.stopped && run.code !== 0) throw new Failure("failed", run.code);
   }
 
   // Resolves only after the process group is gone, so no result outruns its process.
   private async run(owner: Owner, lease: Lease, provider: McpProvider, args: readonly string[], options: { timeoutMs: number | null; pty?: boolean; env?: Record<string, string>; cwd?: string }): Promise<Run> {
     if (owner.stopped) return { code: null, output: "", timedOut: false };
     const spawn = options.pty ? this.options.spawnPty : this.options.spawn;
-    let child: AuthProcess;
     const fence = provider === "claude" ? this.options.fence : undefined;
     const launch = fence ? profileFencedCommand("claude", fence, lease.profileDir, lease.command, [...this.baseArgs[provider], ...args]) : { command: lease.command, args: [...this.baseArgs[provider], ...args] };
-    if (!launch) throw new Failure("failed", "the fence could not be built");
+    if (!launch) throw new Failure("failed");
+    let child: AuthProcess;
     try { child = spawn(launch.command, launch.args, { cwd: options.cwd ?? lease.profileDir, env: options.env ?? lease.env }); }
-    catch (error) { throw new Failure("failed", `the CLI could not be started: ${message(error)}`); }
+    catch { throw new Failure("failed"); }
     owner.processes.add(child);
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the injected spawn can run code that stops the owner
     if (owner.stopped) child.stop();
@@ -694,19 +702,19 @@ export class McpService implements McpConversationFacts {
 
   private async lease(provider: McpProvider, added?: Record<string, string>): Promise<Lease> {
     try { return await this.options.auth.acquire(provider, "mcp", added); }
-    catch (error) { throw new Failure(message(error) === "busy" ? "busy" : "not_ready", message(error)); }
+    catch (error) { throw new Failure(message(error) === "busy" ? "busy" : "not_ready"); }
   }
 
   // The hook's link, checked by mcpAuthLink (main fixes every URL it opens); the first accepted link opens in the
   // browser, a later one replaces it for Open again.
   private linked(attempt: Attempt, raw: string): void {
     const url = mcpAuthLink(raw);
-    if (!url) { console.error(`doan: an MCP sign-in ignored a browser-hook link it does not accept: ${describeLink(raw)}`); return; }
+    if (!url) return;
     if (attempt.stopped || attempt.link === url) return;
     const first = attempt.link === null;
     attempt.link = url;
     attempt.onLink?.(url);
-    if (first) void this.options.openExternal(url).catch(error => console.error("doan: the MCP sign-in link could not be opened", message(error)));
+    if (first) void this.options.openExternal(url).catch(() => console.error("doan: MCP connect link failed (open_failed)"));
     this.changed();
   }
 
@@ -752,7 +760,10 @@ export class McpService implements McpConversationFacts {
   private failed(provider: McpProvider, name: string, attempt: Attempt, error: unknown): void {
     if (attempt.stopped || this.closed) return;
     const code = error instanceof Failure ? error.code : "failed";
-    console.error(`doan: ${provider} MCP ${attempt.kind} of ${name} failed (${code}): ${message(error)}`);
+    if (attempt.kind === "connect") {
+      const exit = error instanceof Failure ? error.exitCode : null;
+      console.error(`doan: MCP connect failed (${code}${exit === null ? "" : `, exit ${exit}`})`);
+    } else console.error(`doan: ${provider} MCP ${attempt.kind} of ${name} failed (${code}): ${message(error)}`);
     this.failures.set(key(provider, name), code);
   }
   // cancel: a person's or a sign-out's stop, which ends the attempt silently; the attempt's own limits stop only its
@@ -783,11 +794,4 @@ export class McpService implements McpConversationFacts {
     this.revision += 1;
     this.options.publish(this.snapshot());
   }
-}
-
-// Query values (state, challenge) stay out of the log.
-function describeLink(raw: string): string {
-  if (!URL.canParse(raw)) return "(not a URL)";
-  const url = new URL(raw);
-  return `${url.origin}${url.pathname} params=[${[...url.searchParams.keys()].join(",")}]`;
 }
