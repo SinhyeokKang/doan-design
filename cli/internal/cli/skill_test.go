@@ -81,7 +81,7 @@ func TestSkillGuideActive(t *testing.T) {
 	for _, parts := range [][]string{
 		{"`doan active --json`", "selection"},
 		{"`selection`", "ask the user"},
-		{"`project_not_open`", "add this project in Doan (Add Project…)", "work in the worktree that is open in Doan"},
+		{"`project_not_open`", "add this project in Doan (File > Add Projects…)", "work in the worktree that is open in Doan"},
 		{"frame", "`doan ls`", "script"},
 		{"3", "`app_not_running`", "`app_protocol_mismatch`", "`project_not_open`"},
 	} {
@@ -136,7 +136,7 @@ func TestSkillGuideSetupGoesThroughOnboarding(t *testing.T) {
 		"Use these commands when the user asks you to set up Doan or a repository for Doan.",
 		"On `completed: true` from `start`, stop after `select` (no `complete`).",
 		"Never ask for token CSS; pass one the user named to `doan config --token-css` after `select` (or to `doan init`).",
-		"If a repository setup cannot reach Doan (`app_not_running`, `app_launch_failed`, `app_protocol_mismatch`, or a sandbox blocks its socket), run `doan init` without asking and tell the user the project is not in Doan: they add it with Add Project….",
+		"If a repository setup cannot reach Doan (`app_not_running`, `app_launch_failed`, `app_protocol_mismatch`, or a sandbox blocks its socket), run `doan init` without asking and tell the user the project is not in Doan: they add it with File > Add Projects….",
 		"Onboarding needs no skill or project and takes no `--repo`; path arguments are absolute.",
 	} {
 		if !strings.Contains(first, required) {
@@ -362,7 +362,7 @@ func TestSkillGuideOpenCommand(t *testing.T) {
 		"`--prototype` plays that marked frame alone in its window (`prototype: true`)",
 		"Returns `{opened, frame}` where `frame` is `found`, `missing` (no such frame; say only the canvas opened) or `none`",
 		"On failure: `canvas_not_found`",
-		"`project_not_open` (name the folder; they add it with Add Project…, then ask again)",
+		"`project_not_open` (name the folder; they add it with File > Add Projects…, then ask again)",
 		"`busy` (`message` says what blocks; they finish it, then ask again)",
 		"`app_launch_failed` (Doan did not open)",
 		"`app_not_running` (as for `doan active`)",

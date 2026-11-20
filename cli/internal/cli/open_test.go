@@ -211,7 +211,7 @@ func TestOpenReplyGuidance(t *testing.T) {
 		return strings.Join(failure.NextSteps, "\n")
 	}
 	for _, tt := range []struct{ line, want string }{
-		{`{"v":4,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "Add Projects"},
+		{`{"v":4,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "File > Add Projects…"},
 		// A project of the same name already in Doan may be another checkout or worktree at another path.
 		{`{"v":4,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "Project Settings"},
 		{`{"v":4,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "another checkout or worktree"},
@@ -772,7 +772,7 @@ func TestRunOpenOutput(t *testing.T) {
 		return `{"v":4,"ok":false,"error":{"code":"project_not_open","message":"m"}}`
 	})
 	code, out, errout = runOpen(t, missing.runtime, ".doan/canvases/home.html", "--repo", root)
-	if code != 3 || out != "" || !strings.HasPrefix(errout, `error: Doan does not have the folder "`+root+`" open`+"\n") || !strings.Contains(errout, "Add Projects") || !strings.Contains(errout, "another checkout or worktree") {
+	if code != 3 || out != "" || !strings.HasPrefix(errout, `error: Doan does not have the folder "`+root+`" open`+"\n") || !strings.Contains(errout, "File > Add Projects…") || !strings.Contains(errout, "another checkout or worktree") {
 		t.Fatal(code, out, errout)
 	}
 	code, out, _ = runOpen(t, app.runtime, ".doan/canvases/home.html", "--frame", "hero", "--repo", root, "--json")
