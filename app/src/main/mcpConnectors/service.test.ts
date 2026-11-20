@@ -87,6 +87,19 @@ describe("connect", () => {
       expect(log.mock.calls).toEqual([["doan: MCP connect failed (failed, exit 23)"]]);
     });
 
+    it.each(["claude", "codex"] as const)("%s reports a blocked connection once with its exit code", async provider => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      const name = "doan-notion", url = "https://mcp.notion.com/mcp";
+      store.record([{ provider, name, url }]);
+      cli.registered[provider].set(name, { url, auth: true });
+      cli.failing.add(`${provider} logout ${name}`);
+      const s = service();
+      s.connect(provider, name);
+      await s.idle();
+      expect(row(s, provider, name)?.failure).toBe("pending_logout");
+      expect(log.mock.calls).toEqual([["doan: MCP connect failed (pending_logout, exit 1)"]]);
+    });
+
     it("reports only the failure code when setup throws", async () => {
       const log = vi.spyOn(console, "error").mockImplementation(() => {});
       const s = service({ hookLinks: () => { throw new Error("synthetic setup failure"); } });

@@ -86,6 +86,7 @@ class Failure extends Error {
 }
 interface Owner { stopped: boolean; processes: Set<AuthProcess> }
 interface Attempt extends Owner { id: string; name: string; kind: "connect" | "disconnect" | "remove"; providers: McpProvider[]; link: string | null; onLink: ((url: string) => void) | null }
+interface LogoutResult { done: boolean; exitCode: number | null }
 interface Run { code: number | null; output: string; timedOut: boolean }
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 const tail = (text: string) => text.trim().slice(-2000);
@@ -562,11 +563,12 @@ export class McpService implements McpConversationFacts {
     try {
       for (const entry of entries) {
         if (owner.stopped || this.closed) return false;
-        const done = provider === "codex" ? await this.codexPendingLogout(owner, entry.name, entry.url) : await this.claudePendingLogout(owner, entry.name);
+        const { done, exitCode } = provider === "codex" ? await this.codexPendingLogout(owner, entry.name, entry.url) : await this.claudePendingLogout(owner, entry.name);
         // A command whose attempt was stopped meanwhile never edits the pending file, even when it succeeded.
         // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() or quit() can set these while the awaited call runs
         if (owner.stopped || this.closed) return false;
         if (done) this.options.store.clear(provider, entry.name);
+        else if (only !== null) throw new Failure("pending_logout", exitCode);
         else console.error(`doan: ${provider} pending MCP logout of ${entry.name} failed again`);
       }
     } finally { this.changed(); }
@@ -574,28 +576,28 @@ export class McpService implements McpConversationFacts {
   }
   // Done when the logout exited 0, or when the server reads as holding no token afterwards: a logout can fail just
   // because there is nothing to clear, and that must not block Connect for good.
-  private async claudePendingLogout(owner: Owner, name: string): Promise<boolean> {
+  private async claudePendingLogout(owner: Owner, name: string): Promise<LogoutResult> {
     const lease = await this.lease("claude");
     try {
       const run = await this.run(owner, lease, "claude", COMMANDS.claude.logout(name), { timeoutMs: this.limits.commandMs });
-      if (owner.stopped || run.code === 0) return run.code === 0;
+      if (owner.stopped || run.code === 0) return { done: run.code === 0, exitCode: run.code };
       const after = await this.claudeGet(owner, lease, name);
-      return after.ok && (!after.facts.registered || !after.facts.authenticated);
+      return { done: after.ok && (!after.facts.registered || !after.facts.authenticated), exitCode: run.code };
     } finally { await lease.release(); }
   }
-  private async codexPendingLogout(owner: Owner, name: string, url: string): Promise<boolean> {
+  private async codexPendingLogout(owner: Owner, name: string, url: string): Promise<LogoutResult> {
     const home = mkdtempSync(join(this.options.tmpdir ?? tmpdir(), "doan-mcp-logout-"));
     try {
       writeFileSync(join(home, "config.toml"), codexServerToml(name, url), { mode: 0o600 });
       const launched = await this.options.auth.environment("codex", home);
-      if (owner.stopped || this.closed) return false;
+      if (owner.stopped || this.closed) return { done: false, exitCode: null };
       const lease: Lease = { ...launched, profileDir: home, release: async () => {} };
       const run = await this.run(owner, lease, "codex", COMMANDS.codex.logout(name), { timeoutMs: this.limits.commandMs });
       // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
-      if (owner.stopped || run.code === 0) return run.code === 0;
+      if (owner.stopped || run.code === 0) return { done: run.code === 0, exitCode: run.code };
       // The keychain entry is keyed by name and URL, so this home's list says whether a token is left.
       const after = (await this.codexRead(owner, lease))(name);
-      return after.ok && (!after.facts.registered || !after.facts.authenticated);
+      return { done: after.ok && (!after.facts.registered || !after.facts.authenticated), exitCode: run.code };
     } finally { rmSync(home, { recursive: true, force: true }); }
   }
 
