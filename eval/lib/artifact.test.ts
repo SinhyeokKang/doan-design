@@ -62,11 +62,12 @@ test("CLI provenance retains the exact admitted bytes, including for an empty PA
   const target = join(dir, "path");
   const report = join(dir, "report");
   const retained = join(dir, "retained");
-  fs.writeFileSync(target, "\n");
+  fs.writeFileSync(target, "\n", { mode: 0o600 });
   fs.symlinkSync("path", report);
   assert.equal(cliProvenance(report, null, retained).pass, true);
   assert.equal(fs.readFileSync(retained, "utf8"), "\n");
   assert.ok(fs.lstatSync(retained).isFile());
+  assert.equal(fs.statSync(retained).mode & 0o077, 0);
   fs.unlinkSync(retained);
   descriptor(t, target, { size: 64 * 1024 + 1 });
   assert.equal(cliProvenance(report, null, retained).pass, false);

@@ -84,7 +84,7 @@ export function cliProvenance(report: string, expected: string | null, evidenceP
   const invalid = (error: unknown) => ({ id: "agent_cli_provenance", pass: false, detail: `Missing or invalid agent CLI resolution: ${(error as Error).message}` });
   let bytes: Buffer;
   try { bytes = readArtifact(report, 4 << 10); } catch (error) { return invalid(error); }
-  if (evidencePath) writeFileSync(evidencePath, bytes);
+  if (evidencePath) writeFileSync(evidencePath, bytes, { mode: 0o600 });
   try {
     const resolved = bytes.toString("utf8").trim();
     if (expected === null) return { id: "agent_cli_provenance", pass: resolved === "", detail: `agent resolved ${resolved || "(no doan on PATH)"}; expected no shell CLI` };
@@ -112,7 +112,7 @@ export function readAgentTranscript(agent: Agent, dir: string, env: NodeJS.Proce
     const source = join(matches[0]!.parentPath, matches[0]!.name);
     const dest = join(dir, "codex-rollout.jsonl");
     const rollout = readArtifact(source, LOG_BYTES);
-    writeFileSync(dest, rollout);
+    writeFileSync(dest, rollout, { mode: 0o600 });
     return { transcript, calls: toolCalls(transcript + "\n" + rollout.toString("utf8")) };
   } catch (error) {
     // Keep older Codex versions usable, but leave an explicit evidence gap.

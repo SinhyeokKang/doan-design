@@ -139,7 +139,7 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
 // It holds no token (eval/lib/socket.ts strips it).
 export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial<Pick<Workspace, "workLog" | "openLog" | "handoffLog" | "prototypeLog">>, dir: string): void {
   const keep = (path: string | undefined, name: string) => {
-    if (path && existsSync(path)) writeFileSync(join(dir, name), readArtifact(path, LOG_BYTES));
+    if (path && existsSync(path)) writeFileSync(join(dir, name), readArtifact(path, LOG_BYTES), { mode: 0o600 });
   };
   keep(ws.onboardingLog, "onboarding.jsonl");
   keep(ws.workLog, "work.jsonl");
