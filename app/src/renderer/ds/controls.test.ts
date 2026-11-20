@@ -253,9 +253,10 @@ test("menus share the quiet scrollbar and keep its track inside their corners", 
   const css = read("./surfaces.css");
   expect(css).toContain(".doan-scroll { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }");
   expect(css).not.toMatch(/doan-menu[^{]*\{[^}]*scrollbar-(width|color)/);
+  expect(css).toContain(".doan-menu::-webkit-scrollbar { width: var(--space-2); height: var(--space-2); }");
   expect(css).toContain(".doan-menu::-webkit-scrollbar-thumb { border-radius: var(--radius-pill); background: var(--scrollbar-thumb-quiet); }");
-  expect(css).toContain(".doan-menu::-webkit-scrollbar-track { margin-block: var(--radius-container); }");
-  expect(css).toContain('.doan-menu[data-ui-size="compact"]::-webkit-scrollbar-track { margin-block: var(--radius-row); }');
+  expect(css).toContain(".doan-menu::-webkit-scrollbar-track { margin: var(--radius-container); }");
+  expect(css).toContain('.doan-menu[data-ui-size="compact"]::-webkit-scrollbar-track { margin: var(--radius-row); }');
 });
 
 // A dialog is its own scroll container (overflow: auto), so in a short window it shows the same quiet thumb as every
