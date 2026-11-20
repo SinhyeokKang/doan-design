@@ -224,7 +224,11 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
         // naming another turn does nothing.
         case "interrupt": {
           if (raw.turnId !== undefined && !validId(raw.turnId)) throw new Error("bad_request");
-          await service.interrupt(raw.conversationId, raw.turnId); return undefined;
+          if (raw.forRemoval === true) {
+            if (rows || !validId(raw.turnId)) throw new Error("bad_request");
+            await service.interruptProjectTurn(raw.conversationId, raw.turnId);
+          } else await service.interrupt(raw.conversationId, raw.turnId);
+          return undefined;
         }
         case "send": {
           const input = message(raw); if (!input) throw new Error("bad_request");
