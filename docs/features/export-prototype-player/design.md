@@ -37,3 +37,9 @@
 - 같은 회고의 “An eval check that compared a prototype export only with a regenerated one accepted the canvas viewer”에 따라 생성 결과끼리 비교하는 검사에 더해, 원래 뷰어 없이 다운로드한 파일의 첫 화면과 실제 링크 이동을 검증한다.
 
 시안은 기존 Export 화면을 확장하는 새 파일 `.doan/canvases/export-prototype-player.html`에 그린다. 캔버스 ID는 `export-prototype-player`다. 상태는 `board-selection`(버블·툴바), `frame-drawer`(프로토타입 마크), `play-drawer`(그룹·Playing), `player-fit`, `player-responsive`, `player-narrow`, `play-blocked`, `player-failure`, `export-result`다. 앱과 같은 조작부에는 기존 토큰과 배치를 사용하고, 브라우저 고유의 차단·다운로드 안내는 영문으로 그린다. 적용한 디자인 프리셋은 shape이다.
+
+### 브라우저에서 달라지는 표시
+
+- 팝업이 차단되면 누른 Play 바로 위에 “Your browser blocked the prototype window. Allow pop-ups, then press Play again.”을 표시한다. 같은 버튼으로 재시도한다.
+- 다운로드를 요청하면 재생창 오른쪽 아래 토스트에 “Download requested for ‘Checkout’ and 1 linked frame. The file also contains the rest of the canvas.”를 표시한다. 프레임 이름과 연결된 프레임 수는 클릭한 대상에 맞춘다.
+- 브라우저가 창 버튼을 제공하므로 재생기 헤더는 왼쪽 16px에서 Back으로 시작한다. 프레임 이름 양옆에는 40px씩 남기고 이름에 120px를 확보할 수 없으면 두 번째 줄로 옮긴다.
