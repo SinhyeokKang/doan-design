@@ -25,9 +25,10 @@ vi.mock("react", async original => {
   return {
     ...actual,
     useState: (initial: unknown) => {
+      const states = hooks.states;
       const index = hooks.cursor++;
-      if (!(index in hooks.states)) hooks.states[index] = typeof initial === "function" ? (initial as () => unknown)() : initial;
-      return [hooks.states[index], (next: unknown) => { hooks.states[index] = typeof next === "function" ? (next as (value: unknown) => unknown)(hooks.states[index]) : next; }];
+      if (!(index in states)) states[index] = typeof initial === "function" ? (initial as () => unknown)() : initial;
+      return [states[index], (next: unknown) => { states[index] = typeof next === "function" ? (next as (value: unknown) => unknown)(states[index]) : next; }];
     },
     useReducer: () => [0, () => {}],
     useRef: (value: unknown) => { const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
@@ -245,11 +246,29 @@ test("while Add's request is out, Add is busy and aria-disabled with the spinner
   expect(renderToStaticMarkup(submit)).toMatch(/^<button[^>]*><span class="doan-spinner" aria-hidden="true"><\/span>Add<\/button>$/);
   submitForm();
   expect(api.addMcpServer).toHaveBeenCalledTimes(1);
+  expect(input().props.readOnly).toBe(true);
+  const cancel = all(tree).find(element => element.type === "button" && words(element.props.children) === "Cancel")!;
+  expect(cancel.props["aria-disabled"]).toBe(true);
+  click(cancel);
+  const dialog = all(tree).find(element => element.type === "dialog")!;
+  const escape = { key: "Escape", preventDefault: vi.fn(), stopPropagation: vi.fn(), nativeEvent: { isComposing: false } };
+  (dialog.props.onKeyDown as (event: typeof escape) => void)(escape);
+  (dialog.props.onCancel as (event: typeof escape) => void)(escape);
+  render();
+  expect(escape.stopPropagation).toHaveBeenCalled();
+  expect(input().props.value).toBe("https://mcp.example.com/mcp");
+  expect(props.onLock).toHaveBeenLastCalledWith(true);
   answer({ ok: false, reason: "not_https" });
   await settle();
   const after = all(tree).find(element => element.props.type === "submit")!;
   expect(after.props["aria-busy"]).toBeUndefined();
   expect(renderToStaticMarkup(after)).not.toContain("doan-spinner");
+  expect(input().props.readOnly).toBeFalsy();
+  expect(input().props.value).toBe("https://mcp.example.com/mcp");
+  (input().props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "https://new.example.com" } });
+  render(); submitForm(); await settle();
+  expect(api.addMcpServer).toHaveBeenLastCalledWith("https://new.example.com");
+  expect(all(tree).some(element => element.type === "dialog")).toBe(false);
 });
 
 test("after Add, focus goes to the new item's row group in the first section, scrolled into view", async () => {
@@ -648,4 +667,33 @@ test("an entry read that rejects while a snapshot is shown keeps the page as it 
   await settle();
   expect(readFailed()).toBe(false);
   expect(all(tree).filter(element => element.type === "section")).toHaveLength(2);
+});
+
+test.each([{ ok: true, name: "old" }, { ok: false, reason: "write_failed" }])("an old add reply %j leaves the next page’s pending dialog alone", async reply => {
+  let oldAnswer!: (value: typeof reply) => void;
+  let newAnswer!: (value: { ok: true; name: string }) => void;
+  api.addMcpServer!.mockImplementationOnce(() => new Promise(done => { oldAnswer = done; }))
+    .mockImplementationOnce(() => new Promise(done => { newAnswer = done; }));
+  const add = async (value: string) => {
+    await settle();
+    click(all(tree).find(element => element.props["data-mcp-add"] === ""));
+    render();
+    (byLabel("Server URL")!.props.onChange as (event: { target: { value: string } }) => void)({ target: { value } });
+    render();
+    (all(tree).find(element => element.type === "form")!.props.onSubmit as (event: { preventDefault(): void }) => void)({ preventDefault: vi.fn() });
+    render();
+  };
+  await add("https://old.example.com");
+  for (const effect of hooks.effects) effect?.cleanup?.();
+  hooks.states = []; hooks.refs = []; hooks.effects = [];
+  await add("https://new.example.com");
+  const onLock = vi.mocked(props.onLock);
+  expect(onLock.mock.calls).toEqual([[true], [false], [true]]);
+  oldAnswer(reply); await settle();
+  expect(onLock).toHaveBeenCalledTimes(3);
+  expect(byLabel("Server URL")?.props).toMatchObject({ value: "https://new.example.com", readOnly: true });
+  expect(all(tree).find(element => element.type === "dialog")?.props["aria-busy"]).toBe(true);
+  newAnswer({ ok: true, name: "new" }); await settle();
+  expect(onLock.mock.calls).toEqual([[true], [false], [true], [false]]);
+  expect(byLabel("Server URL")).toBeUndefined();
 });
