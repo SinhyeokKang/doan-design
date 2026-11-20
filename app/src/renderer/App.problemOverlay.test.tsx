@@ -868,6 +868,8 @@ test("project Retry locks before the loading notification, and a late rejection 
   const rejectors: ((reason: Error) => void)[] = [];
   doan.reopenFolder!.mockImplementation(() => new Promise<void>((_, reject) => rejectors.push(reject)));
   render(); folders([configError()]); toOverview();
+  dom(element("retry", ["problem-overlay", "workspace"]));
+  focused.length = 0;
   const press = overlay()!.onAction;
   press("retry"); press("retry"); render();
   expect(doan.reopenFolder).toHaveBeenCalledTimes(1);
@@ -877,6 +879,8 @@ test("project Retry locks before the loading notification, and a late rejection 
   expect(doan.reopenFolder).toHaveBeenCalledTimes(1);
   // A watcher can publish a different problem before the requested read starts.
   folders([cliError()]);
+  expect(focused).toEqual([]);
+  expect(overlay()!.announcement.trim()).toBe("Doan couldn’t read a");
   overlay()!.onAction("retry");
   expect(doan.reopenFolder).toHaveBeenCalledTimes(1);
   expect(overlay()).toMatchObject({ view: { entryKind: "cliError", busy: true }, pressed: "retry" });

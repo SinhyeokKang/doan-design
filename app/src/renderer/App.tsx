@@ -2016,13 +2016,15 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       const active = document.activeElement;
       const left = !active || active === document.body || !(active instanceof HTMLElement) || !active.isConnected
         || active.closest(".problem-overlay, .workspace > :is(.ov-main, .right-stack, .doan-canvas-panel, .doan-insp-column, .doan-conv-column, .doan-overview-handle)") !== null;
-      if (arrived || left) { setAnnouncement(null); focusHeading(); }
+      // A watcher can change the error while the same focused Retry is still pending.
+      const retryStillFocused = retryPending && active === recoveryFocus.current?.element && active?.isConnected;
+      if (arrived || (left && !retryStillFocused)) { setAnnouncement(null); focusHeading(); }
       else announce(sceneHeading);
       return;
     }
     if (seen.busy && !busy) { announce(sceneHeading); return; }
     if (headingPending.current === sceneRef.current && !modal) focusHeading();
-  }, [sceneKey, sceneHeading, arrivalSeq, entryKey, busy, modal]);
+  }, [sceneKey, sceneHeading, arrivalSeq, entryKey, busy, modal, retryPending]);
   // A pick or a capture on the covered canvas ends as the overlay shows (ARCHITECTURE §7 'Problem overlay').
   useEffect(() => {
     if (!overlaid) return;
