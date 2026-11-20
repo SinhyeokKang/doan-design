@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="export-prototype-player">
+<meta name="doan:width" content="2440">
+<title>Export prototype player</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<link rel="stylesheet" href="../assets/mock.css">
+<style>
+/* Sheet layout. The windows below are content viewports; browser chrome belongs to the browser. */
+body { padding: var(--space-12); background: var(--surface-panel); }
+main.sheet { width: max-content; }
+.intro { max-width: 1040px; margin-bottom: var(--space-12); }
+h1 { font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium); }
+.intro p, .description { margin-top: var(--space-2); color: var(--text-subtle); }
+.intro small, .notes, .caption, .screen-label { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.intro small { display: block; color: var(--text-metadata); margin-top: var(--space-3); }
+.flow { display: grid; grid-template-columns: repeat(3, 760px); gap: var(--space-12) var(--space-8); align-items: start; }
+figure { margin: 0; min-width: 0; }
+figcaption h2 { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-medium); }
+figcaption { margin-bottom: var(--space-4); }
+.notes { margin-top: var(--space-3); color: var(--text-metadata); max-width: 720px; }
+.caption { margin: var(--space-4) 0 var(--space-2); color: var(--text-subtle); }
+svg { width: var(--size-icon); height: var(--size-icon); }
+.viewport { position: relative; width: 760px; height: 512px; overflow: clip; background: var(--bg-app); box-shadow: var(--shadow-panel); font-family: var(--font-system-sans); font-variant-numeric: tabular-nums; }
+.viewer-panel { position: absolute; inset: var(--space-2); display: flex; flex-direction: column; overflow: clip; border-radius: var(--radius-container); background: var(--surface-panel); }
+.board-head, .trail, .zoom, .board-tools, .history, .right, .row-end, .actions { display: flex; align-items: center; }
+.board-head { position: relative; z-index: 3; flex: none; min-height: var(--size-chrome); gap: var(--space-2); padding: var(--space-2) var(--space-4); }
+.trail { gap: var(--space-2); min-width: 0; }
+.crumb { display: inline-flex; align-items: center; gap: var(--space-1h); padding-left: var(--space-2); color: var(--text-subtle); }
+.thumb { display: grid; place-items: center; width: var(--size-icon); height: var(--size-icon); font-size: 10px; font-weight: var(--type-weight-semibold); line-height: var(--size-icon); border-radius: var(--radius-thumbnail); background: color-mix(in srgb,var(--identity-project-teal) 14%,var(--surface-panel)); color: color-mix(in srgb,var(--identity-project-teal) 65%,var(--text-standard)); }
+.slash { color: var(--text-metadata); }
+.trigger, .play-anchor { position: relative; display: inline-flex; }
+.zoom { margin-left: auto; gap: var(--space-half); }
+.zoom .value { min-width: var(--size-row); }
+.sep { width: 1px; height: var(--space-5); margin-inline: var(--space-1); background: var(--border-standard); }
+.board { position: relative; flex: 1; min-height: 0; background: var(--surface-inset); overflow: clip; }
+.strip { height: 100%; display: flex; align-items: flex-start; justify-content: center; gap: var(--space-8); padding-top: var(--space-10); }
+.mini { flex: none; position: relative; width: 195px; }
+.screen-label { color: var(--mock-ink-2); margin-bottom: var(--space-2); }
+.mini-box { height: 260px; position: relative; background: var(--mock-bg); box-shadow: var(--shadow-panel); }
+.mini-box.selected { outline: 1.5px solid var(--affordance-accent); }
+.mini-box .shop { width: 390px; height: 520px; transform: scale(.5); transform-origin: top left; }
+.dims { position: absolute; top: calc(100% + 6.5px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-1); height: var(--size-control-xs); border-radius: var(--radius-chip); box-shadow: var(--shadow-sm); background: var(--affordance-accent); color: var(--text-on-accent); white-space: nowrap; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.dims .doan-icon-button { color: inherit; }
+.board-tools { position: absolute; bottom: var(--space-5); left: 50%; transform: translateX(-50%); gap: var(--space-half); }
+.board-tools [aria-pressed="true"], .board-tools [aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
+.drawer { position: absolute; z-index: 4; width: 320px; }
+.trigger .drawer { top: calc(100% + var(--space-1)); left: 0; }
+.play-anchor > .drawer, .play-anchor > .blocked { bottom: calc(100% + var(--space-1)); left: 50%; transform: translateX(-50%); }
+.row-num { min-width: var(--space-6); color: var(--text-metadata); }
+.row-end { margin-left: auto; gap: var(--space-2); color: var(--text-metadata); }
+.row-end svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.blocked { position: absolute; width: 320px; padding: var(--space-3) var(--space-4); display: flex; gap: var(--space-2); align-items: flex-start; }
+.blocked svg { margin-top: var(--space-half); color: var(--text-warning); }
+.samples { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-4); }
+.sample { min-width: 0; flex: 1; }
+.sample .doan-floating { max-width: 100%; }
+/* Player geometry from the shipped header, with browser window controls outside the content viewport. */
+.player { container: player / inline-size; display: flex; flex-direction: column; padding: 0 var(--space-2) var(--space-2); }
+.player.narrow { width: 360px; }
+.player-head { height: var(--size-chrome); flex: none; display: flex; align-items: center; gap: var(--space-10); padding-inline: var(--space-2); position: relative; }
+.history, .right { flex: none; gap: var(--space-1); }
+.right { margin-left: auto; }
+.frame-name { display: flex; align-items: center; justify-content: center; flex: 1; min-width: 0; height: 36px; padding: 0 10px; gap: var(--space-2); border-radius: var(--radius-control); background: var(--affordance-backdrop-hover); color: var(--text-subtle); }
+.frame-name span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.player-head [aria-disabled="true"] { color: var(--text-disabled); }
+@container player (width < 424px) {
+  .player-head { margin-bottom: calc(36px + var(--space-2)); }
+  .frame-name { position: absolute; top: var(--size-chrome); left: 0; right: 0; }
+}
+.stage { flex: 1; min-height: 0; display: grid; place-items: center; position: relative; isolation: isolate; overflow: clip; background: var(--surface-panel); border-radius: var(--radius-container); }
+.stage.fit { background: var(--surface-inset); }
+.fit-box { width: 336px; height: 448px; overflow: clip; box-shadow: var(--shadow-panel); }
+.fit-box .shop { width: 390px; height: 520px; transform: scale(calc(448 / 520)); transform-origin: top left; }
+.stage > .shop { width: 100%; height: 100%; }
+.scene { position: absolute; inset: 0; display: grid; align-content: center; justify-items: center; gap: var(--space-3); padding: var(--space-6); text-align: center; background: color-mix(in srgb,var(--surface-panel) 60%,transparent); backdrop-filter: blur(var(--blur-sm)); }
+.scene > svg { width: var(--size-control-sm); height: var(--size-control-sm); color: var(--text-subtle); stroke-width: 1.5; }
+.scene h3 { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-medium); }
+.actions { gap: var(--space-2); }
+.result { position: absolute; right: var(--space-4); bottom: var(--space-4); width: min(384px,calc(100% - 2 * var(--space-4))); box-shadow: var(--shadow-floating); }
+.reading { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-subtle); }
+.sample .doan-toast { width: 100%; }
+.compare { display: flex; align-items: flex-start; gap: var(--space-6); }
+/* Illustrative bookshop inside the canvas. Both modes use the same form data. */
+.shop { container-type: inline-size; overflow: auto; background: var(--mock-bg); color: var(--mock-ink); font-family: var(--type-family); }
+.mast { display: flex; align-items: center; justify-content: space-between; padding: var(--space-4) var(--space-6); border-bottom: 1px solid var(--mock-line); }
+.wordmark { display: inline-flex; align-items: center; gap: var(--space-2); font-weight: var(--type-weight-semibold); }
+.small, .shop label, .shop-footer { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.mast > .small, .book-info small, .shop-footer { color: var(--mock-ink-2); }
+.order { display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-6); padding: var(--space-6); }
+.order h3 { margin-bottom: var(--space-4); font-family: Georgia,serif; font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-regular); }
+.product { display: flex; align-items: center; gap: var(--space-4); }
+.cover { display: flex; flex: none; flex-direction: column; justify-content: space-between; position: relative; overflow: clip; width: var(--size-row); height: 94px; padding: var(--space-2); background: var(--mock-brand); color: var(--mock-brand-ink); font-family: Georgia,serif; }
+.cover b { line-height: 1; font-weight: normal; }
+.cover::after { content: ''; position: absolute; bottom: -25%; right: -30%; width: 100%; aspect-ratio: 1; border-radius: 50%; background: repeating-radial-gradient(circle,transparent 0 var(--space-1),var(--mock-brand-ink) var(--space-1) calc(var(--space-1) + 1px)); }
+.book-info { display: grid; gap: var(--space-1); }
+.total { display: flex; justify-content: space-between; margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--mock-line); }
+.shop label { display: grid; gap: var(--space-1); margin-top: var(--space-3); }
+.shop input { font: inherit; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); width: 100%; height: var(--size-control); padding: 0 var(--space-3); border: 1px solid var(--mock-line); border-radius: var(--radius-word); color: var(--mock-ink); background: var(--mock-bg); }
+.cta { display: flex; width: 100%; justify-content: space-between; align-items: center; margin-top: var(--space-4); padding: var(--space-2) var(--space-4); min-height: var(--size-control); background: var(--mock-ink); color: var(--mock-bg); border-radius: var(--radius-word); }
+.shop-footer { padding: var(--space-3) var(--space-6); border-top: 1px solid var(--mock-line); }
+@container (min-width: 540px) { .order { grid-template-columns: 1fr 1fr; gap: var(--space-8); padding: var(--space-8); } }
+.paper { padding: var(--space-6); }
+.paper .print { display: grid; place-items: center; min-height: 170px; margin: var(--space-5) 0; background: var(--mock-fill); color: var(--mock-ink); }
+.print .cover { transform: rotate(-8deg); }
+.paper h3 { font: normal var(--type-title-size)/var(--type-title-line-height) Georgia,serif; letter-spacing: var(--type-title-letter-spacing); }
+.paper p { margin-top: var(--space-2); }
+.player-head > .drawer { top: calc(var(--size-chrome) + 36px + var(--space-1)); left: 50%; transform: translateX(-50%); }
+.player-head:has(.drawer) { z-index: 2; }
+.frame-name[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
+.reading .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); }
+</style>
+</head>
+<body>
+<!-- Icons from the repository's lucide-react package. -->
+<svg aria-hidden="true" style="position:absolute;width:0;height:0"><defs>
+<symbol id="i-ArrowLeft" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></symbol>
+<symbol id="i-ArrowRight" viewBox="0 0 24 24"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></symbol>
+<symbol id="i-RotateCw" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path></symbol>
+<symbol id="i-ChevronDown" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></symbol>
+<symbol id="i-Proportions" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"></rect><path d="M12 9v11"></path><path d="M2 9h13a2 2 0 0 1 2 2v9"></path></symbol>
+<symbol id="i-Expand" viewBox="0 0 24 24"><path d="m15 15 6 6"></path><path d="m15 9 6-6"></path><path d="M21 16v5h-5"></path><path d="M21 8V3h-5"></path><path d="M3 16v5h5"></path><path d="m3 21 6-6"></path><path d="M3 8V3h5"></path><path d="M9 9 3 3"></path></symbol>
+<symbol id="i-Download" viewBox="0 0 24 24"><path d="M12 15V3"></path><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="m7 10 5 5 5-5"></path></symbol>
+<symbol id="i-SlidersHorizontal" viewBox="0 0 24 24"><path d="M10 5H3"></path><path d="M12 19H3"></path><path d="M14 3v4"></path><path d="M16 17v4"></path><path d="M21 12h-9"></path><path d="M21 19h-5"></path><path d="M21 5h-7"></path><path d="M8 10v4"></path><path d="M8 12H3"></path></symbol>
+<symbol id="i-PanelsTopLeft" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></symbol>
+<symbol id="i-Eye" viewBox="0 0 24 24"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path><circle cx="12" cy="12" r="3"></circle></symbol>
+<symbol id="i-Play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"></path></symbol>
+<symbol id="i-MousePointer2" viewBox="0 0 24 24"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"></path></symbol>
+<symbol id="i-Hand" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"></path><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"></path><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"></path><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"></path></symbol>
+<symbol id="i-Minus" viewBox="0 0 24 24"><path d="M5 12h14"></path></symbol>
+<symbol id="i-Plus" viewBox="0 0 24 24"><path d="M5 12h14"></path><path d="M12 5v14"></path></symbol>
+<symbol id="i-TriangleAlert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></symbol>
+<symbol id="i-CircleCheck" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="m16 9-5.5 5.5L8 12"></path></symbol>
+<symbol id="i-BookOpen" viewBox="0 0 24 24"><path d="M12 5v16"></path><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"></path></symbol>
+<symbol id="i-Layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"></path><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"></path><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"></path></symbol>
+<symbol id="i-ExternalLink" viewBox="0 0 24 24"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></symbol>
+<symbol id="i-ShoppingBag" viewBox="0 0 24 24"><path d="M16 10a4 4 0 0 1-8 0"></path><path d="M3.103 6.034h17.794"></path><path d="M3.4 5.467a2 2 0 0 0-.4 1.2V20a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6.667a2 2 0 0 0-.4-1.2l-2-2.667A2 2 0 0 0 17 2H7a2 2 0 0 0-1.6.8z"></path></symbol>
+<symbol id="i-CircleAlert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></symbol>
+</defs></svg>
+<main class="sheet">
+<header class="intro"><h1>Export prototype player</h1>
+<p>Open a shared canvas, play a frame in a second window, then download its linked flow. All nine frames show proposed browser behavior, pending implementation. Compare all nine during design-sync.</p>
+<small>Checked against the shipped export viewer, PrototypeWindow, docs/design/canvas.md and docs/design/prototype.md. The selection bubble, menus, history controls, viewport toggle and status surfaces follow Doan. Folio Press is example canvas content.</small></header>
+<div class="flow">
+<figure data-doan-frame="board-selection" data-doan-title="Select on the board" data-doan-implements="cli/internal/export/viewer/shell.html">
+<figcaption><h2>Select on the board</h2><p class="description">The inspector is folded. Play appears on the selected frame and in the toolbar.</p></figcaption>
+<div class="viewport" data-doan-id="board-selection-viewport">
+<div class="viewer-panel">
+<header class="board-head" data-doan-id="board-selection-header">
+<nav class="trail" aria-label="Breadcrumb"><span class="crumb"><span class="thumb">F</span> folio</span><span class="slash">/</span><span class="crumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-PanelsTopLeft"/></svg> print-shop</span><span class="slash">/</span>
+<div class="trigger">
+<button class="doan-button" data-ui-variant="trigger" data-ui-size="sm" aria-expanded="false" aria-haspopup="listbox">2. Checkout <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ChevronDown"/></svg></button></div>
+</nav>
+ <div class="zoom">
+<button data-doan-id="board-selection-zoom-out" type="button" class="doan-icon-button " aria-label="Zoom out" ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Minus"/></svg></button>
+<button class="doan-button value" data-ui-size="sm" data-ui-variant="trigger">50% <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ChevronDown"/></svg></button>
+<button data-doan-id="board-selection-zoom-in" type="button" class="doan-icon-button " aria-label="Zoom in" ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Plus"/></svg></button><span class="sep"></span>
+<button data-doan-id="board-selection-show-inspector" type="button" class="doan-icon-button " aria-label="Show inspector" ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-SlidersHorizontal"/></svg></button></div>
+</header>
+<div class="board">
+<div class="strip">
+<div class="mini">
+<div class="screen-label">1. Edition notes</div>
+<div class="mini-box">
+<div class="shop">
+<header class="mast"><b class="wordmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-BookOpen"/></svg> Folio Press</b><span class="small">Bookshop</span>
+</header>
+<div class="paper">
+<div class="small">PRINT EDITION</div><h3>Field Forms</h3>
+<div class="print">
+<div class="cover" aria-hidden="true"><b>Field<br>Forms</b></div></div><p>A study of form in print.</p></div></div></div></div>
+<div class="mini">
+<div class="screen-label">2. Checkout</div>
+<div class="mini-box selected">
+<div class="shop">
+<header class="mast"><b class="wordmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-BookOpen"/></svg> Folio Press</b><span class="small">Bookshop</span>
+</header>
+<div class="order">
+    <div><h3>Your order</h3>
+<div class="product">
+<div class="cover" aria-hidden="true"><b>Field<br>Forms</b></div>
+<div class="book-info"><strong>Field Forms</strong><small>Print edition · 1 copy</small></div></div>
+<div class="total"><span>Total</span><strong>$24.00</strong></div></div>
+    <div><strong>Contact details</strong>
+<label>Email address<input value="alex@example.com" readonly></label>
+<button class="cta" type="button">Confirm order <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowRight"/></svg></button></div>
+  </div>
+<footer class="shop-footer">Folio Press · Independent editions</footer></div>
+<div class="dims" data-doan-id="board-selection-size-bubble">
+<button type="button" class="doan-icon-button " aria-label="Play prototype" data-ui-size="xs" data-doan-id="board-selection-bubble-play"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Play"/></svg></button><span>390 × 520</span>
+<button data-doan-id="board-selection-show-inspector-2" type="button" class="doan-icon-button " aria-label="Show inspector" data-ui-size="xs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-SlidersHorizontal"/></svg></button></div></div></div>
+<div class="mini">
+<div class="screen-label">3. Receipt</div>
+<div class="mini-box">
+<div class="shop">
+<header class="mast"><b class="wordmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-BookOpen"/></svg> Folio Press</b><span class="small">Bookshop</span>
+</header>
+<div class="paper">
+<div class="small">ORDER 1048</div><h3>Thank you.</h3><p>Your copy of Field Forms is reserved.</p>
+<div class="print">
+<div class="cover" aria-hidden="true"><b>Field<br>Forms</b></div></div>
+<div class="total"><span>Order total</span><strong>$24.00</strong></div></div></div></div></div></div>
+<div role="toolbar" aria-label="Canvas tools" class="doan-floating board-tools">
+<button data-doan-id="board-selection-select" type="button" class="doan-icon-button " aria-label="Select" data-ui-size="md" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-MousePointer2"/></svg></button>
+<button data-doan-id="board-selection-hand" type="button" class="doan-icon-button " aria-label="Hand" data-ui-size="md" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Hand"/></svg></button><span class="sep"></span>
+<div class="play-anchor">
+<button type="button" class="doan-icon-button " aria-label="Play prototype" data-ui-size="md" data-doan-id="board-selection-toolbar-play"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Play"/></svg></button></div></div></div></div></div>
+<p class="notes">Option-click uses the canvas control. Esc steps out one level. If the focused bubble Play disappears, focus moves to toolbar Play.</p>
+</figure>
+<figure data-doan-frame="frame-drawer" data-doan-title="Browse canvas frames" data-doan-implements="cli/internal/export/viewer/shell.html">
+<figcaption><h2>Browse canvas frames</h2><p class="description">Choose a row to fit that frame on the board. The eye marks the frame in view.</p></figcaption>
+<div class="viewport" data-doan-id="frame-drawer-viewport">
+<div class="viewer-panel">
+<header class="board-head" data-doan-id="frame-drawer-header">
+<nav class="trail" aria-label="Breadcrumb"><span class="crumb"><span class="thumb">F</span> folio</span><span class="slash">/</span><span class="crumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-PanelsTopLeft"/></svg> print-shop</span><span class="slash">/</span>
+<div class="trigger">
+<button class="doan-button" data-ui-variant="trigger" data-ui-size="sm" aria-expanded="true" aria-haspopup="listbox">2. Checkout <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ChevronDown"/></svg></button>
+<div class="drawer doan-floating doan-menu" role="listbox" aria-label="Frames in print-shop" data-doan-id="frame-drawer-drawer">
+<div class="doan-menu-item" role="option" aria-selected="false" tabindex="-1" ><span class="row-num">1</span><span>Edition notes</span><span class="row-end" data-doan-id="frame-drawer-frame-1-marks"></span></div>
+<div class="doan-menu-item" role="option" aria-selected="true" tabindex="0" aria-current="location" data-highlighted><span class="row-num">2</span><span>Checkout</span><span class="row-end" data-doan-id="frame-drawer-frame-2-marks"><span aria-label="Viewing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Eye"/></svg></span><span aria-label="Prototype supported"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Play"/></svg></span></span></div>
+<div class="doan-menu-item" role="option" aria-selected="false" tabindex="-1" ><span class="row-num">3</span><span>Receipt</span><span class="row-end" data-doan-id="frame-drawer-frame-3-marks"><span aria-label="Prototype supported"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Play"/></svg></span></span></div>
+<div class="doan-menu-item" role="option" aria-selected="false" tabindex="-1" ><span class="row-num">4</span><span>Gift receipt</span><span class="row-end" data-doan-id="frame-drawer-frame-4-marks"><span aria-label="Prototype supported"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Play"/></svg></span></span></div></div></div>
+</nav>
+ <div class="zoom">
+<button data-doan-id="frame-drawer-zoom-out" type="button" class="doan-icon-button " aria-label="Zoom out" ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Minus"/></svg></button>
+<button class="doan-button value" data-ui-size="sm" data-ui-variant="trigger">50% <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ChevronDown"/></svg></button>
+<button data-doan-id="frame-drawer-zoom-in" type="button" class="doan-icon-button " aria-label="Zoom in" ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Plus"/></svg></button><span class="sep"></span>
+<button data-doan-id="frame-drawer-show-inspector" type="button" class="doan-icon-button " aria-label="Show inspector" ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-SlidersHorizontal"/></svg></button></div>
+</header>
+<div class="board">
+<div class="strip">
+<div class="mini">
+<div class="screen-label">1. Edition notes</div>
+<div class="mini-box">
+<div class="shop">
+<header class="mast"><b class="wordmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-BookOpen"/></svg> Folio Press</b><span class="small">Bookshop</span>
+</header>
+<div class="paper">
+<div class="small">PRINT EDITION</div><h3>Field Forms</h3>
+<div class="print">
+<div class="cover" aria-hidden="true"><b>Field<br>Forms</b></div></div><p>A study of form in print.</p></div></div></div></div>
+<div class="mini">
+<div class="screen-label">2. Checkout</div>
+<div class="mini-box selected">
+<div class="shop">
+<header class="mast"><b class="wordmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-BookOpen"/></svg> Folio Press</b><span class="small">Bookshop</span>
+</header>
+<div class="order">
+    <div><h3>Your order</h3>
+<div class="product">
+<div class="cover" aria-hidden="true"><b>Field<br>Forms</b></div>
+<div class="book-info"><strong>Field Forms</strong><small>Print edition · 1 copy</small></div></div>
+<div class="total"><span>Total</span><strong>$24.00</strong></div></div>
+    <div><strong>Contact details</strong>
+<label>Email address<input value="alex@example.com" readonly></label>
+<button class="cta" type="button">Confirm order <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowRight"/></svg></button></div>
+  </div>
+<footer class="shop-footer">Folio Press · Independent editions</footer></div>
+<div class="dims" data-doan-id="frame-drawer-size-bubble">
+<button type="button" class="doan-icon-button " aria-label="Play prototype" data-ui-size="xs" data-doan-id="frame-drawer-bubble-play"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Play"/></svg></button><span>390 × 520</span>
+<button data-doan-id="frame-drawer-show-inspector-2" type="button" class="doan-icon-button " aria-label="Show inspector" data-ui-size="xs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-SlidersHorizontal"/></svg></button></div></div></div>
+<div class="mini">
+<div class="screen-label">3. Receipt</div>
+<div class="mini-box">
+<div class="shop">
+<header class="mast"><b class="wordmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-BookOpen"/></svg> Folio Press</b><span class="small">Bookshop</span>
+</header>
+<div class="paper">
+<div class="small">ORDER 1048</div><h3>Thank you.</h3><p>Your copy of Field Forms is reserved.</p>
+<div class="print">
+<div class="cover" aria-hidden="true"><b>Field<br>Forms</b></div></div>
+<div class="total"><span>Order total</span><strong>$24.00</strong></div></div></div></div></div></div>
+<div role="toolbar" aria-label="Canvas tools" class="doan-floating board-tools">
+<button data-doan-id="frame-drawer-select" type="button" class="doan-icon-button " aria-label="Select" data-ui-size="md" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-MousePointer2"/></svg></button>
+<button data-doan-id="frame-drawer-hand" type="button" class="doan-icon-button " aria-label="Hand" data-ui-size="md" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Hand"/></svg></button><span class="sep"></span>
+<div class="play-anchor">
+<button type="button" class="doan-icon-button " aria-label="Play prototype" data-ui-size="md" data-doan-id="frame-drawer-toolbar-play"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Play"/></svg></button></div></div></div></div></div>
+<div class="samples">
+<div class="sample"><h3 class="caption">Empty canvas</h3>
+<div class="doan-floating doan-menu" style="width:320px">
+<div class="doan-menu-item" data-disabled aria-disabled="true">No frames</div></div></div></div>
+</figure>
+<figure data-doan-frame="play-drawer" data-doan-title="Choose a prototype" data-doan-implements="cli/internal/export/viewer/shell.html">
+<figcaption><h2>Choose a prototype</h2><p class="description">With no selection, Play opens the list. Choosing a frame starts playback and keeps the board view.</p></figcaption>
+<div class="viewport" data-doan-id="play-drawer-viewport">
+<div class="viewer-panel">
+<header class="board-head" data-doan-id="play-drawer-header">
+<nav class="trail" aria-label="Breadcrumb"><span class="crumb"><span class="thumb">F</span> folio</span><span class="slash">/</span><span class="crumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-PanelsTopLeft"/></svg> print-shop</span><span class="slash">/</span>
+<div class="trigger">
+<button class="doan-button" data-ui-variant="trigger" data-ui-size="sm" aria-expanded="false" aria-haspopup="listbox">2. Checkout <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ChevronDown"/></svg></button></div>
+</nav>
+ <div class="zoom">
+<button data-doan-id="play-drawer-zoom-out" type="button" class="doan-icon-button " aria-label="Zoom out" ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Minus"/></svg></button>
+<button class="doan-button value" data-ui-size="sm" data-ui-variant="trigger">50% <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ChevronDown"/></svg></button>
+<button data-doan-id="play-drawer-zoom-in" type="button" class="doan-icon-button " aria-label="Zoom in" ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Plus"/></svg></button><span class="sep"></span>
+<button data-doan-id="play-drawer-show-inspector" type="button" class="doan-icon-button " aria-label="Show inspector" ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-SlidersHorizontal"/></svg></button></div>
+</header>
+<div class="board">
+<div class="strip">
+<div class="mini">
+<div class="screen-label">1. Edition notes</div>
+<div class="mini-box">
+<div class="shop">
+<header class="mast"><b class="wordmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-BookOpen"/></svg> Folio Press</b><span class="small">Bookshop</span>
+</header>
+<div class="paper">
+<div class="small">PRINT EDITION</div><h3>Field Forms</h3>
+<div class="print">
+<div class="cover" aria-hidden="true"><b>Field<br>Forms</b></div></div><p>A study of form in print.</p></div></div></div></div>
+<div class="mini">
+<div class="screen-label">2. Checkout</div>
+<div class="mini-box">
+<div class="shop">
+<header class="mast"><b class="wordmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-BookOpen"/></svg> Folio Press</b><span class="small">Bookshop</span>
+</header>
+<div class="order">
+    <div><h3>Your order</h3>
+<div class="product">
+<div class="cover" aria-hidden="true"><b>Field<br>Forms</b></div>
+<div class="book-info"><strong>Field Forms</strong><small>Print edition · 1 copy</small></div></div>
+<div class="total"><span>Total</span><strong>$24.00</strong></div></div>
+    <div><strong>Contact details</strong>
+<label>Email address<input value="alex@example.com" readonly></label>
+<button class="cta" type="button">Confirm order <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowRight"/></svg></button></div>
+  </div>
+<footer class="shop-footer">Folio Press · Independent editions</footer></div></div></div>
+<div class="mini">
+<div class="screen-label">3. Receipt</div>
+<div class="mini-box">
+<div class="shop">
+<header class="mast"><b class="wordmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-BookOpen"/></svg> Folio Press</b><span class="small">Bookshop</span>
+</header>
+<div class="paper">
+<div class="small">ORDER 1048</div><h3>Thank you.</h3><p>Your copy of Field Forms is reserved.</p>
+<div class="print">
+<div class="cover" aria-hidden="true"><b>Field<br>Forms</b></div></div>
+<div class="total"><span>Order total</span><strong>$24.00</strong></div></div></div></div></div></div>
+<div role="toolbar" aria-label="Canvas tools" class="doan-floating board-tools">
+<button data-doan-id="play-drawer-select" type="button" class="doan-icon-button " aria-label="Select" data-ui-size="md" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-MousePointer2"/></svg></button>
+<button data-doan-id="play-drawer-hand" type="button" class="doan-icon-button " aria-label="Hand" data-ui-size="md" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Hand"/></svg></button><span class="sep"></span>
+<div class="play-anchor">
+<button type="button" class="doan-icon-button " aria-label="Play prototype" data-ui-size="md" data-doan-id="play-drawer-toolbar-play" aria-haspopup="listbox" aria-expanded="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Play"/></svg></button>
+<div class="drawer doan-floating doan-menu" role="listbox" aria-label="Prototype frames in print-shop" data-doan-id="play-drawer-drawer">
+<div role="group" aria-label="Checkout and 1 more">
+<div class="doan-menu-item" role="option" aria-selected="false" tabindex="-1" ><span class="row-num">2</span><span>Checkout</span><span class="row-end" data-doan-id="play-drawer-frame-2-marks"></span></div>
+<div class="doan-menu-item" role="option" aria-selected="true" tabindex="0" aria-current="location" data-highlighted><span class="row-num">3</span><span>Receipt</span><span class="row-end" data-doan-id="play-drawer-frame-3-marks"><span aria-label="Playing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Eye"/></svg></span></span></div></div>
+<div class="doan-menu-sep" role="presentation"></div>
+<div role="group" aria-label="Frames without links">
+<div class="doan-menu-item" role="option" aria-selected="false" tabindex="-1" ><span class="row-num">4</span><span>Gift receipt</span><span class="row-end" data-doan-id="play-drawer-frame-4-marks"></span></div></div></div></div></div></div></div></div>
+<div class="samples">
+<div class="sample"><h3 class="caption">Canvas loading</h3>
+<div class="reading">
+<button data-doan-id="play-drawer-play-prototype" type="button" class="doan-icon-button " aria-label="Play prototype" data-ui-size="md" aria-disabled="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Play"/></svg></button><span>Play isn’t available while the canvas can’t be shown.</span></div></div>
+<div class="sample"><h3 class="caption">No playable frames</h3>
+<div class="reading">
+<button data-doan-id="play-drawer-play-prototype-2" type="button" class="doan-icon-button " aria-label="Play prototype" data-ui-size="md" aria-disabled="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Play"/></svg></button><span>No frames in this canvas are marked for prototyping.</span></div></div></div>
+</figure>
+<figure data-doan-frame="player-fit" data-doan-title="Fit the marked viewport" data-doan-implements="cli/internal/export/assemble.go">
+<figcaption><h2>Fit the marked viewport</h2><p class="description">Checkout keeps its 390 × 520 layout. Fit scales it down to 336 × 448 inside this window.</p></figcaption>
+<div class="viewport player" data-doan-id="player-fit-viewport">
+<header class="player-head" data-doan-id="player-fit-player-header">
+<div class="history">
+<button data-doan-id="player-fit-back" type="button" class="doan-icon-button " aria-label="Back" data-ui-placement="chrome" aria-disabled="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowLeft"/></svg></button>
+<button data-doan-id="player-fit-forward" type="button" class="doan-icon-button " aria-label="Forward" data-ui-placement="chrome" aria-disabled="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowRight"/></svg></button>
+<button data-doan-id="player-fit-reload-prototype" type="button" class="doan-icon-button " aria-label="Reload prototype" data-ui-placement="chrome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-RotateCw"/></svg></button></div>
+<button class="frame-name" aria-haspopup="listbox" aria-expanded="false" data-doan-id="player-fit-frame-name"><span>Checkout</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ChevronDown"/></svg></button>
+<div class="right">
+<div class="doan-toggle-group" role="group" aria-label="Viewport">
+<button data-doan-id="player-fit-fit" type="button" class="doan-icon-button " aria-label="Fit" data-ui-placement="chrome" aria-pressed="true" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Proportions"/></svg></button>
+<button data-doan-id="player-fit-responsive" type="button" class="doan-icon-button " aria-label="Responsive" data-ui-placement="chrome" aria-pressed="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Expand"/></svg></button></div>
+<button data-doan-id="player-fit-export-prototype" type="button" class="doan-icon-button " aria-label="Export prototype" data-ui-placement="chrome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Download"/></svg></button></div>
+</header>
+<div class="stage fit" data-doan-id="player-fit-content">
+<div class="fit-box">
+<div class="shop">
+<header class="mast"><b class="wordmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-BookOpen"/></svg> Folio Press</b><span class="small">Bookshop</span>
+</header>
+<div class="order">
+    <div><h3>Your order</h3>
+<div class="product">
+<div class="cover" aria-hidden="true"><b>Field<br>Forms</b></div>
+<div class="book-info"><strong>Field Forms</strong><small>Print edition · 1 copy</small></div></div>
+<div class="total"><span>Total</span><strong>$24.00</strong></div></div>
+    <div><strong>Contact details</strong>
+<label>Email address<input value="alex@example.com" readonly></label>
+<button class="cta" type="button">Confirm order <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowRight"/></svg></button></div>
+  </div>
+<footer class="shop-footer">Folio Press · Independent editions</footer></div></div></div></div>
+<p class="notes">One play window per board. Reopening the current frame keeps its input and scroll position.</p>
+</figure>
+<figure data-doan-frame="player-responsive" data-doan-title="Resize the prototype" data-doan-implements="cli/internal/export/assemble.go">
+<figcaption><h2>Resize the prototype</h2><p class="description">The same checkout now uses the full 744 × 448 panel. Its email field keeps the value entered in Fit.</p></figcaption>
+<div class="viewport player" data-doan-id="player-responsive-viewport">
+<header class="player-head" data-doan-id="player-responsive-player-header">
+<div class="history">
+<button data-doan-id="player-responsive-back" type="button" class="doan-icon-button " aria-label="Back" data-ui-placement="chrome" aria-disabled="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowLeft"/></svg></button>
+<button data-doan-id="player-responsive-forward" type="button" class="doan-icon-button " aria-label="Forward" data-ui-placement="chrome" aria-disabled="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowRight"/></svg></button>
+<button data-doan-id="player-responsive-reload-prototype" type="button" class="doan-icon-button " aria-label="Reload prototype" data-ui-placement="chrome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-RotateCw"/></svg></button></div>
+<button class="frame-name" aria-haspopup="listbox" aria-expanded="false" data-doan-id="player-responsive-frame-name"><span>Checkout</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ChevronDown"/></svg></button>
+<div class="right">
+<div class="doan-toggle-group" role="group" aria-label="Viewport">
+<button data-doan-id="player-responsive-fit" type="button" class="doan-icon-button " aria-label="Fit" data-ui-placement="chrome" aria-pressed="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Proportions"/></svg></button>
+<button data-doan-id="player-responsive-responsive" type="button" class="doan-icon-button " aria-label="Responsive" data-ui-placement="chrome" aria-pressed="true" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Expand"/></svg></button></div>
+<button data-doan-id="player-responsive-export-prototype" type="button" class="doan-icon-button " aria-label="Export prototype" data-ui-placement="chrome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Download"/></svg></button></div>
+</header>
+<div class="stage" data-doan-id="player-responsive-content">
+<div class="shop">
+<header class="mast"><b class="wordmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-BookOpen"/></svg> Folio Press</b><span class="small">Bookshop</span>
+</header>
+<div class="order">
+    <div><h3>Your order</h3>
+<div class="product">
+<div class="cover" aria-hidden="true"><b>Field<br>Forms</b></div>
+<div class="book-info"><strong>Field Forms</strong><small>Print edition · 1 copy</small></div></div>
+<div class="total"><span>Total</span><strong>$24.00</strong></div></div>
+    <div><strong>Contact details</strong>
+<label>Email address<input value="alex@example.com" readonly></label>
+<button class="cta" type="button">Confirm order <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowRight"/></svg></button></div>
+  </div>
+<footer class="shop-footer">Folio Press · Independent editions</footer></div></div></div>
+<p class="notes">The board may close while the player stays open. This window keeps its links and can still download the frame on screen.</p>
+</figure>
+<figure data-doan-frame="player-narrow" data-doan-title="Use a narrow window" data-doan-implements="cli/internal/export/assemble.go">
+<figcaption><h2>Use a narrow window</h2><p class="description">At 360 px, the name moves below the controls. Its menu stays reachable.</p></figcaption>
+<div class="compare">
+<div class="viewport player narrow" data-doan-id="player-narrow-viewport">
+<header class="player-head" data-doan-id="player-narrow-player-header">
+<div class="history">
+<button data-doan-id="player-narrow-back" type="button" class="doan-icon-button " aria-label="Back" data-ui-placement="chrome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowLeft"/></svg></button>
+<button data-doan-id="player-narrow-forward" type="button" class="doan-icon-button " aria-label="Forward" data-ui-placement="chrome" aria-disabled="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowRight"/></svg></button>
+<button data-doan-id="player-narrow-reload-prototype" type="button" class="doan-icon-button " aria-label="Reload prototype" data-ui-placement="chrome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-RotateCw"/></svg></button></div>
+<button class="frame-name" aria-haspopup="listbox" aria-expanded="false" data-doan-id="player-narrow-frame-name"><span>Order confirmation for the limited print edition of Field Forms</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ChevronDown"/></svg></button>
+<div class="right">
+<div class="doan-toggle-group" role="group" aria-label="Viewport">
+<button data-doan-id="player-narrow-fit" type="button" class="doan-icon-button " aria-label="Fit" data-ui-placement="chrome" aria-pressed="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Proportions"/></svg></button>
+<button data-doan-id="player-narrow-responsive" type="button" class="doan-icon-button " aria-label="Responsive" data-ui-placement="chrome" aria-pressed="true" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Expand"/></svg></button></div>
+<button data-doan-id="player-narrow-export-prototype" type="button" class="doan-icon-button " aria-label="Export prototype" data-ui-placement="chrome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Download"/></svg></button></div>
+</header>
+<div class="stage" data-doan-id="player-narrow-content">
+<div class="shop">
+<header class="mast"><b class="wordmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-BookOpen"/></svg> Folio Press</b><span class="small">Bookshop</span>
+</header>
+<div class="paper">
+<div class="small">ORDER 1048</div><h3>Thank you.</h3><p>Your copy of Field Forms is reserved.</p>
+<div class="print">
+<div class="cover" aria-hidden="true"><b>Field<br>Forms</b></div></div>
+<div class="total"><span>Order total</span><strong>$24.00</strong></div></div></div></div></div>
+<div class="viewport player narrow" data-doan-id="player-narrow-viewport-2">
+<header class="player-head" data-doan-id="player-narrow-player-header-2">
+<div class="history">
+<button data-doan-id="player-narrow-back-2" type="button" class="doan-icon-button " aria-label="Back" data-ui-placement="chrome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowLeft"/></svg></button>
+<button data-doan-id="player-narrow-forward-2" type="button" class="doan-icon-button " aria-label="Forward" data-ui-placement="chrome" aria-disabled="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowRight"/></svg></button>
+<button data-doan-id="player-narrow-reload-prototype-2" type="button" class="doan-icon-button " aria-label="Reload prototype" data-ui-placement="chrome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-RotateCw"/></svg></button></div>
+<button class="frame-name" aria-haspopup="listbox" aria-expanded="true" data-doan-id="player-narrow-frame-name-2"><span>Receipt</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ChevronDown"/></svg></button>
+<div class="right">
+<div class="doan-toggle-group" role="group" aria-label="Viewport">
+<button data-doan-id="player-narrow-fit-2" type="button" class="doan-icon-button " aria-label="Fit" data-ui-placement="chrome" aria-pressed="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Proportions"/></svg></button>
+<button data-doan-id="player-narrow-responsive-2" type="button" class="doan-icon-button " aria-label="Responsive" data-ui-placement="chrome" aria-pressed="true" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Expand"/></svg></button></div>
+<button data-doan-id="player-narrow-export-prototype-2" type="button" class="doan-icon-button " aria-label="Export prototype" data-ui-placement="chrome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Download"/></svg></button></div>
+<div class="drawer doan-floating doan-menu" role="listbox" aria-label="Prototype frames in print-shop" data-doan-id="player-narrow-drawer">
+<div role="group" aria-label="Checkout and 1 more">
+<div class="doan-menu-item" role="option" aria-selected="false" tabindex="-1" ><span class="row-num">2</span><span>Checkout</span><span class="row-end" data-doan-id="player-narrow-frame-2-marks"></span></div>
+<div class="doan-menu-item" role="option" aria-selected="true" tabindex="0" aria-current="location" data-highlighted><span class="row-num">3</span><span>Receipt</span><span class="row-end" data-doan-id="player-narrow-frame-3-marks"><span aria-label="Playing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Eye"/></svg></span></span></div></div>
+<div class="doan-menu-sep" role="presentation"></div>
+<div role="group" aria-label="Frames without links">
+<div class="doan-menu-item" role="option" aria-selected="false" tabindex="-1" ><span class="row-num">4</span><span>Gift receipt</span><span class="row-end" data-doan-id="player-narrow-frame-4-marks"></span></div></div></div>
+</header>
+<div class="stage" data-doan-id="player-narrow-content-2">
+<div class="shop">
+<header class="mast"><b class="wordmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-BookOpen"/></svg> Folio Press</b><span class="small">Bookshop</span>
+</header>
+<div class="paper">
+<div class="small">ORDER 1048</div><h3>Thank you.</h3><p>Your copy of Field Forms is reserved.</p>
+<div class="print">
+<div class="cover" aria-hidden="true"><b>Field<br>Forms</b></div></div>
+<div class="total"><span>Order total</span><strong>$24.00</strong></div></div></div></div></div></div>
+<p class="notes">The name uses the second row when the first would leave less than 120 px. Tab reaches the toggle once; arrow keys move between its buttons.</p>
+</figure>
+<figure data-doan-frame="play-blocked" data-doan-title="Recover from a blocked pop-up" data-doan-implements="cli/internal/export/viewer/shell.html">
+<figcaption><h2>Recover from a blocked pop-up</h2><p class="description">The notice sits above the Play button that opened it. The selection, zoom and scroll position stay in place.</p></figcaption>
+<div class="viewport" data-doan-id="play-blocked-viewport">
+<div class="viewer-panel">
+<header class="board-head" data-doan-id="play-blocked-header">
+<nav class="trail" aria-label="Breadcrumb"><span class="crumb"><span class="thumb">F</span> folio</span><span class="slash">/</span><span class="crumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-PanelsTopLeft"/></svg> print-shop</span><span class="slash">/</span>
+<div class="trigger">
+<button class="doan-button" data-ui-variant="trigger" data-ui-size="sm" aria-expanded="false" aria-haspopup="listbox">2. Checkout <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ChevronDown"/></svg></button></div>
+</nav>
+ <div class="zoom">
+<button data-doan-id="play-blocked-zoom-out" type="button" class="doan-icon-button " aria-label="Zoom out" ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Minus"/></svg></button>
+<button class="doan-button value" data-ui-size="sm" data-ui-variant="trigger">50% <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ChevronDown"/></svg></button>
+<button data-doan-id="play-blocked-zoom-in" type="button" class="doan-icon-button " aria-label="Zoom in" ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Plus"/></svg></button><span class="sep"></span>
+<button data-doan-id="play-blocked-show-inspector" type="button" class="doan-icon-button " aria-label="Show inspector" ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-SlidersHorizontal"/></svg></button></div>
+</header>
+<div class="board">
+<div class="strip">
+<div class="mini">
+<div class="screen-label">1. Edition notes</div>
+<div class="mini-box">
+<div class="shop">
+<header class="mast"><b class="wordmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-BookOpen"/></svg> Folio Press</b><span class="small">Bookshop</span>
+</header>
+<div class="paper">
+<div class="small">PRINT EDITION</div><h3>Field Forms</h3>
+<div class="print">
+<div class="cover" aria-hidden="true"><b>Field<br>Forms</b></div></div><p>A study of form in print.</p></div></div></div></div>
+<div class="mini">
+<div class="screen-label">2. Checkout</div>
+<div class="mini-box selected">
+<div class="shop">
+<header class="mast"><b class="wordmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-BookOpen"/></svg> Folio Press</b><span class="small">Bookshop</span>
+</header>
+<div class="order">
+    <div><h3>Your order</h3>
+<div class="product">
+<div class="cover" aria-hidden="true"><b>Field<br>Forms</b></div>
+<div class="book-info"><strong>Field Forms</strong><small>Print edition · 1 copy</small></div></div>
+<div class="total"><span>Total</span><strong>$24.00</strong></div></div>
+    <div><strong>Contact details</strong>
+<label>Email address<input value="alex@example.com" readonly></label>
+<button class="cta" type="button">Confirm order <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowRight"/></svg></button></div>
+  </div>
+<footer class="shop-footer">Folio Press · Independent editions</footer></div>
+<div class="dims" data-doan-id="play-blocked-size-bubble">
+<button type="button" class="doan-icon-button " aria-label="Play prototype" data-ui-size="xs" data-doan-id="play-blocked-bubble-play"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Play"/></svg></button><span>390 × 520</span>
+<button data-doan-id="play-blocked-show-inspector-2" type="button" class="doan-icon-button " aria-label="Show inspector" data-ui-size="xs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-SlidersHorizontal"/></svg></button></div></div></div>
+<div class="mini">
+<div class="screen-label">3. Receipt</div>
+<div class="mini-box">
+<div class="shop">
+<header class="mast"><b class="wordmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-BookOpen"/></svg> Folio Press</b><span class="small">Bookshop</span>
+</header>
+<div class="paper">
+<div class="small">ORDER 1048</div><h3>Thank you.</h3><p>Your copy of Field Forms is reserved.</p>
+<div class="print">
+<div class="cover" aria-hidden="true"><b>Field<br>Forms</b></div></div>
+<div class="total"><span>Order total</span><strong>$24.00</strong></div></div></div></div></div></div>
+<div role="toolbar" aria-label="Canvas tools" class="doan-floating board-tools">
+<button data-doan-id="play-blocked-select" type="button" class="doan-icon-button " aria-label="Select" data-ui-size="md" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-MousePointer2"/></svg></button>
+<button data-doan-id="play-blocked-hand" type="button" class="doan-icon-button " aria-label="Hand" data-ui-size="md" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Hand"/></svg></button><span class="sep"></span>
+<div class="play-anchor">
+<button type="button" class="doan-icon-button " aria-label="Play prototype" data-ui-size="md" data-doan-id="play-blocked-toolbar-play"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Play"/></svg></button>
+<div class="blocked doan-floating" data-doan-id="play-blocked-popup-notice" role="status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-CircleAlert"/></svg><span>Your browser blocked the prototype window. Allow pop-ups, then press Play again.</span></div></div></div></div></div></div>
+
+</figure>
+<figure data-doan-frame="player-failure" data-doan-title="Recover an unresponsive frame" data-doan-implements="cli/internal/export/assemble.go">
+<figcaption><h2>Recover an unresponsive frame</h2><p class="description">The player can still take input. Retry starts the same frame in a fresh document.</p></figcaption>
+<div class="viewport player" data-doan-id="player-failure-viewport">
+<header class="player-head" data-doan-id="player-failure-player-header">
+<div class="history">
+<button data-doan-id="player-failure-back" type="button" class="doan-icon-button " aria-label="Back" data-ui-placement="chrome" aria-disabled="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowLeft"/></svg></button>
+<button data-doan-id="player-failure-forward" type="button" class="doan-icon-button " aria-label="Forward" data-ui-placement="chrome" aria-disabled="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowRight"/></svg></button>
+<button data-doan-id="player-failure-reload-prototype" type="button" class="doan-icon-button " aria-label="Reload prototype" data-ui-placement="chrome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-RotateCw"/></svg></button></div>
+<button class="frame-name" aria-haspopup="listbox" aria-expanded="false" data-doan-id="player-failure-frame-name"><span>Checkout</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ChevronDown"/></svg></button>
+<div class="right">
+<div class="doan-toggle-group" role="group" aria-label="Viewport">
+<button data-doan-id="player-failure-fit" type="button" class="doan-icon-button " aria-label="Fit" data-ui-placement="chrome" aria-pressed="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Proportions"/></svg></button>
+<button data-doan-id="player-failure-responsive" type="button" class="doan-icon-button " aria-label="Responsive" data-ui-placement="chrome" aria-pressed="true" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Expand"/></svg></button></div>
+<button data-doan-id="player-failure-export-prototype" type="button" class="doan-icon-button " aria-label="Export prototype" data-ui-placement="chrome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Download"/></svg></button></div>
+</header>
+<div class="stage" data-doan-id="player-failure-content">
+<div class="scene" data-doan-id="player-failure-failure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-TriangleAlert"/></svg><h3>Couldn’t start this prototype</h3><p>The frame didn’t finish loading within 10 seconds.</p>
+<div class="actions">
+<button class="doan-button" data-ui-size="sm" data-ui-variant="prominent">Retry</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Close</button>
+<button class="doan-button ghost" data-ui-size="sm" aria-expanded="false">Details ▸</button></div></div></div></div>
+<div class="samples">
+<div class="sample"><h3 class="caption">Loading · after 300 ms</h3>
+<div class="reading" role="status"><span class="doan-spinner"></span>Loading prototype</div></div>
+<div class="sample"><h3 class="caption">Broken link</h3>
+<div class="doan-floating doan-toast " role="status" data-doan-id="player-failure-download-notice"><span class="msg">“Archive” can’t play. Ask the sender to fix the link and send an updated file.</span></div></div></div>
+</figure>
+<figure data-doan-frame="export-result" data-doan-title="Download the current prototype" data-doan-implements="cli/internal/export/assemble.go">
+<figcaption><h2>Download the current prototype</h2><p class="description">The download uses the frame at the time of the click. The recipient can open the file after closing the board.</p></figcaption>
+<div class="viewport player" data-doan-id="export-result-viewport">
+<header class="player-head" data-doan-id="export-result-player-header">
+<div class="history">
+<button data-doan-id="export-result-back" type="button" class="doan-icon-button " aria-label="Back" data-ui-placement="chrome" aria-disabled="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowLeft"/></svg></button>
+<button data-doan-id="export-result-forward" type="button" class="doan-icon-button " aria-label="Forward" data-ui-placement="chrome" aria-disabled="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowRight"/></svg></button>
+<button data-doan-id="export-result-reload-prototype" type="button" class="doan-icon-button " aria-label="Reload prototype" data-ui-placement="chrome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-RotateCw"/></svg></button></div>
+<button class="frame-name" aria-haspopup="listbox" aria-expanded="false" data-doan-id="export-result-frame-name"><span>Checkout</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ChevronDown"/></svg></button>
+<div class="right">
+<div class="doan-toggle-group" role="group" aria-label="Viewport">
+<button data-doan-id="export-result-fit" type="button" class="doan-icon-button " aria-label="Fit" data-ui-placement="chrome" aria-pressed="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Proportions"/></svg></button>
+<button data-doan-id="export-result-responsive" type="button" class="doan-icon-button " aria-label="Responsive" data-ui-placement="chrome" aria-pressed="true" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Expand"/></svg></button></div>
+<button data-doan-id="export-result-export-prototype" type="button" class="doan-icon-button " aria-label="Export prototype" data-ui-placement="chrome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Download"/></svg></button></div>
+</header>
+<div class="stage" data-doan-id="export-result-content">
+<div class="shop">
+<header class="mast"><b class="wordmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-BookOpen"/></svg> Folio Press</b><span class="small">Bookshop</span>
+</header>
+<div class="order">
+    <div><h3>Your order</h3>
+<div class="product">
+<div class="cover" aria-hidden="true"><b>Field<br>Forms</b></div>
+<div class="book-info"><strong>Field Forms</strong><small>Print edition · 1 copy</small></div></div>
+<div class="total"><span>Total</span><strong>$24.00</strong></div></div>
+    <div><strong>Contact details</strong>
+<label>Email address<input value="alex@example.com" readonly></label>
+<button class="cta" type="button">Confirm order <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowRight"/></svg></button></div>
+  </div>
+<footer class="shop-footer">Folio Press · Independent editions</footer></div></div>
+<div class="doan-floating doan-toast result" role="status" data-doan-id="export-result-download-notice"><span class="msg">Download requested for ‘Checkout’ and 1 linked frame. The file also contains the rest of the canvas.</span></div></div>
+<div class="samples">
+<div class="sample"><h3 class="caption">Preparing the file · after 1 second</h3>
+<div class="doan-floating doan-toast " role="status" data-doan-id="export-result-download-notice-2"><span class="msg">Exporting “Checkout”</span></div></div>
+<div class="sample"><h3 class="caption">Frame created by a script</h3>
+<div class="doan-floating doan-toast " role="status" data-doan-id="export-result-download-notice-3"><span class="msg">Couldn’t export “Checkout”. This frame isn’t in the canvas file. Ask the sender for an updated file.</span></div></div></div>
+</figure>
+</div>
+</main>
+</body>
+</html>
