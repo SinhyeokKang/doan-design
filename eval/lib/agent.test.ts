@@ -117,7 +117,7 @@ test("Codex transcript copies only the matching session rollout from inherited C
     mkdirSync(sessions, { recursive: true });
     const id = "11111111-2222-3333-4444-555555555555";
     const rollout = readFileSync(new URL("./fixtures/codex-batched.jsonl", import.meta.url), "utf8");
-    writeFileSync(join(sessions, `rollout-date-${id}.jsonl`), rollout);
+    writeFileSync(join(sessions, `rollout-date-${id}.jsonl`), rollout, { mode: 0o600 });
     writeFileSync(join(sessions, "rollout-other.jsonl"), "unrelated");
     writeFileSync(join(dir, "stdout.log"), "answer");
     writeFileSync(join(dir, "stderr.log"), `session id: ${id}\n`);
@@ -126,6 +126,7 @@ test("Codex transcript copies only the matching session rollout from inherited C
     assert.deepEqual(result.calls.commands, ["doan active --json", "rg --files"]);
     assert.ok(!JSON.stringify(result).includes("unrelated"));
     assert.equal(readFileSync(join(dir, "codex-rollout.jsonl"), "utf8"), rollout);
+    assert.equal(statSync(join(dir, "codex-rollout.jsonl")).mode & 0o077, 0);
     assert.equal(readAgentTranscript("claude", dir, { CODEX_HOME: home }).transcript, `answer\nsession id: ${id}\n`);
     writeFileSync(join(dir, "stderr.log"), "no session id");
     assert.equal(readAgentTranscript("codex", dir, { CODEX_HOME: home }).transcript, "answer\nno session id");
