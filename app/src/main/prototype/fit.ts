@@ -18,12 +18,12 @@ export const PROTOTYPE_HEADER_RIGHT = 140;
 // The same group while the conversation panel is open: Hide conversation is in the panel's head, so the header's button
 // and its gap leave it. styles.css mirrors it as the open layout's --pw-right.
 export const PROTOTYPE_HEADER_RIGHT_OPEN = PROTOTYPE_HEADER_RIGHT - 32 - 4;
-// The narrowest name capsule that still reads: its padding, gap and chevron leave three letters and an ellipsis.
-export const PROTOTYPE_NAME_MIN_WIDTH = 80;
+// Reserve enough space for a readable frame name after both window-drag gaps.
+export const PROTOTYPE_NAME_MIN_WIDTH = 120;
 // The header's second row, where the name capsule goes when the first row cannot give it the minimum.
 export const PROTOTYPE_NAME_ROW_HEIGHT = 44;
-// The first row's width outside the name: the left group's end at 192 plus 8, and 8 + 16 before the right group.
-const NAME_OUTSIDE = 224;
+// The left group ends at 192, each drag gap is 40, and the right group ends 16 from the edge.
+const NAME_OUTSIDE = 192 + 2 * 40 + 16;
 
 // The conversation panel: never narrower than 280, so a window with it open is at least the frame column's 360 + 280.
 export const PROTOTYPE_PANEL_MIN_WIDTH = 280;
