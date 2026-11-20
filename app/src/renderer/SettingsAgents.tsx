@@ -252,6 +252,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
     <span className="unset-copy"><span className="model-name">{label}</span>{description && <span className="sub">{description}</span>}</span>
     <span className="check-slot">{selected && <Check className="check" aria-hidden="true" />}</span></DropdownMenu.RadioItem>;
   const agents = [...connected.map(status => status.provider), ...(provider && !connected.some(status => status.provider === provider) ? [provider] : [])];
+  const lastUsedAgent = "the agent you last selected or sent a message with";
 
   return <section className="settings-section" aria-labelledby="settings-agents-defaults">
     <div className="settings-section-header"><div className="settings-header-copy"><h2 className="settings-section-title" id="settings-agents-defaults">New conversations</h2>
@@ -259,14 +260,14 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
     {preferencesNotice(preferences?.notice)}
     <div className="doan-settings-group" data-layout="rows">
       <div className="doan-preference-row">
-        <div className="doan-preference-row-content"><span className="doan-preference-row-label">Agent</span><span className="doan-preference-row-description">Choose Last used to start with the agent you sent with last.</span></div>
+        <div className="doan-preference-row-content"><span className="doan-preference-row-label">Agent</span><span className="doan-preference-row-description">{`Use ${lastUsedAgent}.`}</span></div>
         <div className="doan-preference-row-trailing">{trigger(provider ? name : "Last used", "Agent for new conversations",
           provider ? <><img className="logo" src={providerLogo(provider)} alt="" /><span>{name}</span></> : <span>Last used</span>, off,
           <DropdownMenu.RadioGroup value={provider ?? LAST_USED} onValueChange={value => choose(value === LAST_USED ? null : { provider: value as Provider })}>
             {radio(LAST_USED, <span className="model-name">Last used</span>, provider === null)}
             {agents.map(item => radio(item, <><img className="logo" src={providerLogo(item)} alt="" /><span className="model-name">{PROVIDER_NAMES[item]}</span></>, item === provider))}
           </DropdownMenu.RadioGroup>)}</div>
-        {provider && auth && !runnable && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg warn" role="status"><AlertIcon /><span>{providerUnavailableReason(provider, status)}, so Home starts with the agent you sent with last.</span></p></div>}
+        {provider && auth && !runnable && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg warn" role="status"><AlertIcon /><span>{providerUnavailableReason(provider, status)}, so Home starts with {lastUsedAgent}.</span></p></div>}
       </div>
       {provider && <div className="doan-preference-row" data-disabled={project && (runnable || !auth) ? undefined : ""}>
         <div className="doan-preference-row-content"><span className="doan-preference-row-label">Model</span>
