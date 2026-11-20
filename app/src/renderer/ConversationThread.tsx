@@ -116,6 +116,12 @@ const ENTRY_FOCUS = ":is(.q-card input, .strip-actions button, .handoff-card)";
 
 export const LOADING_DELAY_MS = 300;
 
+export function ConversationLoading() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { const timer = setTimeout(() => setSlow(true), LOADING_DELAY_MS); return () => clearTimeout(timer); }, []);
+  return <div className="conversation-thread"><div className="thread-loading" role="status">{slow && <><span className="doan-spinner" aria-hidden="true" /><span>Loading conversation</span></>}</div></div>;
+}
+
 // How a chip locate ended: "timeout" (the canvas did not answer) and "unavailable" end silently, because neither says
 // the target is gone.
 export type LocateOutcome = "shown" | "missing" | "timeout" | "unavailable";
@@ -714,7 +720,6 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const distance = useRef(0), opened = useRef(false), shownHeight = useRef(0);
   const [behind, setBehind] = useState(false);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
-  const [slow, setSlow] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState<string | null>(null);
   // The card last answered, skipped or stopped here and the focusAfter rule for it: once that card folds, by any
@@ -800,11 +805,6 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     handFocus(() => props.onFocusComposer?.());
   });
 
-  useEffect(() => {
-    if (items !== null) { setSlow(false); return; }
-    const timer = setTimeout(() => setSlow(true), LOADING_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [items === null]);
   useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current); }, []);
 
   // Follow new output only from within 24px of the bottom, measured before this update.
@@ -889,7 +889,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text selectable" id={`thread-read-error-${props.conversationId}`}><b>Doan couldn’t read this conversation</b><span>{announcedAgain("Try again. If it keeps failing, start a new conversation.", (props.retry ?? LIST_RETRY_IDLE).failures)}</span></span>
       <span className="strip-actions">{retryButton({ running: (props.retry ?? LIST_RETRY_IDLE).running, variant: "panel", describedBy: `thread-read-error-${props.conversationId}`, onRetry: () => props.onRetry() })}</span></div>
   </div>;
-  if (items === null) return <div className="conversation-thread">{slow && <div className="thread-loading" role="status"><span className="doan-spinner" aria-hidden="true" /><span>Loading conversation</span></div>}</div>;
+  if (items === null) return <ConversationLoading />;
 
   const p = PROVIDER_NAMES[provider];
   const last = lastEnd(items);

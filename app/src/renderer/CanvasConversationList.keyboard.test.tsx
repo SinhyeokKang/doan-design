@@ -38,8 +38,11 @@ let tree: ReactElement<Record<string, unknown>>;
 
 function render(list: Parameters<typeof CanvasConversationList>[0]["list"] = rows, retryButton: object | null = null) {
   hooks.cursor = 0; hooks.refCursor = 0; hooks.layouts = [];
-  tree = CanvasConversationList({ list, project: "acme", thumbnails: new Map(), open: noop, retry: noop, onVisible: noop, onDelete: noop, scroller: { current: null }, title: { current: { focus: () => focused.push("heading") } as HTMLElement } }) as ReactElement<Record<string, unknown>>;
-  if (tree.props.ref) (tree.props.ref as { current: unknown }).current = { contains: (node: unknown) => node !== null && node === retryButton, querySelector: (selector: string) => ({ focus: () => focused.push(/data-key="([^"]+)"/.exec(selector)?.[1] ?? rows[0]!.key) }) };
+  tree = CanvasConversationList({ list, project: "acme", thumbnails: new Map(), open: noop, retry: noop, onVisible: noop, onDelete: noop, scroller: { current: null }, title: { current: { focus: () => { focused.push("heading"); } } as HTMLElement } }) as ReactElement<Record<string, unknown>>;
+  if (tree.props.ref) (tree.props.ref as { current: unknown }).current = {
+    contains: (node: unknown) => node !== null && node === retryButton,
+    querySelector: (selector: string) => ({ focus: () => focused.push(/data-key="([^"]+)"/.exec(selector)![1]!) }),
+  };
 }
 type RowProps = { item: { key: string }; tabbable: boolean; focus(): void; blur(to: unknown): void; children: ReactElement<Parameters<typeof RowDelete>[0]> };
 const rowOf = (key: string) => (tree.props.children as ReactElement<RowProps>[]).find(row => row.props.item.key === key)!.props;

@@ -30,7 +30,7 @@ import { LIST_FAILED_TEXT, listFailedNotice, listRetryItem } from "./ListRetryBu
 import { ConversationHead } from "./ConversationLine";
 import { ReplaceDraftDialog } from "./ReplaceDraftDialog";
 import type { ReplaceDraftConfirm } from "./homeConversations";
-import { ConversationThread, LOADING_DELAY_MS, openReplyLink, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
+import { ConversationLoading, ConversationThread, openReplyLink, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
 import { dropAttachment, steerPhaseOf, type ConversationStore, type ListView, type QueuedMessage } from "./conversationStore";
 import type { PanelArrival } from "./rightPanelOpen";
 import { copyText } from "./copyText";
@@ -525,7 +525,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onCopy={text => Promise.resolve(copyText(text))}
         onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
-        : view.kind === "wait" || conversationId ? <Waiting /> : <>
+        : view.kind === "wait" || conversationId ? <ConversationLoading /> : <>
           {newView?.listError && listFailedNotice(run.listRetry(), () => run.retryList())}
           {card && <CommandCardNotice card={card} onAction={cardAction} onDismiss={dismissCard} />}
           {resume && <ResumeChoice offer={offer!} reply={resume.resume} now={props.now} mode={held ? "new" : resume.start.mode} held={held} onChoose={choice => { run.choose(choice); focusField(); }} />}
@@ -609,11 +609,4 @@ function ResumeChoice({ offer, reply, now, mode, held, onChoose }: { offer: Prov
     <label className="doan-panel ob-choice"><input type="radio" name="canvas-resume" checked={mode === "new"} onChange={() => onChoose("new")} onKeyDown={event => enter(event, "new")} /><span className="ob-radio" aria-hidden="true" />
       <span className="ob-choice-text"><strong>Start a new conversation</strong><small>Uses Doan’s sign-in and your Settings defaults</small></span></label>
   </div>;
-}
-
-// The list or the history is read: blank first, then the thread's own loading line.
-function Waiting() {
-  const [slow, setSlow] = useState(false);
-  useEffect(() => { const timer = setTimeout(() => setSlow(true), LOADING_DELAY_MS); return () => clearTimeout(timer); }, []);
-  return <div className="conversation-thread">{slow && <div className="thread-loading" role="status"><span className="doan-spinner" aria-hidden="true" /><span>Loading conversation</span></div>}</div>;
 }
