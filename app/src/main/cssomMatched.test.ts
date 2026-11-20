@@ -22,7 +22,7 @@ describe("CSSOM inspector rows in the browser", { timeout: 60_000 }, () => {
     const frame = await load(`<style>
       :root { --inner: red; --outer: blue; --space: 8px }
       @scope (.panel) to (.stop) {
-        :scope > .item { padding: var(--space) }
+        :scope > .item { padding: var(--space); margin: var(--space); margin-left: 4px }
         .item { color: var(--inner) }
       }
       .item { color: var(--outer) }
@@ -30,10 +30,29 @@ describe("CSSOM inspector rows in the browser", { timeout: 60_000 }, () => {
     const selections = await frame.evaluate(() => Array.from(document.querySelectorAll(".item"), el => inspectCanvas.inspectElement(el)));
     const visible = selections.map(rows => rowDisplay(rows).groups.flatMap(group => group.rows)
       .filter(row => row.label === "Text" || row.label === "Padding").map(row => [row.label, row.text, row.copy]));
+    const margin = rowDisplay(selections[0]!).groups.flatMap(group => group.rows).find(row => row.label === "Margin");
+    expect(margin?.copy).toBe("8px 8px 8px 4px");
     expect(visible).toEqual([
       [["Padding", "8px", "--space"], ["Text", "#ff0000", "--inner"]],
       [["Text", "#0000ff", "--outer"]],
       [["Text", "#0000ff", "--outer"]],
+    ]);
+  });
+
+  test("nested and implicit scopes respect specificity, then proximity, then source order", async () => {
+    const frame = await load(`<style>
+      :root { --near: red; --far: blue; --strong: green; --plain: black }
+      @scope (.far) { @scope (:scope > .near) { .item { color: var(--near) } } }
+      @scope (.far) { .item { color: var(--far) } }
+      .item { color: var(--plain) }
+      #strong { color: var(--strong) }
+    </style>`, `<section class="far"><div class="near"><p class="item"></p><p class="item" id="strong"></p></div>
+      <div><style>@scope { .item { color: var(--near) } .item { color: purple } }</style><p class="item"></p></div>
+      <div><p class="item"></p></div></section>`);
+    const rows = await frame.evaluate(() => Array.from(document.querySelectorAll(".item"), el => inspectCanvas.inspectElement(el)));
+    const text = rows.map(selection => rowDisplay(selection).groups.flatMap(group => group.rows).find(row => row.label === "Text"));
+    expect(text.map(row => [row?.text, row?.copy])).toEqual([
+      ["#ff0000", "--near"], ["#008000", "--strong"], ["#800080", "#800080"], ["#0000ff", "--far"],
     ]);
   });
 
