@@ -22,7 +22,7 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 - `cli/internal/cli/`: command dispatch, flags, envelopes and exit codes, command bodies, the embedded `doan skill` guide (`skill.md`), the app socket clients (`active`, `work`, `open`, `handoff`, `remove`, `onboarding`) and shell check session records.
 - `cli/internal/designskill/`: the embedded design presets — `catalog.json`, `presets/`, `notices/` — and their loader; `SOURCES.md` maps upstream sources to presets and is not embedded.
 - `cli/internal/repo/`: repo discovery, config, storage mode, path resolution, canvas listing, the serving scope, read-only Git metadata, and the `git init` (with rollback) that `--git-init` runs.
-- `cli/internal/canvas/`: the pure HTML canvas model and CSS scanner.
+- `cli/internal/canvas/`: the pure HTML canvas model and CSS scanner. Its `testdata/` directory holds the CSS scanner golden fixture.
 - `cli/internal/check/`: the pure `doan check` rules.
 - `cli/internal/export/`: the `doan export` pipeline — local references resolved against the serving scope, HTML and CSS rewritten into data, the size cap and the viewer page assembly (`ARCHITECTURE.md` §3 'Exported canvas and viewer').
   - `viewer/`: the embedded page files of the exported canvas viewer and the exported prototype player; `app/src/main/exportViewer.test.ts` pins their copies of app code.
@@ -32,7 +32,7 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 ## Shared formats
 
 - `schema/`: JSON Schema sources for every shared format; `embed.go` embeds them for Go.
-- `schema/fixtures/<format>/`: valid/invalid fixtures read by both the Go and the TypeScript tests.
+- `schema/fixtures/<format>/`: shared inputs and expected results for Go and TypeScript tests, including valid and invalid format examples.
 
 ## App (Electron + TypeScript)
 
@@ -60,6 +60,7 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 - `.doan/ds/`: design-system canvases, one per token group, shared component or shared surface.
 - `.doan/assets/`: canvas-only assets (shared canvas styles, provider and MCP server marks, installer icons, Doany sources, fonts).
   - `buddies/`: the buddies' sources (cards, transparent stills and layers, contact shadows, painter GIFs, generation prompts), the shared eye, the group photo, and the motion drafts the app's goldens come from; rig numbers and provenance in its `README.md`.
+- `.doan/seen/`: legacy canvas read-state records used to migrate existing projects to app-local storage.
 - `.doan/config.json`: token CSS and extra serve paths for this repo.
 
 ## Agent evaluation
