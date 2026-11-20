@@ -68,7 +68,7 @@ test("selectable: the problem line and the Details block, not the heading or the
 test("busy: every action is aria-disabled and stays focusable; the pressed one shows a spinner; the live region reads what it is given", () => {
   const busy = view({ path: "/Users/ada/code/acme-web", kind: "loading" }, { kind: "problem", entryKind: "error" });
   const html = draw(busy, { pressed: "retry", announcement: "Doan couldn’t read acme-web’s configuration" });
-  expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" aria-disabled="true"><span class="doan-spinner" aria-hidden="true"></span>Retry</button>');
+  expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" aria-disabled="true" aria-busy="true"><span class="doan-spinner" aria-hidden="true"></span>Retry</button>');
   expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-disabled="true">Show in Finder</button>');
   expect(html).not.toContain("disabled=\"\"");
   expect(html).toContain('<p class="sr-only" role="status" aria-live="polite">Doan couldn’t read acme-web’s configuration</p>');

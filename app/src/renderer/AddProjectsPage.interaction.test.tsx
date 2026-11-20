@@ -1,4 +1,5 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { OnboardingOperation } from "../formats/types";
 
@@ -15,9 +16,10 @@ vi.mock("react", async original => ({
   },
   useReducer: () => [0, () => {}],
   useRef: (value: unknown) => { const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
-  useState: (value: unknown) => { const index = hooks.cursor++; if (!(index in hooks.states)) hooks.states[index] = typeof value === "function" ? (value as () => unknown)() : value; return [hooks.states[index], (next: unknown) => { hooks.states[index] = next; }]; },
+  useState: (value: unknown) => { const index = hooks.cursor++; if (!(index in hooks.states)) hooks.states[index] = typeof value === "function" ? (value as () => unknown)() : value; return [hooks.states[index], (next: unknown) => { hooks.states[index] = typeof next === "function" ? (next as (current: unknown) => unknown)(hooks.states[index]) : next; }]; },
 }));
 const { AddProjectsPage } = await import("./AddProjectsPage");
+const { ProblemOverlay } = await import("./ProblemOverlay");
 const { ProjectScreen } = await import("./Onboarding");
 
 let doan: Record<string, ReturnType<typeof vi.fn>>;
@@ -45,9 +47,11 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 type PageProps = Parameters<typeof AddProjectsPage>[0];
 const props = (over: Partial<PageProps> = {}): PageProps => ({ header: null, sidebar: null, projects: [], homeDirectory: "/Users/ada", mainCheckout: () => false, choose: 0, onState: vi.fn(), onCancel: vi.fn(), onAdded: vi.fn(), ...over });
 // Renders the page and, once the session id is read, its body, running the effects each render schedules.
+let pageTree: ReactNode;
 function render(page: PageProps, heading?: { focus(): void }) {
   hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = [];
   const tree = AddProjectsPage(page);
+  pageTree = tree;
   const body = all(tree).find(element => typeof element.type === "function" && element.type.name === "PageBody");
   const inner = body ? (body.type as (props: unknown) => ReactNode)(body.props) : null;
   const screen = all(inner).find(element => element.type === ProjectScreen) as ReactElement<{ heading(node: unknown): void; on: Record<string, () => void> }> | undefined;
@@ -131,4 +135,60 @@ test("the page wires New folder and its notice's actions to its session", async 
   screen.props.on.useExistingFolder!();
   await flush();
   expect(doan.inspectAddPageProject).toHaveBeenLastCalledWith(expect.objectContaining({ path: "/Volumes/work/landing-page" }));
+});
+
+test("a failed first read leaves the shell available and retries in place until the choose form opens", async () => {
+  const page = props({ header: <header>Navigation</header>, sidebar: <aside>Projects</aside> });
+  const retry = () => {
+    const overlay = all(pageTree).find(el => el.type === ProblemOverlay);
+    expect(overlay).toBeDefined();
+    const buttons = all(ProblemOverlay(overlay!.props as Parameters<typeof ProblemOverlay>[0])).filter(el => el.type === "button");
+    expect(buttons).toHaveLength(1);
+    return buttons[0]!.props as { onClick(): void; "aria-busy"?: boolean };
+  };
+  doan.readAddPage!.mockRejectedValueOnce(new Error("first read"));
+  render(page); await flush(); render(page);
+  // Child hooks during the static draw belong to the backdrop, not to PageBody's later mount.
+  const { states, refs, effects } = hooks;
+  hooks.states = []; hooks.refs = []; hooks.effects = [];
+  const html = renderToStaticMarkup(pageTree);
+  Object.assign(hooks, { states, refs, effects });
+  expect(html).toMatch(/<header>Navigation<\/header><aside>Projects<\/aside><main/);
+  expect(html).toMatch(/inert=""[^>]*aria-hidden="true"[^>]*>[\s\S]*Choose folder/);
+  expect(html).toContain("Couldn’t open Add Projects");
+  expect(html).toContain("Try again to choose a local folder or enter a GitHub repository URL.");
+  const first = retry();
+  first.onClick(); first.onClick();
+  render(page);
+  expect(retry()["aria-busy"]).toBe(true);
+  expect(doan.readAddPage).toHaveBeenCalledTimes(2);
+  readPage({ ok: false }); await flush(); render(page);
+  expect(retry()["aria-busy"]).toBeUndefined();
+  retry().onClick(); readPage(status("recovered")); await flush();
+  const heading = { focus: vi.fn() };
+  expect(render(page, heading)).toBeDefined();
+  expect(heading.focus).toHaveBeenCalled();
+  expect(doan.chooseOnboardingFolder).not.toHaveBeenCalled();
+});
+
+test("a failed read and a successful retry preserve focus moved into the shell and report repeated failures", async () => {
+  const page = props(), heading = { focus: vi.fn() };
+  render(page);
+  const shell = Object.assign(new HTMLElement(), { isConnected: true, closest: () => null, matches: () => false });
+  Object.defineProperty(document, "activeElement", { configurable: true, value: shell });
+  readPage({ ok: false }); await flush(); render(page); render(page);
+  function problem() {
+    return all(pageTree).find(el => el.type === ProblemOverlay)!.props as Parameters<typeof ProblemOverlay>[0];
+  }
+  expect(problem().announcement.trim()).toBe("Couldn’t open Add Projects");
+  const first = problem().announcement;
+  problem().onAction("retry"); render(page);
+  readPage({ ok: false }); await flush(); render(page); render(page);
+  expect(problem().announcement.trim()).toBe(first.trim());
+  expect(problem().announcement).not.toBe(first);
+  Object.defineProperty(document, "activeElement", { configurable: true, value: document.body });
+  problem().onAction("retry"); render(page);
+  Object.defineProperty(document, "activeElement", { configurable: true, value: shell });
+  readPage(status("ready")); await flush(); render(page, heading);
+  expect(heading.focus).not.toHaveBeenCalled();
 });
