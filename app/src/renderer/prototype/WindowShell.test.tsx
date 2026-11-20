@@ -462,13 +462,13 @@ describe("prototype window styles", () => {
     expect(css).toMatch(/\.pw \{[^}]*grid-template-rows: var\(--size-chrome\) minmax\(0, 1fr\); padding: 0 var\(--space-2\) var\(--space-2\);/);
   });
 
-  test("the name's second row makes the header 56 + 36 + 8 and spans the header's insets at y56", () => {
+  test("the name's second row makes the header 56 + 36 + 8 and aligns with the content panel at y56", () => {
     expect(css).toMatch(/\.pw\.name-row \{ grid-template-rows: calc\(var\(--size-chrome\) \+ 36px \+ var\(--space-2\)\) minmax\(0, 1fr\); \}/);
-    expect(css).toMatch(/\.pw\.name-row \.pw-name \{ top: var\(--size-chrome\); left: var\(--space-2\); right: var\(--space-2\); \}/);
+    expect(css).toMatch(/\.pw\.name-row \.pw-name \{ top: var\(--size-chrome\); left: 0; right: 0; \}/);
   });
 
-  test("the first-row name ends 8 before the right group, which sits 16 in from the window's edge; no narrow-window rule", () => {
-    expect(css).toMatch(/\.pw-name \{[^}]*right: calc\(2 \* var\(--space-2\) \+ var\(--pw-right\)\);/);
+  test("the first-row name ends 40 before the right group, which sits 16 in from the window's edge; no narrow-window rule", () => {
+    expect(css).toMatch(/\.pw-name \{[^}]*right: calc\(var\(--space-2\) \+ var\(--space-10\) \+ var\(--pw-right\)\);/);
     expect(css).toMatch(/\.pw-right \{[^}]*position: absolute; top: 0; right: var\(--space-2\);[^}]*gap: var\(--space-1\);[^}]*height: var\(--size-chrome\);/);
     expect(css).not.toMatch(/519\.98px/);
   });
