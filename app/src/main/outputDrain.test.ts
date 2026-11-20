@@ -65,12 +65,15 @@ it.each(["codex", "cursor"] as const)("records the last %s reply before releasin
   const run = await accepted(runtime);
   run.gone(); run.exit(0);
   await nextTurn();
+  run.child.stdin.destroy();
   run.child.stdin.emit("error", new Error("EPIPE"));
   if (runtime === "codex") {
     run.line({ id: run.promptId, result: { turn: { id: "native" } } });
+    run.line({ id: 7, method: "item/tool/requestUserInput", params: { threadId: "s", turnId: "native" } });
     run.line({ method: "item/agentMessage/delta", params: { threadId: "s", turnId: "native", itemId: "m", delta: "last" } });
     run.line({ method: "turn/completed", params: { threadId: "s", turn: { id: "native", status: "completed" } } });
   } else {
+    run.line({ jsonrpc: "2.0", id: 7, method: "cursor/ask_question", params: { sessionId: "s" } });
     run.line({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "s", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "last" } } } });
     run.line({ jsonrpc: "2.0", id: run.promptId, result: { stopReason: "end_turn" } });
   }
