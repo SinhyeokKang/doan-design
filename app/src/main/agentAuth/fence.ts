@@ -50,12 +50,13 @@ const hooked = (provider: Provider) => provider === "claude" || provider === "an
 // Doan writes the doan skill stub, the Codex rules and Claude's and Copilot's settings from outside the fence.
 interface AgentWrites { folder: string; dirs: readonly string[]; files: readonly string[]; pattern?: string }
 const AGENT_WRITES: Record<Provider, AgentWrites> = {
-  // Claude Code 2.1.327 (isolated CLAUDE_CONFIG_DIR, a turn with a tool call) and a signed-in profile's entries. Auto
+  // Claude Code 2.1.327 (a turn with a tool call) and a signed-in profile's entries. In 2.1.329, MCP sign-in takes
+  // .storage-write.lock before saving OAuth client information and tokens, including in the macOS Keychain. Auto
   // memory under projects/ is turned off for fenced runs instead (claudeRunSettings in runners.ts), because the CLI
   // writes its transcripts beside it. session-env/ stays closed: it holds the environment files hooks leave for a
   // session, which that session's commands source again on a resume (probe); the CLI runs without it.
   claude: { folder: "", dirs: ["projects", "sessions", "shell-snapshots", "file-history", "todos", "plans", "tasks", "backups", "cache", "statsig", "debug", "paste-cache", "image-cache", "telemetry"],
-    files: [".claude.json", ".credentials.json", "history.jsonl", "stats-cache.json", "mcp-needs-auth-cache.json", ".last-cleanup"] },
+    files: [".claude.json", ".credentials.json", ".storage-write.lock", "history.jsonl", "stats-cache.json", "mcp-needs-auth-cache.json", ".last-cleanup"] },
   // codex-cli 0.169.0 (isolated CODEX_HOME): the Codex process itself writes these, and runs inside this fence only in
   // Full access; tmp/ holds its runtime helpers, and .tmp both a folder and the temporary files it renames onto a root
   // file (.sandbox_migration). Its SQLite databases carry a version in their names. Its login lives in the
