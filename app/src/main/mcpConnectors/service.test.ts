@@ -71,6 +71,68 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); rmSync(dir, { recursive: true, force: true }); });
 
 describe("connect", () => {
+  describe("failure diagnostics", () => {
+    afterEach(() => { vi.restoreAllMocks(); });
+
+    it.each(["claude", "codex"] as const)("%s reports the failure and process exit codes", async provider => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      const s = service();
+      s.connect(provider, "doan-notion");
+      const process = await login(provider);
+      process.print("synthetic output");
+      process.print("synthetic diagnostic", "stderr");
+      cli.refuse(process, 23);
+      await s.idle();
+      expect(row(s, provider, "doan-notion")?.failure).toBe("failed");
+      expect(log.mock.calls).toEqual([["doan: MCP connect failed (failed, exit 23)"]]);
+    });
+
+    it.each(["claude", "codex"] as const)("%s reports a blocked connection once with its exit code", async provider => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      const name = "doan-notion", url = "https://mcp.notion.com/mcp";
+      store.record([{ provider, name, url }]);
+      cli.registered[provider].set(name, { url, auth: true });
+      cli.failing.add(`${provider} logout ${name}`);
+      const s = service();
+      s.connect(provider, name);
+      await s.idle();
+      expect(row(s, provider, name)?.failure).toBe("pending_logout");
+      expect(log.mock.calls).toEqual([["doan: MCP connect failed (pending_logout, exit 1)"]]);
+    });
+
+    it("reports only the failure code when setup throws", async () => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      const s = service({ hookLinks: () => { throw new Error("synthetic setup failure"); } });
+      s.connect("claude", "doan-notion");
+      await s.idle();
+      expect(row(s, "claude", "doan-notion")?.failure).toBe("failed");
+      expect(log.mock.calls).toEqual([["doan: MCP connect failed (failed)"]]);
+    });
+
+    it("preserves the callback timeout classification and exit code", async () => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      cli.registered.codex.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: false });
+      const s = service();
+      s.connect("codex", "doan-notion");
+      const process = await login("codex");
+      process.print("synthetic: timed out waiting for OAuth callback", "stderr");
+      cli.refuse(process, 17);
+      await s.idle();
+      expect(row(s, "codex", "doan-notion")?.failure).toBe("approval_timeout");
+      expect(log.mock.calls).toEqual([["doan: MCP connect failed (approval_timeout, exit 17)"]]);
+    });
+
+    it.each(["claude", "codex"] as const)("%s reports the exit code of a failed registration read", async provider => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      cli.failing.add(provider === "claude" ? "claude get doan-notion" : "codex list");
+      const s = service();
+      s.connect(provider, "doan-notion");
+      await s.idle();
+      expect(row(s, provider, "doan-notion")?.failure).toBe("failed");
+      expect(log.mock.calls).toEqual([["doan: MCP connect failed (failed, exit 1)"]]);
+    });
+  });
+
   it("Claude registers the preset, signs in through a pty with the link file and opens the hook's link once", async () => {
     const s = service();
     expect(s.connect("claude", "doan-notion")).toEqual({ ok: true });

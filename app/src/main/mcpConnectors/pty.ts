@@ -41,7 +41,7 @@ function ptyModule(packaged: boolean): PtyModule {
 // `claude mcp login` refuses to run without a terminal. The pty's child is its own process group leader (forkpty
 // calls setsid; pty.test.ts pins it), so the attempt's whole group is stopped with OwnedGroup(pid), as every process
 // Doan starts is (ARCHITECTURE §7 'Quit and process cleanup'); node-pty's kill() signals that one pid only.
-// Output mixes terminal control sequences and serves diagnostics only; links arrive through the BROWSER hook.
+// Sign-in links arrive through the BROWSER hook.
 export function ptySpawner(options: { packaged: boolean }): Spawn {
   return (command, args, { cwd, env }): AuthProcess => {
     const terminal = ptyModule(options.packaged).spawn(command, args, { name: "xterm-256color", cols: 120, rows: 30, cwd, env });
