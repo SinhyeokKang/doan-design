@@ -27,7 +27,7 @@ func appError(code, message string) *Error {
 		// A sandbox can deny the socket even while the app is running.
 		"app_not_running":       {"Ask the user to open Doan", "If Doan is open, a sandbox may block this shell from its socket: run `doan` outside the sandbox or request approval; Codex sessions started after Doan opens may run `doan` by name outside the sandbox; restart earlier sessions", "If it still fails with Doan open, ask the user to open Doan from Applications and check Settings… > About"},
 		"app_protocol_mismatch": {"Ask the user to update Doan and the doan CLI to matching versions"},
-		"project_not_open":      {"Ask the user to add this project in Doan (Add Project…), or work in the worktree that is open in Doan"},
+		"project_not_open":      {"Ask the user to add this project in Doan (File > Add Projects…), or work in the worktree that is open in Doan"},
 	}[code]
 	return &Error{Code: code, Message: message, NextSteps: steps}
 }
