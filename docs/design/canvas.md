@@ -264,7 +264,7 @@ Probe `.scratch/b5/probe.ts` (36 checks, isolated, real-state unchanged):
 ### Not verified
 
 - The reading and failed states were reached by holding or replacing main's `inspect:get` answer in the probe, not by a slow or detached debugger.
-- The answer dot, working spinner and unread dot with real conversations (no agent ran): the unread dot's rule was read with the attribute set by hand. The prototype window's button (`message-square`, the dot, its badged tooltip) was not opened in the app.
+- The answer dot, working spinner and unread dot with real conversations (no agent ran): the unread dot's rule was read with the attribute set by hand. An isolated two-window run with controlled conversation replies opened the unread conversation from Show conversation in both windows, retried a refused mark and checked that both accessible names cleared after the mark was confirmed. The prototype badge's geometry and tooltip remain unmeasured.
 - ⌘C through the OS keyboard and the native Edit menu (only `sendInputEvent` and CDP keys); a 1x display; the tooltip delay; a cut long value's tooltip text in the app.
 - The full 920-high frames: the screen gave 898, so the layout frames' columns are 22 shorter (834 against 856); the `panel-states` tiles are 760 high, so the panel bodies there differ by more (778 against 704). Heights were not compared.
 
@@ -325,6 +325,8 @@ The exported inspector was measured against all eight frames of `.doan/canvases/
 | Text drag | The highlight uses rgb(151,59,225) at 30% opacity. A drag over canvas text with `user-select: none` kept the element selection and supplied plain text to the browser’s ⌘C copy event. |
 | Yield | At 640px the column yields and Show inspector takes rgb(149,149,149). At 657px the column and its previous selection return. |
 
+In the exported file, Escape from the element menu returned focus to the element name. Clearing the final selection with Escape returned focus to the board. Switching to Hand cleared the selection and properties. Holding Space hid the mark and releasing it restored the selection. Hide inspector showed its tooltip on hover and on keyboard focus.
+
 ### Measured contracts
 
 | Element | Measured contract | Reason |
@@ -374,12 +376,12 @@ The exported inspector was measured against all eight frames of `.doan/canvases/
 
 ### Not verified
 
-- **Real Safari** (the exported file in the user's Safari) and **Finder Put Back** of the moved file: the desktop was locked, so no native app could be driven or captured. Finder's AppleScript has no Put Back verb (`put away` returned −1708), so Put Back stays unrecorded. The file opened in Electron's Chromium only. Firefox is not checked.
+- **Native viewer and Finder checks.** A two-frame export opened in Safari and drew the frames, header, frame drawer, zoom and toolbar. No input was sent to Safari. The row-menu probe opened its file in Electron’s Chromium, and the exported inspector was checked in Playwright Chromium and WebKit. Firefox and Finder Put Back remain unchecked. The desktop was locked during the Finder probe and Finder’s AppleScript returned −1708 for `put away`.
 - **Permission status** (the hand) and an **app conversation** working on a canvas: both need a signed-in agent; only a terminal `doan work` was reached. The permission rule is the shipped `.row-slot.permission`, unchanged.
 - **Main-side refusals the renderer cannot cause**: a confirmed move refused as `busy`, `notListed` or `notFile` (now shown inside the dialog), and the `notListed`/`notFile` plan toasts — only `failed` was reached in a real-app probe (a held IPC reply). Their copy is pinned by `canvasRowMessages.test.ts` and their placement by `App.canvasRowMenu.test.tsx`. A real move after the busy dialog was not run in the B1 probe, which answered `trashed` itself so no file reached the machine's Trash.
 - The native save panel and Show in Finder (replaced / not clicked); native window material under the sidebar.
-- Sidebar widths other than 220px, window widths under 960px for the viewer, hover and pressed fills of the row button under the pointer itself.
-- Viewer tools: the hover fill of the unpressed tool, the keyboard focus rings of the tools and the board (the probe used the mouse only; a keypress after a click turns on `:focus-visible`), a Space drag in Select (the draft draws only the Hand drag), the classic-scrollbar layout (a separate probe only), real Safari and a real trackpad, and a held Space released by a real switch to another window (simulated only). WebKit was measured in Playwright only.
+- Sidebar widths other than 220px, viewer layout below 960px beyond the header and inspector widths recorded above, hover and pressed fills of the row button under the pointer itself.
+- Viewer tools: the hover fill of the unpressed tool, the keyboard focus rings of the tools and the board (the tool geometry probe used the mouse only; a keypress after a click turns on `:focus-visible`), a Space drag in Select (the draft draws only the Hand drag), the classic-scrollbar layout (a separate probe only), toolbar input in real Safari and a real trackpad, and a held Space released by a real switch to another window (simulated only). WebKit was measured in Playwright only.
 - Roles and names were read from DOM attributes, not the accessibility tree.
 
 ### Regression pointers
