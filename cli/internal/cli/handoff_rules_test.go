@@ -314,7 +314,7 @@ func TestHandoffFailureSteps(t *testing.T) {
 		"canvas_not_found":     {"`doan ls`"},
 		"already_requested":    {"This turn already requested a handoff to this canvas; hand off each other new canvas once"},
 		// A project of the same name already in Doan may be another checkout or worktree at another path.
-		"project_not_open": {"Add Projects", "Project Settings", "another checkout or worktree"},
+		"project_not_open": {"File > Add Projects…", "Project Settings", "another checkout or worktree"},
 	} {
 		steps := strings.Join(handoffFailure(code, "m").NextSteps, "\n")
 		for _, word := range words {
