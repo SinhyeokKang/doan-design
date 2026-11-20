@@ -1849,6 +1849,19 @@ describe("explicit frame opens before the iframe has a viewport", () => {
     } finally { h.controller.dispose(); }
   });
 
+  it("keeps a request made on an already open, unmeasured canvas through a reload", () => {
+    const h = selectionHarness();
+    try {
+      h.controller.openCanvas("/repo", h.other);
+      h.layout({ href: h.other.url, frames: unmeasured, viewport: 0, height: 0 });
+      h.controller.openCanvas("/repo", h.other, { frame: "proposed" });
+      h.layout({ href: h.other.url, frames: unmeasured, viewport: 0, height: 0 });
+      h.controller.command("reload");
+      h.layout({ href: h.other.url, frames, height: 987 });
+      expect(h.state().currentFrame).toBe(1);
+    } finally { h.controller.dispose(); }
+  });
+
   it.each(["last", "absent"])("honours a newer request for %s during remeasurement", id => {
     const h = selectionHarness();
     try {

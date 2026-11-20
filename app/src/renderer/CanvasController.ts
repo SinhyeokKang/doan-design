@@ -759,7 +759,7 @@ export class CanvasController {
       if (frameId !== undefined) {
         this.pendingLocate = null;
         this.jumpTo = null;
-        if (this.loading) this.pendingFrame = { id: frameId, ...target };
+        if (this.loading || (this.state.layout?.viewport === 0 && this.frameHeight > 0)) this.pendingFrame = { id: frameId, ...target };
         else {
           const frames = this.state.layout?.frames ?? [];
           const index = target?.index !== undefined && frames[target.index]?.id === frameId ? target.index : frames.findIndex(frame => frame.id === frameId);
@@ -768,6 +768,7 @@ export class CanvasController {
         }
       }
       if (element !== undefined) {
+        this.jumpTo = null;
         this.pendingFrame = null;
         this.pendingLocate = { folder, path: row.path, anchor: element, ...located };
         if (!this.loading) this.locatePending();
@@ -1697,7 +1698,7 @@ export class CanvasController {
     }
     // A hidden iframe can report every frame at the origin before receiving its viewport.
     // Leave the open pending for the measurement requested above, including across a reload.
-    if (this.loading && this.pendingFrame !== null && message.viewport === 0 && this.frameHeight > 0) return;
+    if (this.pendingFrame !== null && message.viewport === 0 && this.frameHeight > 0) return;
     this.lastHref = message.href;
     clearTimeout(this.answerTimer);
     if (newDocument) {
@@ -1730,7 +1731,7 @@ export class CanvasController {
     if (linked && this.state.open) this.linkedCanvas?.(this.state.open.folder);
     if (this.state.unlisted) { this.endPick({ kind: "cancelled" }); this.endCaptureWithBoard(); }
     else if (this.state.picking && this.activePick === null) this.armPick();
-    if (first && this.pendingFrame !== null) {
+    if (this.pendingFrame !== null) {
       const target = this.pendingFrame;
       const index = target.index !== undefined && message.frames[target.index]?.id === target.id ? target.index : message.frames.findIndex(frame => frame.id === target.id);
       this.jumpTo = index >= 0 ? index : null;
@@ -1775,6 +1776,7 @@ export class CanvasController {
 
   jump(index: number): void {
     if (this.frame?.contentWindow == null || !this.state.layout?.frames[index] || this.state.unlisted) return;
+    this.pendingFrame = null;
     this.jumpTo = index;
     this.post({ type: "measure" });
   }
