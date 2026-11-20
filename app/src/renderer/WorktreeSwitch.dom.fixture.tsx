@@ -32,7 +32,7 @@ export function mountCanvas(root: Root) {
     document.body.dataset.tool = state.tool;
     view.set(canvasViewFields(state), false);
     root.render(<TooltipProvider><CanvasHeader state={state} view={view} canvasKey={JSON.stringify([folder, canvas.path])}
-      navigation={{ card: { key: common, name: "demo", rows }, root: folder, homeDirectory: "/code", overview: noop,
+      navigation={{ card: { key: common, name: "demo", rows }, root: folder, homeDirectory: "/code",
         worktree: to => controller.openCanvas(to, canvas, undefined, { keepView: true }) }}
       fallbackFocus={() => viewport.focus()} command={noop} zoomTo={noop} selectFrame={noop} /></TooltipProvider>);
   }, noop, layer, async () => null);

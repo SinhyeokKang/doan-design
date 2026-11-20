@@ -18,7 +18,7 @@ import { requestTitleText, stripRequestLines } from "../main/conversation/reques
 import { useProjectSkills, type SkillsCalls } from "./useProjectSkills";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import { textSegments } from "./anchorField";
-import { canvasConversationError, canvasConversationMenu, noticeOpenName, resumeHeld, titleMenuOrder } from "./canvasConversation";
+import { DRAWING_PREVIEW_REASON, canvasConversationError, canvasConversationMenu, noticeOpenName, resumeHeld, titleMenuOrder } from "./canvasConversation";
 import { sameCanvas } from "./canvasConversationRows";
 import type { CanvasRun, CanvasTarget, CanvasView, ResumeReply } from "./canvasRun";
 import { focusFieldEnd } from "./chipField";
@@ -242,6 +242,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const listed = Array.isArray(list) ? list : null;
   const view = run.view() ?? { kind: "wait" as const };
   const conversationId = view.kind === "conversation" ? view.conversationId : null;
+  const preview = view.kind === "conversation" && view.preview === true;
+  const unavailable = props.blocked ?? (preview ? DRAWING_PREVIEW_REASON : null);
   const summary = conversationId ? listed?.find(c => c.conversationId === conversationId) : undefined;
   const thread = conversationId ? store.thread(conversationId) : null;
   const provider: Provider | null = conversationId ? summary?.provider ?? store.providerOf(conversationId) : null;
@@ -524,7 +526,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onOpenLink={url => void openReplyLink(target => calls.openLink(target), url, props.onNotice)}
         onCopy={text => Promise.resolve(copyText(text))}
         onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
-        {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
+        {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} openCanvasPath={target.canvas.path} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
         : view.kind === "wait" || conversationId ? <ConversationLoading /> : <>
           {newView?.listError && listFailedNotice(run.listRetry(), () => run.retryList())}
           {card && <CommandCardNotice card={card} onAction={cardAction} onDismiss={dismissCard} />}
@@ -539,7 +541,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
           aria-label={noticeOpenName(notice.kind)}
           onClick={() => notice.kind === "drawing" ? props.onOpenProjectConversation(notice.open) : (props.onOpenPromoted ?? openConversation)(notice.open)}>Open</button></span></div>}
     </div>
-    <div className="cp-foot">
+    {preview && <span className="sr-only" role="status">{unavailable}</span>}
+    <fieldset className="cp-foot" disabled={preview} inert={preview}>
       <DockedComposer skills={projectSkills.skills} passthrough={projectSkills.passthrough} onSkillsWanted={projectSkills.read} onCard={next => store.showCard(key, next)} card={card} mode={mode} project={project} homeDirectory={null} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined} chipScope={canvasScope(target)}
         {...(props.pick ? { pick: props.pick } : {})} {...(props.composerLink ? { link: props.composerLink } : {})} onLocate={props.onLocate} canvasPress={props.canvasPress}
         drafts={store.drafts} onDrafts={update => store.setDrafts(update)}
@@ -556,7 +559,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => dropAttachment(calls, attachment)}
         turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={null} canvasGone={false} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}
-        unavailable={props.blocked} locked={props.blocked !== null} playing={props.playing ?? null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
+        unavailable={unavailable} locked={unavailable !== null} playing={props.playing ?? null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
         stepAside={{ waiting: asking, notice: !conversationId && view.kind !== "wait" && !!resume }}
         refuse={refuse} onStartNew={startNewAfterRefusal}
         queued={conversationId ? store.queue(conversationId) : []}
@@ -574,7 +577,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
           return true;
         }}
         onOpen={openConversation} />
-    </div>
+    </fieldset>
     {replacing && <ReplaceDraftDialog confirm={replacing.confirm} onKeep={() => { setReplacing(null); focusField(); }}
       onReplace={() => { setReplacing(null); editAndResend(replacing.conversationId); }} />}
   </div>;

@@ -287,6 +287,13 @@ describe("thread items", () => {
     expect(html([bound], { openCanvasId: "other" })).toMatch(/Moved to doan-settings<\/span><button[^>]*>Open<\/button>/);
   });
 
+  test("the moved-here divider recognizes a canvas identified only by its path", () => {
+    const canvas = { path: ".doan/canvases/poster.html" };
+    const bound: ThreadItem = { kind: "marker", key: "k5", seq: 5, marker: "bound", canvas };
+    expect(html([bound], { openCanvasPath: canvas.path })).toContain("Moved here from doan-design Overview");
+    expect(html([bound], { openCanvasPath: ".doan/canvases/other.html" })).toContain("Moved to poster");
+  });
+
   test("two messages with footnotes never share an id", () => {
     const out = html([agent("One[^1]\n\n[^1]: note"), { kind: "agent", key: "m2", messageId: "m2", text: "Two[^1]\n\n[^1]: note", streaming: false }]);
     const ids = [...out.matchAll(/ id="([^"]+)"/g)].map(m => m[1]!);

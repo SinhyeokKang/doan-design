@@ -26,6 +26,8 @@ export interface CanvasRunHost {
   focused(): boolean;
   // A project conversation whose turn drew this canvas and whose promotion is not judged yet (HomeRun's).
   drawing(root: string, canvas: Canvas): string | null;
+  // Only the main window shares the Overview store and can read unbound conversations.
+  readsProjectThreads?: true;
   // A project conversation main says moved to this canvas (the prototype window, which cannot see the project's rows a
   // promotion is judged from). The main window judges promotions from its own lists and has none.
   promoted?(root: string, canvas: Canvas): string | null;
@@ -48,7 +50,7 @@ export type ResumeReply = ResumeTarget & { lastCheckAt?: string };
 export type CanvasView =
   | { kind: "wait" }
   | { kind: "new"; listError: boolean; notice: CanvasNotice | null; start: NewConversationView; resume: ResumeReply | undefined; mode: DockedMode }
-  | { kind: "conversation"; conversationId: string; notice: CanvasNotice | null };
+  | { kind: "conversation"; conversationId: string; preview?: true; notice: CanvasNotice | null };
 
 interface CanvasState {
   target: CanvasTarget;
@@ -141,15 +143,25 @@ export class CanvasRun {
     const s = this.shownState();
     if (!s) return null;
     if (s.shown === undefined) return this.host.list(s.target.root) === "error" ? this.newView(s, true) : { kind: "wait" };
+    const preview = this.drawingPreview();
+    if (preview) return { kind: "conversation", conversationId: preview, preview: true, notice: null };
     if (s.shown === null) return this.newView(s, this.host.list(s.target.root) === "error");
     return { kind: "conversation", conversationId: s.shown, notice: s.notice };
+  }
+  // Keep the automatic New selection until the list confirms binding. A failed refresh may let the
+  // binding window expire between list reads, so ask the host whether the turn is still drawing.
+  drawingPreview(): string | null {
+    const s = this.shownState();
+    return this.host.readsProjectThreads && s?.shown === null && s.defaultNew
+      ? this.host.drawing(s.target.root, s.target.canvas) : null;
   }
   revision(): number { return this.shownState()?.revision ?? 0; }
   // The draft key of the composer the panel shows: its conversation's, else the canvas's new conversation's.
   composerKey(): string | null {
     const s = this.shownState();
     if (!s) return null;
-    return typeof s.shown === "string" ? `conversation:${s.shown}` : canvasKey(s.target);
+    const id = s.shown ?? this.drawingPreview();
+    return id ? `conversation:${id}` : canvasKey(s.target);
   }
   retryList(): void { const s = this.shownState(); if (s) this.host.reread(s.target.root); }
   listRetry(): ListRetry { const s = this.shownState(); return (s && this.host.listRetry?.(s.target.root)) ?? LIST_RETRY_IDLE; }
@@ -367,12 +379,15 @@ export class CanvasRun {
     // new state takes the list's ids again.
     if (shown === null && (s.shown !== null || s.defaultNew)) s.defaultNew = this.listedIds(root);
     this.setShown(s, shown);
+    const preview = this.drawingPreview();
+    if (preview) this.store.track(preview);
   }
   // A conversation the person newly started on a canvas showing only the default new state shows, with the new state's
   // draft when it has none, unless this panel's own start from that draft is in flight (POSTMORTEM 2026-11-14: a draft
   // whose send can be in flight never moves; the composer empties only the key it sent from).
   private followNew(s: CanvasState, known: ReadonlySet<string>, list: readonly ConversationSummary[]): boolean {
-    const id = followNewConversation(known, list, s.target.canvas, conversationId => this.store.deleting(conversationId));
+    const preview = this.host.readsProjectThreads && s.notice?.kind === "drawing" ? s.notice.open : undefined;
+    const id = followNewConversation(known, list, s.target.canvas, conversationId => this.store.deleting(conversationId), preview);
     if (id === null) return false;
     const key = canvasKey(s.target);
     if (!this.starting.has(key)) this.store.setDrafts(drafts => (hasDraft(drafts.get(key)) ? carryDraft(drafts, key, `conversation:${id}`) : drafts));
@@ -387,7 +402,8 @@ export class CanvasRun {
     const docked: DockedMode = start.mode === "resume" && start.offer
       ? { kind: "resume", root: s.target.root, canvas: s.target.canvas, provider: start.offer as Runtime }
       : { kind: "new", root: s.target.root, canvas: s.target.canvas };
-    return { kind: "new", listError, notice: s.notice, start, resume, mode: docked };
+    const notice = this.host.readsProjectThreads && s.defaultNew && s.notice?.kind === "drawing" ? null : s.notice;
+    return { kind: "new", listError, notice, start, resume, mode: docked };
   }
   // Called when the new conversation state shows on a canvas and when the conversations that could hold the session
   // change; the answer is reused until then. Send waits for the answer so a choice that appears late never changes the

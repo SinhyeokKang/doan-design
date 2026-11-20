@@ -35,7 +35,7 @@ it("moves by exact path across roots even with a different id, and stays when th
 
 it("names the project, optional switch and listed canvas and explains each unavailable switch", () => {
   expect(canvasCrumbs(card, main.path, canvas, "/code")).toMatchObject([
-    { kind: "project", label: "demo", name: "demo Overview" }, { kind: "worktree", model: { label: "main" } }, { kind: "canvas", label: "checkout", path: canvas.path },
+    { kind: "project", label: "demo" }, { kind: "worktree", model: { label: "main" } }, { kind: "canvas", label: "checkout", path: canvas.path },
   ]);
   expect(canvasCrumbs(card, main.path, null, null)).toMatchObject([{ kind: "project" }, { kind: "worktree", reason: "Switching worktrees isn’t available on a page that isn’t a listed canvas." }]);
   expect(canvasCrumbs(card, missing.path, canvas, null)).toMatchObject([{ kind: "project" }, { kind: "worktree", reason: "Switching worktrees isn’t available while the canvas can’t be shown." }]);
