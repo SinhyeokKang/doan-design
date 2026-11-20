@@ -24,8 +24,7 @@ function world(provider: Provider) {
   return { userData, profile };
 }
 // Each path is created with its parents by a shell inside the fence; the answer is the paths that were written.
-function written(provider: Provider, rels: readonly string[]): string[] {
-  const { userData, profile } = world(provider);
+function written(provider: Provider, rels: readonly string[], { userData, profile } = world(provider)): string[] {
   const paths = resolveFencePaths({ provider, userData, profileDir: profile, attachments: [] }, path => realpathSync.native(path))!;
   const script = 'for rel in "$@"; do mkdir -p "$(dirname "$PROFILE/$rel")" 2>/dev/null; if : >> "$PROFILE/$rel" 2>/dev/null; then echo "$rel"; fi; done';
   const run = spawnSync(SANDBOX_EXEC, [...fenceArgs(provider, paths), "/bin/sh", "-c", script, "sh", ...rels], { env: { PATH: "/usr/bin:/bin", PROFILE: profile }, encoding: "utf8" });
@@ -48,12 +47,27 @@ describe.runIf(usable)("the outer fence's writes in the agent's folder", () => {
   it("lets Claude write its sessions, transcripts and state and nothing a later turn reads as settings or instructions", () => {
     expectWrites("claude", [
       ".claude.json", ".claude.json.tmp.85251.42ac2059", "backups/.claude.json.backup.1", ".credentials.json", "projects/-repo/1b9d.jsonl", "projects/-repo/1b9d/subagents/a.jsonl",
-      "sessions/1b9d.json", "shell-snapshots/snapshot-zsh-1.sh", "file-history/1b9d/a@v1", "todos/1b9d.json", "plans/a.md", "tasks/1b9d/1.json",
+      ".storage-write.lock", "sessions/1b9d.json", "shell-snapshots/snapshot-zsh-1.sh", "file-history/1b9d/a@v1", "todos/1b9d.json", "plans/a.md", "tasks/1b9d/1.json",
       "cache/model-catalog", "statsig/x", "debug/1b9d.txt", "paste-cache/a", "image-cache/a", "telemetry/a", "history.jsonl", "stats-cache.json", "mcp-needs-auth-cache.json", ".last-cleanup",
     ], [
       "CLAUDE.md", "session-env/1b9d/sessionstart-hook-0.sh", "settings.json", ".mcp.json", ".claude/settings.json", "rules/a.md", "output-styles/a.md", "skills/a/SKILL.md", "agents/a.md", "commands/a.md",
-      "plugins/a/plugin.json", "hooks/a.json", "remote-settings.json", "policy-limits.json", "daemon/a", "workflows/a", "x",
+      ".storage-write.other", "plugins/a/plugin.json", "hooks/a.json", "remote-settings.json", "policy-limits.json", "daemon/a", "workflows/a", "x",
     ]);
+  });
+  it("allows Claude's account refresh lock, its owner record and the temporary owner write", () => {
+    expectWrites("claude", [".oauth_refresh.lock", ".oauth_refresh.lock.owner", ".oauth_refresh.lock.owner.tmp.6bb75133"], [
+      ".oauth_refresh.locked", ".oauth_refresh.lock.other", ".oauth_refresh.lock.owners", ".oauth_refresh.lock.owner.tmpfile",
+    ]);
+  });
+  it("allows only profile-root refresh locks for Doan MCP connectors", () => {
+    const lock = "mcp-refresh-doan_notion_eac663db915250e7.lock.lock";
+    // Create the closed parent outside the fence so a misplaced rule would actually allow the nested write.
+    const { userData, profile } = world("claude");
+    mkdirSync(join(profile, "skills"));
+    expect(written("claude", [lock, "mcp-refresh-doan_127_0_0_1_0123456789abcdef.lock.lock",
+      `skills/${lock}`, lock + ".tmp", lock.replace("doan_", "other_"), lock.replace("eac6", "gac6"),
+      lock.replace("eac6", "eac"), lock.replace("notion", "abcdefghijklmnopq"),
+    ], { userData, profile })).toEqual([lock, "mcp-refresh-doan_127_0_0_1_0123456789abcdef.lock.lock"]);
   });
   // codex-cli 0.169.0 in Full access (isolated CODEX_HOME): its stores and caches, its runtime helpers under tmp/, the
   // temporary files it renames onto root files, and the SQLite databases at the root, whatever their version suffix.
