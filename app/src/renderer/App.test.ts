@@ -1,3 +1,4 @@
+import { Children, isValidElement, type ReactElement, type ReactNode, type RefObject } from "react";
 import { expect, it, test, vi } from "vitest";
 import { App, CanvasLoading, conversationOpenRefusal, menuCommand } from "./App";
 
@@ -6,7 +7,7 @@ vi.mock("react", async importOriginal => ({
   ...await importOriginal<typeof import("react")>(),
   useEffect: (effect: () => (() => void) | undefined) => { harness.effects.push(effect); },
   useLayoutEffect: () => {},
-  useRef: () => ({ current: {} }),
+  useRef: <T,>(initial: T) => ({ current: initial }),
   useCallback: <T,>(callback: T) => callback,
   useMemo: <T,>(factory: () => T) => factory(),
   useState: (initial: unknown) => [typeof initial === "function" ? initial() : initial, vi.fn()],
@@ -33,7 +34,16 @@ it("unsubscribes both preload bridges across StrictMode effect setup, cleanup an
     onViewCommand: (listener: (value: "fit") => void) => { commands.add(listener); return () => { commands.delete(listener); commandOff(); }; },
   } });
   try {
-    App();
+    const tree = App();
+    const workspace = Children.toArray(tree.props.children).find((child): child is ReactElement<{ children: ReactNode }> =>
+      isValidElement(child) && child.type === "main");
+    if (!workspace) throw new Error("Missing workspace");
+    type CanvasRefs = Record<"viewport" | "board" | "overlay" | "dragLayer", RefObject<unknown>>;
+    const pane = Children.toArray(workspace.props.children).find((child): child is ReactElement<CanvasRefs> =>
+      isValidElement<CanvasRefs>(child) && "viewport" in child.props);
+    if (!pane) throw new Error("Missing canvas pane");
+    // React attaches the canvas nodes before running passive effects.
+    for (const ref of [pane.props.viewport, pane.props.board, pane.props.overlay, pane.props.dragLayer]) ref.current = {};
     const setup = harness.effects[0];
     expect(setup).toBeTypeOf("function");
     const firstCleanup = setup?.();
