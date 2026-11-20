@@ -4,7 +4,69 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
   const panel = $("inspector"), show = $("inspector-show"), hide = $("inspector-hide");
   const trigger = $("element-trigger"), wrap = $("element-trigger-wrap"), menu = $("element-menu"), tree = $("element-tree");
   const body = $("inspect-body"), status = $("inspect-status"), rowTip = $("inspect-row-tip"), headTip = $("inspector-tip");
-  const hasRoom = matchMedia("(min-width: 657px)");
+  const shell = panel.parentElement, handle = $("inspector-resize"), cover = $("resize-cover");
+  const storageKey = "doan.viewer.inspector.width";
+  let preferred, bounds, shown, resize = null;
+  try {
+    const stored = localStorage.getItem(storageKey);
+    if (stored !== null && Number(stored) > 0 && Number.isFinite(Number(stored))) preferred = Number(stored);
+  } catch { /* A file can have no storage; the in-memory preference still works. */ }
+
+  function paintWidth(width) {
+    shown = inspectPanel.panelWidth(width, bounds, inspectPanel.PANEL_MIN);
+    shell.style.setProperty("--inspector-width", shown + "px");
+    handle.setAttribute("aria-valuenow", String(shown));
+  }
+  function saveWidth(width) {
+    preferred = width;
+    paintWidth(width);
+    try {
+      if (width === undefined) localStorage.removeItem(storageKey);
+      else localStorage.setItem(storageKey, String(width));
+    } catch { /* Storage can also reject writes after a successful read. */ }
+  }
+  function finishResize(commit) {
+    if (!resize) return;
+    const { pointer, start, now } = resize;
+    resize = null;
+    cover.hidden = true;
+    handle.removeAttribute("data-drag");
+    if (handle.hasPointerCapture(pointer)) handle.releasePointerCapture(pointer);
+    if (commit && now !== start) saveWidth(now);
+    else if (bounds) paintWidth(preferred);
+  }
+  handle.addEventListener("pointerdown", event => {
+    if (event.button !== 0 || resize || !bounds) return;
+    event.preventDefault();
+    // A key pressed inside the sandbox cannot reach our capture-phase Escape listener.
+    if (document.activeElement === canvas) handle.focus({ preventScroll: true });
+    handle.setPointerCapture(event.pointerId);
+    resize = { pointer: event.pointerId, x: event.clientX, start: shown, now: shown };
+    handle.setAttribute("data-drag", "");
+    cover.hidden = false;
+  });
+  handle.addEventListener("pointermove", event => {
+    if (resize?.pointer !== event.pointerId) return;
+    paintWidth(resize.start + resize.x - event.clientX);
+    resize.now = shown;
+  });
+  for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) handle.addEventListener(type, event => {
+    if (resize?.pointer === event.pointerId) finishResize(true);
+  });
+  window.addEventListener("keydown", event => {
+    if (!resize || event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    finishResize(false);
+  }, true);
+  handle.addEventListener("keydown", event => {
+    if (resize || !bounds) return;
+    const next = inspectPanel.nudgePanel(shown, event.key, bounds);
+    if (next === null) return;
+    event.preventDefault();
+    if (next !== shown) saveWidth(next);
+  });
+  handle.addEventListener("dblclick", () => saveWidth(undefined));
   const noRoom = "No room for the inspector. Widen the browser window.";
   let wanted = false, epoch = 0, seq = 0, selection = 0, nodes = [];
   let text = "", dragging = false, copyAttempt = 0, rowTimer = 0, point = null;
@@ -59,16 +121,24 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     }
   }
   function mode(focus, reason) {
-    const open = wanted && hasRoom.matches;
-    show.setAttribute("aria-disabled", String(!hasRoom.matches));
-    if (!hasRoom.matches) show.setAttribute("aria-description", noRoom);
+    bounds = inspectPanel.inspectorBounds(shell.clientWidth);
+    if (!bounds || !wanted) finishResize(false);
+    if (bounds) {
+      handle.setAttribute("aria-valuemin", String(bounds.min));
+      handle.setAttribute("aria-valuemax", String(bounds.max));
+      paintWidth(resize ? resize.now : preferred);
+    }
+    const open = wanted && bounds !== null;
+    show.setAttribute("aria-disabled", String(!bounds));
+    if (!bounds) show.setAttribute("aria-description", noRoom);
     else show.removeAttribute("aria-description");
-    headTip.textContent = !hasRoom.matches ? noRoom : "Show inspector";
+    headTip.textContent = !bounds ? noRoom : "Show inspector";
     if (!reason && open === !panel.hidden) return;
-    const focusMoved = panel.contains(document.activeElement) || document.activeElement === show;
+    const focusMoved = panel.contains(document.activeElement) || document.activeElement === handle || document.activeElement === show;
     clearShowTip(); clearHideTip();
     reset();
     syncInputWindow(true);
+    handle.hidden = !open;
     panel.hidden = !open;
     syncInputWindow(panTold);
     panel.parentElement.toggleAttribute("data-inspector", open);
@@ -79,9 +149,9 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     if (focus || focusMoved) (open ? hide : show).focus({ preventScroll: true });
   }
   show.addEventListener("mousedown", event => event.preventDefault());
-  show.addEventListener("click", () => { if (hasRoom.matches) { wanted = true; mode(true); } });
+  show.addEventListener("click", () => { if (bounds) { wanted = true; mode(true); } });
   hide.addEventListener("click", () => { wanted = false; mode(true); });
-  hasRoom.addEventListener("change", () => mode(false));
+  new ResizeObserver(() => mode(false)).observe(shell);
   canvas.addEventListener("load", () => { if (wanted) mode(false, "reload"); });
   function bindHeadTooltip(button, tip) {
     let timer = 0;
@@ -316,7 +386,7 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
       if (panel.hidden || (!nodes.length && !text && !dragging)) return false;
       command("inspect-escape"); return true;
     },
-    blocks(target) { return dragging || panel.contains(target) || !menu.hidden; },
+    blocks(target) { return dragging || resize !== null || target === handle || panel.contains(target) || !menu.hidden; },
     menuOpen() { return !menu.hidden; },
     pan(on) {
       syncInputWindow(on);

@@ -12,6 +12,7 @@ const entries = [
   }],
   ["inspectPanel.js", "inspectPanel", {
     "renderer/inspectorRows": "rowDisplay, rowCopyText, rowTooltip",
+    "renderer/rightPanelSize": "inspectorBounds, panelWidth, nudgePanel, PANEL_MIN",
     "renderer/treeScrollLeft": "treeScrollLeft",
   }],
 ];
