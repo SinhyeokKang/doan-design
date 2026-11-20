@@ -38,6 +38,14 @@ const ANTIGRAVITY = `(allow file-read-metadata (literal (param "AGENT_RUNTIMES")
 `;
 const hooked = (provider: Provider) => provider === "claude" || provider === "antigravity";
 
+// Claude Code 2.1.329 coordinates account and MCP refreshes before taking the shared storage lock. Only the owner
+// record is replaced through a temporary file. The MCP lock is at the profile root: Claude replaces punctuation in
+// the Doan connector name with underscores and appends its 16-digit hex hash. Seatbelt has no counted repetition.
+const CLAUDE_REFRESH = `(let ((account-lock (string-append (param "AGENT_FOLDER") "/.oauth_refresh.lock")))
+  (allow file-write* (literal account-lock) (literal (string-append account-lock ".owner")) (prefix (string-append account-lock ".owner.tmp."))))
+(allow file-write* (regex (string-append "^" (regex-quote (param "AGENT_FOLDER")) #"/mcp-refresh-doan_[a-z0-9]${"[a-z0-9_]?".repeat(15)}_${"[0-9a-f]".repeat(16)}\\.lock\\.lock$")))
+`;
+
 // The agent's own folder: the profile for Claude (CLAUDE_CONFIG_DIR) and Codex (CODEX_HOME), the CLI's folder in the
 // dedicated HOME for the others. A later process reads its instructions, settings, rules, skills, subagents, plugins,
 // hooks and MCP servers there, some outside this fence (Codex outside Full access; Claude's sign-in, status and
@@ -50,12 +58,13 @@ const hooked = (provider: Provider) => provider === "claude" || provider === "an
 // Doan writes the doan skill stub, the Codex rules and Claude's and Copilot's settings from outside the fence.
 interface AgentWrites { folder: string; dirs: readonly string[]; files: readonly string[]; pattern?: string }
 const AGENT_WRITES: Record<Provider, AgentWrites> = {
-  // Claude Code 2.1.327 (isolated CLAUDE_CONFIG_DIR, a turn with a tool call) and a signed-in profile's entries. Auto
-  // memory under projects/ is turned off for fenced runs instead (claudeRunSettings in runners.ts), because the CLI
-  // writes its transcripts beside it. session-env/ stays closed: it holds the environment files hooks leave for a
-  // session, which that session's commands source again on a resume (probe); the CLI runs without it.
+  // Claude Code 2.1.327 (a turn with a tool call) and a signed-in profile's entries. In 2.1.329, MCP sign-in takes
+  // .storage-write.lock before saving OAuth client information and tokens, including in the macOS Keychain. Account
+  // and MCP token renewal also need CLAUDE_REFRESH. Fenced runs disable auto memory (claudeRunSettings in runners.ts)
+  // because its files sit beside transcripts under projects/. session-env/ stays closed: hooks leave environment files
+  // there that the session's commands source again on resume (probe); the CLI runs without it.
   claude: { folder: "", dirs: ["projects", "sessions", "shell-snapshots", "file-history", "todos", "plans", "tasks", "backups", "cache", "statsig", "debug", "paste-cache", "image-cache", "telemetry"],
-    files: [".claude.json", ".credentials.json", "history.jsonl", "stats-cache.json", "mcp-needs-auth-cache.json", ".last-cleanup"] },
+    files: [".claude.json", ".credentials.json", ".storage-write.lock", "history.jsonl", "stats-cache.json", "mcp-needs-auth-cache.json", ".last-cleanup"] },
   // codex-cli 0.169.0 (isolated CODEX_HOME): the Codex process itself writes these, and runs inside this fence only in
   // Full access; tmp/ holds its runtime helpers, and .tmp both a folder and the temporary files it renames onto a root
   // file (.sandbox_migration). Its SQLite databases carry a version in their names. Its login lives in the
@@ -103,7 +112,7 @@ const codexSettingsFiles = (profile: string) => [`${profile}/config.toml`, `${pr
 
 // attachments: the number of attachment directories; each one past the first gets its own parameter and rule.
 export function fencePolicy(provider: Provider, attachments = 0): string {
-  let text = BASE + agentRule(provider) + (hooked(provider) ? HOOK : "") + (provider === "antigravity" ? ANTIGRAVITY : "");
+  let text = BASE + agentRule(provider) + (provider === "claude" ? CLAUDE_REFRESH : "") + (hooked(provider) ? HOOK : "") + (provider === "antigravity" ? ANTIGRAVITY : "");
   for (let n = 2; n <= attachments; n++) text += `(allow file-read* (subpath (param "ATTACHMENTS_${n}")))\n`;
   return text;
 }

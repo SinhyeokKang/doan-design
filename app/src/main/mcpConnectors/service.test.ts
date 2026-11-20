@@ -23,9 +23,9 @@ let launched: { provider: McpProvider; profileDir: string }[], settling: Record<
 let held: Record<McpProvider, number>, acquired: { provider: McpProvider; use: string; added: Record<string, string> }[];
 let opened: string[], hook: ((raw: string) => void) | null, hooks: number, published: McpSnapshot[], readiness: Record<McpProvider, Readiness>;
 const profile = (provider: McpProvider) => join(dir, "agent-auth", "profiles", provider);
-const connected = (provider: McpProvider, connectionId = "c1"): AuthState => ({
+const connected = (provider: McpProvider, connectionId = "c1", accountId: string | null = null): AuthState => ({
   provider, phase: "connected", generation: 1, verified: true, expired: false, attempt: null, error: null,
-  connection: { provider, connectionId, profile: provider, account: { id: null, workspace: null } },
+  connection: { provider, connectionId, profile: provider, account: { id: accountId, workspace: null } },
 });
 function service(over: Partial<McpServiceOptions> = {}): McpService {
   return new McpService({
@@ -562,7 +562,7 @@ describe("provider ready: pending logouts and reconcile", () => {
     const s = service();
     expect(row(s, "claude", "doan-notion")?.view.blocked).toBe(false);
     s.refresh(); await s.idle();
-    expect(row(s, "claude", "doan-notion")?.view).toMatchObject({ status: "reconnect_needed", action: "reconnect", blocked: true });
+    expect(row(s, "claude", "doan-notion")?.view).toMatchObject({ status: "not_connected", action: "connect", blocked: true });
     s.connect("claude", "doan-notion");
     await s.idle();
     expect(row(s, "claude", "doan-notion")?.failure).toBe("pending_logout");
@@ -623,16 +623,62 @@ describe("sign-out and replacement logout", () => {
   it("a Claude replacement logs out only when the account changed; a failed logout blocks that Claude Connect", async () => {
     cli.registered.claude.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
     cli.registered.claude.set("doan-figma", { url: "https://mcp.figma.com/mcp", auth: true });
+    const custom = { name: "doan-example-com", url: "https://example.com/mcp" };
+    store.patch({ add: custom });
+    for (const name of ["doan-notion", "doan-figma", custom.name]) {
+      store.patch({ everConnected: { name, provider: "claude", value: true } });
+    }
+    store.patch({ everConnected: { name: "doan-notion", provider: "codex", value: true } });
+    const history = fileJson().everConnected;
     const s = service();
     expect(await s.logoutForAuth("claude", request("claude", { kind: "replace", previousAccountId: "a1", nextAccountId: "a1" }))).toEqual({ failed: [] });
     expect(cli.commands("claude")).toEqual([]);
+    expect(fileJson().everConnected).toEqual(history);
     cli.failing.add("claude logout doan-figma");
     expect(await s.logoutForAuth("claude", request("claude", { kind: "replace", previousAccountId: "a1", nextAccountId: "a2" }))).toEqual({ failed: ["doan-figma"] });
     expect(logouts("claude")).toEqual([["mcp", "logout", "doan-notion"], ["mcp", "logout", "doan-figma"]]);
     expect(cli.registered.claude.has("doan-figma")).toBe(true);
     expect(store.blocked("claude", "doan-figma")).toBe(true);
     await s.idle();
-    expect(row(s, "claude", "doan-figma")?.view).toMatchObject({ status: "reconnect_needed", blocked: true });
+    expect(row(s, "claude", "doan-notion")?.view).toMatchObject({ status: "not_connected", action: "connect", blocked: false });
+    expect(row(s, "claude", "doan-figma")?.view).toMatchObject({ status: "not_connected", action: "connect", blocked: true });
+    expect(fileJson()).toEqual({ v: 1, servers: [custom], everConnected: { "doan-notion": ["codex"] } });
+  });
+
+  it.each([
+    ["codex", null, null], ["claude", "a1", null], ["claude", null, "a2"], ["claude", null, null],
+  ] as const)("keeps %s history when replacement cannot compare %s with %s", async (provider, previousAccountId, nextAccountId) => {
+    cli.registered[provider].set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
+    store.patch({ everConnected: { name: "doan-notion", provider, value: true } });
+    const s = service();
+    await s.logoutForAuth(provider, request(provider, { kind: "replace", previousAccountId, nextAccountId }));
+    await s.idle();
+    expect(logouts(provider)).toContainEqual(["mcp", "logout", "doan-notion"]);
+    expect(row(s, provider, "doan-notion")?.view).toMatchObject({ status: "reconnect_needed", action: "reconnect" });
+  });
+
+  it.each(["claude", "codex"] as const)("%s offers Connect after sign-out followed by sign-in to another account", async provider => {
+    const other = provider === "claude" ? "codex" : "claude";
+    const notion = { url: "https://mcp.notion.com/mcp", auth: true };
+    cli.registered[provider].set("doan-notion", notion);
+    for (const which of [provider, other] as const) {
+      store.patch({ everConnected: { name: "doan-notion", provider: which, value: true } });
+    }
+    const oldId = provider === "claude" ? "a1" : null;
+    states[provider] = connected(provider, "c1", oldId);
+    const s = service();
+    s.authChanged(provider); await s.idle();
+    expect(status(s, provider, "doan-notion")).toBe("connected");
+
+    await s.logoutForAuth(provider, request(provider, { previousAccountId: oldId }));
+    if (provider === "claude") notion.auth = false; // Claude's own auth logout clears its MCP tokens.
+    states[provider] = { ...states[provider], phase: "disconnected", connection: null, verified: false };
+    s.authChanged(provider); await s.idle();
+    states[provider] = connected(provider, "c2", provider === "claude" ? "a2" : null);
+    s.authChanged(provider); await s.idle();
+
+    expect(row(s, provider, "doan-notion")?.view).toMatchObject({ status: "not_connected", action: "connect" });
+    expect(fileJson().everConnected).toEqual({ "doan-notion": [other] });
   });
 
   it("a Claude sign-out adds no MCP step: its auth logout clears the MCP tokens", async () => {
@@ -833,14 +879,14 @@ describe("review fixes", () => {
     await s.idle();
   });
 
-  it("an unknown pending state shows the blocked line and Reconnect on read or unread rows", async () => {
+  it("an unknown pending state offers Connect with its blocked line on rows without connection history", async () => {
     writeFileSync(join(dir, "mcp-connectors-pending.json"), "{broken");
     cli.registered.codex.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
     cli.failing.add("claude get doan-figma");
     const s = service();
     s.refresh();
     await s.idle();
-    expect(row(s, "codex", "doan-notion")?.view).toMatchObject({ status: "reconnect_needed", action: "reconnect", blocked: true });
+    expect(row(s, "codex", "doan-notion")?.view).toMatchObject({ status: "not_connected", action: "connect", blocked: true });
     expect(row(s, "codex", "doan-figma")?.view).toMatchObject({ status: "not_connected", action: "connect", blocked: true });
     expect(row(s, "claude", "doan-figma")?.view).toMatchObject({ status: "check_failed", action: "connect", blocked: true });
   });

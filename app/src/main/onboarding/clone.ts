@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { chmod, mkdir, mkdtemp, rename, rm, rmdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
-import { OwnedGroup } from "../conversation/process";
+import { drainOutput, OwnedGroup } from "../conversation/process";
 import { launchEnv } from "../launchEnv";
 import { findOnPath } from "./states";
 
@@ -10,7 +10,7 @@ import { findOnPath } from "./states";
 
 export interface CloneProcess {
   exit: Promise<number | null>;
-  // Resolves once no process of the group is left, helpers the clone started included.
+  // Resolves after the group is gone and its final diagnostics have drained or reached the pipe deadline.
   gone: Promise<void>;
   stop(): void;
   // The end of stderr, main-only: it is classified, never shown.
@@ -81,12 +81,13 @@ export const spawnClone: CloneSpawn = (command, args, env) => {
   child.stderr!.setEncoding("utf8");
   child.stderr!.on("data", (chunk: string) => { text = (text + chunk).slice(-STDERR_LIMIT); });
   let release!: () => void;
-  const gone = new Promise<void>(resolve => { release = resolve; });
+  const groupGone = new Promise<void>(resolve => { release = resolve; });
   const group = child.pid ? new OwnedGroup(child.pid, undefined, undefined, release) : null;
   const exit = new Promise<number | null>(resolve => {
     child.once("error", () => { resolve(null); if (group) group.childExited(); else release(); });
     child.once("exit", code => { resolve(code); group?.childExited(); });
   });
+  const gone = Promise.all([groupGone, exit.then(drainOutput(child.stderr!))]).then(() => {});
   return { exit, gone, stop: () => { void group?.stop(); }, stderr: () => text };
 };
 

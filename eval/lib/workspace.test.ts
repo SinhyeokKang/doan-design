@@ -63,6 +63,7 @@ test("work context and retained evidence read the fake app's v3 exchanges", asyn
     const out = mkdtempSync(join(root, "run-"));
     keepOnboardingLog(ws, out);
     assert.equal(readFileSync(join(out, "work.jsonl"), "utf8"), readFileSync(ws.workLog, "utf8"));
+    assert.equal(statSync(join(out, "work.jsonl")).mode & 0o077, 0);
   } finally { await ws.dispose(); }
 });
 

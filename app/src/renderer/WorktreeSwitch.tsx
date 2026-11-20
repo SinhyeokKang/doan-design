@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type SyntheticEvent } from "react";
+import { useId, useLayoutEffect, useRef, useState, type SyntheticEvent } from "react";
 import { DropdownMenu } from "radix-ui";
 import { Check, FolderOpen, GitBranch, Settings } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
@@ -24,6 +24,15 @@ export function WorktreeSwitch({ model, reason, tabIndex, sidebar = false, onWor
   const repair = model.rows.find(row => row.root === repairRoot);
   // If the list changed under an open menu, a press on a formerly available canvas reports the failed move.
   const offered = useRef(new Set<string>());
+  useLayoutEffect(() => {
+    if (!open) {
+      offered.current.clear();
+      return;
+    }
+    for (const row of model.rows) {
+      if (row.state.kind === "open" && !row.current) offered.current.add(row.root);
+    }
+  }, [open, model.rows]);
   const handOff = useRef(false);
   const { trigger, onCloseAutoFocus } = useMenuFocus(canvasKey, open, !reason, () => setOpen(false), fallbackFocus);
   const retry = useRetry();
@@ -32,10 +41,7 @@ export function WorktreeSwitch({ model, reason, tabIndex, sidebar = false, onWor
     if (next && reason) return;
     setOpen(next);
     setTip(false);
-    if (next) {
-      setRepairRoot(null);
-      offered.current = new Set(model.rows.filter(row => row.state.kind === "open" && !row.current).map(row => row.root));
-    }
+    if (next) setRepairRoot(null);
   };
   const stopTreeEvent = sidebar ? (event: SyntheticEvent) => event.stopPropagation() : undefined;
   return <DropdownMenu.Root open={open && !reason} onOpenChange={changeOpen}>

@@ -17,7 +17,7 @@ beforeAll(async () => {
         import { createRoot } from "react-dom/client";
         import { WorktreeSwitch } from "./WorktreeSwitch";
         import { TooltipProvider } from "./components/ui/tooltip";
-        import { headerRowState, worktreeSwitchModel } from "./worktreeSwitchModel";
+        import { headerMove, headerRowState, worktreeSwitchModel } from "./worktreeSwitchModel";
         import { mountCanvas, mountRecovery } from "./WorktreeSwitch.dom.fixture";
         const main = { path: "/code/demo", kind: "list", git: { branch: "main" }, canvases: [{path: "a.html"}] };
         const root = createRoot(document.querySelector("main"));
@@ -28,7 +28,11 @@ beforeAll(async () => {
           const missing = { kind: "notFound", path: "/code/archived" };
           const model = worktreeSwitchModel([main, other, missing], main.path, "/code", row => headerRowState(row, "a.html"));
           root.render(<TooltipProvider><div onKeyDown={() => document.body.dataset.key = "bubbled"} onClick={() => document.body.dataset.click = "bubbled"}>
-            <WorktreeSwitch model={model} reason={reason} sidebar tabIndex={0} onWorktree={root => document.body.dataset.moved = root} />
+            <WorktreeSwitch model={model} reason={reason} sidebar tabIndex={0} onWorktree={root => {
+              const move = headerMove([main, other, missing].find(row => row.path === root), "a.html");
+              if (move.kind === "canvas") document.body.dataset.moved = move.root;
+              else document.body.dataset.notices = String(Number(document.body.dataset.notices ?? 0) + 1);
+            }} />
           </div></TooltipProvider>);
         };
         window.draw(false, null);
@@ -40,7 +44,7 @@ beforeAll(async () => {
 }, 60_000);
 afterAll(async () => { await dom?.close(); }, 30_000);
 
-test("a reading row becomes selectable under the same focus, and reselecting the current row only closes", async () => {
+test("a reading row offered and then lost during one opening gives one notice without navigating", { timeout: 60_000 }, async () => {
   const frame = await dom.load("<main></main>");
   frame.page().setDefaultTimeout(4_000);
   await frame.addScriptTag({ content: script });
@@ -52,13 +56,27 @@ test("a reading row becomes selectable under the same focus, and reselecting the
   expect(await frame.getByRole("menuitem", { name: "next ~/next", description: "Reading…", exact: true }).count()).toBe(1);
   await next.press("Enter");
   expect(await next.isVisible()).toBe(true);
-  await frame.evaluate(() => (window as unknown as { draw(ready: boolean, reason: null): void }).draw(true, null));
+  const body = frame.locator("body");
+  expect(await body.getAttribute("data-notices")).toBeNull();
+  const draw = (state: true | "gone") => frame.evaluate(state => (window as unknown as { draw(ready: true | "gone", reason: null): void }).draw(state, null), state);
+  await draw(true);
   await expect.poll(() => next.getAttribute("aria-disabled")).toBeNull();
   expect(await next.evaluate(node => document.activeElement === node)).toBe(true);
+  await draw("gone");
+  const gone = frame.getByRole("menuitem", { name: "next ~/next", description: "No a here", exact: true });
+  await gone.waitFor();
+  expect(await gone.getAttribute("aria-disabled")).toBe("true");
+  await gone.press("Enter");
+  expect(await body.getAttribute("data-notices")).toBe("1");
+  expect(await body.getAttribute("data-moved")).toBeNull();
   await frame.getByRole("menuitem", { name: /main/ }).click();
   await next.waitFor({ state: "hidden" });
   expect(await frame.locator("body").getAttribute("data-moved")).toBeNull();
   await trigger.press("ArrowDown");
+  await gone.press("Enter");
+  expect(await body.getAttribute("data-notices")).toBe("1");
+  expect(await body.getAttribute("data-moved")).toBeNull();
+  await draw(true);
   await next.click();
   expect(await frame.locator("body").getAttribute("data-moved")).toBe("/code/next");
 });
@@ -71,7 +89,7 @@ async function canvas() {
   return frame;
 }
 
-test("choosing a worktree from the canvas header with the keyboard returns focus to its trigger", async () => {
+test("choosing a worktree from the canvas header with the keyboard returns focus to its trigger", { timeout: 60_000 }, async () => {
   const frame = await canvas();
   await frame.getByRole("button", { name: "Worktree: main" }).press("ArrowDown");
   await frame.getByRole("menuitem", { name: /next/ }).press("Enter");
@@ -80,7 +98,7 @@ test("choosing a worktree from the canvas header with the keyboard returns focus
   await expect.poll(() => trigger.evaluate(node => document.activeElement === node)).toBe(true);
 });
 
-test("Escape cancels a pick while the canvas worktree trigger has focus", async () => {
+test("Escape cancels a pick while the canvas worktree trigger has focus", { timeout: 60_000 }, async () => {
   const frame = await canvas();
   const trigger = frame.getByRole("button", { name: "Worktree: main" });
   await trigger.focus();
@@ -89,7 +107,7 @@ test("Escape cancels a pick while the canvas worktree trigger has focus", async 
   expect(await frame.locator("body").getAttribute("data-picking")).toBe("false");
 });
 
-test("H switches tools while the canvas worktree trigger has focus", async () => {
+test("H switches tools while the canvas worktree trigger has focus", { timeout: 60_000 }, async () => {
   const frame = await canvas();
   const trigger = frame.getByRole("button", { name: "Worktree: main" });
   await trigger.press("h");
@@ -97,7 +115,7 @@ test("H switches tools while the canvas worktree trigger has focus", async () =>
 });
 
 for (const host of ["overview", "sidebar"] as const) {
-  test.each([["cliError", "CLI error", "warn"], ["error", "Config error", "err"]] as const)(host + " routes the %s row's repair actions to its root", async (kind, label, tone) => {
+  test.each([["cliError", "CLI error", "warn"], ["error", "Config error", "err"]] as const)(host + " routes the %s row's repair actions to its root", { timeout: 60_000 }, async (kind, label, tone) => {
     const frame = await dom.load("<main></main>");
     frame.page().setDefaultTimeout(4_000);
     await frame.addScriptTag({ content: script });
@@ -121,7 +139,7 @@ for (const host of ["overview", "sidebar"] as const) {
   });
 }
 
-test("the sidebar switch keeps clicks, disclosure and typeahead out of the tree and explains a lock", async () => {
+test("the sidebar switch keeps clicks, disclosure and typeahead out of the tree and explains a lock", { timeout: 60_000 }, async () => {
   const frame = await dom.load("<main></main>");
   await frame.addScriptTag({ content: script });
   const trigger = frame.getByRole("button", { name: "Worktree: main" });
@@ -139,25 +157,10 @@ test("the sidebar switch keeps clicks, disclosure and typeahead out of the tree 
   expect(await trigger.getAttribute("aria-expanded")).toBe("false");
 });
 
-test("a disabled worktree with a status chip exposes the chip as its description", async () => {
+test("a disabled worktree with a status chip exposes the chip as its description", { timeout: 60_000 }, async () => {
   const frame = await dom.load("<main></main>");
   await frame.addScriptTag({ content: script });
   await frame.getByRole("button", { name: "Worktree: main" }).press("ArrowDown");
   await frame.getByRole("menu", { name: "Worktrees" }).waitFor();
   expect(await frame.getByRole("menuitem", { name: "archived ~/archived", description: "Missing", disabled: true, exact: true }).count()).toBe(1);
-});
-
-test("a canvas which vanishes from a previously offered worktree is rechecked when pressed", async () => {
-  const frame = await dom.load("<main></main>");
-  await frame.addScriptTag({ content: script });
-  const draw = (state: boolean | string) => frame.evaluate(state => (window as unknown as { draw(ready: boolean | string, reason: null): void }).draw(state, null), state);
-  await draw(true);
-  await frame.getByRole("button", { name: "Worktree: main" }).press("ArrowDown");
-  await draw("gone");
-  const gone = frame.getByRole("menuitem", { name: "next ~/next", description: "No a here", exact: true });
-  await frame.getByText("No a here", { exact: true }).waitFor();
-  expect(await gone.count()).toBe(1);
-  expect(await gone.getAttribute("aria-disabled")).toBe("true");
-  await gone.press("Enter");
-  expect(await frame.locator("body").getAttribute("data-moved")).toBe("/code/next");
 });

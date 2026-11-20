@@ -23,30 +23,20 @@ export interface ConnectorView { status: ConnectorStatus; action: ConnectorActio
 
 const ATTEMPT_STATUS = { connect: "connecting", disconnect: "disconnecting", remove: "removing" } as const;
 
-function settled(check: CheckRead, everConnected: boolean): { status: ConnectorStatus; action: ConnectorAction | null } {
+function settled(check: CheckRead, everConnected: boolean, blocked: boolean): { status: ConnectorStatus; action: ConnectorAction | null } {
   const last = check.last;
   if (last === null) return { status: "checking", action: null };
-  if (!last.ok) return { status: "check_failed", action: "retry" };
+  if (!last.ok) return { status: "check_failed", action: blocked ? "connect" : "retry" };
   if (!last.facts.registered) return { status: "not_connected", action: "connect" };
-  if (last.facts.authenticated) return { status: "connected", action: "disconnect" };
-  // Reconnect needed is not stored: it is a sign-in this server once had under this provider.
+  // A blocked server may still report the previous account's token.
+  if (last.facts.authenticated && !blocked) return { status: "connected", action: "disconnect" };
   return everConnected ? { status: "reconnect_needed", action: "reconnect" } : { status: "not_connected", action: "connect" };
-}
-
-// While the previous account's logout is pending, every read row offers Connect, which retries that logout first.
-// A server that reads as signed in may still hold the previous account's token, so it is shown as
-// Reconnect needed, never Connected; a failed read keeps its status but trades Retry for Connect.
-function blockedSettled(check: CheckRead, everConnected: boolean): { status: ConnectorStatus; action: ConnectorAction | null } {
-  const read = settled(check, everConnected);
-  if (read.status === "connected") return { status: "reconnect_needed", action: "reconnect" };
-  if (read.status === "check_failed") return { status: "check_failed", action: "connect" };
-  return read;
 }
 
 export function connectorState(input: ConnectorStateInput): ConnectorView {
   const own = input.attempt?.name === input.name ? input.attempt : null;
   if (own) return { status: ATTEMPT_STATUS[own.kind], action: own.kind === "connect" ? "cancel" : null, disabled: null, blocked: false };
-  const { status, action } = input.blocked ? blockedSettled(input.check, input.everConnected) : settled(input.check, input.everConnected);
+  const { status, action } = settled(input.check, input.everConnected, input.blocked);
   const connects = action === "connect" || action === "reconnect";
   // A sign-in or sign-out in progress leaves Connect pressable: it fails with the busy reason.
   const notReady = !input.readiness.ready && input.readiness.cause !== "busy";

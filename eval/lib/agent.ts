@@ -1,7 +1,8 @@
 import { execFileSync, spawn } from "node:child_process";
-import { closeSync, openSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, copyFileSync, realpathSync, symlinkSync } from "node:fs";
+import { closeSync, openSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, realpathSync, symlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { LOG_BYTES, readArtifact } from "./artifact.ts";
 import type { Agent } from "./args.ts";
 import type { Check } from "./types.ts";
 import { toolCalls, type ToolCalls } from "./transcript.ts";
@@ -79,20 +80,24 @@ export function registeredCodexMcpServers(env: NodeJS.ProcessEnv, cwd: string): 
 }
 
 // Read evidence produced by the agent's shell, not the runner's own PATH lookup.
-export function cliProvenance(report: string, expected: string | null): Check {
+export function cliProvenance(report: string, expected: string | null, evidencePath?: string): Check {
+  const invalid = (error: unknown) => ({ id: "agent_cli_provenance", pass: false, detail: `Missing or invalid agent CLI resolution: ${(error as Error).message}` });
+  let bytes: Buffer;
+  try { bytes = readArtifact(report, 4 << 10); } catch (error) { return invalid(error); }
+  if (evidencePath) writeFileSync(evidencePath, bytes, { mode: 0o600 });
   try {
-    const resolved = readFileSync(report, "utf8").trim();
+    const resolved = bytes.toString("utf8").trim();
     if (expected === null) return { id: "agent_cli_provenance", pass: resolved === "", detail: `agent resolved ${resolved || "(no doan on PATH)"}; expected no shell CLI` };
     const pass = realpathSync(resolved) === realpathSync(expected);
     return { id: "agent_cli_provenance", pass, detail: `agent resolved ${resolved}; expected ${expected}` };
   } catch (error) {
-    return { id: "agent_cli_provenance", pass: false, detail: `Missing or invalid agent CLI resolution: ${(error as Error).message}` };
+    return invalid(error);
   }
 }
 
 export function readAgentTranscript(agent: Agent, dir: string, env: NodeJS.ProcessEnv): { transcript: string; calls: ToolCalls } {
-  const stderr = readFileSync(join(dir, "stderr.log"), "utf8");
-  const transcript = readFileSync(join(dir, "stdout.log"), "utf8") + "\n" + stderr;
+  const stderr = readArtifact(join(dir, "stderr.log"), LOG_BYTES).toString("utf8");
+  const transcript = readArtifact(join(dir, "stdout.log"), LOG_BYTES).toString("utf8") + "\n" + stderr;
   if (agent !== "codex") return { transcript, calls: toolCalls(transcript) };
   // stderr omits some commands in batched exec calls. Match the run's session
   // rather than picking the newest rollout, which may belong to another agent.
@@ -106,8 +111,9 @@ export function readAgentTranscript(agent: Agent, dir: string, env: NodeJS.Proce
     if (matches.length !== 1) throw new Error(`Expected one Codex rollout for ${id}, found ${matches.length}`);
     const source = join(matches[0]!.parentPath, matches[0]!.name);
     const dest = join(dir, "codex-rollout.jsonl");
-    copyFileSync(source, dest);
-    return { transcript, calls: toolCalls(transcript + "\n" + readFileSync(dest, "utf8")) };
+    const rollout = readArtifact(source, LOG_BYTES);
+    writeFileSync(dest, rollout, { mode: 0o600 });
+    return { transcript, calls: toolCalls(transcript + "\n" + rollout.toString("utf8")) };
   } catch (error) {
     // Keep older Codex versions usable, but leave an explicit evidence gap.
     writeFileSync(join(dir, "codex-rollout-error.txt"), `${(error as Error).message}\n`);

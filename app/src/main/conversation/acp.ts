@@ -43,6 +43,8 @@ export class AcpConnection {
       if (line) this.line(line);
     }
   }
+  // The leader has exited. Its bounded output drain now decides which requests received no reply.
+  clearDeadlines(): void { for (const entry of this.pending.values()) clearTimeout(entry.timer); }
   close(): void {
     if (this.closed) return; this.closed = true;
     for (const entry of this.pending.values()) { clearTimeout(entry.timer); entry.reject(new AcpError("process_exited")); }

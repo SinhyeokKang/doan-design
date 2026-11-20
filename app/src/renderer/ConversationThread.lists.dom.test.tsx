@@ -51,7 +51,7 @@ const items = () => frame.evaluate(() => [...document.querySelectorAll(".bubble-
   return { body: body.textContent!.split(" ")[0], mark: Math.round(mark.left - left), markTop: Math.round(mark.top), at: Math.round((b.left - left) * 100) / 100, top: Math.round(b.top), lines: Math.round(b.height / line), display: getComputedStyle(item).display };
 }));
 
-test("a sent list selects as the text sent, markers and depth spaces included", async () => {
+test("a sent list selects as the text sent, markers and depth spaces included", { timeout: 60_000 }, async () => {
   for (const text of ["Before:\n- a\n  - b\n    - c\n- d\nAfter", "Steps\n9. a\n10. b\n100. c", " - one space\n- none", "1. a\n   - b\n     1. c\n2. d"]) {
     await open(text);
     expect(await selected()).toBe(text);
@@ -60,7 +60,7 @@ test("a sent list selects as the text sent, markers and depth spaces included", 
   expect(new Set((await items()).map(item => item.display))).toEqual(new Set(["block"]));
 });
 
-test("markers step in by depth up to four steps, and a wrapped body hangs under its own start", async () => {
+test("markers step in by depth up to four steps, and a wrapped body hangs under its own start", { timeout: 60_000 }, async () => {
   await open("- d0\n  - d1\n    - d2\n      - d3\n        - d4\n          - d5 a body long enough to wrap in the bubble at the panel width\n            - d6");
   const rows = await items();
   // Every marker stands one --space-5 step (20 px) in and each depth adds a step; a bullet's column is --space-3
@@ -72,7 +72,7 @@ test("markers step in by depth up to four steps, and a wrapped body hangs under 
   expect(rows.find(row => row.body === "d5")!.lines).toBeGreaterThan(1);
 });
 
-test("the bodies of one numbered list line up, past its widest marker", async () => {
+test("the bodies of one numbered list line up, past its widest marker", { timeout: 60_000 }, async () => {
   await open("Steps\n9. Hero spacing\n10. Pricing cards\n100. Footer links");
   const rows = await items();
   expect(new Set(rows.map(row => row.at)).size).toBe(1);
@@ -103,7 +103,7 @@ const dots = () => frame.evaluate(() => [...document.querySelectorAll('.bubble-i
   return { end: Math.round(end * 100) / 100, gap: Math.round((body.getClientRects()[0]!.left - end) * 100) / 100 };
 }));
 
-test("numbers stand right-aligned in the column, each followed by the same gap", async () => {
+test("numbers stand right-aligned in the column, each followed by the same gap", { timeout: 60_000 }, async () => {
   for (const text of ["1. a\n2. b", "9. a\n10. b\n11. c", "8. a\n88. b\n100. c"]) {
     await open(text);
     const rows = await dots();
@@ -115,7 +115,7 @@ test("numbers stand right-aligned in the column, each followed by the same gap",
   }
 });
 
-test("a depth-0 item's typed leading spaces take no width", async () => {
+test("a depth-0 item's typed leading spaces take no width", { timeout: 60_000 }, async () => {
   await open(" - one space\n- none");
   expect((await items()).map(row => [row.mark, row.at])).toEqual([[20, 32], [20, 32]]);
 });

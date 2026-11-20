@@ -8,6 +8,7 @@ import { basename, dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { assertRealState, realState } from "../app/runtime/real-state.ts";
 import { agentCommand, agentEnvironment, cliProvenance, isolateUserInstructions, killRunning, registeredCodexMcpServers, runProcess, readAgentTranscript } from "./lib/agent.ts";
+import { LOG_BYTES, readArtifact } from "./lib/artifact.ts";
 import { parseArgs, type Agent, type Options } from "./lib/args.ts";
 import { createContext, judgeMaterial, sh } from "./lib/context.ts";
 import { buildJudgePrompt, checkList, finalResult, fixtureProblem, judgeCommand, judgeFor, parseJudgement, type Judgement } from "./lib/judge.ts";
@@ -44,7 +45,8 @@ async function judge(agent: Agent, prompt: string, dir: string): Promise<{ judge
     const { cmd, args } = judgeCommand(judgeAgent, prompt, outFile);
     const env = isolateUserInstructions(judgeAgent, agentEnvironment(process.env), join(cwd, "codex-home"));
     const result = await runProcess({ cmd, args, cwd, env, timeoutSec: 600, stdoutPath: join(dir, "judge-stdout.log"), stderrPath: join(dir, "judge-stderr.log") });
-    const raw = existsSync(outFile) ? readFileSync(outFile, "utf8") : readFileSync(join(dir, "judge-stdout.log"), "utf8");
+    const bytes = existsSync(outFile) ? readArtifact(outFile, 1 << 20) : readArtifact(join(dir, "judge-stdout.log"), LOG_BYTES);
+    const raw = bytes.toString("utf8");
     return { judgement: result.timedOut ? null : parseJudgement(raw), raw };
   } finally {
     rmSync(cwd, { recursive: true, force: true });
@@ -70,8 +72,7 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     const evidence = readAgentTranscript(agent, dir, ws.env);
     const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent, ...evidence, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit, gitDir: ws.gitDir, onboardingLog: ws.onboardingLog, workLog: ws.workLog, openLog: ws.openLog, handoffLog: ws.handoffLog, prototypeLog: ws.prototypeLog, appWrites: ws.appWrites });
     const checks = await runChecks(scenario, ctx);
-    checks.push(cliProvenance(resolutionPath, scenario.shellCli ? setup.cli : null));
-    if (existsSync(resolutionPath)) cpSync(resolutionPath, join(dir, "resolved-doan.txt"));
+    checks.push(cliProvenance(resolutionPath, scenario.shellCli ? setup.cli : null, join(dir, "resolved-doan.txt")));
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
     let judgement: Judgement | null | "skipped" = "skipped";
     if (setup.options.judge) {
@@ -103,8 +104,7 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     console.log(`done  ${name}: ${record.result} (${proc.durationSec}s${proc.timedOut ? ", timed out" : ""})`);
     return record;
   } finally {
-    keepEvidence(ws, dir);
-    await ws.dispose();
+    try { keepEvidence(ws, dir); } finally { await ws.dispose(); }
   }
 }
 
@@ -158,8 +158,7 @@ export async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, ki
     // n orders the pass fixture before the fail one in the summary.
     return { record: { scenario: scenario.id, agent: "fixture", n: kind === "pass" ? 1 : 2, dir: join(".scratch/agent-eval", setup.options.round, name), result, checks, judge: judgement, durationSec: null, exitCode: null, timedOut: false }, problems };
   } finally {
-    keepEvidence(ws, dir);
-    await ws.dispose();
+    try { keepEvidence(ws, dir); } finally { await ws.dispose(); }
   }
 }
 
@@ -181,18 +180,18 @@ async function main(): Promise<number> {
 
   let cli = PACKAGED_CLI;
   let cliDir: string | null = null;
-  if (options.selfTest) {
-    // Built here so the self-test does not depend on a packaged app; real rounds never use this build.
-    if (!existsSync(PACKAGED_CLI)) console.log(`note: no packaged CLI at ${PACKAGED_CLI}; run \`npm --prefix app run package\` before a real round`);
-    cliDir = mkdtempSync("/tmp/doan-eval-cli-");
-    cli = join(cliDir, "doan");
-    const build = sh("go", ["build", "-o", cli, "./cli/cmd/doan"], ROOT, process.env);
-    if (build.code !== 0) throw new Error(`go build failed: ${build.stderr}`);
-  } else if (!existsSync(PACKAGED_CLI)) {
-    throw new Error(`no packaged CLI at ${PACKAGED_CLI}; run \`npm --prefix app run package\` at the HEAD being measured`);
-  }
-
   try {
+    if (options.selfTest) {
+      // Built here so the self-test does not depend on a packaged app; real rounds never use this build.
+      if (!existsSync(PACKAGED_CLI)) console.log(`note: no packaged CLI at ${PACKAGED_CLI}; run \`npm --prefix app run package\` before a real round`);
+      cliDir = mkdtempSync("/tmp/doan-eval-cli-");
+      cli = join(cliDir, "doan");
+      const build = sh("go", ["build", "-o", cli, "./cli/cmd/doan"], ROOT, process.env);
+      if (build.code !== 0) throw new Error(`go build failed: ${build.stderr}`);
+    } else if (!existsSync(PACKAGED_CLI)) {
+      throw new Error(`no packaged CLI at ${PACKAGED_CLI}; run \`npm --prefix app run package\` at the HEAD being measured`);
+    }
+
     const skill = sh(cli, ["skill", "--json"], ROOT, process.env);
     const versions: RoundMeta["versions"] = {};
     if (!options.selfTest) {

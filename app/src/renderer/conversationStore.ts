@@ -70,7 +70,7 @@ export class ConversationStore {
   // A returned draft taken, by the reads started then: the list still says so until a later read.
   private taken = new Map<string, number>();
   // New conversation drafts whose start message main was asked for: it hands one over once, so once a run is enough.
-  private startsAsked = new Set<string>();
+  private startsAsked = new Map<string, symbol>();
   // Providers of conversations started here, before a list names them.
   private providers = new Map<string, Provider>();
   // Each screen's run hears a thread change for its own seen and promotion rules: "read" once its history was read,
@@ -271,6 +271,7 @@ export class ConversationStore {
   }
   // Drafts whose key matches go (a removed project's), with every file they held.
   dropDrafts(drop: (key: string) => boolean): void {
+    for (const key of this.startsAsked.keys()) if (drop(key)) this.startsAsked.delete(key);
     for (const [key, draft] of this.drafts) if (drop(key)) dropAll(this.calls, draft);
     this.drafts = new Map([...this.drafts].filter(([key]) => !drop(key)));
   }
@@ -463,16 +464,9 @@ export class ConversationStore {
   // A new conversation's first message that a quit stopped before main accepted it, in an earlier run, comes into the
   // new conversation's draft of its root (on canvas) once, when that draft shows.
   takeStartDraft(root: string, canvas?: Canvas): void {
-    const key = draftKey({ kind: "new", root, ...(canvas ? { canvas } : {}) });
-    const take = this.calls.takeStartDraft;
-    if (!take || this.startsAsked.has(key)) return;
-    this.startsAsked.add(key);
-    void take({ root, ...(canvas ? { canvas } : {}) }).catch(() => ({ error: "unknown" })).then(async reply => {
-      // Main keeps a draft it could not hand over (preload takeStartDraft), so the next list read asks again.
-      if (reply && "error" in reply) this.startsAsked.delete(key);
-      if (!reply || "error" in reply) return;
-      this.addReturned(key, await draftFrom(this.calls, reply.text, reply.anchors, reply.attachments));
-    });
+    const request = { root, ...(canvas ? { canvas } : {}) };
+    const key = draftKey({ kind: "new", ...request });
+    restoreStartDraft(this.calls, this.startsAsked, key, request, draft => this.addReturned(key, draft));
   }
   private addReturned(key: string, returned: DockedDraft): void {
     this.setDrafts(drafts => {
@@ -513,6 +507,21 @@ function dropAll(calls: StoreCalls, draft: DockedDraft | undefined): void {
   for (const attachment of draft?.attachments ?? []) dropAttachment(calls, attachment);
 }
 const emptyDraft = (draft: DockedDraft) => draft.segments.length === 0 && !draft.preset && draft.attachments.length === 0;
+
+// Remove invalidates a take even if the same key has been registered and asked for again before main answers.
+export function restoreStartDraft(calls: StoreCalls, asked: Map<string, symbol>, key: string, request: { root: string; canvas?: Canvas }, restore: (draft: DockedDraft) => void): void {
+  if (!calls.takeStartDraft || asked.has(key)) return;
+  const token = Symbol();
+  asked.set(key, token);
+  void calls.takeStartDraft(request).catch(() => ({ error: "unknown" })).then(async reply => {
+    if (asked.get(key) !== token || !reply) return;
+    // Main keeps a draft it could not hand over, so a later visit asks again.
+    if ("error" in reply) { asked.delete(key); return; }
+    const draft = await draftFrom(calls, reply.text, reply.anchors, reply.attachments);
+    if (asked.get(key) === token) restore(draft);
+    else dropAll(calls, draft);
+  });
+}
 
 // A request read back into a draft: the preset line becomes the chip, and recorded files are issued again from their
 // paths (a moved file comes back as a missing chip). Shared by a returned queue and Edit and resend. held: per record,
