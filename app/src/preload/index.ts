@@ -193,6 +193,7 @@ const api = {
   openLink: (url: string): Promise<boolean> => ipcRenderer.invoke("shell:openLink", { url }),
   // The OS cursor in the window's content coordinates (CSS px), null when main cannot tell.
   pointer: (): Promise<{ x: number; y: number } | null> => ipcRenderer.invoke("pointer:get"),
+  interruptProjectTurn: (request: { conversationId: string; turnId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:interrupt", { ...request, forRemoval: true }),
   interruptConversation: (request: { conversationId: string; turnId?: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:interrupt", request),
   answerConversationPermission: (request: { conversationId: string; requestId: string; optionId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:answerPermission", request),
   answerConversationQuestion: (request: { conversationId: string; requestId: string } & QuestionAnswerInput): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:answerQuestion", request),
@@ -417,7 +418,7 @@ const api = {
     ipcRenderer.on("view-command", receive);
     return () => ipcRenderer.removeListener("view-command", receive);
   },
-  removeProjects: (paths: string[]): Promise<RemoveResult> => ipcRenderer.invoke("folders:remove", { paths }),
+  removeProjects: (paths: string[], group?: true): Promise<RemoveResult> => ipcRenderer.invoke("folders:remove", group ? { paths, group } : { paths }),
   locateProject: (path: string): Promise<LocateResult> => ipcRenderer.invoke("folders:locate", { path }),
   revealProject: (path: string): Promise<void> => ipcRenderer.invoke("folders:reveal", { path }),
   setMenuState: (inputs: MenuInputs): Promise<void> => ipcRenderer.invoke("menu:state", inputs),
