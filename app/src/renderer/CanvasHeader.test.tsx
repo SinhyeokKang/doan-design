@@ -42,7 +42,7 @@ describe("CanvasHeader", () => {
   it("reads canvas / frame and shows the zoom controller", () => {
     const markup = html(opened());
     // The path is in the name's tooltip, not a native title.
-    expect(markup).toMatch(/<span class="doan-canvas-name" data-state="closed" data-slot="tooltip-trigger">.*<span>checkout<\/span><\/span><span class="ov-sep" aria-hidden="true">\/<\/span>/);
+    expect(markup).toMatch(/<span class="doan-canvas-name" role="img" aria-label="checkout" data-state="closed" data-slot="tooltip-trigger">.*<span>checkout<\/span><\/span><span class="ov-sep" aria-hidden="true">\/<\/span>/);
     const drawer = button(markup, "Frame 3: Payment");
     expect(drawer).toContain('aria-haspopup="listbox"');
     expect(drawer).not.toContain("title=");
