@@ -23,9 +23,9 @@ let launched: { provider: McpProvider; profileDir: string }[], settling: Record<
 let held: Record<McpProvider, number>, acquired: { provider: McpProvider; use: string; added: Record<string, string> }[];
 let opened: string[], hook: ((raw: string) => void) | null, hooks: number, published: McpSnapshot[], readiness: Record<McpProvider, Readiness>;
 const profile = (provider: McpProvider) => join(dir, "agent-auth", "profiles", provider);
-const connected = (provider: McpProvider, connectionId = "c1"): AuthState => ({
+const connected = (provider: McpProvider, connectionId = "c1", accountId: string | null = null): AuthState => ({
   provider, phase: "connected", generation: 1, verified: true, expired: false, attempt: null, error: null,
-  connection: { provider, connectionId, profile: provider, account: { id: null, workspace: null } },
+  connection: { provider, connectionId, profile: provider, account: { id: accountId, workspace: null } },
 });
 function service(over: Partial<McpServiceOptions> = {}): McpService {
   return new McpService({
@@ -655,6 +655,30 @@ describe("sign-out and replacement logout", () => {
     await s.idle();
     expect(logouts(provider)).toContainEqual(["mcp", "logout", "doan-notion"]);
     expect(row(s, provider, "doan-notion")?.view).toMatchObject({ status: "reconnect_needed", action: "reconnect" });
+  });
+
+  it.each(["claude", "codex"] as const)("%s offers Connect after sign-out followed by sign-in to another account", async provider => {
+    const other = provider === "claude" ? "codex" : "claude";
+    const notion = { url: "https://mcp.notion.com/mcp", auth: true };
+    cli.registered[provider].set("doan-notion", notion);
+    for (const which of [provider, other] as const) {
+      store.patch({ everConnected: { name: "doan-notion", provider: which, value: true } });
+    }
+    const oldId = provider === "claude" ? "a1" : null;
+    states[provider] = connected(provider, "c1", oldId);
+    const s = service();
+    s.authChanged(provider); await s.idle();
+    expect(status(s, provider, "doan-notion")).toBe("connected");
+
+    await s.logoutForAuth(provider, request(provider, { previousAccountId: oldId }));
+    if (provider === "claude") notion.auth = false; // Claude's own auth logout clears its MCP tokens.
+    states[provider] = { ...states[provider], phase: "disconnected", connection: null, verified: false };
+    s.authChanged(provider); await s.idle();
+    states[provider] = connected(provider, "c2", provider === "claude" ? "a2" : null);
+    s.authChanged(provider); await s.idle();
+
+    expect(row(s, provider, "doan-notion")?.view).toMatchObject({ status: "not_connected", action: "connect" });
+    expect(fileJson().everConnected).toEqual({ "doan-notion": [other] });
   });
 
   it("a Claude sign-out adds no MCP step: its auth logout clears the MCP tokens", async () => {
