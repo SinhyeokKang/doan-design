@@ -201,6 +201,7 @@ function withSignOut(status: AuthStatusDto, ctx: ProviderContext, view: Provider
 const BLOCKED = {
   expired: { short: "Sign-in expired", sentence: (name: string) => `${name}’s sign-in expired` },
   update: { short: "Needs an update", sentence: (name: string) => `${name} needs an update` },
+  incompatible: { short: "Incompatible version", sentence: (name: string) => `Doan can’t run this ${name} version` },
   missing: { short: "Not installed", sentence: (name: string) => `${name} isn’t installed` },
   other: { short: "Not available right now", sentence: (name: string) => `${name} isn’t available right now` },
 };
@@ -211,14 +212,14 @@ function blocked(status: AuthStatusDto): (typeof BLOCKED)[keyof typeof BLOCKED] 
   switch (r.cause) {
     case "not_connected": case "unverified": return null;
     case "reauth_required": return status.phase === "reauthRequired" ? BLOCKED.expired : BLOCKED.other;
-    case "version_unsupported": case "version_incompatible": return BLOCKED.update;
+    case "version_unsupported": return BLOCKED.update;
+    case "version_incompatible": return BLOCKED.incompatible;
     case "cli_missing": return BLOCKED.missing;
     default: return BLOCKED.other;
   }
 }
 
-// Home's agent picker lists connected providers only and has no recovery buttons (2026-10-29 user), so a row
-// that can't run gets a short status without action words; Settings later puts the action in the same place.
+// The status describes the cause separately from the picker action that opens Settings for recovery.
 // null: ready, or not connected (Home doesn't list it). Unverified stays selectable because main checks it on send.
 export function providerShortStatus(status: AuthStatusDto): string | null {
   if (!status.readiness.ready && status.readiness.cause === "unverified") return "Checks your connection when you send.";
@@ -275,7 +276,7 @@ export function pickerAction(status: AuthStatusDto): SettingsAction | null {
   if (status.account === null || r.ready || r.cause === "unverified") return null;
   const target: SettingsTarget = { section: "agents", provider: status.provider };
   if (r.cause === "reauth_required" && status.phase === "reauthRequired") return { label: "Sign in again", target };
-  if (r.cause === "version_unsupported" || r.cause === "version_incompatible") return { label: "Update", target };
+  if (r.cause === "version_unsupported") return { label: "Update", target };
   return { label: "Open Agents settings", target };
 }
 // Providers without a connection are not listed, so the last item is how a new one is added; with nothing able to run

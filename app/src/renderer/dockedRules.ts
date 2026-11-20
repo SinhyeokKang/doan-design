@@ -110,7 +110,8 @@ function providerProblem(auth: AuthSnapshot | null | undefined, provider: Provid
   const action = pickerAction(status);
   if (!action) return null;
   if (action.label === "Sign in again") return { text: `${name}’s sign-in expired.`, action };
-  if (action.label === "Update") return { text: `${name} needs an update.`, action };
+  const incompatible = !status.readiness.ready && status.readiness.cause === "version_incompatible";
+  if (action.label === "Update" || incompatible) return { text: `${name} needs an update.`, action: { ...action, label: "Update" } };
   return { text: `${name} can’t run right now.`, action };
 }
 

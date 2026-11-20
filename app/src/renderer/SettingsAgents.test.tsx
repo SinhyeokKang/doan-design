@@ -140,7 +140,7 @@ test("a saved default whose agent is no longer signed in keeps its choice and sa
   await settle({ preferences: prefs({ provider: "codex" }) });
   expect(labelled("Agent for new conversations")[0]?.props["aria-label"]).toBe("Agent for new conversations: Codex");
   const warning = all(tree).find(element => element.props.role === "status" && words(element.props.children).includes("isn’t signed in"));
-  expect(words(warning?.props.children)).toBe("Codex isn’t signed in, so Home starts with the agent you sent with last.");
+  expect(words(warning?.props.children)).toBe("Codex isn’t signed in, so Home starts with the agent you last selected or sent a message with.");
 });
 
 // A fixed default that is connected but cannot run says why, and so does its Model row.
@@ -148,11 +148,11 @@ test("a connected default that cannot run says the real cause, and Model says wh
   auth = { revision: 1, providers: [dto("claude"), dto("codex", { facts: { version: "unsupported" } })] };
   await settle({ preferences: prefs({ provider: "codex" }) });
   const warning = all(tree).find(element => element.props.role === "status" && words(element.props.children).includes("so Home starts"));
-  expect(words(warning?.props.children)).toBe("Codex needs an update, so Home starts with the agent you sent with last.");
+  expect(words(warning?.props.children)).toBe("Codex needs an update, so Home starts with the agent you last selected or sent a message with.");
   auth = { revision: 2, providers: [dto("claude"), dto("codex", { facts: { cli: "missing" } })] };
   authListener(auth); render();
   expect(words(all(tree).find(element => element.props.role === "status" && words(element.props.children).includes("so Home starts"))?.props.children))
-    .toBe("Codex isn’t installed, so Home starts with the agent you sent with last.");
+    .toBe("Codex isn’t installed, so Home starts with the agent you last selected or sent a message with.");
   const model = labelled("Model for new conversations")[0]!;
   expect(model.props.disabled).toBe(true);
   const modelRow = all(tree).find(element => element.props.className === "doan-preference-row" && all(element.props.children as ReactNode).includes(model))!;
@@ -286,9 +286,10 @@ test("without a healthy project Model is disabled and says why", async () => {
   expect(api.listConversationModels).not.toHaveBeenCalled();
 });
 
-test("Last used hides Model and Effort", async () => {
+test("Last used describes selections and sends and hides Model and Effort", async () => {
   await settle({ preferences: prefs(null) });
   expect(labelled("Agent for new conversations")[0]?.props["aria-label"]).toBe("Agent for new conversations: Last used");
+  expect(all(tree).some(element => element.props.children === "Use the agent you last selected or sent a message with.")).toBe(true);
   expect(labelled("Model for new conversations")).toHaveLength(0);
   expect(labelled("Effort for new conversations")).toHaveLength(0);
 });
@@ -411,6 +412,16 @@ const click = (provider: Provider, command: string) => {
   (button.props.onClick as () => void)();
 };
 const alerts = () => drawn(tree).filter(element => element.props.role === "alert").map(element => words(element.props.children));
+
+test.each([
+  ["incompatible", "check", "Check again"],
+  ["unsupported", "update", "Update"],
+] as const)("a connected Codex with a %s version offers %s in its row", async (version, command, label) => {
+  auth = { revision: 1, providers: [dto("claude"), dto("codex", { facts: { version } })] };
+  await settle({ arrival: { provider: "codex", seq: 1 } });
+  const action = drawn(row("codex")).find(element => element.type === "button" && element.props["data-command"] === command);
+  expect(words(action?.props.children)).toBe(label);
+});
 
 test("Install opens Terminal: the row says to press Return there, and after the return check offers Check again", async () => {
   auth = { revision: 1, providers: [dto("claude"), dto("codex", { account: false, facts: { cli: "missing" } })] };
