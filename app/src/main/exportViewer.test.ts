@@ -729,7 +729,7 @@ describe("viewer files", () => {
     const body = shellHtml.replace(/<!--[\s\S]*?-->/, "");
     const counts = new Map<string, number>();
     for (const m of body.matchAll(/\{\{([A-Za-z_]+)\}\}/g)) counts.set(m[1]!, (counts.get(m[1]!) ?? 0) + 1);
-    expect(Object.fromEntries(counts)).toEqual({ PROJECT: 1, INITIAL: 1, HUE: 1, NAME: 2, WIDTH: 1, META: 1, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
+    expect(Object.fromEntries(counts)).toEqual({ PROJECT: 3, INITIAL: 1, HUE: 1, NAME: 3, WIDTH: 1, META: 1, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
     // The comment documents the placeholders by name: a brace form in it would be replaced too.
     expect(shellHtml.match(/<!--[\s\S]*?-->/)?.[0]).not.toContain("{{");
     for (const name of ["lib.js", "measure.js", "shell.js", "shell.css"]) expect(files[name], name).not.toContain("{{");
@@ -860,8 +860,10 @@ describe("breadcrumb rules shared with the canvas header", () => {
   test("the viewer uses the app's container breakpoints and hide rules", () => {
     const queries = (css: string) => css.match(/^@container doan-canvas-head\b[^{}]*\{[\s\S]*?^\}/gm) ?? [];
     const appQueries = queries(stylesCss);
-    expect(appQueries).toHaveLength(2);
-    expect(queries(shellCss)).toEqual(appQueries.map(rule => rule.replace(", .wt-chip", "")));
+    expect(appQueries).toHaveLength(5);
+    expect(appQueries[1]).toContain("@container doan-canvas-head (width < 628px)");
+    expect(appQueries[1]).toContain(".wt-chip { display: none; }");
+    expect(queries(shellCss)).toEqual(appQueries.filter(rule => !rule.includes(".wt-chip")).map(rule => rule.replaceAll("\n  .", "\n  .js .")));
   });
 });
 
@@ -1502,11 +1504,11 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
 
   test("without scripts the header shows the project and canvas but hides the frame controls", async () => {
     const frame = await dom.load(viewerPage(twoFrames, { reports: false, scripted: false }));
-    await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "960px"; });
+    await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "412px"; });
     const header = frame.locator("header");
     expect(await header.locator(".doan-canvas-project-name").innerText()).toBe("northwind-customer-portal");
     expect(await header.locator("#name").innerText()).toBe("checkout");
-    for (const selector of [".doan-canvas-project", ".shell-thumbnail", ".doan-canvas-project-name", ".doan-canvas-sep-root", "#name"]) {
+    for (const selector of [".doan-canvas-project", ".shell-thumbnail", ".doan-canvas-project-name", ".doan-canvas-sep-root", "#name > span"]) {
       expect(await header.locator(selector).isVisible(), selector).toBe(true);
     }
     for (const selector of [".ov-sep:not(.doan-canvas-sep-root)", "#drawer-button", "#drawer"]) {
@@ -1515,20 +1517,25 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     }
   });
 
-  test("the project crumb and zoom step buttons follow the header width", async () => {
-    const frame = await open(twoFrames);
-    for (const width of [720, 719, 600, 599]) {
+  test("the viewer hides names in order and keeps named icons at every header width", async () => {
+    const frame = await open('<section data-doan-frame="payment" data-doan-title="Payment authorization settings for international orders">Payment</section>');
+    for (const width of [720, 719, 660, 659, 600, 599, 520, 519, 440, 439]) {
       await frame.evaluate(width => {
         (window.frameElement as HTMLElement).style.width = `${width + 16}px`;
       }, width);
       expect(await frame.locator("header").evaluate(el => el.getBoundingClientRect().width)).toBe(width);
-      expect(await frame.locator(".shell-thumbnail").isVisible()).toBe(width >= 600);
-      expect(await frame.locator(".doan-canvas-sep-root").isVisible()).toBe(width >= 600);
-      expect(await frame.locator(".doan-canvas-project-name").isVisible()).toBe(width >= 720);
+      for (const selector of [".shell-thumbnail", ".doan-canvas-sep-root", "#name svg", "#drawer-button .chev"]) {
+        expect(await frame.locator(selector).isVisible(), selector).toBe(true);
+      }
+      expect(await frame.locator(".doan-canvas-project-name").isVisible()).toBe(width >= 600);
+      expect(await frame.locator("#drawer-label").isVisible()).toBe(width >= 520);
+      expect(await frame.locator("#name > span").isVisible()).toBe(width >= 440);
       expect(await frame.locator("#zoom-out").isVisible()).toBe(width >= 720);
       expect(await frame.locator("#zoom-in").isVisible()).toBe(width >= 720);
       expect(await frame.locator("#zoom-button").isVisible()).toBe(true);
     }
+    expect(await frame.getByRole("img", { name: "northwind-customer-portal", exact: true }).isVisible()).toBe(true);
+    expect(await frame.getByRole("img", { name: "checkout", exact: true }).isVisible()).toBe(true);
   });
 
   // Read once the buttons' 150ms colour and fill transitions have ended.

@@ -53,7 +53,7 @@ export function CanvasHeader({ navigation, state, view, canvasKey = null, comman
         if (crumb.kind === "worktree") return <WorktreeSwitch key="worktree" canvasKey={canvasKey} fallbackFocus={fallbackFocus} model={crumb.model} reason={crumb.reason}
           onWorktree={root => { if (canvas) navigation.worktree(root, canvas.path); }} />;
         return <Fragment key="canvas"><span className="ov-sep doan-canvas-sep-root" aria-hidden="true">/</span>
-          <Tooltip><TooltipTrigger asChild><span className="doan-canvas-name"><PanelsTopLeft aria-hidden="true" /><span>{crumb.label}</span></span></TooltipTrigger>
+          <Tooltip><TooltipTrigger asChild><span className="doan-canvas-name" role="img" aria-label={crumb.label}><PanelsTopLeft aria-hidden="true" /><span>{crumb.label}</span></span></TooltipTrigger>
             <TooltipContent>{crumb.path}</TooltipContent></Tooltip></Fragment>;
       })}
       {crumbs.length > 0 && <span className={canvas ? "ov-sep" : "ov-sep doan-canvas-sep-root"} aria-hidden="true">/</span>}
