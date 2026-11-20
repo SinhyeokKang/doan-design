@@ -287,10 +287,12 @@ test("removing a project asks; with a running Home conversation Cancel keeps bot
   expect(h.host.removeNow).not.toHaveBeenCalled();
   expect(doan.interruptConversation).not.toHaveBeenCalled();
   await h.run.remove([ROOT], "doan");
+  lists({ [ROOT]: [summary({ phase: "running" })] });
   await h.run.confirmRemove();
   expect(h.order).toEqual(["interrupt", "remove"]);
   expect(doan.interruptConversation).toHaveBeenCalledWith({ conversationId: "c1" });
   // Without a running conversation the removal still asks first, and removes only once confirmed.
+  lists({});
   const idle = harness();
   await idle.run.remove([ROOT], "doan");
   expect(idle.run.removing).toMatchObject({ paths: [ROOT], conversations: [], title: "Remove doan from Doan?", confirm: "Remove from Doan" });
@@ -298,6 +300,70 @@ test("removing a project asks; with a running Home conversation Cancel keeps bot
   await idle.run.confirmRemove();
   expect(idle.host.removeNow).toHaveBeenCalledWith([ROOT]);
   expect(doan.interruptConversation).toHaveBeenCalledTimes(1);
+});
+
+test.each(["error reply", "rejected request"])("partial removal retains the group and retries only outstanding stops after a %s", async failure => {
+  const h = harness([list(ROOT, []), list(OTHER, [])]);
+  const running = (id: string) => summary({ conversationId: id, phase: "running" });
+  lists({ [ROOT]: [running("old")], [OTHER]: [running("other")] });
+  h.run.entriesChanged();
+  await flush();
+  await h.run.remove([ROOT, OTHER], "Checkout");
+  // Main knows about a different conversation before the renderer gets a list-changed notice.
+  lists({ [ROOT]: [running("current")], [OTHER]: [running("other")] });
+  const stop = deferred<void>();
+  doan.interruptConversation!.mockImplementationOnce(() => stop.promise);
+  if (failure === "error reply") doan.interruptConversation!.mockResolvedValueOnce({ error: "busy" });
+  else doan.interruptConversation!.mockRejectedValueOnce(new Error("disconnected"));
+  const first = h.run.confirmRemove();
+  await flush();
+  expect(doan.interruptConversation!.mock.calls).toEqual([[{ conversationId: "current" }], [{ conversationId: "other" }]]);
+  expect(h.host.removeNow).not.toHaveBeenCalled();
+  expect(h.run.removing?.title).toBe("Stopping conversations…");
+  await h.run.confirmRemove();
+  h.run.cancelRemove();
+  stop.resolve();
+  await first;
+  expect(h.host.removeNow).not.toHaveBeenCalled();
+  expect(h.run.removing).toMatchObject({ title: "Checkout is still in Doan", cancel: "Keep project", confirm: "Retry",
+    body: "The conversation in doan stopped. Retry to stop the remaining conversation and remove Checkout.",
+    error: "Couldn’t stop the conversation in acme." });
+  if (failure === "error reply") {
+    await h.run.confirmRemove();
+    expect(doan.interruptConversation!.mock.calls.map(([input]) => input.conversationId)).toEqual(["current", "other", "other"]);
+    expect(h.host.removeNow).toHaveBeenCalledExactlyOnceWith([ROOT, OTHER]);
+  } else {
+    h.run.cancelRemove();
+    expect(h.run.removing).toBeNull();
+    expect(doan.interruptConversation).toHaveBeenCalledTimes(2);
+    expect(h.host.removeNow).not.toHaveBeenCalled();
+  }
+});
+
+test("a plain removal that finds new work asks for Stop and remove before interrupting it", async () => {
+  const h = harness();
+  await h.run.remove([ROOT], "Checkout");
+  lists({ [ROOT]: [summary({ phase: "running" })] });
+  await h.run.confirmRemove();
+  expect(h.host.removeNow).not.toHaveBeenCalled();
+  expect(doan.interruptConversation).not.toHaveBeenCalled();
+  expect(h.run.removing?.confirm).toBe("Stop and remove");
+  // The work ended before the second press.
+  lists({});
+  await h.run.confirmRemove();
+  expect(doan.interruptConversation).not.toHaveBeenCalled();
+  expect(h.host.removeNow).toHaveBeenCalledExactlyOnceWith([ROOT]);
+});
+
+test("an unreadable stop target list keeps every worktree registered until a successful retry", async () => {
+  const h = harness([list(ROOT, []), list(OTHER, [])]);
+  await h.run.remove([ROOT, OTHER], "Checkout");
+  doan.listConversations!.mockRejectedValueOnce(new Error("disconnected"));
+  await h.run.confirmRemove();
+  expect(h.host.removeNow).not.toHaveBeenCalled();
+  expect(h.run.removing).toMatchObject({ cancel: "Keep project", confirm: "Retry" });
+  await h.run.confirmRemove();
+  expect(h.host.removeNow).toHaveBeenCalledExactlyOnceWith([ROOT, OTHER]);
 });
 
 test("Edit on Home sends the last request back to Home", async () => {

@@ -290,6 +290,43 @@ test("the dialog follows the canvas live: an agent starting holds Move to Trash,
   expect(harness.toast.setModal).toHaveBeenLastCalledWith(false);
 });
 
+test("a busy trash plan is read again when this canvas becomes idle and still needs a fresh press", async () => {
+  const plan = await openDialog();
+  listeners.work!([item(A)] as never); render();
+  plan.resolve({ kind: "refused", reason: "busy" }); await flush(); render();
+  expect(dialog()!.view.confirmable).toBe(false);
+  const renewed = deferred<Plan>();
+  doan.planCanvasTrash!.mockImplementationOnce(() => renewed.promise);
+  listeners.work!([] as never); render();
+  expect(doan.planCanvasTrash).toHaveBeenCalledTimes(2);
+  expect(dialog()!.view.confirmable).toBe(false);
+  renewed.resolve({ kind: "ready" }); await flush(); render();
+  expect(dialog()!.view.confirmable).toBe(true);
+  doan.trashCanvas = vi.fn(async () => ({ kind: "refused", reason: "busy" }));
+  expect(doan.trashCanvas).not.toHaveBeenCalled();
+  // A new job in main wins even before its notice reaches this window.
+  dialog()!.confirm(); await flush(); render();
+  expect(dialog()!.view.error).toBe("Couldn’t move “a” to Trash. An agent started working on it.");
+  expect(harness.trash.settle).toHaveBeenCalledWith({ folder: "/w/a", path: A }, "refused");
+});
+
+test("a refreshed trash plan arriving after switching to a different canvas cannot close its dialog", async () => {
+  const plan = await openDialog();
+  listeners.work!([item(A)] as never); render();
+  plan.resolve({ kind: "refused", reason: "busy" }); await flush(); render();
+  const stale = deferred<Plan>();
+  doan.planCanvasTrash!.mockImplementationOnce(() => stale.promise);
+  listeners.work!([] as never); render();
+  expect(doan.planCanvasTrash).toHaveBeenCalledTimes(2);
+  dialog()!.cancel(); render();
+  doan.planCanvasTrash!.mockResolvedValueOnce({ kind: "ready" });
+  listeners.folders!([{ path: "/w/a", kind: "list", servedRev: 0, canvases: [row(), row(B)] }] as never); render();
+  sidebar().canvasMenu.trash("/w/a", row(B), null); await flush(); render();
+  stale.resolve({ kind: "refused", reason: "notListed" }); await flush(); render();
+  expect(dialog()!.view).toMatchObject({ title: "Move “b” to Trash?", confirmable: true });
+  expect(harness.toast.show).not.toHaveBeenCalled();
+});
+
 test("Export: the item is unavailable from main's running event to the reply, the progress toast waits a second, and the result offers Show in Finder", async () => {
   await start();
   const answer = deferred<unknown>();
