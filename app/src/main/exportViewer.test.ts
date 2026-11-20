@@ -1354,11 +1354,34 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     expect(await frame.locator('[data-tool="select"]').getAttribute("aria-pressed")).toBe("true");
     await frame.page().keyboard.press("Escape");
     expect(await panel.getByRole("tree").count()).toBe(0);
-    await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "656px"; });
+    await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "655px"; });
     await panel.waitFor({ state: "hidden" });
     expect(await show.getAttribute("aria-disabled")).toBe("true");
-    await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "657px"; });
+    await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "656px"; });
     await panel.getByRole("button", { name: /<b>Item<\/b>/ }).waitFor();
+  });
+
+  test("the export separator uses the app's bounds and keeps the preferred width through a narrow window", async () => {
+    const frame = await openCanvas(twoFrames);
+    await showInspector(frame);
+    const handle = frame.getByRole("separator", { name: "Resize inspector" });
+    expect(await handle.count()).toBe(1);
+    const panelWidth = () => frame.locator("#inspector").evaluate(panel => panel.getBoundingClientRect().width);
+    expect(await panelWidth()).toBe(280);
+    expect(await handle.getAttribute("aria-orientation")).toBe("vertical");
+    expect(await handle.getAttribute("aria-valuemin")).toBe("280");
+    expect(await handle.getAttribute("aria-valuemax")).toBe("424");
+    for (const [key, width] of [["ArrowLeft", 296], ["Home", 424], ["ArrowRight", 408], ["End", 280], ["Home", 424]] as const) {
+      await handle.press(key);
+      expect(await handle.getAttribute("aria-valuenow")).toBe(String(width));
+      expect(await panelWidth()).toBe(width);
+    }
+    await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "656px"; });
+    await frame.waitForFunction(() => document.querySelector("#inspector")?.getBoundingClientRect().width === 280);
+    await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "800px"; });
+    await frame.waitForFunction(() => document.querySelector("#inspector")?.getBoundingClientRect().width === 424);
+    await handle.dblclick();
+    expect(await panelWidth()).toBe(280);
   });
 
   const compactCart = '<section data-doan-frame="cart" data-doan-title="Cart" style="height:180px">Cart</section>';
@@ -1404,7 +1427,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     await showInspector(frame);
     await frame.frameLocator("#canvas").locator("section").click();
     await frame.locator("#selected-mark").waitFor();
-    await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "656px"; });
+    await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "655px"; });
     await frame.locator("#inspector").waitFor({ state: "hidden" });
     await frame.locator('[data-tool="hand"]').click();
     await frame.locator('[data-tool="select"]').click();
@@ -1546,7 +1569,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
       await expect.poll(() => frame.locator("#board").getAttribute("data-pan")).toBe("");
       await frame.page().keyboard.up("Space");
     } else if (action === "panel yield") {
-      await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "656px"; });
+      await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "655px"; });
       await frame.locator("#inspector").waitFor({ state: "hidden" });
       await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "800px"; });
       await frame.locator("#inspector").waitFor();
