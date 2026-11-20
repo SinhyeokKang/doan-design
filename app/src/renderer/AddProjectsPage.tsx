@@ -11,12 +11,18 @@ export interface AddPageReport { locked: boolean; choose: boolean }
 
 // The backdrop draws the same empty form before a session exists. It has no session actions.
 const noop = () => {};
+const READ_ERROR = "Couldn’t open Add Projects";
 const backdropActions: ProjectScreenProps["on"] = {
   back: noop, backToAgents: noop, chooseFolder: noop, chooseExisting: noop, setUrl: noop, find: noop, cancelInspect: noop,
   edit: noop, pickListed: noop, useListed: noop, pickCandidate: noop, select: noop, setUp: noop, changeDestination: noop,
   useExisting: noop, clone: noop, cancelClone: noop, complete: noop, retry: noop, setStorage: noop, newFolder: noop,
   chooseAnotherName: noop, useExistingFolder: noop, newFolderElsewhere: noop,
 };
+
+function shouldFocusHeading(origin: Element | null) {
+  const active = document.activeElement;
+  return !active || active === document.body || active === origin || active.closest(".add-panel") !== null;
+}
 
 // The Add Projects page: the shell's header and sidebar around first run's Project screen, over the
 // page's own main instance. Each opening starts at choose; leaving drops an inspection in flight with the session.
@@ -32,6 +38,9 @@ export function AddProjectsPage({ header, sidebar, projects, homeDirectory, main
   const chosen = useRef(choose);
   const [readState, setReadState] = useState<"opening" | "failed" | "retrying">("opening");
   const failed = sessionId === null && readState !== "opening";
+  const [failures, setFailures] = useState(0);
+  const readOrigin = useRef<Element | null>(null);
+  const [announcement, setAnnouncement] = useState("");
   const pending = useRef<ReturnType<typeof window.doan.readAddPage> | null>(null);
   const problemHeading = useRef<HTMLHeadingElement>(null);
   const latest = useRef({ onState, choose });
@@ -39,6 +48,7 @@ export function AddProjectsPage({ header, sidebar, projects, homeDirectory, main
   function read(retry: boolean) {
     if (pending.current) return;
     if (retry) setReadState("retrying");
+    readOrigin.current = document.activeElement;
     const request = window.doan.readAddPage();
     pending.current = request;
     void request.catch(() => null).then(reply => {
@@ -51,6 +61,7 @@ export function AddProjectsPage({ header, sidebar, projects, homeDirectory, main
         }
         setSessionId(reply.result.sessionId);
       } else {
+        setFailures(count => count + 1);
         setReadState("failed");
         latest.current.onState({ locked: false, choose: false });
       }
@@ -60,7 +71,11 @@ export function AddProjectsPage({ header, sidebar, projects, homeDirectory, main
     read(false);
     return () => { pending.current = null; };
   }, []);
-  useEffect(() => { if (failed) problemHeading.current?.focus(); }, [failed]);
+  useEffect(() => {
+    if (!failures) return;
+    if (failures === 1 && shouldFocusHeading(readOrigin.current)) problemHeading.current?.focus();
+    else setAnnouncement(previous => previous === READ_ERROR ? READ_ERROR + "\u00a0" : READ_ERROR);
+  }, [failures]);
   return <div className="app-shell home-shell add-shell">
     {header}
     {sidebar}
@@ -70,18 +85,18 @@ export function AddProjectsPage({ header, sidebar, projects, homeDirectory, main
           <ProjectScreen use="addPage" state={{ phase: { kind: "choose" }, url: "", inspectedUrl: null, error: null, listChoice: null }}
             busy={false} agentReady projects={projects} home={homeDirectory} urlValid={false} heading={noop} on={backdropActions} />
         </div>
-        <ProblemOverlay view={{ kind: "problem", icon: CircleAlert, heading: "Couldn’t open Add Projects",
+        <ProblemOverlay view={{ kind: "problem", icon: CircleAlert, heading: READ_ERROR,
           line: { text: "Try again to choose a local folder or enter a GitHub repository URL." },
           actions: [{ name: "retry", variant: "prominent" }], busy: readState === "retrying" }}
-          headingRef={problemHeading} details={false} pressed="retry" announcement="" onAction={() => read(true)} />
+          headingRef={problemHeading} details={false} pressed="retry" announcement={announcement} onAction={() => read(true)} />
       </>}
-      {sessionId !== null && <PageBody sessionId={sessionId} projects={projects} homeDirectory={homeDirectory} mainCheckout={mainCheckout} choose={choose} chosen={chosen} onState={onState} onCancel={onCancel} onAdded={onAdded} />}
+      {sessionId !== null && <PageBody readOrigin={readOrigin} sessionId={sessionId} projects={projects} homeDirectory={homeDirectory} mainCheckout={mainCheckout} choose={choose} chosen={chosen} onState={onState} onCancel={onCancel} onAdded={onAdded} />}
     </main>
   </div>;
 }
 
-function PageBody({ sessionId, projects, homeDirectory, mainCheckout, choose, chosen, onState, onCancel, onAdded }: {
-  sessionId: string; projects: readonly string[]; homeDirectory: string | null; mainCheckout: (path: string) => boolean; choose: number; chosen: RefObject<number>;
+function PageBody({ readOrigin, sessionId, projects, homeDirectory, mainCheckout, choose, chosen, onState, onCancel, onAdded }: {
+  readOrigin: RefObject<Element | null>; sessionId: string; projects: readonly string[]; homeDirectory: string | null; mainCheckout: (path: string) => boolean; choose: number; chosen: RefObject<number>;
   onState(report: AddPageReport): void; onCancel(): void; onAdded(root: string): void;
 }) {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
@@ -107,9 +122,9 @@ function PageBody({ sessionId, projects, homeDirectory, mainCheckout, choose, ch
   useEffect(() => {
     session.start();
     // The page opens on its heading, which names the panel.
-    requestAnimationFrame(() => heading.current?.focus());
+    requestAnimationFrame(() => { if (shouldFocusHeading(readOrigin.current)) heading.current?.focus(); });
     return () => session.dispose();
-  }, []);
+  }, [session, readOrigin]);
   useEffect(() => {
     if (choose === chosen.current) return;
     chosen.current = choose;

@@ -16,7 +16,7 @@ vi.mock("react", async original => ({
   },
   useReducer: () => [0, () => {}],
   useRef: (value: unknown) => { const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
-  useState: (value: unknown) => { const index = hooks.cursor++; if (!(index in hooks.states)) hooks.states[index] = typeof value === "function" ? (value as () => unknown)() : value; return [hooks.states[index], (next: unknown) => { hooks.states[index] = next; }]; },
+  useState: (value: unknown) => { const index = hooks.cursor++; if (!(index in hooks.states)) hooks.states[index] = typeof value === "function" ? (value as () => unknown)() : value; return [hooks.states[index], (next: unknown) => { hooks.states[index] = typeof next === "function" ? (next as (current: unknown) => unknown)(hooks.states[index]) : next; }]; },
 }));
 const { AddProjectsPage } = await import("./AddProjectsPage");
 const { ProblemOverlay } = await import("./ProblemOverlay");
@@ -176,17 +176,19 @@ test("a failed read and a successful retry preserve focus moved into the shell a
   render(page);
   const shell = Object.assign(new HTMLElement(), { isConnected: true, closest: () => null, matches: () => false });
   Object.defineProperty(document, "activeElement", { configurable: true, value: shell });
-  readPage({ ok: false }); await flush(); render(page);
+  readPage({ ok: false }); await flush(); render(page); render(page);
   function problem() {
     return all(pageTree).find(el => el.type === ProblemOverlay)!.props as Parameters<typeof ProblemOverlay>[0];
   }
   expect(problem().announcement.trim()).toBe("Couldn’t open Add Projects");
   const first = problem().announcement;
   problem().onAction("retry"); render(page);
-  readPage({ ok: false }); await flush(); render(page);
+  readPage({ ok: false }); await flush(); render(page); render(page);
   expect(problem().announcement.trim()).toBe(first.trim());
   expect(problem().announcement).not.toBe(first);
+  Object.defineProperty(document, "activeElement", { configurable: true, value: document.body });
   problem().onAction("retry"); render(page);
+  Object.defineProperty(document, "activeElement", { configurable: true, value: shell });
   readPage(status("ready")); await flush(); render(page, heading);
   expect(heading.focus).not.toHaveBeenCalled();
 });
