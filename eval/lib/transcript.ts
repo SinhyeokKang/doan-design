@@ -372,8 +372,9 @@ function withoutHeredocsAndComments(command: string, calls: string[][][]): { tex
 }
 
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z_0-9]*=/;
-// doan as a word, not `.doan/` or `/tmp/doan-x`.
-const NAMES_DOAN = /(?<![\w.-])doan(?![\w.-])/;
+// doan as a word, not `.doan/`, `/tmp/doan-x` or canvas markup such as `doan:canvas` and a `doan:<canvas-id>/…`
+// link, which run nothing; no program is named `doan:…`.
+const NAMES_DOAN = /(?<![\w.-])doan(?![\w.-]|:[^\s'"`])/;
 // How a node, python, perl, ruby or AppleScript script starts another program. A bare `system` or `exec` in prose
 // ("the design system") is not one, so those need a call after them.
 const STARTS_PROCESS = /\b(?:subprocess|child_process|execa|commands\.getoutput|pty\.spawn|Bun\.spawn|Deno\.(?:Command|run)|Open3|do shell script)\b|\b(?:system|exec\w*|spawn\w*|popen|qx)\s*[("'{]|%x[({[]/;
