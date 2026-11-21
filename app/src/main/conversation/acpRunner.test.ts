@@ -267,6 +267,26 @@ it("lists an ACP provider's models from session/new without a prompt and reports
   expect(logged(log).map(r => r.method)).toEqual(["initialize", "authenticate", "session/new"]);
   await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
 });
+// A Cursor first turn that met the plan limit saves no session, so the next send's session/load answers "not found";
+// the account's usage tells that apart from a session that is really gone.
+it.each([
+  ["a used-up window", async () => true, "rate_limited"],
+  ["no used-up window", async () => false, "session_unavailable"],
+  ["a usage read that failed", async () => { throw new Error("read failed"); }, "session_unavailable"],
+])("refuses a Cursor session/load that answers not found as %s reads", async (_name, limitReached, code) => {
+  const hook = vi.fn(limitReached);
+  await openAcp(input("cursor", { sessionId: "missing-session", limitReached: hook }), () => {}, () => {}, () => {})
+    .then(() => { throw new Error("opened"); }, (error: Error) => expect(error.message).toBe(code));
+  expect(hook).toHaveBeenCalledOnce();
+});
+it("reads no usage when session/load succeeds or when the failure is not session/load", async () => {
+  const hook = vi.fn(async () => true);
+  const runner = await openAcp(input("cursor", { sessionId: SESSION, limitReached: hook }), () => {}, () => {}, () => {});
+  await runner.close();
+  await openAcp(input("cursor", { limitReached: hook }, "no-session"), () => {}, () => {}, () => {}).then(() => { throw new Error("opened"); }, (error: Error) => expect(error.message).toBe("session_unavailable"));
+  expect(hook).not.toHaveBeenCalled();
+});
+
 it("sets the chosen model after session/new and again after session/load, before the prompt", async () => {
   const log = logFile();
   const env = { PATH: process.env.PATH ?? "", FAKE_ACP: "stop:end_turn", FAKE_ACP_LOG: log };
