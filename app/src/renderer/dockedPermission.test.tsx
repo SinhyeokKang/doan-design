@@ -238,3 +238,15 @@ for (const [name, { setup, row }] of Object.entries(setups)) test(`${name}: an e
   expect(render().permission?.trigger.label).toBe("Ask first");
   expect(render().runMode).toBeNull();
 });
+
+// Until the list names an existing conversation, the composer gets undefined, not null: a first list read that already
+// holds a value must not read as a change from "none" and be announced on every open.
+for (const [name, { setup, row }] of Object.entries(setups)) test(`${name}: an existing conversation's run mode is undefined until its summary arrives`, async () => {
+  const { render, setList } = await setup({});
+  await render().onSend(REQUEST);
+  expect(render().mode).toMatchObject({ kind: "existing", conversationId: A });
+  expect(render().runMode).toBeUndefined();
+  setList([row({ claudeRunMode: "auto" })]);
+  render();
+  expect(render().runMode).toBe("auto");
+});
