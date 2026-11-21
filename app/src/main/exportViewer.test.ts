@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Eye, Hand, MousePointer2, Play } from "lucide-react";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import type { Frame } from "playwright";
+import type { Frame, Locator } from "playwright";
 import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
 import { bounded } from "../../runtime/harness";
 import { MAX_FRAMES, MAX_HREF, MAX_STRING, parseCanvasMessage } from "../renderer/canvasMessage";
@@ -1398,6 +1398,29 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     }, FIT_INSET.left);
   };
 
+  // Playwright aims at the shell's current layout, but Chromium routes a press into the canvas, an out-of-process
+  // frame, by the board it last composited. On a loaded machine a click sent just after the stage moved (the panel
+  // opening, or ⇧0 rescaling a canvas that Fit drew before `open` widened the window) reached the shell's #canvas
+  // element instead: the canvas document saw no press and nothing was selected. Point at the target until a trusted move there reaches it inside the
+  // canvas; a press at the same point then takes the same route.
+  const pointAt = async (target: Locator, position: { x: number; y: number }) => {
+    type PointerView = Window & { doanPointer?: EventTarget | null };
+    await target.evaluate(el => {
+      const view = el.ownerDocument.defaultView as PointerView;
+      if (!("doanPointer" in view)) view.addEventListener("pointermove", event => { if (event.isTrusted) view.doanPointer = event.target; }, true);
+      view.doanPointer = null;
+    });
+    let nudge = 0;
+    await expect.poll(async () => {
+      // Alternate by a pixel: a move to where the pointer already is need not fire another pointermove.
+      await target.hover({ position: { x: position.x + (nudge++ % 2), y: position.y } });
+      return target.evaluate(el => {
+        const pointer = (el.ownerDocument.defaultView as PointerView).doanPointer;
+        return pointer instanceof Node && el.contains(pointer);
+      });
+    }, { timeout: 15_000 }).toBe(true);
+  };
+
   test("the inspector opens folded, renders canvas labels as text and restores the selection after yielding", async () => {
     const frame = await openCanvas('<section data-doan-frame="item" data-doan-title="&lt;b&gt;Item&lt;/b&gt;" style="height:300px;color:blue">Item</section>');
     const show = frame.locator("#inspector-show");
@@ -1579,7 +1602,10 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     if (reopen) {
       await canvas.evaluate(() => { document.documentElement.dataset.pass = "true"; });
       await showInspector(frame);
-      await canvas.getByRole("button").click();
+      const target = canvas.getByRole("button");
+      const { width, height } = (await target.boundingBox())!;
+      await pointAt(target, { x: width / 2, y: height / 2 });
+      await target.click();
       await frame.getByRole("button", { name: "Cart, frame. Elements in this frame", exact: true }).waitFor();
       await canvas.evaluate(() => { delete document.documentElement.dataset.pass; });
       await frame.getByRole("button", { name: "Hide inspector" }).press("Enter");
@@ -1597,7 +1623,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     const button = canvas.getByRole("button");
     const box = (await button.boundingBox())!;
     const mouse = frame.page().mouse;
-    await mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await pointAt(button, { x: box.width / 2, y: box.height / 2 });
     const deliver = () => canvas.evaluate(() => { document.dispatchEvent(new Event("deliver")); });
     return { frame, button, mouse, deliver };
   };
@@ -1742,11 +1768,13 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     }
   });
 
+  // The new epoch first redraws the kept Cart; only the click's own inspection that follows steps into Buy.
+  // Waiting for Cart passed on that intermediate render and missed it on a loaded machine.
   test("the first click after reopening steps from the selection the folded inspector kept", async () => {
     const { frame, mouse, deliver } = await openingGesture(true);
     await mouse.down(); await mouse.up();
     await deliver();
-    await frame.getByRole("button", { name: "Cart, frame. Elements in this frame", exact: true }).waitFor({ timeout: 3000 });
+    await frame.getByRole("button", { name: "button “Buy”, element. Elements in this frame", exact: true }).waitFor({ timeout: 3000 });
   });
 
   test("Option-click during opening reaches the canvas control", async () => {
@@ -1920,7 +1948,9 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
   test("a partially overwritten var shorthand exposes only the applied row", async () => {
     const frame = await openCanvas('<style>:root{--old:3px;--pad:12px;--left:5px}section{padding:var(--old)}.card{padding:var(--pad);padding-left:var(--left)}</style><section class="card" data-doan-frame="card">Card</section>');
     await showInspector(frame);
-    await frame.frameLocator("#canvas").locator("section").click({ position: { x: 12, y: 8 } });
+    const card = frame.frameLocator("#canvas").locator("section");
+    await pointAt(card, { x: 12, y: 8 });
+    await card.click({ position: { x: 12, y: 8 } });
     const padding = frame.locator(".doan-insp-row").filter({ hasText: "Padding" });
     await padding.focus();
     expect(await padding.innerText()).toContain("12px 12px 12px 5px");
@@ -2070,7 +2100,9 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
   const canvasOf = (frame: Frame) => frame.frameLocator("#canvas");
   // ⌘-click selects the element under the pointer itself, whatever is selected (the app's direct selection).
   const selectDirect = async (frame: Frame, selector: string, position = { x: 6, y: 6 }) => {
-    await canvasOf(frame).locator(selector).first().click({ modifiers: ["Meta"], position });
+    const target = canvasOf(frame).locator(selector).first();
+    await pointAt(target, position);
+    await target.click({ modifiers: ["Meta"], position });
   };
   const reason = (frame: Frame) => frame.locator("#play-reason").textContent();
 
