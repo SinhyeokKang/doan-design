@@ -157,6 +157,14 @@ describe("dockedRefusal", () => {
     // the code alone does not tell an expired sign-in from none.
     expect(dockedRefusal("not_logged_in", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Sign in to Claude Code in Settings > Agents, then send again." });
   });
+  // Cursor keeps no session for a first turn its plan limit stopped, so that conversation cannot continue even after the
+  // reset; a Cursor send is refused as rate_limited only then.
+  test("a Cursor send refused on its usage limit says the conversation can't continue and offers a new conversation", () => {
+    const text = "Cursor reached a usage limit, so this conversation can’t continue. Start a new conversation after the limit resets.";
+    expect(dockedRefusal("rate_limited", { ...EXISTING, provider: "cursor" }, "cursor", "doan-design")).toEqual({ kind: "notice", text, startNew: true });
+    expect(dockedRefusal("rate_limited", { kind: "new", root: "/r" }, "cursor", "doan-design")).toEqual({ kind: "notice", text: "Cursor reached a usage limit. Send again after it resets." });
+    expect(dockedRefusal("rate_limited", { ...EXISTING, provider: "copilot" }, "copilot", "doan-design")).toEqual({ kind: "notice", text: "GitHub Copilot reached a usage limit. Send again after it resets." });
+  });
   test("a conversation of another account or an earlier sign-in says so and offers a new conversation, not Retry", () => {
     const other = "This conversation’s session belongs to another Claude Code account, so it can’t continue here. To continue it, sign out, then sign in to that account in Settings > Agents.";
     const earlier = "This conversation’s session belongs to an earlier Codex sign-in, so it can’t continue here.";
