@@ -28,6 +28,9 @@ type Meta struct {
 	Project string // project folder name (canvas viewer only)
 	Name    string // file stem
 	Width   int    // doan:width
+	// External is how many internet URLs the inlined canvas still loads (Inline's External), which the CLI reports
+	// as `external`. The general Export carries it for the player's download toast (canvas viewer only).
+	External int
 }
 
 var byteOrderMark = []byte("\xef\xbb\xbf")
@@ -70,6 +73,7 @@ func Assemble(m Meta, c canvas.Canvas, canvasHTML []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	exports.External = m.External
 	// shell.js reads name and width; the viewer's prototype code reads the rest.
 	meta, err := json.Marshal(struct {
 		Name      string       `json:"name"`
@@ -238,6 +242,9 @@ type frameExports struct {
 	Isolate string `json:"isolate"`
 	// Measure is the measure script's place in the srcdoc string, in UTF-16 units.
 	Measure measureRange `json:"measure"`
+	// External is Meta.External: a prototype file holds the whole canvas, so it loads as many internet URLs. The
+	// player's download toast says so under the app's condition (more than none).
+	External int `json:"external"`
 }
 
 type exportFrame struct {

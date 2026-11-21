@@ -96,7 +96,7 @@ function normalize(text: string): string {
 // The text of `function name(...) {...}` in a source, found by matching braces outside comments,
 // strings and regular expressions' escapes.
 function extractFunction(source: string, name: string): string {
-  const start = source.search(new RegExp(`^[ \\t]*function ${name}\\(`, "m"));
+  const start = source.search(new RegExp(`^[ \\t]*(?:async )?function ${name}\\(`, "m"));
   if (start < 0) throw new Error(`function ${name} not found`);
   return blockFrom(source, start, source.indexOf("{", source.indexOf(")", start)), `function ${name}`);
 }
@@ -2653,6 +2653,8 @@ describe("the player's files", () => {
 // <id> --prototype` (assemble_export_test.go); here are its copy, its file name, its refusals and its escaping.
 const EXPORT_NAMES = ["EXPORT_PROGRESS_DELAY_MS", "MAX_FILE_NAME", "exportProgressText", "exportRefusedText", "exportRequestedText", "exportFileName", "srcdocAttribute", "prototypeExport", "srcdocSlices"];
 const px: Lib = playerJs ? runInNewContext(`${playerJs}\n({ ${EXPORT_NAMES.map(name => `${name}: typeof ${name} === "undefined" ? undefined : ${name}`).join(", ")} })`, {}) as Lib : {};
+// No lone surrogate (String.prototype.isWellFormed is past the app's TypeScript lib).
+const wellFormed = (text: string) => !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(text);
 const escapeTable = JSON.parse(readFileSync(new URL("../../../cli/internal/export/testdata/srcdoc-escape.json", import.meta.url), "utf8")) as { cases: { text: string; attribute: string }[] };
 
 describe("the player's Export prototype", () => {
@@ -2698,7 +2700,7 @@ describe("the player's Export prototype", () => {
       const slices = [...px.srcdocSlices(pieces, size)] as string[];
       expect(slices.join(""), String(size)).toBe(whole);
       // A Blob encodes each part on its own: half a pair at the end of one would become U+FFFD.
-      for (const slice of slices) expect(slice.isWellFormed(), `${size}: ${JSON.stringify(slice)}`).toBe(true);
+      for (const slice of slices) expect(wellFormed(slice), `${size}: ${JSON.stringify(slice)}`).toBe(true);
     }
   });
 
@@ -2715,10 +2717,10 @@ describe("the player's Export prototype", () => {
     // A pair across the cut goes whole: the name is 239 units, never half a character.
     const pair = px.exportFileName("s".repeat(34), "i".repeat(199) + "🦊" + "i".repeat(10)) as string;
     expect(pair).toBe("s".repeat(34) + "-" + "i".repeat(199) + ".html");
-    expect(pair.isWellFormed()).toBe(true);
+    expect(wellFormed(pair)).toBe(true);
     const emoji = px.exportFileName("🦊".repeat(100), "🦊".repeat(100)) as string;
     expect(emoji.length).toBeLessThanOrEqual(240);
-    expect(emoji.endsWith(".html") && emoji.isWellFormed()).toBe(true);
+    expect(emoji.endsWith(".html") && wellFormed(emoji)).toBe(true);
   });
 
   describe("the file comes from the page's data alone, or not at all", () => {
@@ -2797,7 +2799,8 @@ describe("the player's Export prototype", () => {
 describe("the player's moves and the board's messages", () => {
   test("a move names its address before it records the entry: an id no address can hold leaves no entry behind", () => {
     // encodeURIComponent throws on a lone surrogate, which only a frame a script made can have in its id.
-    expect(() => v.playHashFor("a\uD800")).toThrow(URIError);
+    // lib.js runs in its own context, whose URIError is another constructor: matched by name.
+    expect(() => v.playHashFor("a\uD800")).toThrow(expect.objectContaining({ name: "URIError" }));
     const navigate = extractFunction(playerJs, "navigate");
     expect(navigate.indexOf("playHashFor(")).toBeGreaterThan(-1);
     expect(navigate.indexOf("playHashFor(")).toBeLessThan(navigate.indexOf("recordEntry("));

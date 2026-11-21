@@ -157,18 +157,136 @@ function drawerRows(list, groups, eye, word, on) {
   return nodes;
 }
 
+// ── Export prototype ──────────────────────────────────────────────────────────
+// The player downloads the playing frame's prototype file, the file `doan export --frame <id> --prototype` writes,
+// by joining the strings the page's META carries (assemble.go frameExports): Go alone judges and escapes, the
+// browser only joins, with one escape of its own for the canvas (srcdocAttribute, held to Go's by a shared table).
+// Saving is the browser's, which never says whether a file was written: the toast says a download was requested.
+
+// The app's wait before its progress toast (PrototypeWindow.tsx EXPORT_PROGRESS_DELAY_MS).
+const EXPORT_PROGRESS_DELAY_MS = 1000;
+// Chromium silently cancels a download whose name is 245 UTF-16 units or longer.
+const MAX_FILE_NAME = 240;
+// The canvas is escaped in slices of this many UTF-16 units, and the window is handed back between them once
+// EXPORT_WORK_MS of work has gone by, so a large file keeps the window answering and lets the progress toast paint.
+const EXPORT_SLICE = 1 << 20;
+const EXPORT_WORK_MS = 50;
+
+function exportProgressText(frame) {
+  return "Exporting “" + frame + "”";
+}
+
+// `linked` is how many frames the file plays besides the clicked one; `external` the CLI's count of the internet
+// URLs the canvas loads, which the app's toast mentions when there is any.
+function exportRequestedText(frame, linked, external) {
+  const what = linked > 0 ? "Download requested for “" + frame + "” and " + linked + " linked frame" + (linked === 1 ? "" : "s") + "." : "Download requested for “" + frame + "”.";
+  return what + " The file also contains the rest of the canvas." + (external > 0 ? " Parts of it load from the internet." : "") + " If nothing downloads, allow downloads for this file and try again.";
+}
+
+// missing: the file does not have the frame, or has its id on two frames (a script made the one that plays, as the
+// app reads the CLI's frame_not_found); unmarked: its mark in the file is missing or invalid; broken: the page's
+// data does not hold together (someone edited the page); failed: the browser could not build the file.
+const EXPORT_REFUSED = {
+  missing: "This frame isn’t in the canvas file. Ask the sender for an updated file.",
+  unmarked: "It isn’t marked for prototyping in the canvas file. Ask the sender for an updated file.",
+  broken: "Ask the sender for an updated file.",
+  failed: "Try again.",
+};
+
+function exportRefusedText(frame, reason) {
+  return "Couldn’t export “" + frame + "”. " + EXPORT_REFUSED[reason];
+}
+
+// The app's save panel names the file <canvas file stem>-<frame id>.html. Past MAX_FILE_NAME the stem and id lose
+// their end, never half of a surrogate pair, and .html stays.
+function exportFileName(stem, id) {
+  const base = stem + "-" + id;
+  const room = MAX_FILE_NAME - ".html".length;
+  if (base.length <= room) return base + ".html";
+  const last = base.charCodeAt(room - 1);
+  return base.slice(0, last >= 0xd800 && last <= 0xdbff ? room - 1 : room) + ".html";
+}
+
+// The canvas as the double-quoted srcdoc attribute value of a prototype file, as assemble.go writes it.
+function srcdocAttribute(text) {
+  return text.replaceAll("&", "&amp;").replaceAll("\"", "&quot;");
+}
+
+// The pieces escaped in slices of about `size` units. A Blob encodes each of its parts on its own, so a slice never
+// ends inside a surrogate pair, whose half would be written as U+FFFD.
+function* srcdocSlices(pieces, size) {
+  for (const piece of pieces) {
+    for (let at = 0; at < piece.length;) {
+      let end = Math.min(at + size, piece.length);
+      const last = piece.charCodeAt(end - 1);
+      if (end < piece.length && last >= 0xd800 && last <= 0xdbff) end += 1;
+      yield srcdocAttribute(piece.slice(at, end));
+      at = end;
+    }
+  }
+}
+
+// The measure script assemble.go puts in the srcdoc, which a prototype file has isolate.js in place of. The end tag
+// is written in two parts: this file runs inside a script element of the page.
+const MEASURE_HEAD = "<script>(function () {\n";
+const MEASURE_TAIL = "\n})();<" + "/script>";
+
+// The prototype file of frame `id` from META's "prototype" data and the board iframe's srcdoc as the parser left it:
+// { kind: "file", head, canvas, tail, linked }, the file being head + the canvas pieces escaped + tail, or
+// { kind: "refused", reason } (EXPORT_REFUSED). Data that does not hold together is refused, never joined into a
+// file that would not play. Ids are looked up in Maps: as keys of an object, "__proto__" or "constructor" would
+// find Object.prototype's members.
+function prototypeExport(proto, srcdoc, id) {
+  const broken = { kind: "refused", reason: "broken" };
+  const record = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+  const text = (value) => typeof value === "string";
+  const count = (value) => Number.isInteger(value) && value >= 0;
+  if (!record(proto) || !text(srcdoc)) return broken;
+  const { frames, refused, groups, page, isolate, measure } = proto;
+  if (!Array.isArray(frames) || !Array.isArray(refused) || !Array.isArray(groups) || !text(isolate) || !record(measure)) return broken;
+  if (!Array.isArray(page) || page.length !== 5 || !page.every(text)) return broken;
+  const exportable = new Map();
+  for (const frame of frames) {
+    if (!record(frame) || !text(frame.id) || !text(frame.name) || !text(frame.start) || !Number.isInteger(frame.group)) return broken;
+    exportable.set(frame.id, frame);
+  }
+  const reasons = new Map();
+  for (const entry of refused) {
+    if (!record(entry) || !text(entry.id) || !text(entry.reason)) return broken;
+    reasons.set(entry.id, entry.reason);
+  }
+  const frame = exportable.get(id);
+  if (frame === undefined) return { kind: "refused", reason: reasons.get(id) === "unmarked" ? "unmarked" : "missing" };
+  const group = groups[frame.group];
+  if (!text(group)) return broken;
+  let members;
+  try {
+    members = JSON.parse(group);
+  } catch {
+    return broken;
+  }
+  if (!Array.isArray(members) || !members.some((member) => record(member) && member.id === id)) return broken;
+  // The range must still be the measure script (cli/internal/export/exporttest StitchPrototype checks the same):
+  // a srcdoc that changed around it would otherwise lose part of the canvas.
+  const { offset, length } = measure;
+  if (!count(offset) || !count(length) || offset + length > srcdoc.length) return broken;
+  const script = srcdoc.slice(offset, offset + length);
+  if (!script.startsWith(MEASURE_HEAD) || !script.endsWith(MEASURE_TAIL)) return broken;
+  return {
+    kind: "file",
+    head: page[0] + frame.name + page[1] + frame.start + page[2] + group + page[3],
+    canvas: [srcdoc.slice(0, offset), isolate, srcdoc.slice(offset + length)],
+    tail: page[4],
+    linked: members.length - 1,
+  };
+}
+
 // ── The player ────────────────────────────────────────────────────────────────
 
 // The app's reading line waits so a quick load does not flash it (PrototypeWindow.tsx READING_DELAY_MS).
 const READING_DELAY_MS = 300;
 // The run script reports the frame it was given against the document it runs in.
 const RUN_URL = "about:srcdoc";
-
-// TODO(export prototype): download the playing frame's prototype file, joined from META's
-// "prototype" data (assemble.go frameExports). Until it exists a press does nothing.
-function exportPrototype(frameId) {
-  void frameId;
-}
 
 // Whether this page is a player window; if it is, it plays. The guard in shell.html decided before
 // the board's iframe was parsed and left its srcdoc here.
@@ -211,6 +329,12 @@ function startPlayer() {
   heading.textContent = PLAYER_COPY.failed;
   empty.textContent = PLAYER_COPY.empty;
   const toast = createToast();
+  // An export holds the header's Export ("Exporting") from the click to the download; `exportToast` is the id of the
+  // toast an export last showed, which a broken link's toast must not replace (view.ts linkMove).
+  let exporting = false;
+  let exportToast = null;
+  // The last file's Blob address, kept until the next export: a browser that asks before it saves still has it.
+  let download = null;
 
   // Each frame the file lets the CLI export, by id: its name and its mark, until a run lists the
   // frames its document has (a frame a script made is only in that list).
@@ -295,7 +419,7 @@ function startPlayer() {
       button.tabIndex = pressed ? 0 : -1;
     }
     content.dataset.mode = mode;
-    const exportState = viewerApp.exportAvailability({ phase: appPhase(current) }, false);
+    const exportState = viewerApp.exportAvailability({ phase: appPhase(current) }, exporting);
     if (exportState.available) {
       exportButton.removeAttribute("aria-disabled");
       exportButton.removeAttribute("aria-describedby");
@@ -398,8 +522,11 @@ function startPlayer() {
   // A move to another frame: one history entry, which the address, the header's Back and the
   // browser's Back all have.
   function navigate(id) {
+    // The address first: an id no address can hold (a lone surrogate, which only a frame a script made can have)
+    // throws here, before the history has an entry the window never shows.
+    const hash = playHashFor(id);
     trail = viewerApp.recordEntry(trail, id, same);
-    location.hash = playHashFor(id);
+    location.hash = hash;
     save();
     start(id);
   }
@@ -409,8 +536,9 @@ function startPlayer() {
   // starts over with no entry; any other value gets the broken link's toast.
   function follow(target, value) {
     // The last argument says whether an export's toast is on screen, which a broken link's toast must
-    // not replace; Export prototype shows none yet.
-    const move = viewerApp.linkMove({ gen: target.gen, phase: target.phase === "ready" ? "ready" : "loading", frames: listed.frames }, { gen: target.gen, goto: value }, false);
+    // not replace.
+    const exportToastShown = exportToast !== null && toast.current() === exportToast;
+    const move = viewerApp.linkMove({ gen: target.gen, phase: target.phase === "ready" ? "ready" : "loading", frames: listed.frames }, { gen: target.gen, goto: value }, exportToastShown);
     if (move.kind === "drop") return;
     if (move.kind === "toast") {
       toast.show(linkToastText(value));
@@ -507,8 +635,69 @@ function startPlayer() {
     modeButtons[next].focus();
   });
   exportButton.addEventListener("click", () => {
-    if (viewerApp.exportAvailability({ phase: appPhase(run) }, false).available) exportPrototype(run.id);
+    if (viewerApp.exportAvailability({ phase: appPhase(run) }, exporting).available) void exportPrototype(run.id);
   });
+
+  // ── Export prototype ──
+  const showExportToast = (text) => {
+    exportToast = toast.show(text);
+  };
+  // A frame for the window to paint (the progress toast), or a moment when it is hidden and paints none.
+  const nextFrame = () => new Promise((resolve) => {
+    requestAnimationFrame(() => setTimeout(resolve, 0));
+    setTimeout(resolve, 100);
+  });
+
+  // The frame at the click and its link group: a frame that starts playing before the file is ready changes
+  // neither the file nor the toast's name. Past EXPORT_PROGRESS_DELAY_MS the progress toast shows, and the result's
+  // replaces it as the download is requested.
+  async function exportPrototype(frameId) {
+    if (exporting) return;
+    const frame = nameOf(frameId);
+    const plan = prototypeExport(proto, source, frameId);
+    if (plan.kind === "refused") {
+      showExportToast(exportRefusedText(frame, plan.reason));
+      return;
+    }
+    exporting = true;
+    render();
+    let progress = false;
+    const timer = setTimeout(() => {
+      progress = true;
+      showExportToast(exportProgressText(frame));
+    }, EXPORT_PROGRESS_DELAY_MS);
+    let result;
+    try {
+      const parts = [plan.head];
+      let painted = false;
+      let since = performance.now();
+      for (const slice of srcdocSlices(plan.canvas, EXPORT_SLICE)) {
+        parts.push(slice);
+        if ((progress && !painted) || performance.now() - since >= EXPORT_WORK_MS) {
+          painted = progress;
+          await nextFrame();
+          since = performance.now();
+        }
+      }
+      parts.push(plan.tail);
+      const file = new Blob(parts, { type: "text/html" });
+      if (download !== null) URL.revokeObjectURL(download);
+      download = URL.createObjectURL(file);
+      const link = document.createElement("a");
+      link.href = download;
+      link.download = exportFileName(meta.name, frameId);
+      document.body.append(link);
+      link.click();
+      link.remove();
+      result = exportRequestedText(frame, plan.linked, proto.external);
+    } catch {
+      result = exportRefusedText(frame, "failed");
+    }
+    clearTimeout(timer);
+    exporting = false;
+    showExportToast(result);
+    render();
+  }
 
   // The name opens the drawer of the frames the run listed, in link groups, the playing one marked
   // (view.ts drawerGroups); with none it holds one line. The app's keys (drawerKey). A row plays its

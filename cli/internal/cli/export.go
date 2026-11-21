@@ -95,7 +95,7 @@ func Export(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	}
 	assets := append(inlined.Assets, self)
 	stem := strings.TrimSuffix(path.Base(canvasPath), path.Ext(canvasPath))
-	meta := export.Meta{Name: stem, Width: model.Width}
+	meta := export.Meta{Name: stem, Width: model.Width, External: len(inlined.External)}
 	var page []byte
 	var proto export.Proto
 	if frame != nil {
