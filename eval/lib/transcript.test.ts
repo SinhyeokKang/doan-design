@@ -825,6 +825,17 @@ test("a Python heredoc's literal doan argv lists are read, and anything dynamic 
   ]) read(command, [], true);
 });
 
+// A Python heredoc that writes canvases carries `doan:canvas` and `doan:width` markup (D10g, D10h). That markup runs
+// nothing, so it does not make the body name doan; a doan word beside it still does.
+test("doan: markup in a Python heredoc does not name doan, and a doan word beside it is still read", () => {
+  const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
+  const meta = `<meta name="doan:canvas" content="a"><meta name="doan:width" content="390">`;
+  read(`python3 - <<'PY'\nimport subprocess\nfrom pathlib import Path\nPath('.doan/ds/a.html').write_text('''${meta}''')\nsubprocess.run(['git', 'status'])\nPY`, [["python3", "-"]]);
+  read(`python3 - <<'PY'\nimport subprocess\nfrom pathlib import Path\nPath('.doan/ds/a.html').write_text('${meta}')\nsubprocess.run(['doan', 'check'])\nPY`, [["python3", "-"], ["doan", "check"]]);
+  read(`python3 - <<'PY'\nimport os\nprint('${meta}')\nos.system('doan design-skill audit')\nPY`, [], true);
+  read(`python3 - <<'PY'\nimport subprocess\nprint('''${meta}''')\nsubprocess.run(['doan', 'design-skill', 'audit'])\nPY`, [], true);
+});
+
 // Codex prints a multi-line command (a heredoc script, say) across several stderr lines; the header ends at the
 // line with the working directory, before the status line (pac-full R10-codex).
 test("a multi-line Codex exec header is read up to its working directory, not cut at its first line", () => {

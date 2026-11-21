@@ -625,3 +625,29 @@ func TestDocumentPresetKeepsEvalConcepts(t *testing.T) {
 		}
 	}
 }
+
+// Agent-eval issues fixed in preset wording pin short concepts, like TestDocumentPresetKeepsTuningConcepts.
+func TestPresetsKeepAgentEvalFixes(t *testing.T) {
+	for _, c := range []struct {
+		preset, issue string
+		phrases       []string
+	}{
+		// U-042: a hover sample labelled only "Hover" kept the new token's name in its style attribute, out of sight.
+		{"document", "state samples name their tokens", []string{"labeled with its state and the token variables it uses"}},
+		// U-016: two toggles with the same trigger and effect were kept for a difference nothing in the design showed.
+		{"distill", "sameness comes from what is shown", []string{"do not assume a difference nothing shows"}},
+		// U-031: copy claimed a default plan, a duration and later plan changes that no supplied fact gave.
+		{"generate", "behavior claims come from supplied truth", []string{"product behavior (defaults, timing, what a user can change later)"}},
+	} {
+		b, err := os.ReadFile(filepath.Join("presets", c.preset+".md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		body := strings.Join(strings.Fields(string(b)), " ")
+		for _, p := range c.phrases {
+			if !strings.Contains(body, p) {
+				t.Errorf("%s preset lost %s: missing %q", c.preset, c.issue, p)
+			}
+		}
+	}
+}
