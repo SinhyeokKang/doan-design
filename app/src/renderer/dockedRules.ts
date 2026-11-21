@@ -162,6 +162,10 @@ export function dockedRefusal(code: string, mode: DockedMode, provider: Provider
   const p = PROVIDER_NAMES[provider];
   // Another sign-in owns the conversation: Retry never runs it, so the notice offers a new conversation instead.
   if (Object.hasOwn(OTHER_SIGN_IN, code)) return { kind: "notice", text: OTHER_SIGN_IN[code]!(p), startNew: true };
+  // Main refuses a Cursor send as rate_limited only when the session is missing and usage reads 100% (ARCHITECTURE §7
+  // 'Agent usage'): Cursor keeps no session for a first turn its plan limit stopped, so sending again after the reset
+  // would not help either; a new conversation does.
+  if (code === "rate_limited" && provider === "cursor") return { kind: "notice", text: "Cursor reached a usage limit, so this conversation can’t continue. Start a new conversation after the limit resets.", startNew: true };
   const text = SEND_ERRORS[code]?.(p) ?? "Couldn’t send your message. Try again.";
   return { kind: "notice", text };
 }
