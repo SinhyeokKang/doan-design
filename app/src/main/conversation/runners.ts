@@ -474,8 +474,8 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       const clearing = commandName("claude", prompt) === "clear";
       // turnInit: the mode the turn's first top-level init reported. A later init comes from a message steered after the
       // reply began, which the CLI runs as its next turn in this process; it can report a setMode allowed there (PoC,
-      // Claude Code 2.1.312).
-      let reset = false, turnInit: string | undefined;
+      // Claude Code 2.1.312). latest: the mode the process reported last, init or status.
+      let reset = false, turnInit: string | undefined, latest: string | undefined;
       // The group stops as on any terminal that leaves a steered uuid unread; the SDK error that follows is that stop's.
       const expireRead = () => {
         readWait = undefined;
@@ -525,11 +525,11 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
             }
             unanswered = claudeUnansweredSupport(raw) ?? unanswered;
             // The service decides what a reported mode changes (claudeRunMode.ts). An init tells the mode an Ask first
-            // turn's settings run, so only that turn's count; a turn sent with Accept edits or Full access runs its own.
-            const report = claudeModeReport(raw), sent = input.permissionMode ?? "default", before = turnInit;
-            if (report?.source === "init") turnInit ??= report.mode;
-            if (report?.source === "init" && sent === "default") input.modeReported?.(report, before);
-            else if (report?.source === "status" && (sent === "default" || sent === "plan")) input.modeReported?.(report, before);
+            // turn's settings run, so only that turn's inits count; a turn sent with Accept edits or Full access runs its own.
+            const report = claudeModeReport(raw), sent = input.permissionMode ?? "default", init = turnInit, previous = latest;
+            if (report) { latest = report.mode; if (report.source === "init") turnInit ??= report.mode; }
+            if (report?.source === "init" && sent === "default") input.modeReported?.(report, init, previous);
+            else if (report?.source === "status" && (sent === "default" || sent === "plan")) input.modeReported?.(report, init, previous);
             const prompted = state.prompt !== undefined;
             const result = normalizeClaude(state, raw, input.cwd, labels); state = result.state;
             for (const id of result.consumed ?? []) input.steerConsumed?.(id);

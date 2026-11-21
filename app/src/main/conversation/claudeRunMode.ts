@@ -29,16 +29,18 @@ export function runModeAfterInit(report: RunModeReport & { counted: boolean }): 
 // A Plan turn's approval moves the stored mode as before (claudeModeAfterPlan); when that is Ask first, the run mode
 // becomes what the process now runs. Into another mode the run mode is left as the last one seen, for a re-pick of Ask
 // first. An Ask first turn whose settings ran plan changes the run mode only. Approval reported default in every PoC
-// case, which clears the key. turnInit: the mode this turn's first top-level init reported. It, not the stored key,
-// says the settings ran plan: the key may be an earlier turn's, and this turn's setMode would then pass as an approval.
-export function runModeAfterStatus(report: RunModeReport & { turnInit: string | undefined }): RunModeUpdate | null {
-  const { entry, sent, current, reported, turnInit } = report;
+// case, which clears the key. turnInit: the mode this turn's first top-level init reported; previous: the mode the
+// process reported last before this status. Both must be plan: turnInit, not the stored key, says the settings ran plan
+// (the key may be an earlier turn's), and previous says the process still ran it, so a setMode allowed after the
+// approval (an "Always allow" on a Write) does not pass as one.
+export function runModeAfterStatus(report: RunModeReport & { turnInit: string | undefined; previous: string | undefined }): RunModeUpdate | null {
+  const { entry, sent, current, reported, turnInit, previous } = report;
   if (!current || reported === "plan") return null;
   if (sent === "plan") {
     if (entry.permissionMode !== "plan") return null;
     const permissionMode = claudeModeAfterPlan(reported);
     return { permissionMode, claudeRunMode: ownClaude(entry) && permissionMode === "default" ? shown(reported) : entry.claudeRunMode };
   }
-  if (sent !== "default" || !ownClaude(entry) || entry.permissionMode !== undefined || turnInit !== "plan") return null;
+  if (sent !== "default" || !ownClaude(entry) || entry.permissionMode !== undefined || turnInit !== "plan" || previous !== "plan") return null;
   return { permissionMode: "default", claudeRunMode: shown(reported) };
 }
