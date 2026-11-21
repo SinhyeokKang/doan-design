@@ -22,14 +22,14 @@
 - `doan ls --repo . --json`: `export-prototype-player` 프레임 9개가 design.md의 상태 9개와 같다.
 - 각 프레임을 Chromium으로 렌더해 확인했다. 문구는 design.md '브라우저 상태와 문구' 표와 같다. 서랍은 공유 `doan-floating doan-menu` 표면을 쓴다.
 - 참고: `play-blocked`의 760px 보드에서는 오른쪽 아래 토스트가 가운데 툴바의 Hand·Play를 덮는다. 토스트 규칙(오른쪽 아래, 너비 min(384, W − 32))이 앱과 같으므로 시안 결함으로 보지 않고 8단계 `/design-sync`에서 좁은 창을 측정한다.
-- 사용자 확정: 대기
+- 사용자 확정: 사용자가 앱(develop 체크아웃, 같은 파일)에서 확인하고 확정했다.
 
 ## 배치
 
 | 배치 | 항목 (tasks) | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| B1 | 1 브라우저 PoC | `.scratch/export-prototype-player/poc/`만. 커밋 없음 | 없음 | Opus high — 창 생성 방식·창 통신·사용자 입력 인정 방식을 이 결과로 정한다 | Chromium·WebKit 실제 file URL 결과표, 미검증 항목 | 대기 |
-| B2 | 3(Go 단언) · 4 일반 Export 조립 | `cli/internal/export/*.go`, `schema/fixtures/prototype-mark`·`prototype-links` | 시안 확정 | Opus high — 이스케이프와 바이트 동일성, 50 MiB 경계 | `go test ./...`, `go vet ./...` | 대기 |
+| B1 | 1 브라우저 PoC | `.scratch/export-prototype-player/poc/`만. 커밋 없음 | 없음 | Opus high — 창 생성 방식·창 통신·사용자 입력 인정 방식을 이 결과로 정한다 | Chromium·WebKit 실제 file URL 결과표, 미검증 항목 | 진행 (`ctx_a4e5ed986d62`) |
+| B2 | 3(Go 단언) · 4 일반 Export 조립 | `cli/internal/export/*.go`, `schema/fixtures/prototype-mark`·`prototype-links` | 시안 확정 | Opus high — 이스케이프와 바이트 동일성, 50 MiB 경계 | `go test ./...`, `go vet ./...` | 진행 |
 | B3 | 3(TS 단언) · 5 Select와 보드 재생 진입점 | `cli/internal/export/viewer/`(보드 쪽), `app/scripts/viewerInspect.mjs`, 앱 TS 소스와 테스트, `assemble.go`의 파일 목록과 digest | B2 | Opus high — 입력·포커스·선택 경로를 앱과 맞춘다 | `viewerInspect.mjs --check`, `npm --prefix app test`, 실제 파일 보드 입력 검증 | 대기 |
 | B4 | 6 브라우저 재생창 | 재생 페이지 HTML·JS·CSS, 뷰어 JS, `assemble.go` | B1, B3 | Opus high — 보안 경계(sandbox, 문자열만 전달), 창 수명, 기록 | `npm --prefix app test`, Chromium·WebKit 앱·브라우저 비교 | 대기 |
 | B5 | 7 현재 프로토타입 내보내기 | 뷰어 JS, `assemble.go`와 Go 테스트 | B2, B4 | Opus high — CLI 결과와 “같은 결과” 판정 | `go test ./...`, `npm --prefix app test`, 받은 파일 오프라인 재개방 | 대기 |
