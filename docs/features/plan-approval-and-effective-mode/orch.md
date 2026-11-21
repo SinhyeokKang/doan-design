@@ -20,6 +20,7 @@
 - P2 결과: (b). `/plan` 턴은 계획 artifact를 쓰고(표준 권한 요청 한 번) "click Proceed"를 안내한 뒤 `end_turn`으로 끝난다. 다음 메시지 "Proceed"가 계획을 실행한다(`session/load`로 이어도 같다). 근거는 P2 워크트리의 `.scratch/poc-p2/frames/`와 `.scratch/handoff-P2.md`다.
 - 결정 게이트(사용자 결정): Antigravity `/plan`은 카드를 빼고 보낸다. 사람이 다음 메시지로 "Proceed"를 직접 입력한다. 새 UI는 없다. 답의 'click Proceed' 문구와 profile 안 `file://` 계획 링크는 받아들인다. 계획 파일 권한 카드와 `failed`로 끝나는 도구 단계가 thread에서 어떻게 보이는지는 A1 `/runtime-test`에서 확인한다. 오해를 부르면 멈추고 다시 묻는다.
 - 리드가 `fix/antigravity-stop-tool-group`(PR #346) 머지를 알렸고, `origin/develop`을 merge했다(`8126b8b5b`). A1은 P2 워커의 후속 Task로 그 뒤에 시작했다. A1은 `providerCommands.ts`·`commandView.ts`를 고치며 Claude 줄기와 겹치지 않는다.
+- A1 명령 처리: conductor 재량 — `/plan`을 passthrough가 아닌 `COMMAND_ALLOWLIST.antigravity`(1.3.0) 행으로 더한다. 근거: PRODUCT §5 item 1 'Built-in commands'와 ARCHITECTURE §7(실제 확인을 거친 명령은 표에 들어간다). A1 `/runtime-test`가 그 실제 확인이고, 확인되지 않으면 passthrough로 물러서지 않고 멈춘다.
 - C2와 C3는 같은 워커가 이어서 한다(C3는 C2 통합 뒤 새 Task): conductor 재량 — 같은 저장 조건 함수와 service 경로를 다룬다.
 - C4의 `/runtime-test`는 conductor가 통합 HEAD에서 한다(orchestrate §4).
 - A1 전에 리드에게 알린다. 리드가 `fix/antigravity-stop-tool-group` PR의 머지 여부를 알려 주면 `origin/develop`을 먼저 merge한다(`acpRunner.ts`·`acp.ts`·`commandView.ts` 겹침).
