@@ -67,22 +67,20 @@
   - 확인: spec.md '미정'이 비고, A1에 할 일이 적혀 있다(또는 범위에서 뺐다고 적혀 있다).
 - commit: `docs(feature): plan-approval-and-effective-mode P2 results and scope`
 
-### A1. 구현: Antigravity `/plan` 보내기 (결정 게이트: 카드를 빼고 보낸다)
+### A1. 구현: 보내 본 뒤 되돌림, 카드 문구 수정
 
-- [x] `test:`(red): `providerCommands.test.ts`·`providerCommands.messages.test.ts`에서 `/plan`이 Antigravity 명령 표에 있고 카드 목록에 없음을, `skills.commands.test.ts`에서 서버가 알린 `/plan`이 1.3.0 이상에서 명령 행이 됨을, `commandView.test.ts`에서 `/plan`이 카드가 아니라 명령(목록 전에는 text)으로 읽힘을 고정한다.
-- [x] `feat:`: `providerCommands.ts`의 `UNSUPPORTED_COMMANDS.antigravity`에서 `plan`을 빼고 `COMMAND_ALLOWLIST.antigravity`(1.3.0)에 넣는다(설명은 서버 것). 그 위 주석을 고치고, `commandView.ts`의 Antigravity `/plan` 카드 규칙을 지운다. ACP runner는 건드리지 않는다.
-  - 확인: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint` 통과.
-- [x] `/runtime-test`: 유지된 provider profile의 복사본으로 Antigravity에 로그인한 실제 앱에서, 임시 프로젝트에 Ask first로 `/plan <작은 할 일>`을 보낸다. 계획 파일 권한을 허용하고, 계획 답을 보고, "Proceed"를 보내 실행(과 그 권한)까지 본다. 이 확인이 `COMMAND_ALLOWLIST`에 `/plan`을 넣는 실제 확인이다(서버 1.3.0).
-  - `doan` CLI 출력이나 skill은 바뀌지 않는다.
-- commit: `test(conversation):` → `feat(conversation): send Antigravity /plan`
+- [x] 결정 게이트의 첫 답(카드를 빼고 보낸다)대로 구현했다: `plan`을 `UNSUPPORTED_COMMANDS.antigravity`에서 빼고 `COMMAND_ALLOWLIST.antigravity`(1.3.0)에 넣었으며, 카드 규칙을 지웠다(`test(conversation):` → `feat(conversation): send Antigravity /plan`). 실제 앱에서 `/plan` → 계획 파일 권한 → "Proceed" → 실행까지 확인했다.
+- [x] 독립 검토와 실제 앱 확인에서 세 문제가 나왔다(design.md 'PoC 의존' P2 '보내기를 되돌린 이유'). 사용자 결정으로 보내기를 되돌렸다(`revert: send Antigravity /plan`). 보내기는 나중 `/feature`로 넘긴다.
+- [x] `test(renderer):`(red) → `fix(renderer):`: Antigravity `/plan` 카드가 permission picker를 가리키지 않게 고쳤다. 본문은 "Doan can’t show Antigravity’s plan approval yet. Ask for a plan in a message instead."이고 action은 없다. 문구는 Doan의 `clarify` preset을 읽고 썼다.
+  - 확인: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint` 통과. `doan` CLI 출력이나 skill은 바뀌지 않는다.
 
 ## 최종
 
 - [ ] `node .agents/skills/verify/scripts/verify.mjs` 통과.
 - [ ] 승격(영어, 근거는 commit 메시지, 문서별로 commit을 나눈다):
-  - PRODUCT §5 item 1 'Permission picker': 실제 모드 표시 규칙. 범위에 들어갔다면 'Built-in commands'에서 Antigravity `/plan` 카드를 뺀다(`docs(PRODUCT):`).
+  - PRODUCT §5 item 1 'Permission picker': 실제 모드 표시 규칙. 'Built-in commands' 'Cards'에서 Antigravity `/plan` 카드의 문구를 새 문구로 바꾸고 picker를 가리키는 부분을 뺀다(`docs(PRODUCT):`).
   - ARCHITECTURE §7 'Permission modes': "read as Ask first" 줄 뒤에 `claudeRunMode`를 정하는 규칙과 표시 조건을 더한다. 'Device-local storage and limits'의 index 설명에 `claudeRunMode` 키를 더한다(`docs(ARCHITECTURE):`). `claudeModeAfterPlan` 주석도 맞게 고친다.
   - `/design-sync`가 값을 기록했다면 `docs/design/<group>.md`와 DESIGN.md 색인(`docs(design):`).
-  - BACKLOG의 "After a Claude plan approval…" 항목과, 해결했다면 'Undecided'의 Antigravity `/plan` 항목을 지운다(`docs(BACKLOG):`).
+  - BACKLOG의 "After a Claude plan approval…" 항목을 지우고, 'Undecided'의 Antigravity `/plan` 항목을 P2 결과와 보내기를 되돌린 세 문제로 고쳐 쓴다(`docs(BACKLOG):`).
   - `docs/features/plan-approval-and-effective-mode/`를 지운다(`docs(feature): remove plan-approval-and-effective-mode after promotion`).
   - 확인: `grep -rn "plan-approval-and-effective-mode" docs/ AGENTS.md .agents/ app/`가 비어 있다.
