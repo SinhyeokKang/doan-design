@@ -10,9 +10,11 @@ import (
 // collectUses records, over the canvas and every stylesheet it reaches, which
 // folders use each custom property (canvas.CustomUsers, which doan check
 // builds the same way). It reads before any rewrite, because a url() can be
-// declared before its user.
+// declared before its user. The canvas is parsed for its elements only when
+// some style text uses a custom property.
 func (in *inliner) collectUses(canvasPath string, src []byte) {
 	in.uses = canvas.CustomUsers{}
+	in.pending = nil
 	in.collected = map[string]bool{}
 	dir := path.Dir(canvasPath)
 	if in.based != "" {
@@ -27,10 +29,27 @@ func (in *inliner) collectUses(canvasPath string, src []byte) {
 		in.collectText(dir, text, mode)
 		return text
 	})
+	for _, p := range in.pending {
+		if len(p.use.Used) > 0 || len(p.use.Hops) > 0 {
+			in.uses.Elements = canvas.ElementsOf(src)
+			break
+		}
+	}
+	for _, p := range in.pending {
+		in.uses.Add(p.dir, p.use)
+	}
+	in.pending = nil
+}
+
+// pendingUse is one style text's custom property use, kept until the
+// canvas's elements are known.
+type pendingUse struct {
+	dir string
+	use canvas.CustomUse
 }
 
 func (in *inliner) collectText(dir, text string, mode canvas.Mode) {
-	in.uses.Add(dir, canvas.CustomUses(text, mode))
+	in.pending = append(in.pending, pendingUse{dir, canvas.CustomUses(text, mode)})
 	for _, r := range canvas.CSSRefs(text, mode) {
 		if r.Import {
 			in.collectSheet(dir, r.Value)

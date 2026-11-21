@@ -497,11 +497,20 @@ type CustomUse struct {
 	// URLSyntax holds the @property registrations whose syntax accepts
 	// <url>; the browser resolves their url()s where they are declared.
 	URLSyntax map[string]bool
+	// Needs holds, for each property in Used, what an element must have for
+	// one of the rules that use it to apply (see Elements.Match), and
+	// HopNeeds the same for each hop in Hops.
+	Needs    map[string][][]string
+	HopNeeds map[string]map[string][][]string
+	// Editable reports a user-modify declaration (Chromium's
+	// -webkit-user-modify), which makes elements editable like
+	// contenteditable, whatever its value.
+	Editable bool
 }
 
 // CustomUses walks the declarations ScanCSS walks.
 func CustomUses(text string, mode Mode) CustomUse {
-	u := CustomUse{Used: map[string]bool{}, Hops: map[string]map[string]bool{}, URLSyntax: map[string]bool{}}
+	u := newCustomUse()
 	l := lexer{s: text}
 	depth := 0
 	if mode == Declarations {
@@ -509,6 +518,27 @@ func CustomUses(text string, mode Mode) CustomUse {
 	}
 	paren := 0
 	var decl []token
+	// blocks holds what each open block asks of an element; a style
+	// attribute has none, so its uses always count.
+	var blocks []block
+	seenNeed := map[string]bool{}
+	need := func(from, name string) {
+		for _, c := range currentNeeds(text, blocks) {
+			key := from + "\x00" + name + "\x00" + strings.Join(c, "\x00")
+			if seenNeed[key] {
+				continue
+			}
+			seenNeed[key] = true
+			if from == "" {
+				u.Needs[name] = append(u.Needs[name], c)
+				continue
+			}
+			if u.HopNeeds[from] == nil {
+				u.HopNeeds[from] = map[string][][]string{}
+			}
+			u.HopNeeds[from][name] = append(u.HopNeeds[from][name], c)
+		}
+	}
 	// registering is the @property block being read, or "", and seen the
 	// descriptors it has: "url" for a syntax that accepts <url>, "inherits"
 	// and "initial-value". The browser drops a rule without inherits, or
@@ -522,10 +552,24 @@ func CustomUses(text string, mode Mode) CustomUse {
 		}
 	}
 	declaration := func(d []token) {
+		// An escape can spell any property name (-webkit-user-modif\79), and
+		// the lexer splits it, so an escaped name counts as user-modify.
+		for _, t := range d {
+			if t.kind == ':' {
+				break
+			}
+			if t.kind == '\\' {
+				u.Editable = true
+				break
+			}
+		}
 		if len(d) < 2 || d[0].kind != 'i' || d[1].kind != ':' {
 			return
 		}
 		name := d[0].text
+		if strings.HasSuffix(lower(name), "user-modify") {
+			u.Editable = true
+		}
 		if registering != "" {
 			switch n := lower(name); {
 			case n == "syntax":
@@ -538,12 +582,14 @@ func CustomUses(text string, mode Mode) CustomUse {
 			if d[i].kind == 'i' && lower(d[i].text) == "var" && d[i+1].kind == '(' && d[i+1].start == d[i].end && d[i+2].kind == 'i' && custom(d[i+2].text) {
 				if !custom(name) {
 					u.Used[d[i+2].text] = true
+					need("", d[i+2].text)
 					continue
 				}
 				if u.Hops[name] == nil {
 					u.Hops[name] = map[string]bool{}
 				}
 				u.Hops[name][d[i+2].text] = true
+				need(name, d[i+2].text)
 			}
 		}
 	}
@@ -563,6 +609,11 @@ func CustomUses(text string, mode Mode) CustomUse {
 				registering = p[2].text
 				seen = map[string]bool{}
 			}
+			blocks = append(blocks, blockOf(p))
+			if len(p) > 0 {
+				b := &blocks[len(blocks)-1]
+				b.start, b.end = p[0].start, p[len(p)-1].end
+			}
 			depth++
 			decl, paren = decl[:0], 0
 			continue
@@ -573,6 +624,9 @@ func CustomUses(text string, mode Mode) CustomUse {
 			if t.kind == '}' {
 				if depth > 0 {
 					depth--
+				}
+				if len(blocks) > 0 {
+					blocks = blocks[:len(blocks)-1]
 				}
 				register()
 				registering = ""
@@ -588,6 +642,184 @@ func CustomUses(text string, mode Mode) CustomUse {
 	// The end of the text closes an unclosed block.
 	register()
 	return u
+}
+
+func newCustomUse() CustomUse {
+	return CustomUse{Used: map[string]bool{}, Hops: map[string]map[string]bool{}, URLSyntax: map[string]bool{},
+		Needs: map[string][][]string{}, HopNeeds: map[string]map[string][][]string{}}
+}
+
+// block is one open {} block: a style rule, an at-rule whose style rules
+// apply as written (conditional), or another at-rule, inside which nothing
+// is judged. A style rule's needs are read from its prelude
+// (text[start:end]) only once a declaration in it uses a custom property:
+// reading every rule's selectors would allocate for each rule of a large
+// stylesheet.
+type block struct {
+	start, end  int
+	needs       [][]string
+	style, open bool
+	parsed      bool
+}
+
+// anyElement is a need every element meets.
+var anyElement = [][]string{{}}
+
+func blockOf(prelude []token) block {
+	if len(prelude) > 0 && prelude[0].kind == '@' {
+		if len(prelude) > 1 && prelude[1].kind == 'i' && prelude[1].start == prelude[0].end {
+			switch lower(prelude[1].text) {
+			case "media", "supports", "layer", "container", "scope", "starting-style":
+				return block{open: true}
+			}
+		}
+		return block{}
+	}
+	return block{style: true, open: true}
+}
+
+// currentNeeds is what the innermost style rule asks of an element. A nested
+// rule's own rightmost compound is enough: it names the element itself.
+func currentNeeds(text string, blocks []block) [][]string {
+	for i := len(blocks) - 1; i >= 0; i-- {
+		if !blocks[i].open {
+			return anyElement
+		}
+		if blocks[i].style {
+			for j := i - 1; j >= 0; j-- {
+				if !blocks[j].open {
+					return anyElement
+				}
+			}
+			b := &blocks[i]
+			if !b.parsed {
+				b.needs, b.parsed = anyElement, true
+				// The browser drops a comment without leaving whitespace
+				// (":/**/root" is ":root"), but the lexer's token positions
+				// would read it as a combinator, so such a selector is not judged.
+				if prelude := text[b.start:b.end]; !strings.Contains(prelude, "/*") {
+					b.needs = selectorNeeds(tokens(prelude))
+				}
+			}
+			return b.needs
+		}
+	}
+	return anyElement
+}
+
+func tokens(text string) []token {
+	var out []token
+	l := lexer{s: text}
+	for {
+		t, ok := l.next()
+		if !ok {
+			return out
+		}
+		out = append(out, t)
+	}
+}
+
+// selectorNeeds returns, for each selector of a list, the class, id and type
+// keys its rightmost compound requires (Elements keys). The element the rule
+// styles must match that compound, so a canvas without such an element never
+// applies the rule. Pseudo-classes, pseudo-elements, attributes and & only
+// narrow a compound further and are skipped; a selector this cannot read
+// (escapes, namespaces, anything unexpected) needs nothing.
+func selectorNeeds(prelude []token) [][]string {
+	var out [][]string
+	start, depth := 0, 0
+	for i := 0; i <= len(prelude); i++ {
+		if i == len(prelude) || prelude[i].kind == ',' && depth == 0 {
+			c, ok := rightmostCompound(prelude[start:i])
+			if !ok || len(c) == 0 {
+				return anyElement
+			}
+			out = append(out, c)
+			start = i + 1
+			continue
+		}
+		switch prelude[i].kind {
+		case '(', '[':
+			depth++
+		case ')', ']':
+			if depth > 0 {
+				depth--
+			}
+		}
+	}
+	return out
+}
+
+func rightmostCompound(ts []token) ([]string, bool) {
+	begin, depth := 0, 0
+	for i, t := range ts {
+		// A gap at the top level is whitespace: a descendant combinator.
+		if depth == 0 && i > 0 && t.start > ts[i-1].end {
+			begin = i
+		}
+		switch t.kind {
+		case '(', '[':
+			depth++
+		case ')', ']':
+			if depth > 0 {
+				depth--
+			}
+		case '>', '+', '~':
+			if depth == 0 {
+				begin = i + 1
+			}
+		case '\\', '|':
+			return nil, false
+		}
+	}
+	c := ts[begin:]
+	adjacent := func(j int, kind byte) bool { return j < len(c) && c[j].kind == kind && c[j].start == c[j-1].end }
+	// skip returns the index after the bracket group opening at j.
+	skip := func(j int) int {
+		n := 0
+		for ; j < len(c); j++ {
+			switch c[j].kind {
+			case '(', '[':
+				n++
+			case ')', ']':
+				n--
+				if n == 0 {
+					return j + 1
+				}
+			}
+		}
+		return j
+	}
+	var keys []string
+	for i := 0; i < len(c); {
+		t := c[i]
+		switch {
+		case (t.kind == '.' || t.kind == '#') && adjacent(i+1, 'i'):
+			keys = append(keys, t.text+lower(c[i+1].text))
+			i += 2
+		case t.kind == 'i' && i == 0:
+			keys = append(keys, lower(t.text))
+			i++
+		case t.kind == '*' || t.kind == '&':
+			i++
+		case t.kind == '[':
+			i = skip(i)
+		case t.kind == ':':
+			i++
+			if adjacent(i, ':') {
+				i++
+			}
+			if adjacent(i, 'i') {
+				i++
+			}
+			if adjacent(i, '(') {
+				i = skip(i)
+			}
+		default:
+			return nil, false
+		}
+	}
+	return keys, true
 }
 
 // refValue decodes a string token or a url() token's raw text.

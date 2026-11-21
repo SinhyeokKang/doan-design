@@ -168,6 +168,18 @@ func customURLCases() []customURLCase {
 			assets: []string{".doan/assets/x.svg"},
 		},
 		{
+			name:   "a user rule no canvas element can match is not a consumer",
+			files:  map[string]string{"styles/a.css": `.btn{mask-image:var(--i)}`, "styles/i.svg": svg("css"), ".doan/canvases/i.svg": svg("page")},
+			canvas: linkA + `<style>.y{mask-image:var(--i)}</style><div class="y" style="--i:url(i.svg)"></div>`,
+			assets: []string{".doan/canvases/i.svg"},
+		},
+		{
+			name:   "a canvas script makes every user rule a consumer",
+			files:  map[string]string{"styles/a.css": `.btn{mask-image:var(--i)}`, "styles/i.svg": svg("css"), ".doan/canvases/i.svg": svg("page")},
+			canvas: linkA + `<style>.y{mask-image:var(--i)}</style><div class="y" style="--i:url(i.svg)"></div><script></script>`,
+			refuse: []Refusal{{".doan/canvases/c.html", "i.svg", wantAmbiguous}},
+		},
+		{
 			name:   "two consumers in one folder name the same file",
 			files:  map[string]string{"styles/a.css": `.x{mask-image:var(--i)}`, "styles/a2.css": `.y{background-image:var(--i)}`, "styles/i.svg": svg("css")},
 			canvas: linkA + `<link rel="stylesheet" href="../../styles/a2.css"><div class="x y" style="--i:url(i.svg)"></div>`,

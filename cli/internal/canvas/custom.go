@@ -40,6 +40,18 @@ func (t *CustomText) merge(other CustomText) {
 	for name := range other.Uses.URLSyntax {
 		t.Uses.URLSyntax[name] = true
 	}
+	t.Uses.Editable = t.Uses.Editable || other.Uses.Editable
+	for name, needs := range other.Uses.Needs {
+		t.Uses.Needs[name] = append(t.Uses.Needs[name], needs...)
+	}
+	for from, names := range other.Uses.HopNeeds {
+		if t.Uses.HopNeeds[from] == nil {
+			t.Uses.HopNeeds[from] = map[string][][]string{}
+		}
+		for name, needs := range names {
+			t.Uses.HopNeeds[from][name] = append(t.Uses.HopNeeds[from][name], needs...)
+		}
+	}
 	t.URLs = append(t.URLs, other.URLs...)
 }
 
@@ -47,37 +59,61 @@ func (t *CustomText) merge(other CustomText) {
 // folders' style text puts each custom property into a real property.
 // Chromium (measured in Electron 45) resolves a relative url() held in an
 // unregistered custom property against the stylesheet whose var() does that,
-// not where the property is declared. The record is by name only, ignoring
-// selectors and the cascade, so it can list a folder whose rule never applies
-// to the element; doan check and export both count that folder.
+// not where the property is declared. A rule counts only when Elements can
+// match its rightmost compound selector: the app never applies a rule whose
+// element the canvas lacks. Beyond that the record ignores selectors and the
+// cascade, so it can list a folder whose rule never reaches an element that
+// has the property; doan check and export both count that folder.
 type CustomUsers struct {
-	dirs      map[string]map[string]bool // property → folders of its direct users
-	users     map[string]map[string]bool // property → properties whose values name it
+	// Elements is the canvas's (canvas.Elements); nil counts every rule.
+	Elements *Elements
+
+	dirs      map[string]map[string][][]string // property → folder of a direct user → its rules' needs
+	users     map[string]map[string][][]string // property → property whose value names it → needs
 	urlSyntax map[string]bool
+	// editable is set by a user-modify declaration in any style text, which
+	// lets a person type new elements into the canvas without a script.
+	editable bool
 }
 
 // Add records what the style text in folder dir does with custom properties.
+// Which rules count is decided in Consumers, once every style text is in:
+// a user-modify declaration in a later stylesheet makes every rule count.
 func (u *CustomUsers) Add(dir string, c CustomUse) {
 	if u.dirs == nil {
-		u.dirs, u.users, u.urlSyntax = map[string]map[string]bool{}, map[string]map[string]bool{}, map[string]bool{}
+		u.dirs, u.users, u.urlSyntax = map[string]map[string][][]string{}, map[string]map[string][][]string{}, map[string]bool{}
 	}
+	u.editable = u.editable || c.Editable
 	for name := range c.Used {
 		if u.dirs[name] == nil {
-			u.dirs[name] = map[string]bool{}
+			u.dirs[name] = map[string][][]string{}
 		}
-		u.dirs[name][dir] = true
+		u.dirs[name][dir] = append(u.dirs[name][dir], needsOr(c.Needs, name)...)
 	}
 	for from, names := range c.Hops {
 		for name := range names {
 			if u.users[name] == nil {
-				u.users[name] = map[string]bool{}
+				u.users[name] = map[string][][]string{}
 			}
-			u.users[name][from] = true
+			u.users[name][from] = append(u.users[name][from], needsOr(c.HopNeeds[from], name)...)
 		}
 	}
 	for name := range c.URLSyntax {
 		u.urlSyntax[name] = true
 	}
+}
+
+// needsOr returns name's needs, or anyElement for a use recorded without
+// them.
+func needsOr(needs map[string][][]string, name string) [][]string {
+	if n, ok := needs[name]; ok {
+		return n
+	}
+	return anyElement
+}
+
+func (u *CustomUsers) applies(needs [][]string) bool {
+	return u.editable || u.Elements.Match(needs)
 }
 
 // Consumers returns the folders whose var() puts name into a real property,
@@ -89,11 +125,13 @@ func (u *CustomUsers) Consumers(name string) []string {
 	for len(stack) > 0 {
 		n := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		for d := range u.dirs[n] {
-			dirs[d] = true
+		for d, needs := range u.dirs[n] {
+			if u.applies(needs) {
+				dirs[d] = true
+			}
 		}
-		for m := range u.users[n] {
-			if !visited[m] {
+		for m, needs := range u.users[n] {
+			if !visited[m] && u.applies(needs) {
 				visited[m] = true
 				stack = append(stack, m)
 			}

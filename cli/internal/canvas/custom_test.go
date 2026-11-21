@@ -165,3 +165,97 @@ func TestCustomUsesRegistersOnlyValidURLProperties(t *testing.T) {
 		})
 	}
 }
+
+// A rule counts as a user only when its rightmost compound selector can match
+// an element of a script-free canvas: the app never applies a rule whose
+// element the canvas lacks. Whatever cannot be judged statically counts.
+func TestCustomUsersCountOnlyRulesACanvasElementCanMatch(t *testing.T) {
+	const page = `<div class="card" id="Hero"><span class="Icon"></span><svg><rect/></svg></div>`
+	for _, tt := range []struct {
+		name, page, css string
+		want            bool
+	}{
+		{"a class no element has", page, `.btn{mask:var(--i)}`, false},
+		{"a class an element has", page, `.card{mask:var(--i)}`, true},
+		{"class names compare without case", page, `.icon{mask:var(--i)}`, true},
+		{"only the rightmost compound must match", page, `.btn .card{mask:var(--i)}`, true},
+		{"a rightmost compound no element matches", page, `.card .btn{mask:var(--i)}`, false},
+		{"a child combinator", page, `.card>.btn{mask:var(--i)}`, false},
+		{"any selector in a list", page, `.btn,.card{mask:var(--i)}`, true},
+		{"every class of a compound", page, `.card.btn{mask:var(--i)}`, false},
+		{"a dynamic pseudo-class keeps the compound", page, `.btn:hover{mask:var(--i)}`, false},
+		{"a dynamic pseudo-class on a present class", page, `.card:hover{mask:var(--i)}`, true},
+		{"a pseudo-element keeps the compound", page, `.btn::before{mask:var(--i)}`, false},
+		{"a functional pseudo-class is not judged", page, `:is(.btn){mask:var(--i)}`, true},
+		{"a negation keeps the rest of the compound", page, `.btn:not(.card){mask:var(--i)}`, false},
+		{"a type no element has", page, `section{mask:var(--i)}`, false},
+		{"a type an element has", page, `DIV{mask:var(--i)}`, true},
+		{"an svg type", page, `rect{mask:var(--i)}`, true},
+		{"the parser's implied body", page, `body{mask:var(--i)}`, true},
+		{"a type with an absent class", page, `div.btn{mask:var(--i)}`, false},
+		{"the universal selector", page, `.btn>*{mask:var(--i)}`, true},
+		{"an id no element has", page, `#nav{mask:var(--i)}`, false},
+		{"an id an element has", page, `#hero{mask:var(--i)}`, true},
+		{"an attribute selector keeps the compound", page, `.btn[data-x="a b"]{mask:var(--i)}`, false},
+		{"an absent class inside @media", page, `@media (min-width:1px){.btn{mask:var(--i)}}`, false},
+		{"a present class inside @media", page, `@media (min-width:1px){.card{mask:var(--i)}}`, true},
+		{"keyframes count", page, `@keyframes k{from{mask:var(--i)}}`, true},
+		{"an unknown at-rule counts", page, `@page{.btn{mask:var(--i)}}`, true},
+		{"a nested rule with an absent class", page, `.card{.btn{mask:var(--i)}}`, false},
+		{"a nesting selector is not judged", page, `.btn{&:hover{mask:var(--i)}}`, true},
+		{"an escape is not judged", page, `.a\:b{mask:var(--i)}`, true},
+		{"a namespace is not judged", page, `svg|rect{mask:var(--i)}`, true},
+		{"a comment inside a pseudo-class is not judged", page, `:/**/root{mask:var(--i)}`, true},
+		{"a comment inside a class selector is not judged", page, `./**/btn, ./**/card{mask:var(--i)}`, true},
+		{"an editable element makes every rule count", page + `<section contenteditable>x</section>`, `.btn{mask:var(--i)}`, true},
+		{"user-modify makes every rule count", page, `.card{-webkit-user-modify:read-write} .btn{mask:var(--i)}`, true},
+		{"an escaped property name makes every rule count", page, `.card{-webkit-user-modif\79:read-write} .btn{mask:var(--i)}`, true},
+		{"a hop in a rule no element matches", page, `.btn{--j:var(--i)} .card{mask:var(--j)}`, false},
+		{"a hop in a rule an element matches", page, `.card{--j:var(--i)} .icon{mask:var(--j)}`, true},
+		{"an element inside a template counts", `<div class="card"></div><template><i class="btn"></i></template>`, `.btn{mask:var(--i)}`, true},
+		{"a script makes every rule count", page + `<script></script>`, `.btn{mask:var(--i)}`, true},
+		{"an event handler makes every rule count", `<div onclick="x()"></div>`, `.btn{mask:var(--i)}`, true},
+		{"a javascript url makes every rule count", `<a href=" JavaScript:x()"></a>`, `.btn{mask:var(--i)}`, true},
+		{"an animated class makes every rule count", `<svg><set attributeName="class" to="btn"/></svg>`, `.btn{mask:var(--i)}`, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			u := &CustomUsers{Elements: mustParse(t, "c", []byte(tt.page)).Elements}
+			u.Add(".doan/canvases", CustomUses(`.card{mask:var(--i)}`, Stylesheet))
+			u.Add(".doan/ds", CustomUses(tt.css, Stylesheet))
+			if got := u.Ambiguous("--i", "x.svg"); got != tt.want {
+				t.Fatalf("Ambiguous = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// Style attributes sit on an element the canvas has, so their uses always count.
+// A style attribute's user-modify makes the canvas editable too.
+func TestCustomUsersEditableStyleAttribute(t *testing.T) {
+	c := mustParse(t, "c", []byte(`<div class="card" style="-webkit-user-modif\79:read-write"></div>`))
+	u := &CustomUsers{Elements: c.Elements}
+	u.Add(".doan/canvases", c.Custom.Uses)
+	u.Add(".doan/canvases", CustomUses(`.card{mask:var(--i)}`, Stylesheet))
+	u.Add(".doan/ds", CustomUses(`div.btn{mask:var(--i)}`, Stylesheet))
+	if !u.Ambiguous("--i", "x.svg") {
+		t.Fatal("an editable style attribute did not make every rule count")
+	}
+}
+
+func TestCustomUsersStyleAttributesAlwaysCount(t *testing.T) {
+	u := &CustomUsers{Elements: mustParse(t, "c", []byte(`<div></div>`)).Elements}
+	u.Add(".doan/canvases", CustomUses(`mask:var(--i)`, Declarations))
+	u.Add(".doan/ds", CustomUses(`div{mask:var(--i)}`, Stylesheet))
+	if !u.Ambiguous("--i", "x.svg") {
+		t.Fatal("a style attribute use did not count")
+	}
+}
+
+// ElementsOf reads the same elements Parse does, for export.
+func TestElementsOfMatchesParse(t *testing.T) {
+	for _, page := range []string{`<div class="card"></div>`, `<script></script>`} {
+		if got, want := ElementsOf([]byte(page)), mustParse(t, "c", []byte(page)).Elements; !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: ElementsOf = %+v, Parse = %+v", page, got, want)
+		}
+	}
+}

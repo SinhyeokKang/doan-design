@@ -398,7 +398,7 @@ func Run(in Input) []Finding {
 // resolve to different paths. export refuses the same url()s with the same
 // canvas functions; check reaches every stylesheet export reads.
 func ambiguousURLs(c canvas.Canvas, in Input, add func(Finding), cssSeen map[[3]string]bool) {
-	users := canvas.CustomUsers{}
+	users := canvas.CustomUsers{Elements: c.Elements}
 	users.Add(path.Dir(c.Path), c.Custom.Uses)
 	var sheets []string
 	seen := map[string]bool{}

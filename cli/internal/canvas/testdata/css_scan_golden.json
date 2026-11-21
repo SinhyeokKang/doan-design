@@ -30,7 +30,16 @@
      "--p": true
     },
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {
+     "--p": [
+      [
+       ".c"
+      ]
+     ]
+    },
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -63,7 +72,16 @@
      "--p": true
     },
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {
+     "--p": [
+      [
+       ".c"
+      ]
+     ]
+    },
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -90,7 +108,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -115,7 +136,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -143,7 +167,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -169,7 +196,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -266,7 +296,40 @@
     },
     "URLSyntax": {
      "--reg": true
-    }
+    },
+    "Needs": {
+     "--b": [
+      [
+       ".x"
+      ]
+     ],
+     "--c": [
+      [
+       ".x"
+      ]
+     ],
+     "--e": [
+      [
+       ".x"
+      ]
+     ]
+    },
+    "HopNeeds": {
+     "--b": {
+      "--a": [
+       []
+      ]
+     },
+     "--c": {
+      "--b": [
+       []
+      ],
+      "--d": [
+       []
+      ]
+     }
+    },
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -361,7 +424,40 @@
     },
     "URLSyntax": {
      "--reg": true
-    }
+    },
+    "Needs": {
+     "--b": [
+      [
+       ".x"
+      ]
+     ],
+     "--c": [
+      [
+       ".x"
+      ]
+     ],
+     "--e": [
+      [
+       ".x"
+      ]
+     ]
+    },
+    "HopNeeds": {
+     "--b": {
+      "--a": [
+       []
+      ]
+     },
+     "--c": {
+      "--b": [
+       []
+      ],
+      "--d": [
+       []
+      ]
+     }
+    },
+    "Editable": false
    }
   }
  },
@@ -408,7 +504,14 @@
      "--x": true
     },
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {
+     "--x": [
+      []
+     ]
+    },
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -442,7 +545,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -460,7 +566,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -476,7 +585,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -504,7 +616,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": true
    }
   },
   "stylesheet": {
@@ -530,7 +645,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": true
    }
   }
  },
@@ -566,7 +684,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -642,7 +763,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -752,7 +876,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -860,7 +987,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -970,7 +1100,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -1078,7 +1211,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -1117,7 +1253,16 @@
      "--변수": true
     },
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {
+     "--변수": [
+      [
+       ".한글"
+      ]
+     ]
+    },
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -1154,7 +1299,16 @@
      "--변수": true
     },
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {
+     "--변수": [
+      [
+       ".한글"
+      ]
+     ]
+    },
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -1172,7 +1326,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -1188,7 +1345,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -1263,7 +1423,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -1355,7 +1518,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -1447,7 +1613,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -1537,7 +1706,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -1575,7 +1747,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -1611,7 +1786,10 @@
    "Uses": {
     "Used": {},
     "Hops": {},
-    "URLSyntax": {}
+    "URLSyntax": {},
+    "Needs": {},
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  }
