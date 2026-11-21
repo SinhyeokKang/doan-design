@@ -162,7 +162,9 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const choices = chosen ? permissionChoices(chosen, listState) : [];
   const permission = permissionPickerView(chosen, listState, mode.kind === "new"
     ? defaultPermission(choices, pick.permissionMode, chosen ? props.prefs?.permissions?.[chosen] : undefined, fixed)
-    : defaultPermission(choices, pick.permissionMode ?? support.started[key] ?? stored, undefined, null));
+    : defaultPermission(choices, pick.permissionMode ?? support.started[key] ?? stored, undefined, null), mode.kind === "new" ? undefined : summary?.claudeRunMode);
+  // The run mode for the composer's status line: undefined until the list names the conversation (DockedComposer).
+  const runMode = mode.kind === "new" ? null : summary ? summary.claudeRunMode ?? null : undefined;
   const permissionMode = permission?.mode;
   // An existing conversation's send names the shown mode only once it is known: before the list names the
   // conversation, Default would overwrite the mode it was started in.
@@ -433,7 +435,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
           // A picked level belongs to the model it was picked for (Home keeps one per provider and model).
           ...(picked !== chosen || (value ?? null) !== model ? { effort: undefined } : {}), model: value ?? undefined })}
         onPickEffort={value => support.pick(key, { effort: value })} onPickFast={on => { support.pick(key, { fast: on }); if (chosen) props.onRemember?.({ provider: chosen, model, effort, ...modelPicked, fast: on }); }}
-        permission={permission} onPickPermission={value => support.pickPermission(key, mode.kind === "new" ? null : mode.conversationId, value, summary ? stored : undefined)}
+        permission={permission} runMode={runMode} onPickPermission={value => support.pickPermission(key, mode.kind === "new" ? null : mode.conversationId, value, summary ? stored : undefined)}
         onSettings={props.onSettings}
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.retryPresets()}

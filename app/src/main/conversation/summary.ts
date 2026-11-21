@@ -2,13 +2,15 @@ import { toSee } from "./seenEvents";
 import { foldConversation, type FoldedConversation } from "./state";
 import type { ConversationMetadata } from "./store";
 import type { Provider } from "../agentAuth/types";
-import type { PermissionModeId } from "./permissionMode";
+import type { ClaudeRunMode, PermissionModeId } from "./permissionMode";
 import type { Canvas, ConversationEvent } from "./types";
 // One row of a project's conversation list (conversation:list). The renderer imports this type only.
 export interface ConversationSummary {
   conversationId: string; canvas?: Canvas; title: string;
   // permissionMode: the conversation's chosen mode, absent for Default; it also changes after a Claude plan approval.
-  owner: "doan" | "legacy-external"; provider: Provider; model?: string; effort?: string; fast?: true; permissionMode?: PermissionModeId; fromHome: boolean;
+  // claudeRunMode: doan-owned Claude only, the mode Claude Code's own settings ran the last Ask first turn in, whatever
+  // mode is stored now; the trigger names it only while Ask first is (renderer permissionPicker.ts).
+  owner: "doan" | "legacy-external"; provider: Provider; model?: string; effort?: string; fast?: true; permissionMode?: PermissionModeId; claudeRunMode?: ClaudeRunMode; fromHome: boolean;
   // waiting: an unanswered permission request or question. ended also covers a turn a restart folded as crashed.
   phase: "running" | "waiting" | "ended"; unseen: boolean; queued: number; lastActivityAt: string; preview: string;
   // ISO: while waiting, when the earliest request still unanswered was made. Output during the wait and an answer to
@@ -56,7 +58,8 @@ export function conversationSummary(m: ConversationMetadata, read: { ok: true; e
   const base = {
     conversationId: m.conversationId, ...(m.canvas ? { canvas: m.canvas } : {}), title: m.title,
     owner: m.owner.kind, provider: m.session.runtime, ...(m.model ? { model: m.model } : {}), ...(m.effort ? { effort: m.effort } : {}),
-    ...(m.fast ? { fast: true as const } : {}), ...(m.permissionMode ? { permissionMode: m.permissionMode } : {}), fromHome: m.fromHome === true, queued: live.queued, working: live.working,
+    ...(m.fast ? { fast: true as const } : {}), ...(m.permissionMode ? { permissionMode: m.permissionMode } : {}),
+    ...(m.claudeRunMode && m.owner.kind === "doan" && m.owner.provider === "claude" ? { claudeRunMode: m.claudeRunMode } : {}), fromHome: m.fromHome === true, queued: live.queued, working: live.working,
     ...(live.projectTurnId ? { projectTurnId: live.projectTurnId } : {}),
     ...(live.returned ? { returnedDraft: true as const } : {}),
     ...(live.background ? { background: live.background } : {}), ...(live.stopping ? { stopping: true as const } : {}),

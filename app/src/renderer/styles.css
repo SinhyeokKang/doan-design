@@ -795,6 +795,9 @@ body:has(.shell-top) { background: transparent; }
 /* Two classes: the tray's subtle ink (.composer-tray .doan-button) would otherwise win. */
 :is(.doan-button.composer-permission, .doan-button.settings-select)[data-mode="bypass"] { color: var(--text-danger); }
 :is(.composer-permission, .settings-select)[data-mode="bypass"] .chev { color: currentColor; }
+/* Full access from Claude Code's settings: the stored mode stays Ask first, so data-mode never reads bypass. */
+.doan-button.composer-permission[data-warning] { color: var(--text-danger); }
+.composer-permission[data-warning] .chev { color: currentColor; }
 .composer-tray { position: relative; display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-control); padding: var(--space-1) var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-subtle); }
 .composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); font-weight: var(--type-weight-regular); color: var(--text-subtle); }
 .composer-tray :is(.doan-button, .tray-branch) svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
@@ -972,6 +975,9 @@ body:has(.shell-top) { background: transparent; }
 .docked .composer-tray .composer-agent { flex-shrink: 1; min-width: 0; }
 .docked .composer-agent .label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 @container (max-width: 431px) { .docked .composer-permission .label { display: none; } }
+/* A run-mode label ("Ask first · Plan (read-only)") is longer, so only that trigger steps earlier; measured with Claude's
+   widest model and effort labels and the context ring, so Permission still hides before Effort and the model ellipsis. */
+@container (max-width: 513px) { .docked .composer-permission[data-run-mode] .label { display: none; } }
 @container (max-width: 383px) { .docked .composer-effort .label { display: none; } }
 .composer-stop svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .composer-reason.docked-reason { justify-content: flex-start; margin-top: var(--space-2); padding-inline: var(--space-4); }
@@ -1736,7 +1742,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* A picker's value reads in the standard ink, as on Home, so it stands apart from a drawer's name in the metadata ink
    (.label.placeholder); against the tray's subtle ink the two were nearly the same grey. Attach and Pick keep the subtle
    ink, as does a trigger disabled while a send is pending; Full access keeps the danger one. */
-.docked .composer-tray :is(.composer-agent, .composer-effort, .composer-permission:not([data-mode="bypass"])):not(:disabled) { color: var(--text-standard); }
+.docked .composer-tray :is(.composer-agent, .composer-effort, .composer-permission:not([data-mode="bypass"]):not([data-warning])):not(:disabled) { color: var(--text-standard); }
 .composer-pick[aria-pressed="true"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
 .docked .composer-tray :is(.composer-attach, .composer-pick):is(:disabled, [aria-disabled="true"]) { color: var(--text-disabled); }
 /* aria-disabled (not disabled) keeps these controls hoverable for their reason tooltip, so they take the disabled

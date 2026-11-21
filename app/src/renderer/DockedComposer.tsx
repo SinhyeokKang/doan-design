@@ -2,7 +2,7 @@ import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useStat
 import { Clock, Crosshair, Folder, Frame, Gauge, Info, MessageSquareDashed, Plus, Shield, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
-import type { PermissionModeId } from "../main/conversation/permissionMode";
+import type { ClaudeRunMode, PermissionModeId } from "../main/conversation/permissionMode";
 import type { Anchor, SkillSummary } from "../main/conversation/types";
 import { fieldSkillRuns } from "./skillWords";
 import { classifyFirstWord, commandCard, commandLists, planSend, PRESET_NOTICE, queuedCommand, STALE_MODE_CARD, type CommandCard, type CommandLists } from "./commandView";
@@ -35,7 +35,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 import { queueFocusAfter, type QueueFocus } from "./queueFocus";
 import { dockedBuddy } from "./dockedBuddyShell";
 import { localClock, queueButtonHint, queueStatusLine, resetTimeText } from "./limitReset";
-import type { PermissionPickerView } from "./permissionPicker";
+import { runModeAnnouncement, type PermissionPickerView } from "./permissionPicker";
 import type { SettingsTarget } from "./settingsSections";
 import { withPlayingFrame, type PlayingFrame, type PlayingFrameChip } from "./prototype/conversation";
 import { useActivationFocus } from "./activationFocus";
@@ -86,6 +86,9 @@ export interface DockedComposerProps {
   // The permission mode picker after Effort; null or absent: the provider offers no
   // choice. A terminal session (`fixed`) shows its fixed trigger instead.
   permission?: PermissionPickerView | null; onPickPermission?(mode: PermissionModeId): void;
+  // The conversation's claudeRunMode from the host's latest list read, for the status line; null: none (or a new
+  // conversation); undefined: the host has not read the list yet, so a value that then appears is not announced.
+  runMode?: ClaudeRunMode | null | undefined;
   onSettings(target: SettingsTarget): void;
   skills: readonly SkillSummary[]; onSkillsWanted(): void;
   // The ACP conversation's commands sent as written but listed nowhere (useProjectSkills passthrough).
@@ -507,6 +510,17 @@ export function DockedComposer(props: DockedComposerProps) {
     const node = field.current?.element();
     if (node && node.ownerDocument.activeElement === node) setAnnouncement(`Suggestion: ${placeholder.suggestion}`);
   }, [key, props.suggestion]);
+  // A new run mode for the conversation on screen is said once. `previous` is the value this composer last saw for that
+  // same conversation: a first list read, a switch (either way) or a cleared value is left to the trigger. The status
+  // line is shared by every conversation shown here, so the same text said for another one is changed to be read again.
+  const lastRunMode = useRef({ key, runMode: props.runMode });
+  useEffect(() => {
+    const last = lastRunMode.current;
+    lastRunMode.current = { key, runMode: props.runMode };
+    if (last.key !== key || last.runMode === undefined || props.runMode === undefined) return;
+    const text = runModeAnnouncement(last.runMode ?? undefined, props.runMode ?? undefined);
+    if (text) setAnnouncement(current => current === text ? `${text}\u00a0` : text);
+  }, [key, props.runMode]);
 
   // A turn that ends while main still works on the conversation turns Stop into a disabled Send under the person's focus,
   // and a disabled button holds no focus: focus that was on Stop goes to the field (POSTMORTEM 2026-10-24). It is read as

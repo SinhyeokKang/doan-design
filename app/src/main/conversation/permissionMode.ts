@@ -53,6 +53,13 @@ export function claudePermission(mode: PermissionModeId): { permissionMode?: "ac
   }
 }
 
+// The modes Claude Code's own settings can run an Ask first turn in that Doan names on the trigger, in Claude's own
+// ids: auto and dontAsk have no common id. Claude's default is Ask first itself, so none seen is no value, never
+// "default" (POSTMORTEM 2026-11-06).
+export const CLAUDE_RUN_MODES = ["auto", "dontAsk", "acceptEdits", "plan", "bypassPermissions"] as const;
+export type ClaudeRunMode = typeof CLAUDE_RUN_MODES[number];
+export function claudeRunModeId(value: unknown): value is ClaudeRunMode { return CLAUDE_RUN_MODES.some(mode => mode === value); }
+
 // The mode a Claude status message reports once a plan was approved; a mode with no common id (auto, dontAsk) reads
 // as Default. So does bypassPermissions: Full access is only the person's pick, and following it would have Doan pass
 // allowDangerouslySkipPermissions on later turns that no one chose.

@@ -53,6 +53,19 @@ test("the permission trigger shows the mode's icon and label; Full access warns"
   expect(html("bypass")).toContain('<span class="label">Full access</span>');
 });
 
+// Full access from Claude Code's settings keeps the stored mode Ask first (data-mode="default"), so data-warning marks
+// the danger ink; the name, the icon and the aria-label say it too, never colour alone.
+test("a trigger whose run mode is Full access warns through data-warning", () => {
+  const html = (view: Parameters<typeof PermissionPicker>[0]["view"]) => renderToStaticMarkup(<TooltipProvider><PermissionPicker view={view} disabled={false} onPick={() => {}} size="xs" /></TooltipProvider>);
+  const run = html(permissionPickerView("claude", undefined, "default", "bypassPermissions")!);
+  expect(run).toMatch(/data-mode="default" aria-label="Permission: Ask first, Claude Code settings run Full access mode, no approval requests"[^>]*data-warning=""[^>]*data-run-mode="bypassPermissions"[^>]*><svg[^>]*lucide-shield-alert/);
+  expect(run).toContain('<span class="label">Ask first · Full access</span>');
+  // Stored Full access warns the same way; plain Ask first and another run mode do not.
+  expect(html(permissionPickerView("codex", undefined, "bypass")!)).toMatch(/data-mode="bypass"[^>]*data-warning=""/);
+  expect(html(permissionPickerView("claude", undefined, "default")!)).not.toContain("data-warning");
+  expect(html(permissionPickerView("claude", undefined, "default", "dontAsk")!)).not.toContain("data-warning");
+});
+
 // The popover's rows are listbox options, not Radix items, so `data-highlighted` never reaches them by itself. The pointer moves
 // the one highlight: in the `/` list through its highlight, in the popover through focus (the frame list does the same).
 // A preset row is the option inside its description tooltip (Tooltip > TooltipTrigger > option).

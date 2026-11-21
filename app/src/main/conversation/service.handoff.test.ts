@@ -123,7 +123,7 @@ describe("a handoff request", () => {
     const h = fixture({ provider: "claude" }); await h.start({ permissionMode: "plan" });
     expect(h.prompt(0)).not.toContain(HANDOFF_GUIDANCE);
     expect(h.ask(h.key(0), b.path)).toBe("plan_mode");
-    h.open.mock.calls[0]![0].planApproved!("acceptEdits");
+    h.open.mock.calls[0]![0].modeReported!({ source: "status", mode: "acceptEdits" }, undefined, undefined);
     expect(h.ask(h.key(0), b.path)).toBeNull();
   });
 });

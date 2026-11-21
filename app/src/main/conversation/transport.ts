@@ -1,7 +1,6 @@
 import { posix } from "node:path";
 import { canvasDir } from "../../formats/canvasPath";
 import { object } from "./sessions";
-import { claudeModeAfterPlan, type PermissionModeId } from "./permissionMode";
 import { connectorLabels, serverLabel } from "../mcpConnectors/presets";
 import { codexMcpApproval } from "../mcpConnectors/codexApproval";
 import { CONNECTOR_NAME_PATTERN } from "../mcpConnectors/names";
@@ -324,11 +323,13 @@ function codexActivities(item: Record<string, unknown>, root: string, labels: Re
   const tool = text(item.tool), server = text(item.server);
   return { events: [activity("other", "", tool ? (server ? `${tool} (${serverLabel(server, labels)})` : tool) : GENERIC_SUMMARY.other, root)], files: "" };
 }
-// The mode a Claude status message reports ({type: "system", subtype: "status", permissionMode}, SDK 0.3.312), as a
-// common id; undefined for any other message. After a plan approval it names the mode the session now runs.
-export function claudeReportedMode(raw: unknown): PermissionModeId | undefined {
-  if (!object(raw) || raw.type !== "system" || raw.subtype !== "status" || typeof raw.permissionMode !== "string") return undefined;
-  return claudeModeAfterPlan(raw.permissionMode);
+// The mode a top-level Claude system/init or system/status reports ({type: "system", subtype, permissionMode}, SDK
+// 0.3.312), in Claude's own ids; undefined for a subagent's frame and any other message. Callers map it: init gives the
+// mode an Ask first turn's settings run, status a switch inside the process (a plan approval, or a suggestion's setMode).
+export interface ClaudeModeReport { source: "init" | "status"; mode: string }
+export function claudeModeReport(raw: unknown): ClaudeModeReport | undefined {
+  if (!object(raw) || raw.parent_tool_use_id || raw.type !== "system" || (raw.subtype !== "init" && raw.subtype !== "status") || typeof raw.permissionMode !== "string") return undefined;
+  return { source: raw.subtype, mode: raw.permissionMode };
 }
 // labels: the connector names of the run (connectorLabels), so a Doan connector's tool never shows its doan- name.
 export function normalizeClaude(state: TransportState, raw: unknown, root: string, labels?: Readonly<Record<string, string>>): SteerResult {

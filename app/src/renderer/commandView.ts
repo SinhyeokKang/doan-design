@@ -77,7 +77,8 @@ export function commandCard(provider: Provider, name: string): CommandCard {
   // Sent, Antigravity's /logout erases Doan's own sign-in; every provider's sign-in and sign-out live in Settings > Agents.
   if (name === "logout") return { title, body: "Sign out from Settings > Agents.", action: { label: "Open Agents settings", target: "agentsSettings" } };
   if (name === "login") return { title, body: "Sign in from Settings > Agents.", action: { label: "Open Agents settings", target: "agentsSettings" } };
-  if (provider === "antigravity" && name === "plan") return { title, body: "Use Plan mode in the permission picker.", action: { label: "Open permission picker", target: "permissionPicker" } };
+  // Antigravity's picker has no Plan mode, and its /plan waits for an approval Doan does not show.
+  if (provider === "antigravity" && name === "plan") return { title, body: "Doan can’t show Antigravity’s plan approval yet. Ask for a plan in a message instead.", action: null };
   return { title, body: `Run it in ${PROVIDER_NAMES[provider]} in a terminal.`, action: null };
 }
 

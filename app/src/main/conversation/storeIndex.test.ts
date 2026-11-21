@@ -540,3 +540,31 @@ describe("Fast metadata", () => {
     expect(parseIndex(JSON.stringify({ v: 2, conversations: [{ ...owned("bad"), fast }] }))).toEqual({ ok: false, code: "invalid" });
   });
 });
+
+// claudeRunMode is the mode Claude Code's own settings ran the last Ask first turn in; no key means none was seen.
+describe("Claude run mode in the index", () => {
+  const claude = (id: string): ConversationMetadata => ({ conversationId: id, root: "/repo", title: id,
+    owner: { kind: "doan", provider: "claude", connectionId: "conn-1", accountId: "acct-1", workspaceId: null, profile: "claude" },
+    session: { runtime: "claude", origin: "newDesign", sessionId: id, configDir: "/profiles/claude", cwd: "/repo" } });
+  it("round-trips each mode without changing the version or adding the key to other entries", () => {
+    const f = seed(); const store = new ConversationStore(f.root);
+    const runs = (["auto", "dontAsk", "acceptEdits", "plan", "bypassPermissions"] as const).map(claudeRunMode => ({ ...claude(`run-${claudeRunMode.toLowerCase()}`), claudeRunMode }));
+    store.save([claude("none"), ...runs]);
+    expect(JSON.parse(readFileSync(f.index, "utf8")).v).toBe(3);
+    expect(new ConversationStore(f.root).list()).toEqual([claude("none"), ...runs]);
+    expect(new ConversationStore(f.root).list()[0]).not.toHaveProperty("claudeRunMode");
+  });
+  // The value is kept whatever mode is stored; only the display looks at Ask first.
+  it("reads the key on an entry whose stored mode is not Ask first", () => {
+    const entry = { ...claude("picked"), permissionMode: "acceptEdits" as const, claudeRunMode: "auto" as const };
+    const read = parseIndex(JSON.stringify({ v: 3, conversations: [entry] }));
+    expect(read).toEqual({ ok: true, entries: [entry] });
+  });
+  // A later build's value, or Ask first's own id spelled out, drops that key alone: the index stays valid, and "default"
+  // never stands for "none seen".
+  it.each([["a later build's mode", "someNewMode"], ["Claude's default spelled out", "default"], ["a common id", "bypass"], ["a wrong type", 3], ["null", null], ["an empty id", ""]])("drops %s for that entry only and keeps the index valid", (_label, claudeRunMode) => {
+    const kept = { ...claude("kept"), claudeRunMode: "dontAsk" as const };
+    const read = parseIndex(JSON.stringify({ v: 3, conversations: [{ ...claude("odd"), claudeRunMode }, kept] }));
+    expect(read).toEqual({ ok: true, entries: [claude("odd"), kept] });
+  });
+});

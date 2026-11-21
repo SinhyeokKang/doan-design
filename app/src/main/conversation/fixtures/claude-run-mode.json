@@ -1,0 +1,40 @@
+{
+  "init": {
+    "none": {"type":"system","subtype":"init","permissionMode":"default","user_message_uuids":["message-1"],"uuid":"uuid-2","session_id":"session-1"},
+    "project-auto": {"type":"system","subtype":"init","permissionMode":"default","user_message_uuids":["message-3"],"uuid":"uuid-4","session_id":"session-1"},
+    "project-local-auto": {"type":"system","subtype":"init","permissionMode":"default","user_message_uuids":["message-5"],"uuid":"uuid-6","session_id":"session-1"},
+    "profile-auto": {"type":"system","subtype":"init","permissionMode":"auto","user_message_uuids":["message-7"],"uuid":"uuid-8","session_id":"session-1"},
+    "project-dontAsk": {"type":"system","subtype":"init","permissionMode":"dontAsk","user_message_uuids":["message-9"],"uuid":"uuid-10","session_id":"session-1"},
+    "profile-dontAsk": {"type":"system","subtype":"init","permissionMode":"dontAsk","user_message_uuids":["message-11"],"uuid":"uuid-12","session_id":"session-1"},
+    "project-acceptEdits": {"type":"system","subtype":"init","permissionMode":"acceptEdits","user_message_uuids":["message-13"],"uuid":"uuid-14","session_id":"session-1"},
+    "profile-acceptEdits": {"type":"system","subtype":"init","permissionMode":"acceptEdits","user_message_uuids":["message-15"],"uuid":"uuid-16","session_id":"session-1"},
+    "project-plan": {"type":"system","subtype":"init","permissionMode":"plan","user_message_uuids":["message-17"],"uuid":"uuid-18","session_id":"session-1"},
+    "profile-plan": {"type":"system","subtype":"init","permissionMode":"plan","user_message_uuids":["message-19"],"uuid":"uuid-20","session_id":"session-1"},
+    "project-bypassPermissions": {"type":"system","subtype":"init","permissionMode":"default","user_message_uuids":["message-21"],"uuid":"uuid-22","session_id":"session-1"},
+    "project-local-bypassPermissions": {"type":"system","subtype":"init","permissionMode":"default","user_message_uuids":["message-23"],"uuid":"uuid-24","session_id":"session-1"},
+    "profile-bypassPermissions": {"type":"system","subtype":"init","permissionMode":"bypassPermissions","user_message_uuids":["message-25"],"uuid":"uuid-26","session_id":"session-1"}
+  },
+  "approval": {
+    "plan-none": {"type":"system","subtype":"status","status":null,"permissionMode":"default","uuid":"uuid-27","session_id":"session-1"},
+    "plan-project-auto": {"type":"system","subtype":"status","status":null,"permissionMode":"default","uuid":"uuid-28","session_id":"session-1"},
+    "plan-project-dontAsk": {"type":"system","subtype":"status","status":null,"permissionMode":"default","uuid":"uuid-29","session_id":"session-1"},
+    "plan-project-acceptEdits": {"type":"system","subtype":"status","status":null,"permissionMode":"default","uuid":"uuid-30","session_id":"session-1"},
+    "plan-profile-auto": {"type":"system","subtype":"status","status":null,"permissionMode":"default","uuid":"uuid-31","session_id":"session-1"},
+    "askFirst-project-plan": {"type":"system","subtype":"status","status":null,"permissionMode":"default","uuid":"uuid-32","session_id":"session-1"},
+    "askFirst-profile-plan": {"type":"system","subtype":"status","status":null,"permissionMode":"default","uuid":"uuid-33","session_id":"session-1"}
+  },
+  "setMode": {"type":"system","subtype":"status","status":null,"permissionMode":"acceptEdits","uuid":"uuid-34","session_id":"session-1"},
+  "steered": [
+    {"type":"system","subtype":"init","permissionMode":"default","user_message_uuids":["message-35"],"uuid":"uuid-36","session_id":"session-1"},
+    {"type":"system","subtype":"status","status":"requesting","user_message_uuids":["message-35"],"uuid":"uuid-37","session_id":"session-1"},
+    {"type":"system","subtype":"status","status":null,"permissionMode":"acceptEdits","uuid":"uuid-38","session_id":"session-1"},
+    {"type":"system","subtype":"status","status":"requesting","user_message_uuids":["message-35"],"uuid":"uuid-39","session_id":"session-1"},
+    {"type":"system","subtype":"init","permissionMode":"acceptEdits","user_message_uuids":["message-40"],"uuid":"uuid-41","session_id":"session-1"},
+    {"type":"system","subtype":"status","status":"requesting","user_message_uuids":["message-40"],"uuid":"uuid-42","session_id":"session-1"},
+    {"type":"system","subtype":"status","status":"requesting","user_message_uuids":["message-40"],"uuid":"uuid-43","session_id":"session-1"}
+  ],
+  "subagent": [
+    {"type":"user","parent_tool_use_id":"tool-44","uuid":"uuid-45","session_id":"session-1"},
+    {"type":"assistant","parent_tool_use_id":"tool-44","uuid":"uuid-46","session_id":"session-1"}
+  ]
+}
