@@ -25,7 +25,7 @@
 | D15 | 보드 너비가 1024px 미만일 때 차단 토스트가 가운데 툴바의 Play를 덮는 점은 그대로 둔다. 승격할 때 BACKLOG에 남긴다 | 사용자 결정 — 앱·시안과 같은 토스트 규칙이고, 토스트는 8초 뒤 사라지며 버블 Play로도 재시도할 수 있다(B6 측정) |
 | D16 | 실제 Safari에서 보드를 닫은 뒤 재생 탭을 ⌘R하면 “Cannot open file” 오류 페이지가 되는 점을 BACKLOG에 알려진 한계로 남긴다 | 사용자 결정 — D8의 확인 결과. 보드를 닫은 뒤 새로고침할 때만 생기고, 받은 파일을 다시 열면 된다 |
 | D17 | 실제 Safari의 '팝업 차단 해제 뒤 Play 재시도'는 미검증으로 PR과 BACKLOG에 적는다 | 사용자 결정 — 이 Mac의 Safari가 로컬 파일 팝업을 막지 않았다. Chromium 실제 차단기에서는 확인했다 |
-| D6 | 10단계 승격(PRODUCT·ARCHITECTURE·DESIGN·BACKLOG)은 지휘자가 문서별 커밋으로 한다 | orchestrate 스킬 §4·§5 |
+| D6 | 10단계 승격(PRODUCT·ARCHITECTURE·BACKLOG)은 문서 전용 워커 B9가 문서별 커밋으로 하고, 기능 디렉터리 삭제는 지휘자가 마지막에 한다 | 지휘자 판단 — 승격할 절이 길고 근거가 여러 handoff에 흩어져 있다 |
 
 ## 시안 검토 (tasks 2단계)
 
@@ -47,7 +47,8 @@
 | B6 | 8 `/design-sync` | 구현 수정, `docs/design/canvas.md`·`prototype.md` | B5 | Opus high — 9개 상태 측정과 수정 | computed style 측정 기록 | 통합 e72cd7b42·d945b04ec·79027ae9f·2926b2577. 통합 HEAD `verify.mjs` PASS. 워커 해제, 워크트리 삭제(브랜치 유지). 수정 5건, 미해결 차이 0. 스킬 안 Claude 리뷰 🔴 0·🟡 1(수정), 지휘자 diff 확인. 앱·브라우저 비교(포커스·live·300 ms·실패 화면)는 의도한 문구와 Details 없음 외에 같다 |
 | B7 | 9 브라우저 통합 증거 | `.scratch/`만 | B6 | Opus medium — 정해진 시나리오 실행과 기록 | Chromium·WebKit 일반 Export와 단독 Export 시나리오 | 진행 (`ctx_64aedebeab7e`) |
 | B8 | 9 `/agent-eval` | `docs/usability-eval/`, `docs/USABILITY-EVAL.md` | B6 | Sonnet medium — 정해진 러너 실행과 기록 | 러너 결과 기록 | 진행 (`ctx_45d322003a57`) |
-| 지휘자 | 9 verify·runtime-test·실제 Safari, 10 승격 | PRODUCT·ARCHITECTURE·DESIGN·BACKLOG·DIRECTORY, 기능 디렉터리 삭제 | B7, B8 | — | `verify.mjs`, 문서 링크 | 대기 |
+| B9 | 10 승격(기능 디렉터리 삭제 제외) | PRODUCT·ARCHITECTURE·BACKLOG, 필요하면 README·DIRECTORY·CONTRIBUTING | B7, 실제 Safari | Opus high — 긴 절을 구현과 결정에 맞춰 다시 쓴다 | 링크, `verify.mjs` | 진행 |
+| 지휘자 | 9 verify·runtime-test·실제 Safari, 10 기능 디렉터리 삭제 | PRODUCT·ARCHITECTURE·DESIGN·BACKLOG·DIRECTORY, 기능 디렉터리 삭제 | B7, B8 | — | `verify.mjs`, 문서 링크 | 대기 |
 
 구현 배치(B2~B6)마다 독립 리뷰 워커(Opus high, `/code-review`, 보고만)를 둔다.
 
