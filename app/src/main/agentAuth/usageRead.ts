@@ -226,8 +226,9 @@ function cursorCookie(profileDir: string): string {
   if (typeof token !== "string" || typeof sub !== "string" || !sub) throw new ReadFailure("the credential file is not one Doan reads");
   return `WorkosCursorSessionToken=${encodeURIComponent(sub)}%3A%3A${token}`;
 }
-// The usage summary for a Doan-account Cursor run's own profile, read while its lease holds the credential copy
-// (agentAuth/usageService.ts withTurnUsage). Throws in Doan's own words.
+// The usage summary for a Doan-account Cursor run's own profile (agentAuth/usageService.ts withTurnUsage). The credential
+// is read synchronously, before the first await: the run's lease, and with it the credential copy, goes once its
+// stopped process group is gone (conversation/acpRunner.ts). Throws in Doan's own words.
 export function readCursorSummary(profileDir: string, options: Pick<UsageReadOptions, "fetch" | "readMs"> = {}): Promise<unknown> {
   return cursorRead({ profileDir }, options, undefined);
 }

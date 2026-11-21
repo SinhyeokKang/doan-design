@@ -91,6 +91,7 @@ export class UsageService {
 
   // A Doan-account turn's end: read on the run's own connection (runners.ts usageAtTurnEnd), no lease and no process.
   // limit: the usage limit stopped the turn (not only a done one), so the read is not held back by the 5-minute rule.
+  // A Cursor send whose session/load answered "not found" reads here with limit too (withTurnUsage limitReached).
   async turnEnd(provider: Provider, connectionId: string, read: () => Promise<unknown>, limit?: true): Promise<void> {
     if (this.closed || !shown(provider) || this.connections.get(provider) !== connectionId) return;
     if (!shouldRead(this.scheduled(provider), this.now(), { kind: "turnEnd", owner: "doan", ...(limit ? { limit } : {}) }, this.options.visible())) return;

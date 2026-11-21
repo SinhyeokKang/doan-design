@@ -147,7 +147,8 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     const code = (dead || detail === "process_exited") && !failure ? "process_exited" : ["runtime_unsupported", "session_unavailable"].includes(detail) ? detail : transportCode(detail);
     // Cursor answers a first turn that met the plan limit as a completed reply and saves no session, so the next load
     // finds none; the protocol marks nothing, and the account's usage tells that apart from a session that is gone.
-    // The read runs before this throws, while the run's lease (and its credential copy) is still held.
+    // The run's lease (and its credential copy) is released once the group stopped above is gone, so the read must take
+    // the credential before its first await: readCursorSummary reads the file synchronously when limitReached is called.
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the session/load rejection sets loadRefused while the session opens
     if (code === "session_unavailable" && loadRefused && /not found/i.test(detail) && input.limitReached && await input.limitReached().catch(() => false)) throw new Error("rate_limited");
     throw new Error(code);
