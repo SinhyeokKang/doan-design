@@ -17,7 +17,7 @@ const ownClaude = (entry: RunModeEntry): boolean => entry.owner.kind === "doan" 
 const shown = (reported: string): ClaudeRunMode | undefined => claudeRunModeId(reported) ? reported : undefined;
 
 // counted: a top-level init of this turn was already read. A later one comes from a steer the CLI ran as the next turn
-// of the same process, and can report a setMode allowed in that process only (PoC P1, Claude Code 2.1.312).
+// of the same process, and can report a setMode allowed in that process only (PoC, Claude Code 2.1.312).
 export function runModeAfterInit(report: RunModeReport & { counted: boolean }): RunModeUpdate | null {
   const { entry, sent, current, reported, counted } = report;
   if (!ownClaude(entry) || sent !== "default" || entry.permissionMode !== undefined || !current || counted) return null;
@@ -28,7 +28,7 @@ export function runModeAfterInit(report: RunModeReport & { counted: boolean }): 
 // The two approvals Doan follows; any other status (a suggestion's setMode) holds in that process only.
 // A Plan turn's approval moves the stored mode as before (claudeModeAfterPlan); when that is Ask first, the run mode
 // becomes what the process now runs. Into another mode the run mode is left as the last one seen, for a re-pick of Ask
-// first. An Ask first turn whose settings ran plan changes the run mode only. Approval reported default in every P1
+// first. An Ask first turn whose settings ran plan changes the run mode only. Approval reported default in every PoC
 // case, which clears the key.
 export function runModeAfterStatus(report: RunModeReport): RunModeUpdate | null {
   const { entry, sent, current, reported } = report;

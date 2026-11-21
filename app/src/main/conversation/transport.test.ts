@@ -433,7 +433,7 @@ it("reads the mode a Claude status message reports, and nothing from other messa
     expect(claudeReportedMode(raw)).toBeUndefined();
 });
 
-// One reader for the mode Claude reports, in Claude's own ids (frames: claude-run-mode.json, PoC P1, Claude Code 2.1.312).
+// One reader for the mode Claude reports, in Claude's own ids (frames: claude-run-mode.json, PoC, Claude Code 2.1.312).
 describe("Claude mode reader", () => {
   it("reads the mode an Ask first turn's top-level system/init reports, as Claude's own id", () => {
     const read = Object.fromEntries(Object.entries(runMode.init).map(([name, frame]) => [name, claudeModeReport(frame)]));
@@ -456,7 +456,7 @@ describe("Claude mode reader", () => {
       { source: "init", mode: "default" }, undefined, { source: "status", mode: "acceptEdits" }, undefined, { source: "init", mode: "acceptEdits" }, undefined, undefined,
     ]);
   });
-  // P1 saw no subagent init or status; the two system frames are synthetic, shaped like the top-level ones.
+  // The PoC saw no subagent init or status; the two system frames are synthetic, shaped like the top-level ones.
   it("ignores a subagent's frames and every other message", () => {
     for (const frame of runMode.subagent) expect(claudeModeReport(frame)).toBeUndefined();
     const parent = runMode.subagent[0]!.parent_tool_use_id;

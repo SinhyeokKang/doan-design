@@ -188,9 +188,9 @@ snake_case; `account/rateLimits/read` answers the same fields in camelCase (`age
 and raw SDK frames with paths and account and environment ids removed; each `.meta.json` names its CLI version, case,
 the prompt ids and what was filtered. `transcript.test.ts` reads the transcripts and `turnEnd.test.ts` replays the frames.
 
-`claude-run-mode.json` (plan-approval-and-effective-mode P1, 2026-11-22) is reduced from the recorded SDK frames of a
-probe run with Claude Code 2.1.312 and Agent SDK 0.3.312 through Doan's `query` options (`settingSources` user, project
-and local). `init` is the first top-level `system/init` of a turn that passed no permission mode, one per settings case:
+`claude-run-mode.json` (2026-11-22) is reduced from the recorded SDK frames of the run-mode PoC whose results are
+recorded in commit `83d94d1df`, run with Claude Code 2.1.312 and Agent SDK 0.3.312 through Doan's `query` options
+(`settingSources` user, project and local). `init` is the first top-level `system/init` of a turn that passed no permission mode, one per settings case:
 `project-*` from the probe project's `.claude/settings.json` `defaultMode` (`project-local-*` from `settings.local.json`),
 `profile-*` from the Claude Code profile's own `settings.json`. `approval` is the `system/status` that came after a
 plan's approval (`plan-*`: a turn sent in Plan; `askFirst-*`: an Ask first turn whose settings ran `plan`). `setMode` is
