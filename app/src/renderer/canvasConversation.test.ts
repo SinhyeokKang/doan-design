@@ -140,8 +140,8 @@ describe("canvasConversationError", () => {
   test("a send refused while a terminal holds the session says so", () => {
     expect(canvasConversationError("session_in_use", EXISTING, "claude", "acme-web")).toEqual({ kind: "notice", text: "Claude Code is still using this session. Try again when it finishes.", retry: false, startNew: false });
   });
-  test("a Cursor send refused on its usage limit offers a new conversation", () => {
-    expect(canvasConversationError("rate_limited", { ...EXISTING, provider: "cursor" }, "cursor", "acme-web")).toEqual({ kind: "notice", text: "Cursor reached a usage limit, so this conversation can’t continue. Start a new conversation after the limit resets.", retry: false, startNew: true });
+  test("a Cursor send refused on its usage limit says the conversation can't continue, without an action", () => {
+    expect(canvasConversationError("rate_limited", { ...EXISTING, provider: "cursor" }, "cursor", "acme-web")).toEqual({ kind: "notice", text: "Cursor reached a usage limit, so this conversation can’t continue. Start a new conversation after the limit resets.", retry: false, startNew: false });
   });
 
   test("a send to a conversation of another account or an earlier sign-in offers a new conversation, not Retry", () => {

@@ -159,9 +159,9 @@ describe("dockedRefusal", () => {
   });
   // Cursor keeps no session for a first turn its plan limit stopped, so that conversation cannot continue even after the
   // reset; a Cursor send is refused as rate_limited only then.
-  test("a Cursor send refused on its usage limit says the conversation can't continue and offers a new conversation", () => {
+  test("a Cursor send refused on its usage limit says the conversation can't continue, as a plain notice", () => {
     const text = "Cursor reached a usage limit, so this conversation can’t continue. Start a new conversation after the limit resets.";
-    expect(dockedRefusal("rate_limited", { ...EXISTING, provider: "cursor" }, "cursor", "doan-design")).toEqual({ kind: "notice", text, startNew: true });
+    expect(dockedRefusal("rate_limited", { ...EXISTING, provider: "cursor" }, "cursor", "doan-design")).toEqual({ kind: "notice", text });
     expect(dockedRefusal("rate_limited", { kind: "new", root: "/r" }, "cursor", "doan-design")).toEqual({ kind: "notice", text: "Cursor reached a usage limit. Send again after it resets." });
     expect(dockedRefusal("rate_limited", { ...EXISTING, provider: "copilot" }, "copilot", "doan-design")).toEqual({ kind: "notice", text: "GitHub Copilot reached a usage limit. Send again after it resets." });
   });
