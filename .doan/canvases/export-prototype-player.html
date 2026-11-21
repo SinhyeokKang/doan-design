@@ -561,16 +561,15 @@ svg { width: var(--size-icon); height: var(--size-icon); }
 <button data-doan-id="player-failure-export-prototype" type="button" class="doan-icon-button " aria-label="Export prototype" data-ui-placement="chrome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-Download"/></svg></button></div>
 </header>
 <div class="stage" data-doan-id="player-failure-content">
-<div class="scene" data-doan-id="player-failure-failure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-TriangleAlert"/></svg><h3>Couldn’t start this prototype</h3><p>The frame didn’t finish loading within 10 seconds.</p>
+<div class="scene" data-doan-id="player-failure-failure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-TriangleAlert"/></svg><h3>Couldn’t start this prototype</h3><p>The frame didn’t finish loading within 10 seconds. Retry, or ask the sender for an updated file.</p>
 <div class="actions">
 <button class="doan-button" data-ui-size="sm" data-ui-variant="prominent">Retry</button>
-<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Close</button>
-<button class="doan-button ghost" data-ui-size="sm" aria-expanded="false">Details ▸</button></div></div></div></div>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Close</button></div></div></div></div>
 <div class="samples">
 <div class="sample"><h3 class="caption">Loading · after 300 ms</h3>
 <div class="reading" role="status"><span class="doan-spinner"></span>Loading prototype</div></div>
 <div class="sample"><h3 class="caption">Broken link</h3>
-<div class="doan-floating doan-toast " role="status" data-doan-id="player-failure-download-notice"><span class="msg">“Archive” can’t play. Ask the sender to fix the link and send an updated file.</span></div></div></div>
+<div class="doan-floating doan-toast " role="status" data-doan-id="player-failure-download-notice"><span class="msg">Can’t go to “archive”. Ask the sender to fix this link and send an updated file.</span></div></div></div>
 </figure>
 <figure data-doan-frame="export-result" data-doan-title="Download the current prototype" data-doan-implements="cli/internal/export/assemble.go">
 <figcaption><h2>Download the current prototype</h2><p class="description">The download uses the frame at the time of the click. The recipient can open the file after closing the board.</p></figcaption>
@@ -602,7 +601,7 @@ svg { width: var(--size-icon); height: var(--size-icon); }
 <button class="cta" type="button">Confirm order <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-ArrowRight"/></svg></button></div>
   </div>
 <footer class="shop-footer">Folio Press · Independent editions</footer></div></div>
-<div class="doan-floating doan-toast result" role="status" data-doan-id="export-result-download-notice"><span class="msg">Download requested for “Checkout” and 1 linked frame. The file also contains the rest of the canvas.</span></div></div>
+<div class="doan-floating doan-toast result" role="status" data-doan-id="export-result-download-notice"><span class="msg">Download requested for “Checkout” and 1 linked frame. The file also contains the rest of the canvas. If nothing downloads, allow downloads for this file and try again.</span></div></div>
 <div class="samples">
 <div class="sample"><h3 class="caption">Preparing the file · after 1 second</h3>
 <div class="doan-floating doan-toast " role="status" data-doan-id="export-result-download-notice-2"><span class="msg">Exporting “Checkout”</span></div></div>
