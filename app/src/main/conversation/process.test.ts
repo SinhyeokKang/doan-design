@@ -74,11 +74,13 @@ it("also ends the process groups the owned group's descendants started, and no o
   live.delete(200); await vi.advanceTimersByTimeAsync(100); expect(settled).toBe(true);
   expect(signal.mock.calls.flat()).not.toContain(300); expect(signal.mock.calls.flat()).not.toContain(301);
 });
-it("kill also ends the descendants' groups at once", async () => {
-  vi.useFakeTimers(); const signal = vi.fn();
-  const group = new OwnedGroup(100, signal, () => true, vi.fn(), () => Promise.resolve(TABLE));
-  void group.kill(); await vi.advanceTimersByTimeAsync(0);
-  expect(signal.mock.calls).toEqual([[100, "SIGKILL"], [200, "SIGKILL"], [400, "SIGKILL"]]);
+// A kill ends a Claude turn's process with nothing left in the background, ahead of the model call the CLI makes 16 ms
+// after the set empties; a table read takes about as long, so the kill never waits for one.
+it("kill signals the owned group at once without reading the process table", () => {
+  const signal = vi.fn(); const processes = vi.fn(() => Promise.resolve(TABLE));
+  const group = new OwnedGroup(100, signal, () => true, vi.fn(), processes);
+  void group.kill();
+  expect(signal.mock.calls).toEqual([[100, "SIGKILL"]]); expect(processes).not.toHaveBeenCalled();
 });
 it("still stops the owned group when the process table cannot be read", async () => {
   vi.useFakeTimers(); const signal = vi.fn();
