@@ -15,6 +15,9 @@
 | D4 | 브라우저 확인 스크립트는 `.scratch/export-prototype-player/`에 둔다 | tasks.md 머리말 |
 | D5 | 9단계의 실제 macOS Safari 확인은 지휘자가 `orca computer`로 시도하고, 막히면 사용자에게 넘긴다 | 지휘자 판단 — 팝업 차단 해제는 Safari 설정 조작이라 사용자가 해야 할 수 있다 |
 | D7 | 원문에 같은 ID가 둘 이상인 프레임(B2 데이터의 `refused` reason `shared`)의 내보내기 거절은 스크립트가 만든 프레임과 같은 문구 “Couldn’t export “<frame>”. This frame isn’t in the canvas file. Ask the sender for an updated file.”를 쓴다 | 지휘자 판단 — 앱이 같은 경우를 `frame_not_found` → `notFound`로 묶는다(`app/src/main/canvasExport.ts` 21·87행) |
+| D8 | 재생창은 같은 일반 Export 파일을 `#doan-play=<id>`와 보드를 열 때마다 만든 고유 창 이름으로 다시 연다. WebKit에서 보드를 닫은 뒤 ⌘R이 실패하는 점은 9단계 실제 Safari에서 확인하고, 같으면 BACKLOG에 남긴다 | 사용자 결정 — B1 PoC에서 두 엔진의 기록·새로고침·보드 닫은 뒤 재생·DOM 격리를 모두 통과한 유일한 후보다. noopener는 재사용과 차단 감지를 잃는다 |
+| D9 | 다운로드 파일 이름이 240 UTF-16 단위를 넘으면 `.html`은 두고 `<stem>-<id>` 끝을 코드 포인트 경계에서 잘라 240 단위 이하로 만든다 | 사용자 결정 — Chromium은 245 단위 이상 이름의 다운로드를 조용히 취소한다(B1) |
+| D10 | 보드↔재생창은 문자열만 `postMessage`로 주고받고 `event.source`로 상대를 확인한다. 보드는 늘 `play:<id>`를 보내고, 같은 프레임인지는 재생창이 판정한다. `window.open`은 뷰어 버튼의 `click`·`keydown` 처리기 안에서만 동기 호출한다. 재생 모드는 보드 iframe을 로드 전에 치우는 가드를 iframe 앞에 둔다 | 지휘자 판단 — B1 PoC 측정(캔버스 iframe 클릭의 활성화가 보드로 전파됨, 가드 없이 Chromium popup 2/20 누출). design.md가 창 통신과 입력 인정 방식을 PoC로 정하게 했다 |
 | D6 | 10단계 승격(PRODUCT·ARCHITECTURE·DESIGN·BACKLOG)은 지휘자가 문서별 커밋으로 한다 | orchestrate 스킬 §4·§5 |
 
 ## 시안 검토 (tasks 2단계)
@@ -29,7 +32,7 @@
 
 | 배치 | 항목 (tasks) | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| B1 | 1 브라우저 PoC | `.scratch/export-prototype-player/poc/`만. 커밋 없음 | 없음 | Opus high — 창 생성 방식·창 통신·사용자 입력 인정 방식을 이 결과로 정한다 | Chromium·WebKit 실제 file URL 결과표, 미검증 항목 | 진행 (`ctx_a4e5ed986d62`) |
+| B1 | 1 브라우저 PoC | `.scratch/export-prototype-player/poc/`만. 커밋 없음 | 없음 | Opus high — 창 생성 방식·창 통신·사용자 입력 인정 방식을 이 결과로 정한다 | Chromium·WebKit 실제 file URL 결과표, 미검증 항목 | 완료. 증거는 `.scratch/handoff-B1.md`와 `.scratch/export-prototype-player/poc/`(지휘자 체크아웃) |
 | B2 | 3(Go 단언) · 4 일반 Export 조립 | `cli/internal/export/*.go`, `schema/fixtures/prototype-mark`·`prototype-links` | 시안 확정 | Opus high — 이스케이프와 바이트 동일성, 50 MiB 경계 | `go test ./...`, `go vet ./...` | 통합 e38094f19·50ea75a5e. 리뷰 1회(🔴 0, 🟡 2는 B3·B5 브리프로 넘김). 통합 HEAD `verify.mjs` PASS. 워커 해제, 워크트리 삭제(브랜치 유지) |
 | B3 | 3(TS 단언) · 5 Select와 보드 재생 진입점 | `cli/internal/export/viewer/`(보드 쪽), `app/scripts/viewerInspect.mjs`, 앱 TS 소스와 테스트, `assemble.go`의 파일 목록과 digest | B2 | Opus high — 입력·포커스·선택 경로를 앱과 맞춘다 | `viewerInspect.mjs --check`, `npm --prefix app test`, 실제 파일 보드 입력 검증 | 진행 (`ctx_28858073bb4d`) |
 | B4 | 6 브라우저 재생창 | 재생 페이지 HTML·JS·CSS, 뷰어 JS, `assemble.go` | B1, B3 | Opus high — 보안 경계(sandbox, 문자열만 전달), 창 수명, 기록 | `npm --prefix app test`, Chromium·WebKit 앱·브라우저 비교 | 대기 |
