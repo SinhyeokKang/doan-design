@@ -552,6 +552,17 @@ func CustomUses(text string, mode Mode) CustomUse {
 		}
 	}
 	declaration := func(d []token) {
+		// An escape can spell any property name (-webkit-user-modif\79), and
+		// the lexer splits it, so an escaped name counts as user-modify.
+		for _, t := range d {
+			if t.kind == ':' {
+				break
+			}
+			if t.kind == '\\' {
+				u.Editable = true
+				break
+			}
+		}
 		if len(d) < 2 || d[0].kind != 'i' || d[1].kind != ':' {
 			return
 		}

@@ -209,6 +209,7 @@ func TestCustomUsersCountOnlyRulesACanvasElementCanMatch(t *testing.T) {
 		{"a comment inside a class selector is not judged", page, `./**/btn, ./**/card{mask:var(--i)}`, true},
 		{"an editable element makes every rule count", page + `<section contenteditable>x</section>`, `.btn{mask:var(--i)}`, true},
 		{"user-modify makes every rule count", page, `.card{-webkit-user-modify:read-write} .btn{mask:var(--i)}`, true},
+		{"an escaped property name makes every rule count", page, `.card{-webkit-user-modif\79:read-write} .btn{mask:var(--i)}`, true},
 		{"a hop in a rule no element matches", page, `.btn{--j:var(--i)} .card{mask:var(--j)}`, false},
 		{"a hop in a rule an element matches", page, `.card{--j:var(--i)} .icon{mask:var(--j)}`, true},
 		{"an element inside a template counts", `<div class="card"></div><template><i class="btn"></i></template>`, `.btn{mask:var(--i)}`, true},
@@ -229,6 +230,18 @@ func TestCustomUsersCountOnlyRulesACanvasElementCanMatch(t *testing.T) {
 }
 
 // Style attributes sit on an element the canvas has, so their uses always count.
+// A style attribute's user-modify makes the canvas editable too.
+func TestCustomUsersEditableStyleAttribute(t *testing.T) {
+	c := mustParse(t, "c", []byte(`<div class="card" style="-webkit-user-modif\79:read-write"></div>`))
+	u := &CustomUsers{Elements: c.Elements}
+	u.Add(".doan/canvases", c.Custom.Uses)
+	u.Add(".doan/canvases", CustomUses(`.card{mask:var(--i)}`, Stylesheet))
+	u.Add(".doan/ds", CustomUses(`div.btn{mask:var(--i)}`, Stylesheet))
+	if !u.Ambiguous("--i", "x.svg") {
+		t.Fatal("an editable style attribute did not make every rule count")
+	}
+}
+
 func TestCustomUsersStyleAttributesAlwaysCount(t *testing.T) {
 	u := &CustomUsers{Elements: mustParse(t, "c", []byte(`<div></div>`)).Elements}
 	u.Add(".doan/canvases", CustomUses(`mask:var(--i)`, Declarations))
