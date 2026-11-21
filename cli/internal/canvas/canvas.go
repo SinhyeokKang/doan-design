@@ -40,6 +40,9 @@ type Canvas struct {
 	// Custom is what the canvas's own <style> elements and style attributes
 	// do with custom properties.
 	Custom CustomText
+	// Elements is what selectors can match in the canvas, or nil when the
+	// canvas can change its elements (CustomUsers then counts every rule).
+	Elements *Elements
 	// StrayPrototypes holds the raw data-doan-prototype value of each element
 	// outside <template> that is not a data-doan-frame element.
 	StrayPrototypes []string
@@ -113,7 +116,7 @@ func words(s string) []string {
 }
 func Parse(path string, data []byte) (Canvas, error) {
 	c := Canvas{Path: path, BodyMeta: map[string]bool{}, Frames: []Frame{}, StrayPrototypes: []string{}, Gotos: []Goto{}, DoanIDs: []string{}, Links: []string{}, ExternalURLs: []string{}, Styles: Scan{Defs: map[string]bool{}},
-		Custom: CustomText{Uses: CustomUse{Used: map[string]bool{}, Hops: map[string]map[string]bool{}, URLSyntax: map[string]bool{}}}}
+		Custom: CustomText{Uses: newCustomUse()}}
 	// Parser resource limits can fail even when the reader cannot.
 	root, err := html.Parse(bytes.NewReader(data))
 	if err != nil {
@@ -268,7 +271,111 @@ func Parse(path string, data []byte) (Canvas, error) {
 		c.ExternalURLs = append(c.ExternalURLs, u)
 	}
 	sort.Strings(c.ExternalURLs)
+	c.Elements = elementsOf(root)
 	return c, nil
+}
+
+// Elements holds the tag names, classes (".x") and ids ("#x") of a
+// canvas's elements, lowercased, so a comparison can only find more matches
+// than the browser (quirks mode compares classes and ids without case).
+// Elements inside <template> count too: they are only inert until a script
+// clones them, and a canvas with scripts has no Elements at all.
+type Elements struct{ keys map[string]bool }
+
+// Match reports whether some compound in needs (selectorNeeds) has every
+// key among the elements. A nil Elements matches everything.
+func (e *Elements) Match(needs [][]string) bool {
+	if e == nil {
+		return true
+	}
+	for _, c := range needs {
+		all := true
+		for _, k := range c {
+			if !e.keys[k] {
+				all = false
+				break
+			}
+		}
+		if all {
+			return true
+		}
+	}
+	return false
+}
+
+// ElementsOf parses a canvas for its Elements, as Parse does; a canvas the
+// parser refuses gives nil.
+func ElementsOf(data []byte) *Elements {
+	root, err := html.Parse(bytes.NewReader(data))
+	if err != nil {
+		return nil
+	}
+	return elementsOf(root)
+}
+
+// elementsOf returns nil when the canvas can add elements or change their
+// classes or ids at run time: a script element, an event handler attribute,
+// a javascript: URL, or an SVG animation of class or id.
+func elementsOf(root *html.Node) *Elements {
+	e := &Elements{keys: map[string]bool{}}
+	dynamic := false
+	var visit func(*html.Node)
+	visit = func(n *html.Node) {
+		if dynamic {
+			return
+		}
+		if n.Type == html.ElementNode {
+			name := lower(n.Data)
+			if name == "script" {
+				dynamic = true
+				return
+			}
+			e.keys[name] = true
+			for _, a := range n.Attr {
+				k := lower(a.Key)
+				if strings.HasPrefix(k, "on") || isJavascriptURL(a.Val) {
+					dynamic = true
+					return
+				}
+				if a.Namespace != "" {
+					continue
+				}
+				switch k {
+				case "class":
+					for _, c := range strings.FieldsFunc(a.Val, func(r rune) bool { return r < 128 && asciiSpace(byte(r)) }) {
+						e.keys["."+lower(c)] = true
+					}
+				case "id":
+					e.keys["#"+lower(a.Val)] = true
+				case "attributename":
+					if (name == "set" || name == "animate") && (lower(trimASCII(a.Val)) == "class" || lower(trimASCII(a.Val)) == "id") {
+						dynamic = true
+						return
+					}
+				}
+			}
+		}
+		for ch := n.FirstChild; ch != nil; ch = ch.NextSibling {
+			visit(ch)
+		}
+	}
+	visit(root)
+	if dynamic {
+		return nil
+	}
+	return e
+}
+
+// isJavascriptURL reads a value as the URL parser would: ASCII control
+// characters and spaces dropped before the scheme is compared.
+func isJavascriptURL(v string) bool {
+	v = strings.Map(func(r rune) rune {
+		if r <= ' ' {
+			return -1
+		}
+		return r
+	}, v)
+	return strings.HasPrefix(lower(v), "javascript:")
 }
 func srcsetURLs(s string) []string {
 	var urls []string

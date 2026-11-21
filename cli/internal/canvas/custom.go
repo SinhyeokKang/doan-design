@@ -40,6 +40,17 @@ func (t *CustomText) merge(other CustomText) {
 	for name := range other.Uses.URLSyntax {
 		t.Uses.URLSyntax[name] = true
 	}
+	for name, needs := range other.Uses.Needs {
+		t.Uses.Needs[name] = append(t.Uses.Needs[name], needs...)
+	}
+	for from, names := range other.Uses.HopNeeds {
+		if t.Uses.HopNeeds[from] == nil {
+			t.Uses.HopNeeds[from] = map[string][][]string{}
+		}
+		for name, needs := range names {
+			t.Uses.HopNeeds[from][name] = append(t.Uses.HopNeeds[from][name], needs...)
+		}
+	}
 	t.URLs = append(t.URLs, other.URLs...)
 }
 
@@ -47,10 +58,15 @@ func (t *CustomText) merge(other CustomText) {
 // folders' style text puts each custom property into a real property.
 // Chromium (measured in Electron 45) resolves a relative url() held in an
 // unregistered custom property against the stylesheet whose var() does that,
-// not where the property is declared. The record is by name only, ignoring
-// selectors and the cascade, so it can list a folder whose rule never applies
-// to the element; doan check and export both count that folder.
+// not where the property is declared. A rule counts only when Elements can
+// match its rightmost compound selector: the app never applies a rule whose
+// element the canvas lacks. Beyond that the record ignores selectors and the
+// cascade, so it can list a folder whose rule never reaches an element that
+// has the property; doan check and export both count that folder.
 type CustomUsers struct {
+	// Elements is the canvas's (canvas.Elements); nil counts every rule.
+	Elements *Elements
+
 	dirs      map[string]map[string]bool // property → folders of its direct users
 	users     map[string]map[string]bool // property → properties whose values name it
 	urlSyntax map[string]bool
@@ -62,6 +78,9 @@ func (u *CustomUsers) Add(dir string, c CustomUse) {
 		u.dirs, u.users, u.urlSyntax = map[string]map[string]bool{}, map[string]map[string]bool{}, map[string]bool{}
 	}
 	for name := range c.Used {
+		if needs, ok := c.Needs[name]; ok && !u.Elements.Match(needs) {
+			continue
+		}
 		if u.dirs[name] == nil {
 			u.dirs[name] = map[string]bool{}
 		}
@@ -69,6 +88,9 @@ func (u *CustomUsers) Add(dir string, c CustomUse) {
 	}
 	for from, names := range c.Hops {
 		for name := range names {
+			if needs, ok := c.HopNeeds[from][name]; ok && !u.Elements.Match(needs) {
+				continue
+			}
 			if u.users[name] == nil {
 				u.users[name] = map[string]bool{}
 			}
