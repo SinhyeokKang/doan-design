@@ -1686,7 +1686,9 @@ button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-ba
    their names tell the two apart. The sidebar's toggle keeps the speech bubble. */
 :is(.doan-canvas-head .doan-panel-show, .pw-conv).doan-icon-button[data-badge="unseen"]::after { content: ""; position: absolute; top: var(--space-1); right: var(--space-1); width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--text-accent); box-shadow: 0 0 0 2px var(--surface-panel); }
 /* A sent message's chips show their target on the canvas; inside the accent bubble they take the panel surface. */
-.bubble .anchor-chip { background: var(--surface-panel); }
+/* Flex items introduce line breaks in Chromium's copied selection, even inside an inline-flex chip. */
+.bubble .anchor-chip { display: inline-block; overflow: hidden; text-overflow: ellipsis; background: var(--surface-panel); }
+.bubble .anchor-chip svg { display: inline-block; vertical-align: -2px; margin-right: var(--space-1); }
 button.anchor-chip { cursor: pointer; }
 button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* Chip locate: a chip in the composer's field locates too, so it points as a

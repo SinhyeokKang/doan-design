@@ -29,7 +29,7 @@ export function createWindowDebugger(dbg: DebuggerLike, documents: DocumentBindi
   // Each child session's root frame: the frame its target is. A same-process iframe inside it commits on the same
   // session but is not what the session owns.
   const sessionFrames = new Map<string, string>();
-  // Every frame each child session has committed, to tell its root frame from the frames nested in it.
+  // The root and still-present nested commits, so a nested frame's children cannot be mistaken for the root.
   const sessionCommits = new Map<string, Set<string>>();
   const frameOwners = new Map<string, string>();
   let connected: Promise<void> | null = null;
@@ -65,7 +65,11 @@ export function createWindowDebugger(dbg: DebuggerLike, documents: DocumentBindi
       }
       if (method === "Page.frameStartedNavigating" && typeof value.frameId === "string") documents.start(value.frameId, typeof value.loaderId === "string" ? value.loaderId : "");
       // A parent-session swap transfers ownership to the OOPIF; the document still exists.
-      if (method === "Page.frameDetached" && value.reason !== "swap" && typeof value.frameId === "string") documents.start(value.frameId);
+      if (method === "Page.frameDetached" && value.reason !== "swap" && typeof value.frameId === "string") {
+        documents.start(value.frameId);
+        // Keep the root until its session detaches: it still fences queued events after an ownership transfer.
+        if (sessionId && sessionFrames.get(sessionId) !== value.frameId) sessionCommits.get(sessionId)?.delete(value.frameId);
+      }
     }
     // Only the window's own auto-attach; child sessions never auto-attach.
     if (sessionId) return;
