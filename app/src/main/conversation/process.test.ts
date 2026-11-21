@@ -86,3 +86,9 @@ it("still stops the owned group when the process table cannot be read", async ()
   void group.stop(); await vi.advanceTimersByTimeAsync(0);
   expect(signal.mock.calls).toEqual([[100, "SIGTERM"]]);
 });
+it("stops at once without reading the process table once the leader has exited", () => {
+  const signal = vi.fn(); const processes = vi.fn(() => Promise.resolve(TABLE));
+  const group = new OwnedGroup(100, signal, () => true, vi.fn(), processes);
+  group.childExited(); void group.stop();
+  expect(signal.mock.calls).toEqual([[100, "SIGTERM"]]); expect(processes).not.toHaveBeenCalled();
+});
