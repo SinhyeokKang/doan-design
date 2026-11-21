@@ -24,7 +24,7 @@
 - 저장 모드가 Ask first가 아닐 때(picker로 고르거나 그 모드로 보냈을 때)는 덧붙인 값이 보이지 않는다. 값은 지우지 않으므로, 다시 Ask first를 고르면 마지막 관찰값이 곧바로 다시 보인다.
 - 턴이 `system/init` 전에 실패하거나 멈추면 이전 값이 그대로 남는다.
 - 값이 바뀌면 composer가 스크린리더에 한 번 알린다("Claude Code settings run Auto mode"). 같은 값이 다시 관찰되면 알리지 않는다.
-- Antigravity 대화에서 `/plan <할 일>`을 보내면 카드 없이 메시지로 간다. "/plan doesn't run in Doan" 카드는 더 이상 나오지 않는다.
+- Antigravity 대화에서 `/plan <할 일>`을 보내면 카드 없이 명령 메시지로 간다. "/plan doesn't run in Doan" 카드는 더 이상 나오지 않는다. `/plan`은 실제 앱 확인을 거친 명령으로 `COMMAND_ALLOWLIST`에 들어가므로, 서버가 목록에 올린 대화에서는 다른 확인된 명령처럼 명령 목록에 서버 설명과 함께 나온다.
 - Ask first에서 `/plan` 턴은 계획 파일을 쓰기 전에 지금의 권한 카드로 묻는다. 허용하면 계획이 답으로 오고 턴이 끝난다.
 - 사람이 다음 메시지로 "Proceed"를 보내면 agent가 계획을 실행한다. 실행 중 도구는 모드대로 지금의 권한 카드로 묻는다.
 - 그 밖에 새로 생기는 UI는 없다. 답의 "click **Proceed**" 문구와 Doan profile 안을 가리키는 계획 파일의 `file://` 링크는 그대로 보인다.

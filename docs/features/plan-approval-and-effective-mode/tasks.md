@@ -69,11 +69,11 @@
 
 ### A1. 구현: Antigravity `/plan` 보내기 (결정 게이트: 카드를 빼고 보낸다)
 
-- [ ] `test:`(red): `providerCommands.test.ts`에서 Antigravity의 `/plan`이 지원하지 않는 명령이 아님을, `commandView.test.ts`에서 Antigravity `/plan`이 카드 없이 보내기로 가는 것을 고정한다.
-- [ ] `feat:`: `providerCommands.ts`의 `UNSUPPORTED_COMMANDS.antigravity`에서 `plan`을 빼고 그 위 주석을 고친다. `commandView.ts`의 Antigravity `/plan` 카드 규칙을 지운다. ACP runner는 건드리지 않는다.
+- [x] `test:`(red): `providerCommands.test.ts`·`providerCommands.messages.test.ts`에서 `/plan`이 Antigravity 명령 표에 있고 카드 목록에 없음을, `skills.commands.test.ts`에서 서버가 알린 `/plan`이 1.3.0 이상에서 명령 행이 됨을, `commandView.test.ts`에서 `/plan`이 카드가 아니라 명령(목록 전에는 text)으로 읽힘을 고정한다.
+- [x] `feat:`: `providerCommands.ts`의 `UNSUPPORTED_COMMANDS.antigravity`에서 `plan`을 빼고 `COMMAND_ALLOWLIST.antigravity`(1.3.0)에 넣는다(설명은 서버 것). 그 위 주석을 고치고, `commandView.ts`의 Antigravity `/plan` 카드 규칙을 지운다. ACP runner는 건드리지 않는다.
   - 확인: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint` 통과.
-- [ ] `/runtime-test`: 유지된 provider profile의 복사본으로 Antigravity에 로그인한 실제 앱에서, 임시 프로젝트에 Ask first로 `/plan <작은 할 일>`을 보낸다. 계획 파일 권한을 허용하고, 계획 답을 보고, "Proceed"를 보내 실행(과 그 권한)까지 본다. 단계마다 screenshot을 남기고, 계획 파일 권한 카드와 `failed`로 끝나는 tool call이 thread에서 어떻게 보이는지 기록한다. 오해를 부르는 표시가 있으면 고치지 말고 멈춰서 보고한다.
-  - `doan` CLI 출력이나 skill은 바뀌지 않는다. 바뀌면 `/agent-eval`.
+- [x] `/runtime-test`: 유지된 provider profile의 복사본으로 Antigravity에 로그인한 실제 앱에서, 임시 프로젝트에 Ask first로 `/plan <작은 할 일>`을 보낸다. 계획 파일 권한을 허용하고, 계획 답을 보고, "Proceed"를 보내 실행(과 그 권한)까지 본다. 이 확인이 `COMMAND_ALLOWLIST`에 `/plan`을 넣는 실제 확인이다(서버 1.3.0).
+  - `doan` CLI 출력이나 skill은 바뀌지 않는다.
 - commit: `test(conversation):` → `feat(conversation): send Antigravity /plan`
 
 ## 최종

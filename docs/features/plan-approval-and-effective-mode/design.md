@@ -5,7 +5,7 @@
 - **app (Electron + TS)** 만 바뀐다. CLI(Go)·skill·`doan check`는 바뀌지 않는다.
   - main: `conversation/transport.ts`(Claude 메시지에서 모드 읽기), `conversation/runners.ts`(Claude 턴에서 값 전달), `conversation/service.ts`(저장 조건, plan 승인 저장), `conversation/store.ts`(index 항목 읽기·쓰기), `conversation/summary.ts`(renderer로 전달).
   - renderer: `permissionPicker.ts`(trigger·menu 문구, 경고 표시), 기존 대화의 picker를 보이는 composer(`ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `DockedComposer.tsx`, `ComposerParts.tsx`), `styles.css`(경고 속성, docked 축소 기준). `HomeComposerView.tsx`와 Settings > Agents의 기본값 picker는 새 대화만 다루므로 바뀌지 않는다.
-  - Antigravity `/plan`(결정 게이트: 카드를 빼고 보낸다): `main/conversation/providerCommands.ts`의 `UNSUPPORTED_COMMANDS.antigravity`에서 `plan`을 빼고, `renderer/commandView.ts`의 Antigravity `/plan` 카드 규칙을 지운다. 두 파일의 테스트도 함께 바뀐다. ACP runner(`acpRunner.ts`, `acp.ts`)는 바뀌지 않는다. 계획 파일 쓰기는 지금의 권한 카드로, 'Proceed'는 다음 사람 메시지로 이어진다(아래 'PoC 의존' P2).
+  - Antigravity `/plan`(결정 게이트: 카드를 빼고 보낸다): `main/conversation/providerCommands.ts`의 `UNSUPPORTED_COMMANDS.antigravity`에서 `plan`을 빼고 `COMMAND_ALLOWLIST.antigravity`(1.3.0)에 넣고, `renderer/commandView.ts`의 Antigravity `/plan` 카드 규칙을 지운다. 두 파일의 테스트도 함께 바뀐다. ACP runner(`acpRunner.ts`, `acp.ts`)는 바뀌지 않는다. 계획 파일 쓰기는 지금의 권한 카드로, 'Proceed'는 다음 사람 메시지로 이어진다(아래 'PoC 의존' P2).
 - **형식**: 대화 index(`index.json`)에 선택 키 하나가 는다(아래 '형식 변경').
 
 ## 실제 모드를 정하는 규칙
@@ -62,7 +62,7 @@
 
 - ARCHITECTURE §7 'Permission modes'의 "`bypassPermissions`, `auto` and `dontAsk` read as Ask first"는 유지한다. 저장 모드는 그대로 Ask first이고, 이번 기능은 실제 모드를 따로 기록해 표시만 한다. Full access를 따라가지 않는 이유(사람이 고르지 않은 턴에 `allowDangerouslySkipPermissions`를 넘기게 됨)도 그대로 성립한다. 승격할 때 그 줄 뒤에 `claudeRunMode` 규칙을 더하고, `claudeModeAfterPlan` 주석도 맞게 고친다.
 - PRODUCT §5 item 1 'Permission picker'에 실제 모드 표시 규칙이 는다(마지막 task에서 승격).
-- Antigravity `/plan`은 보낸다(결정 게이트). PRODUCT §5 item 1 'Built-in commands'의 카드 목록과 BACKLOG 'Undecided'의 Antigravity `/plan` 항목에서 빠진다. 코드에서는 `providerCommands.ts`의 `UNSUPPORTED_COMMANDS.antigravity`와 그 위 주석, `commandView.ts`의 카드 규칙이 바뀐다. 승격은 마지막 task에서 한다.
+- Antigravity `/plan`은 보낸다(결정 게이트). PRODUCT §5 item 1 'Built-in commands'의 카드 목록과 BACKLOG 'Undecided'의 Antigravity `/plan` 항목에서 빠진다. 코드에서는 `providerCommands.ts`의 `UNSUPPORTED_COMMANDS.antigravity`·`COMMAND_ALLOWLIST.antigravity`와 그 위 주석, `commandView.ts`의 카드 규칙이 바뀐다. 승격은 마지막 task에서 한다.
 
 ## PoC 의존
 
