@@ -63,23 +63,25 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
   try {
     const resolutionPath = join(ws.base, "resolved-doan.txt");
     const quote = (value: string) => "'" + value.replaceAll("'", "'\"'\"'") + "'";
-    const prompt = `Evaluation setup: before doing the task, run\ncommand -v doan > ${quote(resolutionPath)}${scenario.shellCli ? "" : " || true"}\nfrom your shell without changing PATH. This records ${scenario.shellCli ? "the executable used for this run" : "that doan is absent from PATH (an empty file is expected)"}.\n\n` + renderPrompt(scenario.promptTemplate, ws.repo);
+    // Only accept a provenance report from a shell that could also append invocation evidence.
+    const writable = ws.doanLog ? `: >> ${quote(ws.doanLog)} && ` : "";
+    const prompt = `Evaluation setup: before doing the task, run\n${writable}command -v doan > ${quote(resolutionPath)}${scenario.shellCli ? "" : " || true"}\nfrom your shell without changing PATH. This records ${scenario.shellCli ? "the executable used for this run" : "that doan is absent from PATH (an empty file is expected)"}.\n\n` + renderPrompt(scenario.promptTemplate, ws.repo);
     writeFileSync(join(dir, "prompt.txt"), prompt);
     const { cmd, args } = agentCommand(agent, prompt, agent === "codex" ? registeredCodexMcpServers(ws.env, ws.cwd) : [], scenario.git);
     console.log(`start ${name} (${ws.cwd})`);
     const startedAt = new Date().toISOString();
     const proc = await runProcess({ cmd, args, cwd: ws.cwd, env: ws.env, timeoutSec: scenario.timeoutSec, stdoutPath: join(dir, "stdout.log"), stderrPath: join(dir, "stderr.log") });
     const evidence = readAgentTranscript(agent, dir, ws.env);
-    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent, ...evidence, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit, gitDir: ws.gitDir, onboardingLog: ws.onboardingLog, workLog: ws.workLog, openLog: ws.openLog, handoffLog: ws.handoffLog, prototypeLog: ws.prototypeLog, appWrites: ws.appWrites });
+    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent, ...evidence, doanLog: ws.doanLog, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit, gitDir: ws.gitDir, onboardingLog: ws.onboardingLog, workLog: ws.workLog, openLog: ws.openLog, handoffLog: ws.handoffLog, prototypeLog: ws.prototypeLog, appWrites: ws.appWrites });
     const checks = await runChecks(scenario, ctx);
-    checks.push(cliProvenance(resolutionPath, scenario.shellCli ? setup.cli : null, join(dir, "resolved-doan.txt")));
+    checks.push(cliProvenance(resolutionPath, scenario.shellCli ? join(ws.base, "bin/doan") : null, join(dir, "resolved-doan.txt")));
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
     let judgement: Judgement | null | "skipped" = "skipped";
     if (setup.options.judge) {
       // An agent can leave a repo git cannot read (deleted .git, say); that is a judge_error, not a lost round.
       try {
         const { changed, diff } = judgeMaterial(ws, ctx);
-        const judged = await judge(agent, buildJudgePrompt({ rubric: scenario.rubric, prompt, checks, changed, diff, ...evidence }), dir);
+        const judged = await judge(agent, buildJudgePrompt({ rubric: scenario.rubric, prompt, checks, changed, diff, ...evidence, calls: ctx.calls }), dir);
         judgement = judged.judgement;
         writeFileSync(join(dir, "judge.json"), JSON.stringify(judgement ?? { judge_error: true, raw: judged.raw }, null, 2) + "\n");
       } catch (error) {
@@ -123,7 +125,7 @@ export async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, ki
     if (!existsSync(file)) return;
     for (const [index, args] of (JSON.parse(readFileSync(file, "utf8")) as string[][]).entries()) {
       const rendered = args.map(arg => renderPrompt(arg, ws.repo));
-      const result = sh(setup.cli, rendered, ws.repo, env);
+      const result = sh(scenario.shellCli ? join(ws.base, "bin/doan") : setup.cli, rendered, ws.repo, env);
       // Fail fixtures intentionally exercise refusals; pass fixtures must execute successfully.
       if (kind === "pass" && result.code !== 0)
         problems.push(`${name}: ${basename(file)} command ${index + 1} (${rendered.join(" ")}) exit ${result.code}: ${(result.stderr || result.stdout).trim()}`);
@@ -137,12 +139,12 @@ export async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, ki
     // `{{repo}}` as in the commands, so the transcript shows the paths that ran.
     const transcript = existsSync(transcriptFile) ? readFileSync(transcriptFile, "utf8").replace(/\{\{\s*repo\s*\}\}/g, ws.repo) : "";
     runCommands(join(scenario.dir, "fixtures", `${kind}.commands.json`));
-    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent: "fixture", transcript, cli: setup.cli, env, seedCommit: ws.seedCommit, gitDir: ws.gitDir, onboardingLog: ws.onboardingLog, workLog: ws.workLog, openLog: ws.openLog, handoffLog: ws.handoffLog, prototypeLog: ws.prototypeLog, appWrites: ws.appWrites });
+    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent: "fixture", transcript, doanLog: ws.doanLog, cli: setup.cli, env, seedCommit: ws.seedCommit, gitDir: ws.gitDir, onboardingLog: ws.onboardingLog, workLog: ws.workLog, openLog: ws.openLog, handoffLog: ws.handoffLog, prototypeLog: ws.prototypeLog, appWrites: ws.appWrites });
     const checks = await runChecks(scenario, ctx);
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
     // A fixed fake judge still goes through prompt building and parsing.
     const { changed, diff } = judgeMaterial(ws, ctx);
-    buildJudgePrompt({ rubric: scenario.rubric, prompt: scenario.promptTemplate, checks, changed, diff, transcript });
+    buildJudgePrompt({ rubric: scenario.rubric, prompt: scenario.promptTemplate, checks, changed, diff, transcript, calls: ctx.calls });
     const judgement = setup.options.judge ? parseJudgement(JSON.stringify({ verdict: "pass", reasons: ["fake judge"], stalls: [], layer: "none" })) : "skipped";
     const result = finalResult(checks, judgement);
     const problem = fixtureProblem(kind, checks, result);

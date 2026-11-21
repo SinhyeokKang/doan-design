@@ -1,3 +1,4 @@
+import { readCallLog } from "./call-log.ts";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { relative } from "node:path";
@@ -25,6 +26,7 @@ export interface ContextOptions {
   seedCommit: string;
   // Workspace.gitDir: the baseline lives outside `repo`.
   gitDir?: string | null;
+  doanLog?: string | undefined;
   onboardingLog?: string;
   workLog?: string;
   openLog?: string;
@@ -115,7 +117,7 @@ export function createContext(o: ContextOptions): CheckContext {
     cwd,
     agent: o.agent,
     transcript: o.transcript,
-    calls: o.calls ?? toolCalls(o.transcript),
+    calls: { ...(o.calls ?? toolCalls(o.transcript)), ...(o.doanLog ? { doan: readCallLog(o.doanLog) } : {}) },
     doan(args) {
       const result = sh(o.cli, [...args, "--json", "--repo", o.repo], o.repo, o.env);
       let json: any = null;

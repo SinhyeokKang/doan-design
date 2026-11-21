@@ -1,3 +1,4 @@
+import type { RecordedCall } from "./call-log.ts";
 // Read literal arguments without evaluating agent-authored JavaScript. Strings
 // and comments are tokens, so quoted examples cannot become tool invocations.
 export function scriptTokens(source: string): string[] {
@@ -1058,7 +1059,7 @@ function toolSearches(transcript: string): ToolSearch[] {
 }
 
 // patchFiles: the files apply_patch calls name (added, updated, deleted or moved to), candidates included.
-export interface ToolCalls { commands: string[]; mcpTools: string[]; patchCandidates?: string[]; patchFiles?: string[]; outputs?: InvocationOutput[]; toolSearches?: ToolSearch[] }
+export interface ToolCalls { doan?: RecordedCall[]; commands: string[]; mcpTools: string[]; patchCandidates?: string[]; patchFiles?: string[]; outputs?: InvocationOutput[]; toolSearches?: ToolSearch[] }
 
 export function toolCalls(transcript: string): ToolCalls {
   const outputs = invocationOutputs(transcript);

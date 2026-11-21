@@ -1,6 +1,7 @@
+import { doanInvocations } from "./call-log.ts";
 import type { Agent } from "./args.ts";
 import type { Check } from "./types.ts";
-import { commandWords, doanCommand, doanPositionals, parseCommand, toolCalls, type ToolCalls } from "./transcript.ts";
+import { commandWords, doanCommand, doanPositionals, toolCalls, type ToolCalls } from "./transcript.ts";
 
 export type Verdict = "pass" | "partial" | "fail";
 export type Layer = "guide" | "output" | "check" | "product" | "none";
@@ -99,10 +100,10 @@ export function buildJudgePrompt(input: JudgeInput, limits = JUDGE_LIMITS): stri
   // Invocation evidence has its own budget, so verbose tool output cannot evict it.
   const calls = input.calls ?? toolCalls(input.transcript);
   const doanActive = {
-    shellInvoked: calls.commands.flatMap(commandWords).some(words => doanCommand(words) === "active"),
+    shellInvoked: doanInvocations(calls).words.some(words => doanCommand(words) === "active"),
   };
-  const parsed = calls.commands.map(parseCommand);
-  const presetCalls = parsed.flatMap(read => read.words).flatMap(words => {
+  const parsed = doanInvocations(calls, true);
+  const presetCalls = parsed.words.flatMap(words => {
     const args = doanPositionals(words);
     return args?.[0] === "design-skill" ? [args] : [];
   });
@@ -110,7 +111,7 @@ export function buildJudgePrompt(input: JudgeInput, limits = JUDGE_LIMITS): stri
     shellInvoked: presetCalls.length > 0,
     shellIds: [...new Set(presetCalls.flatMap(args => args[1] === undefined ? [] : [args[1]]))],
     // Commands the reader could not follow to the end may have run lookups this list lacks.
-    ...(parsed.some(read => read.incomplete) ? { incompleteCommands: true } : {}),
+    ...(parsed.incomplete ? { incompleteCommands: true } : {}),
   };
   const outputs = [...new Set((calls.outputs ?? []).map(output => output.callId))].map(callId => {
     const group = calls.outputs!.filter(output => output.callId === callId);

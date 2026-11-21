@@ -1,3 +1,4 @@
+import { installRecorder } from "./call-log.ts";
 import { randomBytes } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { delimiter, join, resolve } from "node:path";
@@ -28,6 +29,7 @@ export interface Workspace {
   app: FakeApp | null;
   // The fake app's app-socket v2 exchanges (eval/lib/socket.ts); absent until the first one.
   onboardingLog: string;
+  doanLog?: string | undefined;
   workLog: string;
   openLog: string;
   handoffLog: string;
@@ -66,7 +68,8 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     const repo = join(base, "repo");
     cpSync(join(o.scenario.dir, "seed"), repo, { recursive: true });
     mkdirSync(join(base, "bin"));
-    if (o.scenario.shellCli) symlinkSync(o.cli, join(base, "bin/doan"));
+    const doanLog = o.scenario.shellCli ? join(base, "doan-calls.jsonl") : undefined;
+    if (doanLog) installRecorder(join(base, "bin/doan"), o.cli, doanLog);
     const inheritedPath = (process.env.PATH ?? "").split(delimiter);
     // Removing an entire PATH directory would also hide colocated agents/tools.
     // Substitute only those directories containing doan, preserving PATH order.
@@ -121,7 +124,7 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
       ? await startFakeApp({ dir: join(base, "rt"), root: repo, selection: o.scenario.selectionValue ? { root: repo, ...o.scenario.selectionValue } : null, onboarding: o.scenario.onboardingValue, workOthers: o.scenario.workOthers, handoff })
       : null;
     return {
-      base, codexHome, repo, cwd, env, seedCommit, gitDir, app, onboardingLog: join(base, "rt/onboarding.jsonl"), workLog: join(base, "rt/work.jsonl"), openLog: join(base, "rt/open.jsonl"), handoffLog: join(base, "rt/handoff.jsonl"), prototypeLog: join(base, "rt/prototype.jsonl"), appWrites: join(base, "rt", APP_WRITES),
+      base, codexHome, repo, cwd, env, doanLog, seedCommit, gitDir, app, onboardingLog: join(base, "rt/onboarding.jsonl"), workLog: join(base, "rt/work.jsonl"), openLog: join(base, "rt/open.jsonl"), handoffLog: join(base, "rt/handoff.jsonl"), prototypeLog: join(base, "rt/prototype.jsonl"), appWrites: join(base, "rt", APP_WRITES),
       async dispose() {
         await app?.close();
         rmSync(base, { recursive: true, force: true });
@@ -137,11 +140,12 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
 
 // dispose deletes rt/, and the log is what onboarding checks were scored on.
 // It holds no token (eval/lib/socket.ts strips it).
-export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial<Pick<Workspace, "workLog" | "openLog" | "handoffLog" | "prototypeLog">>, dir: string): void {
+export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial<Pick<Workspace, "doanLog" | "workLog" | "openLog" | "handoffLog" | "prototypeLog">>, dir: string): void {
   const keep = (path: string | undefined, name: string) => {
     if (path && existsSync(path)) writeFileSync(join(dir, name), readArtifact(path, LOG_BYTES), { mode: 0o600 });
   };
   keep(ws.onboardingLog, "onboarding.jsonl");
+  keep(ws.doanLog, "doan-calls.jsonl");
   keep(ws.workLog, "work.jsonl");
   keep(ws.openLog, "open.jsonl");
   keep(ws.prototypeLog, "prototype.jsonl");

@@ -1,1 +1,4 @@
-[["init", "--token-css", "styles/tokens.css", "--json"]]
+[
+  ["init", "--token-css", "styles/tokens.css", "--json"],
+  ["design-skill", "generate", "--json"]
+]
