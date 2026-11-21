@@ -6,7 +6,7 @@ import { query, type EffortLevel, type PermissionResult, type PermissionUpdate, 
 import { openAcp } from "./acpRunner";
 import { CodexDispatcher, RpcError } from "./dispatcher";
 import { codexInitialize, codexThreadStart, type HandshakeReply, type HandshakeVerdict } from "./handshake";
-import { afterTurnCleanup, OwnedGroup, ownProtocolProcess } from "./process";
+import { afterTurnCleanup, listProcesses, OwnedGroup, ownProtocolProcess } from "./process";
 import { readRegularFileNoFollowSync } from "../regularFile";
 import { object } from "./sessions";
 import { applyClaudeFastUnavailable, parseClaudeModels, parseCodexModels } from "./models";
@@ -401,7 +401,9 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       const launch = fencedCommand(options.command, options.args, input.fence ? fenceArgs("claude", input.fence.paths) : undefined, input.fence?.exec);
       const child = spawn(launch.command, launch.args, { cwd: options.cwd, env: options.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
       if (child.pid) {
-        const owned = new OwnedGroup(child.pid, undefined, undefined, exited); group = owned;
+        // A background command runs in a process group of its own that only the CLI's SIGTERM handling reaches, and
+        // one that ignores SIGTERM outlives the CLI, so a stop also ends the groups the CLI's descendants started.
+        const owned = new OwnedGroup(child.pid, undefined, undefined, exited, listProcesses); group = owned;
         registerStop(() => { controller.abort(); closeInput(); return owned.stop(); });
       }
       child.stderr.setEncoding("utf8"); child.stderr.on("data", (text: string) => { stderr = (stderr + text).slice(-8192); });
