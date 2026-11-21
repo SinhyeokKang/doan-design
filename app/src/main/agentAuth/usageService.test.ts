@@ -419,17 +419,46 @@ describe("UsageService turn ends", () => {
     gate.resolve(ok(h.now())); await usage.settled();
   });
   it("hooks only a Doan-account Claude or Codex run; a legacy external run and ACP runs get none", async () => {
-    const usage = { turnEnd: vi.fn(async () => {}) };
+    const usage = { turnEnd: vi.fn(async () => {}), limitWindows: vi.fn(async () => []) };
     const base: Prepared = { runtime: "claude", configDir: "/p", cwd: "/r", command: "/bin/claude", env: {} };
     const owner = (provider: Provider) => ({ kind: "doan" as const, provider, connectionId: `conn-${provider}`, accountId: null, workspaceId: null, profile: provider });
-    expect(withTurnUsage(base, usage).usageAtTurnEnd).toBeUndefined();
-    expect(withTurnUsage({ ...base, runtime: "cursor", owner: owner("cursor") }, usage).usageAtTurnEnd).toBeUndefined();
-    const hooked = withTurnUsage({ ...base, runtime: "codex", owner: owner("codex") }, usage);
+    const summary = vi.fn(async () => ({}));
+    expect(withTurnUsage(base, usage, summary).usageAtTurnEnd).toBeUndefined();
+    expect(withTurnUsage({ ...base, runtime: "cursor", owner: owner("cursor") }, usage, summary).usageAtTurnEnd).toBeUndefined();
+    const hooked = withTurnUsage({ ...base, runtime: "codex", owner: owner("codex") }, usage, summary);
     const read = async () => codexFixture;
     await hooked.usageAtTurnEnd!(read);
     expect(usage.turnEnd).toHaveBeenCalledExactlyOnceWith("codex", "conn-codex", read);
     await hooked.usageAtTurnEnd!(read, true);
     expect(usage.turnEnd).toHaveBeenLastCalledWith("codex", "conn-codex", read, true);
+  });
+});
+
+describe("withTurnUsage Cursor limit read", () => {
+  const owner = (provider: Provider) => ({ kind: "doan" as const, provider, connectionId: `conn-${provider}`, accountId: null, workspaceId: null, profile: provider });
+  const base: Prepared = { runtime: "cursor", configDir: "/profiles/cursor", cwd: "/r", command: "/bin/cursor-agent", env: {}, owner: owner("cursor") };
+  const window = (usedPercent: number) => ({ id: "auto", label: "Auto", usedPercent });
+  it("gives only a Doan-account Cursor run a limit read; Claude, Codex, Copilot and legacy external runs get none", () => {
+    const usage = { turnEnd: vi.fn(async () => {}), limitWindows: vi.fn(async () => []) }, summary = vi.fn(async () => ({}));
+    expect(withTurnUsage(base, usage, summary).limitReached).toBeTypeOf("function");
+    for (const provider of ["claude", "codex", "copilot"] as const) expect(withTurnUsage({ ...base, runtime: provider, owner: owner(provider) }, usage, summary).limitReached).toBeUndefined();
+    const { owner: _owner, ...external } = base;
+    expect(withTurnUsage(external, usage, summary).limitReached).toBeUndefined();
+  });
+  it("reads the run's own profile through the usage service, past the read interval, and answers whether a window is used up", async () => {
+    const usage = { turnEnd: vi.fn(async (_p: Provider, _c: string, read: () => Promise<unknown>) => { await read(); }), limitWindows: vi.fn(async () => [window(100), { ...window(0), id: "api" }]) };
+    const summary = vi.fn(async () => ({ isUnlimited: false }));
+    expect(await withTurnUsage(base, usage, summary).limitReached!()).toBe(true);
+    expect(usage.turnEnd).toHaveBeenCalledExactlyOnceWith("cursor", "conn-cursor", expect.any(Function), true);
+    expect(summary).toHaveBeenCalledExactlyOnceWith("/profiles/cursor");
+    expect(usage.limitWindows).toHaveBeenCalledExactlyOnceWith("cursor", "conn-cursor");
+  });
+  it.each([
+    ["every window under its limit", [window(99), { ...window(0), id: "api" }]],
+    ["no windows (another connection or a failed read)", []],
+  ])("answers no limit for %s", async (_name, windows) => {
+    const usage = { turnEnd: vi.fn(async () => {}), limitWindows: vi.fn(async () => windows) };
+    expect(await withTurnUsage(base, usage, vi.fn(async () => ({}))).limitReached!()).toBe(false);
   });
 });
 
