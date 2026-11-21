@@ -1,7 +1,6 @@
 import { posix } from "node:path";
 import { canvasDir } from "../../formats/canvasPath";
 import { object } from "./sessions";
-import { claudeModeAfterPlan, type PermissionModeId } from "./permissionMode";
 import { connectorLabels, serverLabel } from "../mcpConnectors/presets";
 import { codexMcpApproval } from "../mcpConnectors/codexApproval";
 import { CONNECTOR_NAME_PATTERN } from "../mcpConnectors/names";
@@ -331,11 +330,6 @@ export interface ClaudeModeReport { source: "init" | "status"; mode: string }
 export function claudeModeReport(raw: unknown): ClaudeModeReport | undefined {
   if (!object(raw) || raw.parent_tool_use_id || raw.type !== "system" || (raw.subtype !== "init" && raw.subtype !== "status") || typeof raw.permissionMode !== "string") return undefined;
   return { source: raw.subtype, mode: raw.permissionMode };
-}
-// The mode a status message reports, as a common id. After a plan approval it names the mode the session now runs.
-export function claudeReportedMode(raw: unknown): PermissionModeId | undefined {
-  const report = claudeModeReport(raw);
-  return report?.source === "status" ? claudeModeAfterPlan(report.mode) : undefined;
 }
 // labels: the connector names of the run (connectorLabels), so a Doan connector's tool never shows its doan- name.
 export function normalizeClaude(state: TransportState, raw: unknown, root: string, labels?: Readonly<Record<string, string>>): SteerResult {

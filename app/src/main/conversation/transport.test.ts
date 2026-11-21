@@ -7,7 +7,7 @@ import codexHome from "./fixtures/codex-home.json";
 import codexModelNotFound from "./fixtures/codex-model-not-found.json";
 import askFixture from "./fixtures/claude-ask-user-question.json";
 import runMode from "./fixtures/claude-run-mode.json";
-import { normalizeClaude, normalizeCodex, initialTransport, endTransport, claudePermission, claudePermissionSummary, codexPermission, permissionAnswer, transportError, claudeReportedMode, claudeModeReport, steerTransport, endSteerWait, claudeQuestion, claudeQuestionResult, claudeUnansweredSupport, storedAnswers, claudeFastOutcome } from "./transport";
+import { normalizeClaude, normalizeCodex, initialTransport, endTransport, claudePermission, claudePermissionSummary, codexPermission, permissionAnswer, transportError, claudeModeReport, steerTransport, endSteerWait, claudeQuestion, claudeQuestionResult, claudeUnansweredSupport, storedAnswers, claudeFastOutcome } from "./transport";
 import type { EventPayload, TransportState } from "./types";
 function collect(runtime: "claude" | "codex", messages: unknown[], stop: "user" | null = null) {
   let state: TransportState = { ...initialTransport(), stop };
@@ -423,16 +423,6 @@ describe("Codex permission profile summary", () => {
     expect(cut.endsWith("…")).toBe(true);
   });
 });
-// Claude reports the mode it switched to after a plan approval in a status message.
-it("reads the mode a Claude status message reports, and nothing from other messages", () => {
-  expect(claudeReportedMode({ type: "system", subtype: "status", status: null, permissionMode: "default" })).toBe("default");
-  expect(claudeReportedMode({ type: "system", subtype: "status", status: null, permissionMode: "acceptEdits" })).toBe("acceptEdits");
-  expect(claudeReportedMode({ type: "system", subtype: "status", status: null, permissionMode: "bypassPermissions" })).toBe("default");
-  expect(claudeReportedMode({ type: "system", subtype: "status", status: null, permissionMode: "dontAsk" })).toBe("default");
-  for (const raw of [{ type: "system", subtype: "status", status: "compacting" }, { type: "system", subtype: "init", permissionMode: "plan" }, { type: "result", permissionMode: "plan" }, null, "status"])
-    expect(claudeReportedMode(raw)).toBeUndefined();
-});
-
 // One reader for the mode Claude reports, in Claude's own ids (frames: claude-run-mode.json, PoC, Claude Code 2.1.312).
 describe("Claude mode reader", () => {
   it("reads the mode an Ask first turn's top-level system/init reports, as Claude's own id", () => {
@@ -465,12 +455,6 @@ describe("Claude mode reader", () => {
     for (const raw of [{ type: "system", subtype: "status", status: "compacting" }, { type: "system", subtype: "init" }, { type: "system", subtype: "init", permissionMode: 3 },
       { type: "system", subtype: "status", permissionMode: null }, { type: "system", subtype: "compact_boundary", permissionMode: "plan" }, { type: "result", permissionMode: "plan" }, null, "status", []])
       expect(claudeModeReport(raw)).toBeUndefined();
-  });
-  it("keeps the plan approval reading in common ids, from status messages only", () => {
-    expect(claudeReportedMode(runMode.approval["plan-none"])).toBe("default");
-    expect(claudeReportedMode(runMode.setMode)).toBe("acceptEdits");
-    expect(claudeReportedMode(runMode.init["profile-auto"])).toBeUndefined();
-    expect(claudeReportedMode({ ...runMode.setMode, parent_tool_use_id: "tool-1" })).toBeUndefined();
   });
 });
 
