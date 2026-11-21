@@ -1,7 +1,9 @@
-// Register before canvas scripts can claim capture-phase input. The folded state leaves every event alone.
-// Yield keeps the DOM reference so the canvas can move or remove the selection while the panel is away.
+// Register before canvas scripts can claim capture-phase input. Select takes the canvas's input from
+// the first inspect-mode on, whether the inspector column shows or not; `styles` says whether it shows,
+// and only then are rows and the element tree read. Every inspection names the selection's nearest
+// frame, which the page needs for Play prototype and the size bubble.
 function canvasInspection(post) {
-  let open = false, epoch = 0, seq = 0, selectionSeq = 0;
+  let open = false, styles = false, epoch = 0, seq = 0, selectionSeq = 0;
   let selected = null, hovered = null, preview = null, tree = [], menuNodes = [];
   let alt = false, meta = false, pan = false, overlay = false;
   let press = null, range = null, copied = "", dragged = false, cursor = null;
@@ -34,11 +36,13 @@ function canvasInspection(post) {
     if (!frames.length && element.querySelector("[data-doan-frame]")) return null;
     return direct ? element : inspectCanvas.frameStep(frames, selected ? inspectCanvas.framesOf(selected) : []) ?? element;
   };
+  // While Option is held the hover is the measurement's target, which the page draws only with a
+  // selection (the app's CanvasController measured), so it is sent with `alt` instead of being dropped.
   function marks() {
     if (!open) return;
-    const next = preview ?? (alt || overlay || press?.state === "drag" ? null : targetOf(hovered));
+    const next = preview ?? (overlay || press?.state === "drag" ? null : targetOf(hovered));
     const box = (el) => el?.isConnected && !pan ? inspectCanvas.rectOf(el) : null;
-    const fields = { selected: box(selected), hover: next === selected ? null : box(next) };
+    const fields = { selected: box(selected), hover: next === selected ? null : box(next), alt: alt && preview === null };
     const key = JSON.stringify(fields);
     if (key === lastMarks) return;
     lastMarks = key;
@@ -95,14 +99,28 @@ function canvasInspection(post) {
     tree = keep.map(i => elements[i]);
     return keep.map(i => describe(elements[i], depths[i]));
   }
+  // The selection's nearest frame as the app's select target names it: `kind` frame when the frame
+  // itself is selected, its id cut at 200 units, and its place among the first 1,000 frames, the list
+  // the layout reports.
+  function frameOf(element) {
+    if (!element) return null;
+    const frame = element.closest("[data-doan-frame]");
+    if (!frame) return { kind: "element" };
+    const target = { kind: frame === element ? "frame" : "element", id: clipText(frame.getAttribute("data-doan-frame") ?? "", MAX_STRING) };
+    const index = Array.from(document.querySelectorAll("[data-doan-frame]")).indexOf(frame);
+    if (index >= 0 && index < MAX_FRAMES) target.index = index;
+    return target;
+  }
   function inspect(element) {
     selected = element?.isConnected ? element : null;
     preview = null;
     if (!open) return;
-    const nodes = elementNodes();
+    let nodes = [];
+    if (styles) nodes = elementNodes();
+    else tree = [];
     menuNodes = nodes;
-    const rows = selected ? inspectCanvas.inspectElement(selected) : [];
-    emit("inspection", { rows, nodes });
+    const rows = styles && selected ? inspectCanvas.inspectElement(selected) : [];
+    emit("inspection", { rows, nodes, target: frameOf(selected) });
     selectionSeq = seq;
     marks();
   }
@@ -245,12 +263,12 @@ function canvasInspection(post) {
   }
   listen();
   return {
-    isOpen: () => open,
     command(data) {
       if (data.type === "inspect-mode" && Number.isSafeInteger(data.epoch) && data.epoch > epoch) {
         const livePress = !cancelledPress && pressWindow && !pressWindow.closed;
         if (!livePress) clearText();
         open = data.open === true;
+        styles = open && data.styles === true;
         modeWindow = open ? inputWindow(data.input) : null;
         acknowledged = false;
         acceptClicks(null);

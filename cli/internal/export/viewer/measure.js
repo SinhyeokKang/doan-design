@@ -4,8 +4,9 @@
 //
 // The size-reporting half of app/src/main/canvasScript.ts: it tells the viewer page how tall the
 // document is and where its frames are, and hands wheel input the canvas itself cannot scroll to
-// the page. The folded viewer forwards tool keys (Space, V, H, Escape) and shows the hand while
-// the board pans. The shell enables inspection readers and input handling while its column is visible.
+// the page. It forwards tool keys (Space, V, H, Escape) and shows the hand while the board pans.
+// Select's input handling (inspectSelection.js) runs whether the inspector column shows or not;
+// styles are read only while it shows.
 // POSTMORTEM 2026-11-01 (absolutely positioned frames resizing the iframe between 0 and 405 px
 // forever) is why the height comes from lib.js `documentHeight`/`frameBottom`/`nextHeight`
 // unchanged.
@@ -66,8 +67,19 @@ let height = null;
 let fontLoads = 0;
 let started = false;
 
+// `parent` is the nearest enclosing listed frame's index; a frame's ancestors come before it in
+// document order, so a listed frame's enclosing frames are all listed. `gotos` name the innermost
+// listed frame around each link. Play prototype judges both, as in the app (canvasScript.ts).
 const frames = () => {
   const list = [];
+  const listed = new Map();
+  const listedAround = (el) => {
+    for (let node = el; node !== null; node = node.parentElement) {
+      const index = listed.get(node);
+      if (index !== undefined) return index;
+    }
+    return undefined;
+  };
   let total = 0;
   const html = document.documentElement;
   const rootStyle = getComputedStyle(html);
@@ -90,23 +102,41 @@ const frames = () => {
     bottom = Math.max(bottom, frameBottom(rect.top + rect.height + scrollY, getComputedStyle(el).position, ancestors(el)));
     total++;
     if (list.length === MAX_FRAMES) continue;
-    const frame = { id: clipText(el.getAttribute("data-doan-frame") || "", MAX_STRING), x: rect.left + scrollX, y: rect.top + scrollY, width: rect.width, height: rect.height };
+    const id = el.getAttribute("data-doan-frame") || "";
+    const frame = { id: clipText(id, MAX_STRING), x: rect.left + scrollX, y: rect.top + scrollY, width: rect.width, height: rect.height };
     const title = el.getAttribute("data-doan-title");
     if (title !== null) frame.title = clipText(title, MAX_STRING);
+    // A cut id is not the frame's, so the frame cannot play; its place, number and mark stay.
+    if (frame.id !== id) frame.cut = true;
+    // The raw mark, judged by the page; the longest valid one is 11 characters, so a cut value stays invalid.
+    const mark = el.getAttribute("data-doan-prototype");
+    if (mark !== null) frame.prototype = clipText(mark, MAX_PROTOTYPE_MARK);
+    const parentIndex = listedAround(el.parentElement);
+    if (parentIndex !== undefined) frame.parent = parentIndex;
+    listed.set(el, list.length);
     list.push(frame);
   }
-  return { list, total, bottom };
+  // A value over the cap is left out, not cut: no frame can have it, and a cut one could name another frame.
+  const gotos = [];
+  for (const el of document.querySelectorAll("[data-doan-goto]")) {
+    if (gotos.length === MAX_GOTOS) break;
+    const value = el.getAttribute("data-doan-goto") ?? "";
+    if (value.length > MAX_STRING) continue;
+    const frame = listedAround(el);
+    gotos.push(frame === undefined ? { value } : { value, frame });
+  }
+  return { list, total, bottom, gotos };
 };
 
 const send = () => {
   inspection.layout();
   const html = document.documentElement;
-  const { list, total, bottom } = frames();
+  const { list, total, bottom, gotos } = frames();
   const measured = documentHeight(Math.ceil(html.getBoundingClientRect().height), html.scrollHeight, innerHeight, bottom);
   height = nextHeight(height, measured, innerHeight, fontLoads);
   // `viewport` lets the page drop a layout measured before its last resize of the iframe reached
   // this document.
-  post({ type: "layout", href: location.href, height: height.sent, viewport: innerHeight, frames: list, total });
+  post({ type: "layout", href: location.href, height: height.sent, viewport: innerHeight, frames: list, total, gotos });
 };
 
 let queued = false;
@@ -227,7 +257,7 @@ addEventListener("keydown", (event) => {
     event.preventDefault();
     return;
   }
-  if (event.key === "Escape" && !(event.repeat && inspection.isOpen()) && !event.isComposing && event.keyCode !== 229 && !event.defaultPrevented && !editableTarget(event.target)) post({ type: "key", key: "Escape" });
+  if (event.key === "Escape" && !event.isComposing && event.keyCode !== 229 && !event.defaultPrevented && !editableTarget(event.target)) post({ type: "key", key: "Escape", repeat: event.repeat });
 });
 
 // Every Space release goes to the page, which ignores one it did not hold: focus and modifiers can

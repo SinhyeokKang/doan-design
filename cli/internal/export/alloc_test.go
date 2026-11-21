@@ -47,7 +47,7 @@ func TestExportAllocationIsBounded(t *testing.T) {
 	if len(res.Refused) > 0 || res.TooLarge {
 		t.Fatalf("refused %v, too large %v", res.Refused, res.TooLarge)
 	}
-	page, err := Assemble(Meta{Name: "big-css", Width: 1280}, res.HTML)
+	page, err := Assemble(Meta{Name: "big-css", Width: 1280}, noFrames, res.HTML)
 	if err != nil {
 		t.Fatal(err)
 	}
