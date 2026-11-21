@@ -53,7 +53,8 @@ export function defaultPermission(options: readonly PermissionModeId[], picked: 
 }
 
 export interface PermissionOptionView { id: PermissionModeId; label: string; description: string; icon: PermissionIcon; warning: boolean; selected: boolean }
-export interface PermissionPickerView { mode: PermissionModeId; trigger: PermissionTrigger; title: string; menuLabel: string; options: PermissionOptionView[] }
+// runMode: the run mode the trigger names, absent while none shows (the trigger's data-run-mode width step).
+export interface PermissionPickerView { mode: PermissionModeId; trigger: PermissionTrigger; title: string; menuLabel: string; options: PermissionOptionView[]; runMode?: ClaudeRunMode }
 
 // null: no picker. A provider with no mapped modes, or only Default, offers no choice. runMode: the conversation's
 // claudeRunMode, reflected only for Claude while Ask first is the mode shown.
@@ -68,5 +69,6 @@ export function permissionPickerView(provider: Provider | null, state: ModelsSta
   return {
     mode: shown, trigger: permissionTrigger(shown, run), title: `Permissions · ${name}`, menuLabel: `Permissions for ${name}`,
     options: options.map(id => ({ id, label: MODES[id].label, description: description(id), icon: MODES[id].icon, warning: id === "bypass", selected: id === shown })),
+    ...(run ? { runMode: run } : {}),
   };
 }

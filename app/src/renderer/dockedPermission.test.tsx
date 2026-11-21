@@ -212,17 +212,15 @@ for (const [name, { setup }] of Object.entries(setups)) test(`${name}: a provide
 });
 
 // an existing Claude conversation's summary carries the mode Claude Code's settings ran its last Ask first turn in: the
-// trigger shows it while Ask first is the mode shown, and the composer gets the raw value for its status line (undefined
-// until the list names the conversation). A new conversation has none.
+// trigger shows it while Ask first is the mode shown, and the composer gets the raw value for its status line. A new
+// conversation has none.
 for (const [name, { setup, row }] of Object.entries(setups)) test(`${name}: an existing conversation's trigger shows its run mode`, async () => {
   const { render, setList, open } = await setup({});
   expect(render().runMode).toBeNull();
   expect(render().permission?.trigger.label).toBe("Ask first");
+  setList([row({ claudeRunMode: "auto" })]);
   open();
   expect(render().mode).toMatchObject({ kind: "existing", conversationId: A });
-  expect(render().runMode).toBeUndefined();
-  setList([row({ claudeRunMode: "auto" })]);
-  render();
   expect(render().permission?.trigger).toMatchObject({ label: "Ask first · Auto", ariaLabel: "Permission: Ask first, Claude Code settings run Auto mode", warning: false });
   expect(render().permission?.runMode).toBe("auto");
   expect(render().runMode).toBe("auto");

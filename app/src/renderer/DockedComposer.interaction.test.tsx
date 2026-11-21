@@ -1241,6 +1241,8 @@ test("the preset popover's Retry stays, busy and described by the notice, until 
 // screen is said once through the composer's status line. `previous` is the value this composer last saw for that same
 // conversation, so the first list read (undefined), a switch, a cleared value or the same value says nothing.
 function runModeSetup(patch: Partial<DockedComposerProps> = {}) {
+  // Each setup is its own composer: hook slots start empty, as on a fresh mount.
+  hooks.states = []; hooks.refs = []; hooks.effects = [];
   const result = setup(patch);
   const said = () => find(result.render(), props => props.className === "sr-only" && props.role === "status").children;
   const settle = () => { result.render(); for (const effect of hooks.effects) effect(); };
