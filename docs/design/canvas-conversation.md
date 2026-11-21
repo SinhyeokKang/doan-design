@@ -230,7 +230,7 @@ Reference: `.doan/canvases/picker-default-labels.html` (frames `triggers`, `menu
 
 ## Permission run mode
 
-Reference: `.doan/canvases/permission-run-mode.html` (frames `run-mode-trigger`, `run-mode-menu`, `run-mode-docked-steps`, `run-mode-plan-approved`). Built app at 1500 × 820, the draft read in the app's canvas iframe; the implementation is the canvas panel's docked composer for a Claude conversation, brought to each tile's width through the panel width (540, 538, 504). No provider signs in: main's agent-auth, model, conversation list and read replies are replaced, so each summary's `claudeRunMode` is injected; accessible names read through CDP.
+Reference: `.doan/canvases/permission-run-mode.html` frames `run-mode-trigger`, `run-mode-menu`, `run-mode-docked-steps`, `run-mode-plan-approved`; injected: main's agent-auth, model, conversation list and read replies (each summary's `claudeRunMode`), with no provider signed in. Built app at 1500 × 820; the implementation is the canvas panel's docked composer for a Claude conversation, brought to each tile's width through the panel width (540, 538, 504).
 
 ### Measured contracts
 
@@ -246,7 +246,7 @@ Reference: `.doan/canvases/permission-run-mode.html` (frames `run-mode-trigger`,
 
 ### Documented deviations from the draft
 
-- Context, not deviations: fixture names on the model and effort triggers (", default", ", Fast off"); the shipped context ring and menu rules (the ring's rotated svg overflows its box, the row line's overflow, the row icon's flex-shrink and the menu box's inherited type differ in the draft's restatement with equal sizes); the draft's Ask first row drawn highlighted while the app's menu was opened by the pointer; the draft's tray holding the open menu and tooltip inline.
+None. Context: fixture names on the model and effort triggers (", default", ", Fast off"); the shipped context ring and menu rules (the ring's rotated svg overflows its box, the row line's overflow, the row icon's flex-shrink and the menu box's inherited type differ in the draft's restatement with equal sizes); the draft's Ask first row drawn highlighted while the app's menu was opened by the pointer; the draft's tray holding the open menu and tooltip inline.
 
 ### Not verified
 
