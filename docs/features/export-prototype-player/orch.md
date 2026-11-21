@@ -14,6 +14,7 @@
 | D3 | 브라우저 PoC(B1)는 시안 확정 전에 돌린다. 구현 배치는 사용자가 앱에서 시안을 확정한 뒤 시작한다 | 리드 지시 |
 | D4 | 브라우저 확인 스크립트는 `.scratch/export-prototype-player/`에 둔다 | tasks.md 머리말 |
 | D5 | 9단계의 실제 macOS Safari 확인은 지휘자가 `orca computer`로 시도하고, 막히면 사용자에게 넘긴다 | 지휘자 판단 — 팝업 차단 해제는 Safari 설정 조작이라 사용자가 해야 할 수 있다 |
+| D7 | 원문에 같은 ID가 둘 이상인 프레임(B2 데이터의 `refused` reason `shared`)의 내보내기 거절은 스크립트가 만든 프레임과 같은 문구 “Couldn’t export “<frame>”. This frame isn’t in the canvas file. Ask the sender for an updated file.”를 쓴다 | 지휘자 판단 — 앱이 같은 경우를 `frame_not_found` → `notFound`로 묶는다(`app/src/main/canvasExport.ts` 21·87행) |
 | D6 | 10단계 승격(PRODUCT·ARCHITECTURE·DESIGN·BACKLOG)은 지휘자가 문서별 커밋으로 한다 | orchestrate 스킬 §4·§5 |
 
 ## 시안 검토 (tasks 2단계)
@@ -29,7 +30,7 @@
 | 배치 | 항목 (tasks) | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | B1 | 1 브라우저 PoC | `.scratch/export-prototype-player/poc/`만. 커밋 없음 | 없음 | Opus high — 창 생성 방식·창 통신·사용자 입력 인정 방식을 이 결과로 정한다 | Chromium·WebKit 실제 file URL 결과표, 미검증 항목 | 진행 (`ctx_a4e5ed986d62`) |
-| B2 | 3(Go 단언) · 4 일반 Export 조립 | `cli/internal/export/*.go`, `schema/fixtures/prototype-mark`·`prototype-links` | 시안 확정 | Opus high — 이스케이프와 바이트 동일성, 50 MiB 경계 | `go test ./...`, `go vet ./...` | 진행 |
+| B2 | 3(Go 단언) · 4 일반 Export 조립 | `cli/internal/export/*.go`, `schema/fixtures/prototype-mark`·`prototype-links` | 시안 확정 | Opus high — 이스케이프와 바이트 동일성, 50 MiB 경계 | `go test ./...`, `go vet ./...` | 리뷰 중 (구현 `ctx_267ad72062d9`: d1bf7b414·90b89a5ea, 리뷰 `ctx_6cce64a2b44e`) |
 | B3 | 3(TS 단언) · 5 Select와 보드 재생 진입점 | `cli/internal/export/viewer/`(보드 쪽), `app/scripts/viewerInspect.mjs`, 앱 TS 소스와 테스트, `assemble.go`의 파일 목록과 digest | B2 | Opus high — 입력·포커스·선택 경로를 앱과 맞춘다 | `viewerInspect.mjs --check`, `npm --prefix app test`, 실제 파일 보드 입력 검증 | 대기 |
 | B4 | 6 브라우저 재생창 | 재생 페이지 HTML·JS·CSS, 뷰어 JS, `assemble.go` | B1, B3 | Opus high — 보안 경계(sandbox, 문자열만 전달), 창 수명, 기록 | `npm --prefix app test`, Chromium·WebKit 앱·브라우저 비교 | 대기 |
 | B5 | 7 현재 프로토타입 내보내기 | 뷰어 JS, `assemble.go`와 Go 테스트 | B2, B4 | Opus high — CLI 결과와 “같은 결과” 판정 | `go test ./...`, `npm --prefix app test`, 받은 파일 오프라인 재개방 | 대기 |
