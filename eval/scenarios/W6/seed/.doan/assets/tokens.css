@@ -13,7 +13,8 @@
   --brand-logo: url(brand/logo.svg);
 }
 
-.brand-mark {
+.brand-mark,
+.app-header__logo {
   width: 24px;
   height: 24px;
   background: var(--brand-logo) center / contain no-repeat;
