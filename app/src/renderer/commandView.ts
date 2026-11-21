@@ -77,6 +77,7 @@ export function commandCard(provider: Provider, name: string): CommandCard {
   // Sent, Antigravity's /logout erases Doan's own sign-in; every provider's sign-in and sign-out live in Settings > Agents.
   if (name === "logout") return { title, body: "Sign out from Settings > Agents.", action: { label: "Open Agents settings", target: "agentsSettings" } };
   if (name === "login") return { title, body: "Sign in from Settings > Agents.", action: { label: "Open Agents settings", target: "agentsSettings" } };
+  if (provider === "antigravity" && name === "plan") return { title, body: "Use Plan mode in the permission picker.", action: { label: "Open permission picker", target: "permissionPicker" } };
   return { title, body: `Run it in ${PROVIDER_NAMES[provider]} in a terminal.`, action: null };
 }
 

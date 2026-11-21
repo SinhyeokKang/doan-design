@@ -49,12 +49,8 @@ describe("classifyFirstWord", () => {
     expect(classifyFirstWord("/model opus", CLAUDE)).toEqual({ kind: "unsupported", name: "model" });
     const antigravity = commandLists("antigravity", []);
     expect(classifyFirstWord("/logout", antigravity)).toEqual({ kind: "unsupported", name: "logout" });
+    expect(classifyFirstWord("/plan the pricing page", antigravity)).toEqual({ kind: "unsupported", name: "plan" });
     expect(classifyFirstWord("/clear", commandLists("codex", [command("compact"), command("review")]))).toEqual({ kind: "unsupported", name: "clear" });
-  });
-  // A live check confirmed Antigravity's /plan runs: the plan comes back as the reply and the next message ("Proceed") runs it.
-  it("sends Antigravity's /plan as a command, and as text before the server lists it, never as a card", () => {
-    expect(classifyFirstWord("/plan the pricing page", commandLists("antigravity", [command("plan")], ["plan", "logout"]))).toEqual({ kind: "command", name: "plan", args: "the pricing page" });
-    expect(classifyFirstWord("/plan the pricing page", commandLists("antigravity", []))).toEqual({ kind: "text" });
   });
   it("reads a project skill before a command of the same name", () => {
     const lists = commandLists("claude", [skill("context"), command("context")]);
@@ -129,9 +125,12 @@ describe("commandCard", () => {
       title: "/model doesn’t run in Doan", body: "Choose the model from the model picker.", action: { label: "Open model picker", target: "modelPicker" },
     });
   });
-  it("points Antigravity /logout to Settings > Agents", () => {
+  it("points Antigravity /logout to Settings > Agents and /plan to the permission picker", () => {
     expect(commandCard("antigravity", "logout")).toEqual({
       title: "/logout doesn’t run in Doan", body: "Sign out from Settings > Agents.", action: { label: "Open Agents settings", target: "agentsSettings" },
+    });
+    expect(commandCard("antigravity", "plan")).toEqual({
+      title: "/plan doesn’t run in Doan", body: "Use Plan mode in the permission picker.", action: { label: "Open permission picker", target: "permissionPicker" },
     });
   });
   it("points /logout and /login to Settings > Agents and /permissions to the permission picker for every provider", () => {

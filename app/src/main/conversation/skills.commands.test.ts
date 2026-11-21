@@ -41,7 +41,7 @@ describe("allowedCommands", () => {
     expect(allowedCommands("copilot", "1.0.105", reported)).toEqual([command("compact", "Shrink the history."), command("usage", "")]);
     expect(allowedCommands("copilot", "1.0.105")).toEqual([]);
     expect(allowedCommands("cursor", "2026.10.22-27dcf5f", new Map([["copy-request-id", "Copy the last request ID."]]))).toEqual([command("copy-request-id", "Copy the last request ID.")]);
-    expect(allowedCommands("antigravity", "1.3.0", new Map([["plan", ""], ["logout", ""]]))).toEqual([command("plan", "")]);
+    expect(allowedCommands("antigravity", "1.3.0", new Map([["plan", ""], ["logout", ""]]))).toEqual([]);
   });
   // Claude's SDK list lacks /review (an alias of code-review), which runs, so the list only lends descriptions.
   it("keeps Claude's fixed rows whatever the SDK listed, and takes a real SDK description", () => {
@@ -76,7 +76,6 @@ describe("parseAcpCommands", () => {
       command("compact", "Server compact."), command("review", "Server review."), command("usage", "Server usage."),
     ]);
     expect(parseAcpCommands("cursor", acpUpdate("rename-chat", "copy-request-id", "statusline"), "2026.10.22")).toEqual([command("copy-request-id", "Server copy-request-id.")]);
-    expect(parseAcpCommands("antigravity", acpUpdate("plan", "logout"), "1.3.0")).toEqual([command("plan", "Server plan.")]);
     expect(parseAcpCommands("antigravity", acpUpdate("plan", "logout"), undefined)).toEqual([]);
   });
   it("skips rows it cannot read and keeps a description's first line", () => {

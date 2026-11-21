@@ -16,13 +16,10 @@ describe("commandName", () => {
     expect(commandName("claude", "/new")).toBe("clear");
     expect(commandName("codex", "/new")).toBeNull();
   });
-  it("names Antigravity's /plan, which a live check confirmed runs", () => {
-    expect(commandName("antigravity", "/plan ship it")).toBe("plan");
-    expect(commandName("antigravity", "/plan")).toBe("plan");
-  });
   it("names nothing for a provider whose table lacks the command", () => {
     expect(commandName("codex", "/clear")).toBeNull();
     expect(commandName("copilot", "/clear")).toBeNull();
+    expect(commandName("antigravity", "/plan ship it")).toBeNull();
     expect(commandName("cursor", "/compact")).toBeNull();
   });
   it("names nothing for text that is not a whole command message", () => {
@@ -41,14 +38,14 @@ describe("unsupportedCommand", () => {
     expect(unsupportedCommand("claude", "/model해줘")).toBe("model");
     expect(unsupportedCommand("claude", "/config,")).toBe("config");
   });
-  it("names the candidates a provider does not run", () => {
+  it("names the candidates a provider does not run and Antigravity's /plan", () => {
     expect(unsupportedCommand("codex", "/clear")).toBe("clear");
     expect(unsupportedCommand("cursor", "/compact now")).toBe("compact");
+    expect(unsupportedCommand("antigravity", "/plan ship it")).toBe("plan");
   });
   it("names nothing for commands that run, paths, later words and unknown names", () => {
     expect(unsupportedCommand("claude", "/compact")).toBeNull();
     expect(unsupportedCommand("copilot", "/clear")).toBeNull();
-    expect(unsupportedCommand("antigravity", "/plan ship it")).toBeNull();
     expect(unsupportedCommand("claude", "/Users/me/model")).toBeNull();
     expect(unsupportedCommand("claude", "/model/x")).toBeNull();
     expect(unsupportedCommand("claude", "/models")).toBeNull();
