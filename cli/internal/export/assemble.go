@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"html"
+	"slices"
 	"strconv"
 	"strings"
 
 	nethtml "golang.org/x/net/html"
+
+	"github.com/SinhyeokKang/doan-design/cli/internal/canvas"
 )
 
 // The viewer files are the page `doan export` writes around a canvas. Their
@@ -32,8 +35,10 @@ var byteOrderMark = []byte("\xef\xbb\xbf")
 // Assemble wraps the rewritten canvas HTML in the viewer page. The canvas goes
 // into a sandboxed iframe's srcdoc, with the measure script injected into its
 // head. The placeholders in shell.html are replaced in one pass, so a canvas
-// (or a name) that contains one is never expanded.
-func Assemble(m Meta, canvasHTML []byte) ([]byte, error) {
+// (or a name) that contains one is never expanded. META also carries, judged
+// from c (the canvas file as parsed), what the viewer needs to write any
+// frame's prototype file by joining strings (prototypeExports).
+func Assemble(m Meta, c canvas.Canvas, canvasHTML []byte) ([]byte, error) {
 	if m.Width < 1 {
 		return nil, errors.New("canvas width must be a positive integer")
 	}
@@ -46,13 +51,6 @@ func Assemble(m Meta, canvasHTML []byte) ([]byte, error) {
 		files[name] = string(b)
 	}
 	shell, style, lib, shellJS, measure := files["shell.html"], files["shell.css"], files["lib.js"], files["shell.js"], files["measure.js"]
-	meta, err := json.Marshal(struct {
-		Name  string `json:"name"`
-		Width int    `json:"width"`
-	}{m.Name, m.Width})
-	if err != nil {
-		return nil, err
-	}
 	// Both scripts are wrapped in a function: lib.js and the other files declare
 	// top-level names that must not become globals of the canvas.
 	shellScript := "(function () {\n" + lib + "\n" + files["inspectPanel.js"] + "\n" + files["inspectMessage.js"] + "\n" + files["inspectView.js"] + "\n" + shellJS + "\n})();"
@@ -60,9 +58,23 @@ func Assemble(m Meta, canvasHTML []byte) ([]byte, error) {
 
 	// A browser drops a byte order mark; in a srcdoc string it would be text and
 	// put the canvas into quirks mode.
-	canvas := bytes.TrimPrefix(canvasHTML, byteOrderMark)
-	at := measureOffset(canvas)
-	srcdoc := [][]byte{canvas[:at], []byte(measureScript), canvas[at:]}
+	src := bytes.TrimPrefix(canvasHTML, byteOrderMark)
+	at := measureOffset(src)
+	srcdoc := [][]byte{src[:at], []byte(measureScript), src[at:]}
+
+	exports, err := prototypeExports(c, src[:at], measureScript)
+	if err != nil {
+		return nil, err
+	}
+	// shell.js reads name and width; the viewer's prototype code reads the rest.
+	meta, err := json.Marshal(struct {
+		Name      string       `json:"name"`
+		Width     int          `json:"width"`
+		Prototype frameExports `json:"prototype"`
+	}{m.Name, m.Width, exports})
+	if err != nil {
+		return nil, err
+	}
 
 	values := map[string]string{
 		"{{NAME}}":    html.EscapeString(m.Name),
@@ -104,54 +116,267 @@ func AssemblePrototype(m Meta, p Proto, canvasHTML []byte) ([]byte, error) {
 	if p.Frame == "" {
 		return nil, errors.New("prototype frame id must not be empty")
 	}
-	type frame struct {
-		ID    string `json:"id"`
-		Title string `json:"title"`
-	}
-	frames := make([]frame, 0, len(p.Frames))
+	frames := protoFrames(p.Frames)
 	label := ""
-	for _, f := range p.Frames {
-		name := f.Title
-		if name == "" {
-			name = f.ID
-		}
-		frames = append(frames, frame{f.ID, name})
+	for _, f := range frames {
 		if f.ID == p.Frame {
-			label = name
+			label = f.Title
 		}
 	}
 	if label == "" {
 		return nil, errors.New("prototype start frame must be in its group")
 	}
-	files := map[string]string{}
-	for _, name := range []string{"prototype.html", "prototype.css", "prototype.js", "isolate.js"} {
-		b, err := viewerFS.ReadFile("viewer/" + name)
-		if err != nil {
-			return nil, err
-		}
-		files[name] = string(b)
+	shell, values, isolateScript, err := prototypeFiles()
+	if err != nil {
+		return nil, err
 	}
 	// json.Marshal writes "<", ">", "&", U+2028 and U+2029 as escapes, so no id or title can end the script element
 	// the group sits in or open an HTML comment in it.
 	meta, err := json.Marshal(struct {
-		Start  string  `json:"start"`
-		Frames []frame `json:"frames"`
+		Start  string       `json:"start"`
+		Frames []protoFrame `json:"frames"`
 	}{p.Frame, frames})
 	if err != nil {
 		return nil, err
 	}
-	isolateScript := "<script>(function () {\n" + files["isolate.js"] + "\n})();</script>"
 
-	canvas := bytes.TrimPrefix(canvasHTML, byteOrderMark)
-	at := measureOffset(canvas)
-	srcdoc := [][]byte{canvas[:at], []byte(isolateScript), canvas[at:]}
-	values := map[string]string{
-		"{{NAME}}":   html.EscapeString(label),
-		"{{META}}":   string(meta),
+	src := bytes.TrimPrefix(canvasHTML, byteOrderMark)
+	at := measureOffset(src)
+	srcdoc := [][]byte{src[:at], []byte(isolateScript), src[at:]}
+	values["{{NAME}}"] = html.EscapeString(label)
+	values["{{META}}"] = string(meta)
+	return fillPage(shell, values, srcdoc), nil
+}
+
+// protoFrame is one frame of a prototype page's group JSON, named as the page shows it: its title, else its id.
+type protoFrame struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+func protoFrames(frames []ProtoFrame) []protoFrame {
+	out := make([]protoFrame, 0, len(frames))
+	for _, f := range frames {
+		name := f.Title
+		if name == "" {
+			name = f.ID
+		}
+		out = append(out, protoFrame{f.ID, name})
+	}
+	return out
+}
+
+// prototypeFiles reads the prototype page: its shell, the STYLE and SCRIPT values, and the isolation script that
+// goes first in the canvas's head.
+func prototypeFiles() (shell string, values map[string]string, isolateScript string, err error) {
+	files := map[string]string{}
+	for _, name := range []string{"prototype.html", "prototype.css", "prototype.js", "isolate.js"} {
+		b, err := viewerFS.ReadFile("viewer/" + name)
+		if err != nil {
+			return "", nil, "", err
+		}
+		files[name] = string(b)
+	}
+	values = map[string]string{
 		"{{STYLE}}":  files["prototype.css"],
 		"{{SCRIPT}}": "(function () {\n" + files["prototype.js"] + "\n})();",
 	}
-	return fillPage(files["prototype.html"], values, srcdoc), nil
+	return files["prototype.html"], values, "<script>(function () {\n" + files["isolate.js"] + "\n})();</script>", nil
+}
+
+// ProtoGroup is what a prototype file plays from start: the start frame's link group as the file states it, uncut
+// (canvas.LinkGroups), each frame with its title. A playable start frame is in exactly one group, and each id in it
+// names one frame, so its title is not ambiguous. `doan export --prototype` and the general Export's prototype data
+// both judge the group here.
+func ProtoGroup(c canvas.Canvas, start string) Proto {
+	proto := Proto{Frame: start}
+	for _, group := range canvas.LinkGroups(c) {
+		if slices.Contains(group, start) {
+			proto.Frames = groupFrames(c, group)
+		}
+	}
+	return proto
+}
+
+func groupFrames(c canvas.Canvas, ids []string) []ProtoFrame {
+	frames := make([]ProtoFrame, 0, len(ids))
+	for _, id := range ids {
+		f := ProtoFrame{ID: id}
+		if played, _ := canvas.PrototypeTarget(c, id); played.Title != nil {
+			f.Title = *played.Title
+		}
+		frames = append(frames, f)
+	}
+	return frames
+}
+
+// frameExports is the "prototype" member of the general Export's META: what the viewer needs to write the
+// prototype file of a frame (the file `doan export --frame <id> --prototype` writes) by joining strings, so the
+// browser never re-implements this file's escaping or judgment. For a frame f of Frames the file is
+//
+//	Page[0] + f.Name + Page[1] + f.Start + Page[2] + Groups[f.Group] + Page[3] + escape(canvas) + Page[4]
+//
+// where canvas is the board iframe's srcdoc as the browser reads it, with the Measure range replaced by Isolate,
+// and escape writes & as &amp; and " as &quot;. The result is byte-identical for an LF-only, valid UTF-8 canvas;
+// otherwise the parser has normalized the srcdoc and the file parses the same.
+type frameExports struct {
+	// Frames are the frames the file lets the CLI export (canvas.PrototypeTarget), in document order.
+	Frames []exportFrame `json:"frames"`
+	// Refused names the frames the file has but the CLI refuses, once per id in the order of first appearance. An
+	// id the file does not have at all is a frame a script made. An id over 200 UTF-16 units is left out, since no
+	// running frame can carry one.
+	Refused []exportRefusal `json:"refused"`
+	// Groups holds each link group's "frames" JSON, in canvas.LinkGroups order.
+	Groups []string `json:"groups"`
+	// Page is prototype.html with STYLE and SCRIPT filled, cut at NAME, at the META values and at SRCDOC.
+	Page []string `json:"page"`
+	// Isolate is the script prototype files carry first in the canvas's head.
+	Isolate string `json:"isolate"`
+	// Measure is the measure script's place in the srcdoc string, in UTF-16 units.
+	Measure measureRange `json:"measure"`
+}
+
+type exportFrame struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`  // NAME: the title, else the id, escaped as HTML text
+	Start string `json:"start"` // META's start value: the id as JSON
+	Group int    `json:"group"` // index into Groups
+}
+
+type exportRefusal struct {
+	ID     string `json:"id"`
+	Reason string `json:"reason"` // "unmarked" (no valid mark) or "shared" (another frame has the id)
+}
+
+type measureRange struct {
+	Offset int `json:"offset"`
+	Length int `json:"length"`
+}
+
+// prototypeExports judges c's frames and pre-renders the prototype page around them. before is the canvas before
+// the measure script, which goes in at that point.
+func prototypeExports(c canvas.Canvas, before []byte, measureScript string) (frameExports, error) {
+	shell, values, isolateScript, err := prototypeFiles()
+	if err != nil {
+		return frameExports{}, err
+	}
+	var pieces []string
+	var cuts []string
+	var piece strings.Builder
+	fillShell(shell, func(s string) { piece.WriteString(s) }, func(key string) {
+		switch key {
+		case "{{NAME}}", "{{META}}", srcdocKey:
+			pieces, cuts = append(pieces, piece.String()), append(cuts, key)
+			piece.Reset()
+		default:
+			piece.WriteString(values[key])
+		}
+	})
+	pieces = append(pieces, piece.String())
+	if !slices.Equal(cuts, []string{"{{NAME}}", "{{META}}", srcdocKey}) {
+		return frameExports{}, errors.New("prototype.html must hold NAME, META and SRCDOC once each, in that order")
+	}
+	out := frameExports{
+		Frames:  []exportFrame{},
+		Refused: []exportRefusal{},
+		Groups:  []string{},
+		// META is the struct AssemblePrototype marshals, whose JSON is always {"start":<start>,"frames":<frames>}.
+		Page:    []string{pieces[0], pieces[1] + `{"start":`, `,"frames":`, `}` + pieces[2], pieces[3]},
+		Isolate: isolateScript,
+		// The browser reads the srcdoc as UTF-16 after decoding and newline normalization, which a CR LF or a broken
+		// byte before the head would shift from a byte count.
+		Measure: measureRange{browserUnits(before), browserUnits([]byte(measureScript))},
+	}
+	group := map[string]int{}
+	for i, ids := range canvas.LinkGroups(c) {
+		frames, err := json.Marshal(protoFrames(groupFrames(c, ids)))
+		if err != nil {
+			return frameExports{}, err
+		}
+		out.Groups = append(out.Groups, string(frames))
+		for _, id := range ids {
+			group[id] = i
+		}
+	}
+	seen := map[string]bool{}
+	for _, f := range c.Frames {
+		if f.ID == "" || seen[f.ID] {
+			continue
+		}
+		seen[f.ID] = true
+		played, refusal := canvas.PrototypeTarget(c, f.ID)
+		switch refusal {
+		case canvas.PrototypeOK:
+			start, err := json.Marshal(f.ID)
+			if err != nil {
+				return frameExports{}, err
+			}
+			name := f.ID
+			if played.Title != nil && *played.Title != "" {
+				name = *played.Title
+			}
+			out.Frames = append(out.Frames, exportFrame{f.ID, html.EscapeString(name), string(start), group[f.ID]})
+		case canvas.PrototypeShared:
+			out.Refused = append(out.Refused, exportRefusal{f.ID, "shared"})
+		case canvas.PrototypeNotMarked:
+			out.Refused = append(out.Refused, exportRefusal{f.ID, "unmarked"})
+		}
+	}
+	return out, nil
+}
+
+// browserUnits is the length, in UTF-16 units, of the string a browser reads for b inside an attribute value of a
+// UTF-8 page: the WHATWG UTF-8 decoder writes one U+FFFD for each maximal invalid subpart (Go's decoder writes one
+// per byte), and the input stream reads CR LF as one LF. A NUL becomes U+FFFD, which keeps the count.
+func browserUnits(b []byte) int {
+	n := 0
+	for i := 0; i < len(b); {
+		c := b[i]
+		if c < 0x80 {
+			if c != '\r' || i+1 == len(b) || b[i+1] != '\n' {
+				n++
+			}
+			i++
+			continue
+		}
+		need, lo, hi := 0, byte(0x80), byte(0xBF)
+		switch {
+		case c >= 0xC2 && c <= 0xDF:
+			need = 1
+		case c == 0xE0:
+			need, lo = 2, 0xA0
+		case c == 0xED:
+			need, hi = 2, 0x9F
+		case c >= 0xE1 && c <= 0xEF:
+			need = 2
+		case c == 0xF0:
+			need, lo = 3, 0x90
+		case c == 0xF4:
+			need, hi = 3, 0x8F
+		case c >= 0xF1 && c <= 0xF3:
+			need = 3
+		default:
+			n++
+			i++
+			continue
+		}
+		j := i + 1
+		for k := 0; k < need && j < len(b) && b[j] >= lo && b[j] <= hi; k++ {
+			lo, hi = 0x80, 0xBF
+			j++
+		}
+		switch {
+		case j-i <= need:
+			// A cut sequence: one U+FFFD, and the byte that broke it is read again.
+			n++
+		case need == 3:
+			n += 2
+		default:
+			n++
+		}
+		i = j
+	}
+	return n
 }
 
 // fillPage writes shell into one buffer of its final size, with the srcdoc

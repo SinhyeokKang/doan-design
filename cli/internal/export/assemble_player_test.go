@@ -272,7 +272,7 @@ func TestAssembleHoldsThePrototypePageOnceAsData(t *testing.T) {
 		t.Fatal("the isolation script is not isolate.js in one function")
 	}
 	// The general Export is still the canvas viewer page and only that.
-	if strings.Contains(raw, "— Prototype</title>") || strings.Contains(raw, "Open this file in a web browser to play this prototype.</span></p></noscript>") || strings.Contains(raw, `id="doan-prototype"`) || strings.Contains(raw, "data-srcdoc=") {
+	if strings.Contains(raw, "— Prototype</title>") || strings.Contains(raw, "Open this file in a web browser to play this prototype.</span></p></noscript>") || strings.Contains(raw, `id="doan-prototype"`) || strings.Contains(raw, `data-srcdoc="`) {
 		t.Fatal("the general Export carries prototype markup")
 	}
 	parsed, err := nethtml.Parse(strings.NewReader(raw))

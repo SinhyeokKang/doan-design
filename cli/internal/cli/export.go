@@ -11,7 +11,6 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -100,11 +99,11 @@ func Export(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	var page []byte
 	var proto export.Proto
 	if frame != nil {
-		proto = prototypeGroup(model, played.ID)
+		proto = export.ProtoGroup(model, played.ID)
 		page, err = export.AssemblePrototype(meta, proto, inlined.HTML)
 	} else {
 		meta.Project = exportProjectName(r.Root, repo.ReadGit(r.Root, ctx.Home))
-		page, err = export.Assemble(meta, inlined.HTML)
+		page, err = export.Assemble(meta, model, inlined.HTML)
 	}
 	if err != nil {
 		return Outcome{}, exportInternal(err)
@@ -122,25 +121,6 @@ func Export(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		return Outcome{Result: result, Text: fmt.Sprintf("Exported %s frame %s to %s (%d bytes)", canvasPath, *frame, output, len(page))}, nil
 	}
 	return Outcome{Result: result, Text: fmt.Sprintf("Exported %s to %s (%d bytes)", canvasPath, output, len(page))}, nil
-}
-
-// prototypeGroup is what an exported prototype plays: the start frame's link group as the file states it, uncut. A
-// playable start frame is in exactly one group, and each id in it names one frame, so its title is not ambiguous.
-func prototypeGroup(model canvas.Canvas, start string) export.Proto {
-	proto := export.Proto{Frame: start}
-	for _, group := range canvas.LinkGroups(model) {
-		if !slices.Contains(group, start) {
-			continue
-		}
-		for _, id := range group {
-			f := export.ProtoFrame{ID: id}
-			if played, _ := canvas.PrototypeTarget(model, id); played.Title != nil {
-				f.Title = *played.Title
-			}
-			proto.Frames = append(proto.Frames, f)
-		}
-	}
-	return proto
 }
 
 // canvasArgLabel names the canvas argument without an absolute path, which an export message must not hold:
