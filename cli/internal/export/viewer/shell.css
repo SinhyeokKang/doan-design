@@ -420,6 +420,7 @@ html:not(.js) :is(.ov-sep:not(.doan-canvas-sep-root), .ov-title-wrap, .doan-canv
    leave that to source order. */
 .vw-tool-tip { position: absolute; z-index: 4; transform: translate(-50%, -100%); pointer-events: none; }
 .vw-tool-tip[hidden] { display: none; }
+.vw-tool-tip > .vw-tip-label { min-width: 0; white-space: normal; }
 
 /* ── Tools row (styles.css) ──────────────────────────────────────────────────── */
 .doan-canvas-bottom { position: absolute; z-index: 3; bottom: var(--space-5); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: var(--space-2); width: max-content; max-width: calc(100% - 2 * var(--space-3)); pointer-events: none; }
@@ -427,13 +428,16 @@ html:not(.js) :is(.ov-sep:not(.doan-canvas-sep-root), .ov-title-wrap, .doan-canv
 .doan-canvas-tools { display: flex; align-items: center; gap: var(--space-half); }
 .doan-canvas-tools .doan-icon-button { color: var(--text-standard); }
 .doan-canvas-tools > .doan-icon-button.doan-canvas-tool[aria-pressed="true"]:not(:disabled) { background: var(--affordance-backdrop-pressed); }
-.doan-canvas-tools > .doan-icon-button.doan-canvas-tool[aria-disabled="true"] { color: var(--text-disabled); }
+/* The app takes the default cursor for every aria-disabled button (ds/controls.css); this page has no such
+   shared rule, so the unavailable Play would show the pointer. */
+.doan-canvas-tools > .doan-icon-button.doan-canvas-tool[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
 .doan-canvas-tools-sep { flex: none; width: 1px; height: var(--space-5); margin-inline: var(--space-1); background: var(--border-standard); }
 @media (hover: hover) and (pointer: fine) { .doan-canvas-tools > .doan-canvas-tool[aria-disabled="true"]:hover { background: transparent; } }
 .doan-canvas-tools > .doan-canvas-tool[aria-disabled="true"]:active { background: transparent; }
-/* The play drawer opens above Play prototype, centred on it (the app's popover: side top, 4 away);
-   shell.js sets its left to the button's centre. */
-.doan-frame-list.vw-play-drawer { top: auto; bottom: calc(100% + var(--space-1)); transform: translateX(-50%); }
+/* The play drawer opens above Play prototype, centred on it (the app's popover: side top, 4 away from the
+   button); shell.js sets its left to the button's centre and its bottom to the button's top, which sits
+   inside the tools row's padding and border, so the margin is the whole gap. */
+.doan-frame-list.vw-play-drawer { top: auto; bottom: 100%; margin-bottom: var(--space-1); transform: translateX(-50%); }
 /* Without JavaScript the tools cannot work, so the row is not there (like the header's tools). */
 html:not(.js) .doan-canvas-bottom { display: none; }
 
@@ -609,6 +613,8 @@ html:not(.js) .doan-canvas-bottom { display: none; }
 .pw-right { position: absolute; top: 0; right: var(--space-2); display: flex; align-items: center; gap: var(--space-1); height: var(--size-chrome); }
 .pw-drawer { position: absolute; z-index: 7; width: 320px; transform: translateX(-50%); }
 .pw-drawer [role="listbox"][hidden], .pw-drawer-empty[hidden] { display: none; }
+/* The drawer sits in the header, whose 16px icon rule would otherwise reach the row marks (14px in the app). */
+.pw-drawer .doan-frame-current svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .pw-drawer-empty { padding: var(--space-2) var(--space-3); color: var(--text-subtle); white-space: normal; }
 .pw-tip { position: absolute; z-index: 8; }
 
@@ -631,7 +637,6 @@ html:not(.js) .doan-canvas-bottom { display: none; }
 .pw-panel > .problem-overlay { position: absolute; inset: 0; z-index: 5; display: flex; overflow-y: auto; padding-block: var(--space-6); border-radius: inherit; background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
 @media (prefers-reduced-transparency: reduce) { .pw-panel > .problem-overlay { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 .pw-panel > .problem-overlay[hidden] { display: none; }
-.pw-panel > .problem-overlay.reading { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .problem-overlay > :is(.problem-scene, .problem-reading) { margin: auto; }
 .problem-scene { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 560px; padding: 0 var(--space-6); text-align: center; }
 .problem-scene .problem-icon { flex: none; width: 32px; height: 32px; stroke-width: 1.5; margin-bottom: var(--space-4); color: var(--text-subtle); }

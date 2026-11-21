@@ -596,9 +596,16 @@ function scheduleTip(button) {
 
 function showTip(button) {
   const shortcut = button.getAttribute("aria-keyshortcuts");
-  tip.textContent = button === playButton ? playReason.textContent : button.dataset.tip ?? button.getAttribute("aria-label");
+  const text = button === playButton ? playReason.textContent : button.dataset.tip ?? button.getAttribute("aria-label");
   tip.classList.toggle("has-key", shortcut !== null);
+  tip.textContent = shortcut === null ? text : "";
   if (shortcut !== null) {
+    // The label in its own box, so a label longer than the tooltip's width (Select's) wraps before its key
+    // instead of pushing the key out of the capsule.
+    const label = document.createElement("span");
+    label.className = "vw-tip-label";
+    label.textContent = text;
+    tip.append(label);
     const key = document.createElement("span");
     key.className = "doan-kbd";
     key.setAttribute("data-ui-variant", "on-prominent");
@@ -818,6 +825,7 @@ const playPopup = (() => {
       const holder = playPanel.parentElement.getBoundingClientRect();
       const button = playButton.getBoundingClientRect();
       playPanel.style.left = button.left + button.width / 2 - holder.left + "px";
+      playPanel.style.bottom = holder.bottom - button.top + "px";
       playPanel.hidden = false;
       playButton.setAttribute("aria-expanded", "true");
       inspector.syncOverlay();

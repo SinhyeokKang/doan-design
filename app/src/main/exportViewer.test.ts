@@ -2093,6 +2093,8 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     await play.press("Enter");
     const list = frame.getByRole("listbox", { name: "Prototype frames in checkout" });
     await list.waitFor();
+    // 4 above the button itself, as the app's popover (side top, sideOffset 4), not above the tools row's ring.
+    expect(await frame.evaluate(() => document.getElementById("play")!.getBoundingClientRect().top - document.getElementById("play-drawer")!.getBoundingClientRect().bottom)).toBeCloseTo(4, 1);
     expect(await list.getByRole("group").evaluateAll(groups => groups.map(group => [group.getAttribute("aria-label"), Array.from(group.querySelectorAll('[role="option"]'), row => row.textContent)]))).toEqual([
       ["Cart and 1 more", ["1Cart", "3Payment"]], ["Frames without links", ["6Card"]],
     ]);
@@ -2113,9 +2115,30 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     const frame = await openCanvas(twoFrames);
     await expect.poll(() => reason(frame)).toBe("No frames in this canvas are marked for prototyping.");
     expect(await frame.locator("#play").getAttribute("aria-disabled")).toBe("true");
+    // The app's aria-disabled buttons take the default arrow (ds/controls.css), the unavailable Play among them.
+    expect(await frame.locator("#play").evaluate(el => getComputedStyle(el).cursor)).toBe("default");
     // Playwright does not click an aria-disabled control; a person can, and nothing opens.
     await frame.locator("#play").dispatchEvent("click");
     expect(await frame.locator("#play-drawer").isHidden()).toBe(true);
+  });
+
+  test("a tool's label longer than its tooltip wraps before the key, which stays inside the capsule", async () => {
+    const frame = await openCanvas(playBoard);
+    const tip = async (tool: string) => {
+      await frame.locator(`[data-tool="${tool}"]`).hover();
+      await frame.locator("#tool-tip").waitFor();
+      return frame.locator("#tool-tip").evaluate(el => {
+        const box = el.getBoundingClientRect(), key = el.querySelector(".doan-kbd")!.getBoundingClientRect();
+        return { label: el.querySelector(".vw-tip-label")?.textContent, key: el.querySelector(".doan-kbd")?.textContent, overflow: el.scrollWidth - el.clientWidth,
+          keyInside: key.left >= box.left && key.right <= box.right, height: box.height };
+      });
+    };
+    const select = await tip("select");
+    expect(select).toMatchObject({ label: "Select — Option-click (Alt-click) to use the canvas’s buttons and fields", key: "V", overflow: 0, keyInside: true });
+    expect(select.height).toBeGreaterThan(24);
+    await frame.locator('[data-tool="hand"]').hover();
+    await expect.poll(() => frame.locator("#tool-tip .vw-tip-label").textContent()).toBe("Hand");
+    expect(await tip("hand")).toMatchObject({ label: "Hand", key: "H", overflow: 0, keyInside: true, height: 24 });
   });
 
   test("when the bubble's Play goes while it has keyboard focus, the toolbar's Play prototype takes it", async () => {
@@ -2531,9 +2554,32 @@ describe("viewerApp.js: the app's judgments, generated", () => {
 // What the player decides is the app's (viewerApp.js); these pin the browser's own rules: its address, its strings to
 // and from the board, its copy, its header rows and what a reload of the window keeps.
 // The player's copy is in player.js (the board shares it), which defines only names at load: read with no globals.
-const pc: Lib = playerJs ? runInNewContext(`${playerJs}\n({ PLAYER_COPY, linkToastText })`, {}) as Lib : {};
+const pc: Lib = playerJs ? runInNewContext(`${playerJs}\n({ PLAYER_COPY, linkToastText, READING_DELAY_MS })`, {}) as Lib : {};
 
 describe("the browser player's rules", () => {
+  test("the reading line waits as long as the app's", () => {
+    const app = readFileSync(new URL("../renderer/prototype/PrototypeWindow.tsx", import.meta.url), "utf8");
+    const delay = Number(/const READING_DELAY_MS = (\d+);/.exec(app)?.[1]);
+    expect(delay).toBeGreaterThan(0);
+    expect(pc.READING_DELAY_MS).toBe(delay);
+  });
+
+  test("the reading line and the failure share the app's translucent overlay over the content panel", () => {
+    // The app's prototype window has no opaque reading overlay (that one is the main window's workspace rule).
+    const overlay = declarations(shellCss, ".pw-panel > .problem-overlay");
+    for (const rule of ["background: color-mix(in srgb, var(--surface-panel) 60%, transparent)", "backdrop-filter: blur(var(--blur-sm))", "padding-block: var(--space-6)"]) {
+      expect(overlay, rule).toContain(rule);
+      expect(declarations(stylesCss, ":is(.pw-panel, .add-panel) > .problem-overlay"), rule).toContain(rule);
+    }
+    expect(shellCss).not.toMatch(/\.problem-overlay\.reading\s*\{/);
+    expect(stylesCss).not.toMatch(/\.pw-panel[^{]*\.problem-overlay\.reading/);
+  });
+
+  test("the drawer's marks keep the app's 14 px under the header's 16 px icons", () => {
+    expect(declarations(shellCss, ".pw-top svg")).toContain("width: var(--size-icon)");
+    expect(declarations(shellCss, ".pw-drawer .doan-frame-current svg")).toEqual(declarations(stylesCss, ".doan-frame-current svg"));
+  });
+
   test("its copy is the browser copy: the sender and the shared file, never Doan or an agent", () => {
     expect(pc.PLAYER_COPY).toEqual({
       blocked: "Your browser blocked the prototype window. Allow pop-ups, then press Play again.",
