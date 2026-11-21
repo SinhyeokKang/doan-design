@@ -362,7 +362,8 @@ test("a loop over seq with whole-number operands runs once per number seq prints
   assert.deepEqual(commandWords("for i in $(seq 3); do echo $i; done"), [["seq", "3"], ["echo", "1"], ["echo", "2"], ["echo", "3"]]);
   assert.deepEqual(commandWords("for i in $(seq 2 2 6); do echo $i; done"), [["seq", "2", "2", "6"], ["echo", "2"], ["echo", "4"], ["echo", "6"]]);
   assert.deepEqual(commandWords("for i in $(seq 5 -2 1); do echo $i; done"), [["seq", "5", "-2", "1"], ["echo", "5"], ["echo", "3"], ["echo", "1"]]);
-  assert.deepEqual(commandWords("for i in $(seq 3 1); do echo $i; done; doan active"), [["seq", "3", "1"], ["doan", "active"]]);
+  // GNU and BSD seq both print nothing when an explicit step points away from the last number.
+  assert.deepEqual(commandWords("for i in $(seq 1 -1 5); do echo $i; done; doan active"), [["seq", "1", "-1", "5"], ["doan", "active"]]);
   assert.deepEqual(commandWords("for i in a $(seq 2) b; do echo $i; done"), [["seq", "2"], ["echo", "a"], ["echo", "1"], ["echo", "2"], ["echo", "b"]]);
   assert.deepEqual(commandWords("for i in `seq 2`; do echo $i; done"), [["seq", "2"], ["echo", "1"], ["echo", "2"]]);
 });
@@ -372,10 +373,15 @@ test("a loop over any other substitution, or seq the reader cannot evaluate, sta
     "x$(seq 1 3)", "$(seq 1 3)x", // joined to other text
     "$(seq 1 300)", // past the loop budget
     "$(seq 1 0 3)", "$(seq 3 0 1)", // a zero step never ends
+    "$(seq 3 1)", "$(seq 0)", // no step and counting down: GNU prints nothing, macOS's BSD seq counts down
     "$(seq -w 1 3)", "$(seq 1.5 3)", "$(seq a 3)", "$(seq)", "$(seq 1 2 3 4)", // options, fractions, words, wrong arity
     "$(seq 1 3 | tac)", "$(seq 1 3; doan init)", "$(echo 1 2)", "$(ls)",
   ]) {
     assert.equal(parseCommand(`for i in ${list}; do doan design-skill harden; done`).incomplete, true, list);
+  }
+  // A seq function or alias, or another IFS, changes what the loop gets.
+  for (const before of ["seq() { echo 9; }", "alias seq='echo 9'", "IFS=,", "export IFS=,", "local IFS=,"]) {
+    assert.equal(parseCommand(`${before}; for i in $(seq 1 3); do doan design-skill harden; done`).incomplete, true, before);
   }
 });
 test("a shell compound or reserved word the reader does not follow makes the rest of the command incomplete", () => {
