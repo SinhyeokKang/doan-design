@@ -2711,7 +2711,7 @@ describe("the player's Export prototype", () => {
     // The app's save panel's name, character for character: `/`, `:` and control characters become hyphens (a browser
     // would replace them its own way, and WebKit names a file with a control character "example.com").
     expect(px.exportFileName("board", 'we/ird:*?"<>|id')).toBe('board-we-ird-*?"<>|id.html');
-    for (const [stem, id] of [["names", "line\nid"], ["names", "tab\tid"], ["names", "a/b:c"], ["na:me", "x\u0000\u001f\u007fy"], ["board", "😀 \u00e9 ~$#&"], ["", "only-id"], ["", "a/b\nc"]]) {
+    for (const [stem, id] of [["names", "line\nid"], ["names", "tab\tid"], ["names", "a/b:c"], ["na:me", "x\u0000\u001f\u007fy"], ["board", "😀 \u00e9 ~$#&"], ["", "only-id"], ["", "a/b\nc"]] as const) {
       const path = ".doan/canvases/" + stem + ".html";
       expect(px.exportFileName(stem, id), JSON.stringify([stem, id])).toBe(appPrototypeExportName(path, id));
     }

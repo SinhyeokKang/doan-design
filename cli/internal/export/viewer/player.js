@@ -197,10 +197,13 @@ function exportRefusedText(frame, reason) {
   return "Couldn’t export “" + frame + "”. " + EXPORT_REFUSED[reason];
 }
 
-// The app's save panel names the file <canvas file stem>-<frame id>.html. Past MAX_FILE_NAME the stem and id lose
-// their end, never half of a surrogate pair, and .html stays.
+// The app's save panel's name (canvasExport.ts prototypeExportName): <canvas file stem>-<frame id>.html, the id alone
+// for a canvas file named only .html, with `/`, `:` and control characters as hyphens. Left to the browser, they
+// would be replaced its own way, and WebKit names a file with a control character "example.com". Past MAX_FILE_NAME
+// the stem and id lose their end, never half of a surrogate pair, and .html stays; a hyphen replaces one unit, so
+// it moves no cut.
 function exportFileName(stem, id) {
-  const base = stem + "-" + id;
+  const base = (stem === "" ? id : stem + "-" + id).replace(/[/:\u0000-\u001f\u007f]/g, "-");
   const room = MAX_FILE_NAME - ".html".length;
   if (base.length <= room) return base + ".html";
   const last = base.charCodeAt(room - 1);
@@ -690,7 +693,8 @@ function startPlayer() {
       link.click();
       link.remove();
       result = exportRequestedText(frame, plan.linked, proto.external);
-    } catch {
+    } catch (error) {
+      console.error(error);
       result = exportRefusedText(frame, "failed");
     }
     clearTimeout(timer);
