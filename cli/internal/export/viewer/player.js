@@ -577,7 +577,9 @@ function startPlayer() {
     drawer.style.top = box.bottom + 4 - head.top + "px";
     drawer.hidden = false;
     nameButton.setAttribute("aria-expanded", "true");
-    moveTo(viewerApp.focusedRowAfter(rows, null));
+    // With no row, focus stays on the name, which takes the Esc; WebKit does not focus a clicked button.
+    if (rows.length === 0) nameButton.focus({ preventScroll: true });
+    else moveTo(viewerApp.focusedRowAfter(rows, null));
   });
   drawer.addEventListener("keydown", (event) => {
     if (!drawerOpen) return;
