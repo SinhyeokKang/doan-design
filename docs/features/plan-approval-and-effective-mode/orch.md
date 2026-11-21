@@ -29,6 +29,7 @@
 - Antigravity `/plan` 재결정(사용자 결정): A1 리뷰의 세 문제(첫 메시지가 텍스트로 읽힘, 제목 "Proceed", 계획 본문이 안 보임)는 모두 새 규칙이나 새 UI가 필요해 이번 범위를 넘는다. 그래서 A1을 되돌리고 `/plan` 카드를 둔다. 카드의 틀린 문구(Antigravity picker에 없는 Plan을 가리킴)만 고친다. `/plan` 전송은 새 `/feature`로 넘기고, P2 결과와 세 문제는 승격 때 BACKLOG에 적는다.
 - C3 큐 해석(conductor 재량, 받아들임): 큐에서 기다리는 메시지는 기다리는 동안 값을 바꾸지 않는다. 큐가 비워져 보내지면 그 메시지는 새 process에서 도는 독립된 Ask first 턴이므로, 그 턴의 첫 init은 기록한다. tasks C3의 "queue된 send는 새 값을 만들지 않는다"는 기다리는 동안을 뜻한다.
 - C4는 C3 리뷰와 병렬로 새 워커에서 시작했다: conductor 재량 — C3 리뷰 고침은 C2·C3 워커가 main 파일에서 하고, C4는 renderer 파일만 고친다.
+- 리드가 `fix/cursor-plan-limit`(PR #345) 머지를 알렸고, `origin/develop`을 다시 merge했다(`ca214e996`, 충돌 없음). merge 뒤 typecheck PASS, `src/main/conversation` Vitest 67 files / 2,216 PASS. 전체 gate는 마지막 verify에서 돌린다.
 - C2와 C3는 같은 워커가 이어서 한다(C3는 C2 통합 뒤 새 Task): conductor 재량 — 같은 저장 조건 함수와 service 경로를 다룬다.
 - C4의 `/runtime-test`는 conductor가 통합 HEAD에서 한다(orchestrate §4).
 - A1 전에 리드에게 알린다. 리드가 `fix/antigravity-stop-tool-group` PR의 머지 여부를 알려 주면 `origin/develop`을 먼저 merge한다(`acpRunner.ts`·`acp.ts`·`commandView.ts` 겹침).
