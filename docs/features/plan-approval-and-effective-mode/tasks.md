@@ -61,17 +61,20 @@
 
 ### A0. PoC P2와 결정 게이트
 
-- [ ] `.scratch/`의 ACP probe로 Antigravity에 `/plan`을 보내고, 계획과 'Proceed' 승인의 protocol 모양을 기록한다.
+- [x] `.scratch/`의 ACP probe로 Antigravity에 `/plan`을 보내고, 계획과 'Proceed' 승인의 protocol 모양을 기록한다.
   - 확인: design.md 'PoC 의존' P2에 (a)·(b)·(c) 중 어느 경우인지와 frame 증거를 적는다.
-- [ ] **결정 게이트**: P2 결과를 보이고 Antigravity `/plan` 범위를 사용자에게 묻는다(AskUserQuestion). 답을 spec(완료 조건, '미정'), design, tasks에 반영한다. 이 게이트 전에는 A1을 시작하지 않는다.
+- [x] **결정 게이트**: P2 결과를 보이고 Antigravity `/plan` 범위를 사용자에게 묻는다(AskUserQuestion). 답을 spec(완료 조건, '미정'), design, tasks에 반영한다. 이 게이트 전에는 A1을 시작하지 않는다.
   - 확인: spec.md '미정'이 비고, A1에 할 일이 적혀 있다(또는 범위에서 뺐다고 적혀 있다).
 - commit: `docs(feature): plan-approval-and-effective-mode P2 results and scope`
 
-### A1. 구현 (결정 게이트의 답에 따라)
+### A1. 구현: Antigravity `/plan` 보내기 (결정 게이트: 카드를 빼고 보낸다)
 
-- [ ] 결정 게이트에서 정한 범위를 구현한다. (a)·(b)면 `commandView.ts`의 카드를 빼고 실제 앱에서 계획과 승인이 이어지는지 확인한다. (c)면 이 줄기를 새 `/feature`로 넘길지 결정 게이트에서 정한다.
-  - 확인: `test:`(red) → 구현 → `npm --prefix app test` green. `/runtime-test`: Antigravity에서 `/plan`을 보내고 승인까지 이어지는지 본다. `doan` CLI 출력이나 skill이 바뀌면 `/agent-eval`.
-- commit: 범위에 따라 `test:` → `feat:`, 또는 `docs(feature):`
+- [ ] `test:`(red): `providerCommands.test.ts`에서 Antigravity의 `/plan`이 지원하지 않는 명령이 아님을, `commandView.test.ts`에서 Antigravity `/plan`이 카드 없이 보내기로 가는 것을 고정한다.
+- [ ] `feat:`: `providerCommands.ts`의 `UNSUPPORTED_COMMANDS.antigravity`에서 `plan`을 빼고 그 위 주석을 고친다. `commandView.ts`의 Antigravity `/plan` 카드 규칙을 지운다. ACP runner는 건드리지 않는다.
+  - 확인: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint` 통과.
+- [ ] `/runtime-test`: 유지된 provider profile의 복사본으로 Antigravity에 로그인한 실제 앱에서, 임시 프로젝트에 Ask first로 `/plan <작은 할 일>`을 보낸다. 계획 파일 권한을 허용하고, 계획 답을 보고, "Proceed"를 보내 실행(과 그 권한)까지 본다. 단계마다 screenshot을 남기고, 계획 파일 권한 카드와 `failed`로 끝나는 tool call이 thread에서 어떻게 보이는지 기록한다. 오해를 부르는 표시가 있으면 고치지 말고 멈춰서 보고한다.
+  - `doan` CLI 출력이나 skill은 바뀌지 않는다. 바뀌면 `/agent-eval`.
+- commit: `test(conversation):` → `feat(conversation): send Antigravity /plan`
 
 ## 최종
 

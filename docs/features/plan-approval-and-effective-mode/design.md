@@ -5,7 +5,7 @@
 - **app (Electron + TS)** 만 바뀐다. CLI(Go)·skill·`doan check`는 바뀌지 않는다.
   - main: `conversation/transport.ts`(Claude 메시지에서 모드 읽기), `conversation/runners.ts`(Claude 턴에서 값 전달), `conversation/service.ts`(저장 조건, plan 승인 저장), `conversation/store.ts`(index 항목 읽기·쓰기), `conversation/summary.ts`(renderer로 전달).
   - renderer: `permissionPicker.ts`(trigger·menu 문구, 경고 표시), 기존 대화의 picker를 보이는 composer(`ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `DockedComposer.tsx`, `ComposerParts.tsx`), `styles.css`(경고 속성, docked 축소 기준). `HomeComposerView.tsx`와 Settings > Agents의 기본값 picker는 새 대화만 다루므로 바뀌지 않는다.
-  - Antigravity `/plan`: PoC P2와 결정 게이트 뒤에만, `renderer/commandView.ts`의 카드 규칙과 ACP runner(`conversation/acpRunner.ts`, `conversation/acp.ts`)가 바뀔 수 있다.
+  - Antigravity `/plan`(결정 게이트: 카드를 빼고 보낸다): `main/conversation/providerCommands.ts`의 `UNSUPPORTED_COMMANDS.antigravity`에서 `plan`을 빼고, `renderer/commandView.ts`의 Antigravity `/plan` 카드 규칙을 지운다. 두 파일의 테스트도 함께 바뀐다. ACP runner(`acpRunner.ts`, `acp.ts`)는 바뀌지 않는다. 계획 파일 쓰기는 지금의 권한 카드로, 'Proceed'는 다음 사람 메시지로 이어진다(아래 'PoC 의존' P2).
 - **형식**: 대화 index(`index.json`)에 선택 키 하나가 는다(아래 '형식 변경').
 
 ## 실제 모드를 정하는 규칙
@@ -62,7 +62,7 @@
 
 - ARCHITECTURE §7 'Permission modes'의 "`bypassPermissions`, `auto` and `dontAsk` read as Ask first"는 유지한다. 저장 모드는 그대로 Ask first이고, 이번 기능은 실제 모드를 따로 기록해 표시만 한다. Full access를 따라가지 않는 이유(사람이 고르지 않은 턴에 `allowDangerouslySkipPermissions`를 넘기게 됨)도 그대로 성립한다. 승격할 때 그 줄 뒤에 `claudeRunMode` 규칙을 더하고, `claudeModeAfterPlan` 주석도 맞게 고친다.
 - PRODUCT §5 item 1 'Permission picker'에 실제 모드 표시 규칙이 는다(마지막 task에서 승격).
-- Antigravity `/plan`을 보내게 되면 PRODUCT §5 item 1 'Built-in commands'의 카드 목록에서 빠진다. 사용자 결정 뒤에만 바꾼다.
+- Antigravity `/plan`은 보낸다(결정 게이트). PRODUCT §5 item 1 'Built-in commands'의 카드 목록과 BACKLOG 'Undecided'의 Antigravity `/plan` 항목에서 빠진다. 코드에서는 `providerCommands.ts`의 `UNSUPPORTED_COMMANDS.antigravity`와 그 위 주석, `commandView.ts`의 카드 규칙이 바뀐다. 승격은 마지막 task에서 한다.
 
 ## PoC 의존
 
@@ -84,11 +84,13 @@
   - **steer 뒤 init**: 도구 실행 중에 보낸 steer는 턴에 합쳐지고 init이 다시 오지 않는다(status의 `user_message_uuids`에 그 uuid가 실린다). 마지막 답 텍스트가 시작된 뒤 보낸 steer는 첫 result 뒤 다음 턴으로 돌고, 그 턴의 최상위 init이 새로 온다. 그 init은 같은 process의 현재 모드를 알린다: 설정이 없으면 `default`, 앞서 `setMode` 제안을 허용했으면 `acceptEdits`. 그래서 한 턴의 첫 init만 세는 규칙이 필요하다.
   - **subagent frame**: `parent_tool_use_id`가 붙은 `user`·`assistant` 메시지만 왔고, subagent의 init·status는 없었다.
   - profile 설정 시험은 유지된 profile의 `settings.json`을 잠시 고쳐 했고, 끝난 뒤 원래 내용으로 되돌렸다(sha256 일치).
-- **P2 (Antigravity `/plan`)**: Antigravity ACP 서버 1.3.0(또는 현재 버전)에 `/plan`을 보내고 'Proceed' 승인이 protocol에서 어떤 모양인지 기록한다. 가능한 결과는 셋이다.
-  - (a) `session/request_permission`으로 묻는다: 지금의 권한 카드로 답할 수 있을 수 있다. 카드를 빼고 실제 앱에서 확인한다.
-  - (b) 계획을 답으로 보내고 다음 사람 메시지("Proceed")를 기다린다: 새 UI 없이 다음 턴으로 이어질 수 있다.
-  - (c) ACP 표준 밖 확장으로 묻는다: 새 승인 UI가 필요하다.
-  - 어느 경우든 결과를 보고 사용자에게 범위를 묻는다. 이 결정 전에는 Antigravity 쪽 코드를 쓰지 않는다. Claude 쪽 작업은 이 결정을 기다리지 않는다.
+- **P2 (Antigravity `/plan`)**: Antigravity ACP 서버 1.3.0에서 (b)로 확인했다(2026-11-22). `/plan` 턴은 계획을 `<GEMINI_HOME>/antigravity-acp/brain/<session>/` 아래 artifact 파일(`plan.md` 등)로 쓰고, 계획 본문을 메시지로 보낸 뒤 "click **Proceed**"를 안내하고 `stopReason: "end_turn"`으로 끝난다. 'Proceed'는 protocol 요청이 아니다. 서버가 보낸 것은 `session/update`와 표준 `session/request_permission`뿐이었고, 표준 밖 method는 없었다.
+  - Ask first(`default`)에서는 계획 파일을 쓰기 전에 표준 권한 요청(`Run create_file?`, edit, 내용은 계획 전체를 담은 diff, `rawInput.ArtifactMetadata.RequestFeedback: true`, 선택지 `allow`·`deny`)이 한 번 온다. 이 요청은 실행 승인이 아니라 계획 파일 쓰기 승인이다. 허용하면 쓰기는 다른 tool call id로 돌고, 권한 요청의 tool call은 턴 끝에 `failed`("Tool call was approved but never executed.")로 온다.
+  - 다음 사람 메시지로 "Proceed"를 보내면 계획을 실행한다. 서버를 내렸다가 `session/load`로 이어 보낸 경우(Doan의 턴마다 서버 하나)에도 실행했다. 실행 중 도구는 모드대로 다시 권한을 묻는다.
+  - 거절 메시지나 다른 메시지를 보내면 실행하지 않고 답만 한 뒤 끝나며, wire에 남는 대기 요청은 없다. 계획 파일 쓰기를 거절하면 계획을 메시지로만 보낸다.
+  - Accept edits·Full access에서 계획 파일 쓰기가 묻는지는 확인하지 않았다. probe에는 Doan의 fence를 걸지 않았다(fence는 `brain` 폴더 쓰기를 허용한다).
+  - frame: `.scratch/poc-p2/frames/`(gitignored).
+  - 결정 게이트(2026-11-22): 카드를 빼고 `/plan`을 보낸다. 사람은 다음 메시지로 "Proceed"(또는 다른 말)를 직접 입력한다. 새 UI와 Proceed 버튼은 만들지 않는다. 답의 "click **Proceed**" 문구와, 계획 파일 링크가 Doan profile 안의 `file://` 경로인 것은 그대로 받아들인다. 계획 파일 권한 카드와 `failed`로 끝나는 tool call이 thread에서 어떻게 보이는지는 실제 앱에서 확인한다.
 
 ## 관련 POSTMORTEM
 
