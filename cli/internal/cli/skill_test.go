@@ -137,7 +137,9 @@ func TestSkillGuideSetupGoesThroughOnboarding(t *testing.T) {
 		"On `completed: true` from `start`, stop after `select` (no `complete`).",
 		"Never ask for token CSS; pass one the user named to `doan config --token-css` after `select` (or to `doan init`).",
 		"If a repository setup cannot reach Doan (`app_not_running`, `app_launch_failed`, `app_protocol_mismatch`, or a sandbox blocks its socket), run `doan init` without asking and tell the user the project is not in Doan: they add it with File > Add Projects….",
-		"Onboarding needs no skill or project and takes no `--repo`; path arguments are absolute.",
+		// Codex's `doan` prefix rule matches only literal words: `--path "$PWD"` ran in its sandbox, could not reach
+		// the app, and the setup fell back to `doan init` (agent-eval O3b).
+		"Onboarding needs no skill or project and takes no `--repo`; path arguments are absolute and literal (no `$PWD`).",
 	} {
 		if !strings.Contains(first, required) {
 			t.Errorf("onboarding first paragraph misses %q", required)
