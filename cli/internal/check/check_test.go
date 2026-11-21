@@ -83,6 +83,7 @@ func TestRules(t *testing.T) {
 		{"svg_use_not_inline", func(i *Input) { i.Canvases[0].UseRefs = []string{"../assets/sprite.svg#icon"} }},
 		{"ambiguous_custom_url", func(i *Input) {
 			i.Canvases[0].Custom = canvas.CustomText{Uses: canvas.CustomUses(`.x{mask:var(--i)}`, canvas.Stylesheet), URLs: []canvas.CSSRef{{Value: "icons/i.svg", Custom: "--i"}}}
+			i.Canvases[0].Elements = canvas.ElementsOf([]byte(`<div class="x y"></div>`))
 			i.Reach[".doan/canvases/a.html"] = []CSSRef{{From: ".doan/canvases/a.html", Href: "../ds/x.css", RealPath: ".doan/ds/x.css", State: In, Direct: true}}
 			i.CustomCSS = map[string]canvas.CustomText{".doan/ds/x.css": {Uses: canvas.CustomUses(`.y{mask:var(--i)}`, canvas.Stylesheet)}}
 		}},

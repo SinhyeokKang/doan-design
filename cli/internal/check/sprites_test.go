@@ -51,9 +51,13 @@ func TestSVGUseNotInline(t *testing.T) {
 // text starts with "<" is reached through an @import of the sheet before it.
 type customSheet struct{ path, text string }
 
+const everyElement = `<i class="b c d o w x y z"></i>`
+
 func customInput(body string, sheets ...customSheet) Input {
 	in := base()
-	in.Canvases[0] = parse(canvasA, metadata, body)
+	// Every rule these cases write styles an element the canvas has; which
+	// rules a canvas's elements can match is pinned in the canvas package.
+	in.Canvases[0] = parse(canvasA, metadata, body+everyElement)
 	in.CustomCSS = map[string]canvas.CustomText{}
 	from := canvasA
 	for _, s := range sheets {
@@ -176,7 +180,7 @@ func TestAmbiguousCustomURL(t *testing.T) {
 func TestAmbiguousCustomURLAttribution(t *testing.T) {
 	in := customInput(`<style>.c{mask:var(--i)}</style><div style="--own:url(own.svg)"></div><style>.o{mask:var(--own)}</style>`,
 		customSheet{".doan/ds/d.css", `:root{--i:url(i.svg)}.d{mask:var(--i) var(--own)}`})
-	b := parse(".doan/canvases/b.html", strings.Replace(metadata, "one", "two", 1), `<style>.c{mask:var(--i)}</style><div style="--own:url(own.svg)"></div><style>.o{mask:var(--own)}</style>`)
+	b := parse(".doan/canvases/b.html", strings.Replace(metadata, "one", "two", 1), `<style>.c{mask:var(--i)}</style><div style="--own:url(own.svg)"></div><style>.o{mask:var(--own)}</style>`+everyElement)
 	in.Canvases = append(in.Canvases, b)
 	in.Reach[b.Path] = in.Reach[canvasA]
 	type found struct{ path, canvas, token, value string }
