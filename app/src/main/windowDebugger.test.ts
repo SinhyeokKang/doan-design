@@ -296,3 +296,31 @@ test("a nested same-process frame does not let a former session take the canvas 
   expect(debuggerOf.sessionOf("FRAME")).toBe("NEW");
   expect(docs.current("FRAME", CANVAS)).toEqual(current);
 });
+
+for (const reason of ["remove", undefined]) {
+  test(`nested frame commits are released on ${reason ?? "unspecified"} detach while the root stays attached`, () => {
+    const dbg = new FakeDebugger();
+    const debuggerOf = createWindowDebugger(dbg, new DocumentBindings());
+    dbg.target("LIVE", "iframe");
+    const emit = (method: string, params: object) => dbg.emit("message", {}, method, params, "LIVE");
+    emit("Page.frameNavigated", { frame: { id: "ROOT", parentId: "MAIN", url: CANVAS } });
+    // Observe retention without adding a diagnostic API to the production debugger.
+    const added = vi.spyOn(Set.prototype, "add");
+    let commits: Set<unknown> | undefined;
+    try {
+      for (let i = 0; i < 100; i++) {
+        const id = `CHURN-${i}`;
+        emit("Page.frameNavigated", { frame: { id, parentId: "ROOT", url: "about:srcdoc" } });
+        commits ??= added.mock.contexts.find((_, n) => added.mock.calls[n]?.[0] === id);
+        emit("Page.frameDetached", { frameId: id, reason });
+      }
+    } finally { added.mockRestore(); }
+    expect(commits).toEqual(new Set(["ROOT"]));
+    emit("Page.frameNavigated", { frame: { id: "SWAP", parentId: "ROOT", url: "about:srcdoc" } });
+    emit("Page.frameDetached", { frameId: "SWAP", reason: "swap" });
+    expect(commits).toEqual(new Set(["ROOT", "SWAP"]));
+    emit("Page.frameDetached", { frameId: "ROOT", reason });
+    expect(commits?.has("ROOT")).toBe(true);
+    expect(debuggerOf.sessionOf("ROOT")).toBe("LIVE");
+  });
+}
