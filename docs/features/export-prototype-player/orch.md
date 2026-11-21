@@ -34,8 +34,8 @@
 |---|---|---|---|---|---|---|
 | B1 | 1 브라우저 PoC | `.scratch/export-prototype-player/poc/`만. 커밋 없음 | 없음 | Opus high — 창 생성 방식·창 통신·사용자 입력 인정 방식을 이 결과로 정한다 | Chromium·WebKit 실제 file URL 결과표, 미검증 항목 | 완료. 증거는 `.scratch/handoff-B1.md`와 `.scratch/export-prototype-player/poc/`(지휘자 체크아웃) |
 | B2 | 3(Go 단언) · 4 일반 Export 조립 | `cli/internal/export/*.go`, `schema/fixtures/prototype-mark`·`prototype-links` | 시안 확정 | Opus high — 이스케이프와 바이트 동일성, 50 MiB 경계 | `go test ./...`, `go vet ./...` | 통합 e38094f19·50ea75a5e. 리뷰 1회(🔴 0, 🟡 2는 B3·B5 브리프로 넘김). 통합 HEAD `verify.mjs` PASS. 워커 해제, 워크트리 삭제(브랜치 유지) |
-| B3 | 3(TS 단언) · 5 Select와 보드 재생 진입점 | `cli/internal/export/viewer/`(보드 쪽), `app/scripts/viewerInspect.mjs`, 앱 TS 소스와 테스트, `assemble.go`의 파일 목록과 digest | B2 | Opus high — 입력·포커스·선택 경로를 앱과 맞춘다 | `viewerInspect.mjs --check`, `npm --prefix app test`, 실제 파일 보드 입력 검증 | 진행 (`ctx_28858073bb4d`) |
-| B4 | 6 브라우저 재생창 | 재생 페이지 HTML·JS·CSS, 뷰어 JS, `assemble.go` | B1, B3 | Opus high — 보안 경계(sandbox, 문자열만 전달), 창 수명, 기록 | `npm --prefix app test`, Chromium·WebKit 앱·브라우저 비교 | 대기 |
+| B3 | 3(TS 단언) · 5 Select와 보드 재생 진입점 | `cli/internal/export/viewer/`(보드 쪽), `app/scripts/viewerInspect.mjs`, 앱 TS 소스와 테스트, `assemble.go`의 파일 목록과 digest | B2 | Opus high — 입력·포커스·선택 경로를 앱과 맞춘다 | `viewerInspect.mjs --check`, `npm --prefix app test`, 실제 파일 보드 입력 검증 | 통합 b7e6fa1e3·4c125bf80. 리뷰 1회(🔴 0, 🟡 0, ⚪ 7 중 3건은 B4 브리프로 넘김). 보드 확인 Chromium·WebKit 18/18. 통합 HEAD `verify.mjs` PASS. 워커 해제, 워크트리 삭제(브랜치 유지) |
+| B4 | 6 브라우저 재생창 | 재생 페이지 HTML·JS·CSS, 뷰어 JS, `assemble.go` | B1, B3 | Opus high — 보안 경계(sandbox, 문자열만 전달), 창 수명, 기록 | `npm --prefix app test`, Chromium·WebKit 앱·브라우저 비교 | 진행 (`ctx_87bfaf34aaaf`) |
 | B5 | 7 현재 프로토타입 내보내기 | 뷰어 JS, `assemble.go`와 Go 테스트 | B2, B4 | Opus high — CLI 결과와 “같은 결과” 판정 | `go test ./...`, `npm --prefix app test`, 받은 파일 오프라인 재개방 | 대기 |
 | B6 | 8 `/design-sync` | 구현 수정, `docs/design/canvas.md`·`prototype.md` | B5 | Opus high — 9개 상태 측정과 수정 | computed style 측정 기록 | 대기 |
 | B7 | 9 브라우저 통합 증거 | `.scratch/`만 | B6 | Opus medium — 정해진 시나리오 실행과 기록 | Chromium·WebKit 일반 Export와 단독 Export 시나리오 | 대기 |
