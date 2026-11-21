@@ -51,9 +51,9 @@
   - 기존 대화의 composer(`ProjectOverview`, `CanvasConversationPanel`, `DockedComposer`)가 summary의 값을 trigger에 반영한다.
   - 값이 바뀔 때 sr-only status가 한 번 알린다.
   - 확인: 새 테스트가 red.
-- [ ] composer에 값을 넘긴다. `styles.css`에 경고 속성 규칙을 더하고, docked 축소 기준을 가장 긴 라벨로 다시 맞춘다.
+- [ ] composer에 값을 넘긴다. `styles.css`에 경고 속성 규칙을 더하고, docked 축소는 기존 431 규칙을 두고, 실제 모드가 붙은 trigger에만 긴 기준 규칙을 더한다(design.md '표시').
   - 확인: `npm --prefix app test` green, `npm --prefix app run lint` 통과.
-  - `/design-sync`: 초안과 computed style을 비교한다. 좁은 docked 너비에서 Permission 라벨이 Effort보다 먼저 숨는지 본다.
+  - `/design-sync`: 초안과 computed style을 비교한다. 좁은 docked 너비에서 Permission 라벨이 Effort보다 먼저 숨는지, plain "Ask first"는 지금처럼 432 미만에서만 숨는지 본다.
   - `/runtime-test`: 프로젝트 `defaultMode: "auto"` 폴더에서 Ask first 턴을 보낸다. trigger가 "Ask first · Auto"로 바뀌는지, 앱을 다시 열어도 유지되는지, Accept edits를 고르면 사라졌다가 Ask first로 돌아오면 다시 보이는지 확인한다.
 - commit: `test: pin the run mode in the composers` → `feat(renderer): show the mode Claude Code settings run in the permission trigger`
 
