@@ -37,7 +37,7 @@
   - `run-mode-docked-steps`: 실제 모드가 붙은 라벨에서 Permission이 아이콘으로 줄어드는 첫 단계와 tooltip, 같은 너비에서 라벨을 지키는 plain "Ask first".
   - `run-mode-plan-approved`: Plan 턴의 승인 전후. 승인 뒤 trigger는 덧붙인 값 없는 "Ask first"다(P1: 승인 status는 늘 `default`).
   - Full access(`bypassPermissions`), Accept edits, Plan 이름은 P1이 확인했으므로 `--revise`로 더했다(commit c0eb48c5c까지, 독립 리뷰 두 차례).
-  - 사용자가 앱에서 초안을 확정했다(commit aa311254e 기준). 이 4개 frame이 `/design-sync`의 기준이다.
+  - 사용자가 앱에서 첫 초안을 확정했고(commit aa311254e 기준), P1 이름을 더한 revise도 스크린샷으로 확정했다(commit c0eb48c5c 기준). 이 4개 frame이 `/design-sync`의 기준이다.
 
 ## 순수 함수로 분리할 부분 (`/tdd` 대상)
 
