@@ -10,7 +10,7 @@ describe("COMMAND_ALLOWLIST", () => {
       codex: ["compact", "review"],
       cursor: ["copy-request-id"],
       copilot: ["compact", "context", "init", "rename", "review", "session", "usage"],
-      antigravity: [],
+      antigravity: ["plan"],
     });
     expect(Object.fromEntries(PROVIDERS.map(p => [p, COMMAND_ALLOWLIST[p].version]))).toEqual({
       claude: "2.1.326", codex: "0.167.1", cursor: "2026.10.22", copilot: "1.0.105", antigravity: "1.3.0",
@@ -35,7 +35,8 @@ describe("UNSUPPORTED_COMMANDS", () => {
   it("names the PoC candidates that did not run where they are not allowed", () => {
     expect(UNSUPPORTED_COMMANDS.codex).toEqual(expect.arrayContaining(["clear", "init", "context", "cost"]));
     for (const p of ["cursor", "antigravity"] as const) expect(UNSUPPORTED_COMMANDS[p], p).toEqual(expect.arrayContaining(["compact", "clear", "init", "review", "context", "cost"]));
-    expect(UNSUPPORTED_COMMANDS.antigravity).toEqual(expect.arrayContaining(["plan", "logout"]));
+    expect(UNSUPPORTED_COMMANDS.antigravity).toEqual(expect.arrayContaining(["logout"]));
+    expect(UNSUPPORTED_COMMANDS.antigravity).not.toContain("plan");
   });
   it("never names an allowed command", () => {
     for (const p of PROVIDERS) for (const c of COMMAND_ALLOWLIST[p].commands) expect(UNSUPPORTED_COMMANDS[p], `${p} ${c.name}`).not.toContain(c.name);
