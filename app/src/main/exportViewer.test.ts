@@ -1816,7 +1816,9 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
       });
     });
     const button = frame.frameLocator("#canvas").getByRole("button");
-    await button.hover();
+    // A single hover just after ⇧0 can reach the shell's #canvas element instead, and no later move would retry it.
+    const { width, height } = (await button.boundingBox())!;
+    await pointAt(button, { x: width / 2, y: height / 2 });
     await expect.poll(() => frame.locator("#hover-mark").isVisible()).toBe(true);
     await button.click();
     expect(await button.textContent()).toBe("Click");
@@ -1855,7 +1857,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     const point = { x: 10, y: 8 };
     await frame.page().keyboard.down("Meta");
     try {
-      await wide.hover({ position: point });
+      await pointAt(wide, point);
       await expect.poll(() => frame.locator("#hover-mark").evaluate(el => (el as HTMLElement).style.width)).toBe("120px");
       await wide.click({ position: point });
     } finally { await frame.page().keyboard.up("Meta"); }
