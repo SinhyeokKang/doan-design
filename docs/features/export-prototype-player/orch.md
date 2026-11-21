@@ -22,6 +22,7 @@
 | D12 | 보드와 재생창 사이에 `mode:<fit\|responsive>` 문자열을 더하고, 일반 Export 데이터 `meta.prototype.frames[].mark`를 더한다. 재생 iframe에는 isolate.js 다음에 앱의 실행 스크립트(생성 번들)를 둔다 | 지휘자 판단 — B4 리뷰에서 D10 원칙(문자열만, `event.source` 확인)과 '첫 스크립트는 isolate.js'를 지킨다고 확인했다 |
 | D13 | 재생기의 다운로드 기본 이름은 앱 `prototypeExportName`과 같게 `/`·`:`·제어 문자를 `-`로 바꾸고, stem이 비면 `<id>.html`로 한 뒤 D9로 자른다 | 지휘자 판단 — design.md가 앱 저장 패널의 기본값을 따르라고 정했다. B5 리뷰 🟡1(WebKit은 줄바꿈이 든 이름을 `example.com`으로 바꾼다) |
 | D14 | 새 내보내기 문구 2개를 쓴다. 페이지 자료가 맞지 않을 때 “Couldn’t export “<frame>”. Ask the sender for an updated file.”, 브라우저가 파일을 만들지 못할 때 “Couldn’t export “<frame>”. Try again.” | 지휘자 판단 — 둘 다 실제로 생기는 상태이고, 기존 거절 문구와 앱 `failed` 문구의 조각만 쓴다. clarify 프리셋 기준(무엇이 실패했는지와 복구 방법)을 지킨다 |
+| D15 | 보드 너비가 1024px 미만일 때 차단 토스트가 가운데 툴바의 Play를 덮는 점은 그대로 둔다. 승격할 때 BACKLOG에 남긴다 | 사용자 결정 — 앱·시안과 같은 토스트 규칙이고, 토스트는 8초 뒤 사라지며 버블 Play로도 재시도할 수 있다(B6 측정) |
 | D6 | 10단계 승격(PRODUCT·ARCHITECTURE·DESIGN·BACKLOG)은 지휘자가 문서별 커밋으로 한다 | orchestrate 스킬 §4·§5 |
 
 ## 시안 검토 (tasks 2단계)
@@ -41,7 +42,7 @@
 | B3 | 3(TS 단언) · 5 Select와 보드 재생 진입점 | `cli/internal/export/viewer/`(보드 쪽), `app/scripts/viewerInspect.mjs`, 앱 TS 소스와 테스트, `assemble.go`의 파일 목록과 digest | B2 | Opus high — 입력·포커스·선택 경로를 앱과 맞춘다 | `viewerInspect.mjs --check`, `npm --prefix app test`, 실제 파일 보드 입력 검증 | 통합 b7e6fa1e3·4c125bf80. 리뷰 1회(🔴 0, 🟡 0, ⚪ 7 중 3건은 B4 브리프로 넘김). 보드 확인 Chromium·WebKit 18/18. 통합 HEAD `verify.mjs` PASS. 워커 해제, 워크트리 삭제(브랜치 유지) |
 | B4 | 6 브라우저 재생창 | 재생 페이지 HTML·JS·CSS, 뷰어 JS, `assemble.go` | B1, B3 | Opus high — 보안 경계(sandbox, 문자열만 전달), 창 수명, 기록 | `npm --prefix app test`, Chromium·WebKit 앱·브라우저 비교 | 통합 43a128ba2·490518da9·cf52d7099. 리뷰 1회(🔴 0, 🟡 2: 1은 D11, 2인 앱·브라우저 비교 공백은 B6로 넘김. ⚪ 1·3·5는 B5, 4는 B7로 넘김). Chromium 59/59, WebKit 55/55. 통합 HEAD `verify.mjs` PASS. 워커 해제, 워크트리 삭제(브랜치 유지) |
 | B5 | 7 현재 프로토타입 내보내기 | 뷰어 JS, `assemble.go`와 Go 테스트 | B2, B4 | Opus high — CLI 결과와 “같은 결과” 판정 | `go test ./...`, `npm --prefix app test`, 받은 파일 오프라인 재개방 | 통합 512e90187·261fe8a5d·f74a98262·01c6567fc. 리뷰 1회(🔴 0, 🟡 1 → D13), 수정 1회. ⚪2 큰 파일 활성화는 9단계로 넘김. Chromium 63/63, WebKit 62/64(2건 미검증). 통합 HEAD `verify.mjs` PASS. 워커 해제, 워크트리 삭제(브랜치 유지) |
-| B6 | 8 `/design-sync` | 구현 수정, `docs/design/canvas.md`·`prototype.md` | B5 | Opus high — 9개 상태 측정과 수정 | computed style 측정 기록 | 진행 (`ctx_465523113515`) |
+| B6 | 8 `/design-sync` | 구현 수정, `docs/design/canvas.md`·`prototype.md` | B5 | Opus high — 9개 상태 측정과 수정 | computed style 측정 기록 | 통합(아래). 수정 5건, 미해결 차이 0. 스킬 안 Claude 리뷰 🔴 0·🟡 1(수정), 지휘자 diff 확인. 앱·브라우저 비교(포커스·live·300 ms·실패 화면)는 의도한 문구와 Details 없음 외에 같다 |
 | B7 | 9 브라우저 통합 증거 | `.scratch/`만 | B6 | Opus medium — 정해진 시나리오 실행과 기록 | Chromium·WebKit 일반 Export와 단독 Export 시나리오 | 대기 |
 | B8 | 9 `/agent-eval` | `docs/usability-eval/`, `docs/USABILITY-EVAL.md` | B6 | Sonnet medium — 정해진 러너 실행과 기록 | 러너 결과 기록 | 대기 |
 | 지휘자 | 9 verify·runtime-test·실제 Safari, 10 승격 | PRODUCT·ARCHITECTURE·DESIGN·BACKLOG·DIRECTORY, 기능 디렉터리 삭제 | B7, B8 | — | `verify.mjs`, 문서 링크 | 대기 |
