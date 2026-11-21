@@ -9,7 +9,9 @@
 // `configOptions` to the session/new and session/load results. FAKE_ACP_COMMANDS (JSON) is an availableCommands list the
 // server pushes as Copilot 1.0.105 did: once before the session/new answer and once right after it, and before the
 // session/load answer; FAKE_ACP_COMMANDS_OTHER adds a first push for another session id; FAKE_ACP_COMMANDS_EARLY=<n>
-// pushes n lists (the last one named "last") before the session/new answer instead of one.
+// pushes n lists (the last one named "last") before the session/new answer instead of one. FAKE_ACP_TOOL_PID names a
+// file: at session/prompt the server starts `sleep 120` in a process group of its own, as Antigravity runs a tool
+// command, writes its pid there and leaves the prompt unanswered until session/cancel.
 const readline = require("node:readline");
 const fixture = require(process.argv[2]);
 const mode = process.env.FAKE_ACP ?? "";
@@ -64,6 +66,10 @@ readline.createInterface({ input: process.stdin }).on("line", line => {
     case "session/set_config_option": send({ jsonrpc: "2.0", id: request.id, result: { configOptions: [] } }); break;
     case "session/prompt":
       promptId = request.id;
+      if (process.env.FAKE_ACP_TOOL_PID) {
+        const tool = require("node:child_process").spawn("/bin/sleep", ["120"], { detached: true, stdio: "ignore" });
+        require("node:fs").writeFileSync(process.env.FAKE_ACP_TOOL_PID, String(tool.pid)); break;
+      }
       if (mode.startsWith("stop:")) { send({ jsonrpc: "2.0", id: promptId, result: mode === "stop:" ? {} : { stopReason: mode.slice(5) } }); promptId = null; break; }
       if (mode !== "hang") play();
       break;

@@ -53,3 +53,42 @@ it("a stop and a kill during it both settle when the child's exit shows the grou
   alive = false; group.childExited(); await Promise.resolve(); await Promise.resolve();
   expect([stopped, killed]).toEqual([true, true]);
 });
+// An ACP server (Antigravity) runs its tool commands in process groups of their own, which a signal to the server's group
+// never reaches. They are found among the server's descendants before the server is signalled, since its exit hands them
+// to launchd, and get the same SIGTERM and later SIGKILL; an unrelated group is never signalled.
+const TABLE = [
+  { pid: 100, ppid: 50, pgid: 100 }, { pid: 101, ppid: 100, pgid: 100 },
+  { pid: 200, ppid: 101, pgid: 200 }, { pid: 201, ppid: 200, pgid: 200 }, { pid: 400, ppid: 201, pgid: 400 },
+  { pid: 300, ppid: 1, pgid: 300 }, { pid: 301, ppid: 50, pgid: 301 }];
+it("also ends the process groups the owned group's descendants started, and no other group", async () => {
+  vi.useFakeTimers(); const live = new Set([100, 200, 300, 301, 400]); const signal = vi.fn(); const released = vi.fn();
+  const group = new OwnedGroup(100, signal, pgid => live.has(pgid), released, () => Promise.resolve(TABLE));
+  const stopped = group.stop(); await vi.advanceTimersByTimeAsync(0);
+  expect(signal.mock.calls).toEqual([[100, "SIGTERM"], [200, "SIGTERM"], [400, "SIGTERM"]]);
+  // The server goes at once; a tool group that ignores SIGTERM still gets SIGKILL, and the caller waits for it.
+  live.delete(100); live.delete(400); await vi.advanceTimersByTimeAsync(100);
+  expect(released).toHaveBeenCalledOnce();
+  let settled = false; void stopped.then(() => { settled = true; });
+  await vi.advanceTimersByTimeAsync(400);
+  expect(signal.mock.calls.slice(3)).toEqual([[200, "SIGKILL"]]);
+  live.delete(200); await vi.advanceTimersByTimeAsync(100); expect(settled).toBe(true);
+  expect(signal.mock.calls.flat()).not.toContain(300); expect(signal.mock.calls.flat()).not.toContain(301);
+});
+it("kill also ends the descendants' groups at once", async () => {
+  vi.useFakeTimers(); const signal = vi.fn();
+  const group = new OwnedGroup(100, signal, () => true, vi.fn(), () => Promise.resolve(TABLE));
+  void group.kill(); await vi.advanceTimersByTimeAsync(0);
+  expect(signal.mock.calls).toEqual([[100, "SIGKILL"], [200, "SIGKILL"], [400, "SIGKILL"]]);
+});
+it("still stops the owned group when the process table cannot be read", async () => {
+  vi.useFakeTimers(); const signal = vi.fn();
+  const group = new OwnedGroup(100, signal, () => true, vi.fn(), () => Promise.reject(new Error("ps failed")));
+  void group.stop(); await vi.advanceTimersByTimeAsync(0);
+  expect(signal.mock.calls).toEqual([[100, "SIGTERM"]]);
+});
+it("stops at once without reading the process table once the leader has exited", () => {
+  const signal = vi.fn(); const processes = vi.fn(() => Promise.resolve(TABLE));
+  const group = new OwnedGroup(100, signal, () => true, vi.fn(), processes);
+  group.childExited(); void group.stop();
+  expect(signal.mock.calls).toEqual([[100, "SIGTERM"]]); expect(processes).not.toHaveBeenCalled();
+});
