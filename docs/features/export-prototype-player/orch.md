@@ -46,8 +46,8 @@
 | B5 | 7 현재 프로토타입 내보내기 | 뷰어 JS, `assemble.go`와 Go 테스트 | B2, B4 | Opus high — CLI 결과와 “같은 결과” 판정 | `go test ./...`, `npm --prefix app test`, 받은 파일 오프라인 재개방 | 통합 512e90187·261fe8a5d·f74a98262·01c6567fc. 리뷰 1회(🔴 0, 🟡 1 → D13), 수정 1회. ⚪2 큰 파일 활성화는 9단계로 넘김. Chromium 63/63, WebKit 62/64(2건 미검증). 통합 HEAD `verify.mjs` PASS. 워커 해제, 워크트리 삭제(브랜치 유지) |
 | B6 | 8 `/design-sync` | 구현 수정, `docs/design/canvas.md`·`prototype.md` | B5 | Opus high — 9개 상태 측정과 수정 | computed style 측정 기록 | 통합 e72cd7b42·d945b04ec·79027ae9f·2926b2577. 통합 HEAD `verify.mjs` PASS. 워커 해제, 워크트리 삭제(브랜치 유지). 수정 5건, 미해결 차이 0. 스킬 안 Claude 리뷰 🔴 0·🟡 1(수정), 지휘자 diff 확인. 앱·브라우저 비교(포커스·live·300 ms·실패 화면)는 의도한 문구와 Details 없음 외에 같다 |
 | B7 | 9 브라우저 통합 증거 | `.scratch/`만 | B6 | Opus medium — 정해진 시나리오 실행과 기록 | Chromium·WebKit 일반 Export와 단독 Export 시나리오 | 진행 (`ctx_64aedebeab7e`) |
-| B8 | 9 `/agent-eval` | `docs/usability-eval/`, `docs/USABILITY-EVAL.md` | B6 | Sonnet medium — 정해진 러너 실행과 기록 | 러너 결과 기록 | 진행 (`ctx_45d322003a57`) |
-| B9 | 10 승격(기능 디렉터리 삭제 제외) | PRODUCT·ARCHITECTURE·BACKLOG, 필요하면 README·DIRECTORY·CONTRIBUTING | B7, 실제 Safari | Opus high — 긴 절을 구현과 결정에 맞춰 다시 쓴다 | 링크, `verify.mjs` | 진행 |
+| B8 | 9 `/agent-eval` | `docs/usability-eval/`, `docs/USABILITY-EVAL.md` | B6 | Sonnet medium — 정해진 러너 실행과 기록 | 러너 결과 기록 | develop의 #340(가이드 변경)을 merge하느라 라운드 `epp-261121`을 기록 없이 중단했다. merge한 HEAD 6eafe483d에서 `epp-261121-2`를 B8b(`ctx_1d3c8446f026`)로 다시 돌린다 |
+| B9 | 10 승격(기능 디렉터리 삭제 제외) | PRODUCT·ARCHITECTURE·BACKLOG, 필요하면 README·DIRECTORY·CONTRIBUTING | B7, 실제 Safari | Opus high — 긴 절을 구현과 결정에 맞춰 다시 쓴다 | 링크, `verify.mjs` | 통합 ec3cf28d0·f94e0aa17·92d9726af·8268f82fb. 사용량 한도로 한 번 멈췄다가 이어서 끝냈다. 워커 해제, 워크트리 삭제(브랜치 유지) |
 | 지휘자 | 9 verify·runtime-test·실제 Safari, 10 기능 디렉터리 삭제 | PRODUCT·ARCHITECTURE·DESIGN·BACKLOG·DIRECTORY, 기능 디렉터리 삭제 | B7, B8 | — | `verify.mjs`, 문서 링크 | 대기 |
 
 구현 배치(B2~B6)마다 독립 리뷰 워커(Opus high, `/code-review`, 보고만)를 둔다.
@@ -75,3 +75,7 @@ HEAD `84f174257`에서 B7 fixture(`trip`)의 일반 Export를 열었다. 재생�
 | 긴 이름의 디스크 파일 이름, 창 앞으로 가져오기 | 미검증 |
 
 관찰: Safari 69%에서 전체 폭 프레임의 선택 테두리는 위아래만 보인다(B7은 Chromium 93%에서 테두리가 그려지지 않는 것을 관찰했다). 이번 기능이 바꾼 코드인지는 확인하지 않았다. 받은 파일은 `~/Downloads`에서 scratchpad로 옮겼다.
+
+## develop merge
+
+리드 지시로 `origin/develop`(743934c4e, #340: 가이드·eval 변경)을 merge commit 6eafe483d로 합쳤다. 충돌은 없었다. 통합 HEAD의 `verify.mjs --eval`은 첫 실행에서 이번 기능과 무관한 `dockedBuddyShell.test.ts` 1건이 실패했고(단독 3/3 통과), 다시 돌려 PASS했다. `exportViewer.test.ts`의 기존 테스트 “a partially overwritten var shorthand exposes only the applied row”도 B3·B9 실행에서 30초 시간 초과로 가끔 실패했다(재실행 통과).
