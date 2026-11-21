@@ -14,6 +14,9 @@
 - 실제 로그인(P1 Claude, P2 Antigravity, `/runtime-test`): real HOME, 유지된 provider profile `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`를 복사해서 쓴다. 원본에서 로그아웃하거나 지우지 않는다(다른 기능도 쓴다). 확인이 막히면 건너뛰지 않고 사용자에게 넘긴다.
 - P1 probe의 `defaultMode` 설정은 `.scratch/` 아래 임시 프로젝트의 `.claude/settings.json`에만 둔다. 이 repo의 `.claude/settings.json`은 건드리지 않는다: conductor 재량.
 - P1이 Accept edits·Plan·Full access 이름을 확인하면 초안 `--revise`(DR 배치)가 C4 `/design-sync` 전에 필요하다. 독립 리뷰를 거친 뒤 사용자가 앱에서 본다(리드 brief).
+- P1 로그인(사용자 결정): Claude Code는 Keychain 항목을 `CLAUDE_CONFIG_DIR` 경로로 찾기 때문에 복사한 profile에는 로그인이 없었다. 사용자가 원본 profile의 Claude 설정 폴더를 그대로 쓰도록 정했다. 로그아웃·삭제·설정 편집은 하지 않고, Claude Code가 남기는 세션 파일만 그 아래 생긴다.
+- P1 profile 설정 확인: conductor 재량 — 프로젝트 설정의 `auto`·`bypassPermissions`를 Claude가 무시해 spec 완료 조건과 어긋났다. 그래서 원본 profile의 `settings.json`에 `defaultMode`를 잠깐 넣어 user 층을 확인하게 했다. 확인 뒤 원래 내용으로 되돌렸다(sha256 일치, `.scratch/evidence/handoff-P1.md`). 근거: 검증을 확실히 하는 쪽을 고른다.
+- P1 결과(`83d94d1df`): 다섯 값 모두 Ask first 턴의 init이 알린다. `auto`·`bypassPermissions`는 Doan 연결 profile 설정에서만 알린다. plan 승인 뒤 status는 늘 `default`다. spec·design의 해당 줄을 관찰값으로 고쳐 썼다. frame은 `.scratch/evidence/poc-p1/frames/`에 있다.
 - C2와 C3는 같은 워커가 이어서 한다(C3는 C2 통합 뒤 새 Task): conductor 재량 — 같은 저장 조건 함수와 service 경로를 다룬다.
 - C4의 `/runtime-test`는 conductor가 통합 HEAD에서 한다(orchestrate §4).
 - A1 전에 리드에게 알린다. 리드가 `fix/antigravity-stop-tool-group` PR의 머지 여부를 알려 주면 `origin/develop`을 먼저 merge한다(`acpRunner.ts`·`acp.ts`·`commandView.ts` 겹침).
@@ -22,12 +25,12 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| P1 | tasks C0 | `.scratch/poc-p1/`, design.md 'PoC 의존' P1과 '표시' 이름 목록, spec.md 완료 조건 | 없음 | Claude Opus medium — 실제 계정으로 여러 설정을 관찰하고 결과를 문서 결정에 옮긴다. 틀리면 표시 목록이 잘못된다 | frame 기록, 문서 커밋 | 대기 |
-| P2 | tasks A0 probe | `.scratch/poc-p2/` (문서는 게이트 뒤 후속 Task) | 없음 | Claude Opus medium — ACP protocol 관찰과 (a)·(b)·(c) 판정 | frame 기록, 핸드오프 | 대기 |
+| P1 | tasks C0 | `.scratch/poc-p1/`, design.md 'PoC 의존' P1과 '표시' 이름 목록, spec.md 완료 조건 | 없음 | Claude Opus medium — 실제 계정으로 여러 설정을 관찰하고 결과를 문서 결정에 옮긴다. 틀리면 표시 목록이 잘못된다 | frame 기록, 문서 커밋 | 완료 `f071c08f6` → 통합 `83d94d1df`. 질문 2회(로그인, 결정과 어긋남). 워커 해제, 워크트리 `paem-p1` 제거(브랜치 `SinhyeokKang/paem-p1` `f071c08f6` 유지) |
+| P2 | tasks A0 probe | `.scratch/poc-p2/` (문서는 게이트 뒤 후속 Task) | 없음 | Claude Opus medium — ACP protocol 관찰과 (a)·(b)·(c) 판정 | frame 기록, 핸드오프 | 진행 중 (dispatch `ctx_1d4f61ca4858`, 워크트리 `paem-p2`) |
 | GATE | tasks A0 결정 게이트 | — | P2 | conductor가 사용자에게 묻는다 | spec '미정'이 빔 | 대기 |
 | P2-doc | tasks A0 문서 커밋 | spec·design·tasks의 Antigravity 부분 | GATE, P1 통합 | P2 워커 후속 Task | 문서 커밋 | 대기 |
-| DR | 초안 `--revise` (P1 결과에 따라) | `.doan/canvases/permission-run-mode.html` | P1 통합 | Claude Sonnet high — 기존 초안에 상태 몇 개를 더하는 일, 규약은 skill이 정한다 | `doan check`·`doan ls`, 독립 리뷰, 사용자 확인 | P1 결과 대기 |
-| C2 | tasks C2 | `app/src/main/conversation/transport.ts`·`store.ts`·저장 조건 순수 모듈(또는 `service.ts`의 순수 함수)·`permissionMode.ts`(필요하면), `app/src/renderer/permissionPicker.ts`와 각 테스트 | P1 통합 | Claude Opus high — 턴·init·승인 조건이 여러 경로에 걸치고, 틀리면 오래된 모드가 보인다 | `npm --prefix app test`(`rendererImports.test.ts` 포함), typecheck | 대기 |
+| DR | 초안 `--revise` (P1 결과에 따라) | `.doan/canvases/permission-run-mode.html` | P1 통합 | Claude Sonnet high — 기존 초안에 상태 몇 개를 더하는 일, 규약은 skill이 정한다 | `doan check`·`doan ls`, 독립 리뷰, 사용자 확인 | 진행 중 (dispatch `ctx_c9d744a915d0`, 워크트리 `paem-dr`) |
+| C2 | tasks C2 | `app/src/main/conversation/transport.ts`·`store.ts`·저장 조건 순수 모듈(또는 `service.ts`의 순수 함수)·`permissionMode.ts`(필요하면), `app/src/renderer/permissionPicker.ts`와 각 테스트 | P1 통합 | Claude Opus high — 턴·init·승인 조건이 여러 경로에 걸치고, 틀리면 오래된 모드가 보인다 | `npm --prefix app test`(`rendererImports.test.ts` 포함), typecheck | 진행 중 (dispatch `ctx_cc9e63d7048f`, 워크트리 `paem-c2`) |
 | C2-rev | C2 리뷰 | 없음(보고만) | C2 | Claude Opus high | `/code-review` 보고 | 대기 |
 | C3 | tasks C3 | `runners.ts`·`service.ts`·`summary.ts`와 각 테스트 | C2 통합 | Claude Opus high(C2 워커 후속 Task) — 한 번의 index 저장, steer·queue·실패 경로 | `npm --prefix app test`, typecheck | 대기 |
 | C3-rev | C3 리뷰 | 없음(보고만) | C3 | Claude Opus high | `/code-review` 보고 | 대기 |
