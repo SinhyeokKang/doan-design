@@ -519,7 +519,7 @@ export function DockedComposer(props: DockedComposerProps) {
     lastRunMode.current = { key, runMode: props.runMode };
     if (last.key !== key || last.runMode === undefined || props.runMode === undefined) return;
     const text = runModeAnnouncement(last.runMode ?? undefined, props.runMode ?? undefined);
-    if (text) setAnnouncement(current => current === text ? `${text} ` : text);
+    if (text) setAnnouncement(current => current === text ? `${text}\u00a0` : text);
   }, [key, props.runMode]);
 
   // A turn that ends while main still works on the conversation turns Stop into a disabled Send under the person's focus,
