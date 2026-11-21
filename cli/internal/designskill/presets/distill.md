@@ -37,7 +37,7 @@ Write a short editing plan before changing anything:
 - **Essential elements:** what that purpose truly needs.
 - **Progressive disclosure:** what can wait behind a clear entry point.
 - **Consolidation:** what can be merged or integrated.
-- **Needs approval:** every cut that removes a function, an option, or content carrying product facts. Ask about these before applying them. Merging exact duplicates (two controls with the same effect, or two texts with the same meaning) keeps the function, so it needs no approval; say which ones you merged. Options that differ in any effect, however small, still need approval.
+- **Needs approval:** every cut that removes a function, an option, or content carrying product facts. Ask about these before applying them. Merging exact duplicates (two controls with the same effect, or two texts with the same meaning) keeps the function, so it needs no approval; say which ones you merged. Judge sameness from what the labels, descriptions, code, and request show; do not assume a difference nothing shows. Options that differ in any effect, however small, still need approval.
 
 Expect to say no to good ideas to make room for clear execution.
 

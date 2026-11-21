@@ -82,7 +82,7 @@ Contrast, states, overflow, and truth are checkable defects. The user's brief or
 - Depth: shadows have an offset and a soft blur; declare elevation once, border or shadow.
 - States, where the target has them: hover, focus, disabled, loading, error and validation, empty. Each variant draws them, or its note on the canvas names the ones it leaves out. Real content, controls that look operable, the product's own language.
 - Refuse these defaults unless the brief earns them: identical icon-heading-text card grids, nested cards, an eyebrow or kicker label above a heading, the big-number hero-metric template, meaningless section numbers, gradient text, decorative glass and blur, colored side-stripe borders above 1px, hard offset shadows, decorative sparklines or rings, monospace as a "technical" costume, emoji or glyphs as icons, and light or dark chosen by category instead of the use scene.
-- Claims come from supplied truth: prices, customers, benchmarks, and capabilities are never invented; illustrative values are labelled.
+- Claims come from supplied truth: prices, customers, benchmarks, capabilities, and product behavior (defaults, timing, what a user can change later) are never invented; illustrative values are labelled.
 
 ## Draw the alternatives in Doan
 
