@@ -502,6 +502,10 @@ type CustomUse struct {
 	// HopNeeds the same for each hop in Hops.
 	Needs    map[string][][]string
 	HopNeeds map[string]map[string][][]string
+	// Editable reports a user-modify declaration (Chromium's
+	// -webkit-user-modify), which makes elements editable like
+	// contenteditable, whatever its value.
+	Editable bool
 }
 
 // CustomUses walks the declarations ScanCSS walks.
@@ -552,6 +556,9 @@ func CustomUses(text string, mode Mode) CustomUse {
 			return
 		}
 		name := d[0].text
+		if strings.HasSuffix(lower(name), "user-modify") {
+			u.Editable = true
+		}
 		if registering != "" {
 			switch n := lower(name); {
 			case n == "syntax":
@@ -675,7 +682,13 @@ func currentNeeds(text string, blocks []block) [][]string {
 			}
 			b := &blocks[i]
 			if !b.parsed {
-				b.needs, b.parsed = selectorNeeds(tokens(text[b.start:b.end])), true
+				b.needs, b.parsed = anyElement, true
+				// The browser drops a comment without leaving whitespace
+				// (":/**/root" is ":root"), but the lexer's token positions
+				// would read it as a combinator, so such a selector is not judged.
+				if prelude := text[b.start:b.end]; !strings.Contains(prelude, "/*") {
+					b.needs = selectorNeeds(tokens(prelude))
+				}
 			}
 			return b.needs
 		}
@@ -729,8 +742,7 @@ func selectorNeeds(prelude []token) [][]string {
 func rightmostCompound(ts []token) ([]string, bool) {
 	begin, depth := 0, 0
 	for i, t := range ts {
-		// A gap at the top level is a descendant combinator (or a comment,
-		// which then only drops keys).
+		// A gap at the top level is whitespace: a descendant combinator.
 		if depth == 0 && i > 0 && t.start > ts[i-1].end {
 			begin = i
 		}

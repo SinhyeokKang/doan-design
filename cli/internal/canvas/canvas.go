@@ -279,7 +279,8 @@ func Parse(path string, data []byte) (Canvas, error) {
 // canvas's elements, lowercased, so a comparison can only find more matches
 // than the browser (quirks mode compares classes and ids without case).
 // Elements inside <template> count too: they are only inert until a script
-// clones them, and a canvas with scripts has no Elements at all.
+// clones them, and a canvas with scripts has no Elements at all. A
+// user-modify declaration in its styles is handled by CustomUsers.
 type Elements struct{ keys map[string]bool }
 
 // Match reports whether some compound in needs (selectorNeeds) has every
@@ -315,7 +316,8 @@ func ElementsOf(data []byte) *Elements {
 
 // elementsOf returns nil when the canvas can add elements or change their
 // classes or ids at run time: a script element, an event handler attribute,
-// a javascript: URL, or an SVG animation of class or id.
+// a javascript: URL, an SVG animation of class or id, or a contenteditable
+// attribute (typing Enter in an editable element inserts a <div>).
 func elementsOf(root *html.Node) *Elements {
 	e := &Elements{keys: map[string]bool{}}
 	dynamic := false
@@ -333,7 +335,7 @@ func elementsOf(root *html.Node) *Elements {
 			e.keys[name] = true
 			for _, a := range n.Attr {
 				k := lower(a.Key)
-				if strings.HasPrefix(k, "on") || isJavascriptURL(a.Val) {
+				if strings.HasPrefix(k, "on") || k == "contenteditable" || isJavascriptURL(a.Val) {
 					dynamic = true
 					return
 				}

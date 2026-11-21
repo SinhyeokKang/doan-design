@@ -38,7 +38,8 @@
       ]
      ]
     },
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -79,7 +80,8 @@
       ]
      ]
     },
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -108,7 +110,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -135,7 +138,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -165,7 +169,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -193,7 +198,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -322,7 +328,8 @@
        []
       ]
      }
-    }
+    },
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -449,7 +456,8 @@
        []
       ]
      }
-    }
+    },
+    "Editable": false
    }
   }
  },
@@ -502,7 +510,8 @@
       []
      ]
     },
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -538,7 +547,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -558,7 +568,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -576,7 +587,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -606,7 +618,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -634,7 +647,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -672,7 +686,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -750,7 +765,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -862,7 +878,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -972,7 +989,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -1084,7 +1102,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -1194,7 +1213,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -1241,7 +1261,8 @@
       ]
      ]
     },
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -1286,7 +1307,8 @@
       ]
      ]
     },
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -1306,7 +1328,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -1324,7 +1347,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -1401,7 +1425,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -1495,7 +1520,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -1589,7 +1615,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -1681,7 +1708,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  },
@@ -1721,7 +1749,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   },
   "stylesheet": {
@@ -1759,7 +1788,8 @@
     "Hops": {},
     "URLSyntax": {},
     "Needs": {},
-    "HopNeeds": {}
+    "HopNeeds": {},
+    "Editable": false
    }
   }
  }
