@@ -226,7 +226,12 @@ function cursorCookie(profileDir: string): string {
   if (typeof token !== "string" || typeof sub !== "string" || !sub) throw new ReadFailure("the credential file is not one Doan reads");
   return `WorkosCursorSessionToken=${encodeURIComponent(sub)}%3A%3A${token}`;
 }
-async function cursorRead(lease: Pick<Lease, "profileDir">, options: UsageReadOptions, signal: AbortSignal | undefined): Promise<unknown> {
+// The usage summary for a Doan-account Cursor run's own profile, read while its lease holds the credential copy
+// (agentAuth/usageService.ts withTurnUsage). Throws in Doan's own words.
+export function readCursorSummary(profileDir: string, options: Pick<UsageReadOptions, "fetch" | "readMs"> = {}): Promise<unknown> {
+  return cursorRead({ profileDir }, options, undefined);
+}
+async function cursorRead(lease: Pick<Lease, "profileDir">, options: Pick<UsageReadOptions, "fetch" | "readMs">, signal: AbortSignal | undefined): Promise<unknown> {
   const cookie = cursorCookie(lease.profileDir);
   const controller = new AbortController(), abort = () => controller.abort();
   if (signal?.aborted) throw new Stopped();

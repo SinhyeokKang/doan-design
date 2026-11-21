@@ -227,9 +227,15 @@ export class UsageService {
 }
 
 // A Doan-account Claude or Codex run reads usage at its turn's end on its own connection. A legacy external run uses
-// the person's own profile, whose usage Doan does not show, and ACP runs have no such read.
-export function withTurnUsage(prepared: Prepared, usage: Pick<UsageService, "turnEnd">): Prepared {
+// the person's own profile, whose usage Doan does not show, and ACP runs have no turn-end read. A Doan-account Cursor
+// run reads only when its session/load answers "not found", from its own profile (cursorSummary), to tell Cursor's plan
+// limit from a session that is gone; "used up" is a window at 100 %, since Cursor's answer marks no reached limit.
+export function withTurnUsage(prepared: Prepared, usage: Pick<UsageService, "turnEnd" | "limitWindows">, cursorSummary: (profileDir: string) => Promise<unknown>): Prepared {
   const owner = prepared.owner;
+  if (owner && prepared.runtime === "cursor") return { ...prepared, limitReached: async () => {
+    await usage.turnEnd("cursor", owner.connectionId, () => cursorSummary(prepared.configDir), true);
+    return (await usage.limitWindows("cursor", owner.connectionId)).some(window => window.usedPercent >= 100);
+  } };
   if (!owner || (prepared.runtime !== "claude" && prepared.runtime !== "codex")) return prepared;
   return { ...prepared, usageAtTurnEnd: (read, limit) => limit ? usage.turnEnd(owner.provider, owner.connectionId, read, limit) : usage.turnEnd(owner.provider, owner.connectionId, read) };
 }

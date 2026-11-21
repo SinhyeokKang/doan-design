@@ -28,7 +28,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
   // Every mode of a Doan-connection run is fenced: no ACP server sandboxes its own commands.
   const launch = fencedCommand(input.command, input.args ?? [], input.fence ? fenceArgs(input.runtime, input.fence.paths) : undefined, input.fence?.exec);
   const child = spawn(launch.command, launch.args, { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
-  let dead = false, failure = "", prompting = false, finished = false;
+  let dead = false, failure = "", prompting = false, finished = false, loadRefused = false;
   let state: AcpTransport = initialAcp(randomUUID());
   // One table for both kinds, so expiry answers every pending request once; each answer path takes only its own kind.
   type Pending = { rpc: string | number; kind: "permission"; choices: AcpChoice[] } | { rpc: string | number; kind: "question"; question: Question; optionIds: string[] };
@@ -114,7 +114,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
       await acp.request("authenticate", { methodId: input.authenticate }, OPEN_TIMEOUT_MS);
     }
     let current: unknown;
-    if (input.sessionId) current = await acp.request("session/load", { sessionId: input.sessionId, cwd: input.cwd, mcpServers: [] }, OPEN_TIMEOUT_MS);
+    if (input.sessionId) current = await acp.request("session/load", { sessionId: input.sessionId, cwd: input.cwd, mcpServers: [] }, OPEN_TIMEOUT_MS).catch((error: unknown) => { loadRefused = true; throw error; });
     else {
       const created = await acp.request("session/new", { cwd: input.cwd, mcpServers: [] }, OPEN_TIMEOUT_MS);
       judge(acpSessionNew(input.runtime, { result: created }));
@@ -144,7 +144,13 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     acp.close(); void group?.stop();
     const detail = failure || (error instanceof Error ? error.message : "");
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the exit and failure callbacks set these while the session opens
-    throw new Error((dead || detail === "process_exited") && !failure ? "process_exited" : ["runtime_unsupported", "session_unavailable"].includes(detail) ? detail : transportCode(detail));
+    const code = (dead || detail === "process_exited") && !failure ? "process_exited" : ["runtime_unsupported", "session_unavailable"].includes(detail) ? detail : transportCode(detail);
+    // Cursor answers a first turn that met the plan limit as a completed reply and saves no session, so the next load
+    // finds none; the protocol marks nothing, and the account's usage tells that apart from a session that is gone.
+    // The read runs before this throws, while the run's lease (and its credential copy) is still held.
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the session/load rejection sets loadRefused while the session opens
+    if (code === "session_unavailable" && loadRefused && /not found/i.test(detail) && input.limitReached && await input.limitReached().catch(() => false)) throw new Error("rate_limited");
+    throw new Error(code);
   }
   const stopTurn = async (reason: "user" | "appQuit") => {
     state = { ...state, stop: state.stop ?? reason }; expire();
