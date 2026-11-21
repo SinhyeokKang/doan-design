@@ -43,7 +43,7 @@ func Assemble(m Meta, c canvas.Canvas, canvasHTML []byte) ([]byte, error) {
 		return nil, errors.New("canvas width must be a positive integer")
 	}
 	files := map[string]string{}
-	for _, name := range []string{"shell.html", "shell.css", "lib.js", "shell.js", "measure.js", "inspect.js", "inspectSelection.js", "inspectPanel.js", "inspectMessage.js", "inspectView.js"} {
+	for _, name := range []string{"shell.html", "shell.css", "lib.js", "shell.js", "measure.js", "inspect.js", "inspectSelection.js", "inspectPanel.js", "inspectMessage.js", "inspectView.js", "viewerApp.js"} {
 		b, err := viewerFS.ReadFile("viewer/" + name)
 		if err != nil {
 			return nil, err
@@ -53,7 +53,7 @@ func Assemble(m Meta, c canvas.Canvas, canvasHTML []byte) ([]byte, error) {
 	shell, style, lib, shellJS, measure := files["shell.html"], files["shell.css"], files["lib.js"], files["shell.js"], files["measure.js"]
 	// Both scripts are wrapped in a function: lib.js and the other files declare
 	// top-level names that must not become globals of the canvas.
-	shellScript := "(function () {\n" + lib + "\n" + files["inspectPanel.js"] + "\n" + files["inspectMessage.js"] + "\n" + files["inspectView.js"] + "\n" + shellJS + "\n})();"
+	shellScript := "(function () {\n" + lib + "\n" + files["inspectPanel.js"] + "\n" + files["inspectMessage.js"] + "\n" + files["inspectView.js"] + "\n" + files["viewerApp.js"] + "\n" + shellJS + "\n})();"
 	measureScript := "<script>(function () {\n" + lib + "\n" + files["inspect.js"] + "\n" + files["inspectSelection.js"] + "\n" + measure + "\n})();</script>"
 
 	// A browser drops a byte order mark; in a srcdoc string it would be text and
@@ -217,14 +217,14 @@ func groupFrames(c canvas.Canvas, ids []string) []ProtoFrame {
 //	Page[0] + f.Name + Page[1] + f.Start + Page[2] + Groups[f.Group] + Page[3] + escape(canvas) + Page[4]
 //
 // where canvas is the board iframe's srcdoc as the browser reads it, with the Measure range replaced by Isolate,
-// and escape writes & as &amp; and " as &quot;. The result is byte-identical for an LF-only, valid UTF-8 canvas;
-// otherwise the parser has normalized the srcdoc and the file parses the same.
+// and escape writes & as &amp; and " as &quot;. The result is byte-identical for an LF-only, valid UTF-8, NUL-free
+// canvas; otherwise the parser has normalized the srcdoc (CR LF, invalid UTF-8, NUL) and the file parses the same.
 type frameExports struct {
 	// Frames are the frames the file lets the CLI export (canvas.PrototypeTarget), in document order.
 	Frames []exportFrame `json:"frames"`
 	// Refused names the frames the file has but the CLI refuses, once per id in the order of first appearance. An
-	// id the file does not have at all is a frame a script made. An id over 200 UTF-16 units is left out, since no
-	// running frame can carry one.
+	// id the file does not have at all is a frame a script made. An empty id and an id over 200 UTF-16 units are left
+	// out, since no running frame can play with one.
 	Refused []exportRefusal `json:"refused"`
 	// Groups holds each link group's "frames" JSON, in canvas.LinkGroups order.
 	Groups []string `json:"groups"`

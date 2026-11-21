@@ -1,6 +1,9 @@
 // The shell owns the open state. Each reveal or navigation starts a new epoch so a late frame
-// reply cannot paint the previous selection over the current one.
-function mountViewerInspector(canvas, board, popupOpenNow) {
+// reply cannot paint the previous selection over the current one. Select works whether the column
+// shows, is folded or yields to a narrow window; the column only decides whether styles are read.
+// `onSelection` hears every change of the selection's frame or marks, for Play prototype, the size
+// bubble and the Option measurement.
+function mountViewerInspector(canvas, board, popupOpenNow, onSelection) {
   const panel = $("inspector"), show = $("inspector-show"), hide = $("inspector-hide");
   const trigger = $("element-trigger"), wrap = $("element-trigger-wrap"), menu = $("element-menu"), tree = $("element-tree");
   const body = $("inspect-body"), status = $("inspect-status"), rowTip = $("inspect-row-tip"), headTip = $("inspector-tip");
@@ -69,6 +72,10 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
   handle.addEventListener("dblclick", () => saveWidth(undefined));
   const noRoom = "No room for the inspector. Widen the browser window.";
   let wanted = false, epoch = 0, seq = 0, selection = 0, nodes = [];
+  // The selection's nearest frame and the marks the canvas last drew, kept across a mode change that
+  // retains the selection so the bubble does not blink while the canvas answers the new epoch.
+  let nearest = null, marks = { selected: null, hover: null, alt: false };
+  const changed = () => onSelection({ target: nearest, ...marks });
   let text = "", dragging = false, copyAttempt = 0, rowTimer = 0, point = null;
   const command = (type, fields = {}) => canvas.contentWindow?.postMessage({ type, epoch, ...fields }, "*");
   const element = (tag, className, value) => {
@@ -96,12 +103,25 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     command("inspect-overlay", { open: popupOpenNow() });
     if (focus) trigger.focus({ preventScroll: true });
   }
-  function reset() {
+  function paintMarks() {
+    // While Option is held the hover is the measurement's target: it shows, solid, only with a
+    // selection to measure from (the app's drawMarks).
+    const measuring = marks.alt && marks.selected !== null && marks.hover !== null;
+    setBox($("selected-mark"), marks.selected);
+    setBox($("hover-mark"), marks.alt && !measuring ? null : marks.hover);
+    $("selected-mark").classList.toggle("measuring", measuring);
+    $("hover-mark").classList.toggle("measuring", measuring);
+  }
+  function reset(retain) {
     closeMenu(false);
     clearTip();
     nodes = []; selection = 0; text = ""; dragging = false; point = null; copyAttempt++;
     status.replaceChildren(); tree.replaceChildren(); body.replaceChildren();
-    $("inspect-range").replaceChildren(); $("hover-mark").hidden = true; $("selected-mark").hidden = true;
+    $("inspect-range").replaceChildren();
+    if (!retain) nearest = null;
+    marks = { selected: retain ? marks.selected : null, hover: null, alt: false };
+    paintMarks();
+    changed();
     $("inspect-empty").hidden = false; body.hidden = true;
     $("inspect-title").hidden = false; wrap.hidden = true; wrap.classList.remove("doan-insp-pick");
   }
@@ -109,7 +129,7 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
   // which opening owns a native press before inspect-mode arrives, without intercepting hit tests.
   let inputMarker = null, inputId = 0, acknowledged = false;
   function syncInputWindow(panning) {
-    if (panel.hidden || panning) {
+    if (panning) {
       inputMarker?.remove();
       inputMarker = null;
     } else if (!inputMarker) {
@@ -134,9 +154,10 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     else show.removeAttribute("aria-description");
     headTip.textContent = !bounds ? noRoom : "Show inspector";
     if (!reason && open === !panel.hidden) return;
+    const retain = reason !== "clear";
     const focusMoved = panel.contains(document.activeElement) || document.activeElement === handle || document.activeElement === show;
     clearShowTip(); clearHideTip();
-    reset();
+    reset(retain);
     syncInputWindow(true);
     handle.hidden = !open;
     panel.hidden = !open;
@@ -145,14 +166,14 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     $("inspector-show-wrap").hidden = open; $("inspector-sep").hidden = open;
     show.setAttribute("aria-expanded", String(open));
     epoch++; seq = 0; acknowledged = false;
-    command("inspect-mode", { open, retain: wanted && reason !== "clear", input: inputMarker?.name ?? null });
+    command("inspect-mode", { open: true, styles: open, retain, input: inputMarker?.name ?? null });
     if (focus || focusMoved) (open ? hide : show).focus({ preventScroll: true });
   }
   show.addEventListener("mousedown", event => event.preventDefault());
   show.addEventListener("click", () => { if (bounds) { wanted = true; mode(true); } });
   hide.addEventListener("click", () => { wanted = false; mode(true); });
   new ResizeObserver(() => mode(false)).observe(shell);
-  canvas.addEventListener("load", () => { if (wanted) mode(false, "reload"); });
+  canvas.addEventListener("load", () => mode(false, "reload"));
   function bindHeadTooltip(button, tip) {
     let timer = 0;
     function display() {
@@ -175,7 +196,7 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
   document.addEventListener("keydown", event => {
     if (event.key === "Escape" && !event.isComposing && event.keyCode !== 229) clearHideTip();
   }, true);
-  mode(false);
+  mode(false, "start");
 
   async function copy(value) {
     const attempt = ++copyAttempt;
@@ -326,10 +347,10 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
   document.addEventListener("focusin", event => { if (event.target !== canvas) endDrag(); });
   document.addEventListener("pointerdown", event => {
     if (!menu.contains(event.target) && !trigger.contains(event.target)) closeMenu(false);
-    if (event.button === 0 && !event.ctrlKey && !panel.hidden && board.contains(event.target) && !panTold) command("inspect-clear-text");
+    if (event.button === 0 && !event.ctrlKey && board.contains(event.target) && !panTold) command("inspect-clear-text");
   });
   board.addEventListener("click", event => {
-    if (panel.hidden || panTold || event.button !== 0 || event.ctrlKey || event.altKey) return;
+    if (panTold || event.button !== 0 || event.ctrlKey || event.altKey) return;
     if (event.target === board || event.target === $("spacer")) {
       board.focus({ preventScroll: true });
       // A blank-board click also clears canvas input still waiting for the previous epoch.
@@ -345,7 +366,7 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     event.preventDefault();
   });
   for (const type of ["keydown", "keyup"]) document.addEventListener(type, event => {
-    if (!panel.hidden && ["Meta", "Alt"].includes(event.key)) command("inspect-modifiers", { alt: event.altKey, meta: event.metaKey });
+    if (["Meta", "Alt"].includes(event.key)) command("inspect-modifiers", { alt: event.altKey, meta: event.metaKey });
   });
   // A wheel during a drag moves the stage under the pointer. The wheel gives the original
   // position in frame coordinates; recompute it after the shell has applied its pan or zoom.
@@ -361,19 +382,23 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
   }
   return {
     accept(event) {
-      if (panel.hidden) return;
       const message = inspectorMessages.parseMessage(event, canvas.contentWindow, epoch, seq, document.activeElement === canvas);
       if (!message) return;
       seq = message.seq;
       if (message.type === "inspection") {
         if (!acknowledged) { acknowledged = true; command("inspect-ready"); }
         render(message);
+        nearest = message.target;
+        changed();
       } else if (message.type === "inspect-marks") {
-        setBox($("selected-mark"), message.selected); setBox($("hover-mark"), message.hover);
+        marks = { selected: message.selected, hover: message.hover, alt: message.alt };
+        paintMarks();
+        changed();
       } else if (message.type === "inspect-press") {
         closeMenu(false);
         if (drawerPopup.isOpen()) drawerPopup.hide("none");
         if (zoomPopup.isOpen()) zoomPopup.hide("none");
+        if (playPopup.isOpen()) playPopup.close(false);
       } else {
         if (dragging && !message.dragging && document.activeElement === canvas) board.focus({ preventScroll: true });
         dragging = message.dragging; text = message.text;
@@ -383,7 +408,7 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
     },
     escape() {
       if (!menu.hidden) { closeMenu(true); return true; }
-      if (panel.hidden || (!nodes.length && !text && !dragging)) return false;
+      if (!nearest && !text && !dragging) return false;
       command("inspect-escape"); return true;
     },
     blocks(target) { return dragging || resize !== null || target === handle || panel.contains(target) || !menu.hidden; },
@@ -392,8 +417,13 @@ function mountViewerInspector(canvas, board, popupOpenNow) {
       syncInputWindow(on);
       if (inputMarker) command("inspect-input", { input: inputMarker.name });
     },
-    clearSelection() { if (wanted) command("inspect-clear"); },
-    syncOverlay() { if (!panel.hidden) command("inspect-overlay", { open: !menu.hidden || popupOpenNow() }); },
+    clearSelection() { command("inspect-clear"); },
+    syncOverlay() { command("inspect-overlay", { open: !menu.hidden || popupOpenNow() }); },
+    // The size bubble's Show inspector does what the header's does.
+    reveal() { if (bounds) { wanted = true; mode(true); } },
+    // What the size bubble's Show inspector follows (bubbleItems.ts): the saved preference and the room.
+    panelState() { return { inspectorOpen: wanted, inspectorFits: bounds !== null }; },
+    noRoom,
     wheel,
   };
 }

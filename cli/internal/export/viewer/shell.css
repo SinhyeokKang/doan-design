@@ -65,6 +65,10 @@
 
   --text-accent: #973be1;
   --affordance-accent: #973be1;
+  --text-on-accent: #ffffff;
+  --border-measure: #e34c2c;
+  --affordance-measure: var(--border-measure);
+  --text-on-measure: var(--neutral-1);
   --text-danger: #641723;
   --border-prominent: #808080;
   --size-icon-xs: 12px;
@@ -78,6 +82,7 @@
   --space-4: 16px;
   --space-5: 20px;
   --space-6: 24px;
+  --size-control-xs: 24px;
   --size-control-sm: 32px;
   --size-control: 40px;
   --size-chrome: 56px;
@@ -261,6 +266,8 @@ html:not(.js) :is(.ov-sep:not(.doan-canvas-sep-root), .ov-title-wrap, .doan-canv
 }
 
 .doan-icon-button[data-ui-size="md"] { width: var(--size-control); height: var(--size-control); }
+.doan-icon-button[data-ui-size="xs"] { width: var(--size-control-xs); height: var(--size-control-xs); border-radius: var(--radius-pill); }
+.doan-icon-button[data-ui-size="xs"] > svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 
 /* ── Menus (ds/surfaces.css) ─────────────────────────────────────────────────── */
 .doan-floating {
@@ -408,6 +415,13 @@ html:not(.js) :is(.ov-sep:not(.doan-canvas-sep-root), .ov-title-wrap, .doan-canv
 .doan-canvas-tools { display: flex; align-items: center; gap: var(--space-half); }
 .doan-canvas-tools .doan-icon-button { color: var(--text-standard); }
 .doan-canvas-tools > .doan-icon-button.doan-canvas-tool[aria-pressed="true"]:not(:disabled) { background: var(--affordance-backdrop-pressed); }
+.doan-canvas-tools > .doan-icon-button.doan-canvas-tool[aria-disabled="true"] { color: var(--text-disabled); }
+.doan-canvas-tools-sep { flex: none; width: 1px; height: var(--space-5); margin-inline: var(--space-1); background: var(--border-standard); }
+@media (hover: hover) and (pointer: fine) { .doan-canvas-tools > .doan-canvas-tool[aria-disabled="true"]:hover { background: transparent; } }
+.doan-canvas-tools > .doan-canvas-tool[aria-disabled="true"]:active { background: transparent; }
+/* The play drawer opens above Play prototype, centred on it (the app's popover: side top, 4 away);
+   shell.js sets its left to the button's centre. */
+.doan-frame-list.vw-play-drawer { top: auto; bottom: calc(100% + var(--space-1)); transform: translateX(-50%); }
 /* Without JavaScript the tools cannot work, so the row is not there (like the header's tools). */
 html:not(.js) .doan-canvas-bottom { display: none; }
 
@@ -516,3 +530,33 @@ html:not(.js) .doan-canvas-bottom { display: none; }
 @media (resolution < 2dppx) { .vw-overlay { --mark-weight: 1px; } }
 .vw-overlay .mark.hover { border-style: dashed; }
 .vw-overlay .text-rect { position: absolute; background: color-mix(in srgb, var(--affordance-accent) 30%, transparent); }
+/* Option measurement (styles.css): while measuring, the target's hover line turns solid and both marks
+   get a 1px measurement-red line inside the element's edge, in screen px over the scaled stage. */
+.vw-overlay .mark.measuring { border-style: solid; box-shadow: inset 0 0 0 calc(1px / var(--canvas-scale, 1)) var(--border-measure); }
+
+/* ── Size bubble and measurement lines (styles.css) ──────────────────────────── */
+/* In the board's scrolled content over the stage, in screen px: the selection's box takes no pointer,
+   only the bubble's buttons do, so the canvas under the selection stays clickable. */
+.vw-selection { position: absolute; pointer-events: none; }
+.dims { position: absolute; top: calc(100% + 1.5px + 5px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-1) 0 var(--space-2); background: var(--affordance-accent); color: var(--text-on-accent); box-shadow: var(--shadow-sm); font: var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); border-radius: calc((var(--type-caption-line-height) + 2 * var(--space-1)) / 2); white-space: nowrap; }
+.dims.above { top: auto; bottom: calc(100% + 1.5px + 5px); }
+@media (resolution < 2dppx) {
+  .dims { top: calc(100% + 1px + 5px); }
+  .dims.above { bottom: calc(100% + 1px + 5px); }
+}
+.dims.playable { padding-left: var(--space-1); }
+.bubble-button { pointer-events: auto; color: var(--text-on-accent); }
+.bubble-button svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.vw-selection .dims .bubble-button:is(:hover, :active):not([aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-accent) 16%, transparent); }
+.vw-selection .dims .bubble-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
+.bubble-button:focus-visible { outline-color: var(--text-on-accent); outline-offset: -2px; }
+.bubble-button[aria-disabled="true"] { color: color-mix(in srgb, var(--text-on-accent) 45%, transparent); cursor: default; }
+.measure { position: absolute; inset: 0; z-index: 1; pointer-events: none; forced-color-adjust: none; }
+.measure-line { position: absolute; }
+.measure-line.h { height: 1px; margin-top: -0.5px; background: var(--border-measure); }
+.measure-line.v { width: 1px; margin-left: -0.5px; background: var(--border-measure); }
+.measure-line.h.dashed { height: 0; background: none; border-top: 1px dashed var(--border-measure); }
+.measure-line.v.dashed { width: 0; background: none; border-right: 1px dashed var(--border-measure); }
+.measure-label { position: absolute; padding: 0 var(--space-1); background: var(--affordance-measure); color: var(--text-on-measure); font: var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); border-radius: var(--radius-inline); white-space: nowrap; }
+.measure-line.h > .measure-label { top: 6px; left: 50%; transform: translateX(-50%); }
+.measure-line.v > .measure-label { left: 6px; top: 50%; transform: translateY(-50%); }

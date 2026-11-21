@@ -15,6 +15,20 @@ const entries = [
     "renderer/rightPanelSize": "inspectorBounds, panelWidth, nudgePanel, PANEL_MIN",
     "renderer/treeScrollLeft": "treeScrollLeft",
   }],
+  // The board's Play prototype, play drawer, size bubble and Option measurement, and the player's history and fit: the
+  // app's own judgments, so the browser and the app cannot drift. `*` re-exports a whole module.
+  ["viewerApp.js", "viewerApp", {
+    "main/prototype/playability": "PLAY_REASONS, playability, playableFrames",
+    "main/prototype/links": "linkGroups",
+    "main/prototype/history": "*",
+    "main/prototype/fit": "*",
+    "renderer/frameDrawerList": "groupDrawer, drawerOrder, drawerKey, focusedRowAfter",
+    "renderer/prototypePlay": "canvasPlayability, playTooltip, sizeBubblePlay, playRequest, playDrawer, drawerPlayRequest",
+    "renderer/sizeBubble": "SIZE_BUBBLE, sizeBubblePlace, canvasBubbleRoom",
+    "renderer/bubbleItems": "bubbleItems",
+    "renderer/measure": "measureLines",
+    "renderer/selection": "sizeLabel, canvasPx",
+  }],
 ];
 
 // The app injects these DOM readers inside canvasScript. Share their declarations without installing
@@ -45,7 +59,7 @@ async function canvasReaders() {
 }
 
 for (const [file, name, sources] of entries) {
-  let entry = Object.entries(sources).map(([path, names]) => `export { ${names} } from ${JSON.stringify(app + "src/" + path + ".ts")};`).join("\n");
+  let entry = Object.entries(sources).map(([path, names]) => `export ${names === "*" ? "*" : `{ ${names} }`} from ${JSON.stringify(app + "src/" + path + ".ts")};`).join("\n");
   if (name === "inspectCanvas") entry += "\n" + await canvasReaders();
   const bundle = await rolldown({
     input: "viewer-entry",

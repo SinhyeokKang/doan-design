@@ -6,8 +6,9 @@
 // wide and as tall as the canvas reports (lib.js height rules); the window only changes the
 // zoom; zoom and the frame jump use the app's constants and Fit rules; the Select and Hand tools,
 // Space and V/H/Esc use the app's key rules (lib.js toolShortcut). The canvas reports only Space,
-// V, H and Escape pressed while it has focus. What it leaves out:
-// conversation and Reload.
+// V, H and Escape pressed while it has focus. Play prototype, its drawer, the frame drawer's
+// prototype mark, the size bubble and the Option measurement use the app's own judgments
+// (viewerApp.js, generated). What it leaves out: conversation, Reload, Pick and Capture.
 
 document.documentElement.classList.add("js");
 
@@ -31,12 +32,26 @@ const tools = $("tools");
 const toolButtons = Array.from(tools.querySelectorAll("[data-tool]"));
 const tip = $("tool-tip");
 const eyeIcon = $("eye-icon");
+const playIcon = $("play-icon");
+const playButton = $("play");
+const playReason = $("play-reason");
+const playPanel = $("play-drawer");
+const playList = $("play-list");
+const selectionBox = $("selection-box");
+const sizeBubble = $("size-bubble");
+const sizeLabel = $("size-label");
+const measureLayer = $("measure");
+const icon = (template) => template.content.firstElementChild.cloneNode(true);
 
 $("name").title = meta.name;
 canvas.title = meta.name;
 drawerList.setAttribute("aria-label", "Frames in " + meta.name);
 
 let viewer = initialViewer();
+// The selection's nearest frame and its marks, as the inspector last heard them (inspectView.js).
+let selection = { target: null, selected: null, hover: null, alt: false };
+// The frame the prototype player plays, for the play drawer's Playing row; null while none plays.
+let playingFrame = null;
 let scale = 1;
 let remeasureTimer = 0;
 let current = null;
@@ -164,6 +179,7 @@ const drawerPopup = createPopup({
   items: () => Array.from(drawerList.children),
   onOpen: () => {
     const shown = drawerView(viewer.frames, viewer.total, current);
+    const playable = viewer.frames === null ? [] : viewerApp.playableFrames(viewer.frames);
     drawerList.textContent = "";
     for (const row of shown.rows) {
       const node = document.createElement("div");
@@ -187,6 +203,17 @@ const drawerPopup = createPopup({
         word.className = "sr-only";
         word.textContent = "Viewing";
         mark.append(eyeIcon.content.firstElementChild.cloneNode(true), word);
+        node.append(mark);
+      }
+      // A frame Play prototype can play, after the Eye so it lines up in every row (FrameRowMarks).
+      if (playable[row.index]) {
+        const mark = document.createElement("span");
+        mark.className = "doan-frame-current prototype-meta-icon";
+        mark.title = "Prototype supported";
+        const word = document.createElement("span");
+        word.className = "sr-only";
+        word.textContent = "Prototype";
+        mark.append(icon(playIcon), word);
         node.append(mark);
       }
       hover(node);
@@ -269,6 +296,7 @@ function refresh() {
   zoomValue.textContent = zoom.value;
   zoomButton.setAttribute("aria-label", zoom.triggerLabel);
   if (!zoom.enabled && zoomPopup.isOpen()) zoomPopup.hide("none");
+  drawSelection();
 }
 
 // ── The canvas ────────────────────────────────────────────────────────────────
@@ -311,7 +339,7 @@ window.addEventListener("message", (event) => {
     if (message.key !== "Escape" && inspector.menuOpen()) return;
     if (message.key === "Space") {
       if (!message.down || document.activeElement === canvas) spaceKey(message.down);
-    } else if (message.key === "Escape") escapeTool(false, false);
+    } else if (message.key === "Escape") escapeTool(false, false, message.repeat);
     else chooseTool(message.key === "V" ? "select" : "hand");
     return;
   }
@@ -430,19 +458,20 @@ function spaceKey(down) {
 
 // Esc on the page closes the tooltip first, as the app's; an open menu takes its own Esc before
 // this (it prevents it); then Hand goes back to Select. Returns whether Esc was used.
-function escapeKey(editable, handled) {
+function escapeKey(editable, handled, repeat) {
   if (!handled && !tip.hidden) {
     hideTip();
     return true;
   }
-  return escapeTool(editable, handled);
+  return escapeTool(editable, handled, repeat);
 }
 
-// Hand back to Select. An Esc forwarded from the canvas comes straight here: the app's tooltip
-// hears Esc only on the app document, so it never spends one pressed inside the canvas.
-function escapeTool(editable, handled) {
+// Hand back to Select, else the selection's step. An Esc forwarded from the canvas comes straight
+// here: the app's tooltip hears Esc only on the app document, so it never spends one pressed inside
+// the canvas. A held Esc's repeats take no selection step, so one press steps back one level.
+function escapeTool(editable, handled, repeat) {
   if (editable || handled) return false;
-  if (!escapeSelects({ hand: (pendingTool ?? tool) === "hand", editable, defaultPrevented: handled })) return inspector.escape();
+  if (!escapeSelects({ hand: (pendingTool ?? tool) === "hand", editable, defaultPrevented: handled })) return !repeat && inspector.escape();
   chooseTool("select");
   return true;
 }
@@ -459,8 +488,8 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     return;
   }
-  if (event.key !== "Escape" || (event.repeat && !$("inspector").hidden) || event.isComposing || event.keyCode === 229) return;
-  if (escapeKey(editableTarget(event.target), event.defaultPrevented)) event.preventDefault();
+  if (event.key !== "Escape" || event.isComposing || event.keyCode === 229) return;
+  if (escapeKey(editableTarget(event.target), event.defaultPrevented, event.repeat)) event.preventDefault();
 });
 
 document.addEventListener("keyup", (event) => {
@@ -537,17 +566,21 @@ canvas.addEventListener("load", releaseInput);
 for (const button of toolButtons) button.addEventListener("click", () => chooseTool(button.dataset.tool));
 // A pointer press leaves focus where it was (the canvas area), so Space after a click pans instead of
 // pressing the tool again; Chromium would otherwise focus the button. Focus that came by keyboard stays.
-for (const button of toolButtons) button.addEventListener("mousedown", (event) => event.preventDefault());
+// Play prototype follows the same rule (CanvasTools.tsx keepFocus).
+for (const button of [...toolButtons, playButton]) button.addEventListener("mousedown", (event) => event.preventDefault());
 
+// ←/→ walk the tools and then Play prototype, which never holds the Tab stop itself.
+const navButtons = [...toolButtons, playButton];
 tools.addEventListener("keydown", (event) => {
-  const next = toolbarMove(toolButtons.indexOf(document.activeElement), toolButtons.length, event.key);
+  const next = toolbarMove(navButtons.indexOf(document.activeElement), navButtons.length, event.key);
   if (next === null) return;
   event.preventDefault();
-  toolButtons[next].focus();
+  navButtons[next].focus();
 });
 
-// One tooltip, the tool's name and key, 4 above the tool (the app's sideOffset), centred on it.
-// Text goes in with textContent only.
+// One tooltip, 4 above its button (the app's sideOffset), centred on it: a tool's name or its
+// `data-tip` with its key, Play prototype's reason, a size bubble button's name or reason. Text goes
+// in with textContent only. Play prototype keeps its reason as its own description.
 const TOOLTIP_OFFSET = 4;
 let tipFor = null;
 let tipTimer = 0;
@@ -561,19 +594,23 @@ function scheduleTip(button) {
 }
 
 function showTip(button) {
-  const key = document.createElement("span");
-  key.className = "doan-kbd";
-  key.setAttribute("data-ui-variant", "on-prominent");
-  key.setAttribute("data-ui-size", "sm");
-  key.textContent = button.getAttribute("aria-keyshortcuts");
-  tip.textContent = button.getAttribute("aria-label");
-  tip.append(key);
+  const shortcut = button.getAttribute("aria-keyshortcuts");
+  tip.textContent = button === playButton ? playReason.textContent : button.dataset.tip ?? button.getAttribute("aria-label");
+  tip.classList.toggle("has-key", shortcut !== null);
+  if (shortcut !== null) {
+    const key = document.createElement("span");
+    key.className = "doan-kbd";
+    key.setAttribute("data-ui-variant", "on-prominent");
+    key.setAttribute("data-ui-size", "sm");
+    key.textContent = shortcut;
+    tip.append(key);
+  }
   const panel = tip.parentElement.getBoundingClientRect();
   const box = button.getBoundingClientRect();
   tip.style.left = box.left + box.width / 2 - panel.left + "px";
   tip.style.top = box.top - TOOLTIP_OFFSET - panel.top + "px";
-  if (tipFor !== null && tipFor !== button) tipFor.removeAttribute("aria-describedby");
-  button.setAttribute("aria-describedby", "tool-tip");
+  if (tipFor !== null && tipFor !== button && tipFor !== playButton) tipFor.removeAttribute("aria-describedby");
+  if (button !== playButton && !button.hasAttribute("data-own-description")) button.setAttribute("aria-describedby", "tool-tip");
   tipFor = button;
   tip.hidden = false;
 }
@@ -581,12 +618,12 @@ function showTip(button) {
 function hideTip() {
   clearTimeout(tipTimer);
   if (!tip.hidden) tipClosedAt = performance.now();
-  if (tipFor !== null) tipFor.removeAttribute("aria-describedby");
+  if (tipFor !== null && tipFor !== playButton && !tipFor.hasAttribute("data-own-description")) tipFor.removeAttribute("aria-describedby");
   tipFor = null;
   tip.hidden = true;
 }
 
-for (const button of toolButtons) {
+function bindTip(button) {
   button.addEventListener("pointerenter", (event) => {
     if (event.pointerType !== "touch") scheduleTip(button);
   });
@@ -598,6 +635,331 @@ for (const button of toolButtons) {
   });
   button.addEventListener("blur", hideTip);
 }
+for (const button of navButtons) bindTip(button);
 
-const inspector = mountViewerInspector(canvas, board, () => drawerPopup.isOpen() || zoomPopup.isOpen());
+// ── Play prototype ────────────────────────────────────────────────────────────
+// The toolbar's button is one element in every state (the app's CanvasTools.tsx): it plays the
+// frame, opens the play drawer above it, or is unavailable with its reason. Its judgement, tooltip
+// and drawer are the app's prototypePlay.ts, generated into viewerApp.js, over a state built from
+// this page: the canvas file as the open row, no pick or capture, the layout once the board is drawn
+// and the selection's nearest frame. The file's own prototype data (META) is what Export
+// prototype can write; it is not what plays.
+
+const CANVAS_PATH = meta.name + ".html";
+
+function playState() {
+  const target = selection.target;
+  return {
+    open: { folder: "", row: { path: CANVAS_PATH } },
+    status: null,
+    picking: false,
+    capturing: false,
+    selection: target === null || target.id === undefined ? null
+      : { frame: { id: target.id }, ...(target.kind === "element" ? { element: {} } : {}), ...(target.index === undefined ? {} : { frameIndex: target.index }) },
+    layout: viewer.phase === "ready" && viewer.frames !== null ? { frames: viewer.frames, gotos: viewer.gotos } : null,
+  };
+}
+
+const playing = () => (playingFrame === null ? null : { root: "", canvas: { path: CANVAS_PATH }, frame: playingFrame });
+
+// Every Play (the toolbar's, the size bubble's, a play drawer row) comes here with the frame's id.
+// TODO(player window): open the browser player for `frameId`. Until it exists a press does nothing.
+function playPrototype(frameId) {
+  void frameId;
+}
+
+// The play drawer: the playable frames in link groups, the Playing row marked with the app's Eye, and
+// the app's keys (frameDrawerList.ts drawerKey: arrows stop at the ends, Home/End, typeahead, Enter
+// and Space pick, Tab stays). Opening focuses the playing row, else the first; Esc and a pick close
+// it and return focus to Play prototype. A pick plays that frame and leaves the board's selection.
+const playPopup = (() => {
+  let open = false;
+  let focused = null;
+  let typed = { text: "", at: 0 };
+  let rows = [];
+  let shownKey = "";
+  const nodes = new Map();
+  const move = (key) => {
+    const node = key === null ? undefined : nodes.get(key);
+    if (!node) return;
+    focused = key;
+    for (const [other, row] of nodes) row.tabIndex = other === key ? 0 : -1;
+    node.focus({ preventScroll: true });
+    node.scrollIntoView({ block: "nearest" });
+  };
+  const close = (focus) => {
+    if (!open) return;
+    open = false;
+    focused = null;
+    playPanel.hidden = true;
+    playButton.setAttribute("aria-expanded", "false");
+    inspector.syncOverlay();
+    if (focus) playButton.focus({ preventScroll: true });
+  };
+  const pick = (row) => {
+    const request = viewerApp.drawerPlayRequest(playState(), row.id);
+    close(true);
+    if (request !== null) playPrototype(request.frame);
+  };
+  const render = (drawer) => {
+    shownKey = JSON.stringify(drawer);
+    playList.setAttribute("aria-label", drawer.label);
+    playList.textContent = "";
+    nodes.clear();
+    drawer.groups.forEach((group, index) => {
+      if (index > 0) {
+        const separator = document.createElement("div");
+        separator.className = "doan-menu-sep";
+        separator.setAttribute("aria-hidden", "true");
+        playList.append(separator);
+      }
+      const box = document.createElement("div");
+      box.setAttribute("role", "group");
+      box.setAttribute("aria-label", group.label);
+      for (const row of group.rows) {
+        const node = document.createElement("div");
+        node.className = "doan-menu-item doan-frame-row";
+        node.setAttribute("role", "option");
+        node.tabIndex = -1;
+        if (row.current) node.setAttribute("aria-current", "location");
+        const number = document.createElement("span");
+        number.className = "doan-frame-num";
+        number.textContent = String(row.number);
+        const name = document.createElement("span");
+        name.className = "doan-frame-name";
+        name.title = row.name;
+        name.textContent = row.name;
+        node.append(number, name);
+        if (row.current) {
+          const mark = document.createElement("span");
+          mark.className = "doan-frame-current";
+          mark.title = "Playing";
+          const word = document.createElement("span");
+          word.className = "sr-only";
+          word.textContent = "Playing";
+          mark.append(icon(eyeIcon), word);
+          node.append(mark);
+        }
+        node.addEventListener("focus", () => { focused = row.key; });
+        node.addEventListener("pointermove", () => {
+          if (document.activeElement !== node) node.focus({ preventScroll: true });
+        });
+        node.addEventListener("click", () => pick(row));
+        nodes.set(row.key, node);
+        box.append(node);
+      }
+      playList.append(box);
+    });
+    rows = viewerApp.drawerOrder(drawer.groups);
+  };
+  playPanel.addEventListener("keydown", (event) => {
+    if (!open) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close(true);
+      return;
+    }
+    const result = viewerApp.drawerKey(rows, focused, event, typed, Date.now());
+    typed = result.typed;
+    if (result.prevent) event.preventDefault();
+    const picked = result.pick === undefined ? undefined : rows.find((row) => row.key === result.pick);
+    if (picked) pick(picked);
+    else if (result.move !== undefined) move(result.move);
+  });
+  // A press elsewhere closes it and leaves focus where the press put it.
+  document.addEventListener("pointerdown", (event) => {
+    if (open && !playPanel.contains(event.target) && !playButton.contains(event.target)) close(false);
+  });
+  window.addEventListener("blur", () => {
+    if (open && document.activeElement === canvas) close(false);
+  });
+  return {
+    isOpen: () => open,
+    close,
+    toggle() {
+      if (open) {
+        close(true);
+        return;
+      }
+      render(viewerApp.playDrawer(playState(), playing()));
+      open = true;
+      const holder = playPanel.parentElement.getBoundingClientRect();
+      const button = playButton.getBoundingClientRect();
+      playPanel.style.left = button.left + button.width / 2 - holder.left + "px";
+      playPanel.hidden = false;
+      playButton.setAttribute("aria-expanded", "true");
+      inspector.syncOverlay();
+      move(viewerApp.focusedRowAfter(rows, null));
+    },
+    // Rows that change while it is open keep the focused frame, else the current one. A scroll or a
+    // zoom changes no row, so the list is not rebuilt under the pointer.
+    refresh() {
+      if (!open) return;
+      const drawer = viewerApp.playDrawer(playState(), playing());
+      if (JSON.stringify(drawer) === shownKey) return;
+      const inside = playPanel.contains(document.activeElement);
+      render(drawer);
+      const next = viewerApp.focusedRowAfter(rows, focused);
+      if (inside) move(next);
+      else focused = next;
+    },
+  };
+})();
+
+let playKind = "disabled";
+function refreshPlay() {
+  const state = playState();
+  const play = viewerApp.canvasPlayability(state);
+  playKind = play.kind;
+  playReason.textContent = viewerApp.playTooltip(state);
+  if (play.kind === "disabled") playButton.setAttribute("aria-disabled", "true");
+  else playButton.removeAttribute("aria-disabled");
+  if (play.kind === "drawer") {
+    playButton.setAttribute("aria-haspopup", "listbox");
+    playButton.setAttribute("aria-controls", "play-drawer");
+    playButton.setAttribute("aria-expanded", String(playPopup.isOpen()));
+    playPopup.refresh();
+  } else {
+    // A drawer whose state went closes for good, so it does not come back by itself (the app's App.tsx).
+    if (playPopup.isOpen()) playPopup.close(playPanel.contains(document.activeElement));
+    for (const name of ["aria-haspopup", "aria-controls", "aria-expanded"]) playButton.removeAttribute(name);
+  }
+  if (tipFor === playButton && !tip.hidden) showTip(playButton);
+}
+
+playButton.addEventListener("click", () => {
+  if (playKind === "play") {
+    const request = viewerApp.playRequest(playState());
+    if (request !== null) playPrototype(request.frame);
+  } else if (playKind === "drawer") playPopup.toggle();
+});
+
+// ── The size bubble and the Option measurement ────────────────────────────────
+// Drawn in the board's scrolled content over the scaled stage, in screen px as the app draws them, so
+// lines stay 1px and the bubble keeps its size at any zoom. The bubble is outside the aria-hidden
+// marks so its buttons take focus. Its place, its items and its size are the app's (sizeBubble.ts,
+// bubbleItems.ts without Add to message, selection.ts sizeLabel); the lines are measure.ts's.
+
+const bubblePlay = document.createElement("button");
+bubblePlay.type = "button";
+bubblePlay.className = "doan-icon-button bubble-button bubble-play";
+bubblePlay.setAttribute("data-ui-size", "xs");
+bubblePlay.setAttribute("aria-label", "Play prototype");
+bubblePlay.append(icon(playIcon));
+const bubbleInspect = document.createElement("button");
+bubbleInspect.type = "button";
+bubbleInspect.className = "doan-icon-button bubble-button";
+bubbleInspect.setAttribute("data-ui-size", "xs");
+bubbleInspect.setAttribute("aria-label", "Show inspector");
+bubbleInspect.setAttribute("aria-expanded", "false");
+bubbleInspect.setAttribute("aria-controls", "inspector");
+bubbleInspect.append(icon($("sliders-icon")));
+for (const button of [bubblePlay, bubbleInspect]) bindTip(button);
+
+// The bubble's presses stay its own: the board's drag, a text range's clear and the popups' outside
+// press do not see them (the app's makeBubble). Show inspector keeps focus off itself, as the header's.
+sizeBubble.addEventListener("pointerdown", (event) => event.stopPropagation());
+sizeBubble.addEventListener("mousedown", (event) => {
+  event.stopPropagation();
+  if (bubbleInspect.contains(event.target)) event.preventDefault();
+});
+sizeBubble.addEventListener("click", (event) => {
+  event.stopPropagation();
+  if (bubblePlay.contains(event.target)) {
+    if (!viewerApp.sizeBubblePlay(playState())) return;
+    const request = viewerApp.playRequest(playState());
+    if (request !== null) playPrototype(request.frame);
+  } else if (bubbleInspect.contains(event.target) && bubbleInspect.getAttribute("aria-disabled") !== "true") inspector.reveal();
+});
+
+let mounted = false;
+
+function drawSelection() {
+  if (!mounted) return;
+  refreshPlay();
+  const active = document.activeElement;
+  const had = active === bubblePlay ? "play" : active === bubbleInspect ? "inspect" : null;
+  const rect = selection.target !== null && boardDrawn() ? selection.selected : null;
+  selectionBox.hidden = rect === null;
+  const left = parseFloat(stage.style.left) || 0;
+  const top = parseFloat(stage.style.top) || 0;
+  if (rect !== null) {
+    const screen = { x: left + rect.x * scale, y: top + rect.y * scale, width: rect.width * scale, height: rect.height * scale };
+    Object.assign(selectionBox.style, { left: screen.x + "px", top: screen.y + "px", width: screen.width + "px", height: screen.height + "px" });
+    const state = playState();
+    const play = viewerApp.sizeBubblePlay(state);
+    const items = viewerApp.bubbleItems({ play, ...inspector.panelState() }).filter((item) => item.kind !== "add");
+    const children = [];
+    for (const item of items) {
+      if (item.kind === "play") children.push(bubblePlay);
+      else if (item.kind === "size") children.push(sizeLabel);
+      else if (item.kind === "inspect") {
+        children.push(bubbleInspect);
+        // The app's reason names the conversation; the browser's is the header's own.
+        if (item.disabled !== undefined) {
+          bubbleInspect.setAttribute("aria-disabled", "true");
+          bubbleInspect.setAttribute("aria-describedby", "bubble-inspect-reason");
+          bubbleInspect.setAttribute("data-own-description", "");
+          bubbleInspect.dataset.tip = inspector.noRoom;
+          $("bubble-inspect-reason").textContent = inspector.noRoom;
+        } else {
+          for (const name of ["aria-disabled", "aria-describedby", "data-own-description", "data-tip"]) bubbleInspect.removeAttribute(name);
+        }
+      }
+    }
+    if (children.some((child, index) => sizeBubble.children[index] !== child) || sizeBubble.children.length !== children.length) sizeBubble.replaceChildren(...children);
+    sizeLabel.textContent = viewerApp.sizeLabel(rect);
+    // The bubble's room is the board's visible band above the floating tools, in its own coordinates.
+    const area = board.getBoundingClientRect();
+    const toolsTop = tools.getBoundingClientRect().top - area.top - board.clientTop;
+    const room = viewerApp.canvasBubbleRoom({ height: board.clientHeight }, null, { top: toolsTop });
+    const view = { y: screen.y - board.scrollTop, height: screen.height };
+    const place = viewerApp.sizeBubblePlace(view, viewerApp.SIZE_BUBBLE, room);
+    sizeBubble.className = "dims" + (play ? " playable" : "") + (place.kind === "above" ? " above" : "");
+    sizeBubble.style.top = place.kind === "inside" ? place.top - view.y + "px" : "";
+  }
+  // Focus never falls to the page when a bubble button goes: Play hands it to the toolbar's Play
+  // prototype, the visible control for the same action; Show inspector to the header's, else the board.
+  if (had === "play" && (rect === null || !bubblePlay.isConnected)) playButton.focus({ preventScroll: true });
+  if (had === "inspect" && (rect === null || !bubbleInspect.isConnected)) {
+    const show = $("inspector-show");
+    (show.offsetParent !== null ? show : board).focus({ preventScroll: true });
+  }
+  drawMeasure(left, top);
+}
+
+let measureNodes = [];
+function drawMeasure(left, top) {
+  const { selected, hover, alt } = selection;
+  const measured = alt && selected !== null && hover !== null && boardDrawn();
+  measureLayer.hidden = !measured;
+  if (!measured) return;
+  const drawn = viewerApp.measureLines(selected, hover);
+  drawn.forEach((line, index) => {
+    let element = measureNodes[index];
+    if (element === undefined) {
+      element = { line: document.createElement("div"), label: document.createElement("span") };
+      element.label.className = "measure-label";
+      element.line.append(element.label);
+      measureLayer.append(element.line);
+      measureNodes.push(element);
+    }
+    const horizontal = line.axis === "x";
+    element.line.hidden = false;
+    element.line.className = "measure-line " + (horizontal ? "h" : "v") + (line.dashed ? " dashed" : "");
+    element.label.hidden = line.dashed;
+    element.label.textContent = line.dashed ? "" : viewerApp.canvasPx(line.to - line.from);
+    const x = left + (horizontal ? line.from : line.at) * scale;
+    const y = top + (horizontal ? line.at : line.from) * scale;
+    const length = (line.to - line.from) * scale + "px";
+    Object.assign(element.line.style, { left: x + "px", top: y + "px", width: horizontal ? length : "", height: horizontal ? "" : length });
+  });
+  for (const element of measureNodes.slice(drawn.length)) element.line.hidden = true;
+}
+
+const inspector = mountViewerInspector(canvas, board, () => drawerPopup.isOpen() || zoomPopup.isOpen() || playPopup.isOpen(), (state) => {
+  selection = state;
+  drawSelection();
+});
+mounted = true;
 refresh();

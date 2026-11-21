@@ -30,10 +30,12 @@ const INITIAL_HEIGHT = 150;
 const MAX_HEIGHT = 200000;
 const REMEASURE_MS = 50;
 
-// app/src/renderer/canvasMessage.ts limits.
+// app/src/renderer/canvasMessage.ts limits, and app/src/main/prototype/mark.ts's cap on a raw mark.
 const MAX_FRAMES = 1000;
 const MAX_STRING = 200;
 const MAX_HREF = 8192;
+const MAX_GOTOS = 1000;
+const MAX_PROTOTYPE_MARK = 32;
 
 // ── Height rules (canvasScript.ts) ────────────────────────────────────────────
 
@@ -76,9 +78,9 @@ function clipText(text, max) {
 
 // ── Messages from the canvas document ─────────────────────────────────────────
 // The canvas's own scripts share its window and can post anything, so a message is checked field
-// by field and copied (canvasMessage.ts). Only `layout`, `wheel` and `key` exist here; there is no
-// selection channel. `key` carries the tool keys pressed while focus is in the canvas: Space down
-// and up, V, H and Escape, nothing else.
+// by field and copied (canvasMessage.ts). Only `layout`, `wheel` and `key` exist here; the selection
+// travels on the inspector's own channel (inspectMessage.js). `key` carries the tool keys pressed
+// while focus is in the canvas: Space down and up, V, H and Escape, nothing else.
 
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -92,28 +94,55 @@ function isNonNegative(value) {
   return isFiniteNumber(value) && value >= 0;
 }
 
+// A frame keeps what Play prototype judges (canvasMessage.ts parseFrame): its raw mark, dropped when
+// it is not a string or is over the cap, and `cut` when the id was cut here or by the canvas.
 function parseFrame(raw) {
   if (!isRecord(raw)) return null;
-  const { id, title, x, y, width, height } = raw;
+  const { id, title, prototype, x, y, width, height } = raw;
   if (typeof id !== "string" || (title !== undefined && typeof title !== "string")) return null;
   if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isNonNegative(width) || !isNonNegative(height)) return null;
   const frame = { id: clipText(id, MAX_STRING), x, y, width, height };
+  if (frame.id !== id || raw.cut === true) frame.cut = true;
+  if (typeof prototype === "string" && prototype.length <= MAX_PROTOTYPE_MARK) frame.prototype = prototype;
   if (title !== undefined) frame.title = clipText(title, MAX_STRING);
   return frame;
 }
 
 // `total` counts every frame in the canvas, listed or not: the page cannot know how many more
 // there are from the first 1,000 alone. Absent or smaller than what is listed, it is the listed count.
+// `parent` and a link's `frame` are indexes into the canvas's list; a dropped frame shifts the rest,
+// so they are mapped onto the kept list, and one that names a dropped or later frame is left out
+// (canvasMessage.ts parseLayout).
 function parseLayout(data) {
-  const { href, height, viewport, frames, total } = data;
+  const { href, height, viewport, frames, total, gotos } = data;
   if (typeof href !== "string" || href.length > MAX_HREF || !isNonNegative(height) || !isNonNegative(viewport) || !Array.isArray(frames)) return null;
+  if (gotos !== undefined && !Array.isArray(gotos)) return null;
   const listed = [];
-  for (const raw of frames.slice(0, MAX_FRAMES)) {
+  const keptAt = [];
+  const keptIndex = (value, before) => Number.isInteger(value) && value >= 0 && value < before ? keptAt[value] : undefined;
+  for (const [index, raw] of frames.slice(0, MAX_FRAMES).entries()) {
     const frame = parseFrame(raw);
-    if (frame !== null) listed.push(frame);
+    if (frame === null) {
+      keptAt.push(undefined);
+      continue;
+    }
+    const parent = keptIndex(raw.parent, index);
+    if (parent !== undefined) frame.parent = parent;
+    keptAt.push(listed.length);
+    listed.push(frame);
+  }
+  const links = [];
+  for (const raw of (gotos ?? []).slice(0, MAX_GOTOS)) {
+    if (!isRecord(raw) || typeof raw.value !== "string" || raw.value.length > MAX_STRING) continue;
+    if (raw.frame === undefined) {
+      links.push({ value: raw.value });
+      continue;
+    }
+    const frame = keptIndex(raw.frame, keptAt.length);
+    if (frame !== undefined) links.push({ value: raw.value, frame });
   }
   const all = Number.isSafeInteger(total) && total >= frames.length ? total : frames.length;
-  return { type: "layout", height, viewport, frames: listed, total: all };
+  return { type: "layout", height, viewport, frames: listed, total: all, gotos: links };
 }
 
 function parseWheel(data) {
@@ -124,10 +153,12 @@ function parseWheel(data) {
   return { type: "wheel", dx, dy, ctrl, meta, deltaMode, x, y };
 }
 
+// A held Esc's repeats still turn Hand back to Select but take no Select step (the app's escape).
 function parseKey(data) {
   const { key, down } = data;
   if (key === "Space") return typeof down === "boolean" ? { type: "key", key, down } : null;
-  if (key === "V" || key === "H" || key === "Escape") return { type: "key", key };
+  if (key === "Escape") return { type: "key", key, repeat: data.repeat === true };
+  if (key === "V" || key === "H") return { type: "key", key };
   return null;
 }
 
@@ -309,8 +340,9 @@ function layerShown(tool, spaceHeld, dragging, boardDrawn) {
   return boardDrawn && (tool === "hand" || spaceHeld || dragging);
 }
 
-// The viewer has no pick and no selection, so of the app's escapeStep only Hand → Select is left.
-// A text field keeps its own Esc, and an Esc a menu or the tooltip took (prevented) is spent.
+// The viewer has no pick or capture, so of the app's escapeStep Hand → Select comes first and the
+// selection's step after it (inspectView.js). A text field keeps its own Esc, and an Esc a menu or
+// the tooltip took (prevented) is spent.
 function escapeSelects(state) {
   return state.hand && !state.editable && !state.defaultPrevented;
 }
@@ -341,7 +373,7 @@ function layoutHeight(current, layout) {
 }
 
 function initialViewer() {
-  return { phase: "loading", height: INITIAL_HEIGHT, frames: null, total: 0 };
+  return { phase: "loading", height: INITIAL_HEIGHT, frames: null, total: 0, gotos: [] };
 }
 
 // `ready` is the first time the board may be shown: either the first layout, or the timeout
@@ -352,7 +384,7 @@ function initialViewer() {
 function viewerLayout(state, layout) {
   const height = layoutHeight(state.height, layout);
   const remeasure = Math.abs(layout.viewport - height) > 1 || Math.min(layout.height, MAX_HEIGHT) !== height;
-  return { state: { phase: "ready", height, frames: layout.frames, total: layout.total }, ready: state.phase === "loading", remeasure };
+  return { state: { phase: "ready", height, frames: layout.frames, total: layout.total, gotos: layout.gotos }, ready: state.phase === "loading", remeasure };
 }
 
 function viewerTimeout(state) {

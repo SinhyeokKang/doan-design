@@ -12,12 +12,15 @@
     HUE     the thumbnail color from the fixed project palette.
     WIDTH   doan:width as a decimal integer. The CSS-only view (no JavaScript) sizes the iframe
             with it; shell.js reads the same number from META.
-    META    JSON {"name": string, "width": number} for shell.js, inside a
-            <script type="application/json">. Write every "<" as \u003c so the value can neither
-            end the script nor open an HTML comment.
+    META    JSON {"name": string, "width": number, "prototype": object} for shell.js, inside a
+            <script type="application/json">. `prototype` is what the viewer joins into a frame's
+            prototype file, the file `doan export --frame <id> --prototype` writes (assemble.go
+            frameExports). Write every "<" as \u003c so the value can neither end the script nor open
+            an HTML comment.
     STYLE   shell.css.
-    SCRIPT  lib.js, inspector display helpers and shell.js, wrapped in a function so the names stay local. Neither
-            file may contain "</script" or an HTML comment opener (viewer test).
+    SCRIPT  lib.js, inspector display helpers, the app's generated judgments (viewerApp.js) and
+            shell.js, wrapped in a function so the names stay local. No file may contain "</script"
+            or an HTML comment opener (viewer test).
     SRCDOC  the rewritten canvas HTML as a double-quoted attribute value: escape & and ". Its head
             starts with an inline script holding lib.js, inspector readers and measure.js, wrapped in a
             function (assemble builds that; this file does not).
@@ -64,7 +67,7 @@
 </header>
 <main class="board" id="board" tabindex="0" aria-label="Canvas">
   <noscript><p class="doan-notice doan-panel vw-noscript"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span>This preview shows the top of the canvas. Open the file in a web browser to see all of it and its frames.</span></p></noscript>
-  <div class="spacer" id="spacer"><div class="stage" id="stage"><iframe class="canvas" id="canvas" sandbox="allow-scripts" style="width:{{WIDTH}}px" srcdoc="{{SRCDOC}}"></iframe><div class="vw-overlay" id="inspect-marks" aria-hidden="true"><div id="inspect-range"></div><div class="mark" id="selected-mark" hidden></div><div class="mark hover" id="hover-mark" hidden></div></div></div></div>
+  <div class="spacer" id="spacer"><div class="stage" id="stage"><iframe class="canvas" id="canvas" sandbox="allow-scripts" style="width:{{WIDTH}}px" srcdoc="{{SRCDOC}}"></iframe><div class="vw-overlay" id="inspect-marks" aria-hidden="true"><div id="inspect-range"></div><div class="mark" id="selected-mark" hidden></div><div class="mark hover" id="hover-mark" hidden></div></div></div><div class="vw-selection" id="selection-box" hidden><div class="dims" id="size-bubble"><span id="size-label"></span></div></div><div class="measure" id="measure" aria-hidden="true" hidden></div></div>
 </main>
 <div id="inspector-resize" role="separator" aria-label="Resize inspector" aria-controls="inspector" aria-orientation="vertical" tabindex="0" hidden></div>
 <div id="resize-cover" aria-hidden="true" hidden></div>
@@ -82,9 +85,14 @@
 </aside>
 <div class="doan-canvas-bottom">
   <div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools" id="tools">
-    <button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Select" aria-keyshortcuts="V" data-tool="select" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></svg></button>
+    <button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Select" aria-keyshortcuts="V" data-tool="select" data-tip="Select — Option-click (Alt-click) to use the canvas’s buttons and fields" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></svg></button>
     <button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Hand" aria-keyshortcuts="H" data-tool="hand" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg></button>
+    <span class="doan-canvas-tools-sep" role="separator" aria-orientation="vertical"></span>
+    <button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" id="play" aria-label="Play prototype" aria-describedby="play-reason" aria-disabled="true" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg></button>
   </div>
+  <div class="doan-floating doan-menu doan-frame-list vw-play-drawer" id="play-drawer" hidden><div role="listbox" id="play-list"></div></div>
+  <span class="sr-only" id="play-reason"></span>
+  <span class="sr-only" id="bubble-inspect-reason"></span>
 </div>
 <div class="doan-tooltip has-key vw-tool-tip" id="tool-tip" role="tooltip" hidden></div>
 <template id="inspect-icon-frame"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" x2="2" y1="6" y2="6"></line><line x1="22" x2="2" y1="18" y2="18"></line><line x1="6" x2="6" y1="2" y2="22"></line><line x1="18" x2="18" y1="2" y2="22"></line></svg></template>
@@ -97,6 +105,8 @@
 <template id="inspect-icon-box"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect></svg></template>
 <template id="inspect-icon-success"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></template>
 <template id="inspect-icon-failure"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg></template>
+<template id="play-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg></template>
+<template id="sliders-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg></template>
 <template id="eye-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg></template>
 </div>
 <script type="application/json" id="doan-meta">{{META}}</script>

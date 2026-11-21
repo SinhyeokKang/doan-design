@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext, Script } from "node:vm";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Eye, Hand, MousePointer2 } from "lucide-react";
+import { Eye, Hand, MousePointer2, Play } from "lucide-react";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import type { Frame } from "playwright";
 import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
@@ -296,11 +296,12 @@ describe("message validation", () => {
   });
 
   test("keeps a valid layout as a fresh object with only the fields the page reads", () => {
-    const input = layout({ document: "tok", seq: 3, frames: [frame({ title: "Cart", implements: "x", prototype: "390x844" })], gotos: [{ value: "a", frame: 0, extra: 1 }], extra: { a: 1 } });
+    const gotos = [{ value: "a", frame: 0, extra: 1 }];
+    const input = layout({ document: "tok", seq: 3, frames: [frame({ title: "Cart", implements: "x", prototype: "390x844" })], gotos, extra: { a: 1 } });
     const parsed = v.parseMessage(input);
     expect(parsed).toEqual({ type: "layout", height: 500, viewport: 150, frames: [{ id: "a", title: "Cart", prototype: "390x844", x: 0, y: 0, width: 10, height: 10 }], total: 1, gotos: [{ value: "a", frame: 0 }] });
     expect(parsed.frames[0]).not.toBe(input.frames[0]);
-    expect(parsed.gotos[0]).not.toBe(input.gotos[0]);
+    expect(parsed.gotos[0]).not.toBe(gotos[0]);
   });
 
   // Play prototype judges the frames and links the layout reports, so the viewer keeps them as the app's
@@ -382,7 +383,7 @@ describe("message validation", () => {
 describe("first layout and its timeout", () => {
   test("the board is hidden until the first layout, which shows it at the height the canvas reported", () => {
     const start = v.initialViewer();
-    expect(start).toEqual({ phase: "loading", height: INITIAL_HEIGHT, frames: null, total: 0 });
+    expect(start).toEqual({ phase: "loading", height: INITIAL_HEIGHT, frames: null, total: 0, gotos: [] });
     const first = v.viewerLayout(start, v.parseMessage(layout({ height: 900, viewport: INITIAL_HEIGHT })));
     expect(first.ready).toBe(true);
     expect(first.state.phase).toBe("ready");
@@ -412,7 +413,7 @@ describe("first layout and its timeout", () => {
     const start = v.initialViewer();
     const timed = v.viewerTimeout(start);
     expect(timed.ready).toBe(true);
-    expect(timed.state).toEqual({ phase: "ready", height: INITIAL_HEIGHT, frames: null, total: 0 });
+    expect(timed.state).toEqual({ phase: "ready", height: INITIAL_HEIGHT, frames: null, total: 0, gotos: [] });
     expect(timed.remeasure).toBe(false);
     expect(v.viewerTimeout(timed.state).ready).toBe(false);
   });
@@ -699,7 +700,11 @@ describe("key messages from the canvas", () => {
   test("keeps Space down and up, V, H and Escape as fresh objects", () => {
     expect(v.parseMessage({ type: "key", key: "Space", down: true, extra: 1 })).toEqual({ type: "key", key: "Space", down: true });
     expect(v.parseMessage({ type: "key", key: "Space", down: false })).toEqual({ type: "key", key: "Space", down: false });
-    for (const key of ["V", "H", "Escape"]) expect(v.parseMessage({ type: "key", key, down: true })).toEqual({ type: "key", key });
+    for (const key of ["V", "H"]) expect(v.parseMessage({ type: "key", key, down: true })).toEqual({ type: "key", key });
+    // A held Esc's repeat still turns Hand back to Select, but takes no selection step.
+    expect(v.parseMessage({ type: "key", key: "Escape", down: true })).toEqual({ type: "key", key: "Escape", repeat: false });
+    expect(v.parseMessage({ type: "key", key: "Escape", repeat: true })).toEqual({ type: "key", key: "Escape", repeat: true });
+    expect(v.parseMessage({ type: "key", key: "Escape", repeat: "yes" })).toEqual({ type: "key", key: "Escape", repeat: false });
   });
 
   test.each([
@@ -1140,14 +1145,22 @@ describe("the toolbar", () => {
     expect(toolbar?.[0]).toMatch(/role="toolbar"/);
     expect(toolbar?.[0]).toMatch(/aria-label="Canvas tools"/);
     expect(readFileSync(new URL("../renderer/CanvasTools.tsx", import.meta.url), "utf8")).toContain('role="toolbar" aria-label="Canvas tools"');
-    expect(buttons.map(b => [attr(b.attrs, "aria-label"), attr(b.attrs, "aria-keyshortcuts"), attr(b.attrs, "data-tool")])).toEqual(appTools.map(t => [t.label, t.key, t.tool]));
+    const toolButtons = buttons.filter(b => attr(b.attrs, "data-tool") !== null);
+    expect(toolButtons.map(b => [attr(b.attrs, "aria-label"), attr(b.attrs, "aria-keyshortcuts"), attr(b.attrs, "data-tool")])).toEqual(appTools.map(t => [t.label, t.key, t.tool]));
     for (const { attrs } of buttons) {
       expect(attrs).toMatch(/^type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md"/);
       // A title would draw the browser's tooltip next to ours.
       expect(attr(attrs, "title")).toBeNull();
     }
     // Select is the first tool: pressed, and the toolbar's one Tab stop.
-    expect(buttons.map(b => [attr(b.attrs, "aria-pressed"), attr(b.attrs, "tabindex")])).toEqual([["true", "0"], ["false", "-1"]]);
+    expect(toolButtons.map(b => [attr(b.attrs, "aria-pressed"), attr(b.attrs, "tabindex")])).toEqual([["true", "0"], ["false", "-1"]]);
+    // After a divider, Play prototype as the app's: an action with no pressed state that never holds the Tab stop,
+    // unavailable until the canvas is drawn, its reason its own description, and lucide's Play.
+    expect(toolbar?.[1]).toContain('<span class="doan-canvas-tools-sep" role="separator" aria-orientation="vertical"></span>');
+    const play = buttons.at(-1)!;
+    expect(buttons).toHaveLength(3);
+    expect([attr(play.attrs, "aria-label"), attr(play.attrs, "aria-pressed"), attr(play.attrs, "tabindex"), attr(play.attrs, "aria-disabled"), attr(play.attrs, "aria-describedby")]).toEqual(["Play prototype", null, "-1", "true", "play-reason"]);
+    expect(renderToStaticMarkup(createElement(Play))).toContain(/<path d="[^"]+"/.exec(play.svg)![0]);
   });
 
   test("the icons are lucide's MousePointer2 and Hand, inline and without a namespace URL", () => {
@@ -1205,8 +1218,8 @@ describe("tool wiring", () => {
   test("Space is let go when the window loses focus to another window, and when the canvas loads another document", () => {
     expect(shellJs).toMatch(/window\.addEventListener\("blur", \(\) => \{\s*if \(!document\.hasFocus\(\)\) releaseInput\(\);\s*\}\);/);
     expect(shellJs).toContain('canvas.addEventListener("load", releaseInput);');
-    // The popups' own blur handler stays as it was.
-    expect(shellJs.match(/window\.addEventListener\("blur"/g)).toHaveLength(2);
+    // The popups' own blur handlers (the frame drawer and zoom menu's, the play drawer's) stay as they were.
+    expect(shellJs.match(/window\.addEventListener\("blur"/g)).toHaveLength(3);
   });
 
   // A pointer resting over the canvas keeps the cursor the canvas document last set until it moves (measured in
@@ -1271,12 +1284,12 @@ describe("tool wiring", () => {
 
   test("an Esc from the canvas skips the tooltip and goes straight to Hand → Select, as the app's escape(false)", () => {
     // The app's tooltip hears Esc only on the app document (Radix, capture phase); a forwarded Esc never reaches it.
-    expect(code(shellJs)).toMatch(/else if \(message\.key === "Escape"\) escapeTool\(false, false\);/);
-    const escapeTool = /function escapeTool\(editable, handled\) \{[\s\S]*?\n\}/.exec(code(shellJs))?.[0] ?? "";
+    expect(code(shellJs)).toMatch(/else if \(message\.key === "Escape"\) escapeTool\(false, false, message\.repeat\);/);
+    const escapeTool = /function escapeTool\(editable, handled, repeat\) \{[\s\S]*?\n\}/.exec(code(shellJs))?.[0] ?? "";
     expect(escapeTool).toContain('chooseTool("select");');
     expect(escapeTool).not.toMatch(/tip|hideTip/);
     // The page's Esc still closes an open tooltip first.
-    expect(code(shellJs)).toMatch(/function escapeKey\(editable, handled\) \{\s*if \(!handled && !tip\.hidden\) \{\s*hideTip\(\);\s*return true;\s*\}\s*return escapeTool\(editable, handled\);\s*\}/);
+    expect(code(shellJs)).toMatch(/function escapeKey\(editable, handled, repeat\) \{\s*if \(!handled && !tip\.hidden\) \{\s*hideTip\(\);\s*return true;\s*\}\s*return escapeTool\(editable, handled, repeat\);\s*\}/);
   });
 
   test("the canvas lets Space go on blur and pagehide, and sends every Space release", () => {
@@ -1352,7 +1365,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
       };
       window.addEventListener("message", onInspection);
     });
-    await frame.getByRole("button", { name: "Show inspector" }).click();
+    await frame.locator("#inspector-show").click();
     await frame.waitForFunction(inset => {
       const canvas = document.querySelector<HTMLIFrameElement>("#canvas")!;
       const board = document.getElementById("board")!;
@@ -1364,7 +1377,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
 
   test("the inspector opens folded, renders canvas labels as text and restores the selection after yielding", async () => {
     const frame = await openCanvas('<section data-doan-frame="item" data-doan-title="&lt;b&gt;Item&lt;/b&gt;" style="height:300px;color:blue">Item</section>');
-    const show = frame.getByRole("button", { name: "Show inspector" });
+    const show = frame.locator("#inspector-show");
     expect(await show.count()).toBe(1);
     const panel = frame.getByRole("region", { name: "Inspector", includeHidden: true });
     expect(await panel.isHidden()).toBe(true);
@@ -1474,7 +1487,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
 
   test("Hide inspector shows its tooltip on hover and keyboard focus", async () => {
     const frame = await openCanvas(compactCart, 320);
-    const show = frame.getByRole("button", { name: "Show inspector", exact: true });
+    const show = frame.locator("#inspector-show");
     const hide = frame.getByRole("button", { name: "Hide inspector", exact: true });
     const tip = frame.getByRole("tooltip").filter({ hasText: "Hide inspector" });
     await show.press("Enter");
@@ -1520,7 +1533,8 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
 
   // Hold the shell's commands in delivery order at the sandbox boundary. Mouse input still goes
   // through Chromium's hit testing. Releasing the queue can split a physical down/up gesture.
-  const openingGesture = async (reopen = false) => {
+  // `folded`: the gesture is the folded viewer's first click, whose select mode arrives with the canvas's load.
+  const openingGesture = async (reopen = false, folded = false) => {
     const frame = await openCanvas('<section data-doan-frame="cart" data-doan-title="Cart"><button style="width:100%;height:180px" onpointerdown="this.dataset.pressed=1" onclick="this.textContent=\'Activated\'">Buy</button></section>', 320, undefined, () => {
       const held: MessageEvent[] = [];
       const hold = (event: MessageEvent) => {
@@ -1529,6 +1543,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
           const { data, origin, source } = event;
           held.push(new MessageEvent("message", { data, origin, source }));
           if (data.type === "inspect-mode") document.documentElement.dataset.heldMode = String(data.epoch);
+          if (data.type === "inspect-mode" && data.styles) document.documentElement.dataset.heldStyles = String(data.epoch);
         }
       };
       window.addEventListener("message", hold, true);
@@ -1546,8 +1561,11 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
       await canvas.evaluate(() => { delete document.documentElement.dataset.pass; });
       await frame.getByRole("button", { name: "Hide inspector" }).press("Enter");
     }
-    await frame.getByRole("button", { name: "Show inspector" }).click();
-    await canvas.locator(`html[data-held-mode="${reopen ? 3 : 1}"]`).waitFor({ state: "attached", timeout: 3000 });
+    if (folded) await canvas.locator("html[data-held-mode]").waitFor({ state: "attached", timeout: 3000 });
+    else {
+      await frame.locator("#inspector-show").click();
+      await canvas.locator("html[data-held-styles]").waitFor({ state: "attached", timeout: 3000 });
+    }
     await frame.waitForFunction(inset => {
       const board = document.getElementById("board")!;
       const stage = document.getElementById("stage")!;
@@ -1585,6 +1603,31 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     expect(await frame.locator("#selected-mark").isVisible()).toBe(true);
   });
 
+  // POSTMORTEM 2026-11-20: the folded viewer's first click can come before its select mode reaches the canvas.
+  test.each(["before press ends", "after release"])("the folded viewer's first canvas click selects once when select mode arrives %s", async timing => {
+    const { frame, button, mouse, deliver } = await openingGesture(false, true);
+    await frame.evaluate(() => {
+      const canvas = document.querySelector<HTMLIFrameElement>("#canvas")!;
+      canvas.dataset.selections = "0";
+      window.addEventListener("message", event => {
+        const target = event.data?.target;
+        if (event.source === canvas.contentWindow && event.data?.type === "inspection" && target) canvas.dataset.selections = String(Number(canvas.dataset.selections) + 1);
+      });
+    });
+    await mouse.down();
+    if (timing === "before press ends") await deliver();
+    await mouse.up();
+    if (timing === "after release") await deliver();
+    await frame.locator("#selection-box").waitFor({ timeout: 3000 });
+    await dom.flush(frame.childFrames()[0]!);
+    await dom.flush(frame);
+    expect(await button.getAttribute("data-pressed")).toBeNull();
+    expect(await button.textContent()).toBe("Buy");
+    expect(await frame.locator("#canvas").getAttribute("data-selections")).toBe("1");
+    expect(await frame.locator("#inspector").isHidden()).toBe(true);
+    expect(await frame.locator("#size-label").textContent()).toMatch(/^320 × \d+$/);
+  });
+
   test.each(["Hand", "Space", "panel yield", "close and reopen", "lost capture"])("%s during the opening press cannot leave a selection on release", async action => {
     const { frame, button, mouse, deliver } = await openingGesture();
     await mouse.down();
@@ -1603,7 +1646,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
       await frame.locator("#inspector").waitFor();
     } else if (action === "close and reopen") {
       await frame.getByRole("button", { name: "Hide inspector" }).press("Enter");
-      await frame.getByRole("button", { name: "Show inspector" }).press("Enter");
+      await frame.locator("#inspector-show").press("Enter");
     } else {
       const target = frame.childFrames()[0]!.getByRole("button");
       const box = (await target.boundingBox())!;
@@ -1676,7 +1719,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     }
   });
 
-  test("the first click after reopening steps from the new inspector's empty selection", async () => {
+  test("the first click after reopening steps from the selection the folded inspector kept", async () => {
     const { frame, mouse, deliver } = await openingGesture(true);
     await mouse.down(); await mouse.up();
     await deliver();
@@ -1706,13 +1749,26 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     await frame.getByRole("button", { name: "Cart, frame. Elements in this frame", exact: true }).waitFor({ timeout: 3000 });
   });
 
-  test("a folded viewer leaves canvas clicks and hover alone", async () => {
+  // Select takes canvas clicks with the inspector folded; Option-click is how the canvas's own controls are used.
+  test("a folded viewer selects on click and shows the hover, without reading styles; Option-click reaches the canvas", async () => {
     const frame = await openCanvas('<section data-doan-frame="f" style="height:250px;padding:12px"><button onclick="this.textContent=\'Clicked\'">Click</button></section>', 320);
+    await frame.evaluate(() => {
+      const canvas = document.querySelector<HTMLIFrameElement>("#canvas")!;
+      window.addEventListener("message", event => {
+        if (event.source === canvas.contentWindow && event.data?.type === "inspection" && (event.data.rows.length || event.data.nodes.length)) canvas.dataset.styles = "read";
+      });
+    });
     const button = frame.frameLocator("#canvas").getByRole("button");
     await button.hover();
+    await expect.poll(() => frame.locator("#hover-mark").isVisible()).toBe(true);
     await button.click();
+    expect(await button.textContent()).toBe("Click");
+    await frame.locator("#selection-box").waitFor();
+    expect(await frame.locator("#selected-mark").isVisible()).toBe(true);
+    await button.click({ modifiers: ["Alt"] });
     expect(await button.textContent()).toBe("Clicked");
-    expect(await frame.locator("#hover-mark").isHidden()).toBe(true);
+    expect(await frame.locator("#inspector").isHidden()).toBe(true);
+    expect(await frame.locator("#canvas").getAttribute("data-styles")).toBeNull();
   });
 
   test("frame steps, direct selection, Option-click and forwarded Escape keep the selected level", async () => {
@@ -1976,6 +2032,176 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     expect(viewed[0]!.icon!.paths).toHaveLength([...lucide.matchAll(/<(path|circle)\b/g)].length);
     for (const row of rows.filter(row => row.current === null)) expect(row).toMatchObject({ oldWord: false, mark: null });
   }, 60_000);
+
+  // ── Select, the size bubble and Play prototype on the board ──
+  // A board of prototype frames: Cart (marked) links to Payment (marked) from inside its nested, unmarked Row frame;
+  // Bad's mark is invalid; Screen is unmarked around a marked Card; Plain has no mark.
+  const playBoard = [
+    '<section data-doan-frame="cart" data-doan-title="Cart" data-doan-prototype="320x200" style="height:200px;padding:20px;box-sizing:border-box">',
+    '<div data-doan-frame="row" data-doan-title="Row" style="height:80px"><button data-doan-id="buy" data-doan-goto="pay" style="width:120px;height:40px">Buy</button></div></section>',
+    '<section data-doan-frame="pay" data-doan-title="Payment" data-doan-prototype="320x200" style="height:200px">Payment</section>',
+    '<section data-doan-frame="bad" data-doan-title="Bad" data-doan-prototype="0x0" style="height:120px">Bad</section>',
+    '<section data-doan-frame="screen" data-doan-title="Screen" style="height:200px;padding:20px;box-sizing:border-box"><div data-doan-frame="card" data-doan-title="Card" data-doan-prototype="100x100" style="height:120px">Card</div></section>',
+    '<section data-doan-frame="plain" data-doan-title="Plain" style="height:120px">Plain</section>',
+  ].join("");
+  const canvasOf = (frame: Frame) => frame.frameLocator("#canvas");
+  // ⌘-click selects the element under the pointer itself, whatever is selected (the app's direct selection).
+  const selectDirect = async (frame: Frame, selector: string, position = { x: 6, y: 6 }) => {
+    await canvasOf(frame).locator(selector).first().click({ modifiers: ["Meta"], position });
+  };
+  const reason = (frame: Frame) => frame.locator("#play-reason").textContent();
+
+  test("Play prototype follows the app's decision: the drawer with no selection, the frame or its nearest playable one, the drawer for an invalid mark", async () => {
+    const frame = await openCanvas(playBoard, 320);
+    const play = frame.locator("#play");
+    expect(await reason(frame)).toBe("Choose a prototype to play");
+    expect(await play.getAttribute("aria-haspopup")).toBe("listbox");
+    expect(await play.getAttribute("aria-disabled")).toBeNull();
+    await selectDirect(frame, '[data-doan-frame="cart"]');
+    await expect.poll(() => reason(frame)).toBe("Play “Cart”");
+    expect(await play.getAttribute("aria-haspopup")).toBeNull();
+    expect(await frame.locator("#size-bubble").getByRole("button", { name: "Play prototype" }).count()).toBe(1);
+    // An element inside an unmarked frame plays the nearest marked frame around it; the bubble offers no Play.
+    await selectDirect(frame, '[data-doan-id="buy"]');
+    await expect.poll(() => reason(frame)).toBe("Play “Cart”");
+    expect(await frame.locator("#size-bubble").getByRole("button", { name: "Play prototype" }).count()).toBe(0);
+    await selectDirect(frame, '[data-doan-frame="bad"]');
+    await expect.poll(() => reason(frame)).toBe("“Bad” can’t play. Choose a prototype to play.");
+    await play.press("Enter");
+    const list = frame.getByRole("listbox", { name: "Prototype frames in checkout" });
+    await list.waitFor();
+    expect(await list.getByRole("group").evaluateAll(groups => groups.map(group => [group.getAttribute("aria-label"), Array.from(group.querySelectorAll('[role="option"]'), row => row.textContent)]))).toEqual([
+      ["Cart and 1 more", ["1Cart", "3Payment"]], ["Frames without links", ["6Card"]],
+    ]);
+    expect(await frame.evaluate(() => document.activeElement?.textContent)).toBe("1Cart");
+    await frame.page().keyboard.press("ArrowDown");
+    expect(await frame.evaluate(() => document.activeElement?.textContent)).toBe("3Payment");
+    await frame.page().keyboard.press("Escape");
+    expect(await list.isHidden()).toBe(true);
+    expect(await frame.evaluate(() => document.activeElement?.id)).toBe("play");
+    // The selection stayed through the drawer.
+    expect(await reason(frame)).toBe("“Bad” can’t play. Choose a prototype to play.");
+  });
+
+  test("before the canvas is drawn and on a canvas with no marked frame, Play prototype is unavailable with its reason", async () => {
+    const waiting = await dom.load(viewerPage(playBoard, { reports: false }));
+    expect(await waiting.locator("#play").getAttribute("aria-disabled")).toBe("true");
+    expect(await reason(waiting)).toBe("Play isn’t available while the canvas can’t be shown.");
+    const frame = await openCanvas(twoFrames);
+    await expect.poll(() => reason(frame)).toBe("No frames in this canvas are marked for prototyping.");
+    expect(await frame.locator("#play").getAttribute("aria-disabled")).toBe("true");
+    // Playwright does not click an aria-disabled control; a person can, and nothing opens.
+    await frame.locator("#play").dispatchEvent("click");
+    expect(await frame.locator("#play-drawer").isHidden()).toBe(true);
+  });
+
+  test("when the bubble's Play goes while it has keyboard focus, the toolbar's Play prototype takes it", async () => {
+    const frame = await openCanvas(playBoard, 320);
+    const bubblePlay = frame.locator("#size-bubble").getByRole("button", { name: "Play prototype" });
+    // Play alone goes: Esc steps from Card to the unmarked Screen around it, and the bubble stays.
+    await selectDirect(frame, '[data-doan-frame="card"]');
+    await bubblePlay.focus();
+    // Keyboard focus shows the button's tooltip, and a page Esc that closes it is spent (ARCHITECTURE §3).
+    await frame.locator("#tool-tip").waitFor();
+    await frame.page().keyboard.press("Escape");
+    expect(await reason(frame)).toBe("Play “Card”");
+    await frame.page().keyboard.press("Escape");
+    await expect.poll(() => reason(frame)).toBe("Choose a prototype to play");
+    expect(await frame.locator("#selection-box").isVisible()).toBe(true);
+    expect(await frame.evaluate(() => document.activeElement?.id)).toBe("play");
+    // The whole bubble goes: Esc from the outermost Cart clears the selection.
+    await selectDirect(frame, '[data-doan-frame="cart"]');
+    await bubblePlay.focus();
+    await frame.locator("#tool-tip").waitFor();
+    await frame.page().keyboard.press("Escape");
+    await frame.page().keyboard.press("Escape");
+    await frame.locator("#selection-box").waitFor({ state: "hidden" });
+    expect(await frame.evaluate(() => document.activeElement?.id)).toBe("play");
+  });
+
+  test("Hand clears the selection and Space keeps it", async () => {
+    const frame = await openCanvas(playBoard, 320);
+    await selectDirect(frame, '[data-doan-frame="pay"]');
+    await expect.poll(() => reason(frame)).toBe("Play “Payment”");
+    await frame.evaluate(() => window.focus());
+    await frame.locator("#board").focus();
+    await frame.page().keyboard.down("Space");
+    await expect.poll(() => frame.locator("#board").getAttribute("data-pan")).toBe("");
+    await frame.page().keyboard.up("Space");
+    await frame.locator("#selection-box").waitFor();
+    expect(await reason(frame)).toBe("Play “Payment”");
+    await frame.page().keyboard.press("h");
+    await frame.locator("#selection-box").waitFor({ state: "hidden" });
+    expect(await reason(frame)).toBe("Choose a prototype to play");
+  });
+
+  test("Option over another element draws the app's measurement from the selection", async () => {
+    const frame = await openCanvas(playBoard, 320);
+    await selectDirect(frame, '[data-doan-id="buy"]');
+    await frame.locator("#selection-box").waitFor();
+    expect(await frame.locator("#size-label").textContent()).toBe("120 × 40");
+    await frame.page().keyboard.down("Alt");
+    try {
+      // Buy (20, 20, 120 × 40) over Payment (0, 200, 320 × 200): the 140 px gap and the two side differences.
+      await canvasOf(frame).locator('[data-doan-frame="pay"]').hover({ position: { x: 10, y: 10 } });
+      await frame.locator("#measure").waitFor();
+      const lines = appMeasureLines({ x: 20, y: 20, width: 120, height: 40 }, { x: 0, y: 200, width: 320, height: 200 }).filter(line => !line.dashed);
+      expect(await frame.locator("#measure .measure-label:not([hidden])").allTextContents()).toEqual(lines.map(line => String(line.to - line.from)));
+      expect(lines.map(line => line.to - line.from)).toEqual([140, 20, 180]);
+      expect(await frame.locator("#hover-mark").getAttribute("class")).toContain("measuring");
+    } finally { await frame.page().keyboard.up("Alt"); }
+    await frame.locator("#measure").waitFor({ state: "hidden" });
+  });
+
+  test("the frame drawer marks the frames Play prototype can play, and a row moves the board without playing", async () => {
+    const frame = await openCanvas(playBoard, 320);
+    await frame.locator("#drawer-button").click();
+    const rows = await frame.locator("#drawer-list [role=option]").evaluateAll(nodes => nodes.map(node => [node.querySelector(".doan-frame-name")?.textContent, !!node.querySelector(".prototype-meta-icon")]));
+    expect(rows).toEqual([["Cart", true], ["Row", false], ["Payment", true], ["Bad", false], ["Screen", false], ["Card", true], ["Plain", false]]);
+    expect(await frame.locator('#drawer-list .prototype-meta-icon[title="Prototype supported"] .sr-only').first().textContent()).toBe("Prototype");
+    const before = await frame.locator("#board").evaluate(board => board.scrollTop);
+    await frame.locator("#drawer-list [role=option]").nth(6).click();
+    await expect.poll(() => frame.locator("#board").evaluate(board => board.scrollTop)).not.toBe(before);
+    expect(await frame.locator("#play-drawer").isHidden()).toBe(true);
+  });
+
+  test("a pointer press on Play prototype takes no focus, so Space after it pans", async () => {
+    const frame = await openCanvas(playBoard, 320);
+    await selectDirect(frame, '[data-doan-frame="pay"]');
+    await expect.poll(() => reason(frame)).toBe("Play “Payment”");
+    await frame.evaluate(() => window.focus());
+    await frame.locator("#board").focus();
+    await frame.locator("#play").click();
+    expect(await frame.evaluate(() => document.activeElement?.id)).toBe("board");
+    await frame.page().keyboard.down("Space");
+    await expect.poll(() => frame.locator("#board").getAttribute("data-pan")).toBe("");
+    await frame.page().keyboard.up("Space");
+  });
+
+  test("the 1,001st frame is past the listed frames: Play prototype opens the drawer and the bubble offers no Play", async () => {
+    const many = Array.from({ length: 1001 }, (_, i) => `<div data-doan-frame="f${i}" data-doan-prototype="10x10" style="height:4px"></div>`).join("");
+    const frame = await openCanvas(many, 320);
+    await selectDirect(frame, '[data-doan-frame="f1000"]', { x: 2, y: 2 });
+    await frame.locator("#selection-box").waitFor();
+    expect(await reason(frame)).toBe("Choose a prototype to play");
+    expect(await frame.locator("#size-bubble").getByRole("button", { name: "Play prototype" }).count()).toBe(0);
+    await selectDirect(frame, '[data-doan-frame="f999"]', { x: 2, y: 2 });
+    await expect.poll(() => reason(frame)).toBe("Play “f999”");
+  });
+
+  test("with the inspector open, a narrow window hides the column and a wide one brings it back with the same selection", async () => {
+    const frame = await openCanvas(playBoard, 320);
+    await showInspector(frame);
+    await selectDirect(frame, '[data-doan-frame="pay"]');
+    await frame.getByRole("button", { name: "Payment, frame. Elements in this frame", exact: true }).waitFor();
+    await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "655px"; });
+    await frame.locator("#inspector").waitFor({ state: "hidden" });
+    await frame.locator("#selection-box").waitFor();
+    expect(await reason(frame)).toBe("Play “Payment”");
+    expect(await frame.locator("#size-bubble").getByRole("button", { name: "Show inspector" }).getAttribute("aria-disabled")).toBe("true");
+    await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "656px"; });
+    await frame.getByRole("button", { name: "Payment, frame. Elements in this frame", exact: true }).waitFor();
+  });
 });
 
 // ── The app's prototype and size-bubble judgments, generated for the viewer ───
@@ -2023,7 +2249,7 @@ describe("viewerApp.js: the app's judgments, generated", () => {
 
   test("playability and playableFrames answer as the app's", () => {
     const app = generated();
-    const f = (id: string, extra: Record<string, unknown> = {}) => ({ id, ...extra });
+    const f = (id: string, extra: Partial<PlayInput["frames"][number]> = {}): PlayInput["frames"][number] => ({ id, ...extra });
     const frames = [f("outer", { prototype: "390x844" }), f("inner", { parent: 0 }), f("broken", { prototype: "nope", parent: 0 }), f("dup", { prototype: "1x1" }), f("dup", { prototype: "1x1" }),
       f("x".repeat(200), { prototype: "1x1", cut: true }), f("", { prototype: "1x1" }), f("alone", { prototype: "10x10" }), f("loop", { parent: 9 })];
     const selections: PlayInput["selection"][] = [{ kind: "none" }, { kind: "frame", id: "outer", index: 0 }, { kind: "element", id: "outer", index: 0 }, { kind: "frame", id: "inner", index: 1 },
@@ -2139,7 +2365,7 @@ describe("the viewer's layout frames and links in a real DOM", { timeout: 60_000
     const frame = await dom.load(`<!doctype html><html><head>${head}</head><body>${body}</body></html>`);
     const layouts = (await dom.flush(frame)).filter((message): message is Reported => (message as { type?: unknown }).type === "layout");
     expect(layouts.length).toBeGreaterThan(0);
-    return shape(layouts.at(-1)!);
+    return layouts.at(-1)!;
   };
   const viewerLayout = async (body: string) => {
     const raw = await lastLayout(`<script>(function () {\n${lib}\n${canvasInspectScripts}\n${measure}\n})();</script>`, body);
@@ -2147,7 +2373,7 @@ describe("the viewer's layout frames and links in a real DOM", { timeout: 60_000
     const parsed = v.parseLayout({ href: "about:srcdoc", height: 1, viewport: 1, ...raw });
     return shape(parsed);
   };
-  const appLayout = (body: string) => lastLayout(`<script>${canvasScriptSource()}</script>`, body);
+  const appLayout = async (body: string) => shape(await lastLayout(`<script>${canvasScriptSource()}</script>`, body));
   const chain = (layout: Reported, index: number | undefined): string[] => {
     const ids: string[] = [];
     for (let at = index; at !== undefined; at = layout.frames[at]!.parent) ids.unshift(layout.frames[at]!.id);
@@ -2166,7 +2392,8 @@ describe("the viewer's layout frames and links in a real DOM", { timeout: 60_000
       // The play drawer's groups, from the layout alone, as the board builds them: every linked group the fixture
       // names, and the playable frames without links together last.
       const drawer = generated().playDrawer(boardState(layout.frames, null, layout.gotos), null) as { groups: { rows: { id: string }[] }[] };
-      const playable = appPlayableFrames(frames.map(({ id, prototype }) => prototype === null ? { id } : { id, prototype }));
+      // A frame whose id is over 200 units reaches the board cut, so it cannot play.
+      const playable = appPlayableFrames(frames.map(({ id, prototype }) => ({ id, ...(prototype === null ? {} : { prototype }), ...(id.length > 200 ? { cut: true as const } : {}) })));
       const linked = groups.filter(group => group.length > 1);
       const alone = frames.filter((frame, index) => playable[index] && !linked.flat().includes(frame.id)).map(frame => frame.id);
       expect(drawer.groups.map(group => group.rows.map(row => row.id))).toEqual([...linked, ...(alone.length ? [alone] : [])]);
@@ -3341,7 +3568,7 @@ describe("the prototype page's look is the app's", () => {
 describe("inspector message boundary", () => {
   const sender = {};
   const row = { group: "box", label: "Width", value: "<strong>20px</strong>", state: "hardcoded" };
-  const selection = { type: "inspection", epoch: 3, seq: 2, rows: [row], nodes: [{ name: "frame", kind: "frame", depth: 0, selected: true, selector: "#frame" }] };
+  const selection = { type: "inspection", epoch: 3, seq: 2, rows: [row], nodes: [{ name: "frame", kind: "frame", depth: 0, selected: true, selector: "#frame" }], target: { kind: "frame", id: "frame", index: 0 } };
   function parse(data: unknown, source: unknown = sender, origin = "null", canvasFocused = true) {
     const parser = runInNewContext(lib + "\n" + read("inspectMessage.js") + "\ninspectorMessages") as Lib;
     return parser.parseMessage({ data, source, origin }, sender, 3, 1, canvasFocused);
@@ -3398,7 +3625,32 @@ describe("inspector message boundary", () => {
     boundary(cap(canvas, "MAX_STRING"), n => nodes({ name: "x".repeat(n) }));
     boundary(cap(canvas, "MAX_SELECTOR"), n => nodes({ selector: "x".repeat(n) }));
     boundary(cap(canvas, "MAX_COPY_TEXT"), n => ({ ...range, text: "x".repeat(n) }));
+    boundary(cap(canvas, "MAX_STRING"), n => ({ ...selection, target: { kind: "frame", id: "x".repeat(n) } }));
+    boundary(cap(canvas, "MAX_FRAMES") - 1, n => ({ ...selection, target: { kind: "element", id: "a", index: n } }));
     boundary(cap(canvas, "MAX_TEXT_RECTS"), n => ({ ...range, rects: Array(n).fill({ x: 0, y: 0, width: 1, height: 1 }) }));
+  });
+
+  // The selection's nearest frame, which Play prototype reads: a frame or element kind, an id unless an element is
+  // outside every frame, and its place among the listed frames only with an id. A selection-only reply has no rows
+  // or nodes but still names it; a reply with nodes always names it.
+  test("the selection's frame is kept as a fresh object, and a malformed one drops the reply", () => {
+    const folded = { ...selection, rows: [], nodes: [], target: { kind: "element", id: "cart", index: 3, extra: 1 } };
+    const parsed = parse(folded);
+    expect(parsed?.target).toEqual({ kind: "element", id: "cart", index: 3 });
+    expect(parsed?.target).not.toBe(folded.target);
+    expect(parse({ ...folded, target: null })?.target).toBeNull();
+    expect(parse({ ...folded, target: { kind: "element" } })?.target).toEqual({ kind: "element" });
+    for (const target of [undefined, "frame", { kind: "box", id: "a" }, { kind: "frame" }, { kind: "element", index: 0 }, { kind: "frame", id: 3 }, { kind: "frame", id: "a", index: -1 }, { kind: "frame", id: "a", index: 1.5 }]) {
+      expect(parse({ ...folded, target }), JSON.stringify(target)).toBeNull();
+    }
+    expect(parse({ ...selection, target: null })).toBeNull();
+  });
+
+  test("the marks carry whether Option is held, which the measurement needs", () => {
+    const marks = { type: "inspect-marks", epoch: 3, seq: 2, selected: { x: 0, y: 0, width: 10, height: 20 }, hover: null, alt: true };
+    expect(parse(marks)).toEqual(marks);
+    expect(parse({ ...marks, alt: undefined })).toBeNull();
+    expect(parse({ ...marks, alt: 1 })).toBeNull();
   });
 
   test("rejects malformed rows, oversized arrays, nested values and non-finite marks", () => {
@@ -3406,6 +3658,6 @@ describe("inspector message boundary", () => {
       expect(parse({ ...selection, rows })).toBeNull();
     }
     expect(parse({ ...selection, nodes: [{ ...selection.nodes[0], depth: 1e12 }] })).toBeNull();
-    expect(parse({ type: "inspect-marks", epoch: 3, seq: 2, selected: { x: NaN, y: 0, width: 10, height: 20 }, hover: null })).toBeNull();
+    expect(parse({ type: "inspect-marks", epoch: 3, seq: 2, selected: { x: NaN, y: 0, width: 10, height: 20 }, hover: null, alt: false })).toBeNull();
   });
 });
