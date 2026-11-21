@@ -47,7 +47,7 @@ print(json.dumps(out))
   return JSON.parse(result.stdout);
 }
 
-// Text of the local stylesheets a canvas reaches through <link> and @import, as in W6.
+// Text of the local stylesheets a canvas reaches through <link> and @import, as in W6b.
 function reached(ctx: Parameters<Checks>[0], doc: Doc): string[] {
   const seen = new Map<string, string>();
   const imports = (css: string, parent: string) => {
