@@ -1,3 +1,1 @@
-$ doan active --json
-{"ok":true,"result":{"repo":"/tmp/x","selection":{"canvas":{"path":".doan/canvases/hello.html","id":"hello"}}},"v":1}
-Changed the heading in .doan/canvases/hello.html.
+The selected heading is now "Hello, doan".
