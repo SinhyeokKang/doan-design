@@ -23,6 +23,9 @@
 - A1 명령 처리: conductor 재량 — `/plan`을 passthrough가 아닌 `COMMAND_ALLOWLIST.antigravity`(1.3.0) 행으로 더한다. 근거: PRODUCT §5 item 1 'Built-in commands'와 ARCHITECTURE §7(실제 확인을 거친 명령은 표에 들어간다). A1 `/runtime-test`가 그 실제 확인이고, 확인되지 않으면 passthrough로 물러서지 않고 멈춘다.
 - DR 1차(`d37f9899e`) 독립 리뷰: 🔴1(축소 기준에 context ring이 빠져 Permission보다 모델 라벨이 먼저 말줄임됨, ring 포함 시 가장 긴 라벨 약 530), 🟡3(하나뿐인 기준이 plain "Ask first"까지 일찍 숨김, Step 1 타일이 숨김 이유를 못 보임, design.md의 plan-approved·기준 문장이 초안과 어긋남), ⚪4. 근거는 `paem-dr/.scratch/review-DR/`.
 - docked 축소 기준(사용자 결정): 실제 모드가 붙은 trigger에만 긴 기준을 건다. plain "Ask first"와 다른 provider는 지금의 431 규칙을 그대로 쓴다. 긴 기준은 하나로 두고 Claude의 가장 넓은 모델·effort 라벨과 context ring, "Ask first · Plan (read-only)"로 잰다(conductor 재량: 규칙 하나). design.md '표시'의 기준 문장과 `run-mode-plan-approved` 설명은 DR 고침 뒤 conductor가 고친다.
+- C2 편차(conductor 재량, 받아들임): Ask first가 아닌 모드로 plan을 승인하면 `claudeRunMode`를 그대로 둔다. design '지우지 않는 때'와 같은 규칙이다.
+- C3는 C2 리뷰와 병렬로 시작했다: conductor 재량 — 같은 워커가 이어서 하므로, 리뷰 고침은 C3 뒤 새 Task로 보낸다.
+- A1 남은 확인: composer 명령 메뉴의 `/plan` 행과 Antigravity의 Accept edits·Full access 동작은 A1 `/runtime-test`에서 보지 않았다. composer 메뉴 행은 conductor의 마지막 `/runtime-test`에서 본다. 승격할 때 PRODUCT 'Built-in commands'("Antigravity none", 카드 목록)와 BACKLOG의 `/plan` 항목을 고친다. 기존 초안 `provider-commands.html`의 카드 타일은 develop에 구현된 화면의 초안이므로 고치지 않는다.
 - C2와 C3는 같은 워커가 이어서 한다(C3는 C2 통합 뒤 새 Task): conductor 재량 — 같은 저장 조건 함수와 service 경로를 다룬다.
 - C4의 `/runtime-test`는 conductor가 통합 HEAD에서 한다(orchestrate §4).
 - A1 전에 리드에게 알린다. 리드가 `fix/antigravity-stop-tool-group` PR의 머지 여부를 알려 주면 `origin/develop`을 먼저 merge한다(`acpRunner.ts`·`acp.ts`·`commandView.ts` 겹침).
@@ -34,16 +37,16 @@
 | P1 | tasks C0 | `.scratch/poc-p1/`, design.md 'PoC 의존' P1과 '표시' 이름 목록, spec.md 완료 조건 | 없음 | Claude Opus medium — 실제 계정으로 여러 설정을 관찰하고 결과를 문서 결정에 옮긴다. 틀리면 표시 목록이 잘못된다 | frame 기록, 문서 커밋 | 완료 `f071c08f6` → 통합 `83d94d1df`. 질문 2회(로그인, 결정과 어긋남). 워커 해제, 워크트리 `paem-p1` 제거(브랜치 `SinhyeokKang/paem-p1` `f071c08f6` 유지) |
 | P2 | tasks A0 probe | `.scratch/poc-p2/` (문서는 게이트 뒤 후속 Task) | 없음 | Claude Opus medium — ACP protocol 관찰과 (a)·(b)·(c) 판정 | frame 기록, 핸드오프 | 완료(커밋 없음, dispatch `ctx_1d4f61ca4858`, 워크트리 `paem-p2`) |
 | GATE | tasks A0 결정 게이트 | — | P2 | conductor가 사용자에게 묻는다 | spec '미정'이 빔 | 완료: 카드를 빼고 보낸다 |
-| P2-doc | tasks A0 문서 커밋 | spec·design·tasks의 Antigravity 부분 | GATE, P1 통합 | P2 워커 후속 Task | 문서 커밋 | 진행 중 (dispatch `ctx_718af94542d6`) |
-| DR | 초안 `--revise` (P1 결과에 따라) | `.doan/canvases/permission-run-mode.html` | P1 통합 | Claude Sonnet high — 기존 초안에 상태 몇 개를 더하는 일, 규약은 skill이 정한다 | `doan check`·`doan ls`, 독립 리뷰, 사용자 확인 | 진행 중 (dispatch `ctx_c9d744a915d0`, 워크트리 `paem-dr`) |
-| C2 | tasks C2 | `app/src/main/conversation/transport.ts`·`store.ts`·저장 조건 순수 모듈(또는 `service.ts`의 순수 함수)·`permissionMode.ts`(필요하면), `app/src/renderer/permissionPicker.ts`와 각 테스트 | P1 통합 | Claude Opus high — 턴·init·승인 조건이 여러 경로에 걸치고, 틀리면 오래된 모드가 보인다 | `npm --prefix app test`(`rendererImports.test.ts` 포함), typecheck | 진행 중 (dispatch `ctx_cc9e63d7048f`, 워크트리 `paem-c2`) |
-| C2-rev | C2 리뷰 | 없음(보고만) | C2 | Claude Opus high | `/code-review` 보고 | 대기 |
-| C3 | tasks C3 | `runners.ts`·`service.ts`·`summary.ts`와 각 테스트 | C2 통합 | Claude Opus high(C2 워커 후속 Task) — 한 번의 index 저장, steer·queue·실패 경로 | `npm --prefix app test`, typecheck | 대기 |
+| P2-doc | tasks A0 문서 커밋 | spec·design·tasks의 Antigravity 부분 | GATE, P1 통합 | P2 워커 후속 Task | 문서 커밋 | 완료 `a5d0b7c68` → 통합 `439a3b825` |
+| DR | 초안 `--revise` (P1 결과에 따라) | `.doan/canvases/permission-run-mode.html` | P1 통합 | Claude Sonnet high — 기존 초안에 상태 몇 개를 더하는 일, 규약은 skill이 정한다 | `doan check`·`doan ls`, 독립 리뷰, 사용자 확인 | 1차 `d37f9899e`, 리뷰 고침 `f826ce452` → 통합 `656a9e286`·`c0eb48c5c`. 독립 리뷰 2차 통과(⚪만 남음). 사용자의 앱 확인 대기(워크트리를 앱에 추가해야 함) |
+| C2 | tasks C2 | `app/src/main/conversation/transport.ts`·`store.ts`·저장 조건 순수 모듈(또는 `service.ts`의 순수 함수)·`permissionMode.ts`(필요하면), `app/src/renderer/permissionPicker.ts`와 각 테스트 | P1 통합 | Claude Opus high — 턴·init·승인 조건이 여러 경로에 걸치고, 틀리면 오래된 모드가 보인다 | `npm --prefix app test`(`rendererImports.test.ts` 포함), typecheck | 완료 `f814f5067`·`5bf77bec0`·`3f256450e` → 통합 `4f8b9143a`·`bf8e9d975`·`b51b7f9e5`(Vitest 517 files / 15,168 PASS, typecheck·lint PASS) |
+| C2-rev | C2 리뷰 | 없음(보고만) | C2 | Claude Opus high | `/code-review` 보고 | 진행 중 (dispatch `ctx_5ae9133c9ffd`, 워크트리 `paem-c2rev`) |
+| C3 | tasks C3 | `runners.ts`·`service.ts`·`summary.ts`와 각 테스트 | C2 통합 | Claude Opus high(C2 워커 후속 Task) — 한 번의 index 저장, steer·queue·실패 경로 | `npm --prefix app test`, typecheck | 진행 중 (C2 워커 후속 Task, dispatch `ctx_c2172a59a8cf`) |
 | C3-rev | C3 리뷰 | 없음(보고만) | C3 | Claude Opus high | `/code-review` 보고 | 대기 |
 | C4 | tasks C4(`/design-sync` 포함) | `ProjectOverview.tsx`·`CanvasConversationPanel.tsx`·`DockedComposer.tsx`·`ComposerParts.tsx`·`styles.css`와 테스트, `docs/design/<group>.md`·DESIGN.md 색인 | C3 통합, DR 사용자 확인(DR이 있을 때) | Claude Opus medium — UI 연결과 computed style 측정, 절차는 skill이 정한다 | `npm --prefix app test`, lint, `/design-sync` 기록 | 대기 |
 | C4-rev | C4 리뷰 | 없음(보고만) | C4 | Claude Opus medium | `/code-review` 보고 | 대기 |
-| A1 | tasks A1 | `providerCommands.ts`·`commandView.ts`와 테스트(`acpRunner.ts`·`acp.ts`는 꼭 필요할 때만) | GATE, 리드 확인(PR #346 머지) | Claude Opus medium(P2 워커 후속 Task) — 표 두 개와 카드를 바꾸는 작은 변경이지만 protocol을 아는 워커가 실제 앱 확인까지 한다 | `npm --prefix app test`, typecheck, lint, `/runtime-test`(실제 Antigravity) | 진행 중 (dispatch `ctx_718af94542d6`, P2-doc 다음) |
-| A1-rev | A1 리뷰 | 없음(보고만) | A1 | Claude Sonnet high — diff가 작다 | `/code-review` 보고 | 대기 |
+| A1 | tasks A1 | `providerCommands.ts`·`commandView.ts`와 테스트(`acpRunner.ts`·`acp.ts`는 꼭 필요할 때만) | GATE, 리드 확인(PR #346 머지) | Claude Opus medium(P2 워커 후속 Task) — 표 두 개와 카드를 바꾸는 작은 변경이지만 protocol을 아는 워커가 실제 앱 확인까지 한다 | `npm --prefix app test`, typecheck, lint, `/runtime-test`(실제 Antigravity) | 완료 `72cae7088`·`266e745b8`·`68f784cf4` → 통합 `b4ba73f51`·`3917f1533`·`8562f83a6`(Vitest 15,139 PASS, typecheck·lint PASS, 실제 앱 `/runtime-test` PASS: 카드 없이 전송, 계획 파일 권한 카드, 실패 단계 없음, Proceed로 실행) |
+| A1-rev | A1 리뷰 | 없음(보고만) | A1 | Claude Sonnet high — diff가 작다 | `/code-review` 보고 | 진행 중 (dispatch `ctx_ca44ff534183`, 워크트리 `paem-a1rev`) |
 | conductor | C4 `/runtime-test`, 최종 verify, 승격 | orch.md, PRODUCT·ARCHITECTURE·BACKLOG, feature 디렉터리 삭제 | 전부 | — | `/runtime-test`, verify, `grep -rn "plan-approval-and-effective-mode" docs/ AGENTS.md .agents/ app/` | 대기 |
 
 - 겹침: P1과 P2는 파일이 겹치지 않는다(위 결정). C2 → C3 → C4는 직렬이다. DR은 `.doan/canvases/`만 고치므로 C2·C3와 병렬로 돌 수 있다. A1은 C2·C3와 파일이 겹치지 않는다(`acpRunner.ts`·`acp.ts`·`commandView.ts`). 범위가 `permissionPicker.ts`나 composer에 닿으면 C4 뒤로 미룬다.
