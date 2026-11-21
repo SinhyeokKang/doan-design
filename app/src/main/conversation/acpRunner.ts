@@ -6,7 +6,7 @@ import { StringDecoder } from "node:string_decoder";
 import { signInLink } from "../agentAuth/antigravity";
 import { ACP_PROTOCOL_VERSION, AcpConnection, acpEnded, acpPermission, acpPromptDone, acpQuestion, acpPromptFailed, initialAcp, normalizeAcp, type AcpChoice, type AcpTransport } from "./acp";
 import { acpInitialize, acpSessionNew, type HandshakeVerdict } from "./handshake";
-import { ownProtocolProcess } from "./process";
+import { listProcesses, ownProtocolProcess } from "./process";
 import { object } from "./sessions";
 import { acpOption, parseAcpModels, parseAcpModes, type ModelOption } from "./models";
 import { acpModeFor, type AcpModes } from "./permissionMode";
@@ -97,7 +97,9 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     if (dead) return; dead = true; acp.close();
     if (prompting) apply(failure ? acpPromptFailed(state, failure) : acpEnded(state));
   };
-  const { group, ending, write } = ownProtocolProcess(child, () => acp.clearDeadlines(), transportDied, exited);
+  // A server's tool commands can run in process groups of their own (Antigravity's do, and outlive the server's), so
+  // ending the server's group also ends the groups its descendants started.
+  const { group, ending, write } = ownProtocolProcess(child, () => acp.clearDeadlines(), transportDied, exited, listProcesses);
   if (group) registerStop(() => { expire(); acp.close(); return group.stop(); });
   // A failed request answers nothing about the protocol shape here, so only replies are judged, before any refusal.
   const judge = (verdict: HandshakeVerdict) => { if (verdict === "incompatible") input.incompatible?.(); else if (verdict === "compatible") input.compatible?.(); };

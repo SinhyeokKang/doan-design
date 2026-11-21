@@ -116,6 +116,20 @@ it("ends a prompt the server never answers once it acknowledges session/cancel",
   expect(events.at(-1)).toEqual({ type: "interrupted", reason: "user" });
 });
 
+// Antigravity runs a tool command in a process group of its own, which a signal to the server's group never reaches.
+it("ends a tool command the server runs in its own process group when the turn is stopped", async () => {
+  const pidFile = join(temp("doan-acp-tool-"), "tool.pid");
+  const { runner } = await open("copilot", null, { env: { PATH: process.env.PATH ?? "", FAKE_ACP: "", FAKE_ACP_TOOL_PID: pidFile } });
+  const sent = runner.send("hi", "turn-1");
+  let tool = 0;
+  await vi.waitFor(() => { tool = Number(readFileSync(pidFile, "utf8")); expect(tool).toBeGreaterThan(0); });
+  const alive = () => { try { process.kill(tool, 0); return true; } catch { return false; } };
+  try {
+    await runner.stop(); await sent;
+    await vi.waitFor(() => expect(alive()).toBe(false), { timeout: 3000 });
+  } finally { if (alive()) process.kill(tool, "SIGKILL"); }
+});
+
 it("refuses to open when the server asks for a new browser sign-in, and when the agent does not offer the needed authenticate method", async () => {
   await expect(openAcp(input("copilot", {}, "auth-link"), () => {}, () => {}, () => {})).rejects.toThrow("not_logged_in");
   await expect(openAcp(input("copilot", { authenticate: "cursor_login" }), () => {}, () => {}, () => {})).rejects.toThrow("runtime_unsupported");
