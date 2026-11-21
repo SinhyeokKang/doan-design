@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/SinhyeokKang/doan-design/cli/internal/canvas"
+	"github.com/SinhyeokKang/doan-design/cli/internal/export"
 	"github.com/SinhyeokKang/doan-design/cli/internal/export/exporttest"
 	"golang.org/x/net/html"
 	"golang.org/x/text/unicode/norm"
@@ -1205,5 +1206,91 @@ func TestExportPrototypeGroupHoldsTheCanvasOnceUnderTheLimit(t *testing.T) {
 	}
 	if bytes := result["bytes"].(float64); bytes > 30<<20 {
 		t.Fatalf("the page is %v bytes: the canvas is in it more than once", bytes)
+	}
+}
+
+// The general Export holds what the viewer needs to write each frame's prototype file in the browser, without a
+// change to the command's response: joining its fragments gives the very file `doan export --frame <id>
+// --prototype` writes from the same canvas, and the download is named from the canvas stem in its meta.
+func TestExportGeneralPageStitchesToEachPrototypeExport(t *testing.T) {
+	root := linkSeed(t)
+	out := filepath.Join(exportOutput(t), "board.html")
+	got := exportRun(t, root, 0, ".doan/canvases/flow.html", "-o", out)
+	result := got["result"].(map[string]any)
+	keys := []string{}
+	for k := range result {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	if !reflect.DeepEqual(keys, []string{"bytes", "external", "frames", "links", "output", "path"}) {
+		t.Fatalf("result keys %q", keys)
+	}
+	page, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["bytes"] != float64(len(page)) {
+		t.Fatalf("bytes %v, file %d", result["bytes"], len(page))
+	}
+	g, err := exporttest.ReadGeneral(page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.Meta.Name != "flow" || g.Meta.Prototype == nil {
+		t.Fatalf("meta name %q, prototype %v", g.Meta.Name, g.Meta.Prototype != nil)
+	}
+	for _, frame := range []string{"about", "pay", "home", "team", "cart", "alone"} {
+		reference := filepath.Join(exportOutput(t), "p.html")
+		exportRun(t, root, 0, ".doan/canvases/flow.html", "--frame", frame, "--prototype", "-o", reference)
+		want, err := os.ReadFile(reference)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stitched, err := exporttest.StitchPrototype(page, frame)
+		if err != nil {
+			t.Fatalf("%s: %v", frame, err)
+		}
+		if !bytes.Equal(stitched, want) {
+			t.Fatalf("%s: the stitched file differs from doan export --prototype", frame)
+		}
+	}
+	// The CLI refuses an unmarked frame and one the file does not have; so does the data.
+	for _, frame := range []string{"plain", "nope"} {
+		if _, err := exporttest.StitchPrototype(page, frame); err == nil {
+			t.Fatalf("%s was stitched", frame)
+		}
+	}
+}
+
+// The 50 MiB limit is judged on the whole general Export page, the prototype data in it included: a page of
+// exactly the limit is written, one byte more is refused.
+func TestExportGeneralPageLimitCountsThePrototypeData(t *testing.T) {
+	root := exporttest.Seed(t)
+	put := func(padding int) {
+		exporttest.Put(t, root, ".doan/canvases/edge.html", `<!doctype html><html><head><meta name="doan:canvas" content="edge"><meta name="doan:width" content="800"></head><body>`+
+			`<div data-doan-frame="a" data-doan-title="A" data-doan-prototype="390x844"><a data-doan-goto="b"></a></div><div data-doan-frame="b" data-doan-prototype="390x844"></div>`+
+			`<!--`+strings.Repeat("x", padding)+`--></body></html>`)
+	}
+	dir := exportOutput(t)
+	put(0)
+	small := exportRun(t, root, 0, ".doan/canvases/edge.html", "-o", filepath.Join(dir, "small.html"))
+	base := int(small["result"].(map[string]any)["bytes"].(float64))
+	page, err := os.ReadFile(filepath.Join(dir, "small.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g, err := exporttest.ReadGeneral(page); err != nil || g.Meta.Prototype == nil || len(g.Meta.Prototype.Frames) != 2 {
+		t.Fatalf("the page carries no prototype data for its frames: %v", err)
+	}
+	room := int(export.MaxBytes) - base
+	put(room)
+	at := exportRun(t, root, 0, ".doan/canvases/edge.html", "-o", filepath.Join(dir, "at.html"))
+	if at["result"].(map[string]any)["bytes"] != float64(export.MaxBytes) {
+		t.Fatalf("bytes %v, want the limit", at["result"].(map[string]any)["bytes"])
+	}
+	put(room + 1)
+	exportFailure(t, root, "export_too_large", ".doan/canvases/edge.html", "-o", filepath.Join(dir, "over.html"))
+	if _, err := os.Stat(filepath.Join(dir, "over.html")); !os.IsNotExist(err) {
+		t.Fatal("the page over the limit was written")
 	}
 }

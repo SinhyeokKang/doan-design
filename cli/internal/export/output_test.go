@@ -30,7 +30,7 @@ func exportPage(t *testing.T, root string, config repo.Config, canvasPath string
 	if len(res.Refused) > 0 || res.TooLarge {
 		t.Fatalf("%s: refused %v, too large %v", canvasPath, res.Refused, res.TooLarge)
 	}
-	page, err := Assemble(Meta{Project: "Store", Name: "pinned", Width: model.Width}, res.HTML)
+	page, err := Assemble(Meta{Project: "Store", Name: "pinned", Width: model.Width}, model, res.HTML)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,8 +106,13 @@ func TestAssembleOutputIsPinned(t *testing.T) {
 		{"bom", "\xef\xbb\xbf<!doctype html><p title='\"&amp;'>{{NAME}}</p>", "c6cef777185ac285c40afd431bc487072a34bcb1efcb6101554bbceef28d0c05"},
 		{"bare", "<p>a & \"b\"</p>", "6de104894d75f4329a2105ea433396e646acc890b18c250cc252e33f9c4bd7a4"},
 		{"empty", "", "3b0568e8ef3db65bcabfe69539f3e7077e0505d4dacca9db99920350bb7313e1"},
+		{"frames", "<!doctype html><html><head></head><body><div data-doan-frame=\"a\" data-doan-title=\"A &amp; <b>\" data-doan-prototype=\"1x1\"><a data-doan-goto=\"b\"></a></div><div data-doan-frame=\"b\" data-doan-prototype=\"1x1\"></div><div data-doan-frame=\"c\"></div></body></html>", "0000000000000000000000000000000000000000000000000000000000000000"},
 	} {
-		page, err := Assemble(Meta{Project: "Store", Name: `a "&" <b>`, Width: 320}, []byte(c.canvas))
+		model, err := canvas.Parse(".doan/canvases/pinned.html", []byte(c.canvas))
+		if err != nil {
+			t.Fatal(err)
+		}
+		page, err := Assemble(Meta{Project: "Store", Name: `a "&" <b>`, Width: 320}, model, []byte(c.canvas))
 		if err != nil {
 			t.Fatal(err)
 		}
