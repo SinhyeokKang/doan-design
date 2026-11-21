@@ -255,6 +255,7 @@ Each screen's measured values, documented differences and Not verified list are 
 | Terminal work in another worktree | [design/canvas.md](design/canvas.md) |
 | Permission mode picker | [design/canvas-conversation.md](design/canvas-conversation.md) |
 | Picker default labels | [design/canvas-conversation.md](design/canvas-conversation.md) |
+| Permission run mode | [design/canvas-conversation.md](design/canvas-conversation.md) |
 | Composer field lists | [design/canvas-conversation.md](design/canvas-conversation.md) |
 | Canvas text range | [design/canvas.md](design/canvas.md) |
 | Canvas inspector | [design/canvas.md](design/canvas.md) |

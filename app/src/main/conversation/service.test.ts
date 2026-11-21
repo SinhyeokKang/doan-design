@@ -1876,12 +1876,14 @@ describe("permission mode", () => {
     expect(lastTurn(h)).toEqual({ permissionMode: "acceptEdits" });
     expect(h.store.list()[0]).toMatchObject({ permissionMode: "plan" });
   });
+  // The runner reports Claude's own ids (modeReported); a Plan turn's approval keeps today's common-id rule.
+  const statusOf = (mode: string) => ({ source: "status" as const, mode });
   it("stores the mode Claude reports after a plan approval and announces the list change", async () => {
     const h = homeFixture();
     await h.service.start({ ...homeRequest, mode: "new", canvas, permissionMode: "plan" });
-    const report = h.open.mock.calls[0]![0].planApproved!;
+    const report = h.open.mock.calls[0]![0].modeReported!;
     h.changes.length = 0;
-    report("acceptEdits");
+    report(statusOf("acceptEdits"), undefined, undefined);
     expect(h.store.list()[0]).toMatchObject({ permissionMode: "acceptEdits" });
     expect(h.service.list("/repo")[0]).toMatchObject({ permissionMode: "acceptEdits" });
     expect(h.changes).toEqual(["/repo"]);
@@ -1889,11 +1891,11 @@ describe("permission mode", () => {
   it("stores Default as no key after a plan approval, and the same mode again changes nothing", async () => {
     const h = homeFixture();
     await h.service.start({ ...homeRequest, mode: "new", canvas, permissionMode: "plan" });
-    const report = h.open.mock.calls[0]![0].planApproved!;
-    report("default");
+    const report = h.open.mock.calls[0]![0].modeReported!;
+    report(statusOf("default"), undefined, undefined);
     expect(h.store.list()[0]).not.toHaveProperty("permissionMode");
     expect(h.service.list("/repo")[0]).not.toHaveProperty("permissionMode");
-    h.changes.length = 0; report("default");
+    h.changes.length = 0; report(statusOf("default"), undefined, undefined);
     expect(h.changes).toEqual([]);
   });
   // A mode the person picked during the Plan turn is theirs; the plan
@@ -1901,21 +1903,182 @@ describe("permission mode", () => {
   it("keeps a mode the person picked during the Plan turn when the plan is approved", async () => {
     const h = homeFixture();
     const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, permissionMode: "plan" })).conversationId;
-    const report = h.open.mock.calls[0]![0].planApproved!;
+    const report = h.open.mock.calls[0]![0].modeReported!;
     h.service.setPermissionMode(id, "acceptEdits");
     h.changes.length = 0;
-    report("default");
+    report(statusOf("default"), undefined, undefined);
     expect(h.store.list()[0]).toMatchObject({ permissionMode: "acceptEdits" });
     expect(h.changes).toEqual([]);
   });
   it("ignores a plan report from a turn that is no longer the conversation's current one", async () => {
     const h = homeFixture();
     const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, permissionMode: "plan" })).conversationId;
-    const stale = h.open.mock.calls[0]![0].planApproved!;
+    const stale = h.open.mock.calls[0]![0].modeReported!;
     h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
     await h.service.send(id, "again", []);
-    stale("bypass");
+    stale(statusOf("default"), undefined, undefined);
     expect(h.store.list()[0]).toMatchObject({ permissionMode: "plan" });
+  });
+});
+
+// claudeRunMode: the mode Claude Code's own settings ran the last Ask first turn in, kept with the conversation.
+describe("the Claude run mode", () => {
+  const canvas = { path: ".doan/canvases/a.html", id: "a" };
+  const statusOf = (mode: string) => ({ source: "status" as const, mode });
+  const initOf = (mode: string) => ({ source: "init" as const, mode });
+  const reportOf = (h: ReturnType<typeof homeFixture>, call = -1) => h.open.mock.calls.at(call)![0].modeReported!;
+  const end = (h: ReturnType<typeof homeFixture>, id: string) => { h.service.receive(id, { type: "turn.done" }); h.open.mock.calls.at(-1)![2](); };
+  it("keeps the mode an Ask first turn's first init reports and announces it once", async () => {
+    const h = homeFixture();
+    await h.service.start({ ...homeRequest, mode: "new", canvas });
+    h.changes.length = 0;
+    reportOf(h)(initOf("auto"), undefined, undefined);
+    expect(h.store.list()[0]).toMatchObject({ claudeRunMode: "auto" });
+    expect(h.store.list()[0]).not.toHaveProperty("permissionMode");
+    expect(h.service.list("/repo")[0]).toMatchObject({ claudeRunMode: "auto" });
+    expect(h.changes).toEqual(["/repo"]);
+    // Ask first's own mode clears it.
+    reportOf(h)(initOf("default"), undefined, undefined);
+    expect(h.store.list()[0]).not.toHaveProperty("claudeRunMode");
+  });
+  // Two saves would send two changes, and the trigger would show a step in between.
+  it("saves a plan approval's stored mode and run mode in one index write and one change", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas })).conversationId;
+    reportOf(h)(initOf("auto"), undefined, undefined); end(h, id);
+    await h.service.send(id, "plan it", [], { permissionMode: "plan" });
+    expect(h.store.list()[0]).toMatchObject({ permissionMode: "plan", claudeRunMode: "auto" });
+    const save = vi.spyOn(h.store, "save"); h.changes.length = 0;
+    reportOf(h)(statusOf("default"), undefined, undefined);
+    expect(save).toHaveBeenCalledOnce();
+    expect(h.changes).toEqual(["/repo"]);
+    expect(h.store.list()[0]).not.toHaveProperty("permissionMode");
+    expect(h.store.list()[0]).not.toHaveProperty("claudeRunMode");
+  });
+  it("follows the approval of an Ask first turn whose settings ran plan, keeping Ask first", async () => {
+    const h = homeFixture();
+    await h.service.start({ ...homeRequest, mode: "new", canvas });
+    reportOf(h)(initOf("plan"), undefined, undefined);
+    expect(h.store.list()[0]).toMatchObject({ claudeRunMode: "plan" });
+    reportOf(h)(statusOf("default"), "plan", "plan");
+    expect(h.store.list()[0]).not.toHaveProperty("claudeRunMode");
+    expect(h.store.list()[0]).not.toHaveProperty("permissionMode");
+  });
+  // The value is the last Ask first turn's: a send in another mode and a pick keep it; only the display hides it.
+  it("keeps the last value through a send with Accept edits and shows it again once Ask first is picked", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas })).conversationId;
+    reportOf(h)(initOf("dontAsk"), undefined, undefined); end(h, id);
+    await h.service.send(id, "edit it", [], { permissionMode: "acceptEdits" });
+    // That turn runs Accept edits; whatever it reports is not the settings' mode.
+    reportOf(h)(initOf("acceptEdits"), undefined, undefined);
+    expect(h.store.list()[0]).toMatchObject({ permissionMode: "acceptEdits", claudeRunMode: "dontAsk" });
+    expect(h.service.list("/repo")[0]).toMatchObject({ permissionMode: "acceptEdits", claudeRunMode: "dontAsk" });
+    end(h, id);
+    h.service.setPermissionMode(id, "default");
+    expect(h.store.list()[0]).not.toHaveProperty("permissionMode");
+    expect(h.service.list("/repo")[0]).toMatchObject({ claudeRunMode: "dontAsk" });
+  });
+  it("leaves the value of a turn that failed before its init", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas })).conversationId;
+    reportOf(h)(initOf("auto"), undefined, undefined); end(h, id);
+    await h.service.send(id, "again", []);
+    h.service.receive(id, { type: "turn.failed", code: "process_exited" }); h.open.mock.calls.at(-1)![2]();
+    expect(h.store.list()[0]).toMatchObject({ claudeRunMode: "auto" });
+    expect(h.service.list("/repo")[0]).toMatchObject({ claudeRunMode: "auto" });
+  });
+  // A Send now that runs as the CLI's next turn brings a later init of the same process, which can report a setMode
+  // allowed there; a message waiting in the queue runs nothing until its own turn.
+  it("takes no value from a later init of the turn, a message queued behind it, or an older turn", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas })).conversationId;
+    const first = reportOf(h);
+    first(initOf("auto"), undefined, undefined);
+    h.service.queue(id, { text: "queued", anchors: [] });
+    h.changes.length = 0;
+    first(initOf("acceptEdits"), "auto", "auto");
+    first(statusOf("acceptEdits"), "auto", "acceptEdits");
+    expect(h.store.list()[0]).toMatchObject({ claudeRunMode: "auto" });
+    expect(h.changes).toEqual([]);
+    end(h, id);
+    // The queue went out as its own turn; the first turn's late frames no longer count.
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(2));
+    first(initOf("dontAsk"), undefined, undefined);
+    expect(h.store.list()[0]).toMatchObject({ claudeRunMode: "auto" });
+    // The queued turn is a new Ask first turn in a new process: its own first init counts.
+    await vi.waitFor(() => expect(h.runners[1]?.send).toHaveBeenCalled());
+    h.changes.length = 0;
+    reportOf(h)(initOf("dontAsk"), undefined, undefined);
+    expect(h.store.list()[0]).toMatchObject({ claudeRunMode: "dontAsk" });
+    expect(h.service.list("/repo")[0]).toMatchObject({ claudeRunMode: "dontAsk" });
+    expect(h.changes).toEqual(["/repo"]);
+  });
+  // The stored plan is an earlier turn's: this turn's own init decides whether its status is a plan approval.
+  it("takes no value from a setMode in an Ask first turn whose settings did not run plan, though an earlier one did", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas })).conversationId;
+    reportOf(h)(initOf("plan"), undefined, undefined); end(h, id);
+    await h.service.send(id, "again", []);
+    h.service.setPermissionMode(id, "acceptEdits");
+    reportOf(h)(initOf("default"), undefined, undefined);
+    h.service.setPermissionMode(id, "default");
+    h.changes.length = 0;
+    reportOf(h)(statusOf("acceptEdits"), "default", "default");
+    expect(h.store.list()[0]).toMatchObject({ claudeRunMode: "plan" });
+    expect(h.changes).toEqual([]);
+  });
+  // After the approval the process runs default: an "Always allow" on a later Write (setMode acceptEdits) is that
+  // process's only, though the turn began in plan.
+  it("takes no value from a setMode after an Ask first turn's plan approval", async () => {
+    const h = homeFixture();
+    await h.service.start({ ...homeRequest, mode: "new", canvas });
+    reportOf(h)(initOf("plan"), undefined, undefined);
+    reportOf(h)(statusOf("default"), "plan", "plan");
+    h.changes.length = 0;
+    reportOf(h)(statusOf("acceptEdits"), "plan", "default");
+    expect(h.store.list()[0]).not.toHaveProperty("claudeRunMode");
+    expect(h.changes).toEqual([]);
+  });
+  // A stopped turn changes nothing, though the CLI keeps sending frames until its own result.
+  it("takes no value from an init that arrives after the turn was stopped", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas })).conversationId;
+    await h.service.interrupt(id);
+    h.changes.length = 0;
+    reportOf(h)(initOf("auto"), undefined, undefined);
+    expect(h.store.list()[0]).not.toHaveProperty("claudeRunMode");
+    expect(h.changes).toEqual([]);
+  });
+  // A Stop with a Send now message still unread holds the turn's end (the interrupted record waits for the read check),
+  // so the turn is not terminal yet; the Stop alone already ends what the turn may change.
+  it("takes no value from a report after a Stop that holds the turn's end for an unread steer", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas })).conversationId;
+    const report = reportOf(h);
+    report(initOf("plan"), undefined, undefined);
+    h.runners[0]!.steer = vi.fn(async () => {});
+    const item = h.service.queue(id, { text: "steer", anchors: [] });
+    const pending = h.service.sendNow(id, item.itemId).catch(() => {});
+    await Promise.resolve();
+    await h.service.interrupt(id);
+    expect(h.store.read(id).some(e => e.type === "interrupted")).toBe(false);
+    h.changes.length = 0;
+    report(statusOf("default"), "plan", "plan");
+    report(initOf("auto"), "plan", "plan");
+    expect(h.store.list()[0]).toMatchObject({ claudeRunMode: "plan" });
+    expect(h.changes).toEqual([]);
+    h.open.mock.calls[0]![2](); await pending;
+    expect(h.store.list()[0]).toMatchObject({ claudeRunMode: "plan" });
+  });
+  it("never keeps a value for a legacy-external conversation", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas })).conversationId;
+    const m = h.store.list()[0]!, { session } = m;
+    h.store.save([{ conversationId: id, root: m.root, title: m.title, ...(m.canvas ? { canvas: m.canvas } : {}), owner: { kind: "legacy-external" },
+      session: { runtime: "claude", origin: session.origin, sessionId: session.sessionId, configDir: session.configDir, cwd: session.cwd } }]);
+    reportOf(h)(initOf("auto"), undefined, undefined);
+    expect(h.store.list().find(m => m.conversationId === id)).not.toHaveProperty("claudeRunMode");
   });
 });
 

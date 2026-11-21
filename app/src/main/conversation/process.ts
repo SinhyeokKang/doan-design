@@ -3,8 +3,8 @@ import type { Readable } from "node:stream";
 import { object } from "./sessions";
 // How a finished turn's process is ended for the next send. A done turn with its prompt read and no background work has
 // only its suggestion left: it is killed at once (a SIGTERM takes the CLI 0.5-1 s, and SIGKILL left every session
-// transcript whole and resumable, PoC). Background work runs in process groups of its own that only the CLI's SIGTERM
-// handling stops, so a group with any is never killed first. later: the usage read keeps the input open; decide once
+// transcript whole and resumable, PoC). Background work runs in process groups of its own that the CLI ends through its
+// SIGTERM handling, so a group with any is never killed first. later: the usage read keeps the input open; decide once
 // it closes. none: the process is over.
 export type AfterTurnCleanup = "kill" | "term" | "none" | "later";
 export function afterTurnCleanup(input: { finished: boolean; inputClosed: boolean; background: number; doneTurn: boolean; promptRead: boolean }): AfterTurnCleanup {
@@ -51,8 +51,8 @@ export class OwnedGroup {
   private poll: ReturnType<typeof setInterval> | undefined;
   private escalation: ReturnType<typeof setTimeout> | undefined;
   private waiting: (() => void)[] = [];
-  // processes: given for a process whose tool commands run in process groups of their own (an ACP server), so a stop
-  // or kill also ends the groups its descendants started; they are read before the first signal.
+  // processes: given for a process whose tool commands run in process groups of their own (an ACP server, Claude Code's
+  // background commands), so a stop also ends the groups its descendants started; they are read before the first signal.
   constructor(readonly pid: number, private signal = (pid: number, signal: NodeJS.Signals) => { process.kill(-pid, signal); },
     private alive = (pid: number) => { try { process.kill(-pid, 0); return true; } catch (error) { if (object(error) && error.code === "ESRCH") return false; throw error; } }, private released = () => {},
     private processes?: () => Promise<ProcessRow[]>) {}
@@ -68,12 +68,14 @@ export class OwnedGroup {
     });
     return this.stopping;
   }
-  // At once, also while a stop is still before its own SIGKILL: a finished turn's process with nothing left to save. The
-  // group is released only once it is observed gone, as after a stop.
+  // At once, also while a stop is still before its own SIGKILL: a finished turn's process with nothing left to save. It
+  // reads no process table: a Claude kill must land before the model call the CLI makes 16 ms after its background set
+  // empties, and a read takes about as long; with the set empty there is no descendant group to find. Groups a stop
+  // already found get the SIGKILL too. The group is released only once it is observed gone, as after a stop.
   kill(): Promise<void> {
     if (this.done) return Promise.resolve();
     this.killing ??= this.bounded();
-    this.found(() => { this.send("SIGKILL"); this.monitor(); });
+    this.send("SIGKILL"); this.monitor();
     return this.stopping ?? this.killing;
   }
   // Once the leader has exited its children belong to launchd and cannot be found, so the signal goes at once.

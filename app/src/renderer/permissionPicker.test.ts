@@ -1,12 +1,12 @@
-import { expect, test } from "vitest";
+import { describe, expect, it, test } from "vitest";
 import { PERMISSION_MODES } from "../main/conversation/permissionMode";
-import { defaultPermission, permissionChoices, permissionPickerView, permissionTrigger } from "./permissionPicker";
+import { defaultPermission, permissionChoices, permissionPickerView, permissionTrigger, runModeAnnouncement } from "./permissionPicker";
 
 const COPILOT = "https://agentclientprotocol.com/protocol/session-modes#";
 
 // The four labels, the aria-label, and Full access marked by more than colour.
 test("each mode's trigger names it, with its own icon; Full access also warns", () => {
-  expect(PERMISSION_MODES.map(permissionTrigger)).toEqual([
+  expect(PERMISSION_MODES.map(mode => permissionTrigger(mode))).toEqual([
     { label: "Ask first", ariaLabel: "Permission: Ask first", icon: "shield", warning: false },
     { label: "Accept edits", ariaLabel: "Permission: Accept edits", icon: "file-pen-line", warning: false },
     { label: "Plan (read-only)", ariaLabel: "Permission: Plan (read-only)", icon: "eye", warning: false },
@@ -86,4 +86,46 @@ test("a pick, default or remembered mode the provider cannot offer is Default", 
   expect(defaultPermission(antigravity, undefined, "plan", null)).toBe("default");
   expect(defaultPermission(antigravity, undefined, undefined, { provider: "antigravity", permissionMode: "plan" })).toBe("default");
   expect(defaultPermission([], undefined, "bypass", null)).toBe("default");
+});
+
+// The mode Claude Code's own settings ran the last Ask first turn in (claudeRunMode), named as the menu names modes.
+describe("the mode Claude Code settings run", () => {
+  it("names it after Ask first on the trigger and says so in the aria-label", () => {
+    expect(permissionTrigger("default", "auto")).toEqual({ label: "Ask first · Auto", ariaLabel: "Permission: Ask first, Claude Code settings run Auto mode", icon: "shield", warning: false });
+    expect(permissionTrigger("default", "dontAsk")).toEqual({ label: "Ask first · Don’t ask", ariaLabel: "Permission: Ask first, Claude Code settings run Don’t ask mode", icon: "shield", warning: false });
+    expect(permissionTrigger("default", "acceptEdits")).toEqual({ label: "Ask first · Accept edits", ariaLabel: "Permission: Ask first, Claude Code settings run Accept edits mode", icon: "shield", warning: false });
+    expect(permissionTrigger("default", "plan")).toEqual({ label: "Ask first · Plan (read-only)", ariaLabel: "Permission: Ask first, Claude Code settings run Plan (read-only) mode", icon: "shield", warning: false });
+  });
+  // The stored mode stays Ask first, so the warning cannot come from the mode; an icon-only trigger still tells it apart.
+  it("warns for Full access the settings run, by icon, warning and aria-label", () => {
+    expect(permissionTrigger("default", "bypassPermissions")).toEqual({ label: "Ask first · Full access", ariaLabel: "Permission: Ask first, Claude Code settings run Full access mode, no approval requests", icon: "shield-alert", warning: true });
+  });
+  it("leaves the trigger as it was without a value", () => {
+    expect(permissionTrigger("default", undefined)).toEqual(permissionTrigger("default"));
+  });
+  it("shows in a Claude picker whose stored mode is Ask first, with the Ask first line naming it", () => {
+    const view = permissionPickerView("claude", undefined, "default", "auto")!;
+    expect(view.trigger).toEqual(permissionTrigger("default", "auto"));
+    expect(view.options[0]).toEqual({ id: "default", label: "Ask first", description: "Your Claude Code settings run Auto mode", icon: "shield", warning: false, selected: true });
+    expect(view.options.slice(1)).toEqual(permissionPickerView("claude", undefined, "default")!.options.slice(1));
+    expect(permissionPickerView("claude", undefined, "default", "dontAsk")!.options[0]!.description).toBe("Your Claude Code settings run Don’t ask mode");
+    expect(permissionPickerView("claude", undefined, "default", "bypassPermissions")!.trigger).toMatchObject({ icon: "shield-alert", warning: true });
+  });
+  // The value is kept, not cleared, so picking Ask first again shows it at once.
+  it("hides behind any other stored mode", () => {
+    for (const mode of ["acceptEdits", "plan", "bypass"] as const) expect(permissionPickerView("claude", undefined, mode, "auto")).toEqual(permissionPickerView("claude", undefined, mode));
+  });
+  it("never shows for another provider", () => {
+    expect(permissionPickerView("codex", undefined, "default", "auto")).toEqual(permissionPickerView("codex", undefined, "default"));
+    const modes = { models: [], modes: { available: [`${COPILOT}agent`, `${COPILOT}plan`], allowAll: true } };
+    expect(permissionPickerView("copilot", modes, "default", "bypassPermissions")).toEqual(permissionPickerView("copilot", modes, "default"));
+  });
+  it("announces a new value once, and nothing for the same value or a cleared one", () => {
+    expect(runModeAnnouncement(undefined, "auto")).toBe("Claude Code settings run Auto mode");
+    expect(runModeAnnouncement("auto", "dontAsk")).toBe("Claude Code settings run Don’t ask mode");
+    expect(runModeAnnouncement("dontAsk", "bypassPermissions")).toBe("Claude Code settings run Full access mode");
+    expect(runModeAnnouncement("auto", "auto")).toBeNull();
+    expect(runModeAnnouncement("auto", undefined)).toBeNull();
+    expect(runModeAnnouncement(undefined, undefined)).toBeNull();
+  });
 });
