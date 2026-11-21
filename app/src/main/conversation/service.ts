@@ -75,6 +75,10 @@ export interface Prepared {
   // Claude run keeps its input open until it resolves, since the CLI exits once its input closes
   // (agentAuth/usageService.ts withTurnUsage). The service reads the reset from it (QueueOptions.limitWindows).
   usageAtTurnEnd?: (read: () => Promise<unknown>, limit?: true) => Promise<void>;
+  // Doan-account Cursor runs only: reads the account's usage on this run's own connection and answers whether a window
+  // is used up (agentAuth/usageService.ts withTurnUsage). Cursor saves no session for a first turn that met its plan
+  // limit, so the runner asks it when session/load answers "not found" (acpRunner.ts).
+  limitReached?: () => Promise<boolean>;
   // Claude runs only: the cleaned text of the first prompt suggestion after a done turn (runners.ts openClaude).
   suggested?: (text: string) => void;
   // Claude runs only: whether background work the done turn started still runs (runners.ts backgroundTasks).

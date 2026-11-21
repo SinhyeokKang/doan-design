@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PROMPT_MS, withFifo } from "../fifo.fixture";
 import { spawnAuthProcess } from "./manager";
-import { CURSOR_USAGE_URL, readUsage, type UsageReadOptions } from "./usageRead";
+import { CURSOR_USAGE_URL, readCursorSummary, readUsage, type UsageReadOptions } from "./usageRead";
 
 // Runs a hook once, right after the first lstat or open of a chosen path returns: the moment a check-then-read could
 // be raced by the provider process replacing the file.
@@ -242,6 +242,14 @@ describe("Cursor usage read", () => {
     expect(init!.signal).toBeInstanceOf(AbortSignal);
     expect(init!.headers).toEqual({ Cookie: `WorkosCursorSessionToken=${encodeURIComponent(SUB)}%3A%3A${TOKEN}`, Accept: "application/json", Origin: "https://cursor.com", Referer: "https://cursor.com/dashboard" });
     expect(JSON.parse(readFileSync(authFile(), "utf8"))).toEqual({ accessToken: TOKEN, refreshToken: REFRESH });
+  });
+  it("reads the summary body from a run's own profile folder, and throws in Doan's words when it cannot", async () => {
+    writeAuth();
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => reply(200, fixture("cursor")));
+    expect(await readCursorSummary(profileDir, { fetch })).toEqual(JSON.parse(fixture("cursor")));
+    expect(fetch.mock.calls[0]![1]!.headers).toMatchObject({ Cookie: `WorkosCursorSessionToken=${encodeURIComponent(SUB)}%3A%3A${TOKEN}` });
+    const refused = await readCursorSummary(profileDir, { fetch: async () => reply(401, `{"error":"${TOKEN}"}`) }).then(() => null, (error: Error) => error);
+    expect(refused?.message).toBe("the request answered 401");
   });
   it.each([
     ["a 401 for an expired token", () => reply(401, '{"error":"not_authenticated"}')],
