@@ -1,8 +1,9 @@
+import { doanInvocations } from "../../lib/call-log.ts";
 import { existsSync, rmSync } from "node:fs";
 import { CANVAS_BYTES, readArtifact } from "../../lib/artifact.ts";
 import { resolve } from "node:path";
 import type { Checks } from "../../lib/types.ts";
-import { commandWords, doanArgs, lastFlag } from "../../lib/transcript.ts";
+import { type ToolCalls, doanArgs, lastFlag } from "../../lib/transcript.ts";
 import { prototypeCanvasPath } from "../../lib/prototype.ts";
 
 const canvas = ".doan/canvases/profile.html";
@@ -11,8 +12,8 @@ const OUTPUT = "profile.html";
 
 export interface ExportCall { canvas: string | undefined; output: string | undefined }
 
-export function exportCalls(commands: string[]): ExportCall[] {
-  return commands.flatMap(commandWords).flatMap(words => {
+export function exportCalls(commands: string[] | ToolCalls): ExportCall[] {
+  return doanInvocations(Array.isArray(commands) ? { commands, mcpTools: [] } : commands).words.flatMap(words => {
     const args = doanArgs(words);
     if (!args || args.refused || args.positionals[0] !== "export") return [];
     return [{ canvas: args.positionals[1], output: lastFlag(args, "o")?.value }];
@@ -52,7 +53,7 @@ export function localReferences(page: string): string[] {
 const checks: Checks = ctx => {
   const output = resolve(ctx.repo, "..", OUTPUT);
   const reference = resolve(ctx.repo, "..", "reference-export.html");
-  const calls = exportCalls(ctx.calls.commands);
+  const calls = exportCalls(ctx.calls);
   const asked = calls.filter(call => sameCanvas(ctx.repo, ctx.cwd, call.canvas));
   const page = existsSync(output) ? readArtifact(output, CANVAS_BYTES) : null;
   const text = page?.toString("utf8") ?? "";

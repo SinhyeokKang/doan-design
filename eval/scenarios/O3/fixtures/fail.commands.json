@@ -1,3 +1,4 @@
 [
-  ["onboarding", "start", "--json"]
+  ["onboarding", "start", "--json"],
+  ["init"]
 ]

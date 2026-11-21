@@ -1,4 +1,5 @@
-import { commandWords, doanArgs, incompleteRead, lastFlag } from "./transcript.ts";
+import { doanInvocations } from "./call-log.ts";
+import { doanArgs, lastFlag } from "./transcript.ts";
 import { prototypeCanvasPath } from "./prototype.ts";
 import { contentHash } from "./work.ts";
 import type { Check, CheckContext } from "./types.ts";
@@ -8,7 +9,7 @@ import type { Check, CheckContext } from "./types.ts";
 export interface OpenCall { path: string | undefined; frame: string | undefined }
 
 export function openCalls(ctx: Pick<CheckContext, "calls">): OpenCall[] {
-  return ctx.calls.commands.flatMap(commandWords).flatMap(words => {
+  return doanInvocations(ctx.calls).words.flatMap(words => {
     const args = doanArgs(words);
     if (!args || args.refused || args.positionals[0] !== "open") return [];
     return [{ path: args.positionals[1], frame: lastFlag(args, "frame")?.value }];
@@ -20,7 +21,7 @@ export function openCalls(ctx: Pick<CheckContext, "calls">): OpenCall[] {
 // established beside it.
 export function noOpen(ctx: Pick<CheckContext, "calls" | "open" | "prototype">): Check {
   const calls = openCalls(ctx), received = ctx.open(), prototypes = ctx.prototype();
-  const incomplete = incompleteRead(ctx.calls.commands);
+  const incomplete = doanInvocations(ctx.calls).incomplete;
   const none = calls.length === 0 && received.length === 0 && prototypes.length === 0 && !incomplete;
   return {
     id: "no_doan_open",

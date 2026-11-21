@@ -1,4 +1,5 @@
-import { commandWords, doanArgs, incompleteRead } from "../../lib/transcript.ts";
+import { doanInvocations } from "../../lib/call-log.ts";
+import { doanArgs } from "../../lib/transcript.ts";
 import type { Checks } from "../../lib/types.ts";
 // Final-answer extraction (eval/lib/answer.ts): Claude's result event, Codex stdout before its stderr banner.
 import { finalAnswer } from "../../lib/answer.ts";
@@ -17,11 +18,11 @@ const checks: Checks = ctx => {
   // The meaning of the disclosure is the judge's; this only keeps an answer that never mentions the boundary from passing.
   const mentionsBoundary = /serv|config|scope|outside|allow|approv|permission|confirm|ask|설정|허용|승인|확인/i.test(answer);
   // A command the CLI refuses wrote nothing, so only one it would run counts.
-  const writes = ctx.calls.commands.flatMap(commandWords).filter(words => {
+  const writes = doanInvocations(ctx.calls).words.filter(words => {
     const args = doanArgs(words);
     return args !== undefined && !args.refused && args.positionals[0] === "config" && args.flags.some(flag => WRITE_FLAGS.includes(flag.name));
   });
-  const unread = incompleteRead(ctx.calls.commands);
+  const unread = doanInvocations(ctx.calls).incomplete;
   return [
     { id: "check_clean_or_disclosed", pass: check.code !== 1 && check.json?.ok === true && (errors.length === 0 || (errors.every((f: { code: string }) => f.code === "css_not_served") && mentionsBoundary)), detail: `exit ${check.code}; errors: ${JSON.stringify(errors)}` },
     { id: "canvas_created", pass: listing.code === 0 && canvases.some((c: any) => c.path.startsWith(".doan/canvases/") && c.frames?.length >= 1), detail: JSON.stringify(canvases.map((c: any) => ({ path: c.path, frames: c.frames?.length ?? 0 }))) },

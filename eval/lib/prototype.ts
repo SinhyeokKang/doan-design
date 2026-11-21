@@ -1,11 +1,12 @@
+import { doanInvocations } from "./call-log.ts";
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
-import { commandWords, doanArgs, lastFlag } from "./transcript.ts";
+import { type ToolCalls, doanArgs, lastFlag } from "./transcript.ts";
 
 export interface PrototypeCall { path: string | undefined; frame: string | undefined; prototype: boolean; output: string | undefined }
 
-export function prototypeCalls(commands: string[], command: "open" | "export"): PrototypeCall[] {
-  return commands.flatMap(commandWords).flatMap(words => {
+export function prototypeCalls(commands: string[] | ToolCalls, command: "open" | "export"): PrototypeCall[] {
+  return doanInvocations(Array.isArray(commands) ? { commands, mcpTools: [] } : commands).words.flatMap(words => {
     const args = doanArgs(words);
     if (!args || args.refused || args.positionals[0] !== command) return [];
     const prototype = lastFlag(args, "prototype");

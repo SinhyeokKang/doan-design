@@ -1,4 +1,5 @@
-import { commandWords, doanCommand, incompleteRead } from "../../lib/transcript.ts";
+import { doanInvocations } from "../../lib/call-log.ts";
+import { doanCommand } from "../../lib/transcript.ts";
 import type { Check, CheckContext } from "../../lib/types.ts";
 import { describeAll, requests, type Exchange } from "../O1/log.ts";
 
@@ -8,8 +9,8 @@ import { describeAll, requests, type Exchange } from "../O1/log.ts";
 // `onboarding … --initialize` are not runs of it. A command built inside a
 // Codex template literal is not extracted; `repo_untouched` still sees its files.
 export function noDoanInit(ctx: CheckContext): Check {
-  const ran = ctx.calls.commands.flatMap(commandWords).filter(words => doanCommand(words) === "init");
-  const unread = incompleteRead(ctx.calls.commands);
+  const ran = doanInvocations(ctx.calls).words.filter(words => doanCommand(words) === "init");
+  const unread = doanInvocations(ctx.calls).incomplete;
   return { id: "no_doan_init", pass: ran.length === 0 && !unread, detail: ran.length ? `ran ${ran.map(words => words.join(" ")).join("; ")}, which does not add the project to the Doan app` : unread ? "a command could not be read completely, so a `doan init` in it cannot be ruled out" : "no `doan init`" };
 }
 

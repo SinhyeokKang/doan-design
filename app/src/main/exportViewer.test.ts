@@ -1421,6 +1421,11 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     }, { timeout: 15_000 }).toBe(true);
   };
 
+  const clickCanvas = async (target: Locator, position = { x: 16, y: 16 }) => {
+    await pointAt(target, position);
+    await target.click({ position });
+  };
+
   test("the inspector opens folded, renders canvas labels as text and restores the selection after yielding", async () => {
     const frame = await openCanvas('<section data-doan-frame="item" data-doan-title="&lt;b&gt;Item&lt;/b&gt;" style="height:300px;color:blue">Item</section>');
     const show = frame.locator("#inspector-show");
@@ -1428,7 +1433,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     const panel = frame.getByRole("region", { name: "Inspector", includeHidden: true });
     expect(await panel.isHidden()).toBe(true);
     await showInspector(frame);
-    await frame.frameLocator("#canvas").locator("section").click({ position: { x: 20, y: 20 } });
+    await clickCanvas(frame.frameLocator("#canvas").locator("section"), { x: 20, y: 20 });
     await panel.getByRole("button", { name: /<b>Item<\/b>/ }).waitFor();
     expect(await panel.locator("b").count()).toBe(0);
     for (const target of [panel.locator(".doan-insp-row").first(), panel.getByRole("button", { name: /Elements in this frame/ })]) {
@@ -1477,7 +1482,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     // Keep the entire target in view so selecting it needs no board scroll after the panel opens.
     const frame = await openCanvas(compactCart, 320);
     await showInspector(frame);
-    await frame.frameLocator("#canvas").locator('[data-doan-frame="cart"]').click();
+    await clickCanvas(frame.frameLocator("#canvas").locator('[data-doan-frame="cart"]'));
     const trigger = frame.getByRole("button", { name: "Cart, frame. Elements in this frame", exact: true });
     await trigger.press("Enter");
     await frame.getByRole("treeitem").first().waitFor();
@@ -1491,7 +1496,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
   test("Space preserves the inspected frame while switching to Hand clears it", async () => {
     const frame = await openCanvas(compactCart, 320);
     await showInspector(frame);
-    await frame.frameLocator("#canvas").locator("section").click();
+    await clickCanvas(frame.frameLocator("#canvas").locator("section"));
     const mark = frame.locator("#selected-mark");
     await mark.waitFor();
     const board = frame.locator("#board");
@@ -1512,7 +1517,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
   test("switching to Hand while the inspector yields clears the retained frame", async () => {
     const frame = await openCanvas(compactCart, 320);
     await showInspector(frame);
-    await frame.frameLocator("#canvas").locator("section").click();
+    await clickCanvas(frame.frameLocator("#canvas").locator("section"));
     await frame.locator("#selected-mark").waitFor();
     await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "655px"; });
     await frame.locator("#inspector").waitFor({ state: "hidden" });
@@ -1533,7 +1538,8 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
 
   test("Hide inspector shows its tooltip on hover and keyboard focus", async () => {
     const frame = await openCanvas(compactCart, 320);
-    const show = frame.locator("#inspector-show");
+    // Enter can reach the button before the inspector's ResizeObserver has enabled it for the wider host.
+    const show = frame.locator('#inspector-show[aria-disabled="false"]');
     const hide = frame.getByRole("button", { name: "Hide inspector", exact: true });
     const tip = frame.getByRole("tooltip").filter({ hasText: "Hide inspector" });
     await show.press("Enter");
@@ -1568,7 +1574,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     expect(await tip.isVisible()).toBe(false);
     expect(await hide.getAttribute("aria-describedby")).toBeNull();
 
-    await frame.frameLocator("#canvas").locator("section").click();
+    await clickCanvas(frame.frameLocator("#canvas").locator("section"));
     await frame.getByRole("button", { name: "Cart, frame. Elements in this frame" }).press("Tab");
     expect(await tip.isVisible()).toBe(true);
     await frame.page().keyboard.press("Escape");
@@ -1863,7 +1869,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
   test("copy uses the selected fallback text and returns focus to the row", async () => {
     const frame = await openCanvas('<section data-doan-frame="f" style="height:250px;--bg:red;background:var(--bg)">Frame</section>', 320);
     await showInspector(frame);
-    await frame.frameLocator("#canvas").locator("section").click({ position: { x: 15, y: 15 } });
+    await clickCanvas(frame.frameLocator("#canvas").locator("section"), { x: 15, y: 15 });
     const row = frame.locator(".doan-insp-row").filter({ hasText: "Background" });
     await frame.evaluate(() => {
       Object.defineProperty(navigator, "clipboard", { value: { writeText: () => Promise.reject(new Error("denied")) } });
@@ -1903,7 +1909,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
       window.addEventListener("message", hold);
     });
     await showInspector(frame);
-    await frame.frameLocator("#canvas").locator('[data-doan-frame="cart"]').click();
+    await clickCanvas(frame.frameLocator("#canvas").locator('[data-doan-frame="cart"]'));
     await expect.poll(() => frame.locator("#element-trigger").textContent()).toBe("Cart");
     expect(await frame.locator("#drawer").isVisible()).toBe(true);
     expect(await frame.locator("#drawer").evaluate(el => el.contains(document.activeElement))).toBe(true);
@@ -1949,8 +1955,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     const frame = await openCanvas('<style>:root{--old:3px;--pad:12px;--left:5px}section{padding:var(--old)}.card{padding:var(--pad);padding-left:var(--left)}</style><section class="card" data-doan-frame="card">Card</section>');
     await showInspector(frame);
     const card = frame.frameLocator("#canvas").locator("section");
-    await pointAt(card, { x: 12, y: 8 });
-    await card.click({ position: { x: 12, y: 8 } });
+    await clickCanvas(card, { x: 12, y: 8 });
     const padding = frame.locator(".doan-insp-row").filter({ hasText: "Padding" });
     await padding.focus();
     expect(await padding.innerText()).toContain("12px 12px 12px 5px");
