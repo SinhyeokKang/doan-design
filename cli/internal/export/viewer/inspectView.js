@@ -154,7 +154,9 @@ function mountViewerInspector(canvas, board, popupOpenNow, onSelection) {
     else show.removeAttribute("aria-description");
     headTip.textContent = !bounds ? noRoom : "Show inspector";
     if (!reason && open === !panel.hidden) return;
-    const retain = reason !== "clear";
+    // A fold, an unfold or a Yield keeps the selection; a board clear drops it, and so does a canvas
+    // document that loaded again, whose elements are new.
+    const retain = reason !== "clear" && reason !== "reload";
     const focusMoved = panel.contains(document.activeElement) || document.activeElement === handle || document.activeElement === show;
     clearShowTip(); clearHideTip();
     reset(retain);

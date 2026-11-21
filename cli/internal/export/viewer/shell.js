@@ -327,6 +327,7 @@ setTimeout(() => {
 }, FIRST_LAYOUT_TIMEOUT_MS);
 
 window.addEventListener("message", (event) => {
+  if (acceptPlayer(event)) return;
   const message = acceptMessage(event, canvas.contentWindow);
   if (message === null) { inspector.accept(event); return; }
   if (message.type === "layout") {
@@ -662,10 +663,86 @@ function playState() {
 
 const playing = () => (playingFrame === null ? null : { root: "", canvas: { path: CANVAS_PATH }, frame: playingFrame });
 
-// Every Play (the toolbar's, the size bubble's, a play drawer row) comes here with the frame's id.
-// TODO(player window): open the browser player for `frameId`. Until it exists a press does nothing.
+// ── The player window ─────────────────────────────────────────────────────────
+// Every Play (the toolbar's, the size bubble's, a play drawer row) comes here with the frame's id,
+// always from the press's own click or keydown handler: the browser allows a window only during the
+// person's input, and a click in the canvas iframe would lend this page that allowance, so nothing a
+// canvas message starts may open one. The window is this file again at `#doan-play=<id>`
+// (player.js), under a name made for this board's page, so a reloaded board, or another file's,
+// opens a window of its own. One window per board: Play while it is open brings it forward and tells
+// it the frame (a string, as everything this page and the player send each other); the player keeps
+// the frame it plays or starts the new one. The browser says nothing when a window closes, so the
+// board looks every POLL_MS; focus then comes back to the Play pressed (prototypePlay.ts
+// closedFocusTarget).
+const PLAYER_NAME = "doan-play-" + Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join("");
+const POLL_MS = 250;
+// How long the board waits to lose focus to the window it brought forward: no blur by then means the
+// browser did not bring it, or the board cannot tell, and the toast says where the prototype is.
+const RAISE_MS = 250;
+const toast = createToast();
+let playerWindow = null;
+let playerHeard = false;
+// The mode the last player window of this page had: a window opened again starts in it.
+let playerMode = "fit";
+let blockedToast = null;
+let playerPoll = 0;
+
 function playPrototype(frameId) {
-  void frameId;
+  if (playerWindow !== null && !playerWindow.closed) {
+    let raised = false;
+    const lost = () => { raised = true; };
+    window.addEventListener("blur", lost, { once: true });
+    playerWindow.focus();
+    playerWindow.postMessage("play:" + frameId, "*");
+    playerOpened();
+    setTimeout(() => {
+      window.removeEventListener("blur", lost);
+      if (!raised) toast.show(PLAYER_COPY.elsewhere);
+    }, RAISE_MS);
+    return;
+  }
+  const opened = window.open(playerAddress(location.href, frameId), PLAYER_NAME);
+  if (opened === null) {
+    blockedToast = toast.show(PLAYER_COPY.blocked);
+    return;
+  }
+  playerWindow = opened;
+  playerHeard = false;
+  playerOpened();
+  clearInterval(playerPoll);
+  playerPoll = setInterval(() => {
+    if (playerWindow !== null && !playerWindow.closed) return;
+    clearInterval(playerPoll);
+    playerWindow = null;
+    playingFrame = null;
+    refreshPlay();
+    viewerApp.closedFocusTarget(selectionBox.hidden ? null : bubblePlay, playButton)?.focus({ preventScroll: true });
+  }, POLL_MS);
+}
+
+// A Play that reached a window takes the blocked window's toast away.
+function playerOpened() {
+  if (blockedToast !== null && toast.current() === blockedToast) toast.dismiss(blockedToast);
+  blockedToast = null;
+}
+
+// The player's strings, only from the window this page opened. Its first word answers with the mode
+// to start in; the play drawer marks the frame it says it plays.
+function acceptPlayer(event) {
+  if (playerWindow === null || event.source === null || event.source !== playerWindow) return false;
+  const message = playerMessage(event.data);
+  if (message === null) return true;
+  if (message.kind === "mode") {
+    playerMode = message.mode;
+    return true;
+  }
+  if (!playerHeard) {
+    playerHeard = true;
+    playerWindow.postMessage("mode:" + playerMode, "*");
+  }
+  playingFrame = message.id;
+  refreshPlay();
+  return true;
 }
 
 // The play drawer: the playable frames in link groups, the Playing row marked with the app's Eye, and
@@ -678,7 +755,7 @@ const playPopup = (() => {
   let typed = { text: "", at: 0 };
   let rows = [];
   let shownKey = "";
-  const nodes = new Map();
+  let nodes = new Map();
   const move = (key) => {
     const node = key === null ? undefined : nodes.get(key);
     if (!node) return;
@@ -704,52 +781,7 @@ const playPopup = (() => {
   const render = (drawer) => {
     shownKey = JSON.stringify(drawer);
     playList.setAttribute("aria-label", drawer.label);
-    playList.textContent = "";
-    nodes.clear();
-    drawer.groups.forEach((group, index) => {
-      if (index > 0) {
-        const separator = document.createElement("div");
-        separator.className = "doan-menu-sep";
-        separator.setAttribute("aria-hidden", "true");
-        playList.append(separator);
-      }
-      const box = document.createElement("div");
-      box.setAttribute("role", "group");
-      box.setAttribute("aria-label", group.label);
-      for (const row of group.rows) {
-        const node = document.createElement("div");
-        node.className = "doan-menu-item doan-frame-row";
-        node.setAttribute("role", "option");
-        node.tabIndex = -1;
-        if (row.current) node.setAttribute("aria-current", "location");
-        const number = document.createElement("span");
-        number.className = "doan-frame-num";
-        number.textContent = String(row.number);
-        const name = document.createElement("span");
-        name.className = "doan-frame-name";
-        name.title = row.name;
-        name.textContent = row.name;
-        node.append(number, name);
-        if (row.current) {
-          const mark = document.createElement("span");
-          mark.className = "doan-frame-current";
-          mark.title = "Playing";
-          const word = document.createElement("span");
-          word.className = "sr-only";
-          word.textContent = "Playing";
-          mark.append(icon(eyeIcon), word);
-          node.append(mark);
-        }
-        node.addEventListener("focus", () => { focused = row.key; });
-        node.addEventListener("pointermove", () => {
-          if (document.activeElement !== node) node.focus({ preventScroll: true });
-        });
-        node.addEventListener("click", () => pick(row));
-        nodes.set(row.key, node);
-        box.append(node);
-      }
-      playList.append(box);
-    });
+    nodes = drawerRows(playList, drawer.groups, eyeIcon, "Playing", { focus: (row) => { focused = row.key; }, pick });
     rows = viewerApp.drawerOrder(drawer.groups);
   };
   playPanel.addEventListener("keydown", (event) => {

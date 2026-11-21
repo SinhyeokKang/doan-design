@@ -18,12 +18,18 @@
             frameExports). Write every "<" as \u003c so the value can neither end the script nor open
             an HTML comment.
     STYLE   shell.css.
-    SCRIPT  lib.js, inspector display helpers, the app's generated judgments (viewerApp.js) and
-            shell.js, wrapped in a function so the names stay local. No file may contain "</script"
-            or an HTML comment opener (viewer test).
+    SCRIPT  lib.js, the app's generated judgments (viewerApp.js) and the player (player.js), then
+            the inspector display helpers and shell.js in a function of their own that runs only
+            when the page is not a player window; all wrapped in a function so the names stay local.
+            No file may contain "</script" or an HTML comment opener (viewer test).
     SRCDOC  the rewritten canvas HTML as a double-quoted attribute value: escape & and ". Its head
             starts with an inline script holding lib.js, inspector readers and measure.js, wrapped in a
             function (assemble builds that; this file does not).
+
+  The same file is the player window: the board's Play opens it again at #doan-play=<id>. The
+  script right before the canvas iframe then takes the iframe out as the parser inserts it, before
+  its canvas can load, and keeps its srcdoc for player.js. The template with id "player" holds the
+  player's markup.
 
   There is deliberately no CSP meta: a srcdoc document inherits its parent's CSP, so a restrictive
   one here would block the canvas's own CDN scripts and fonts. This page's code is inline and makes
@@ -67,7 +73,7 @@
 </header>
 <main class="board" id="board" tabindex="0" aria-label="Canvas">
   <noscript><p class="doan-notice doan-panel vw-noscript"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span>This preview shows the top of the canvas. Open the file in a web browser to see all of it and its frames.</span></p></noscript>
-  <div class="spacer" id="spacer"><div class="stage" id="stage"><iframe class="canvas" id="canvas" sandbox="allow-scripts" style="width:{{WIDTH}}px" srcdoc="{{SRCDOC}}"></iframe><div class="vw-overlay" id="inspect-marks" aria-hidden="true"><div id="inspect-range"></div><div class="mark" id="selected-mark" hidden></div><div class="mark hover" id="hover-mark" hidden></div></div></div><div class="vw-selection" id="selection-box" hidden><div class="dims" id="size-bubble"><span id="size-label"></span></div></div><div class="measure" id="measure" aria-hidden="true" hidden></div></div>
+  <div class="spacer" id="spacer"><div class="stage" id="stage"><script>if (location.hash.startsWith("#doan-play=")) { document.documentElement.classList.add("doan-play"); new MutationObserver(function (records, observer) { var frame = document.getElementById("canvas"); if (frame === null) return; window.doanPlayCanvas = frame.getAttribute("srcdoc"); frame.removeAttribute("srcdoc"); frame.remove(); observer.disconnect(); }).observe(document.documentElement, { childList: true, subtree: true }); }</script><iframe class="canvas" id="canvas" sandbox="allow-scripts" style="width:{{WIDTH}}px" srcdoc="{{SRCDOC}}"></iframe><div class="vw-overlay" id="inspect-marks" aria-hidden="true"><div id="inspect-range"></div><div class="mark" id="selected-mark" hidden></div><div class="mark hover" id="hover-mark" hidden></div></div></div><div class="vw-selection" id="selection-box" hidden><div class="dims" id="size-bubble"><span id="size-label"></span></div></div><div class="measure" id="measure" aria-hidden="true" hidden></div></div>
 </main>
 <div id="inspector-resize" role="separator" aria-label="Resize inspector" aria-controls="inspector" aria-orientation="vertical" tabindex="0" hidden></div>
 <div id="resize-cover" aria-hidden="true" hidden></div>
@@ -110,6 +116,32 @@
 <template id="eye-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg></template>
 </div>
 <script type="application/json" id="doan-meta">{{META}}</script>
+<template id="player"><div class="pw" id="pw">
+<header class="pw-top">
+  <div class="pw-history">
+    <button type="button" class="doan-icon-button" data-ui-placement="chrome" id="pw-back" aria-label="Back" aria-disabled="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></button>
+    <button type="button" class="doan-icon-button" data-ui-placement="chrome" id="pw-forward" aria-label="Forward" aria-disabled="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></button>
+    <button type="button" class="doan-icon-button" data-ui-placement="chrome" id="pw-reload" aria-label="Reload prototype"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button>
+  </div>
+  <button type="button" class="pw-name" id="pw-name" aria-haspopup="listbox" aria-expanded="false" aria-controls="pw-drawer"><span class="pw-name-text" id="pw-name-text"></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+  <div class="doan-floating doan-menu doan-frame-list pw-drawer" id="pw-drawer" hidden><div role="listbox" id="pw-list"></div><p class="pw-drawer-empty" id="pw-empty" hidden></p></div>
+  <div class="pw-right">
+    <div class="doan-toggle-group" role="group" aria-label="Viewport" id="pw-modes">
+      <button type="button" class="doan-icon-button" data-ui-placement="chrome" data-mode="fit" aria-label="Fit" aria-pressed="true" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M12 9v11"/><path d="M2 9h13a2 2 0 0 1 2 2v9"/></svg></button>
+      <button type="button" class="doan-icon-button" data-ui-placement="chrome" data-mode="responsive" aria-label="Responsive" aria-pressed="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 15 6 6"/><path d="m15 9 6-6"/><path d="M21 16v5h-5"/><path d="M21 8V3h-5"/><path d="M3 16v5h5"/><path d="m3 21 6-6"/><path d="M3 8V3h5"/><path d="M9 9 3 3"/></svg></button>
+    </div>
+    <button type="button" class="doan-icon-button" data-ui-placement="chrome" id="pw-export" aria-label="Export prototype"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg></button>
+  </div>
+</header>
+<span class="sr-only" id="pw-export-reason"></span>
+<div class="pw-panel" id="pw-panel">
+  <div class="pw-content" id="pw-content" data-mode="fit"><div class="pw-stage" id="pw-stage"></div></div>
+  <div class="problem-overlay reading" id="pw-reading" hidden><p class="problem-reading"><span class="doan-spinner" aria-hidden="true"></span><span id="pw-reading-text"></span></p></div>
+  <div class="problem-overlay" id="pw-scene" hidden><div class="problem-scene" role="group" aria-labelledby="pw-scene-heading"><svg class="problem-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><div class="problem-heading"><h2 id="pw-scene-heading" tabindex="-1" aria-describedby="pw-scene-line"></h2><p id="pw-scene-line"></p></div><div class="problem-actions"><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" id="pw-retry"></button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" id="pw-close"></button></div></div></div>
+</div>
+<div class="doan-tooltip pw-tip" id="pw-tip" role="tooltip" hidden></div>
+<p class="sr-only" role="status" aria-live="polite" id="pw-live"></p>
+</div></template>
 <script>
 {{SCRIPT}}
 </script>

@@ -476,3 +476,111 @@ function popupBlur(popup, canvasFocused) {
   if (!popup.open || !canvasFocused) return popup;
   return { open: false, active: -1, focus: "none", pick: -1, prevent: false };
 }
+
+// ── The browser player ────────────────────────────────────────────────────────
+// Play on the board opens this same file again in a window of its own, with `#doan-play=<id>` in the
+// address: the page then plays that frame (player.js) and the board never runs in it. Each move is
+// a new hash, so the window's own Back and Forward, the header's and a reload follow the frames. A
+// window written from about:blank, a blob: or a data: URL loses that history, or the separation
+// from the board's page, in Chromium or WebKit.
+
+const PLAY_HASH = "#doan-play=";
+
+// The frame a player address names, or null when it is no player address. An address someone
+// edited so that it no longer decodes names its raw text: no frame has it, and its run fails to start.
+function playHash(hash) {
+  if (!hash.startsWith(PLAY_HASH) || hash.length === PLAY_HASH.length) return null;
+  const raw = hash.slice(PLAY_HASH.length);
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+function playHashFor(id) {
+  return PLAY_HASH + encodeURIComponent(id);
+}
+
+// The board's own file at the frame: whatever hash the board has is dropped.
+function playerAddress(href, id) {
+  const at = href.indexOf("#");
+  return (at < 0 ? href : href.slice(0, at)) + playHashFor(id);
+}
+
+function messageId(text) {
+  return text !== "" && text.length <= MAX_STRING ? text : null;
+}
+
+function messageMode(text) {
+  return text === "fit" || text === "responsive" ? text : null;
+}
+
+// The board and the player post strings only, each to the window it opened or was opened by; the
+// receiver checks event.source (a file page's origin is "null" for every file). The board says which
+// frame to play (`play:<id>`) and, once, the mode its last player window had; the player says which
+// frame it plays (`playing:<id>`) and every mode it changes to. Whether `play:` restarts is the
+// player's decision: the board does not know where links have taken it.
+function boardMessage(data) {
+  if (typeof data !== "string") return null;
+  if (data.startsWith("play:")) {
+    const id = messageId(data.slice(5));
+    return id === null ? null : { kind: "play", id };
+  }
+  if (data.startsWith("mode:")) {
+    const mode = messageMode(data.slice(5));
+    return mode === null ? null : { kind: "mode", mode };
+  }
+  return null;
+}
+
+function playerMessage(data) {
+  if (typeof data !== "string") return null;
+  if (data.startsWith("playing:")) {
+    const id = messageId(data.slice(8));
+    return id === null ? null : { kind: "playing", id };
+  }
+  if (data.startsWith("mode:")) {
+    const mode = messageMode(data.slice(5));
+    return mode === null ? null : { kind: "mode", mode };
+  }
+  return null;
+}
+
+// The browser has its own window controls, so the header starts with Back 16 from the left (the
+// app's starts after the traffic lights). Back, Forward and Reload take 104, Fit, Responsive and
+// Export 104, and the name keeps 40 on each side; under 120 for it, it takes a second row.
+const PLAYER_GROUP = 104;
+const PLAYER_GAP = 40;
+const PLAYER_NAME_MIN = 120;
+function playerRows(width) {
+  return width - 2 * (16 + PLAYER_GROUP + PLAYER_GAP) >= PLAYER_NAME_MIN ? 1 : 2;
+}
+
+// What a player window starts with: the entry's own history and mode when it is reloaded (the entry's
+// state holds them), else one entry at Fit until the board says otherwise.
+function restorePlayer(saved, id) {
+  const fresh = { history: { entries: [id], index: 0 }, mode: "fit", restored: false };
+  if (!isRecord(saved) || !Array.isArray(saved.entries) || saved.entries.length === 0) return fresh;
+  if (!saved.entries.every((entry) => typeof entry === "string")) return fresh;
+  const index = saved.index;
+  if (!Number.isInteger(index) || index < 0 || index >= saved.entries.length || saved.entries[index] !== id) return fresh;
+  const mode = messageMode(saved.mode);
+  if (mode === null) return fresh;
+  return { history: { entries: [...saved.entries], index }, mode, restored: true };
+}
+
+// A run's canvas: the board's srcdoc with its measure script replaced by isolate.js and then the
+// run's script. isolate.js stays first, so the srcdoc fixes it carries (History calls, # links,
+// followed links) apply before any canvas script runs. `measure` is in the srcdoc's UTF-16 units.
+function playSrcdoc(srcdoc, measure, isolate, script) {
+  return srcdoc.slice(0, measure.offset) + isolate + script + srcdoc.slice(measure.offset + measure.length);
+}
+
+// A script element around generated code whose only outside text is JSON (a frame id): a backslash
+// before the slash of a script end tag and before the bang of a comment opener, which a JS string
+// reads as the same characters, so the code can neither end the element nor open a comment. This
+// file runs inside the canvas's own script element too, so neither sequence is written out here.
+function inlineScript(code) {
+  return "<script>" + code.replace(/<(\/script|!--)/gi, "<\\$1") + "<" + "/script>";
+}

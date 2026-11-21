@@ -1232,8 +1232,9 @@ describe("tool wiring", () => {
   test("Space is let go when the window loses focus to another window, and when the canvas loads another document", () => {
     expect(shellJs).toMatch(/window\.addEventListener\("blur", \(\) => \{\s*if \(!document\.hasFocus\(\)\) releaseInput\(\);\s*\}\);/);
     expect(shellJs).toContain('canvas.addEventListener("load", releaseInput);');
-    // The popups' own blur handlers (the frame drawer and zoom menu's, the play drawer's) stay as they were.
-    expect(shellJs.match(/window\.addEventListener\("blur"/g)).toHaveLength(3);
+    // The popups' own blur handlers (the frame drawer and zoom menu's, the play drawer's) stay as they were; the fourth
+    // tells whether a Play brought the player window forward.
+    expect(shellJs.match(/window\.addEventListener\("blur"/g)).toHaveLength(4);
   });
 
   // A pointer resting over the canvas keeps the cursor the canvas document last set until it moves (measured in

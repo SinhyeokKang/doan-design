@@ -43,7 +43,7 @@ func Assemble(m Meta, c canvas.Canvas, canvasHTML []byte) ([]byte, error) {
 		return nil, errors.New("canvas width must be a positive integer")
 	}
 	files := map[string]string{}
-	for _, name := range []string{"shell.html", "shell.css", "lib.js", "shell.js", "measure.js", "inspect.js", "inspectSelection.js", "inspectPanel.js", "inspectMessage.js", "inspectView.js", "viewerApp.js"} {
+	for _, name := range []string{"shell.html", "shell.css", "lib.js", "shell.js", "measure.js", "inspect.js", "inspectSelection.js", "inspectPanel.js", "inspectMessage.js", "inspectView.js", "viewerApp.js", "player.js"} {
 		b, err := viewerFS.ReadFile("viewer/" + name)
 		if err != nil {
 			return nil, err
@@ -52,8 +52,12 @@ func Assemble(m Meta, c canvas.Canvas, canvasHTML []byte) ([]byte, error) {
 	}
 	shell, style, lib, shellJS, measure := files["shell.html"], files["shell.css"], files["lib.js"], files["shell.js"], files["measure.js"]
 	// Both scripts are wrapped in a function: lib.js and the other files declare
-	// top-level names that must not become globals of the canvas.
-	shellScript := "(function () {\n" + lib + "\n" + files["inspectPanel.js"] + "\n" + files["inspectMessage.js"] + "\n" + files["inspectView.js"] + "\n" + files["viewerApp.js"] + "\n" + shellJS + "\n})();"
+	// top-level names that must not become globals of the canvas. In a player
+	// window (this file opened again by the board's Play, lib.js PLAY_HASH)
+	// player.js plays and the board's files, which share one function of their
+	// own, never run.
+	board := files["inspectPanel.js"] + "\n" + files["inspectMessage.js"] + "\n" + files["inspectView.js"] + "\n" + shellJS
+	shellScript := "(function () {\n" + lib + "\n" + files["viewerApp.js"] + "\n" + files["player.js"] + "\nif (!startPlayer()) (function () {\n" + board + "\n})();\n})();"
 	measureScript := "<script>(function () {\n" + lib + "\n" + files["inspect.js"] + "\n" + files["inspectSelection.js"] + "\n" + measure + "\n})();</script>"
 
 	// A browser drops a byte order mark; in a srcdoc string it would be text and
@@ -241,6 +245,9 @@ type exportFrame struct {
 	Name  string `json:"name"`  // NAME: the title, else the id, escaped as HTML text
 	Start string `json:"start"` // META's start value: the id as JSON
 	Group int    `json:"group"` // index into Groups
+	// Mark is the frame's raw data-doan-prototype value: the player window's viewport for the frame until its run
+	// reports the mark it found, as the app's prototype window starts at the board's mark.
+	Mark string `json:"mark"`
 }
 
 type exportRefusal struct {
@@ -315,7 +322,7 @@ func prototypeExports(c canvas.Canvas, before []byte, measureScript string) (fra
 			if played.Title != nil && *played.Title != "" {
 				name = *played.Title
 			}
-			out.Frames = append(out.Frames, exportFrame{f.ID, html.EscapeString(name), string(start), group[f.ID]})
+			out.Frames = append(out.Frames, exportFrame{f.ID, html.EscapeString(name), string(start), group[f.ID], played.Size})
 		case canvas.PrototypeShared:
 			out.Refused = append(out.Refused, exportRefusal{f.ID, "shared"})
 		case canvas.PrototypeNotMarked:
