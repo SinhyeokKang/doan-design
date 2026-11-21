@@ -23,14 +23,20 @@
 
 ## 표시
 
-- **trigger**: 저장 모드가 Ask first이고 `claudeRunMode`가 있으면 라벨을 "Ask first · <이름>"으로 한다. 이름은 `auto` "Auto", `dontAsk` "Don't ask"이다. P1이 확인하면 `acceptEdits` "Accept edits", `plan` "Plan (read-only)", `bypassPermissions` "Full access"를 더한다. menu와 같은 용어를 쓴다.
+- **trigger**: 저장 모드가 Ask first이고 `claudeRunMode`가 있으면 라벨을 "Ask first · <이름>"으로 한다. 이름은 `auto` "Auto", `dontAsk` "Don’t ask"이다. P1이 확인하면 `acceptEdits` "Accept edits", `plan` "Plan (read-only)", `bypassPermissions` "Full access"를 더한다. menu와 같은 용어를 쓴다.
 - **aria-label**: "Permission: Ask first, Claude Code settings run <이름> mode".
 - **Full access 경고**(P1이 `bypassPermissions`를 확인했을 때): 저장 모드는 `default`로 남으므로 지금의 `data-mode="bypass"` 규칙(`styles.css`의 `.composer-permission[data-mode="bypass"]`와 docked tray의 `:not([data-mode="bypass"])` 예외)이 걸리지 않는다. 그래서 저장 모드와 별개인 경고 속성(예: `data-warning`)을 trigger에 두고 두 CSS 규칙이 그 속성도 보게 한다. 아이콘은 `shield-alert`, aria-label에는 Full access와 같이 ", no approval requests"를 붙인다. 아이콘만 보이는 docked trigger도 plain Ask first와 구별된다.
 - **menu의 Ask first 설명**: "Your Claude Code settings run <이름> mode". 나머지 행은 그대로다(사용자 결정: 현재형 문구 유지. 재시작 뒤 설정이 바뀐 경우의 한계는 spec에 적었다).
 - **스크린리더**: 값이 바뀌면 composer의 기존 sr-only status(`HomeComposerView.tsx`·`DockedComposer.tsx`에 있는 것과 같은 방식)로 "Claude Code settings run <이름> mode"를 한 번 알린다. 대화의 이전 값과 같으면 알리지 않는다. 값이 지워질 때는 알리지 않는다.
-- **좁은 docked composer**: Permission 라벨을 먼저 숨기는 container query(`styles.css`의 `@container (max-width: 431px)`)는 "Plan (read-only)" 기준으로 맞춘 값이다. 가장 긴 라벨("Ask first · Accept edits" 또는 "Ask first · Don't ask")로 `/design-draft`·`/design-sync`에서 기준을 다시 잰다. PRODUCT §5 item 1의 순서(Permission 먼저, 그다음 Effort, 그 뒤 모델 라벨 말줄임)를 지킨다. 아이콘만 보일 때도 aria-label과 tooltip(`IconTip`)이 실제 모드를 말한다.
+- **좁은 docked composer**: Permission 라벨을 먼저 숨기는 container query(`styles.css`의 `@container (max-width: 431px)`)는 가장 넓은 모델·effort 라벨("GPT-5.6-Terra", Fast가 붙은 "Extra high") 옆의 "Ask first"에 맞춘 값이다. 같은 라벨 옆에서 "Ask first · Don’t ask"는 content 너비 약 475px이 필요하므로, 초안은 기준을 476 미만으로 옮겼다(추정값, `/design-sync`가 잰다). P1이 Plan 이름을 더하면 "Ask first · Plan (read-only)"(약 510px)이 가장 긴 라벨이 되어 기준이 다시 바뀐다. PRODUCT §5 item 1의 순서(Permission 먼저, 그다음 Effort, 그 뒤 모델 라벨 말줄임)를 지킨다. 아이콘만 보일 때도 aria-label과 tooltip(`IconTip`)이 실제 모드를 말한다.
 - 문구는 Doan의 `clarify` preset을 읽고 정했다. 설정의 출처(Doan 연결 profile인지 프로젝트 파일인지)는 Claude가 알려 주지 않으므로 "Claude Code settings"로만 쓴다.
 - UI 초안은 `/design-draft`로 그리고, 사용자가 앱에서 확인한 뒤 `/tdd`를 시작한다.
+- **초안 요청**: `.doan/canvases/permission-run-mode.html`, canvas id `permission-run-mode`, 너비 1760. 기존 `permission-mode.html`은 이미 develop에 있는 화면의 초안이라 고치지 않고 새 파일에 그린다. frame:
+  - `run-mode-trigger`: 기존 대화의 docked composer trigger. 값 없음, Auto, Don’t ask, 다른 모드를 고른 뒤 값이 숨은 상태, 스크린리더 알림 문구.
+  - `run-mode-menu`: menu를 연 상태. Ask first 설명이 Auto·Don’t ask일 때.
+  - `run-mode-docked-steps`: 긴 라벨에서 Permission이 아이콘으로 줄어드는 첫 단계와 tooltip.
+  - `run-mode-plan-approved`: Plan 턴의 승인 전후. 승인 뒤 trigger가 "Ask first · Auto".
+  - Full access(`bypassPermissions`), Accept edits, Plan 이름은 P1이 확인하면 `--revise`로 더한다.
 
 ## 순수 함수로 분리할 부분 (`/tdd` 대상)
 

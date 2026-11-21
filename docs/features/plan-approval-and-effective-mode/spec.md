@@ -14,7 +14,7 @@
 ## 완료 조건
 
 - 프로젝트 `.claude/settings.json`에 `defaultMode: "auto"`가 있는 폴더에서 Claude Ask first로 턴을 보내면, 그 턴의 최상위 `system/init`이 온 뒤 trigger가 "Ask first · Auto"로 바뀐다. aria-label은 "Permission: Ask first, Claude Code settings run Auto mode"이고, menu의 Ask first 설명은 "Your Claude Code settings run Auto mode"이다.
-- `dontAsk`도 같은 규칙으로 "Don't ask"를 붙이고, 설명은 "Your Claude Code settings run Don't ask mode"이다.
+- `dontAsk`도 같은 규칙으로 "Don’t ask"를 붙이고, 설명은 "Your Claude Code settings run Don’t ask mode"이다.
 - 다른 값(`acceptEdits`, `plan`, `bypassPermissions`)은 PoC P1이 확인한 뒤에만 이 목록에 더한다. P1 결과로 이 줄을 고쳐 쓴다.
 - 턴의 실제 모드가 `default`면 아무것도 붙이지 않는다. 지금 화면과 같다.
 - plan 승인 뒤 Claude가 `auto`를 알리면 저장 모드는 지금처럼 Ask first가 되고, trigger는 "Ask first · Auto"가 된다.
