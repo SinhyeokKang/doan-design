@@ -21,6 +21,8 @@
 - 결정 게이트(사용자 결정): Antigravity `/plan`은 카드를 빼고 보낸다. 사람이 다음 메시지로 "Proceed"를 직접 입력한다. 새 UI는 없다. 답의 'click Proceed' 문구와 profile 안 `file://` 계획 링크는 받아들인다. 계획 파일 권한 카드와 `failed`로 끝나는 도구 단계가 thread에서 어떻게 보이는지는 A1 `/runtime-test`에서 확인한다. 오해를 부르면 멈추고 다시 묻는다.
 - 리드가 `fix/antigravity-stop-tool-group`(PR #346) 머지를 알렸고, `origin/develop`을 merge했다(`8126b8b5b`). A1은 P2 워커의 후속 Task로 그 뒤에 시작했다. A1은 `providerCommands.ts`·`commandView.ts`를 고치며 Claude 줄기와 겹치지 않는다.
 - A1 명령 처리: conductor 재량 — `/plan`을 passthrough가 아닌 `COMMAND_ALLOWLIST.antigravity`(1.3.0) 행으로 더한다. 근거: PRODUCT §5 item 1 'Built-in commands'와 ARCHITECTURE §7(실제 확인을 거친 명령은 표에 들어간다). A1 `/runtime-test`가 그 실제 확인이고, 확인되지 않으면 passthrough로 물러서지 않고 멈춘다.
+- DR 1차(`d37f9899e`) 독립 리뷰: 🔴1(축소 기준에 context ring이 빠져 Permission보다 모델 라벨이 먼저 말줄임됨, ring 포함 시 가장 긴 라벨 약 530), 🟡3(하나뿐인 기준이 plain "Ask first"까지 일찍 숨김, Step 1 타일이 숨김 이유를 못 보임, design.md의 plan-approved·기준 문장이 초안과 어긋남), ⚪4. 근거는 `paem-dr/.scratch/review-DR/`.
+- docked 축소 기준(사용자 결정): 실제 모드가 붙은 trigger에만 긴 기준을 건다. plain "Ask first"와 다른 provider는 지금의 431 규칙을 그대로 쓴다. 긴 기준은 하나로 두고 Claude의 가장 넓은 모델·effort 라벨과 context ring, "Ask first · Plan (read-only)"로 잰다(conductor 재량: 규칙 하나). design.md '표시'의 기준 문장과 `run-mode-plan-approved` 설명은 DR 고침 뒤 conductor가 고친다.
 - C2와 C3는 같은 워커가 이어서 한다(C3는 C2 통합 뒤 새 Task): conductor 재량 — 같은 저장 조건 함수와 service 경로를 다룬다.
 - C4의 `/runtime-test`는 conductor가 통합 HEAD에서 한다(orchestrate §4).
 - A1 전에 리드에게 알린다. 리드가 `fix/antigravity-stop-tool-group` PR의 머지 여부를 알려 주면 `origin/develop`을 먼저 merge한다(`acpRunner.ts`·`acp.ts`·`commandView.ts` 겹침).
