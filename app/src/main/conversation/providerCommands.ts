@@ -24,7 +24,8 @@ export const COMMAND_ALLOWLIST: Record<Provider, { version: string; commands: re
   ] },
   cursor: { version: "2026.10.22", commands: [{ name: "copy-request-id", description: "" }] },
   copilot: { version: "1.0.105", commands: ["compact", "context", "init", "rename", "review", "session", "usage"].map(name => ({ name, description: "" })) },
-  antigravity: { version: "1.3.0", commands: [] },
+  // /plan (2026-11-22): the plan comes back as the reply and the turn ends; the person's next message ("Proceed") runs it.
+  antigravity: { version: "1.3.0", commands: [{ name: "plan", description: "" }] },
 };
 
 // Other names a provider runs one of its allowed commands under. They are not listed (only the command is), but typed
@@ -35,9 +36,8 @@ export const COMMAND_ALIASES: Record<Provider, Readonly<Record<string, string>>>
 
 // Built-ins that are never sent: Doan shows a card instead and gives the text back. Terminal-only commands Doan has
 // its own UI for, for every provider; and the PoC's candidates that did not run where they are not allowed, which the
-// model answers by claiming it cleared or compacted. Antigravity's /logout erases Doan's own sign-in, and its /plan
-// waits for an approval Doan has no UI for. A command an ACP server lists that the PoC never sent is in neither table:
-// it goes out as text and the server handles it.
+// model answers by claiming it cleared or compacted. Antigravity's /logout erases Doan's own sign-in. A command an
+// ACP server lists that the PoC never sent is in neither table: it goes out as text and the server handles it.
 const TERMINAL_ONLY = ["config", "login", "logout", "model", "permissions", "theme"];
 const CANDIDATES = ["clear", "compact", "context", "cost", "init", "review"];
 const notAllowed = (provider: Provider) => CANDIDATES.filter(name => !COMMAND_ALLOWLIST[provider].commands.some(c => c.name === name));
@@ -46,7 +46,7 @@ export const UNSUPPORTED_COMMANDS: Record<Provider, readonly string[]> = {
   codex: [...TERMINAL_ONLY, ...notAllowed("codex")],
   cursor: [...TERMINAL_ONLY, ...notAllowed("cursor")],
   copilot: TERMINAL_ONLY,
-  antigravity: [...TERMINAL_ONLY, ...notAllowed("antigravity"), "plan"],
+  antigravity: [...TERMINAL_ONLY, ...notAllowed("antigravity")],
 };
 
 // Codex runs its commands only as app-server requests: text "/compact" reaches the model, which claims it compacted
