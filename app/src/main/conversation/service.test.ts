@@ -2006,6 +2006,13 @@ describe("the Claude run mode", () => {
     await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(2));
     first(initOf("dontAsk"), undefined, undefined);
     expect(h.store.list()[0]).toMatchObject({ claudeRunMode: "auto" });
+    // The queued turn is a new Ask first turn in a new process: its own first init counts.
+    await vi.waitFor(() => expect(h.runners[1]?.send).toHaveBeenCalled());
+    h.changes.length = 0;
+    reportOf(h)(initOf("dontAsk"), undefined, undefined);
+    expect(h.store.list()[0]).toMatchObject({ claudeRunMode: "dontAsk" });
+    expect(h.service.list("/repo")[0]).toMatchObject({ claudeRunMode: "dontAsk" });
+    expect(h.changes).toEqual(["/repo"]);
   });
   // The stored plan is an earlier turn's: this turn's own init decides whether its status is a plan approval.
   it("takes no value from a setMode in an Ask first turn whose settings did not run plan, though an earlier one did", async () => {
@@ -2042,6 +2049,27 @@ describe("the Claude run mode", () => {
     reportOf(h)(initOf("auto"), undefined, undefined);
     expect(h.store.list()[0]).not.toHaveProperty("claudeRunMode");
     expect(h.changes).toEqual([]);
+  });
+  // A Stop with a Send now message still unread holds the turn's end (the interrupted record waits for the read check),
+  // so the turn is not terminal yet; the Stop alone already ends what the turn may change.
+  it("takes no value from a report after a Stop that holds the turn's end for an unread steer", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas })).conversationId;
+    const report = reportOf(h);
+    report(initOf("plan"), undefined, undefined);
+    h.runners[0]!.steer = vi.fn(async () => {});
+    const item = h.service.queue(id, { text: "steer", anchors: [] });
+    const pending = h.service.sendNow(id, item.itemId).catch(() => {});
+    await Promise.resolve();
+    await h.service.interrupt(id);
+    expect(h.store.read(id).some(e => e.type === "interrupted")).toBe(false);
+    h.changes.length = 0;
+    report(statusOf("default"), "plan", "plan");
+    report(initOf("auto"), "plan", "plan");
+    expect(h.store.list()[0]).toMatchObject({ claudeRunMode: "plan" });
+    expect(h.changes).toEqual([]);
+    h.open.mock.calls[0]![2](); await pending;
+    expect(h.store.list()[0]).toMatchObject({ claudeRunMode: "plan" });
   });
   it("never keeps a value for a legacy-external conversation", async () => {
     const h = homeFixture();
