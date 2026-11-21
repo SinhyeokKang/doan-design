@@ -13,6 +13,10 @@ const inspectorMessages = (() => {
     && ["token", "hardcoded", "unknown", "default"].includes(r.state) && string(r.label, 32) && string(r.value, 500)
     && optional(r.token) && optional(r.inheritedFrom) && (r.hoverState === undefined || typeof r.hoverState === "boolean")
     && (r.chain === undefined || list(r.chain, 8, name => string(name, 500))) && (r.sides === undefined || list(r.sides, 4, side));
+  // The selection's nearest frame (inspectSelection.js frameOf): Play prototype and the size bubble read it.
+  const target = (t) => t === null || (isRecord(t) && (t.kind === "frame" || t.kind === "element")
+    && (t.id === undefined || string(t.id, MAX_STRING)) && (t.kind === "element" || t.id !== undefined)
+    && (t.index === undefined || (t.id !== undefined && Number.isSafeInteger(t.index) && t.index >= 0 && t.index < MAX_FRAMES)));
   const node = (n) => isRecord(n) && Number.isSafeInteger(n.depth) && n.depth >= 0 && n.depth < 200
     && string(n.name, MAX_STRING) && string(n.selector, 1000) && typeof n.selected === "boolean"
     && ["frame", "flex-row", "flex-column", "grid", "input", "button", "text", "box"].includes(n.kind);
@@ -38,15 +42,15 @@ const inspectorMessages = (() => {
     const message = fields(data, ["type", "epoch", "seq"]);
     switch (data.type) {
       case "inspection": {
-        if (!list(data.rows, 32, row) || !list(data.nodes, 200, node)) return null;
+        if (!list(data.rows, 32, row) || !list(data.nodes, 200, node) || !target(data.target)) return null;
         const nodes = Array.from(data.nodes, n => fields(n, ["depth", "name", "selector", "kind", "selected"]));
-        if (nodes.length ? nodes.filter(n => n.selected).length !== 1 : data.rows.length !== 0) return null;
+        if (nodes.length ? nodes.filter(n => n.selected).length !== 1 || data.target === null : data.rows.length !== 0) return null;
         if (nodes.some((n, i) => i === 0 ? n.depth !== 0 : n.depth < 1 || n.depth > nodes[i - 1].depth + 1)) return null;
-        return { ...message, nodes, rows: Array.from(data.rows, copyRow) };
+        return { ...message, nodes, rows: Array.from(data.rows, copyRow), target: data.target === null ? null : fields(data.target, ["kind", "id", "index"]) };
       }
       case "inspect-marks":
-        if ((data.selected !== null && !rect(data.selected)) || (data.hover !== null && !rect(data.hover))) return null;
-        return { ...message, selected: copyRect(data.selected), hover: copyRect(data.hover) };
+        if ((data.selected !== null && !rect(data.selected)) || (data.hover !== null && !rect(data.hover)) || typeof data.alt !== "boolean") return null;
+        return { ...message, selected: copyRect(data.selected), hover: copyRect(data.hover), alt: data.alt };
       case "inspect-text":
         if (data.dragging === true && !canvasFocused) return null;
         if (!list(data.rects, 2000, rect) || !string(data.text, 100000) || typeof data.dragging !== "boolean") return null;

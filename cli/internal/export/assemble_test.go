@@ -8,6 +8,8 @@ import (
 
 	nethtml "golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
+
+	"github.com/SinhyeokKang/doan-design/cli/internal/canvas"
 )
 
 // shellParts decodes the page the way a browser would: the srcdoc attribute, the meta JSON text and the
@@ -60,10 +62,13 @@ func attr(n *nethtml.Node, key string) string {
 	return ""
 }
 
+// noFrames is the model of a canvas without frames: the frame data is beside the point of these tests.
+var noFrames canvas.Canvas
+
 const simpleCanvas = "<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>x</title></head><body><p>hi</p></body></html>\n"
 
 func TestAssembleReplacesEveryPlaceholderOnce(t *testing.T) {
-	page, err := Assemble(Meta{Name: "board", Width: 1280}, []byte(simpleCanvas))
+	page, err := Assemble(Meta{Name: "board", Width: 1280}, noFrames, []byte(simpleCanvas))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +79,8 @@ func TestAssembleReplacesEveryPlaceholderOnce(t *testing.T) {
 	if p.title != "board" || p.iframeStyle != "width:1280px" {
 		t.Fatalf("title %q style %q", p.title, p.iframeStyle)
 	}
-	if p.meta != `{"name":"board","width":1280}` {
+	// shell.js reads the name and width first in the JSON; the prototype data the player needs follows them.
+	if !strings.HasPrefix(p.meta, `{"name":"board","width":1280,"prototype":{`) {
 		t.Fatalf("meta %q", p.meta)
 	}
 }
@@ -82,7 +88,7 @@ func TestAssembleReplacesEveryPlaceholderOnce(t *testing.T) {
 // A canvas that contains a placeholder must come through untouched: one replacement pass, no rescanning.
 func TestAssembleDoesNotExpandPlaceholdersInTheCanvas(t *testing.T) {
 	canvas := "<!doctype html><html><head></head><body>{{NAME}} {{WIDTH}} {{META}} {{STYLE}} {{SCRIPT}} {{SRCDOC}}</body></html>"
-	page, err := Assemble(Meta{Name: "{{WIDTH}}", Width: 640}, []byte(canvas))
+	page, err := Assemble(Meta{Name: "{{WIDTH}}", Width: 640}, noFrames, []byte(canvas))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +103,7 @@ func TestAssembleDoesNotExpandPlaceholdersInTheCanvas(t *testing.T) {
 
 func TestAssembleEscapesTheNameAndMetaJSON(t *testing.T) {
 	name := `</title><script>alert(1)</script> & "q" 'a' <!-- 공백`
-	page, err := Assemble(Meta{Name: name, Width: 800}, []byte(simpleCanvas))
+	page, err := Assemble(Meta{Name: name, Width: 800}, noFrames, []byte(simpleCanvas))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +126,7 @@ func TestAssembleEscapesTheNameAndMetaJSON(t *testing.T) {
 func TestAssembleSrcdocRoundTripsTheCanvas(t *testing.T) {
 	canvas := "<!doctype html>\n<html><head><title>a &amp; b</title><style>a::before{content:\"\\\"\"}</style></head><body>" +
 		`<p title="say &quot;x&quot;">it's "q" &lt;tag&gt; &amp; 한글 \ end</p><script>var s = "a&b";</script></body></html>` + "\n"
-	page, err := Assemble(Meta{Name: "n", Width: 100}, []byte(canvas))
+	page, err := Assemble(Meta{Name: "n", Width: 100}, noFrames, []byte(canvas))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +164,7 @@ func TestAssemblePlacesTheScriptInTheHeadAfterTheDoctype(t *testing.T) {
 		"empty":           {"", ""},
 	} {
 		t.Run(name, func(t *testing.T) {
-			page, err := Assemble(Meta{Name: "n", Width: 100}, []byte(c.canvas))
+			page, err := Assemble(Meta{Name: "n", Width: 100}, noFrames, []byte(c.canvas))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -191,7 +197,7 @@ func injectedScript(t *testing.T, srcdoc string) string {
 }
 
 func TestAssembleInjectsLibAndMeasureInOneFunction(t *testing.T) {
-	page, err := Assemble(Meta{Name: "n", Width: 100}, []byte(simpleCanvas))
+	page, err := Assemble(Meta{Name: "n", Width: 100}, noFrames, []byte(simpleCanvas))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,14 +213,18 @@ func TestAssembleInjectsLibAndMeasureInOneFunction(t *testing.T) {
 }
 
 func TestAssembleShellScriptIsLibAndShellInOneFunction(t *testing.T) {
-	page, err := Assemble(Meta{Name: "n", Width: 100}, []byte(simpleCanvas))
+	page, err := Assemble(Meta{Name: "n", Width: 100}, noFrames, []byte(simpleCanvas))
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := strings.Join([]string{viewerFile(t, "lib.js"), viewerFile(t, "inspectPanel.js"), viewerFile(t, "inspectMessage.js"), viewerFile(t, "inspectView.js"), viewerFile(t, "shell.js")}, "\n")
-	want := "(function () {\n" + source + "\n})();"
+	// viewerApp.js is the app's generated prototype and size-bubble judgments, which shell.js and player.js call.
+	// player.js runs first: in a player window (the same file opened with #doan-play=) it plays and the board's
+	// files, in a function of their own, never run.
+	shared := strings.Join([]string{viewerFile(t, "lib.js"), viewerFile(t, "viewerApp.js"), viewerFile(t, "player.js")}, "\n")
+	board := strings.Join([]string{viewerFile(t, "inspectPanel.js"), viewerFile(t, "inspectMessage.js"), viewerFile(t, "inspectView.js"), viewerFile(t, "shell.js")}, "\n")
+	want := "(function () {\n" + shared + "\nif (!startPlayer()) (function () {\n" + board + "\n})();\n})();"
 	if !strings.Contains(string(page), "<script>\n"+want+"\n</script>") {
-		t.Fatal("shell controls and inspection must share one function")
+		t.Fatal("shell controls, inspection, the player and the generated judgments must share one function")
 	}
 	if !strings.Contains(string(page), "<style>\n"+viewerFile(t, "shell.css")+"\n</style>") {
 		t.Fatal("the shell style is not shell.css")
@@ -223,7 +233,7 @@ func TestAssembleShellScriptIsLibAndShellInOneFunction(t *testing.T) {
 
 func TestAssembleStripsALeadingByteOrderMark(t *testing.T) {
 	// A browser drops the BOM of a byte stream; in a srcdoc string it would be text and force quirks mode.
-	page, err := Assemble(Meta{Name: "n", Width: 100}, []byte("\xef\xbb\xbf"+simpleCanvas))
+	page, err := Assemble(Meta{Name: "n", Width: 100}, noFrames, []byte("\xef\xbb\xbf"+simpleCanvas))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,18 +243,18 @@ func TestAssembleStripsALeadingByteOrderMark(t *testing.T) {
 }
 
 func TestAssembleIsDeterministic(t *testing.T) {
-	a, _ := Assemble(Meta{Name: "n", Width: 100}, []byte(simpleCanvas))
-	b, _ := Assemble(Meta{Name: "n", Width: 100}, []byte(simpleCanvas))
+	a, _ := Assemble(Meta{Name: "n", Width: 100}, noFrames, []byte(simpleCanvas))
+	b, _ := Assemble(Meta{Name: "n", Width: 100}, noFrames, []byte(simpleCanvas))
 	if string(a) != string(b) {
 		t.Fatal("two runs differ")
 	}
 }
 
 func TestAssembleRefusesWhatTheViewerCannotShow(t *testing.T) {
-	if _, err := Assemble(Meta{Name: "n", Width: 0}, []byte(simpleCanvas)); err == nil {
+	if _, err := Assemble(Meta{Name: "n", Width: 0}, noFrames, []byte(simpleCanvas)); err == nil {
 		t.Fatal("width 0 accepted")
 	}
-	if _, err := Assemble(Meta{Name: "n", Width: -5}, []byte(simpleCanvas)); err == nil {
+	if _, err := Assemble(Meta{Name: "n", Width: -5}, noFrames, []byte(simpleCanvas)); err == nil {
 		t.Fatal("negative width accepted")
 	}
 }

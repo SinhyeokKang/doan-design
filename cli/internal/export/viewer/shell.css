@@ -16,7 +16,9 @@
   --neutral-9: #5f5f5f;
   --neutral-10: #525252;
   --neutral-12: #000000;
+  --neutral-11: #191919;
   --neutral-standard-text: #0f0f0f;
+  --neutral-action-pressed: #525252;
   --neutral-glass: rgb(255 255 255 / 90%);
   --neutral-backdrop-hover: rgb(0 0 0 / 6%);
   --neutral-backdrop-pressed: rgb(0 0 0 / 10%);
@@ -62,9 +64,16 @@
   --affordance-backdrop-pressed: var(--neutral-backdrop-pressed);
   --affordance-floating-hover: var(--neutral-2);
   --affordance-prominent: var(--neutral-12);
+  --affordance-prominent-hover: var(--neutral-11);
+  --affordance-prominent-pressed: var(--neutral-action-pressed);
+  --affordance-subtle: var(--neutral-2);
 
   --text-accent: #973be1;
   --affordance-accent: #973be1;
+  --text-on-accent: #ffffff;
+  --border-measure: #e34c2c;
+  --affordance-measure: var(--border-measure);
+  --text-on-measure: var(--neutral-1);
   --text-danger: #641723;
   --border-prominent: #808080;
   --size-icon-xs: 12px;
@@ -78,6 +87,8 @@
   --space-4: 16px;
   --space-5: 20px;
   --space-6: 24px;
+  --space-10: 40px;
+  --size-control-xs: 24px;
   --size-control-sm: 32px;
   --size-control: 40px;
   --size-chrome: 56px;
@@ -86,10 +97,13 @@
   --radius-row: 16px;
   --radius-container: 24px;
   --radius-icon-button: 18px;
+  --radius-control: 20px;
+  --radius-toolbar-icon: 10px;
   --radius-capsule: 34px;
   --radius-pill: 9999px;
   --shadow-panel: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
   --shadow-sm: 0 0 2px rgba(0, 0, 0, 0.1), 0 4px 8px -2px rgba(0, 0, 0, 0.06);
+  --shadow-floating: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 8px 24px -4px rgba(0, 0, 0, 0.14), 0 2px 6px rgba(0, 0, 0, 0.06);
   --blur-sm: 8px;
   --time-state: 150ms;
   --ease-state: ease;
@@ -105,6 +119,9 @@
   --type-label-sm-size: 14px;
   --type-label-sm-line-height: 20px;
   --type-label-sm-letter-spacing: 0.0025em;
+  --type-heading-size: 24px;
+  --type-heading-line-height: 1.1;
+  --type-heading-letter-spacing: -0.0075em;
 }
 
 *, ::before, ::after { box-sizing: border-box; margin: 0; padding: 0; border: 0 solid; }
@@ -261,6 +278,8 @@ html:not(.js) :is(.ov-sep:not(.doan-canvas-sep-root), .ov-title-wrap, .doan-canv
 }
 
 .doan-icon-button[data-ui-size="md"] { width: var(--size-control); height: var(--size-control); }
+.doan-icon-button[data-ui-size="xs"] { width: var(--size-control-xs); height: var(--size-control-xs); border-radius: var(--radius-pill); }
+.doan-icon-button[data-ui-size="xs"] > svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 
 /* ── Menus (ds/surfaces.css) ─────────────────────────────────────────────────── */
 .doan-floating {
@@ -401,6 +420,7 @@ html:not(.js) :is(.ov-sep:not(.doan-canvas-sep-root), .ov-title-wrap, .doan-canv
    leave that to source order. */
 .vw-tool-tip { position: absolute; z-index: 4; transform: translate(-50%, -100%); pointer-events: none; }
 .vw-tool-tip[hidden] { display: none; }
+.vw-tool-tip > .vw-tip-label { min-width: 0; white-space: normal; }
 
 /* ── Tools row (styles.css) ──────────────────────────────────────────────────── */
 .doan-canvas-bottom { position: absolute; z-index: 3; bottom: var(--space-5); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: var(--space-2); width: max-content; max-width: calc(100% - 2 * var(--space-3)); pointer-events: none; }
@@ -408,6 +428,16 @@ html:not(.js) :is(.ov-sep:not(.doan-canvas-sep-root), .ov-title-wrap, .doan-canv
 .doan-canvas-tools { display: flex; align-items: center; gap: var(--space-half); }
 .doan-canvas-tools .doan-icon-button { color: var(--text-standard); }
 .doan-canvas-tools > .doan-icon-button.doan-canvas-tool[aria-pressed="true"]:not(:disabled) { background: var(--affordance-backdrop-pressed); }
+/* The app takes the default cursor for every aria-disabled button (ds/controls.css); this page has no such
+   shared rule, so the unavailable Play would show the pointer. */
+.doan-canvas-tools > .doan-icon-button.doan-canvas-tool[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
+.doan-canvas-tools-sep { flex: none; width: 1px; height: var(--space-5); margin-inline: var(--space-1); background: var(--border-standard); }
+@media (hover: hover) and (pointer: fine) { .doan-canvas-tools > .doan-canvas-tool[aria-disabled="true"]:hover { background: transparent; } }
+.doan-canvas-tools > .doan-canvas-tool[aria-disabled="true"]:active { background: transparent; }
+/* The play drawer opens above Play prototype, centred on it (the app's popover: side top, 4 away from the
+   button); shell.js sets its left to the button's centre and its bottom to the button's top, which sits
+   inside the tools row's padding and border, so the margin is the whole gap. */
+.doan-frame-list.vw-play-drawer { top: auto; bottom: 100%; margin-bottom: var(--space-1); transform: translateX(-50%); }
 /* Without JavaScript the tools cannot work, so the row is not there (like the header's tools). */
 html:not(.js) .doan-canvas-bottom { display: none; }
 
@@ -516,3 +546,116 @@ html:not(.js) .doan-canvas-bottom { display: none; }
 @media (resolution < 2dppx) { .vw-overlay { --mark-weight: 1px; } }
 .vw-overlay .mark.hover { border-style: dashed; }
 .vw-overlay .text-rect { position: absolute; background: color-mix(in srgb, var(--affordance-accent) 30%, transparent); }
+/* Option measurement (styles.css): while measuring, the target's hover line turns solid and both marks
+   get a 1px measurement-red line inside the element's edge, in screen px over the scaled stage. */
+.vw-overlay .mark.measuring { border-style: solid; box-shadow: inset 0 0 0 calc(1px / var(--canvas-scale, 1)) var(--border-measure); }
+
+/* ── Size bubble and measurement lines (styles.css) ──────────────────────────── */
+/* In the board's scrolled content over the stage, in screen px: the selection's box takes no pointer,
+   only the bubble's buttons do, so the canvas under the selection stays clickable. */
+.vw-selection { position: absolute; pointer-events: none; }
+.dims { position: absolute; top: calc(100% + 1.5px + 5px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-1) 0 var(--space-2); background: var(--affordance-accent); color: var(--text-on-accent); box-shadow: var(--shadow-sm); font: var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); border-radius: calc((var(--type-caption-line-height) + 2 * var(--space-1)) / 2); white-space: nowrap; }
+.dims.above { top: auto; bottom: calc(100% + 1.5px + 5px); }
+@media (resolution < 2dppx) {
+  .dims { top: calc(100% + 1px + 5px); }
+  .dims.above { bottom: calc(100% + 1px + 5px); }
+}
+.dims.playable { padding-left: var(--space-1); }
+.bubble-button { pointer-events: auto; color: var(--text-on-accent); }
+.bubble-button svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.vw-selection .dims .bubble-button:is(:hover, :active):not([aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-accent) 16%, transparent); }
+.vw-selection .dims .bubble-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
+.bubble-button:focus-visible { outline-color: var(--text-on-accent); outline-offset: -2px; }
+.bubble-button[aria-disabled="true"] { color: color-mix(in srgb, var(--text-on-accent) 45%, transparent); cursor: default; }
+.measure { position: absolute; inset: 0; z-index: 1; pointer-events: none; forced-color-adjust: none; }
+.measure-line { position: absolute; }
+.measure-line.h { height: 1px; margin-top: -0.5px; background: var(--border-measure); }
+.measure-line.v { width: 1px; margin-left: -0.5px; background: var(--border-measure); }
+.measure-line.h.dashed { height: 0; background: none; border-top: 1px dashed var(--border-measure); }
+.measure-line.v.dashed { width: 0; background: none; border-right: 1px dashed var(--border-measure); }
+.measure-label { position: absolute; padding: 0 var(--space-1); background: var(--affordance-measure); color: var(--text-on-measure); font: var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); border-radius: var(--radius-inline); white-space: nowrap; }
+.measure-line.h > .measure-label { top: 6px; left: 50%; transform: translateX(-50%); }
+.measure-line.v > .measure-label { left: 6px; top: 50%; transform: translateY(-50%); }
+
+/* ── Toast (ds/surfaces.css .doan-toast, styles.css .toast) ──────────────────── */
+/* One at a time at the window's bottom right, over everything, the board's and the player's. */
+.toast { position: fixed; right: var(--space-4); bottom: var(--space-4); z-index: 6; box-shadow: var(--shadow-floating); }
+.doan-toast { display: flex; align-items: center; gap: var(--space-3); width: min(384px, calc(100vw - 2 * var(--space-4))); padding: var(--space-3); overflow-wrap: anywhere; }
+.doan-toast .msg { flex: 1; min-width: 0; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+
+/* ── The player window (styles.css .pw, .shell-top, .shell-history, .shell-search, .problem-*) ───── */
+/* The same file opened at #doan-play=: the board's panel never shows; player.js draws the player in
+   its place. The app's window shell without a sidebar and without the traffic lights, whose place the
+   browser's own window controls take: Back sits 16 from the left. */
+.doan-play .doan-canvas-panel { display: none; }
+.pw { position: fixed; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); background: var(--bg-app); --pw-right: 104px; }
+.pw.name-row { grid-template-rows: calc(var(--size-chrome) + 36px + var(--space-2)) minmax(0, 1fr); }
+.pw-top { position: relative; display: flex; align-items: flex-start; padding: 0 var(--space-2); }
+.pw-top svg { width: var(--size-icon); height: var(--size-icon); }
+.pw-history { display: flex; align-items: center; gap: var(--space-1); height: var(--size-chrome); }
+.pw-top .doan-icon-button[data-ui-placement="chrome"] { width: var(--size-control-sm); height: var(--size-control-sm); border-radius: var(--radius-toolbar-icon); }
+.pw-top .doan-icon-button[data-ui-placement="chrome"]:is(:active, [aria-haspopup][aria-expanded="true"]) { background: var(--affordance-backdrop-pressed); }
+@media (hover: hover) and (pointer: fine) {
+  .pw-top .doan-icon-button[data-ui-placement="chrome"]:hover { background: var(--affordance-backdrop-hover); }
+  .pw-name:hover { background: var(--affordance-backdrop-pressed); }
+}
+.pw .pw-top .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
+.pw .pw-top .doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
+/* The name between the groups, 40 from each: after Back, Forward and Reload (3 x 32 + 2 x 4) on the
+   left and the right group's width on the right; on a second row of its own when the first would give
+   it under 120 (lib.js playerRows). */
+.pw-name { position: absolute; top: calc((var(--size-chrome) - 36px) / 2); left: calc(var(--space-2) + 3 * var(--size-control-sm) + 2 * var(--space-1) + var(--space-10)); right: calc(var(--space-2) + var(--space-10) + var(--pw-right)); display: flex; align-items: center; justify-content: center; gap: var(--space-2); height: 36px; padding: 0 10px; border-radius: var(--radius-control); background: var(--affordance-backdrop-hover); color: var(--text-subtle); font: var(--type-weight-regular) var(--type-body-sm-size)/var(--type-body-sm-line-height) var(--type-family); cursor: pointer; }
+.pw.name-row .pw-name { top: var(--size-chrome); left: 0; right: 0; }
+.pw-name[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
+.pw-name:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.pw-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pw-name .chev { flex: none; width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
+.pw-right { position: absolute; top: 0; right: var(--space-2); display: flex; align-items: center; gap: var(--space-1); height: var(--size-chrome); }
+.pw-drawer { position: absolute; z-index: 7; width: 320px; transform: translateX(-50%); }
+.pw-drawer [role="listbox"][hidden], .pw-drawer-empty[hidden] { display: none; }
+/* The drawer sits in the header, whose 16px icon rule would otherwise reach the row marks (14px in the app). */
+.pw-drawer .doan-frame-current svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.pw-drawer-empty { padding: var(--space-2) var(--space-3); color: var(--text-subtle); white-space: normal; }
+.pw-tip { position: absolute; z-index: 8; }
+
+/* ds/controls.css .doan-toggle-group */
+.doan-toggle-group { display: flex; padding: var(--space-half); border-radius: var(--radius-chip); background: var(--affordance-backdrop-hover); }
+.doan-toggle-group .doan-icon-button[aria-pressed="false"] { color: var(--text-subtle); }
+.pw .doan-toggle-group[role="group"] .doan-icon-button[data-ui-placement="chrome"][aria-pressed="true"] { background: var(--surface-panel); box-shadow: var(--shadow-panel); color: var(--text-standard); }
+
+/* The content panel: the run iframes in their boxes; a loading run stays hidden under the one on
+   screen. Fit keeps the mark's viewport and scales it from its top-left (player.js). */
+.pw-panel { position: relative; min-width: 0; min-height: 0; border-radius: var(--radius-container); background: var(--surface-panel); isolation: isolate; }
+.pw-content { position: absolute; inset: 0; overflow: clip; border-radius: inherit; }
+.pw-stage { position: absolute; inset: 0; overflow: clip; border-radius: inherit; }
+.pw-content[data-mode="fit"] > .pw-stage { background: var(--surface-inset); }
+.pw-box { position: absolute; overflow: clip; background: var(--surface-panel); }
+.pw-content[data-mode="fit"] .pw-box { box-shadow: var(--shadow-panel); }
+.pw-frame { position: absolute; top: 0; left: 0; display: block; border: 0; transform-origin: 0 0; }
+
+/* The loading line and the failure over the content panel (styles.css .problem-*). */
+.pw-panel > .problem-overlay { position: absolute; inset: 0; z-index: 5; display: flex; overflow-y: auto; padding-block: var(--space-6); border-radius: inherit; background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
+@media (prefers-reduced-transparency: reduce) { .pw-panel > .problem-overlay { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+.pw-panel > .problem-overlay[hidden] { display: none; }
+.problem-overlay > :is(.problem-scene, .problem-reading) { margin: auto; }
+.problem-scene { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 560px; padding: 0 var(--space-6); text-align: center; }
+.problem-scene .problem-icon { flex: none; width: 32px; height: 32px; stroke-width: 1.5; margin-bottom: var(--space-4); color: var(--text-subtle); }
+.problem-heading { margin-bottom: var(--space-6); }
+.problem-heading h2 { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-medium); }
+.problem-heading h2:focus { outline: none; }
+.problem-heading p { margin-top: var(--space-2); color: var(--text-standard); }
+.problem-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
+.problem-reading { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-subtle); }
+.doan-button[data-ui-size="sm"] { min-height: var(--size-control-sm); }
+.doan-button[data-ui-variant="prominent"] { background: var(--affordance-prominent); color: var(--text-on-prominent); }
+.doan-button[data-ui-variant="prominent"]:active { background: var(--affordance-prominent-pressed); }
+.problem-overlay .doan-button[data-ui-variant="subtle"] { background: var(--affordance-backdrop-hover); }
+@media (hover: hover) and (pointer: fine) {
+  .doan-button[data-ui-variant="prominent"]:hover { background: var(--affordance-prominent-hover); }
+  .problem-overlay .doan-button[data-ui-variant="subtle"]:hover { background: var(--affordance-subtle-hover); }
+}
+
+/* ds/controls.css .doan-spinner */
+.doan-spinner { display: inline-block; flex-shrink: 0; width: var(--size-icon); height: var(--size-icon); border: 2px solid var(--border-standard); border-top-color: var(--text-standard); border-radius: var(--radius-pill); animation: doan-spin 1s linear infinite; }
+@keyframes doan-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .doan-spinner { animation: none; } }
