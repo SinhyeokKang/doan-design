@@ -1795,11 +1795,12 @@ export class ConversationService {
   // the conversation keeps the mode it was sent with: a mode the person picked during the turn stays. sent: the mode
   // the turn was sent with. Both values go in one save, so one change is announced.
   private modeReported(id: string, live: Live, turnId: string, sent: PermissionModeId, report: ClaudeModeReport, turnInit: string | undefined, previous: string | undefined): void {
+    // Only while the turn runs and no one asked it to end: a Stop ends it at once (stopping), or holds its end while a
+    // steered message waits for its read check (held, not yet terminal), and the CLI still sends frames until its own
+    // result; a stopped turn changes nothing. An approval always comes before the result.
+    if (this.live.get(id) !== live || live.turnId !== turnId || !live.accepted || live.terminal || live.held || live.stopping || live.closed || live.failedPersistence) return;
     const entries = this.store.list(), entry = entries.find(e => e.conversationId === id); if (!entry) return;
-    // Not after the turn ended: a Stop ends it at once while the CLI still sends frames until its own result, and a
-    // stopped turn changes nothing. An approval always comes before the result.
-    const current = this.live.get(id) === live && live.turnId === turnId && live.accepted && !live.terminal;
-    const facts = { entry, sent, current, reported: report.mode };
+    const facts = { entry, sent, current: true, reported: report.mode };
     const update = report.source === "init" ? runModeAfterInit({ ...facts, counted: turnInit !== undefined }) : runModeAfterStatus({ ...facts, turnInit, previous });
     if (!update) return;
     const { permissionMode: _mode, claudeRunMode: _run, ...rest } = entry;
