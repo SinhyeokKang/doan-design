@@ -364,6 +364,7 @@ test("a loop over seq with whole-number operands runs once per number seq prints
   assert.deepEqual(commandWords("for i in $(seq 5 -2 1); do echo $i; done"), [["seq", "5", "-2", "1"], ["echo", "5"], ["echo", "3"], ["echo", "1"]]);
   assert.deepEqual(commandWords("for i in $(seq 3 1); do echo $i; done; doan active"), [["seq", "3", "1"], ["doan", "active"]]);
   assert.deepEqual(commandWords("for i in a $(seq 2) b; do echo $i; done"), [["seq", "2"], ["echo", "a"], ["echo", "1"], ["echo", "2"], ["echo", "b"]]);
+  assert.deepEqual(commandWords("for i in `seq 2`; do echo $i; done"), [["seq", "2"], ["echo", "1"], ["echo", "2"]]);
 });
 test("a loop over any other substitution, or seq the reader cannot evaluate, stays incomplete", () => {
   for (const list of [
@@ -372,7 +373,7 @@ test("a loop over any other substitution, or seq the reader cannot evaluate, sta
     "$(seq 1 300)", // past the loop budget
     "$(seq 1 0 3)", "$(seq 3 0 1)", // a zero step never ends
     "$(seq -w 1 3)", "$(seq 1.5 3)", "$(seq a 3)", "$(seq)", "$(seq 1 2 3 4)", // options, fractions, words, wrong arity
-    "$(seq 1 3 | tac)", "$(seq 1 3; doan init)", "$(echo 1 2)", "$(ls)", "`seq 1 3`",
+    "$(seq 1 3 | tac)", "$(seq 1 3; doan init)", "$(echo 1 2)", "$(ls)",
   ]) {
     assert.equal(parseCommand(`for i in ${list}; do doan design-skill harden; done`).incomplete, true, list);
   }

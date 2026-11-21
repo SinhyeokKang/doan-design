@@ -674,6 +674,25 @@ function braceEnd(groups: string[][], from: number, depth: number): number {
   return -1;
 }
 
+// A loop list word that is only `$(seq [first [step]] last)` with whole numbers: bash and zsh split an unquoted
+// substitution into words, and seq's output then depends on nothing else, so agents bounding a polling loop this way
+// (`for i in $(seq 1 15)`) are read like a written-out list. Anything else, or more numbers than `left`, is undefined
+// and stays unresolved.
+function seqList(token: string, bodies: string[], left: number): Expanded | undefined {
+  const index = /^\$\(\0(\d+)\)$/.exec(token)?.[1];
+  const words = index === undefined ? [] : bodies[Number(index)]!.trim().split(/\s+/);
+  if (words[0] !== "seq" || words.length < 2 || words.length > 4 || !words.slice(1).every(word => /^-?\d+$/.test(word))) return undefined;
+  const numbers = words.slice(1).map(Number);
+  const [first, step, last] = numbers.length === 1 ? [1, 1, numbers[0]!] : numbers.length === 2 ? [numbers[0]!, 1, numbers[1]!] : [numbers[0]!, numbers[1]!, numbers[2]!];
+  if (step === 0) return undefined;
+  const values: string[] = [];
+  for (let n = first; step > 0 ? n <= last : n >= last; n += step) {
+    if (values.length === left) return undefined;
+    values.push(String(n));
+  }
+  return { words: values, unresolved: false, homePath: undefined, onlyHome: undefined };
+}
+
 function runGroups(groups: string[][], vars: Map<string, string>, state: ReadState, bodies: string[], functions: Map<string, ShellFunction>): ShellCommand[] {
   const out: ShellCommand[] = [];
   const append = (commands: ShellCommand[]) => { for (const entry of commands) out.push(entry); };
@@ -703,7 +722,7 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
       }
       if (done < 0) { state.incomplete = true; return out; }
       substitute(group.slice(3));
-      const lists = group.slice(3).map(token => expandToken(token, vars));
+      const lists = group.slice(3).map(token => seqList(token, bodies, state.left) ?? expandToken(token, vars));
       const values = lists.flatMap(list => list.words.map(word => ({ word, home: list.onlyHome })));
       if (lists.some(list => list.unresolved) || values.length > state.left) {
         // The body ran an unknown number of times with unknown values: nothing after it can rely on the variables.
