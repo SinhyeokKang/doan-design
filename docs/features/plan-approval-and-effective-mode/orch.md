@@ -26,6 +26,7 @@
 - C2 편차(conductor 재량, 받아들임): Ask first가 아닌 모드로 plan을 승인하면 `claudeRunMode`를 그대로 둔다. design '지우지 않는 때'와 같은 규칙이다.
 - C3는 C2 리뷰와 병렬로 시작했다: conductor 재량 — 같은 워커가 이어서 하므로, 리뷰 고침은 C3 뒤 새 Task로 보낸다.
 - A1 남은 확인: composer 명령 메뉴의 `/plan` 행과 Antigravity의 Accept edits·Full access 동작은 A1 `/runtime-test`에서 보지 않았다. composer 메뉴 행은 conductor의 마지막 `/runtime-test`에서 본다. 승격할 때 PRODUCT 'Built-in commands'("Antigravity none", 카드 목록)와 BACKLOG의 `/plan` 항목을 고친다. 기존 초안 `provider-commands.html`의 카드 타일은 develop에 구현된 화면의 초안이므로 고치지 않는다.
+- Antigravity `/plan` 재결정(사용자 결정): A1 리뷰의 세 문제(첫 메시지가 텍스트로 읽힘, 제목 "Proceed", 계획 본문이 안 보임)는 모두 새 규칙이나 새 UI가 필요해 이번 범위를 넘는다. 그래서 A1을 되돌리고 `/plan` 카드를 둔다. 카드의 틀린 문구(Antigravity picker에 없는 Plan을 가리킴)만 고친다. `/plan` 전송은 새 `/feature`로 넘기고, P2 결과와 세 문제는 승격 때 BACKLOG에 적는다.
 - C2와 C3는 같은 워커가 이어서 한다(C3는 C2 통합 뒤 새 Task): conductor 재량 — 같은 저장 조건 함수와 service 경로를 다룬다.
 - C4의 `/runtime-test`는 conductor가 통합 HEAD에서 한다(orchestrate §4).
 - A1 전에 리드에게 알린다. 리드가 `fix/antigravity-stop-tool-group` PR의 머지 여부를 알려 주면 `origin/develop`을 먼저 merge한다(`acpRunner.ts`·`acp.ts`·`commandView.ts` 겹침).
@@ -46,6 +47,7 @@
 | C4 | tasks C4(`/design-sync` 포함) | `ProjectOverview.tsx`·`CanvasConversationPanel.tsx`·`DockedComposer.tsx`·`ComposerParts.tsx`·`styles.css`와 테스트, `docs/design/<group>.md`·DESIGN.md 색인 | C3 통합, DR 사용자 확인(DR이 있을 때) | Claude Opus medium — UI 연결과 computed style 측정, 절차는 skill이 정한다 | `npm --prefix app test`, lint, `/design-sync` 기록 | 대기 |
 | C4-rev | C4 리뷰 | 없음(보고만) | C4 | Claude Opus medium | `/code-review` 보고 | 대기 |
 | A1 | tasks A1 | `providerCommands.ts`·`commandView.ts`와 테스트(`acpRunner.ts`·`acp.ts`는 꼭 필요할 때만) | GATE, 리드 확인(PR #346 머지) | Claude Opus medium(P2 워커 후속 Task) — 표 두 개와 카드를 바꾸는 작은 변경이지만 protocol을 아는 워커가 실제 앱 확인까지 한다 | `npm --prefix app test`, typecheck, lint, `/runtime-test`(실제 Antigravity) | 완료 `72cae7088`·`266e745b8`·`68f784cf4` → 통합 `b4ba73f51`·`3917f1533`·`8562f83a6`(Vitest 15,139 PASS, typecheck·lint PASS, 실제 앱 `/runtime-test` PASS: 카드 없이 전송, 계획 파일 권한 카드, 실패 단계 없음, Proceed로 실행) |
+| A1b | A1 되돌리기와 카드 문구 고침 | A1과 같음, spec·design·tasks의 Antigravity 부분 | A1-rev, 사용자 결정 | Claude Opus medium(같은 워커 후속 Task) | `npm --prefix app test`, typecheck, lint | 진행 중 (dispatch `ctx_270b7d17fd81`) |
 | A1-rev | A1 리뷰 | 없음(보고만) | A1 | Claude Sonnet high — diff가 작다 | `/code-review` 보고 | 진행 중 (dispatch `ctx_ca44ff534183`, 워크트리 `paem-a1rev`) |
 | conductor | C4 `/runtime-test`, 최종 verify, 승격 | orch.md, PRODUCT·ARCHITECTURE·BACKLOG, feature 디렉터리 삭제 | 전부 | — | `/runtime-test`, verify, `grep -rn "plan-approval-and-effective-mode" docs/ AGENTS.md .agents/ app/` | 대기 |
 
