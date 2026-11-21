@@ -39,6 +39,7 @@ import { PROTOTYPE_LOAD_TIMEOUT_MS } from "./prototype/ipc";
 import { CLOSE, drawerGroups as appDrawerGroups, drawerLabel as appDrawerLabel, EMPTY_DRAWER, exportAvailability as appExportAvailability, linkMove as appLinkMove, LOADING_LABEL, modeTooltip as appModeTooltip, RETRY, windowTitle as appWindowTitle } from "../renderer/prototype/view";
 import { initialToastState, TOAST_MS, toastState as appToastState } from "../renderer/toastState";
 import { prototypeScriptSource as appPrototypeScriptSource } from "./prototypeScript";
+import { exportProgress as appExportProgress } from "../renderer/canvasRowMessages";
 
 // The viewer files `doan export` embeds (cli/internal/export/viewer/). They are plain browser
 // scripts, not app code, so this file is where they are held to the app's behaviour.
@@ -95,11 +96,16 @@ function normalize(text: string): string {
 // The text of `function name(...) {...}` in a source, found by matching braces outside comments,
 // strings and regular expressions' escapes.
 function extractFunction(source: string, name: string): string {
-  const start = source.search(new RegExp(`^function ${name}\\(`, "m"));
+  const start = source.search(new RegExp(`^[ \\t]*function ${name}\\(`, "m"));
   if (start < 0) throw new Error(`function ${name} not found`);
+  return blockFrom(source, start, source.indexOf("{", source.indexOf(")", start)), `function ${name}`);
+}
+
+// The text from `start` through the block whose opening brace is at `open`.
+function blockFrom(source: string, start: number, open: number, name: string): string {
   let depth = 0;
   let seen = false;
-  for (let i = source.indexOf("{", source.indexOf(")", start)); i < source.length; i++) {
+  for (let i = open; i < source.length; i++) {
     const rest = source.slice(i);
     if (rest.startsWith("//")) { i = source.indexOf("\n", i); continue; }
     if (rest.startsWith("/*")) { i = source.indexOf("*/", i) + 1; continue; }
@@ -112,7 +118,7 @@ function extractFunction(source: string, name: string): string {
     if (ch === "}") depth--;
     if (seen && depth === 0) return source.slice(start, i + 1);
   }
-  throw new Error(`function ${name} is not closed`);
+  throw new Error(`${name} is not closed`);
 }
 
 describe("lib.js height and scroll rules", () => {
@@ -755,7 +761,8 @@ describe("viewer files", () => {
   test("no file makes a request or carries a URL", () => {
     for (const [name, source] of Object.entries(files)) {
       expect(source, name).not.toMatch(/\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts)\b|\bimport\s*\(/);
-      expect(source.replace(/<!--[\s\S]*?-->/, ""), name).not.toMatch(/https?:|@import|url\(/i);
+      // `\burl(` is CSS's; the player's download names its Blob with URL.createObjectURL, which loads nothing.
+      expect(source.replace(/<!--[\s\S]*?-->/, ""), name).not.toMatch(/https?:|@import|\burl\(/i);
     }
   });
 
@@ -2637,6 +2644,172 @@ describe("the player's files", () => {
     for (const name of ["Back", "Forward", "Reload prototype", "Viewport", "Fit", "Responsive", "Export prototype"]) expect(labels, name).toContain(name);
     expect(template).toContain('aria-disabled="true"');
     expect(template).not.toMatch(/\bdisabled(?!=)|\sdisabled\s|Details/);
+  });
+});
+
+// ── The player's Export prototype ─────────────────────────────────────────────
+// The player downloads the playing frame's prototype file by joining the strings the general Export's META carries
+// (assemble.go frameExports). Go's own tests run this join over real pages and compare it with `doan export --frame
+// <id> --prototype` (assemble_export_test.go); here are its copy, its file name, its refusals and its escaping.
+const EXPORT_NAMES = ["EXPORT_PROGRESS_DELAY_MS", "MAX_FILE_NAME", "exportProgressText", "exportRefusedText", "exportRequestedText", "exportFileName", "srcdocAttribute", "prototypeExport", "srcdocSlices"];
+const px: Lib = playerJs ? runInNewContext(`${playerJs}\n({ ${EXPORT_NAMES.map(name => `${name}: typeof ${name} === "undefined" ? undefined : ${name}`).join(", ")} })`, {}) as Lib : {};
+const escapeTable = JSON.parse(readFileSync(new URL("../../../cli/internal/export/testdata/srcdoc-escape.json", import.meta.url), "utf8")) as { cases: { text: string; attribute: string }[] };
+
+describe("the player's Export prototype", () => {
+  test("its copy is the browser copy: a download requested, never a file saved, and the sender, never Doan or an agent", () => {
+    expect(px.exportProgressText("Checkout")).toBe("Exporting “Checkout”");
+    expect(px.exportProgressText("Checkout")).toBe(appExportProgress("Checkout"));
+    const rest = " The file also contains the rest of the canvas. If nothing downloads, allow downloads for this file and try again.";
+    expect(px.exportRequestedText("Checkout", 1, 0)).toBe("Download requested for “Checkout” and 1 linked frame." + rest);
+    expect(px.exportRequestedText("Checkout", 2, 0)).toBe("Download requested for “Checkout” and 2 linked frames." + rest);
+    expect(px.exportRequestedText("Checkout", 1000, 0)).toBe("Download requested for “Checkout” and 1000 linked frames." + rest);
+    expect(px.exportRequestedText("Checkout", 0, 0)).toBe("Download requested for “Checkout”." + rest);
+    // The app's internet sentence, under the app's condition (the CLI's external count), after what the file holds.
+    expect(px.exportRequestedText("Checkout", 1, 2)).toBe("Download requested for “Checkout” and 1 linked frame. The file also contains the rest of the canvas. Parts of it load from the internet. If nothing downloads, allow downloads for this file and try again.");
+    expect(px.exportRefusedText("Gift receipt", "missing")).toBe("Couldn’t export “Gift receipt”. This frame isn’t in the canvas file. Ask the sender for an updated file.");
+    expect(px.exportRefusedText("Gift receipt", "unmarked")).toBe("Couldn’t export “Gift receipt”. It isn’t marked for prototyping in the canvas file. Ask the sender for an updated file.");
+    // Data that does not hold together (a page someone edited) and a browser that could not build the file.
+    expect(px.exportRefusedText("Gift receipt", "broken")).toBe("Couldn’t export “Gift receipt”. Ask the sender for an updated file.");
+    expect(px.exportRefusedText("Gift receipt", "failed")).toBe("Couldn’t export “Gift receipt”. Try again.");
+    const texts = [px.exportProgressText("x"), ...[0, 1, 2].flatMap(n => [px.exportRequestedText("x", n, 0), px.exportRequestedText("x", n, 1)]), ...["missing", "unmarked", "broken", "failed"].map(reason => px.exportRefusedText("x", reason))];
+    for (const text of texts as string[]) {
+      expect(text).not.toMatch(/\bDoan\b|\b[Aa]gents?\b|Show in Finder/);
+      expect(text).not.toMatch(/^Exported|\bsaved\b/);
+    }
+  });
+
+  test("the progress toast waits the app's second", () => {
+    const app = readFileSync(new URL("../renderer/prototype/PrototypeWindow.tsx", import.meta.url), "utf8");
+    expect(Number(/const EXPORT_PROGRESS_DELAY_MS = (\d+);/.exec(app)?.[1])).toBe(1000);
+    expect(px.EXPORT_PROGRESS_DELAY_MS).toBe(1000);
+  });
+
+  test("the srcdoc attribute is escaped as the CLI escapes it: the table Go's escaper is held to", () => {
+    expect(escapeTable.cases.length).toBeGreaterThanOrEqual(10);
+    for (const { text, attribute } of escapeTable.cases) expect(px.srcdocAttribute(text), JSON.stringify(text)).toBe(attribute);
+    // The one escape function: nothing else in the player writes an entity.
+    expect(playerJs.match(/&amp;|&quot;/g)).toEqual(["&amp;", "&quot;"]);
+  });
+
+  test("the canvas is escaped in slices that keep each surrogate pair whole, and they join to the whole", () => {
+    const pieces = ["<p a=\"🦊&🦊\">", "<script>x</script>", "", "한🦊\"&" + "🦊".repeat(9)];
+    const whole = px.srcdocAttribute(pieces.join(""));
+    for (const size of [1, 2, 3, 7, 1 << 20]) {
+      const slices = [...px.srcdocSlices(pieces, size)] as string[];
+      expect(slices.join(""), String(size)).toBe(whole);
+      // A Blob encodes each part on its own: half a pair at the end of one would become U+FFFD.
+      for (const slice of slices) expect(slice.isWellFormed(), `${size}: ${JSON.stringify(slice)}`).toBe(true);
+    }
+  });
+
+  test("the default name is <canvas file stem>-<frame id>.html, its stem and id cut at a code point to 240 UTF-16 units", () => {
+    expect(px.MAX_FILE_NAME).toBe(240);
+    expect(px.exportFileName("checkout-flow", "home")).toBe("checkout-flow-home.html");
+    expect(px.exportFileName("board", 'we/ird:*?"<>|id')).toBe('board-we/ird:*?"<>|id.html');
+    const exact = px.exportFileName("s".repeat(34), "i".repeat(200)) as string;
+    expect(exact).toBe("s".repeat(34) + "-" + "i".repeat(200) + ".html");
+    expect(exact.length).toBe(240);
+    const cut = px.exportFileName("s".repeat(60), "i".repeat(200)) as string;
+    expect(cut).toBe(("s".repeat(60) + "-" + "i".repeat(200)).slice(0, 235) + ".html");
+    expect(cut.length).toBe(240);
+    // A pair across the cut goes whole: the name is 239 units, never half a character.
+    const pair = px.exportFileName("s".repeat(34), "i".repeat(199) + "🦊" + "i".repeat(10)) as string;
+    expect(pair).toBe("s".repeat(34) + "-" + "i".repeat(199) + ".html");
+    expect(pair.isWellFormed()).toBe(true);
+    const emoji = px.exportFileName("🦊".repeat(100), "🦊".repeat(100)) as string;
+    expect(emoji.length).toBeLessThanOrEqual(240);
+    expect(emoji.endsWith(".html") && emoji.isWellFormed()).toBe(true);
+  });
+
+  describe("the file comes from the page's data alone, or not at all", () => {
+    const head = "<!doctype html>\n<html><head>";
+    const measure = "<script>(function () {\nMEASURE\n})();</script>";
+    const srcdoc = head + measure + "<title>t</title></head><body>a \"&\" b</body></html>";
+    const data = () => ({
+      frames: [{ id: "__proto__", name: "Home &amp; co", start: "\"__proto__\"", group: 0, mark: "390x844" }, { id: "b", name: "b", start: "\"b\"", group: 0, mark: "1x1" }, { id: "c", name: "c", start: "\"c\"", group: 1, mark: "1x1" }],
+      refused: [{ id: "constructor", reason: "unmarked" }, { id: "dup", reason: "shared" }],
+      groups: ['[{"id":"__proto__","title":"Home & co"},{"id":"b","title":"b"}]', '[{"id":"c","title":"c"}]'],
+      page: ["P0<title>", "</title>P1{\"start\":", ",\"frames\":", "}P3 data-srcdoc=\"", "\">P4"],
+      isolate: "<script>ISO \"&\"</script>",
+      measure: { offset: head.length, length: measure.length },
+      external: 0,
+    });
+    const file = (plan: Lib) => plan.head + [...px.srcdocSlices(plan.canvas, 1 << 20)].join("") + plan.tail;
+
+    test("a frame of the file: the fragments joined around the canvas with isolate.js in the measure script's place", () => {
+      const plan = px.prototypeExport(data(), srcdoc, "__proto__");
+      expect(plan.kind).toBe("file");
+      expect(plan.linked).toBe(1);
+      expect(file(plan)).toBe("P0<title>Home &amp; co</title>P1{\"start\":\"__proto__\",\"frames\":" + data().groups[0] + "}P3 data-srcdoc=\""
+        + px.srcdocAttribute(head + "<script>ISO \"&\"</script><title>t</title></head><body>a \"&\" b</body></html>") + "\">P4");
+      expect(px.prototypeExport(data(), srcdoc, "c")).toMatchObject({ kind: "file", linked: 0 });
+    });
+
+    test("a frame it does not have, or has twice, is not in the canvas file; an unmarked one is not marked", () => {
+      for (const id of ["script-made", "dup", "toString", "hasOwnProperty", "valueOf", ""]) expect(px.prototypeExport(data(), srcdoc, id), id).toEqual({ kind: "refused", reason: "missing" });
+      expect(px.prototypeExport(data(), srcdoc, "constructor")).toEqual({ kind: "refused", reason: "unmarked" });
+      // A reason the player does not know is read as the file not having the frame.
+      expect(px.prototypeExport({ ...data(), refused: [{ id: "x", reason: "later" }] }, srcdoc, "x")).toEqual({ kind: "refused", reason: "missing" });
+    });
+
+    test("data that does not hold together is refused, never joined into a broken file", () => {
+      const broken = [
+        [{ ...data(), measure: { offset: head.length + 1, length: measure.length } }, srcdoc],
+        [{ ...data(), measure: { offset: head.length, length: measure.length - 1 } }, srcdoc],
+        [{ ...data(), measure: { offset: head.length, length: srcdoc.length } }, srcdoc],
+        [{ ...data(), measure: { offset: -1, length: measure.length } }, srcdoc],
+        [{ ...data(), measure: { offset: String(head.length), length: measure.length } }, srcdoc],
+        [{ ...data(), measure: { offset: head.length + 0.5, length: measure.length } }, srcdoc],
+        [{ ...data(), measure: null }, srcdoc],
+        [data(), "<!-- -->" + srcdoc],
+        [{ ...data(), page: data().page.slice(0, 4) }, srcdoc],
+        [{ ...data(), page: [...data().page.slice(0, 4), 5] }, srcdoc],
+        [{ ...data(), groups: ['[{"id":"c","title":"c"}]'] }, srcdoc],
+        [{ ...data(), groups: ["not json", "[]"] }, srcdoc],
+        [{ ...data(), groups: ['{"id":"b"}', "[]"] }, srcdoc],
+        [{ ...data(), isolate: 1 }, srcdoc],
+        [{ ...data(), frames: undefined }, srcdoc],
+        [{ ...data(), frames: [{ ...data().frames[0], name: 1 }] }, srcdoc],
+        [{ ...data(), refused: null }, srcdoc],
+        [null, srcdoc],
+        [data(), 1],
+      ] as const;
+      for (const [proto, source] of broken) expect(px.prototypeExport(proto, source, "__proto__"), JSON.stringify(proto)?.slice(0, 200)).toEqual({ kind: "refused", reason: "broken" });
+    });
+  });
+
+  test("Export takes the frame at the click, holds itself while it runs and downloads through a[download] with a Blob", () => {
+    const run = extractFunction(playerJs, "exportPrototype");
+    expect(run).toContain("prototypeExport(proto, source, frameId)");
+    expect(run).toMatch(/\.download = exportFileName\(meta\.name, frameId\)/);
+    expect(run).toContain("new Blob(");
+    expect(run).toContain(".click()");
+    expect(run).toContain("EXPORT_PROGRESS_DELAY_MS");
+    // The header's Export is unavailable as "Exporting" while one runs (view.ts exportAvailability).
+    expect(playerJs).not.toMatch(/exportAvailability\(.*, false\)/);
+    // A broken link's toast must not replace an export's progress or result toast (view.ts linkMove).
+    expect(extractFunction(playerJs, "follow")).not.toMatch(/linkMove\([\s\S]*, false\);/);
+    // The old placeholder is gone.
+    expect(playerJs).not.toContain("TODO(export prototype)");
+  });
+});
+
+describe("the player's moves and the board's messages", () => {
+  test("a move names its address before it records the entry: an id no address can hold leaves no entry behind", () => {
+    // encodeURIComponent throws on a lone surrogate, which only a frame a script made can have in its id.
+    expect(() => v.playHashFor("a\uD800")).toThrow(URIError);
+    const navigate = extractFunction(playerJs, "navigate");
+    expect(navigate.indexOf("playHashFor(")).toBeGreaterThan(-1);
+    expect(navigate.indexOf("playHashFor(")).toBeLessThan(navigate.indexOf("recordEntry("));
+  });
+
+  test("the board's message handler never opens a window or presses a button: only the board's own Play does", () => {
+    const opener = 'window.addEventListener("message", (event) =>';
+    const at = shellJs.indexOf(opener);
+    expect(at).toBeGreaterThan(-1);
+    const handler = blockFrom(shellJs, at, shellJs.indexOf("{", at + opener.length), "the message handler");
+    expect(handler).toContain("acceptPlayer(event)");
+    expect(handler).not.toMatch(/playPrototype\(|\.click\(\)|window\.open\(/);
   });
 });
 

@@ -31,13 +31,17 @@ type PrototypeData struct {
 	Isolate string
 	// Measure is where the measure script sits in the board iframe's srcdoc, in UTF-16 units.
 	Measure struct{ Offset, Length int }
+	// External is how many internet URLs the canvas still loads, which the player's download toast mentions.
+	External int
 }
 
 // GeneralPage is what a browser reads from a general Export page: the board iframe's srcdoc and the doan-meta
 // JSON, both decoded.
 type GeneralPage struct {
 	Srcdoc string
-	Meta   struct {
+	// MetaJSON is the doan-meta script's text, which the viewer's own code parses.
+	MetaJSON string
+	Meta     struct {
 		Name      string
 		Width     int
 		Prototype *PrototypeData
@@ -76,6 +80,7 @@ func ReadGeneral(page []byte) (GeneralPage, error) {
 	if err := json.Unmarshal([]byte(meta), &g.Meta); err != nil {
 		return GeneralPage{}, err
 	}
+	g.MetaJSON = meta
 	return g, nil
 }
 

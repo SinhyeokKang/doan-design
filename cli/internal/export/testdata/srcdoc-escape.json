@@ -1,0 +1,19 @@
+{
+  "note": "The srcdoc attribute escaping, shared by assemble.go (attributeEscaper, writeEscaped) and the viewer's player.js (srcdocAttribute), which joins a prototype file in the browser. Both tests read this file.",
+  "cases": [
+    { "text": "", "attribute": "" },
+    { "text": "plain text", "attribute": "plain text" },
+    { "text": "&", "attribute": "&amp;" },
+    { "text": "\"", "attribute": "&quot;" },
+    { "text": "&amp;", "attribute": "&amp;amp;" },
+    { "text": "&quot;", "attribute": "&amp;quot;" },
+    { "text": "\"&\"&&\"\"", "attribute": "&quot;&amp;&quot;&amp;&amp;&quot;&quot;" },
+    { "text": "' < > = ` \\ /", "attribute": "' < > = ` \\ /" },
+    { "text": "<p title=\"a & b\">x</p>", "attribute": "<p title=&quot;a &amp; b&quot;>x</p>" },
+    { "text": "<script>(function () {\n\"use strict\";\n})();</script>", "attribute": "<script>(function () {\n&quot;use strict&quot;;\n})();</script>" },
+    { "text": "{{SRCDOC}} {{NAME}}", "attribute": "{{SRCDOC}} {{NAME}}" },
+    { "text": "한글 & 🦊\"🦊", "attribute": "한글 &amp; 🦊&quot;🦊" },
+    { "text": "  \t\n", "attribute": "  \t\n" },
+    { "text": "&#34; &#x26;", "attribute": "&amp;#34; &amp;#x26;" }
+  ]
+}

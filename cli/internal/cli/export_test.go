@@ -1294,3 +1294,34 @@ func TestExportGeneralPageLimitCountsThePrototypeData(t *testing.T) {
 		t.Fatal("the page over the limit was written")
 	}
 }
+
+// The player's download toast says the file loads parts from the internet when the CLI's own export of it would
+// report an external URL: the general page carries the count the result names.
+func TestExportGeneralPageCarriesTheExternalCount(t *testing.T) {
+	root := exporttest.Seed(t)
+	for _, c := range []struct {
+		canvas string
+		want   int
+	}{{exporttest.Full, 4}, {".doan/canvases/flow.html", 0}} {
+		if c.canvas != exporttest.Full {
+			exporttest.Put(t, root, c.canvas, `<!doctype html><html><head><meta name="doan:canvas" content="flow"><meta name="doan:width" content="800"></head><body>`+
+				`<div data-doan-frame="a" data-doan-prototype="390x844"></div></body></html>`)
+		}
+		out := filepath.Join(exportOutput(t), "page.html")
+		result := exportRun(t, root, 0, c.canvas, "-o", out)["result"].(map[string]any)
+		if n := len(result["external"].([]any)); n != c.want {
+			t.Fatalf("%s: result external %d, want %d", c.canvas, n, c.want)
+		}
+		page, err := os.ReadFile(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		g, err := exporttest.ReadGeneral(page)
+		if err != nil || g.Meta.Prototype == nil {
+			t.Fatalf("%s: %v", c.canvas, err)
+		}
+		if g.Meta.Prototype.External != c.want {
+			t.Fatalf("%s: the page carries external %d, want %d", c.canvas, g.Meta.Prototype.External, c.want)
+		}
+	}
+}
