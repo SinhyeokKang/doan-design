@@ -217,10 +217,11 @@ func TestAssembleShellScriptIsLibAndShellInOneFunction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := strings.Join([]string{viewerFile(t, "lib.js"), viewerFile(t, "inspectPanel.js"), viewerFile(t, "inspectMessage.js"), viewerFile(t, "inspectView.js"), viewerFile(t, "shell.js")}, "\n")
+	// viewerApp.js is the app's generated prototype and size-bubble judgments, which shell.js calls.
+	source := strings.Join([]string{viewerFile(t, "lib.js"), viewerFile(t, "inspectPanel.js"), viewerFile(t, "inspectMessage.js"), viewerFile(t, "inspectView.js"), viewerFile(t, "viewerApp.js"), viewerFile(t, "shell.js")}, "\n")
 	want := "(function () {\n" + source + "\n})();"
 	if !strings.Contains(string(page), "<script>\n"+want+"\n</script>") {
-		t.Fatal("shell controls and inspection must share one function")
+		t.Fatal("shell controls, inspection and the generated judgments must share one function")
 	}
 	if !strings.Contains(string(page), "<style>\n"+viewerFile(t, "shell.css")+"\n</style>") {
 		t.Fatal("the shell style is not shell.css")
