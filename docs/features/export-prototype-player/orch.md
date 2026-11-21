@@ -23,6 +23,8 @@
 | D13 | 재생기의 다운로드 기본 이름은 앱 `prototypeExportName`과 같게 `/`·`:`·제어 문자를 `-`로 바꾸고, stem이 비면 `<id>.html`로 한 뒤 D9로 자른다 | 지휘자 판단 — design.md가 앱 저장 패널의 기본값을 따르라고 정했다. B5 리뷰 🟡1(WebKit은 줄바꿈이 든 이름을 `example.com`으로 바꾼다) |
 | D14 | 새 내보내기 문구 2개를 쓴다. 페이지 자료가 맞지 않을 때 “Couldn’t export “<frame>”. Ask the sender for an updated file.”, 브라우저가 파일을 만들지 못할 때 “Couldn’t export “<frame>”. Try again.” | 지휘자 판단 — 둘 다 실제로 생기는 상태이고, 기존 거절 문구와 앱 `failed` 문구의 조각만 쓴다. clarify 프리셋 기준(무엇이 실패했는지와 복구 방법)을 지킨다 |
 | D15 | 보드 너비가 1024px 미만일 때 차단 토스트가 가운데 툴바의 Play를 덮는 점은 그대로 둔다. 승격할 때 BACKLOG에 남긴다 | 사용자 결정 — 앱·시안과 같은 토스트 규칙이고, 토스트는 8초 뒤 사라지며 버블 Play로도 재시도할 수 있다(B6 측정) |
+| D16 | 실제 Safari에서 보드를 닫은 뒤 재생 탭을 ⌘R하면 “Cannot open file” 오류 페이지가 되는 점을 BACKLOG에 알려진 한계로 남긴다 | 사용자 결정 — D8의 확인 결과. 보드를 닫은 뒤 새로고침할 때만 생기고, 받은 파일을 다시 열면 된다 |
+| D17 | 실제 Safari의 '팝업 차단 해제 뒤 Play 재시도'는 미검증으로 PR과 BACKLOG에 적는다 | 사용자 결정 — 이 Mac의 Safari가 로컬 파일 팝업을 막지 않았다. Chromium 실제 차단기에서는 확인했다 |
 | D6 | 10단계 승격(PRODUCT·ARCHITECTURE·DESIGN·BACKLOG)은 지휘자가 문서별 커밋으로 한다 | orchestrate 스킬 §4·§5 |
 
 ## 시안 검토 (tasks 2단계)
@@ -54,3 +56,21 @@
 - B1은 커밋하지 않으므로 다른 배치와 겹치지 않는다.
 - B2 → B3 → B4 → B5 → B6은 직렬이다(D2).
 - B7과 B8은 파일이 겹치지 않아 병렬로 돌린다.
+
+## 실제 macOS Safari 확인 (9단계, 지휘자, `orca computer` 백그라운드 조작)
+
+HEAD `84f174257`에서 B7 fixture(`trip`)의 일반 Export를 열었다. 재생기는 D11대로 새 탭으로 열렸다.
+
+| 항목 | 결과 |
+|---|---|
+| 접힌 인스펙터로 프레임 선택, 버블 Play·툴바 Play로 재생 | 통과 |
+| 재생 탭에서 입력 | 통과 |
+| 보드가 열려 있을 때 ⌘R | 통과(화면의 프레임을 다시 시작) |
+| 보드를 닫은 뒤 입력, 링크 이동(Home → Detail), ⌘[·⌘], Safari Back 활성 | 통과 |
+| 보드를 닫은 뒤 ⌘R | 실패: “Safari가 페이지를 열 수 없음(Cannot open file)” 오류 페이지(D16) |
+| 보드를 닫은 뒤 Export prototype | 통과: Safari의 다운로드 허용 확인 창을 거쳐 `trip-detail.html`(26,857 B) 저장, CLI 결과와 바이트가 같다. 토스트 “Download requested for “Detail” and 2 linked frames. …” |
+| 받은 파일을 빈 폴더에서 다시 열기 | 통과: 시작 Detail, 링크로 Third, ⌘[로 Detail |
+| 팝업 차단 해제 뒤 재시도 | 미검증(D17) |
+| 긴 이름의 디스크 파일 이름, 창 앞으로 가져오기 | 미검증 |
+
+관찰: Safari 69%에서 전체 폭 프레임의 선택 테두리는 위아래만 보인다(B7은 Chromium 93%에서 테두리가 그려지지 않는 것을 관찰했다). 이번 기능이 바꾼 코드인지는 확인하지 않았다. 받은 파일은 `~/Downloads`에서 scratchpad로 옮겼다.
