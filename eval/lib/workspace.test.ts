@@ -398,3 +398,21 @@ test("the eval's Codex rule is agent setup's rule plus allow rules for every oth
   assert.doesNotMatch(evalCodexRuleText(), /decision="(prompt|forbidden)"/);
   assert.doesNotMatch(evalCodexRuleText(), /^prefix_rule\(pattern=\["doan"\]/m);
 });
+
+test("preset checks follow child-process argv through the workspace PATH", async () => {
+  const { presetChecks } = await import("../scenarios/D1/presets.ts");
+  const ws = await prepareWorkspace({ scenario: seeded(), agent: "fixture", cli, stub: "stub\n" });
+  try {
+    const script = join(ws.base, "read.py");
+    writeFileSync(script, "import subprocess, sys\nsubprocess.run(['doan', 'design-skill', sys.argv[1], '--json'], check=True)\n");
+    const score = () => presetChecks(createContext({ ...ws, cli, agent: "fixture", transcript: "" }), {
+      required: ["document"], allowed: ["document"],
+    }).map(check => check.pass);
+    const run = (id: string) => sh("python3.12", [script, id], ws.repo, ws.env);
+    assert.equal(run("document").code, 0);
+    assert.deepEqual(score(), [true, true]);
+    assert.equal(run("audit").code, 0);
+    assert.deepEqual(score(), [true, false]);
+    assert.equal(git(ws.repo, ["status", "--porcelain"]), "");
+  } finally { await ws.dispose(); }
+});

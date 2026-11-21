@@ -255,6 +255,7 @@ Each screen's measured values, documented differences and Not verified list are 
 | Terminal work in another worktree | [design/canvas.md](design/canvas.md) |
 | Permission mode picker | [design/canvas-conversation.md](design/canvas-conversation.md) |
 | Picker default labels | [design/canvas-conversation.md](design/canvas-conversation.md) |
+| Permission run mode | [design/canvas-conversation.md](design/canvas-conversation.md) |
 | Composer field lists | [design/canvas-conversation.md](design/canvas-conversation.md) |
 | Canvas text range | [design/canvas.md](design/canvas.md) |
 | Canvas inspector | [design/canvas.md](design/canvas.md) |
@@ -266,6 +267,7 @@ Each screen's measured values, documented differences and Not verified list are 
 | Where Doan files are kept | [design/project.md](design/project.md) |
 | Keep out of Git outside a Git repository | [design/project.md](design/project.md) |
 | Canvas row menu and export viewer | [design/canvas.md](design/canvas.md) |
+| Export viewer selection and play | [design/canvas.md](design/canvas.md) |
 | Agent question card | [design/conversation.md](design/conversation.md) |
 | Canvas handoff | [design/conversation.md](design/conversation.md) |
 | Fast switch | [design/conversation.md](design/conversation.md) |
@@ -280,5 +282,6 @@ Each screen's measured values, documented differences and Not verified list are 
 | GitHub star card | [design/shell.md](design/shell.md) |
 | Prototype links | [design/prototype.md](design/prototype.md) |
 | Frame prototype | [design/prototype.md](design/prototype.md) |
+| Browser player | [design/prototype.md](design/prototype.md) |
 | Usage-limit queue | [design/conversation.md](design/conversation.md) |
 | Provider commands | [design/conversation.md](design/conversation.md) |

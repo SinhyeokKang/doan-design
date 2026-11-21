@@ -187,3 +187,16 @@ snake_case; `account/rateLimits/read` answers the same fields in camelCase (`age
 `claude-frames-<cli>-next-turn-after-stop.jsonl`, for Claude Code 2.1.284 and 2.1.322, are PoC session transcript lines
 and raw SDK frames with paths and account and environment ids removed; each `.meta.json` names its CLI version, case,
 the prompt ids and what was filtered. `transcript.test.ts` reads the transcripts and `turnEnd.test.ts` replays the frames.
+
+`claude-run-mode.json` (2026-11-22) is reduced from the recorded SDK frames of the run-mode PoC whose results are
+recorded in commit `83d94d1df`, run with Claude Code 2.1.312 and Agent SDK 0.3.312 through Doan's `query` options
+(`settingSources` user, project and local). `init` is the first top-level `system/init` of a turn that passed no permission mode, one per settings case:
+`project-*` from the probe project's `.claude/settings.json` `defaultMode` (`project-local-*` from `settings.local.json`),
+`profile-*` from the Claude Code profile's own `settings.json`. `approval` is the `system/status` that came after a
+plan's approval (`plan-*`: a turn sent in Plan; `askFirst-*`: an Ask first turn whose settings ran `plan`). `setMode` is
+the status after a permission request was allowed with its `setMode` `acceptEdits` suggestion; `steered` is every
+top-level `system/init` and `system/status` of a run where that allow was followed by a steer sent after the reply
+began (the steer ran as a next turn with its own init); `subagent` is the first two frames a subagent produced. Of each
+frame only `type`, `subtype`, `status`, `permissionMode`, `parent_tool_use_id`, `user_message_uuids`, `uuid` and
+`session_id` are kept; every id is synthetic (equal recorded ids keep equal synthetic ids) and the session is
+`session-1`. Frame order and every `permissionMode` and `status` value are as recorded.

@@ -125,3 +125,54 @@ Real-app checks of PRODUCT §5 item 2 'Prototype window' and ARCHITECTURE §4 'P
 ### Regression pointers
 
 `components/ui/tooltip.describedby.test.tsx` (Export's own description), `components/ui/tooltip.test.tsx` (one layer for every `asChild` control), `prototype/WindowShell.test.tsx` (markup, toggle, name rows, frame boxes, Export and its no-fill specificity, the conversation button and panel styles, Tab order, both R mirrors), `prototype/PrototypeWindow.test.tsx` (Export, timer, forwarding, snapshot, focus, the conversation panel), `prototype/PrototypeConversation*.test.tsx` (head title), `prototype/view.test.ts`, `prototype/host.test.ts`, `main/prototype/fit.test.ts` (viewport box, header rows, `prototypeSideLayout`, fit and capture with the panel open), `main/exportViewer.test.ts` (split clip), `main/prototypeWindow.test.ts` (visibility, the hidden app shown first), `main/runtime.prototype.test.ts`, `main/canvasExport.test.ts`, `canvasRowMessages.test.ts`, `CanvasTools.test.tsx`, `prototypePlay.test.ts`, `sizeBubble.test.ts`, `CanvasController.test.ts` (the bubble's Play), `frameDrawer.test.ts`, `PrototypeClosedFocus.test.tsx`. Geometry, focus order, native keys and emulated media are checked by the `.scratch/` probe only.
+
+## Browser player
+
+Reference: `.doan/canvases/export-prototype-player.html`, the frames `player-fit`, `player-responsive`, `player-narrow`, `player-failure` and `export-result`. The draft was rendered and an exported file read in the same Playwright 1.64.1 browsers, Chromium 156.0.8078.4 and WebKit 27.2, at DPR 2. The file is a general Export written by the repo CLI's `doan export` (Checkout 390 × 520 linked to Receipt, Gift receipt, a frame with a long title, and a frame whose script holds its run's reports), opened at `#doan-play=<id>` in a 760 × 512 window, the draft tile's size, and at 360 × 512 (then 440 and 439) for `player-narrow`. States were reached for real: Fit, then Responsive in the same window; Export prototype with downloads accepted; the held frame, read at 150 ms, 450 ms and after its 10 s limit; a link to a missing frame; the drawer's long-titled frame and Receipt with the drawer open. Positions are relative to the tile and to the window. Every compared row matches in both engines except the documented differences below.
+
+The same steps also ran in the isolated app's prototype window (Electron 45, `doan open --frame checkout --prototype` on the same canvas, temporary userData, HOME, SHELL and agent folders, the user's real state checked unchanged) and in the browser player opened from its board, to compare what the player decides by itself ('Behaviour compared with the app').
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Window | `.pw` on `--bg-app` rgb(241,241,242), padding 0 8px 8px; the content panel 8 from the sides and bottom and 56 from the top (100 with the name on the second row): 744 × 448 at 760 × 512, white, 24px corners | The app's window shell ('Frame prototype' Window shell) without the window buttons. |
+| Header controls | Back x16, Forward x52, Reload x88, all y12, 32 × 32, 10px corners, 16px glyphs; at the end of the history `aria-disabled`, rgb(149,149,149), the default cursor. The viewport toggle (`role="group"` "Viewport") 68 × 36 at x640: 2px padding, 12px corners, rgba(0,0,0,0.06); the pressed item white with the panel shadow and rgb(15,15,15) ink, the other rgb(82,82,82). Export prototype 32 × 32 at x712, 16 from the window's edge | The browser draws its own window buttons, so Back starts the row; the right group has no conversation button. |
+| Frame name | 36 high, 20px corners, rgba(0,0,0,0.06), padding 0 10px, 8px gap, subtle 14 / 20 centred, the 16px chevron in rgb(95,95,95). At 760 it spans x160–600: 40 after Reload and 40 before the toggle. It is 120 wide at a 440 window; at 439 it moves to the second row, x8 y56, 423 wide (344 at 360). Pressed fill rgba(0,0,0,0.1) while its drawer is open | The second row keeps the name readable instead of cutting it under 120. |
+| Frame drawer | Under the name, 4 below it and centred on it: x220 y50 at 760 (a position the draft does not draw), x20 y96 under the second-row name at 360; 320 wide, 4px padding, 24px glass panel; the playing row's Eye is 14px | The header's 16px icon rule would otherwise reach the drawer's marks. |
+| Run box | Fit: the 390 × 520 mark in the 744 × 448 panel gives a 336 × 448 box at x212 y56, white with the panel shadow, on the stage's rgb(245,245,246). Responsive: the box fills the panel, the stage transparent on the panel's white | fit.ts `prototypeViewportBox`, as the app. |
+| Loading | Nothing at 150 ms; at 450 ms the overlay and the reading line: color(srgb 1 1 1 / 0.6) with an 8px blur, 24px block padding, the panel's corners; the line's 16px spinner, subtle rgb(82,82,82) 14 / 20, 8px gap; the polite live region reads "Loading prototype" | The app's prototype window has no opaque reading overlay (that one is the main window's workspace rule). |
+| Failure scene | The same overlay with the app's problem scene: the 32px icon 16 above the heading, heading 24 / 26.4 / 500 rgb(15,15,15) in a 512 column (560 less 24 on each side), its line 14 / 20 rgb(15,15,15) 8 below, actions 24 below with an 8px gap: Retry `prominent` `sm` (black, 6px 16px padding, 32 high) and Close `subtle` `sm` (rgba(0,0,0,0.06) over the overlay). No Details | The app's 'Failure and lost scenes'; the file has no detail for the recipient to read. |
+| Toasts | The export result and the broken link use `.toast` at the window's bottom right, 16 from both edges, width min(384, W − 32), 12px padding, 12px gap, 24px corners, glass, the floating shadow, message 14 / 20: the export result measured 384 × 86 at x360 y410 at 760 | The app's toast placement ('Frame prototype' Export toasts). |
+
+### Behaviour compared with the app
+
+The app's window and the browser player gave the same answer in each step:
+
+- Start (played from the CLI in the app, from the board's bubble in the browser): focus on the page, the live region empty.
+- The name opened by pointer and by Enter: focus on the playing row; Esc: focus back on the name.
+- A link followed from inside the frame: focus in the new run's iframe, the live region reading "Receipt".
+- A held frame picked from the drawer: no reading line at 150 ms, the line and "Loading prototype" when read again near 450 ms (459 in the app, 455 in the browser); after 10 s the failure with focus left on the name, where the person put it.
+- Retry by pointer and by Enter: focus falls to the page while it loads; the next failure focuses its heading. A failure that comes while focus is on the name leaves it there.
+- The live region reads the heading and the line together; Close closes the window.
+
+The failure's line and buttons differ on purpose: the app says "The frame was read, but Doan couldn’t set it up in this window." and offers Details; the player says "The frame didn’t finish loading within 10 seconds. Retry, or ask the sender for an updated file." with Retry and Close only. The player's 300 ms reading delay is its own constant, held to the app's `READING_DELAY_MS` by a test.
+
+### Documented differences from the draft
+
+- **Viewer font.** The draft draws the recipient's system face; the page names Geist first and bundles none (canvas.md 'Canvas row menu and export viewer' 'Viewer font').
+- **Chevron ink.** The draft's chevron takes the name's subtle ink; the page keeps the app's metadata ink ('Frame name').
+- **Failure scene spacing.** The draft spaces its scene with a 12px gap and lets the line run 550 wide on one line; the page uses the app's problem scene (16 and 24 below the icon and heading, a 560 maximum), so the line wraps to two lines and the actions sit 16 lower.
+- **Fit ground.** As 'Frame prototype': the page's `.pw-stage` takes the inset grey in Fit and the panel stays white; the run box is white under its iframe where the draft draws mock content.
+- **Header construction.** The draft lays the header out as a flex row with 40px gaps and moves the name with a container query; the page places the name absolutely and gives the second row to the header's grid row. Every control and the name land at the same x and y.
+- **Specimens.** The draft's link toast, progress toast and script-made frame refusal are static samples in their column, so only their style was compared; the positioned export result was compared in place. The draft draws the reading line without its overlay.
+
+### Not verified
+
+- Real Chrome and Safari windows, including the tab the browser picks for the player, DPR 1, and the header's hover fills, keyboard rings and tooltips.
+- The progress toast's geometry (the same `.toast`; its timing was checked in Chromium only, by CPU throttling).
+- The app comparison ran in Chromium against Electron 45 only; WebKit was compared with the draft, not with the app.
+
+### Regression pointers
+
+`exportViewer.test.ts` 'the browser player's rules' (the reading delay held to the app's, the translucent overlay with no reading override in the page or the app's prototype window, the drawer marks at the app's 14px) and the player's earlier tests (sandbox, header controls, copy, export). Geometry, focus moves and the app comparison are `.scratch/design-sync/export-prototype-player/` probes only.

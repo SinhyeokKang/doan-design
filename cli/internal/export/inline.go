@@ -145,6 +145,7 @@ type inliner struct {
 	err         error
 	built       int64 // bytes of data URIs built, so tests can see the stop is early
 	uses        canvas.CustomUsers
+	pending     []pendingUse
 	collected   map[string]bool // stylesheets read into uses
 	based       string          // the canvas, when its <base href> moves the folder; "" otherwise
 }

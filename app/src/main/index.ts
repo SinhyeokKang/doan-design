@@ -18,7 +18,7 @@ import { antigravityServer } from "./agentAuth/antigravity";
 import { PROVIDER_AUTH } from "./agentAuth/providers";
 import { AUTH_CHANNELS, AuthIpc } from "./agentAuth/ipc";
 import { sharedShell, toolFacts } from "./agentAuth/facts";
-import { readUsage } from "./agentAuth/usageRead";
+import { readCursorSummary, readUsage } from "./agentAuth/usageRead";
 import { UsageService, withTurnUsage } from "./agentAuth/usageService";
 import { clockArgument, clockHour12 } from "./clockHourCycle";
 import { USAGE_CHANNELS, usageRequest } from "./agentAuth/usageIpc";
@@ -1282,7 +1282,7 @@ async function start(): Promise<void> {
   const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc, connectorFacts(() => mcp), { userData, socket: () => runtime?.socket });
   // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
   const prepareConversation = routePrepare(createPrepare(userData, join(userData, CONVERSATION_RUNTIME), process.env),
-    wireAccountPrepare(accountPrepare, () => !!agentAuth, prepared => usage ? withTurnUsage(prepared, usage) : prepared));
+    wireAccountPrepare(accountPrepare, () => !!agentAuth, prepared => usage ? withTurnUsage(prepared, usage, profileDir => readCursorSummary(profileDir)) : prepared));
   const preferences = createPreferencesStore(join(userData, "preferences.json"));
   const notify = createNotifyService({
     preferences: () => preferences.current().notifications,

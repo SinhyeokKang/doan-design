@@ -24,7 +24,7 @@ func TestProjectThumb(t *testing.T) {
 }
 
 func TestAssembleEscapesProject(t *testing.T) {
-	page, err := Assemble(Meta{Project: "<&{{NAME}}", Name: "board", Width: 100}, nil)
+	page, err := Assemble(Meta{Project: "<&{{NAME}}", Name: "board", Width: 100}, noFrames, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

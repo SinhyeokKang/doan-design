@@ -3,7 +3,8 @@ import { realpathSync } from "node:fs";
 import { ConversationStore, refusesForGood, type ConversationMetadata, type JournalWrite } from "./store";
 import { foldConversation } from "./state";
 import { promoteReservation, rekeyReservation, releaseReservation, reserveSession } from "./ownership";
-import { transportError } from "./transport";
+import { transportError, type ClaudeModeReport } from "./transport";
+import { runModeAfterInit, runModeAfterStatus } from "./claudeRunMode";
 import { sameCanvas } from "./sessions";
 import { handoffPrompt, turnPrompt } from "./prompt";
 import { drawnCanvases } from "./drawn";
@@ -56,9 +57,11 @@ export interface Prepared {
   // The run's own Fast, never the stored choice: set only when the choice is on and this run's list says the turn's
   // model takes Fast now (ipc for a send, QueueOptions.fast otherwise). Claude and Codex runners only read it.
   fast?: true;
-  // The conversation's chosen permission mode for this run, absent for Default. planApproved: the mode Claude switched
-  // to once the person approved a plan on a turn sent with Plan, which becomes the conversation's stored mode.
-  permissionMode?: PermissionModeId; planApproved?: (mode: PermissionModeId) => void;
+  // The conversation's chosen permission mode for this run, absent for Default. modeReported (Claude only): a mode a
+  // top-level system/init or system/status reported, in Claude's own ids (runners.ts), with, as they were before it, the
+  // mode the turn's first top-level init reported (turnInit) and the mode the process reported last (previous); each
+  // undefined while none came. The service decides what it changes (claudeRunMode.ts).
+  permissionMode?: PermissionModeId; modeReported?: (report: ClaudeModeReport, turnInit: string | undefined, previous: string | undefined) => void;
   // The agent read a message steer added (its messageId), in line with the run's events (runners.ts SteerHooks).
   steerConsumed?: (messageId: string) => void;
   // Doan-account Claude and Codex runs only: the provider's MCP connector facts (prepare.ts McpConnectorFacts).
@@ -75,6 +78,10 @@ export interface Prepared {
   // Claude run keeps its input open until it resolves, since the CLI exits once its input closes
   // (agentAuth/usageService.ts withTurnUsage). The service reads the reset from it (QueueOptions.limitWindows).
   usageAtTurnEnd?: (read: () => Promise<unknown>, limit?: true) => Promise<void>;
+  // Doan-account Cursor runs only: reads the account's usage on this run's own connection and answers whether a window
+  // is used up (agentAuth/usageService.ts withTurnUsage). Cursor saves no session for a first turn that met its plan
+  // limit, so the runner asks it when session/load answers "not found" (acpRunner.ts).
+  limitReached?: () => Promise<boolean>;
   // Claude runs only: the cleaned text of the first prompt suggestion after a done turn (runners.ts openClaude).
   suggested?: (text: string) => void;
   // Claude runs only: whether background work the done turn started still runs (runners.ts backgroundTasks).
@@ -402,7 +409,7 @@ export class ConversationService {
     const turnId = live.turnId;
     try {
       const prepared = await this.prepare(request);
-      input = { ...prepared, ...choice(request), ...(request.model && !request.effort && request.defaultEffort ? { effort: request.defaultEffort } : {}), ...this.runFast(request.fast === true, request.root, prepared, request.model), ...mode(request.permissionMode), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text), stage: stage => this.stage(id, live, stage), backgroundChanged: running => this.backgroundChanged(id, live, turnId, running), ...this.commandHooks(id, live, turnId, prepared) };
+      input = { ...prepared, ...choice(request), ...(request.model && !request.effort && request.defaultEffort ? { effort: request.defaultEffort } : {}), ...this.runFast(request.fast === true, request.root, prepared, request.model), ...mode(request.permissionMode), modeReported: (report, turnInit, previous) => this.modeReported(id, live, turnId, request.permissionMode ?? "default", report, turnInit, previous), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text), stage: stage => this.stage(id, live, stage), backgroundChanged: running => this.backgroundChanged(id, live, turnId, running), ...this.commandHooks(id, live, turnId, prepared) };
       const command = handoff ? null : commandName(input.runtime, request.text);
       if (!handoff) { checkCommand(input.runtime, request.text, request.anchors, request.attachments?.length || attached ? 1 : 0, !!command); checkReview(input.runtime, request.text, !!input.owner, undefined, undefined); }
       if (input.owner) live.provider = input.owner.provider;
@@ -533,7 +540,7 @@ export class ConversationService {
       const turnId = live.turnId;
       // steerConsumed names no turn: a reused Codex server keeps the callback it opened with.
       const prepared = await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors, ...(extras.attachments?.length ? { attachments: extras.attachments } : {}) }, metadata, undefined, reusing);
-      input = { ...prepared, ...chosen, ...(extras.fastTurn ? { fast: true as const } : {}), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text), stage: stage => this.stage(id, live, stage), backgroundChanged: running => this.backgroundChanged(id, live, turnId, running), ...this.commandHooks(id, live, turnId, prepared) };
+      input = { ...prepared, ...chosen, ...(extras.fastTurn ? { fast: true as const } : {}), modeReported: (report, turnInit, previous) => this.modeReported(id, live, turnId, chosen.permissionMode ?? "default", report, turnInit, previous), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text), stage: stage => this.stage(id, live, stage), backgroundChanged: running => this.backgroundChanged(id, live, turnId, running), ...this.commandHooks(id, live, turnId, prepared) };
       if (input.owner) live.provider = input.owner.provider;
       if (input.quiet) live.quiet = input.quiet; else delete live.quiet;
       this.checkSend(id, live);
@@ -1783,12 +1790,24 @@ export class ConversationService {
     return refreshed;
   }
   // The one mode Doan follows by itself: after the person approved a plan, the mode Claude reported becomes the
-  // conversation's, so its picker and its next turn show what now runs. Only the turn that ran the plan counts, and
-  // only while the conversation is still in Plan: a mode the person picked during the turn stays.
-  private planApproved(id: string, live: Live, turnId: string, reported: PermissionModeId): void {
-    if (this.live.get(id) !== live || live.turnId !== turnId || !live.accepted) return;
-    if (this.store.list().find(e => e.conversationId === id)?.permissionMode !== "plan") return;
-    try { this.storeMode(id, reported); } catch (error) { console.error("doan: the permission mode after a plan approval could not be saved", error); }
+  // conversation's, so its picker and its next turn show what now runs. Beside it, the mode Claude Code's own settings
+  // run an Ask first turn in is kept for the trigger (claudeRunMode). Only the turn that reported counts, and only while
+  // the conversation keeps the mode it was sent with: a mode the person picked during the turn stays. sent: the mode
+  // the turn was sent with. Both values go in one save, so one change is announced.
+  private modeReported(id: string, live: Live, turnId: string, sent: PermissionModeId, report: ClaudeModeReport, turnInit: string | undefined, previous: string | undefined): void {
+    // Only while the turn runs and no one asked it to end: a Stop ends it at once (stopping), or holds its end while a
+    // steered message waits for its read check (held, not yet terminal), and the CLI still sends frames until its own
+    // result; a stopped turn changes nothing. An approval always comes before the result.
+    if (this.live.get(id) !== live || live.turnId !== turnId || !live.accepted || live.terminal || live.held || live.stopping || live.closed || live.failedPersistence) return;
+    const entries = this.store.list(), entry = entries.find(e => e.conversationId === id); if (!entry) return;
+    const facts = { entry, sent, current: true, reported: report.mode };
+    const update = report.source === "init" ? runModeAfterInit({ ...facts, counted: turnInit !== undefined }) : runModeAfterStatus({ ...facts, turnInit, previous });
+    if (!update) return;
+    const { permissionMode: _mode, claudeRunMode: _run, ...rest } = entry;
+    const next = { ...rest, ...mode(update.permissionMode), ...(update.claudeRunMode ? { claudeRunMode: update.claudeRunMode } : {}) } as ConversationMetadata;
+    if (next.permissionMode === entry.permissionMode && next.claudeRunMode === entry.claudeRunMode) return;
+    try { this.store.save(entries.map(e => e === entry ? next : e)); } catch (error) { console.error("doan: the permission mode Claude reported could not be saved", error); return; }
+    this.changed(entry.root);
   }
   // A turn's suggestion counts only while nothing has moved past that turn: the same run and turn, ended done, no
   // later send started or waiting (a queue about to go out included), not deleted or quitting

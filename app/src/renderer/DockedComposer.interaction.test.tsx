@@ -1236,3 +1236,72 @@ test("the preset popover's Retry stays, busy and described by the notice, until 
   expect(find(render(), item => item.children === "Retry" && typeof item.onClick === "function")["aria-busy"]).toBeUndefined();
   expect(find(render(), item => item.id === retry["aria-describedby"]).children).toBe(`${text} `);
 });
+
+// The run mode Claude Code's settings ran the conversation's last Ask first turn in: a new value for the conversation on
+// screen is said once through the composer's status line. `previous` is the value this composer last saw for that same
+// conversation, so the first list read (undefined), a switch, a cleared value or the same value says nothing.
+function runModeSetup(patch: Partial<DockedComposerProps> = {}) {
+  // Each setup is its own composer: hook slots start empty, as on a fresh mount.
+  hooks.states = []; hooks.refs = []; hooks.effects = [];
+  const result = setup(patch);
+  const said = () => find(result.render(), props => props.className === "sr-only" && props.role === "status").children;
+  const settle = () => { result.render(); for (const effect of hooks.effects) effect(); };
+  return { ...result, said, settle };
+}
+
+test("a new run mode for the conversation on screen is announced once", () => {
+  const { props, said, settle } = runModeSetup({ runMode: null });
+  settle();
+  props.runMode = "auto";
+  settle();
+  expect(said()).toBe("Claude Code settings run Auto mode");
+  settle();
+  expect(said()).toBe("Claude Code settings run Auto mode");
+  props.runMode = "dontAsk";
+  settle();
+  expect(said()).toBe("Claude Code settings run Don’t ask mode");
+});
+
+test("a run mode is not announced on the first list read, a switch, a cleared value or the same value", () => {
+  // The first read after opening: the host knew no list before (undefined).
+  const reload = runModeSetup({ runMode: undefined });
+  reload.settle();
+  reload.props.runMode = "auto";
+  reload.settle();
+  expect(reload.said()).toBe("");
+
+  // A switch shows the other conversation's run mode, and a switch back shows this one's again.
+  const switched = runModeSetup({ runMode: null });
+  switched.settle();
+  switched.props.mode = B; switched.props.runMode = "auto";
+  switched.settle();
+  switched.props.mode = A; switched.props.runMode = "plan";
+  switched.settle();
+  expect(switched.said()).toBe("");
+
+  // Cleared (the next Ask first turn ran in Claude Code's default), or the list read again with the same value.
+  const cleared = runModeSetup({ runMode: "auto" });
+  cleared.settle();
+  cleared.props.runMode = null;
+  cleared.settle();
+  cleared.props.runMode = undefined;
+  cleared.settle();
+  expect(cleared.said()).toBe("");
+});
+
+// The status line is the composer's, shared by the conversations it shows: when another conversation turns to the
+// value just said for the first, the text still changes, so a screen reader reads it again.
+test("the same run mode text is announced again for another conversation", () => {
+  const { props, said, settle } = runModeSetup({ runMode: null });
+  settle();
+  props.runMode = "auto";
+  settle();
+  const first = said();
+  expect(first).toBe("Claude Code settings run Auto mode");
+  props.mode = B; props.runMode = null;
+  settle();
+  props.runMode = "auto";
+  settle();
+  expect(said()).not.toBe(first);
+  expect(String(said()).trim()).toBe("Claude Code settings run Auto mode");
+});

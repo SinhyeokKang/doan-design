@@ -10,7 +10,7 @@ const checks: Checks = ctx => {
   const output = resolve(ctx.repo, "..", "signup-prototype.html");
   const reference = resolve(ctx.repo, "..", "reference-prototype.html");
   const viewerReference = resolve(ctx.repo, "..", "reference-canvas-viewer.html");
-  const calls = prototypeCalls(ctx.calls.commands, "export");
+  const calls = prototypeCalls(ctx.calls, "export");
   const asked = calls.some(call => call.prototype && call.frame === frame && call.path !== undefined
     && prototypeCanvasPath(ctx.repo, call.path) === prototypeCanvasPath(ctx.repo, path));
   const page = existsSync(output) ? readArtifact(output, CANVAS_BYTES) : null;

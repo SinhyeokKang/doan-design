@@ -31,6 +31,21 @@ describe("conversationSummary", () => {
     expect(conversationSummary(doan, events, live)).not.toHaveProperty("permissionMode");
     expect(conversationSummary({ ...doan, permissionMode: "bypass" }, { ok: false }, live)).toMatchObject({ permissionMode: "bypass", readError: true });
   });
+  // The renderer shows it only after Ask first on a Claude trigger; the summary carries it only where it can mean that.
+  it("carries the Claude run mode only for a doan-owned Claude conversation, whatever its stored mode", () => {
+    const events = { ok: true as const, events: history(...started, { type: "turn.done" }) };
+    expect(conversationSummary({ ...doan, claudeRunMode: "auto" }, events, live)).toMatchObject({ claudeRunMode: "auto" });
+    expect(conversationSummary({ ...doan, permissionMode: "acceptEdits", claudeRunMode: "dontAsk" }, events, live)).toMatchObject({ permissionMode: "acceptEdits", claudeRunMode: "dontAsk" });
+    expect(conversationSummary({ ...doan, claudeRunMode: "bypassPermissions" }, { ok: false }, live)).toMatchObject({ claudeRunMode: "bypassPermissions", readError: true });
+    expect(conversationSummary(doan, events, live)).not.toHaveProperty("claudeRunMode");
+    const codex: ConversationMetadata = { conversationId: "c", root: "/repo", title: "Make a pricing page", claudeRunMode: "auto",
+      owner: { kind: "doan", provider: "codex", connectionId: "conn", accountId: "acct", workspaceId: null, profile: "codex" },
+      session: { runtime: "codex", origin: "newDesign", sessionId: "s", configDir: "/profiles/codex", cwd: "/repo" } };
+    expect(conversationSummary(codex, events, live)).not.toHaveProperty("claudeRunMode");
+    const external: ConversationMetadata = { conversationId: "c", root: "/repo", title: "Fix the header", owner: { kind: "legacy-external" }, claudeRunMode: "auto",
+      session: { runtime: "claude", origin: "resumed", sessionId: "s", configDir: "/Users/me/.claude", cwd: "/repo" } };
+    expect(conversationSummary(external, events, live)).not.toHaveProperty("claudeRunMode");
+  });
   it("reports running and waiting from the live fold", () => {
     expect(conversationSummary(doan, { ok: true, events: history(...started, { type: "activity", kind: "read", summary: "Read a.html" }) }, live).phase).toBe("running");
     expect(conversationSummary(doan, { ok: true, events: history(...started, permission) }, live).phase).toBe("waiting");

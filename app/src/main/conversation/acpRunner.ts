@@ -6,7 +6,7 @@ import { StringDecoder } from "node:string_decoder";
 import { signInLink } from "../agentAuth/antigravity";
 import { ACP_PROTOCOL_VERSION, AcpConnection, acpEnded, acpPermission, acpPromptDone, acpQuestion, acpPromptFailed, initialAcp, normalizeAcp, type AcpChoice, type AcpTransport } from "./acp";
 import { acpInitialize, acpSessionNew, type HandshakeVerdict } from "./handshake";
-import { ownProtocolProcess } from "./process";
+import { listProcesses, ownProtocolProcess } from "./process";
 import { object } from "./sessions";
 import { acpOption, parseAcpModels, parseAcpModes, type ModelOption } from "./models";
 import { acpModeFor, type AcpModes } from "./permissionMode";
@@ -28,7 +28,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
   // Every mode of a Doan-connection run is fenced: no ACP server sandboxes its own commands.
   const launch = fencedCommand(input.command, input.args ?? [], input.fence ? fenceArgs(input.runtime, input.fence.paths) : undefined, input.fence?.exec);
   const child = spawn(launch.command, launch.args, { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
-  let dead = false, failure = "", prompting = false, finished = false;
+  let dead = false, failure = "", prompting = false, finished = false, loadRefused = false;
   let state: AcpTransport = initialAcp(randomUUID());
   // One table for both kinds, so expiry answers every pending request once; each answer path takes only its own kind.
   type Pending = { rpc: string | number; kind: "permission"; choices: AcpChoice[] } | { rpc: string | number; kind: "question"; question: Question; optionIds: string[] };
@@ -97,7 +97,9 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     if (dead) return; dead = true; acp.close();
     if (prompting) apply(failure ? acpPromptFailed(state, failure) : acpEnded(state));
   };
-  const { group, ending, write } = ownProtocolProcess(child, () => acp.clearDeadlines(), transportDied, exited);
+  // A server's tool commands can run in process groups of their own (Antigravity's do, and outlive the server's), so
+  // ending the server's group also ends the groups its descendants started.
+  const { group, ending, write } = ownProtocolProcess(child, () => acp.clearDeadlines(), transportDied, exited, listProcesses);
   if (group) registerStop(() => { expire(); acp.close(); return group.stop(); });
   // A failed request answers nothing about the protocol shape here, so only replies are judged, before any refusal.
   const judge = (verdict: HandshakeVerdict) => { if (verdict === "incompatible") input.incompatible?.(); else if (verdict === "compatible") input.compatible?.(); };
@@ -114,7 +116,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
       await acp.request("authenticate", { methodId: input.authenticate }, OPEN_TIMEOUT_MS);
     }
     let current: unknown;
-    if (input.sessionId) current = await acp.request("session/load", { sessionId: input.sessionId, cwd: input.cwd, mcpServers: [] }, OPEN_TIMEOUT_MS);
+    if (input.sessionId) current = await acp.request("session/load", { sessionId: input.sessionId, cwd: input.cwd, mcpServers: [] }, OPEN_TIMEOUT_MS).catch((error: unknown) => { loadRefused = true; throw error; });
     else {
       const created = await acp.request("session/new", { cwd: input.cwd, mcpServers: [] }, OPEN_TIMEOUT_MS);
       judge(acpSessionNew(input.runtime, { result: created }));
@@ -144,7 +146,14 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     acp.close(); void group?.stop();
     const detail = failure || (error instanceof Error ? error.message : "");
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the exit and failure callbacks set these while the session opens
-    throw new Error((dead || detail === "process_exited") && !failure ? "process_exited" : ["runtime_unsupported", "session_unavailable"].includes(detail) ? detail : transportCode(detail));
+    const code = (dead || detail === "process_exited") && !failure ? "process_exited" : ["runtime_unsupported", "session_unavailable"].includes(detail) ? detail : transportCode(detail);
+    // Cursor answers a first turn that met the plan limit as a completed reply and saves no session, so the next load
+    // finds none; the protocol marks nothing, and the account's usage tells that apart from a session that is gone.
+    // The run's lease (and its credential copy) is released once the group stopped above is gone, so the read must take
+    // the credential before its first await: readCursorSummary reads the file synchronously when limitReached is called.
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the session/load rejection sets loadRefused while the session opens
+    if (code === "session_unavailable" && loadRefused && /not found/i.test(detail) && input.limitReached && await input.limitReached().catch(() => false)) throw new Error("rate_limited");
+    throw new Error(code);
   }
   const stopTurn = async (reason: "user" | "appQuit") => {
     state = { ...state, stop: state.stop ?? reason }; expire();

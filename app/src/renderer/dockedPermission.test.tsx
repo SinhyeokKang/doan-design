@@ -210,3 +210,43 @@ for (const [name, { setup }] of Object.entries(setups)) test(`${name}: a provide
   expect(choicesFor("gpt-y").length).toBeGreaterThan(0);
   for (const choice of choicesFor("gpt-y")) expect(choice).not.toHaveProperty("effortPicked");
 });
+
+// an existing Claude conversation's summary carries the mode Claude Code's settings ran its last Ask first turn in: the
+// trigger shows it while Ask first is the mode shown, and the composer gets the raw value for its status line. A new
+// conversation has none.
+for (const [name, { setup, row }] of Object.entries(setups)) test(`${name}: an existing conversation's trigger shows its run mode`, async () => {
+  const { render, setList, open } = await setup({});
+  expect(render().runMode).toBeNull();
+  expect(render().permission?.trigger.label).toBe("Ask first");
+  setList([row({ claudeRunMode: "auto" })]);
+  open();
+  expect(render().mode).toMatchObject({ kind: "existing", conversationId: A });
+  expect(render().permission?.trigger).toMatchObject({ label: "Ask first · Auto", ariaLabel: "Permission: Ask first, Claude Code settings run Auto mode", warning: false });
+  expect(render().permission?.runMode).toBe("auto");
+  expect(render().runMode).toBe("auto");
+  setList([row({ claudeRunMode: "bypassPermissions" })]);
+  render();
+  expect(render().permission?.trigger).toMatchObject({ label: "Ask first · Full access", icon: "shield-alert", warning: true });
+  // Another stored mode hides the run mode; the composer still knows the value.
+  setList([row({ permissionMode: "acceptEdits", claudeRunMode: "auto" })]);
+  render();
+  expect(render().permission?.trigger.label).toBe("Accept edits");
+  expect(render().permission?.runMode).toBeUndefined();
+  expect(render().runMode).toBe("auto");
+  setList([row()]);
+  render();
+  expect(render().permission?.trigger.label).toBe("Ask first");
+  expect(render().runMode).toBeNull();
+});
+
+// Until the list names an existing conversation, the composer gets undefined, not null: a first list read that already
+// holds a value must not read as a change from "none" and be announced on every open.
+for (const [name, { setup, row }] of Object.entries(setups)) test(`${name}: an existing conversation's run mode is undefined until its summary arrives`, async () => {
+  const { render, setList } = await setup({});
+  await render().onSend(REQUEST);
+  expect(render().mode).toMatchObject({ kind: "existing", conversationId: A });
+  expect(render().runMode).toBeUndefined();
+  setList([row({ claudeRunMode: "auto" })]);
+  render();
+  expect(render().runMode).toBe("auto");
+});

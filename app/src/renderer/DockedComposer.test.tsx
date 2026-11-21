@@ -163,6 +163,16 @@ test("permission CSS: Full access is danger ink with no warning fill", () => {
   expect(css).not.toMatch(/\[data-mode="bypass"\][^{]*\{[^}]*(--affordance-warning|--text-warning)/);
 });
 
+// Full access from Claude Code's settings: the stored mode stays Ask first, so data-warning carries the same danger ink,
+// and the docked tray's standard-ink rule leaves it alone as it leaves stored Full access.
+test("permission CSS: a Full access run mode warns as stored Full access does", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain('.doan-button.composer-permission[data-warning] { color: var(--text-danger); }');
+  expect(css).toContain('.composer-permission[data-warning] .chev { color: currentColor; }');
+  expect(css).toContain('.docked .composer-tray :is(.composer-agent, .composer-effort, .composer-permission:not([data-mode="bypass"]):not([data-warning])):not(:disabled) { color: var(--text-standard); }');
+  expect(css).not.toMatch(/\[data-warning\][^{]*\{[^}]*(--affordance-warning|--text-warning)/);
+});
+
 // a draft that points at 32 places shows the reason line under the composer, whatever was
 // pressed; removing one place takes it away (Pick from canvas, Add and ⌘L stay unavailable meanwhile, App's part).
 test("a draft at 32 places shows the limit line under the composer until a chip goes", () => {
@@ -186,6 +196,18 @@ test("the permission picker follows Effort in the tray, at xs, with its mode and
   expect(html.indexOf("composer-effort")).toBeLessThan(html.indexOf("composer-permission"));
   expect(html).toMatch(/class="composer-effort doan-button"[^>]*>.*?<span class="label">High<\/span>/);
   expect(render({ permission: null, onPickPermission: () => {} })).not.toContain("composer-permission");
+});
+
+// Draft frame `run-mode-docked-steps`: the run-mode trigger names the observed mode in its label, aria-label and tooltip
+// label, and carries data-run-mode for its own width step; plain Ask first carries neither attribute.
+test("a run-mode trigger in the tray names Claude Code's mode and carries data-run-mode", () => {
+  const html = render({ permission: permissionPickerView("claude", undefined, "default", "auto"), onPickPermission: () => {} });
+  expect(html).toMatch(/class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Ask first, Claude Code settings run Auto mode"[^>]*data-run-mode="auto"/);
+  expect(html).toContain('<span class="label">Ask first · Auto</span>');
+  expect(html).not.toContain("data-warning");
+  const plain = render({ permission: permissionPickerView("claude", undefined, "default"), onPickPermission: () => {} });
+  expect(plain).not.toContain("data-run-mode");
+  expect(plain).not.toContain("data-warning");
 });
 
 // Draft frame `docked-fixed`: a terminal session takes no mode; its trigger keeps its place.
@@ -326,6 +348,8 @@ test("docked tray steps: Permission's label hides below a 432 content width, Eff
   expect(css).toContain("@container (max-width: 431px) { .docked .composer-permission .label { display: none; } }");
   expect(css).toContain("@container (max-width: 383px) { .docked .composer-effort .label { display: none; } }");
   expect(css).not.toContain("@container (max-width: 287px)");
+  // A trigger showing Claude Code's run mode has the longer label, so only it hides its label earlier, below 514.
+  expect(css).toContain("@container (max-width: 513px) { .docked .composer-permission[data-run-mode] .label { display: none; } }");
   // A drawer's name in a trigger is drawn in the metadata ink.
   expect(css).toMatch(/\.doan-button \.label\.placeholder \{ color: var\(--text-metadata\); \}/);
 });
@@ -334,7 +358,7 @@ test("docked tray steps: Permission's label hides below a 432 content width, Eff
 // drawer's name in the metadata ink, as on Home; a disabled trigger and Full access keep their own inks.
 test("docked tray CSS: trigger values in the standard ink, drawer names in the metadata ink", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  expect(css).toContain('.docked .composer-tray :is(.composer-agent, .composer-effort, .composer-permission:not([data-mode="bypass"])):not(:disabled) { color: var(--text-standard); }');
+  expect(css).toContain('.docked .composer-tray :is(.composer-agent, .composer-effort, .composer-permission:not([data-mode="bypass"]):not([data-warning])):not(:disabled) { color: var(--text-standard); }');
   expect(css).toContain(".doan-button .label.placeholder { color: var(--text-metadata); }");
   expect(css).toContain(".composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); font-weight: var(--type-weight-regular); color: var(--text-subtle); }");
 });

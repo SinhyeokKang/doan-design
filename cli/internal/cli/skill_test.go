@@ -137,7 +137,9 @@ func TestSkillGuideSetupGoesThroughOnboarding(t *testing.T) {
 		"On `completed: true` from `start`, stop after `select` (no `complete`).",
 		"Never ask for token CSS; pass one the user named to `doan config --token-css` after `select` (or to `doan init`).",
 		"If a repository setup cannot reach Doan (`app_not_running`, `app_launch_failed`, `app_protocol_mismatch`, or a sandbox blocks its socket), run `doan init` without asking and tell the user the project is not in Doan: they add it with File > Add Projects….",
-		"Onboarding needs no skill or project and takes no `--repo`; path arguments are absolute.",
+		// `--repo` (absent for onboarding) and literal words (no `$PWD`) are in the command syntax line
+		// (TestSkillGuideCallsAreLiteralCommands).
+		"Onboarding needs no skill or project; paths are absolute.",
 	} {
 		if !strings.Contains(first, required) {
 			t.Errorf("onboarding first paragraph misses %q", required)
@@ -391,7 +393,8 @@ func TestSkillGuideExportCommand(t *testing.T) {
 		"PATH theirs, not in `.doan/`",
 		"Say `external` needs internet, `links` break",
 		// The prototype file still carries the whole canvas; the person must know before sending it.
-		"`--prototype`: holds the whole canvas; say so.",
+		// Agents named the other frames but not the canvas note (agent-eval X2, U-044).
+		"`--prototype`: holds the whole canvas, other frames and notes too; say so.",
 	} {
 		if !strings.Contains(command[0], required) {
 			t.Errorf("doan export guidance is missing: %s", required)
@@ -535,5 +538,19 @@ func TestSkillGuidePrototypeLayout(t *testing.T) {
 	}
 	if r := rule("F. "); r != "F. Prototypes: build the interactions the request names, ask only when scope changes the result, and say which are not wired." {
 		t.Errorf("rule F: %q", r)
+	}
+}
+
+// Codex's `doan` prefix rule, and Claude Code's allow rules, match only a command of literal words: `--path "$PWD"`
+// (agent-eval O3b) and calls joined with `;` (O2) or `&&` (W8) ran in Codex's sandbox and could not reach the app.
+func TestSkillGuideCallsAreLiteralCommands(t *testing.T) {
+	var syntax string
+	for _, l := range strings.Split(skillBody, "\n") {
+		if strings.HasPrefix(l, "All commands except `onboarding` accept `--repo") {
+			syntax = l
+		}
+	}
+	if !strings.Contains(syntax, "Run each `doan` call alone, in literal words (no `;`, `&&`, `|` or `$VAR`).") {
+		t.Errorf("the command syntax line does not ask for literal, unjoined calls: %q", syntax)
 	}
 }

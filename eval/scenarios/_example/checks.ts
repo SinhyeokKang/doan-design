@@ -1,3 +1,5 @@
+import { doanInvocations } from "../../lib/call-log.ts";
+import { doanCommand } from "../../lib/transcript.ts";
 import type { Checks } from "../../lib/types.ts";
 
 const checks: Checks = ctx => {
@@ -9,7 +11,7 @@ const checks: Checks = ctx => {
     { id: "heading_retitled", pass: canvas.includes('<h1 data-doan-id="title">Hello, doan</h1>'), detail: "the selected h1 reads \"Hello, doan\"" },
     { id: "lede_unchanged", pass: canvas.includes('<p data-doan-id="lede">A canvas for the runner self-test.</p>'), detail: "the unselected paragraph is untouched" },
     { id: "only_canvas_changed", pass: changed.length === 1 && changed[0] === ".doan/canvases/hello.html", detail: `changed: ${changed.join(", ") || "(none)"}` },
-    { id: "asked_doan_active", pass: ctx.transcript.includes("doan active"), detail: "the transcript shows `doan active`" },
+    { id: "asked_doan_active", pass: doanInvocations(ctx.calls).words.some(words => doanCommand(words) === "active"), detail: "the agent invoked `doan active`" },
   ];
 };
 export default checks;

@@ -6,7 +6,7 @@ import { query, type EffortLevel, type PermissionResult, type PermissionUpdate, 
 import { openAcp } from "./acpRunner";
 import { CodexDispatcher, RpcError } from "./dispatcher";
 import { codexInitialize, codexThreadStart, type HandshakeReply, type HandshakeVerdict } from "./handshake";
-import { afterTurnCleanup, OwnedGroup, ownProtocolProcess } from "./process";
+import { afterTurnCleanup, listProcesses, OwnedGroup, ownProtocolProcess } from "./process";
 import { readRegularFileNoFollowSync } from "../regularFile";
 import { object } from "./sessions";
 import { applyClaudeFastUnavailable, parseClaudeModels, parseCodexModels } from "./models";
@@ -15,7 +15,7 @@ import { claudeBoundary } from "./commandRecords";
 import { commandName, commandRequest } from "./providerCommands";
 import { CodexStartupWatch, codexProfileServers } from "./mcpStartup";
 import { connectorLabels } from "../mcpConnectors/presets";
-import { backgroundTasks, claudeSessionLost, CLAUDE_QUESTION_TOOL, claudePermissionRequest, claudeQuestion, claudeQuestionResult, claudeReportedMode, claudeUnansweredSupport, endPromptWait, endSteerWait, endTransport, initialTransport, normalizeClaude, promptTransport, steerTransport, storedAnswers, transportError, type ClaudeQuestion } from "./transport";
+import { backgroundTasks, claudeSessionLost, CLAUDE_QUESTION_TOOL, claudePermissionRequest, claudeQuestion, claudeQuestionResult, claudeModeReport, claudeUnansweredSupport, endPromptWait, endSteerWait, endTransport, initialTransport, normalizeClaude, promptTransport, steerTransport, storedAnswers, transportError, type ClaudeQuestion } from "./transport";
 import { questionAnswer } from "./questionAnswer";
 import { promptSuggestionText } from "./promptSuggestion";
 import { claudePermission, codexDefaults, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
@@ -401,7 +401,9 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       const launch = fencedCommand(options.command, options.args, input.fence ? fenceArgs("claude", input.fence.paths) : undefined, input.fence?.exec);
       const child = spawn(launch.command, launch.args, { cwd: options.cwd, env: options.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
       if (child.pid) {
-        const owned = new OwnedGroup(child.pid, undefined, undefined, exited); group = owned;
+        // A background command runs in a process group of its own that only the CLI's SIGTERM handling reaches, and
+        // one that ignores SIGTERM outlives the CLI, so a stop also ends the groups the CLI's descendants started.
+        const owned = new OwnedGroup(child.pid, undefined, undefined, exited, listProcesses); group = owned;
         registerStop(() => { controller.abort(); closeInput(); return owned.stop(); });
       }
       child.stderr.setEncoding("utf8"); child.stderr.on("data", (text: string) => { stderr = (stderr + text).slice(-8192); });
@@ -472,7 +474,10 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       // Only a send that is the person's /clear (an alias goes out as /clear) may move the run to another session, once
       // the clear's conversation_reset came; its new id is system/init's, never new_conversation_id (PoC, 2.1.326).
       const clearing = commandName("claude", prompt) === "clear";
-      let reset = false;
+      // turnInit: the mode the turn's first top-level init reported. A later init comes from a message steered after the
+      // reply began, which the CLI runs as its next turn in this process; it can report a setMode allowed there (PoC,
+      // Claude Code 2.1.312). latest: the mode the process reported last, init or status.
+      let reset = false, turnInit: string | undefined, latest: string | undefined;
       // The group stops as on any terminal that leaves a steered uuid unread; the SDK error that follows is that stop's.
       const expireRead = () => {
         readWait = undefined;
@@ -521,10 +526,12 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
               }
             }
             unanswered = claudeUnansweredSupport(raw) ?? unanswered;
-            // Only a turn sent with Plan follows a reported switch (the plan's approval); a suggestion's setMode on another
-            // turn stays that process's.
-            const reported = input.permissionMode === "plan" ? claudeReportedMode(raw) : undefined;
-            if (reported && reported !== "plan") input.planApproved?.(reported);
+            // The service decides what a reported mode changes (claudeRunMode.ts). An init tells the mode an Ask first
+            // turn's settings run, so only that turn's inits count; a turn sent with Accept edits or Full access runs its own.
+            const report = claudeModeReport(raw), sent = input.permissionMode ?? "default", init = turnInit, previous = latest;
+            if (report) { latest = report.mode; if (report.source === "init") turnInit ??= report.mode; }
+            if (report?.source === "init" && sent === "default") input.modeReported?.(report, init, previous);
+            else if (report?.source === "status" && (sent === "default" || sent === "plan")) input.modeReported?.(report, init, previous);
             const prompted = state.prompt !== undefined;
             const result = normalizeClaude(state, raw, input.cwd, labels); state = result.state;
             for (const id of result.consumed ?? []) input.steerConsumed?.(id);

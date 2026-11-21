@@ -1,3 +1,4 @@
+import { doanInvocations } from "../../lib/call-log.ts";
 import type { Check, CheckContext } from "../../lib/types.ts";
 import { doanPositionals, incompleteRead, parseCommand } from "../../lib/transcript.ts";
 
@@ -8,9 +9,9 @@ export const CATALOG = ["context", "shape", "document", "extract", "critique", "
 
 // The same evidence the judge gets (eval/lib/judge.ts): commands the agent ran.
 // A guide quote or an echoed command is not a lookup.
-export function presetLookups(ctx: CheckContext) {
-  const parsed = ctx.calls.commands.map(parseCommand);
-  const shell = parsed.flatMap(read => read.words).flatMap(words => {
+export function presetLookups(ctx: CheckContext, successfulOnly = false) {
+  const parsed = doanInvocations(ctx.calls, successfulOnly);
+  const shell = parsed.words.flatMap(words => {
     const args = doanPositionals(words);
     return args?.[0] === "design-skill" ? [args] : [];
   });
@@ -22,7 +23,7 @@ export function presetLookups(ctx: CheckContext) {
     ids: shellIds.filter(id => CATALOG.includes(id)),
     // A command the reader could not follow to the end (parseCommand): it may have run any lookup, so it is never
     // evidence of one, and the checks that need the full list of reads cannot pass beside it.
-    incomplete: parsed.some(read => read.incomplete),
+    incomplete: parsed.incomplete,
   };
 }
 
@@ -31,10 +32,12 @@ export function presetLookups(ctx: CheckContext) {
 // body may be read. Both of those fail beside a command that could not be read completely.
 export function presetChecks(ctx: CheckContext, o: { required: (string | string[])[]; allowed: string[] }): Check[] {
   const l = presetLookups(ctx);
+  // An interrupted output may already have delivered part of an out-of-scope body.
+  const completed = presetLookups(ctx, true);
   const detail = `shell ${l.shellInvoked ? JSON.stringify(l.shellIds) : "not invoked"}${l.incomplete ? "; a command could not be read completely" : ""}`;
   const checks: Check[] = o.required.map(entry => {
     const any = typeof entry === "string" ? [entry] : entry;
-    return { id: `read_${any.join("_or_")}`, pass: any.some(id => l.ids.includes(id)), detail: `requires a read of ${any.join(" or ")}; ${detail}` };
+    return { id: `read_${any.join("_or_")}`, pass: any.some(id => completed.ids.includes(id)), detail: `requires a read of ${any.join(" or ")}; ${detail}` };
   });
   const extra = l.ids.filter(id => !o.allowed.includes(id));
   checks.push(o.allowed.length

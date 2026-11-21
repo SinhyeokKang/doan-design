@@ -1,1 +1,6 @@
-[["init", "--token-css", "styles/tokens.css", "--json"], ["config", "--add-serve", "components", "--json"]]
+[
+  ["init", "--token-css", "styles/tokens.css", "--json"],
+  ["config", "--add-serve", "components", "--json"],
+  ["design-skill", "document", "--json"],
+  ["design-skill", "audit", "--json"]
+]

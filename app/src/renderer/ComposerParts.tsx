@@ -624,10 +624,12 @@ export function PermissionMenuItems({ view, onPick }: { view: PermissionPickerVi
 }
 
 // The permission mode picker, after Effort. Full access keeps its name, its
-// warning icon and the danger ink (data-mode); in the docked tray its label may hide, so the tooltip and
-// aria-label keep the name.
+// warning icon and the danger ink (data-warning, also when Claude Code's settings run it under a stored Ask first); in
+// the docked tray its label may hide, so the tooltip and aria-label keep the name. data-run-mode: the trigger names a
+// run mode, whose longer label hides at a wider tray than plain Ask first.
 export function PermissionPicker({ view, disabled, onPick, size = "sm" }: { view: PermissionPickerView; disabled: boolean; onPick(mode: PermissionModeId): void; size?: "sm" | "xs" }) {
-  const trigger = <DropdownMenu.Trigger asChild><button type="button" className="composer-permission doan-button" data-ui-size={size} data-ui-variant="trigger" data-mode={view.mode} aria-label={view.trigger.ariaLabel} disabled={disabled}>
+  const trigger = <DropdownMenu.Trigger asChild><button type="button" className="composer-permission doan-button" data-ui-size={size} data-ui-variant="trigger" data-mode={view.mode} aria-label={view.trigger.ariaLabel}
+    data-warning={view.trigger.warning ? "" : undefined} data-run-mode={view.runMode} disabled={disabled}>
     <PermissionIconView name={view.trigger.icon} /><span className="label">{view.trigger.label}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>;
   return <DropdownMenu.Root>
     {size === "xs" ? <IconTip label={view.trigger.ariaLabel}>{trigger}</IconTip> : trigger}

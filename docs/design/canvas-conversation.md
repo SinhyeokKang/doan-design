@@ -228,6 +228,35 @@ Reference: `.doan/canvases/picker-default-labels.html` (frames `triggers`, `menu
 
 `homeComposer.test.ts`, `dockedRules.test.ts`, `permissionPicker.test.ts`, `newConversationSettings.test.ts`, `SettingsAgents.test.tsx`, `ComposerParts.test.tsx`, `DockedComposer.test.tsx` (CSS source strings only, including the docked trigger ink), `HomeComposerView.interaction.test.tsx`, `rememberChoice.test.ts` and `ProjectOverview.fast.test.tsx` (a model is remembered and marked as picked only when the person picked it, not when restored by Edit). Colours, widths and gaps above are `.scratch/` probes only.
 
+## Permission run mode
+
+Reference: `.doan/canvases/permission-run-mode.html` frames `run-mode-trigger`, `run-mode-menu`, `run-mode-docked-steps`, `run-mode-plan-approved`; injected: main's agent-auth, model, conversation list and read replies (each summary's `claudeRunMode`), with no provider signed in. Built app at 1500 × 820; the implementation is the canvas panel's docked composer for a Claude conversation, brought to each tile's width through the panel width (540, 538, 504).
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Run-mode trigger | With Ask first shown and a run mode: label "Ask first · <name>" (Auto, Don’t ask, Accept edits, Plan (read-only), Full access), Ask first's shield and `--text-standard` (rgb(15,15,15)), chevron `--text-metadata`; `data-mode="default"` plus `data-run-mode="<Claude's id>"`; name "Permission: Ask first, Claude Code settings run <name> mode". Label widths 82.61 / 109.78 / 126.63 / 145.38 / 119.28 (triggers 134.61 to 197.38), the same in the draft | The picked mode stays first; the observed one follows it in the menu's words. |
+| Full access run mode | `data-warning`: trigger, icon (shield-alert), label and chevron in `--text-danger` (rgb(100,23,35)), as stored Full access; the docked standard-ink rule skips `[data-warning]` as it skips `[data-mode="bypass"]`. Name ends ", no approval requests" | The stored mode stays Ask first, so `data-mode` never reads bypass; never colour alone. |
+| Hidden and cleared | Another stored mode ("Accept edits" picked) shows that mode alone with no `data-run-mode`; a Plan turn's approval (stored Plan, then Ask first with the value cleared in one list change) shows plain "Ask first" | A value from an earlier turn never shows under another mode. |
+| Menu | Only the Ask first row's line changes: "Your Claude Code settings run <name> mode" (210 wide, caption `--text-metadata`, wraps to two lines for Plan (read-only)); the other rows keep their lines; the Ask first row keeps its shield, also with Full access observed | Claude Code does not report where the setting comes from, so the line names only "Claude Code settings". |
+| Run-mode step | `@container (max-width: 513px)` hides the label of a trigger with `data-run-mode`: content needed with Claude's widest labels ("Sonnet 5.5", "Extra high" with Fast) and the ring: Plan (read-only) 513.58, Accept edits 494.84, Full access 487.48, Don’t ask 477.98, Auto 450.81 (Opus 5.5 with Plan 502.93); plain "Ask first" 415.56. Read at content 515/514/513/503/502/432/431/384/383: Plan's label shows at 514, hides at 513; plain "Ask first" keeps its label down to 432 and hides at 431; Effort hides at 383 for both; the model label never ellipsizes there | Permission still steps first, before Effort and the model ellipsis (PRODUCT §5 item 1), and plain Ask first keeps the shipped 432 step. |
+| Icon-only trigger | At content 480 the run-mode trigger is 48 wide (icon and chevron); its tooltip and name carry the observed mode ("Permission: Ask first, Claude Code settings run Plan (read-only) mode", Full access with ", no approval requests") | The shield alone cannot tell the run mode. |
+| Status line | The docked composer's sr-only status says "Claude Code settings run <name> mode" once when the shown conversation's value changes; nothing on the first list read, a second read with the same value, a cleared value or a switch to another conversation. When another conversation then turns to the text just said, it gains a trailing no-break space so it is read again | One status line serves every conversation the composer shows. |
+
+### Documented deviations from the draft
+
+None. Context: fixture names on the model and effort triggers (", default", ", Fast off"); the shipped context ring and menu rules (the ring's rotated svg overflows its box, the row line's overflow, the row icon's flex-shrink and the menu box's inherited type differ in the draft's restatement with equal sizes); the draft's Ask first row drawn highlighted while the app's menu was opened by the pointer; the draft's tray holding the open menu and tooltip inline.
+
+### Not verified
+
+- A real Claude Code run: every value was injected in the list reply; reading it from a turn's `system/init` is the conversation runtime's (unit tests) and the real-login `/runtime-test`.
+- The Overview's docked composer (measured in the canvas panel only); the screen reader's speech itself (the status text was read, not spoken); the run-mode trigger while a turn runs (the draft's Stop tile).
+
+### Regression pointers
+
+`permissionPicker.test.ts`, `ComposerParts.test.tsx` (`data-warning`, `data-run-mode`), `DockedComposer.test.tsx` (CSS source strings: the 513 and 431 steps, the warning ink), `DockedComposer.interaction.test.tsx` (the status line), `dockedPermission.test.tsx` (both hosts pass the summary's value). Widths and colours above are `.scratch/` probes only.
+
 ## Composer field lists
 
 Reference: `.doan/canvases/composer-markdown.html` frames `field-bullets`, `field-ordered`, `field-wrap` (tile a) and `field-home`: the docked box composer at 296 px and the Home composer at 680 px, field type label 16/24. One field draws lists in every composer (canvas and Overview docked, Home, the prototype window), so this section holds them all; Home's row points here. Measured outside the running app: the draft canvas was loaded in a bare window of the same Electron build, and on the implementation side the draft tile's shipped composer markup took the built app CSS (`npm --prefix app run build`, every chunk, the app body's rules included) while the real `ChipField` (bundled with Vite) drew the tile's text into the field. The draft's caret is a board stand-in that grows its line box by 0.5 px, so it was removed before reading. Spans were paired by class and order inside each field; line starts by their text.

@@ -6,7 +6,7 @@ const path = ".doan/canvases/onboarding.html";
 const frame = "signup-phone";
 
 const checks: Checks = ctx => {
-  const calls = prototypeCalls(ctx.calls.commands, "open");
+  const calls = prototypeCalls(ctx.calls, "open");
   const asked = calls.some(call => call.prototype && call.frame === frame && call.path !== undefined && prototypeCanvasPath(ctx.repo, call.path) === prototypeCanvasPath(ctx.repo, path));
   const received = ctx.prototype();
   const final = contentHash(ctx.read(path));

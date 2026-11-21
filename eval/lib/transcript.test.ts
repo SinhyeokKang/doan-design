@@ -351,6 +351,39 @@ test("a loop past the budget is incomplete and leaves no stale variable behind",
   assert.ok(nested.words.length <= 256, String(nested.words.length));
   assert.ok(nested.words.every(w => w[0] === "echo"));
 });
+// Claude bounds its onboarding status polls with `for i in $(seq 1 15)` (agent-eval O3b); bash and zsh both split an
+// unquoted command substitution into words, so seq with whole-number operands is a list the reader knows.
+test("a loop over seq with whole-number operands runs once per number seq prints", () => {
+  const poll = (list: string) => `for i in ${list}; do out=$(doan onboarding status --session s --json); echo "$out" | grep -q running || break; sleep 1; done; echo "$out"`;
+  const status = ["doan", "onboarding", "status", "--session", "s", "--json"];
+  const read = parseCommand(poll("$(seq 1 15)"));
+  assert.equal(read.incomplete, false);
+  assert.equal(read.words.filter(words => words.join(" ") === status.join(" ")).length, 15);
+  assert.deepEqual(commandWords("for i in $(seq 3); do echo $i; done"), [["seq", "3"], ["echo", "1"], ["echo", "2"], ["echo", "3"]]);
+  assert.deepEqual(commandWords("for i in $(seq 2 2 6); do echo $i; done"), [["seq", "2", "2", "6"], ["echo", "2"], ["echo", "4"], ["echo", "6"]]);
+  assert.deepEqual(commandWords("for i in $(seq 5 -2 1); do echo $i; done"), [["seq", "5", "-2", "1"], ["echo", "5"], ["echo", "3"], ["echo", "1"]]);
+  // GNU and BSD seq both print nothing when an explicit step points away from the last number.
+  assert.deepEqual(commandWords("for i in $(seq 1 -1 5); do echo $i; done; doan active"), [["seq", "1", "-1", "5"], ["doan", "active"]]);
+  assert.deepEqual(commandWords("for i in a $(seq 2) b; do echo $i; done"), [["seq", "2"], ["echo", "a"], ["echo", "1"], ["echo", "2"], ["echo", "b"]]);
+  assert.deepEqual(commandWords("for i in `seq 2`; do echo $i; done"), [["seq", "2"], ["echo", "1"], ["echo", "2"]]);
+});
+test("a loop over any other substitution, or seq the reader cannot evaluate, stays incomplete", () => {
+  for (const list of [
+    '"$(seq 1 3)"', // quoted: one word holding all the numbers
+    "x$(seq 1 3)", "$(seq 1 3)x", // joined to other text
+    "$(seq 1 300)", // past the loop budget
+    "$(seq 1 0 3)", "$(seq 3 0 1)", // a zero step never ends
+    "$(seq 3 1)", "$(seq 0)", // no step and counting down: GNU prints nothing, macOS's BSD seq counts down
+    "$(seq -w 1 3)", "$(seq 1.5 3)", "$(seq a 3)", "$(seq)", "$(seq 1 2 3 4)", // options, fractions, words, wrong arity
+    "$(seq 1 3 | tac)", "$(seq 1 3; doan init)", "$(echo 1 2)", "$(ls)",
+  ]) {
+    assert.equal(parseCommand(`for i in ${list}; do doan design-skill harden; done`).incomplete, true, list);
+  }
+  // A seq function or alias, or another IFS, changes what the loop gets.
+  for (const before of ["seq() { echo 9; }", "alias seq='echo 9'", "IFS=,", "export IFS=,", "local IFS=,"]) {
+    assert.equal(parseCommand(`${before}; for i in $(seq 1 3); do doan design-skill harden; done`).incomplete, true, before);
+  }
+});
 test("a shell compound or reserved word the reader does not follow makes the rest of the command incomplete", () => {
   // Only plain commands, NAME=value, a closed for loop, a closed { …; } group and a function with such a body are
   // followed; if/while/case/subshells are never interpreted.
@@ -790,6 +823,17 @@ test("a Python heredoc's literal doan argv lists are read, and anything dynamic 
     // Only Python is read this way; another interpreter's heredoc stays incomplete.
     "node <<'EOF'\nsubprocess.run(['doan', 'active'])\nEOF",
   ]) read(command, [], true);
+});
+
+// A Python heredoc that writes canvases carries `doan:canvas` and `doan:width` markup (D10g, D10h). That markup runs
+// nothing, so it does not make the body name doan; a doan word beside it still does.
+test("doan: markup in a Python heredoc does not name doan, and a doan word beside it is still read", () => {
+  const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
+  const meta = `<meta name="doan:canvas" content="a"><meta name="doan:width" content="390">`;
+  read(`python3 - <<'PY'\nimport subprocess\nfrom pathlib import Path\nPath('.doan/ds/a.html').write_text('''${meta}''')\nsubprocess.run(['git', 'status'])\nPY`, [["python3", "-"]]);
+  read(`python3 - <<'PY'\nimport subprocess\nfrom pathlib import Path\nPath('.doan/ds/a.html').write_text('${meta}')\nsubprocess.run(['doan', 'check'])\nPY`, [["python3", "-"], ["doan", "check"]]);
+  read(`python3 - <<'PY'\nimport os\nprint('${meta}')\nos.system('doan design-skill audit')\nPY`, [], true);
+  read(`python3 - <<'PY'\nimport subprocess\nprint('''${meta}''')\nsubprocess.run(['doan', 'design-skill', 'audit'])\nPY`, [], true);
 });
 
 // Codex prints a multi-line command (a heredoc script, say) across several stderr lines; the header ends at the

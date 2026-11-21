@@ -116,6 +116,20 @@ it("ends a prompt the server never answers once it acknowledges session/cancel",
   expect(events.at(-1)).toEqual({ type: "interrupted", reason: "user" });
 });
 
+// Antigravity runs a tool command in a process group of its own, which a signal to the server's group never reaches.
+it("ends a tool command the server runs in its own process group when the turn is stopped", async () => {
+  const pidFile = join(temp("doan-acp-tool-"), "tool.pid");
+  const { runner } = await open("copilot", null, { env: { PATH: process.env.PATH ?? "", FAKE_ACP: "", FAKE_ACP_TOOL_PID: pidFile } });
+  const sent = runner.send("hi", "turn-1");
+  let tool = 0;
+  await vi.waitFor(() => { tool = Number(readFileSync(pidFile, "utf8")); expect(tool).toBeGreaterThan(0); });
+  const alive = () => { try { process.kill(tool, 0); return true; } catch { return false; } };
+  try {
+    await runner.stop(); await sent;
+    await vi.waitFor(() => expect(alive()).toBe(false), { timeout: 3000 });
+  } finally { if (alive()) process.kill(tool, "SIGKILL"); }
+});
+
 it("refuses to open when the server asks for a new browser sign-in, and when the agent does not offer the needed authenticate method", async () => {
   await expect(openAcp(input("copilot", {}, "auth-link"), () => {}, () => {}, () => {})).rejects.toThrow("not_logged_in");
   await expect(openAcp(input("copilot", { authenticate: "cursor_login" }), () => {}, () => {}, () => {})).rejects.toThrow("runtime_unsupported");
@@ -267,6 +281,26 @@ it("lists an ACP provider's models from session/new without a prompt and reports
   expect(logged(log).map(r => r.method)).toEqual(["initialize", "authenticate", "session/new"]);
   await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
 });
+// A Cursor first turn that met the plan limit saves no session, so the next send's session/load answers "not found";
+// the account's usage tells that apart from a session that is really gone.
+it.each([
+  ["a used-up window", async () => true, "rate_limited"],
+  ["no used-up window", async () => false, "session_unavailable"],
+  ["a usage read that failed", async () => { throw new Error("read failed"); }, "session_unavailable"],
+])("refuses a Cursor session/load that answers not found as %s reads", async (_name, limitReached, code) => {
+  const hook = vi.fn(limitReached);
+  await openAcp(input("cursor", { sessionId: "missing-session", limitReached: hook }), () => {}, () => {}, () => {})
+    .then(() => { throw new Error("opened"); }, (error: Error) => expect(error.message).toBe(code));
+  expect(hook).toHaveBeenCalledOnce();
+});
+it("reads no usage when session/load succeeds or when the failure is not session/load", async () => {
+  const hook = vi.fn(async () => true);
+  const runner = await openAcp(input("cursor", { sessionId: SESSION, limitReached: hook }), () => {}, () => {}, () => {});
+  await runner.close();
+  await openAcp(input("cursor", { limitReached: hook }, "no-session"), () => {}, () => {}, () => {}).then(() => { throw new Error("opened"); }, (error: Error) => expect(error.message).toBe("session_unavailable"));
+  expect(hook).not.toHaveBeenCalled();
+});
+
 it("sets the chosen model after session/new and again after session/load, before the prompt", async () => {
   const log = logFile();
   const env = { PATH: process.env.PATH ?? "", FAKE_ACP: "stop:end_turn", FAKE_ACP_LOG: log };
