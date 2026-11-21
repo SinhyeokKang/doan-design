@@ -311,7 +311,8 @@ for (const reason of ["remove", undefined]) {
       for (let i = 0; i < 100; i++) {
         const id = `CHURN-${i}`;
         emit("Page.frameNavigated", { frame: { id, parentId: "ROOT", url: "about:srcdoc" } });
-        commits ??= added.mock.contexts.find((_, n) => added.mock.calls[n]?.[0] === id);
+        const recorded = added.mock.contexts.find((_, n) => added.mock.calls[n]?.[0] === id);
+        if (recorded instanceof Set) commits ??= recorded;
         emit("Page.frameDetached", { frameId: id, reason });
       }
     } finally { added.mockRestore(); }

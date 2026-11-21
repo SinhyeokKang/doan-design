@@ -20,7 +20,7 @@ for (const pressable of [false, true]) {
       conversationId: "copy", provider: "claude", project: "copy", liveAfter: 0, canvasListed: () => true,
       visibility: { onWindowVisible: () => noop }, onAnswer: noop, onStop: noop, onEditAndResend: noop,
       onSignIn: noop, onRetry: noop, onOpenCanvas: noop, onOpenLink: noop, onCopy: async () => true,
-      onLocate: pressable ? async () => "shown" : undefined,
+      ...(pressable ? { onLocate: async () => "shown" as const } : {}),
     };
     const frame = await dom.load(`<style>${css}</style>${renderToStaticMarkup(<TooltipProvider><ConversationThread {...props} /></TooltipProvider>)}`);
     const selected = await frame.evaluate(() => [...document.querySelectorAll(".bubble")].map(bubble => {
