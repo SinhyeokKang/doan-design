@@ -125,12 +125,15 @@ describe("commandCard", () => {
       title: "/model doesn’t run in Doan", body: "Choose the model from the model picker.", action: { label: "Open model picker", target: "modelPicker" },
     });
   });
-  it("points Antigravity /logout to Settings > Agents and /plan to the permission picker", () => {
+  it("points Antigravity /logout to Settings > Agents", () => {
     expect(commandCard("antigravity", "logout")).toEqual({
       title: "/logout doesn’t run in Doan", body: "Sign out from Settings > Agents.", action: { label: "Open Agents settings", target: "agentsSettings" },
     });
+  });
+  // Antigravity's permission picker has no Plan mode, so this card points nowhere; it says why and what to do instead.
+  it("tells why Antigravity /plan does not run, without pointing to the permission picker", () => {
     expect(commandCard("antigravity", "plan")).toEqual({
-      title: "/plan doesn’t run in Doan", body: "Use Plan mode in the permission picker.", action: { label: "Open permission picker", target: "permissionPicker" },
+      title: "/plan doesn’t run in Doan", body: "Doan can’t show Antigravity’s plan approval yet. Ask for a plan in a message instead.", action: null,
     });
   });
   it("points /logout and /login to Settings > Agents and /permissions to the permission picker for every provider", () => {
