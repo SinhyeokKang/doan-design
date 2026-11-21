@@ -17,7 +17,8 @@ Runner commands (ARCHITECTURE §14): full round `node eval/run.ts --round <name>
 
 ## When to run
 
-- A PR changes the guide (`cli/internal/cli/skill.md`), CLI output and error messages, `doan check` rules, or the skill stub.
+- A PR changes the guide (`cli/internal/cli/skill.md`): a full round, not only the scenarios the change targets, because every scenario reads the guide.
+- A PR changes CLI output and error messages, `doan check` rules, or the skill stub.
 - Before a feature's last integration (`/orchestrate` §4 Integration).
 - After Claude Code or Codex changes version.
 

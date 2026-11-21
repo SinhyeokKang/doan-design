@@ -530,7 +530,9 @@ const UNSUPPORTED = /^(?:if|then|elif|else|fi|while|until|do|done|case|esac|sele
 const LOOP_BUDGET = 256;
 
 // `pythonCalls` holds what pythonDoanCalls read from each marked heredoc of the whole read, by PYTHON_CALLS index.
-interface ReadState { left: number; incomplete: boolean; pythonCalls: string[][][] }
+// `seqUnknown`: the command defines an alias or touches IFS somewhere, either of which changes what `$(seq …)` gives
+// a loop (see seqList).
+interface ReadState { left: number; incomplete: boolean; pythonCalls: string[][][]; seqUnknown: boolean }
 // A shell function: the token groups of its body and its closing `}` group, whose redirections apply at each call.
 interface ShellFunction { body: string[][]; close: string[] }
 // `homePath`: the path below the home directory (`/.zshrc`, or "" for the home itself) when the shell expands the word to
@@ -674,6 +676,26 @@ function braceEnd(groups: string[][], from: number, depth: number): number {
   return -1;
 }
 
+// A loop list word that is only `$(seq [first [step]] last)` with whole numbers: bash and zsh split an unquoted
+// substitution into words, so agents bounding a polling loop this way (`for i in $(seq 1 15)`) are read like a
+// written-out list. Anything else, or more numbers than `left`, is undefined and stays unresolved, and so is counting
+// down without a step, where GNU seq prints nothing and macOS's BSD seq counts down.
+function seqList(token: string, bodies: string[], state: ReadState, functions: ReadonlyMap<string, ShellFunction>): Expanded | undefined {
+  if (state.seqUnknown || functions.has("seq")) return undefined;
+  const index = /^\$\(\0(\d+)\)$/.exec(token)?.[1];
+  const words = index === undefined ? [] : bodies[Number(index)]!.trim().split(/\s+/);
+  if (words[0] !== "seq" || words.length < 2 || words.length > 4 || !words.slice(1).every(word => /^-?\d+$/.test(word))) return undefined;
+  const numbers = words.slice(1).map(Number);
+  const [first, step, last] = numbers.length === 1 ? [1, 1, numbers[0]!] : numbers.length === 2 ? [numbers[0]!, 1, numbers[1]!] : [numbers[0]!, numbers[1]!, numbers[2]!];
+  if (step === 0 || (numbers.length < 3 && first > last)) return undefined;
+  const values: string[] = [];
+  for (let n = first; step > 0 ? n <= last : n >= last; n += step) {
+    if (values.length === state.left) return undefined;
+    values.push(String(n));
+  }
+  return { words: values, unresolved: false, homePath: undefined, onlyHome: undefined };
+}
+
 function runGroups(groups: string[][], vars: Map<string, string>, state: ReadState, bodies: string[], functions: Map<string, ShellFunction>): ShellCommand[] {
   const out: ShellCommand[] = [];
   const append = (commands: ShellCommand[]) => { for (const entry of commands) out.push(entry); };
@@ -703,7 +725,7 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
       }
       if (done < 0) { state.incomplete = true; return out; }
       substitute(group.slice(3));
-      const lists = group.slice(3).map(token => expandToken(token, vars));
+      const lists = group.slice(3).map(token => seqList(token, bodies, state, functions) ?? expandToken(token, vars));
       const values = lists.flatMap(list => list.words.map(word => ({ word, home: list.onlyHome })));
       if (lists.some(list => list.unresolved) || values.length > state.left) {
         // The body ran an unknown number of times with unknown values: nothing after it can rely on the variables.
@@ -917,7 +939,7 @@ function parse(command: string, state: ReadState, vars = new Map<string, string>
 // incomplete read lacks the commands it could not follow (see runGroups): what it does give is real, but it is not
 // the whole list. A command that is only redirections (`> file`) has no words.
 export function readCommands(command: string): { commands: ShellCommand[]; incomplete: boolean } {
-  const state: ReadState = { left: LOOP_BUDGET, incomplete: false, pythonCalls: [] };
+  const state: ReadState = { left: LOOP_BUDGET, incomplete: false, pythonCalls: [], seqUnknown: /\b(?:alias|IFS)\b/.test(command) };
   const commands = parse(command, state);
   return { commands, incomplete: state.incomplete };
 }
