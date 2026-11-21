@@ -60,7 +60,7 @@ describe("the first top-level system/init of a turn sent with Ask first", () => 
 
 describe("a status message that reports a mode", () => {
   const status = (entry: RunModeEntry, mode: string, more: Partial<Parameters<typeof runModeAfterStatus>[0]> = {}) =>
-    runModeAfterStatus({ entry, sent: "plan", current: true, reported: mode, ...more });
+    runModeAfterStatus({ entry, sent: "plan", current: true, reported: mode, turnInit: undefined, ...more });
   const inPlan = (claudeRunMode?: RunModeEntry["claudeRunMode"]): RunModeEntry => ({ ...askFirst(claudeRunMode), permissionMode: "plan" });
 
   // Both values come back together so the caller saves the index once (one change notice, no flicker).
@@ -92,15 +92,25 @@ describe("a status message that reports a mode", () => {
     expect(status({ owner: { kind: "legacy-external" }, permissionMode: "plan" }, "auto")).toEqual({ permissionMode: "default", claudeRunMode: undefined });
     expect(status({ owner: { kind: "legacy-external" }, permissionMode: "plan" }, "acceptEdits")).toEqual({ permissionMode: "acceptEdits", claudeRunMode: undefined });
   });
-  // Ask first with settings that run plan: the approval changes the run mode only (PoC: it reports default).
+  // Ask first with settings that run plan: the approval changes the run mode only (PoC: it reports default). The turn's
+  // own first init says so (turnInit), never the stored key, which an earlier turn may have left.
   it("follows the approval of an Ask first turn whose settings ran plan, changing only the run mode", () => {
-    expect(status(askFirst("plan"), reported(runMode.approval["askFirst-project-plan"]), { sent: "default" })).toEqual({ permissionMode: "default", claudeRunMode: undefined });
-    expect(status(askFirst("plan"), reported(runMode.approval["askFirst-profile-plan"]), { sent: "default" })).toEqual({ permissionMode: "default", claudeRunMode: undefined });
-    expect(status(askFirst("plan"), "auto", { sent: "default" })).toEqual({ permissionMode: "default", claudeRunMode: "auto" });
-    expect(status(askFirst("plan"), "plan", { sent: "default" })).toBeNull();
-    expect(status(askFirst("plan"), "default", { sent: "default", current: false })).toBeNull();
-    expect(status({ ...askFirst("plan"), permissionMode: "acceptEdits" }, "default", { sent: "default" })).toBeNull();
-    expect(status({ owner: { kind: "legacy-external" }, claudeRunMode: "plan" }, "default", { sent: "default" })).toBeNull();
+    const plan = { sent: "default" as const, turnInit: "plan" };
+    expect(status(askFirst("plan"), reported(runMode.approval["askFirst-project-plan"]), plan)).toEqual({ permissionMode: "default", claudeRunMode: undefined });
+    expect(status(askFirst("plan"), reported(runMode.approval["askFirst-profile-plan"]), plan)).toEqual({ permissionMode: "default", claudeRunMode: undefined });
+    expect(status(askFirst("plan"), "auto", plan)).toEqual({ permissionMode: "default", claudeRunMode: "auto" });
+    // The init was not applied (another mode was stored then), yet the process runs what the approval reports.
+    expect(status(askFirst("dontAsk"), "default", plan)).toEqual({ permissionMode: "default", claudeRunMode: undefined });
+    expect(status(askFirst("plan"), "plan", plan)).toBeNull();
+    expect(status(askFirst("plan"), "default", { ...plan, current: false })).toBeNull();
+    expect(status({ ...askFirst("plan"), permissionMode: "acceptEdits" }, "default", plan)).toBeNull();
+    expect(status({ owner: { kind: "legacy-external" }, claudeRunMode: "plan" }, "default", plan)).toBeNull();
+  });
+  // An earlier turn left plan; this turn's settings ran something else, so a setMode it allows is that process's only.
+  it("ignores a status of an Ask first turn whose own init was not plan, whatever an earlier turn stored", () => {
+    expect(status(askFirst("plan"), reported(runMode.setMode), { sent: "default", turnInit: "default" })).toBeNull();
+    expect(status(askFirst("plan"), reported(runMode.setMode), { sent: "default", turnInit: undefined })).toBeNull();
+    expect(status(askFirst("plan"), "default", { sent: "default", turnInit: "auto" })).toBeNull();
   });
   // A suggestion's setMode holds in that process only (fixture `setMode`), so it changes nothing kept.
   it("ignores any other status of an Ask first turn", () => {
