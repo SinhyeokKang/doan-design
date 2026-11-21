@@ -60,7 +60,7 @@ describe("the first top-level system/init of a turn sent with Ask first", () => 
 
 describe("a status message that reports a mode", () => {
   const status = (entry: RunModeEntry, mode: string, more: Partial<Parameters<typeof runModeAfterStatus>[0]> = {}) =>
-    runModeAfterStatus({ entry, sent: "plan", current: true, reported: mode, turnInit: undefined, ...more });
+    runModeAfterStatus({ entry, sent: "plan", current: true, reported: mode, turnInit: undefined, previous: undefined, ...more });
   const inPlan = (claudeRunMode?: RunModeEntry["claudeRunMode"]): RunModeEntry => ({ ...askFirst(claudeRunMode), permissionMode: "plan" });
 
   // Both values come back together so the caller saves the index once (one change notice, no flicker).
@@ -95,7 +95,7 @@ describe("a status message that reports a mode", () => {
   // Ask first with settings that run plan: the approval changes the run mode only (PoC: it reports default). The turn's
   // own first init says so (turnInit), never the stored key, which an earlier turn may have left.
   it("follows the approval of an Ask first turn whose settings ran plan, changing only the run mode", () => {
-    const plan = { sent: "default" as const, turnInit: "plan" };
+    const plan = { sent: "default" as const, turnInit: "plan", previous: "plan" };
     expect(status(askFirst("plan"), reported(runMode.approval["askFirst-project-plan"]), plan)).toEqual({ permissionMode: "default", claudeRunMode: undefined });
     expect(status(askFirst("plan"), reported(runMode.approval["askFirst-profile-plan"]), plan)).toEqual({ permissionMode: "default", claudeRunMode: undefined });
     expect(status(askFirst("plan"), "auto", plan)).toEqual({ permissionMode: "default", claudeRunMode: "auto" });
@@ -108,9 +108,16 @@ describe("a status message that reports a mode", () => {
   });
   // An earlier turn left plan; this turn's settings ran something else, so a setMode it allows is that process's only.
   it("ignores a status of an Ask first turn whose own init was not plan, whatever an earlier turn stored", () => {
-    expect(status(askFirst("plan"), reported(runMode.setMode), { sent: "default", turnInit: "default" })).toBeNull();
-    expect(status(askFirst("plan"), reported(runMode.setMode), { sent: "default", turnInit: undefined })).toBeNull();
-    expect(status(askFirst("plan"), "default", { sent: "default", turnInit: "auto" })).toBeNull();
+    expect(status(askFirst("plan"), reported(runMode.setMode), { sent: "default", turnInit: "default", previous: "default" })).toBeNull();
+    expect(status(askFirst("plan"), reported(runMode.setMode), { sent: "default", turnInit: undefined, previous: undefined })).toBeNull();
+    // A turn whose settings ran auto and that entered plan itself is not the settings' plan.
+    expect(status(askFirst("plan"), "default", { sent: "default", turnInit: "auto", previous: "plan" })).toBeNull();
+  });
+  // previous: the mode the process reported last before this status. After the approval it runs default, so a later
+  // setMode (an "Always allow" on a Write) is that process's only, though the turn began in plan.
+  it("ignores a setMode after an Ask first turn's plan approval", () => {
+    expect(status(askFirst(), reported(runMode.setMode), { sent: "default", turnInit: "plan", previous: "default" })).toBeNull();
+    expect(status(askFirst("plan"), reported(runMode.setMode), { sent: "default", turnInit: "plan", previous: "acceptEdits" })).toBeNull();
   });
   // A suggestion's setMode holds in that process only (fixture `setMode`), so it changes nothing kept.
   it("ignores any other status of an Ask first turn", () => {

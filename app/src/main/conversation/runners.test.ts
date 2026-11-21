@@ -465,7 +465,8 @@ it("passes each mode to a doan-owned Claude run, with the dangerous skip only fo
   } finally { rmSync(root, { recursive: true, force: true }); }
 }, 30000);
 // Answers initialize; a prompt reports a top-level system/init for each mode in FAKE_INITS (comma-separated, with a
-// subagent's init after the first), then a status message with FAKE_STATUS's permissionMode, before its result.
+// subagent's init after the first), then a status message for each mode in FAKE_STATUS (comma-separated), before its
+// result.
 function statusClaude(root: string): string {
   const command = join(root, "claude");
   writeFileSync(command, `#!/usr/bin/env node
@@ -479,7 +480,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
    send({type:'system',subtype:'init',permissionMode:mode,session_id:r.session_id});
    if(i===0) send({type:'system',subtype:'init',permissionMode:'bypassPermissions',parent_tool_use_id:'tool-1',session_id:r.session_id});
   });
-  if(process.env.FAKE_STATUS) send({type:'system',subtype:'status',status:null,permissionMode:process.env.FAKE_STATUS,uuid:'00000000-0000-4000-8000-000000000001',session_id:r.session_id});
+  (process.env.FAKE_STATUS ? process.env.FAKE_STATUS.split(',') : []).forEach(mode => send({type:'system',subtype:'status',status:null,permissionMode:mode,uuid:'00000000-0000-4000-8000-000000000001',session_id:r.session_id}));
   send({type:'result',subtype:'success',is_error:false,result:'ok',user_message_uuids:[r.uuid],session_id:r.session_id});
   process.stdin.pause(); setTimeout(()=>process.exit(0),20);
  }
@@ -488,8 +489,8 @@ readline.createInterface({input:process.stdin}).on('line', line => {
   return command;
 }
 // The service decides what to keep (claudeRunMode.ts); the runner forwards what it may: a status on a turn sent with Plan
-// or Ask first, and a top-level init only on a turn sent with Ask first, each with the mode the run's first top-level init
-// reported before it (undefined while none came).
+// or Ask first, and a top-level init only on a turn sent with Ask first, each with the mode the turn's first top-level init
+// reported and the mode the process reported last, both as they were before this frame (undefined while none came).
 it("forwards the modes Claude reports in its own ids, init only on a turn sent with Ask first", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-claude-plan-")), command = statusClaude(root);
   const run = async (permissionMode: "plan" | "default" | "acceptEdits" | "bypass" | undefined, env: { FAKE_STATUS?: string; FAKE_INITS?: string }) => {
@@ -501,14 +502,18 @@ it("forwards the modes Claude reports in its own ids, init only on a turn sent w
   };
   try {
     // A Plan turn's approval and anything else it reports reach the service as Claude's own id.
-    expect(await run("plan", { FAKE_STATUS: "default" })).toEqual([[{ source: "status", mode: "default" }, undefined]]);
-    expect(await run("plan", { FAKE_STATUS: "bypassPermissions" })).toEqual([[{ source: "status", mode: "bypassPermissions" }, undefined]]);
-    expect(await run("plan", { FAKE_STATUS: "auto", FAKE_INITS: "plan" })).toEqual([[{ source: "status", mode: "auto" }, "plan"]]);
+    expect(await run("plan", { FAKE_STATUS: "default" })).toEqual([[{ source: "status", mode: "default" }, undefined, undefined]]);
+    expect(await run("plan", { FAKE_STATUS: "bypassPermissions" })).toEqual([[{ source: "status", mode: "bypassPermissions" }, undefined, undefined]]);
+    expect(await run("plan", { FAKE_STATUS: "auto", FAKE_INITS: "plan" })).toEqual([[{ source: "status", mode: "auto" }, "plan", "plan"]]);
     // Ask first: the first top-level init, a later one marked counted, the subagent's never; its status too.
     expect(await run(undefined, { FAKE_INITS: "auto,acceptEdits", FAKE_STATUS: "default" })).toEqual([
-      [{ source: "init", mode: "auto" }, undefined], [{ source: "init", mode: "acceptEdits" }, "auto"], [{ source: "status", mode: "default" }, "auto"],
+      [{ source: "init", mode: "auto" }, undefined, undefined], [{ source: "init", mode: "acceptEdits" }, "auto", "auto"], [{ source: "status", mode: "default" }, "auto", "acceptEdits"],
     ]);
-    expect(await run("default", { FAKE_INITS: "dontAsk" })).toEqual([[{ source: "init", mode: "dontAsk" }, undefined]]);
+    expect(await run("default", { FAKE_INITS: "dontAsk" })).toEqual([[{ source: "init", mode: "dontAsk" }, undefined, undefined]]);
+    // An approval, then a setMode: the second status follows the approval's default, not the turn's first init.
+    expect(await run(undefined, { FAKE_INITS: "plan", FAKE_STATUS: "default,acceptEdits" })).toEqual([
+      [{ source: "init", mode: "plan" }, undefined, undefined], [{ source: "status", mode: "default" }, "plan", "plan"], [{ source: "status", mode: "acceptEdits" }, "plan", "default"],
+    ]);
     // A turn sent with Accept edits or Full access runs that mode, not the settings', and reports nothing.
     expect(await run("acceptEdits", { FAKE_INITS: "acceptEdits", FAKE_STATUS: "default" })).toEqual([]);
     expect(await run("bypass", { FAKE_INITS: "auto", FAKE_STATUS: "default" })).toEqual([]);
