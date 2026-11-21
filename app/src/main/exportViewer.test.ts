@@ -40,6 +40,7 @@ import { CLOSE, drawerGroups as appDrawerGroups, drawerLabel as appDrawerLabel, 
 import { initialToastState, TOAST_MS, toastState as appToastState } from "../renderer/toastState";
 import { prototypeScriptSource as appPrototypeScriptSource } from "./prototypeScript";
 import { exportProgress as appExportProgress } from "../renderer/canvasRowMessages";
+import { prototypeExportName as appPrototypeExportName } from "./canvasExport";
 
 // The viewer files `doan export` embeds (cli/internal/export/viewer/). They are plain browser
 // scripts, not app code, so this file is where they are held to the app's behaviour.
@@ -2707,13 +2708,24 @@ describe("the player's Export prototype", () => {
   test("the default name is <canvas file stem>-<frame id>.html, its stem and id cut at a code point to 240 UTF-16 units", () => {
     expect(px.MAX_FILE_NAME).toBe(240);
     expect(px.exportFileName("checkout-flow", "home")).toBe("checkout-flow-home.html");
-    expect(px.exportFileName("board", 'we/ird:*?"<>|id')).toBe('board-we/ird:*?"<>|id.html');
+    // The app's save panel's name, character for character: `/`, `:` and control characters become hyphens (a browser
+    // would replace them its own way, and WebKit names a file with a control character "example.com").
+    expect(px.exportFileName("board", 'we/ird:*?"<>|id')).toBe('board-we-ird-*?"<>|id.html');
+    for (const [stem, id] of [["names", "line\nid"], ["names", "tab\tid"], ["names", "a/b:c"], ["na:me", "x\u0000\u001f\u007fy"], ["board", "😀 \u00e9 ~$#&"], ["", "only-id"], ["", "a/b\nc"]]) {
+      const path = ".doan/canvases/" + stem + ".html";
+      expect(px.exportFileName(stem, id), JSON.stringify([stem, id])).toBe(appPrototypeExportName(path, id));
+    }
+    // A canvas file named only ".html" has an empty stem: the name is the frame's id alone, as the app's.
+    expect(px.exportFileName("", "home")).toBe("home.html");
     const exact = px.exportFileName("s".repeat(34), "i".repeat(200)) as string;
     expect(exact).toBe("s".repeat(34) + "-" + "i".repeat(200) + ".html");
     expect(exact.length).toBe(240);
     const cut = px.exportFileName("s".repeat(60), "i".repeat(200)) as string;
     expect(cut).toBe(("s".repeat(60) + "-" + "i".repeat(200)).slice(0, 235) + ".html");
     expect(cut.length).toBe(240);
+    // Hyphens first, then the cut, which they do not move: each replaces one unit.
+    const both = px.exportFileName("s".repeat(60), "a/b\n" + "i".repeat(196)) as string;
+    expect(both).toBe(("s".repeat(60) + "-a-b-" + "i".repeat(196)).slice(0, 235) + ".html");
     // A pair across the cut goes whole: the name is 239 units, never half a character.
     const pair = px.exportFileName("s".repeat(34), "i".repeat(199) + "🦊" + "i".repeat(10)) as string;
     expect(pair).toBe("s".repeat(34) + "-" + "i".repeat(199) + ".html");
@@ -2787,6 +2799,8 @@ describe("the player's Export prototype", () => {
     expect(run).toContain("new Blob(");
     expect(run).toContain(".click()");
     expect(run).toContain("EXPORT_PROGRESS_DELAY_MS");
+    // A file the browser could not build says Try again, and leaves its cause in the console for whoever looks.
+    expect(run).toMatch(/catch \(error\) \{\s*console\.error\(error\);\s*result = exportRefusedText\(frame, "failed"\);/);
     // The header's Export is unavailable as "Exporting" while one runs (view.ts exportAvailability).
     expect(playerJs).not.toMatch(/exportAvailability\(.*, false\)/);
     // A broken link's toast must not replace an export's progress or result toast (view.ts linkMove).
