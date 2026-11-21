@@ -6,7 +6,7 @@ const COPILOT = "https://agentclientprotocol.com/protocol/session-modes#";
 
 // The four labels, the aria-label, and Full access marked by more than colour.
 test("each mode's trigger names it, with its own icon; Full access also warns", () => {
-  expect(PERMISSION_MODES.map(permissionTrigger)).toEqual([
+  expect(PERMISSION_MODES.map(mode => permissionTrigger(mode))).toEqual([
     { label: "Ask first", ariaLabel: "Permission: Ask first", icon: "shield", warning: false },
     { label: "Accept edits", ariaLabel: "Permission: Accept edits", icon: "file-pen-line", warning: false },
     { label: "Plan (read-only)", ariaLabel: "Permission: Plan (read-only)", icon: "eye", warning: false },

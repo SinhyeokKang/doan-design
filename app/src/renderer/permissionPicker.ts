@@ -1,5 +1,5 @@
 import type { Provider } from "../main/agentAuth/types";
-import { permissionOptions, type PermissionModeId } from "../main/conversation/permissionMode";
+import { permissionOptions, type ClaudeRunMode, type PermissionModeId } from "../main/conversation/permissionMode";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import type { ModelsState, NewConversationDefault } from "./homeComposer";
 
@@ -20,12 +20,23 @@ const MODES: Record<PermissionModeId, { label: string; icon: PermissionIcon; des
   bypass: { label: "Full access", icon: "shield-alert", description: () => "Runs everything without asking" },
 };
 
+// The mode Claude Code's own settings run an Ask first turn in, named as the menu names modes.
+const RUN_MODES: Record<ClaudeRunMode, string> = { auto: "Auto", dontAsk: "Don’t ask", acceptEdits: "Accept edits", plan: "Plan (read-only)", bypassPermissions: "Full access" };
+
 // Full access is marked by its name, its icon and the warning ink; the aria-label says what it means, so colour is
-// never the only signal.
-export function permissionTrigger(mode: PermissionModeId): PermissionTrigger {
+// never the only signal. runMode: shown only after Ask first; Full access from the settings warns the same way, though
+// the stored mode stays Ask first.
+export function permissionTrigger(mode: PermissionModeId, runMode?: ClaudeRunMode): PermissionTrigger {
   const { label, icon } = MODES[mode];
-  const warning = mode === "bypass";
-  return { label, ariaLabel: `Permission: ${label}${warning ? ", no approval requests" : ""}`, icon, warning };
+  const run = mode === "default" ? runMode : undefined;
+  const warning = mode === "bypass" || run === "bypassPermissions";
+  const named = run ? `${label}, Claude Code settings run ${RUN_MODES[run]} mode` : label;
+  return { label: run ? `${label} · ${RUN_MODES[run]}` : label, ariaLabel: `Permission: ${named}${warning ? ", no approval requests" : ""}`, icon: warning ? "shield-alert" : icon, warning };
+}
+
+// What the composer's status line says once when the run mode changes; null for the same value or a cleared one.
+export function runModeAnnouncement(previous: ClaudeRunMode | undefined, next: ClaudeRunMode | undefined): string | null {
+  return next !== undefined && next !== previous ? `Claude Code settings run ${RUN_MODES[next]} mode` : null;
 }
 
 // An ACP provider's modes come with its model list (models IPC `modes`), so nothing is offered before that list is read.
@@ -44,15 +55,18 @@ export function defaultPermission(options: readonly PermissionModeId[], picked: 
 export interface PermissionOptionView { id: PermissionModeId; label: string; description: string; icon: PermissionIcon; warning: boolean; selected: boolean }
 export interface PermissionPickerView { mode: PermissionModeId; trigger: PermissionTrigger; title: string; menuLabel: string; options: PermissionOptionView[] }
 
-// null: no picker. A provider with no mapped modes, or only Default, offers no choice.
-export function permissionPickerView(provider: Provider | null, state: ModelsState, mode: PermissionModeId): PermissionPickerView | null {
+// null: no picker. A provider with no mapped modes, or only Default, offers no choice. runMode: the conversation's
+// claudeRunMode, reflected only for Claude while Ask first is the mode shown.
+export function permissionPickerView(provider: Provider | null, state: ModelsState, mode: PermissionModeId, runMode?: ClaudeRunMode): PermissionPickerView | null {
   if (!provider) return null;
   const options = permissionChoices(provider, state);
   if (options.length < 2) return null;
   const shown = options.includes(mode) ? mode : "default";
   const name = PROVIDER_NAMES[provider];
+  const run = provider === "claude" && shown === "default" ? runMode : undefined;
+  const description = (id: PermissionModeId) => id === "default" && run ? `Your Claude Code settings run ${RUN_MODES[run]} mode` : MODES[id].description(provider);
   return {
-    mode: shown, trigger: permissionTrigger(shown), title: `Permissions · ${name}`, menuLabel: `Permissions for ${name}`,
-    options: options.map(id => ({ id, label: MODES[id].label, description: MODES[id].description(provider), icon: MODES[id].icon, warning: id === "bypass", selected: id === shown })),
+    mode: shown, trigger: permissionTrigger(shown, run), title: `Permissions · ${name}`, menuLabel: `Permissions for ${name}`,
+    options: options.map(id => ({ id, label: MODES[id].label, description: description(id), icon: MODES[id].icon, warning: id === "bypass", selected: id === shown })),
   };
 }

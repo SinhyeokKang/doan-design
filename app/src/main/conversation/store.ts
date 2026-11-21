@@ -6,7 +6,7 @@ import { canonicalDirectory, openRegular, readRegular, readDescriptor, CONVERSAT
 import { absolutePath, object, sameCanvas } from "./sessions";
 import { anchorTokens, LIMITS, validAnchor } from "./prompt";
 import { validAuthId, validOwner } from "../agentAuth/metadata";
-import { permissionModeId, type PermissionModeId } from "./permissionMode";
+import { claudeRunModeId, permissionModeId, type ClaudeRunMode, type PermissionModeId } from "./permissionMode";
 import { QUESTION_LIMITS } from "./question";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
 import type { Canvas, ConversationEvent, EventPayload, Runtime } from "./types";
@@ -16,10 +16,11 @@ export type ExternalSession = SessionBinding<Runtime>;
 // turn was accepted, so a project conversation binds only to a canvas that appeared after that; fromHome marks a
 // newDesign started from Home, whose turns carry Home's fixed paragraph (entries without it never do). seenSeq is the
 // last seq the person has seen; an entry without it counts as seen, so an upgrade does not light up every conversation.
-// permissionMode is the conversation's chosen mode; Default is stored as no key.
+// permissionMode is the conversation's chosen mode; Default is stored as no key. claudeRunMode is the mode Claude
+// Code's own settings ran the last Ask first turn in; no key when none was seen. It is kept whatever mode is stored.
 interface MetadataBase {
   conversationId: string; root: string; canvas?: Canvas; title: string;
-  model?: string; effort?: string; fast?: true; permissionMode?: Exclude<PermissionModeId, "default">; canvasesAtStart?: Canvas[]; fromHome?: true; seenSeq?: number;
+  model?: string; effort?: string; fast?: true; permissionMode?: Exclude<PermissionModeId, "default">; claudeRunMode?: ClaudeRunMode; canvasesAtStart?: Canvas[]; fromHome?: true; seenSeq?: number;
 }
 // Legacy-external conversations keep the shared two-runtime session; doan-owned ones run on an app provider.
 export type ConversationMetadata = MetadataBase & (
@@ -80,7 +81,7 @@ function parseIndexFile(text: string): IndexFile {
   const archived = new Set(version === 3 ? [] : raw.conversations.filter(m => m.state === "archived").map(m => m.conversationId));
   const entries = raw.conversations.map((m): ConversationMetadata => {
     const { state: _state, ...rawEntry } = m;
-    const entry = storedMode(rawEntry);
+    const entry = readClaudeRunMode(storedMode(rawEntry));
     const owned = version === 1 ? { ...entry, owner: { kind: "legacy-external" } } as ConversationMetadata : entry;
     if (!archived.has(m.conversationId)) return owned;
     const { seenSeq: _seen, ...rest } = owned;
@@ -94,6 +95,14 @@ function storedMode(m: ConversationMetadata): ConversationMetadata {
   const stored: unknown = m.permissionMode;
   if (!("permissionMode" in m) || (permissionModeId(stored) && stored !== "default")) return m;
   const { permissionMode: _unknown, ...rest } = m;
+  return rest as ConversationMetadata;
+}
+// The same for the run mode: a value this build cannot name (a later build's, or Claude's "default") drops that key
+// alone, which reads as none seen.
+function readClaudeRunMode(m: ConversationMetadata): ConversationMetadata {
+  const stored: unknown = m.claudeRunMode;
+  if (!("claudeRunMode" in m) || claudeRunModeId(stored)) return m;
+  const { claudeRunMode: _unknown, ...rest } = m;
   return rest as ConversationMetadata;
 }
 function payload(value: Record<string, unknown>): value is Record<string, unknown> & EventPayload {
