@@ -15,7 +15,9 @@ import type { EventPayload } from "./types";
 //           empties and the CLI calls the model on its own 100 ms later unless it was killed.
 //  failread a failed result after the prompt was read; the input's end is ignored.
 //  hold     nothing after the prompt: the turn keeps running.
-//  bg env   FAKE_RESULT=failed ends the turn failed instead; FAKE_AMBIENT=1 marks the task ambient.
+//  bg env   FAKE_RESULT=failed ends the turn failed instead; FAKE_AMBIENT=1 marks the task ambient. FAKE_STUBBORN names a
+//           file: the task also starts \`bash -c "trap '' TERM; sleep 31"\` in a process group of its own, as Claude Code
+//           runs a background command, writes its group there, and SIGTERM signals that group before the CLI exits.
 //  done     a plain done turn; the CLI ends a while after its input closes (FAKE_EXIT_MS), or at once on SIGTERM.
 // SIGTERM is logged and ends the task with the CLI, as the real CLI's own handling does.
 function fakeClaude(root: string): string {
@@ -27,8 +29,10 @@ const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
 const mode = process.env.FAKE_MODE; let task = false;
 // The session the run asked for, as the real CLI answers under it (a frame under another id fails the turn).
 let sid = 's';
+let stubborn = 0;
 process.on('SIGTERM', () => {
  note({ signal: 'SIGTERM', task });
+ if (stubborn) try { process.kill(-stubborn, 'SIGTERM'); } catch {}
  // FAKE_SLOW_TERM: the CLI's own SIGTERM handling stops the task, reports the empty set, then takes 300 ms to finish.
  if (process.env.FAKE_SLOW_TERM && task) { task = false; send({type:'system',subtype:'background_tasks_changed',tasks:[],session_id:sid}); setTimeout(() => { note({ cleaned: true }); process.exit(143); }, 300); return; }
  process.exit(143);
@@ -48,6 +52,10 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
  if(mode==='failread') { setInterval(() => {}, 1000); send({type:'system',subtype:'init',user_message_uuids:[r.uuid],session_id:sid}); send({type:'result',subtype:'error_during_execution',is_error:true,errors:['boom'],user_message_uuids:[r.uuid],session_id:sid}); }
  if(mode==='bg') {
   task = true;
+  if (process.env.FAKE_STUBBORN) {
+   stubborn = require('node:child_process').spawn('/bin/bash', ['-c', "trap '' TERM; sleep 31"], { detached: true, stdio: 'ignore' }).pid;
+   fs.writeFileSync(process.env.FAKE_STUBBORN, String(stubborn));
+  }
   send({type:'system',subtype:'background_tasks_changed',tasks:[{task_id:'b1',task_type:'local_bash',description:'Sleep',...(process.env.FAKE_AMBIENT ? {ambient:true} : {})}],session_id:sid});
   say('own', 'started');
   if(process.env.FAKE_RESULT==='failed') { send({type:'system',subtype:'init',user_message_uuids:[r.uuid],session_id:sid}); send({type:'result',subtype:'error_during_execution',is_error:true,errors:['boom'],user_message_uuids:[r.uuid],session_id:sid}); }
@@ -214,6 +222,31 @@ describe("background work after a done turn", () => {
       await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
       expect(seen(root)).toContainEqual({ signal: "SIGTERM", task: true });
     });
+  }, 15000);
+});
+
+// Claude Code runs a background command in a process group of its own, so the CLI's SIGTERM handling and a SIGKILL of
+// the CLI's group never reach one that ignores SIGTERM; it is found among the CLI's descendants before the first signal.
+describe("background work that ignores SIGTERM", () => {
+  const ends: [string, (runner: Run["runner"]) => Promise<unknown>][] = [
+    ["the next send", async runner => { expect(runner.endAfterTurn!()).toBe("term"); }],
+    ["the line's Stop", runner => runner.stop()],
+    ["app quit", runner => runner.close()],
+  ];
+  it.each(ends)("ends with the CLI's group on %s", async (_, end) => {
+    const pidFile = join(mkdtempSync(join(tmpdir(), "doan-stubborn-")), "task.pgid");
+    let task = 0;
+    const alive = () => { try { process.kill(-task, 0); return true; } catch { return false; } };
+    try {
+      await run({ FAKE_MODE: "bg", FAKE_TASK_MS: "10000", FAKE_STUBBORN: pidFile }, async ({ runner, exited, root }) => {
+        const sending = runner.send("start a dev server", "turn-1").catch(() => {});
+        await vi.waitFor(() => expect(seen(root)).toContainEqual({ closed: true }));
+        await vi.waitFor(() => { task = Number(readFileSync(pidFile, "utf8")); expect(task).toBeGreaterThan(0); });
+        await end(runner); await sending;
+        await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
+        await vi.waitFor(() => expect(alive()).toBe(false), { timeout: 3000 });
+      });
+    } finally { if (task && alive()) process.kill(-task, "SIGKILL"); }
   }, 15000);
 });
 
