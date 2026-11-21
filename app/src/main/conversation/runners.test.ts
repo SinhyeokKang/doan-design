@@ -464,7 +464,8 @@ it("passes each mode to a doan-owned Claude run, with the dangerous skip only fo
     expect(flags).toEqual([[null, false], [null, false], ["acceptEdits", false], ["plan", false], ["bypassPermissions", true], [null, false]]);
   } finally { rmSync(root, { recursive: true, force: true }); }
 }, 30000);
-// Answers initialize; a prompt reports a status message with FAKE_STATUS's permissionMode before its result.
+// Answers initialize; a prompt reports a top-level system/init for each mode in FAKE_INITS (comma-separated, with a
+// subagent's init after the first), then a status message with FAKE_STATUS's permissionMode, before its result.
 function statusClaude(root: string): string {
   const command = join(root, "claude");
   writeFileSync(command, `#!/usr/bin/env node
@@ -474,7 +475,11 @@ readline.createInterface({input:process.stdin}).on('line', line => {
  const r = JSON.parse(line);
  if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:{commands:[],models:[],account:{}}}});
  if(r.type==='user') {
-  send({type:'system',subtype:'status',status:null,permissionMode:process.env.FAKE_STATUS,uuid:'00000000-0000-4000-8000-000000000001',session_id:r.session_id});
+  (process.env.FAKE_INITS ? process.env.FAKE_INITS.split(',') : []).forEach((mode, i) => {
+   send({type:'system',subtype:'init',permissionMode:mode,session_id:r.session_id});
+   if(i===0) send({type:'system',subtype:'init',permissionMode:'bypassPermissions',parent_tool_use_id:'tool-1',session_id:r.session_id});
+  });
+  if(process.env.FAKE_STATUS) send({type:'system',subtype:'status',status:null,permissionMode:process.env.FAKE_STATUS,uuid:'00000000-0000-4000-8000-000000000001',session_id:r.session_id});
   send({type:'result',subtype:'success',is_error:false,result:'ok',user_message_uuids:[r.uuid],session_id:r.session_id});
   process.stdin.pause(); setTimeout(()=>process.exit(0),20);
  }
@@ -482,25 +487,32 @@ readline.createInterface({input:process.stdin}).on('line', line => {
 `, { mode: 0o700 });
   return command;
 }
-it("reports the mode Claude switched to after a plan approval, only on a turn sent with Plan", async () => {
+// The service decides what to keep (claudeRunMode.ts); the runner forwards what it may: a status on a turn sent with Plan
+// or Ask first, and a top-level init only on a turn sent with Ask first, with whether one was already forwarded.
+it("forwards the modes Claude reports in its own ids, init only on a turn sent with Ask first", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-claude-plan-")), command = statusClaude(root);
-  const run = async (permissionMode: "plan" | "default" | undefined, status: string) => {
-    const planApproved = vi.fn(), events: EventPayload[] = [];
-    const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root, FAKE_STATUS: status }, planApproved, ...(permissionMode ? { permissionMode } : {}) }, e => events.push(e), () => {}, () => {});
+  const run = async (permissionMode: "plan" | "default" | "acceptEdits" | "bypass" | undefined, env: { FAKE_STATUS?: string; FAKE_INITS?: string }) => {
+    const modeReported = vi.fn(), events: EventPayload[] = [];
+    const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root, ...env }, modeReported, ...(permissionMode ? { permissionMode } : {}) }, e => events.push(e), () => {}, () => {});
     await runner.send("hello", "turn"); await runner.close();
     expect(events).toContainEqual({ type: "turn.done" });
-    return planApproved.mock.calls.map(call => call[0]);
+    return modeReported.mock.calls;
   };
   try {
-    expect(await run("plan", "default")).toEqual(["default"]);
-    expect(await run("plan", "bypassPermissions")).toEqual(["default"]);
-    expect(await run("plan", "auto")).toEqual(["default"]);
-    // Still planning is no switch; outside a Plan turn a mode switch (a suggestion's setMode) is never followed.
-    expect(await run("plan", "plan")).toEqual([]);
-    expect(await run("default", "acceptEdits")).toEqual([]);
-    expect(await run(undefined, "acceptEdits")).toEqual([]);
+    // A Plan turn's approval and anything else it reports reach the service as Claude's own id.
+    expect(await run("plan", { FAKE_STATUS: "default" })).toEqual([[{ source: "status", mode: "default" }, false]]);
+    expect(await run("plan", { FAKE_STATUS: "bypassPermissions" })).toEqual([[{ source: "status", mode: "bypassPermissions" }, false]]);
+    expect(await run("plan", { FAKE_STATUS: "auto", FAKE_INITS: "plan" })).toEqual([[{ source: "status", mode: "auto" }, false]]);
+    // Ask first: the first top-level init, a later one marked counted, the subagent's never; its status too.
+    expect(await run(undefined, { FAKE_INITS: "auto,acceptEdits", FAKE_STATUS: "default" })).toEqual([
+      [{ source: "init", mode: "auto" }, false], [{ source: "init", mode: "acceptEdits" }, true], [{ source: "status", mode: "default" }, false],
+    ]);
+    expect(await run("default", { FAKE_INITS: "dontAsk" })).toEqual([[{ source: "init", mode: "dontAsk" }, false]]);
+    // A turn sent with Accept edits or Full access runs that mode, not the settings', and reports nothing.
+    expect(await run("acceptEdits", { FAKE_INITS: "acceptEdits", FAKE_STATUS: "default" })).toEqual([]);
+    expect(await run("bypass", { FAKE_INITS: "auto", FAKE_STATUS: "default" })).toEqual([]);
   } finally { rmSync(root, { recursive: true, force: true }); }
-}, 40000);
+}, 60000);
 
 const CODEX_OWNER = { kind: "doan" as const, provider: "codex" as const, connectionId: "c1", accountId: "a1", workspaceId: null, profile: "codex" };
 // A Codex app-server that records every line. FAKE_PROBE picks the ephemeral thread/start reply: "" the trusted
