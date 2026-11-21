@@ -18,6 +18,8 @@
 | D8 | 재생창은 같은 일반 Export 파일을 `#doan-play=<id>`와 보드를 열 때마다 만든 고유 창 이름으로 다시 연다. WebKit에서 보드를 닫은 뒤 ⌘R이 실패하는 점은 9단계 실제 Safari에서 확인하고, 같으면 BACKLOG에 남긴다 | 사용자 결정 — B1 PoC에서 두 엔진의 기록·새로고침·보드 닫은 뒤 재생·DOM 격리를 모두 통과한 유일한 후보다. noopener는 재사용과 차단 감지를 잃는다 |
 | D9 | 다운로드 파일 이름이 240 UTF-16 단위를 넘으면 `.html`은 두고 `<stem>-<id>` 끝을 코드 포인트 경계에서 잘라 240 단위 이하로 만든다 | 사용자 결정 — Chromium은 245 단위 이상 이름의 다운로드를 조용히 취소한다(B1) |
 | D10 | 보드↔재생창은 문자열만 `postMessage`로 주고받고 `event.source`로 상대를 확인한다. 보드는 늘 `play:<id>`를 보내고, 같은 프레임인지는 재생창이 판정한다. `window.open`은 뷰어 버튼의 `click`·`keydown` 처리기 안에서만 동기 호출한다. 재생 모드는 보드 iframe을 로드 전에 치우는 가드를 iframe 앞에 둔다 | 지휘자 판단 — B1 PoC 측정(캔버스 iframe 클릭의 활성화가 보드로 전파됨, 가드 없이 Chromium popup 2/20 누출). design.md가 창 통신과 입력 인정 방식을 PoC로 정하게 했다 |
+| D11 | 재생기는 창 기능 문자열 없이 `window.open`으로 열고, 브라우저가 정한 탭이나 창을 받아들인다. 승격할 때 spec 완료 조건 4의 “별도 브라우저 창”을 “브라우저가 정한 새 탭이나 창”으로 다시 쓴다 | 사용자 결정 — B4 리뷰 🟡1 |
+| D12 | 보드와 재생창 사이에 `mode:<fit\|responsive>` 문자열을 더하고, 일반 Export 데이터 `meta.prototype.frames[].mark`를 더한다. 재생 iframe에는 isolate.js 다음에 앱의 실행 스크립트(생성 번들)를 둔다 | 지휘자 판단 — B4 리뷰에서 D10 원칙(문자열만, `event.source` 확인)과 '첫 스크립트는 isolate.js'를 지킨다고 확인했다 |
 | D6 | 10단계 승격(PRODUCT·ARCHITECTURE·DESIGN·BACKLOG)은 지휘자가 문서별 커밋으로 한다 | orchestrate 스킬 §4·§5 |
 
 ## 시안 검토 (tasks 2단계)
@@ -35,8 +37,8 @@
 | B1 | 1 브라우저 PoC | `.scratch/export-prototype-player/poc/`만. 커밋 없음 | 없음 | Opus high — 창 생성 방식·창 통신·사용자 입력 인정 방식을 이 결과로 정한다 | Chromium·WebKit 실제 file URL 결과표, 미검증 항목 | 완료. 증거는 `.scratch/handoff-B1.md`와 `.scratch/export-prototype-player/poc/`(지휘자 체크아웃) |
 | B2 | 3(Go 단언) · 4 일반 Export 조립 | `cli/internal/export/*.go`, `schema/fixtures/prototype-mark`·`prototype-links` | 시안 확정 | Opus high — 이스케이프와 바이트 동일성, 50 MiB 경계 | `go test ./...`, `go vet ./...` | 통합 e38094f19·50ea75a5e. 리뷰 1회(🔴 0, 🟡 2는 B3·B5 브리프로 넘김). 통합 HEAD `verify.mjs` PASS. 워커 해제, 워크트리 삭제(브랜치 유지) |
 | B3 | 3(TS 단언) · 5 Select와 보드 재생 진입점 | `cli/internal/export/viewer/`(보드 쪽), `app/scripts/viewerInspect.mjs`, 앱 TS 소스와 테스트, `assemble.go`의 파일 목록과 digest | B2 | Opus high — 입력·포커스·선택 경로를 앱과 맞춘다 | `viewerInspect.mjs --check`, `npm --prefix app test`, 실제 파일 보드 입력 검증 | 통합 b7e6fa1e3·4c125bf80. 리뷰 1회(🔴 0, 🟡 0, ⚪ 7 중 3건은 B4 브리프로 넘김). 보드 확인 Chromium·WebKit 18/18. 통합 HEAD `verify.mjs` PASS. 워커 해제, 워크트리 삭제(브랜치 유지) |
-| B4 | 6 브라우저 재생창 | 재생 페이지 HTML·JS·CSS, 뷰어 JS, `assemble.go` | B1, B3 | Opus high — 보안 경계(sandbox, 문자열만 전달), 창 수명, 기록 | `npm --prefix app test`, Chromium·WebKit 앱·브라우저 비교 | 진행 (`ctx_87bfaf34aaaf`) |
-| B5 | 7 현재 프로토타입 내보내기 | 뷰어 JS, `assemble.go`와 Go 테스트 | B2, B4 | Opus high — CLI 결과와 “같은 결과” 판정 | `go test ./...`, `npm --prefix app test`, 받은 파일 오프라인 재개방 | 대기 |
+| B4 | 6 브라우저 재생창 | 재생 페이지 HTML·JS·CSS, 뷰어 JS, `assemble.go` | B1, B3 | Opus high — 보안 경계(sandbox, 문자열만 전달), 창 수명, 기록 | `npm --prefix app test`, Chromium·WebKit 앱·브라우저 비교 | 통합 43a128ba2·490518da9·cf52d7099. 리뷰 1회(🔴 0, 🟡 2: 1은 D11, 2인 앱·브라우저 비교 공백은 B6로 넘김. ⚪ 1·3·5는 B5, 4는 B7로 넘김). Chromium 59/59, WebKit 55/55. 통합 HEAD `verify.mjs` PASS. 워커 해제, 워크트리 삭제(브랜치 유지) |
+| B5 | 7 현재 프로토타입 내보내기 | 뷰어 JS, `assemble.go`와 Go 테스트 | B2, B4 | Opus high — CLI 결과와 “같은 결과” 판정 | `go test ./...`, `npm --prefix app test`, 받은 파일 오프라인 재개방 | 진행 |
 | B6 | 8 `/design-sync` | 구현 수정, `docs/design/canvas.md`·`prototype.md` | B5 | Opus high — 9개 상태 측정과 수정 | computed style 측정 기록 | 대기 |
 | B7 | 9 브라우저 통합 증거 | `.scratch/`만 | B6 | Opus medium — 정해진 시나리오 실행과 기록 | Chromium·WebKit 일반 Export와 단독 Export 시나리오 | 대기 |
 | B8 | 9 `/agent-eval` | `docs/usability-eval/`, `docs/USABILITY-EVAL.md` | B6 | Sonnet medium — 정해진 러너 실행과 기록 | 러너 결과 기록 | 대기 |
