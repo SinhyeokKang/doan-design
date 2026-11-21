@@ -511,14 +511,15 @@ export function DockedComposer(props: DockedComposerProps) {
     if (node && node.ownerDocument.activeElement === node) setAnnouncement(`Suggestion: ${placeholder.suggestion}`);
   }, [key, props.suggestion]);
   // A new run mode for the conversation on screen is said once. `previous` is the value this composer last saw for that
-  // same conversation: a first list read, a switch (either way) or a cleared value is left to the trigger.
+  // same conversation: a first list read, a switch (either way) or a cleared value is left to the trigger. The status
+  // line is shared by every conversation shown here, so the same text said for another one is changed to be read again.
   const lastRunMode = useRef({ key, runMode: props.runMode });
   useEffect(() => {
     const last = lastRunMode.current;
     lastRunMode.current = { key, runMode: props.runMode };
     if (last.key !== key || last.runMode === undefined || props.runMode === undefined) return;
     const text = runModeAnnouncement(last.runMode ?? undefined, props.runMode ?? undefined);
-    if (text) setAnnouncement(text);
+    if (text) setAnnouncement(current => current === text ? `${text} ` : text);
   }, [key, props.runMode]);
 
   // A turn that ends while main still works on the conversation turns Stop into a disabled Send under the person's focus,

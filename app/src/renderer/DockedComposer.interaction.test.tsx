@@ -1288,3 +1288,20 @@ test("a run mode is not announced on the first list read, a switch, a cleared va
   cleared.settle();
   expect(cleared.said()).toBe("");
 });
+
+// The status line is the composer's, shared by the conversations it shows: when another conversation turns to the
+// value just said for the first, the text still changes, so a screen reader reads it again.
+test("the same run mode text is announced again for another conversation", () => {
+  const { props, said, settle } = runModeSetup({ runMode: null });
+  settle();
+  props.runMode = "auto";
+  settle();
+  const first = said();
+  expect(first).toBe("Claude Code settings run Auto mode");
+  props.mode = B; props.runMode = null;
+  settle();
+  props.runMode = "auto";
+  settle();
+  expect(said()).not.toBe(first);
+  expect(String(said()).trim()).toBe("Claude Code settings run Auto mode");
+});
