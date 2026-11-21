@@ -32,6 +32,13 @@ import { bubbleItems as appBubbleItems } from "../renderer/bubbleItems";
 import { measureLines as appMeasureLines } from "../renderer/measure";
 import { drawerPlayRequest as appDrawerPlayRequest, playDrawer as appPlayDrawer, playRequest as appPlayRequest, playTooltip as appPlayTooltip, sizeBubblePlay as appSizeBubblePlay, type PlayState } from "../renderer/prototypePlay";
 import { sizeLabel as appSizeLabel } from "../renderer/selection";
+import { closedFocusTarget as appClosedFocusTarget } from "../renderer/prototypePlay";
+import { parseFramesReport as appParseFramesReport, parseRunReport as appParseRunReport } from "./prototype/requests";
+import { parsePrototypeMark as appParsePrototypeMark } from "./prototype/mark";
+import { PROTOTYPE_LOAD_TIMEOUT_MS } from "./prototype/ipc";
+import { CLOSE, drawerGroups as appDrawerGroups, drawerLabel as appDrawerLabel, EMPTY_DRAWER, exportAvailability as appExportAvailability, linkMove as appLinkMove, LOADING_LABEL, modeTooltip as appModeTooltip, RETRY, windowTitle as appWindowTitle } from "../renderer/prototype/view";
+import { initialToastState, TOAST_MS, toastState as appToastState } from "../renderer/toastState";
+import { prototypeScriptSource as appPrototypeScriptSource } from "./prototypeScript";
 
 // The viewer files `doan export` embeds (cli/internal/export/viewer/). They are plain browser
 // scripts, not app code, so this file is where they are held to the app's behaviour.
@@ -45,8 +52,12 @@ const shellHtml = read("shell.html");
 // this file still runs when it is missing.
 const readGenerated = (name: string): string => { try { return read(name); } catch { return ""; } };
 const viewerAppJs = readGenerated("viewerApp.js");
+// The browser player and the parts the board shares with it (its toast and the frame drawer's rows). It runs before
+// shell.js, which runs only when the page is not a player window.
+const playerJs = readGenerated("player.js");
 const canvasInspectScripts = ["inspect.js", "inspectSelection.js"].map(read).join("\n");
-const shellInspectScripts = [...["inspectPanel.js", "inspectMessage.js", "inspectView.js"].map(read), viewerAppJs].join("\n");
+const boardInspectScripts = ["inspectPanel.js", "inspectMessage.js", "inspectView.js"].map(read).join("\n");
+const shellInspectScripts = [boardInspectScripts, viewerAppJs].join("\n");
 
 // Every lib.js function and constant the tests reach, loaded in a context with no globals: a
 // reference to `document` or `window` at load time, or a missing name, fails here.
@@ -58,8 +69,10 @@ const NAMES = [
   "initialViewer", "viewerLayout", "viewerTimeout", "frameName", "drawerView", "ZOOM_ITEMS", "zoomView", "shortcutCommand", "popupOpen", "popupKey", "popupBlur",
   "toolShortcut", "editableTarget", "panScroll", "layerShown", "escapeSelects", "toolbarMove", "TIP_DELAY_MS", "TIP_SKIP_MS", "tipWait",
 ];
+// The player's rules, read as undefined when missing so the rest of this file still runs without them.
+const PLAYER_NAMES = ["PLAY_HASH", "playHash", "playHashFor", "playerAddress", "boardMessage", "playerMessage", "playerRows", "restorePlayer", "playSrcdoc", "inlineScript"];
 type Lib = Record<string, any>;
-const load = (source: string): Lib => runInNewContext(`${source}\n({ ${NAMES.join(", ")} })`, {}) as Lib;
+const load = (source: string): Lib => runInNewContext(`${source}\n({ ${NAMES.join(", ")}, ${PLAYER_NAMES.map(name => `${name}: typeof ${name} === "undefined" ? undefined : ${name}`).join(", ")} })`, {}) as Lib;
 const v = load(lib);
 
 // ── Golden: the height rules are the app's, as text ───────────────────────────
@@ -719,7 +732,7 @@ describe("key messages from the canvas", () => {
 // ── The files themselves ──────────────────────────────────────────────────────
 
 describe("viewer files", () => {
-  const files: Record<string, string> = { "lib.js": lib, "measure.js": measure, "shell.js": shellJs, "shell.css": shellCss, "shell.html": shellHtml };
+  const files: Record<string, string> = { "lib.js": lib, "measure.js": measure, "shell.js": shellJs, "player.js": playerJs, "shell.css": shellCss, "shell.html": shellHtml };
 
   test("lib.js is DOM-free: it loads and runs with no globals", () => {
     expect(() => runInNewContext(lib, {})).not.toThrow();
@@ -729,11 +742,11 @@ describe("viewer files", () => {
   });
 
   test("lib.js followed by measure.js or shell.js compiles in one function (no clashing names)", () => {
-    for (const script of [canvasInspectScripts + "\n" + measure, shellInspectScripts + "\n" + shellJs]) expect(() => new Script(`(function () {\n${lib}\n${script}\n})();`)).not.toThrow();
+    for (const script of [canvasInspectScripts + "\n" + measure, `${viewerAppJs}\n${playerJs}\nif (!startPlayer()) (function () {\n${boardInspectScripts}\n${shellJs}\n})();`]) expect(() => new Script(`(function () {\n${lib}\n${script}\n})();`)).not.toThrow();
   });
 
   test("the scripts inline safely into <script>", () => {
-    for (const [name, source] of Object.entries({ "lib.js": lib, "measure.js": measure, "shell.js": shellJs, canvasInspectScripts, shellInspectScripts })) {
+    for (const [name, source] of Object.entries({ "lib.js": lib, "measure.js": measure, "shell.js": shellJs, "player.js": playerJs, canvasInspectScripts, shellInspectScripts })) {
       expect(source, name).not.toMatch(/<\/script/i);
       expect(source, name).not.toContain("<!--");
     }
@@ -747,14 +760,15 @@ describe("viewer files", () => {
   });
 
   test("shell.js takes canvas messages only through acceptMessage with the iframe's window", () => {
-    expect(shellJs).toMatch(/window\.addEventListener\("message", \(event\) => \{\s*const message = acceptMessage\(event, canvas\.contentWindow\);\s*if \(message === null\) \{ inspector\.accept\(event\); return; \}/);
+    // The player window's strings come first, by their own window (acceptPlayer checks event.source).
+    expect(shellJs).toMatch(/window\.addEventListener\("message", \(event\) => \{\s*if \(acceptPlayer\(event\)\) return;\s*const message = acceptMessage\(event, canvas\.contentWindow\);\s*if \(message === null\) \{ inspector\.accept\(event\); return; \}/);
     // No second path that parses event data without the source and origin check.
     expect(shellJs).not.toMatch(/\b(parseMessage|parseLayout|parseWheel)\(/);
     expect(shellJs.match(/addEventListener\("message"/g)).toHaveLength(1);
   });
 
   test("page code writes text only with textContent: nothing from the canvas is parsed as HTML", () => {
-    expect(shellJs + shellInspectScripts).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\b|new Function/);
+    expect(shellJs + shellInspectScripts + playerJs).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\b|new Function|DOMParser/);
     expect(measure).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\b|new Function/);
   });
 
@@ -1318,7 +1332,7 @@ const viewerPage = (body: string, { width = 800, reports = true, scripted = true
   const values: Record<string, string> = {
     PROJECT: "northwind-customer-portal", INITIAL: "N", HUE: "indigo",
     NAME: "checkout", WIDTH: String(width), META: JSON.stringify({ name: "checkout", width }).replace(/</g, "\\u003c"), STYLE: shellCss,
-    SCRIPT: scripted ? `(function () {\n${beforeShell ? `(${beforeShell})();` : ""}\n${lib}\n${shellInspectScripts}\n${shellJs}\n})();` : "", SRCDOC: canvas.replace(/&/g, "&amp;").replace(/"/g, "&quot;"),
+    SCRIPT: scripted ? `(function () {\n${beforeShell ? `(${beforeShell})();` : ""}\n${lib}\n${viewerAppJs}\n${playerJs}\n${playerJs ? "if (!startPlayer()) " : ""}(function () {\n${boardInspectScripts}\n${shellJs}\n})();\n})();` : "", SRCDOC: canvas.replace(/&/g, "&amp;").replace(/"/g, "&quot;"),
   };
   return shellHtml.replace(/\{\{(PROJECT|INITIAL|HUE|NAME|WIDTH|META|STYLE|SCRIPT|SRCDOC)\}\}/g, (_, key: string) => values[key]!);
 };
@@ -2202,6 +2216,114 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     await frame.evaluate(() => { (window.frameElement as HTMLElement).style.width = "656px"; });
     await frame.getByRole("button", { name: "Payment, frame. Elements in this frame", exact: true }).waitFor();
   });
+
+  // ── The player window, as the board opens it ──
+  // The test page cannot be a player window (its address is about:srcdoc, with no #doan-play=), so window.open is
+  // replaced before shell.js runs: each call is recorded, `blocked` makes the next ones return null as a pop-up blocker
+  // does, and an opened window is a stand-in that records what the board posts to it. The real windows are checked in
+  // Chromium and WebKit from exported files.
+  const openStub = () => {
+    type Stand = { closed: boolean; posted: unknown[]; focus(): void; postMessage(data: unknown): void };
+    const w = window as unknown as { opened: { url: string; name: string; stand: Stand | null }[]; blocked: number; open(url: string, name: string): Stand | null };
+    w.opened = [];
+    w.blocked = 0;
+    w.open = (url, name) => {
+      if (w.blocked > 0) {
+        w.blocked--;
+        w.opened.push({ url, name, stand: null });
+        return null;
+      }
+      const stand: Stand = { closed: false, posted: [], focus() {}, postMessage(data) { stand.posted.push(data); } };
+      w.opened.push({ url, name, stand });
+      return stand;
+    };
+  };
+  type Opened = { url: string; name: string; blocked: boolean; posted: unknown[] }[];
+  const opened = (frame: Frame) => frame.evaluate(() => (window as unknown as { opened: { url: string; name: string; stand: { posted: unknown[] } | null }[] }).opened
+    .map(({ url, name, stand }) => ({ url, name, blocked: stand === null, posted: stand?.posted ?? [] }))) as Promise<Opened>;
+  const toastText = (frame: Frame) => frame.evaluate(() => document.querySelector('.toast[role="status"]:not([data-closing])')?.textContent ?? null);
+
+  test("Play opens this file as the player window with the frame in its address, under a name of this board's own", async () => {
+    const frame = await openCanvas(playBoard, 320, openStub);
+    await selectDirect(frame, '[data-doan-frame="cart"]');
+    await expect.poll(() => reason(frame)).toBe("Play “Cart”");
+    await frame.locator("#play").focus();
+    await frame.locator("#play").press("Enter");
+    const [first] = await opened(frame);
+    expect(first!.url).toBe("about:srcdoc#doan-play=cart");
+    expect(first!.name).toMatch(/^doan-play-[0-9a-f]{32}$/);
+    expect(first!.blocked).toBe(false);
+    // The open window is used again: the board posts the frame as a string, and the player decides.
+    await frame.locator("#play").press("Enter");
+    const again = await opened(frame);
+    expect(again).toHaveLength(1);
+    expect(again[0]!.posted).toEqual(["play:cart"]);
+    // The stand-in never takes focus from the board, so the board cannot tell that the window came forward.
+    await expect.poll(() => toastText(frame)).toBe("The prototype is already playing in another window.");
+    expect(await frame.evaluate(() => document.activeElement?.id)).toBe("play");
+  });
+
+  test("a blocked window leaves the board, a toast and focus on the Play pressed; the next Play that opens removes the toast", async () => {
+    const frame = await openCanvas(playBoard, 320, openStub);
+    await selectDirect(frame, '[data-doan-frame="cart"]');
+    const bubblePlay = frame.locator("#size-bubble").getByRole("button", { name: "Play prototype" });
+    await bubblePlay.waitFor();
+    await frame.evaluate(() => { (window as unknown as { blocked: number }).blocked = 1; });
+    await bubblePlay.focus();
+    await bubblePlay.press("Enter");
+    await expect.poll(() => toastText(frame)).toBe("Your browser blocked the prototype window. Allow pop-ups, then press Play again.");
+    expect(await frame.locator('.toast[role="status"]').count()).toBe(1);
+    expect(await frame.evaluate(() => document.activeElement?.closest("#size-bubble") !== null && document.activeElement?.getAttribute("aria-label"))).toBe("Play prototype");
+    expect(await reason(frame)).toBe("Play “Cart”");
+    await bubblePlay.press("Enter");
+    await expect.poll(() => toastText(frame)).toBeNull();
+    expect((await opened(frame)).map(open => open.blocked)).toEqual([true, false]);
+  });
+
+  test("a play drawer row whose window is blocked closes the drawer and gives focus to Play prototype", async () => {
+    const frame = await openCanvas(playBoard, 320, openStub);
+    await frame.evaluate(() => { (window as unknown as { blocked: number }).blocked = 1; });
+    await frame.locator("#play").focus();
+    await frame.locator("#play").press("Enter");
+    await frame.getByRole("listbox", { name: "Prototype frames in checkout" }).waitFor();
+    await frame.page().keyboard.press("Enter");
+    await expect.poll(() => toastText(frame)).toBe("Your browser blocked the prototype window. Allow pop-ups, then press Play again.");
+    expect(await frame.locator("#play-drawer").isHidden()).toBe(true);
+    expect(await frame.evaluate(() => document.activeElement?.id)).toBe("play");
+  });
+
+  test("when the player window closes, focus goes back to the bubble's Play, else to Play prototype, and nothing plays", async () => {
+    const frame = await openCanvas(playBoard, 320, openStub);
+    await selectDirect(frame, '[data-doan-frame="cart"]');
+    const bubblePlay = frame.locator("#size-bubble").getByRole("button", { name: "Play prototype" });
+    await bubblePlay.focus();
+    await bubblePlay.press("Enter");
+    await frame.locator("#board").focus();
+    await frame.evaluate(() => { (window as unknown as { opened: { stand: { closed: boolean } }[] }).opened[0]!.stand.closed = true; });
+    await expect.poll(() => frame.evaluate(() => document.activeElement?.closest("#size-bubble") !== null)).toBe(true);
+    // With no bubble Play on screen, Play prototype takes it.
+    await frame.locator("#play").focus();
+    await frame.locator("#play").press("Enter");
+    await frame.locator("#board").focus();
+    await frame.locator("#board").press("h");
+    await frame.locator("#selection-box").waitFor({ state: "hidden" });
+    await frame.evaluate(() => { (window as unknown as { opened: { stand: { closed: boolean } }[] }).opened[1]!.stand.closed = true; });
+    await expect.poll(() => frame.evaluate(() => document.activeElement?.id)).toBe("play");
+    expect((await opened(frame)).length).toBe(2);
+  });
+
+  test("a canvas that loads again drops the previous document's selection before its first inspection", async () => {
+    const frame = await openCanvas(playBoard, 320);
+    await selectDirect(frame, '[data-doan-frame="pay"]');
+    await frame.locator("#selection-box").waitFor();
+    // Read in a load listener added after the inspector's own, before the new document can answer.
+    const atLoad = await frame.evaluate(() => new Promise<{ mark: boolean; box: boolean }>(resolve => {
+      const canvas = document.getElementById("canvas") as HTMLIFrameElement;
+      canvas.addEventListener("load", () => resolve({ mark: !document.getElementById("selected-mark")!.hidden, box: !document.getElementById("selection-box")!.hidden }), { once: true });
+      canvas.srcdoc = canvas.getAttribute("srcdoc")!;
+    }));
+    expect(atLoad).toEqual({ mark: false, box: false });
+  });
 });
 
 // ── The app's prototype and size-bubble judgments, generated for the viewer ───
@@ -2230,18 +2352,21 @@ describe("viewerApp.js: the app's judgments, generated", () => {
     const app = generated();
     for (const name of ["PLAY_REASONS", "playability", "playableFrames", "linkGroups", "recordEntry", "stepHistory", "canStep", "EMPTY_HISTORY",
       "prototypeViewportBox", "prototypeHeaderRows", "groupDrawer", "drawerOrder", "drawerKey", "focusedRowAfter", "sizeBubblePlace", "canvasBubbleRoom",
-      "SIZE_BUBBLE", "bubbleItems", "measureLines", "canvasPlayability", "playTooltip", "sizeBubblePlay", "playDrawer", "drawerPlayRequest", "playRequest", "sizeLabel"]) {
+      "SIZE_BUBBLE", "bubbleItems", "measureLines", "canvasPlayability", "playTooltip", "sizeBubblePlay", "playDrawer", "drawerPlayRequest", "playRequest", "sizeLabel",
+      "closedFocusTarget", "prototypeScriptSource", "parseRunReport", "parseFramesReport", "parsePrototypeMark", "PROTOTYPE_LOAD_TIMEOUT_MS", "LOADING_LABEL", "RETRY", "CLOSE",
+      "windowTitle", "modeTooltip", "drawerGroups", "drawerLabel", "exportAvailability", "linkMove", "TOAST_MS", "initialToastState", "toastState"]) {
       expect(app[name], name).toBeDefined();
     }
   });
 
   test("the page code copies none of them by hand", () => {
-    for (const name of ["playability", "playableFrames", "linkGroups", "groupDrawer", "drawerKey", "sizeBubblePlace", "bubbleItems", "measureLines", "playTooltip", "sizeBubblePlay", "playDrawer"]) {
-      expect(shellJs + shellInspectScripts.replace(viewerAppJs, ""), name).not.toMatch(new RegExp(`function ${name}\\b|const ${name} =`));
+    for (const name of ["playability", "playableFrames", "linkGroups", "groupDrawer", "drawerKey", "sizeBubblePlace", "bubbleItems", "measureLines", "playTooltip", "sizeBubblePlay", "playDrawer",
+      "recordEntry", "stepHistory", "canStep", "prototypeViewportBox", "parseRunReport", "parseFramesReport", "parsePrototypeMark", "drawerGroups", "linkMove", "toastState", "closedFocusTarget", "prototypeScript"]) {
+      expect(shellJs + playerJs + lib + shellInspectScripts.replace(viewerAppJs, ""), name).not.toMatch(new RegExp(`function ${name}\\b|const ${name} =`));
     }
   });
 
-  test("Play's reasons are the app's, and the empty play drawer's line is the browser copy", () => {
+  test("Play's reasons are the app's, and the one for a canvas with no marked frame names no agent", () => {
     expect(generated().PLAY_REASONS).toEqual(PLAY_REASONS);
     expect(PLAY_REASONS.none).toBe("No frames in this canvas are marked for prototyping.");
     expect(PLAY_REASONS.unavailable).toBe("Play isn’t available while the canvas can’t be shown.");
@@ -2342,6 +2467,175 @@ describe("viewerApp.js: the app's judgments, generated", () => {
       expect(app.prototypeViewportBox(panel, { width: 390, height: 844 }, mode)).toEqual(appPrototypeViewportBox(panel, { width: 390, height: 844 }, mode));
     }
     for (const width of [300, 424, 900]) expect(app.prototypeHeaderRows(width, 140)).toBe(appPrototypeHeaderRows(width, 140));
+  });
+
+  test("the player's run script, report checks, view rules and toast answer as the app's", () => {
+    const app = generated();
+    // The run script is the app's prototype window script, serialized the same way; only its text differs (minified).
+    expect(app.prototypeScriptSource("f", 3, "about:srcdoc")).toMatch(/^\(function [\w$]*\(\w+,\w+,\w+\)\{if\(window===window\.top\|\|/);
+    expect(app.prototypeScriptSource("f", 3, "about:srcdoc").endsWith('})("f", 3, "about:srcdoc"); void 0;')).toBe(true);
+    expect(appPrototypeScriptSource("f", 3, "about:srcdoc").endsWith('})("f", 3, "about:srcdoc"); void 0;')).toBe(true);
+    expect(app.prototypeScriptSource("f", 3, "about:srcdoc")).not.toMatch(/<\/script|<!--/i);
+    const frames = [{ id: "home", title: "Home", size: "390x844", number: 1 }, { id: "pay", size: "390x844", number: 3 }];
+    const gotos = [{ value: "pay", frames: ["home"] }];
+    const reports: unknown[] = [
+      { gen: 2, state: "ready", size: "390x844", frames, gotos }, { gen: 2, state: "missing", frames, gotos }, { gen: 2, state: "unmarked", frames: [], gotos: [] },
+      { gen: 2, state: "ready", size: "0x1", frames, gotos }, { gen: 2, state: "ready", size: "390x844", frames, gotos, extra: 1 }, { gen: 0, state: "missing", frames, gotos },
+      { gen: 2, frames, gotos }, { gen: 2, state: "ready", size: "390x844", frames: [{ ...frames[0], id: "x".repeat(201) }], gotos }, "ready", null,
+    ];
+    for (const report of reports) {
+      expect(app.parseRunReport("prototype", report), JSON.stringify(report)).toEqual(appParseRunReport("prototype", report));
+      expect(app.parseFramesReport("prototype", report), JSON.stringify(report)).toEqual(appParseFramesReport("prototype", report));
+    }
+    for (const mark of ["390x844", "0x1", "390x844\\n", null]) expect(app.parsePrototypeMark(mark)).toEqual(appParsePrototypeMark(mark));
+    expect(app.PROTOTYPE_LOAD_TIMEOUT_MS).toBe(PROTOTYPE_LOAD_TIMEOUT_MS);
+    expect([app.LOADING_LABEL, app.RETRY, app.CLOSE]).toEqual([LOADING_LABEL, RETRY, CLOSE]);
+    for (const view of [{ frames, frame: "home", gotos }, { frames, frame: "gone", gotos: [] }, { frames: [], frame: "home", gotos: [] }]) {
+      expect(app.drawerGroups(view)).toEqual(appDrawerGroups(view));
+    }
+    expect(app.drawerLabel({ canvas: "checkout" })).toBe(appDrawerLabel({ canvas: "checkout" }));
+    expect(app.windowTitle({ title: "Home <b>x</b>" })).toBe(appWindowTitle({ title: "Home <b>x</b>" } as never));
+    for (const run of [null, { markWidth: 390, markHeight: 844 }, { markWidth: 0, markHeight: 0 }]) for (const mode of ["fit", "responsive"] as const) expect(app.modeTooltip(mode, run)).toBe(appModeTooltip(mode, run));
+    for (const phase of ["loading", "ready", "init-failed", "frame-unavailable", "prototype-unavailable"] as const) for (const exporting of [false, true]) {
+      expect(app.exportAvailability({ phase }, exporting)).toEqual(appExportAvailability({ phase }, exporting));
+    }
+    for (const phase of ["loading", "ready"] as const) for (const value of ["pay", "gone", null]) for (const shown of [false, true]) {
+      expect(app.linkMove({ gen: 2, phase, frames }, { gen: 2, goto: value }, shown)).toEqual(appLinkMove({ gen: 2, phase, frames } as never, { gen: 2, goto: value }, shown));
+    }
+    let mine = app.initialToastState, theirs = initialToastState;
+    for (const event of [{ type: "show", toast: { id: "a", message: "m" } }, { type: "tick", elapsedMs: 300 }, { type: "hover", on: true }, { type: "tick", elapsedMs: TOAST_MS }, { type: "hover", on: false },
+      { type: "tick", elapsedMs: TOAST_MS }, { type: "left" }, { type: "show", toast: { id: "b", message: "n" } }, { type: "dismiss", id: "b" }] as const) {
+      mine = app.toastState(mine, event); theirs = appToastState(theirs, event as never);
+      expect(mine).toEqual(theirs);
+    }
+    const node = (inert: boolean, connected = true) => ({ isConnected: connected, closest: () => (inert ? {} : null) });
+    for (const bubble of [null, node(false), node(true), node(false, false)]) for (const toolbar of [null, node(false)]) {
+      expect(app.closedFocusTarget(bubble, toolbar)).toBe(appClosedFocusTarget(bubble, toolbar));
+    }
+  });
+});
+
+
+// ── The browser player ────────────────────────────────────────────────────────
+// Play on the board reopens this same file as a player window, `#doan-play=<id>` in its address (lib.js), which
+// plays the frame in a new sandboxed iframe for every run with isolate.js first and the app's run script after it.
+// What the player decides is the app's (viewerApp.js); these pin the browser's own rules: its address, its strings to
+// and from the board, its copy, its header rows and what a reload of the window keeps.
+// The player's copy is in player.js (the board shares it), which defines only names at load: read with no globals.
+const pc: Lib = playerJs ? runInNewContext(`${playerJs}\n({ PLAYER_COPY, linkToastText })`, {}) as Lib : {};
+
+describe("the browser player's rules", () => {
+  test("its copy is the browser copy: the sender and the shared file, never Doan or an agent", () => {
+    expect(pc.PLAYER_COPY).toEqual({
+      blocked: "Your browser blocked the prototype window. Allow pop-ups, then press Play again.",
+      elsewhere: "The prototype is already playing in another window.",
+      failed: "Couldn’t start this prototype",
+      timeout: "The frame didn’t finish loading within 10 seconds. Retry, or ask the sender for an updated file.",
+      missing: "This frame isn’t in the shared file. Retry, or ask the sender for an updated file.",
+      empty: "No frames in this canvas are marked for prototyping.",
+    });
+    expect(EMPTY_DRAWER.startsWith(pc.PLAYER_COPY.empty + " ")).toBe(true);
+    expect(pc.linkToastText("archive")).toBe("Can’t go to “archive”. Ask the sender to fix this link and send an updated file.");
+    expect(pc.linkToastText(null)).toBe("Can’t go to this link’s frame. Ask the sender to fix this link and send an updated file.");
+    const template = /<template id="player">([\s\S]*?)<\/template>/.exec(shellHtml)?.[1] ?? "";
+    expect(template).toContain('aria-label="Back"');
+    const literals = playerJs.replace(/\/\/[^\n]*/g, "").match(/"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g) ?? [];
+    for (const text of [...Object.values(pc.PLAYER_COPY) as string[], pc.linkToastText("x"), pc.linkToastText(null), template.replace(/class="[^"]*"|id="[^"]*"/g, ""), ...literals]) {
+      // Case-sensitive: class names and message types are lower-case `doan-…`; copy would say "Doan" or "agent".
+      expect(text).not.toMatch(/\bDoan\b|\b[Aa]gents?\b/);
+    }
+  });
+
+  test("a play address names a frame by its encoded id, and nothing else is one", () => {
+    for (const id of ["home", 'we/ird:*?"<>|id', "100%", "😀😀", "x".repeat(200), "#doan-play=x", " a b "]) {
+      expect(v.playHashFor(id)).toBe("#doan-play=" + encodeURIComponent(id));
+      expect(v.playHash(v.playHashFor(id))).toBe(id);
+    }
+    for (const hash of ["", "#", "#home", "#doan-play=", "#doan-play"]) expect(v.playHash(hash), hash).toBeNull();
+    // An address someone edited so it no longer decodes names its text, which no frame has: the run fails to start.
+    expect(v.playHash("#doan-play=%E0%A4%A")).toBe("%E0%A4%A");
+    expect(v.PLAY_HASH).toBe("#doan-play=");
+    expect(v.playerAddress("file:///a/b.html#doan-play=x", "y")).toBe("file:///a/b.html#doan-play=y");
+    expect(v.playerAddress("file:///a/b%20c.html", "y z")).toBe("file:///a/b%20c.html#doan-play=y%20z");
+    expect(v.playerAddress("file:///a/b.html#", "y")).toBe("file:///a/b.html#doan-play=y");
+  });
+
+  test("the board and the player exchange strings only: play and mode one way, playing and mode the other", () => {
+    expect(v.boardMessage("play:home")).toEqual({ kind: "play", id: "home" });
+    expect(v.boardMessage("play:a:b")).toEqual({ kind: "play", id: "a:b" });
+    expect(v.boardMessage("play:" + "x".repeat(200))).toEqual({ kind: "play", id: "x".repeat(200) });
+    expect(v.boardMessage("mode:responsive")).toEqual({ kind: "mode", mode: "responsive" });
+    expect(v.boardMessage("mode:fit")).toEqual({ kind: "mode", mode: "fit" });
+    for (const bad of ["play:", "play:" + "x".repeat(201), "mode:big", "playing:home", "", null, 1, { kind: "play", id: "home" }, ["play:home"]]) {
+      expect(v.boardMessage(bad), JSON.stringify(bad)).toBeNull();
+    }
+    expect(v.playerMessage("playing:home")).toEqual({ kind: "playing", id: "home" });
+    expect(v.playerMessage("mode:responsive")).toEqual({ kind: "mode", mode: "responsive" });
+    for (const bad of ["playing:", "playing:" + "x".repeat(201), "play:home", "mode:", {}, undefined]) expect(v.playerMessage(bad), JSON.stringify(bad)).toBeNull();
+  });
+
+  test("the name takes the header's second row when the first would leave it under 120 px", () => {
+    // Back 16 from the left; Back, Forward and Reload (104) and Fit, Responsive and Export (104); 40 each side of the name.
+    expect(v.playerRows(440)).toBe(1);
+    expect(v.playerRows(439)).toBe(2);
+    expect(v.playerRows(360)).toBe(2);
+    expect(v.playerRows(1280)).toBe(1);
+  });
+
+  test("a reloaded player keeps the entry's history and mode; any other start is one entry at Fit", () => {
+    const saved = { entries: ["a", "b", "c"], index: 1, mode: "responsive" };
+    expect(v.restorePlayer(saved, "b")).toEqual({ history: { entries: ["a", "b", "c"], index: 1 }, mode: "responsive", restored: true });
+    const fresh = { history: { entries: ["b"], index: 0 }, mode: "fit", restored: false };
+    for (const bad of [null, undefined, "x", { ...saved, index: 3 }, { ...saved, index: -1 }, { ...saved, index: 0.5 }, { ...saved, mode: "big" }, { ...saved, entries: ["a", 2, "c"] },
+      { ...saved, entries: [] }, { ...saved, entries: "abc" }]) {
+      expect(v.restorePlayer(bad, "b"), JSON.stringify(bad)).toEqual(fresh);
+    }
+    expect(v.restorePlayer(saved, "a")).toEqual({ history: { entries: ["a"], index: 0 }, mode: "fit", restored: false });
+  });
+
+  test("a run's document is the canvas with isolate.js first and the run script after it, in the measure script's place", () => {
+    const src = "<!doctype html><html><head>MEASURE<title>t</title></head><body>b</body></html>";
+    const doc = v.playSrcdoc(src, { offset: src.indexOf("MEASURE"), length: 7 }, "<script>ISO</script>", "<script>RUN</script>");
+    expect(doc).toBe("<!doctype html><html><head><script>ISO</script><script>RUN</script><title>t</title></head><body>b</body></html>");
+    // A frame id goes into the run script as a JSON string: inlined, it can neither end the script nor open a comment.
+    const inlined = v.inlineScript(generated().prototypeScriptSource('</SCRIPT><!--"', 1, "about:srcdoc"));
+    expect(inlined.startsWith("<script>") && inlined.endsWith("</script>")).toBe(true);
+    const code = inlined.slice("<script>".length, -"</script>".length);
+    expect(code).not.toMatch(/<\/script|<!--/i);
+    expect(runInNewContext(/\}\)\(("(?:[^"\\]|\\.)*"), 1, "about:srcdoc"\); void 0;$/.exec(code)![1]!)).toBe('</SCRIPT><!--"');
+  });
+});
+
+describe("the player's files", () => {
+  test("each run plays in a new iframe sandboxed with exactly allow-scripts allow-forms", () => {
+    expect(playerJs.match(/setAttribute\("sandbox", "([^"]*)"\)/g)).toEqual(['setAttribute("sandbox", "allow-scripts allow-forms")']);
+    expect(playerJs).not.toMatch(/allow-same-origin|allow-popups|allow-top-navigation|allow-modals/);
+  });
+
+  test("only the board's own Play opens a window: one window.open, in playPrototype, which no message handler calls", () => {
+    expect(shellJs.match(/window\.open\(/g)).toHaveLength(1);
+    expect(extractFunction(shellJs, "playPrototype")).toContain("window.open(");
+    expect(playerJs).not.toMatch(/window\.open\(/);
+    expect(extractFunction(shellJs, "acceptPlayer")).not.toMatch(/playPrototype\(/);
+  });
+
+  test("in a player window the board's iframe goes before it loads: the guard is the script right before it", () => {
+    const at = shellHtml.indexOf('<iframe class="canvas" id="canvas"');
+    const guard = shellHtml.lastIndexOf("<script>", at);
+    expect(guard).toBeGreaterThan(shellHtml.indexOf('<div class="stage" id="stage">'));
+    const script = shellHtml.slice(guard, at);
+    expect(script.endsWith("</script>")).toBe(true);
+    expect(script).toContain('location.hash.startsWith("#doan-play=")');
+    expect(script).toContain("MutationObserver");
+    expect(script).toContain(".remove()");
+  });
+
+  test("the player's header has the app's controls, by name", () => {
+    const template = /<template id="player">([\s\S]*?)<\/template>/.exec(shellHtml)?.[1] ?? "";
+    const labels = [...template.matchAll(/aria-label="([^"]*)"/g)].map(m => m[1]);
+    for (const name of ["Back", "Forward", "Reload prototype", "Viewport", "Fit", "Responsive", "Export prototype"]) expect(labels, name).toContain(name);
+    expect(template).toContain('aria-disabled="true"');
+    expect(template).not.toMatch(/\bdisabled(?!=)|\sdisabled\s|Details/);
   });
 });
 

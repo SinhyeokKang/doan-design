@@ -551,3 +551,19 @@ func TestProtoGroupIsTheStartFramesLinkGroup(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 }
+
+// The player window sizes a run's viewport to its frame's mark before the run's own report comes, as the app's
+// prototype window does with the board's mark, so each exportable frame carries its raw mark.
+func TestAssembleCarriesEachExportableFramesMark(t *testing.T) {
+	page, _ := general(t, doc(`<div data-doan-frame="phone" data-doan-prototype="390x844"></div>`+
+		`<div data-doan-frame="tablet" data-doan-title="Tablet" data-doan-prototype="1024x768"></div>`+
+		`<div data-doan-frame="plain"></div>`))
+	p := prototypeData(t, page)
+	got := map[string]string{}
+	for _, f := range p.Frames {
+		got[f.ID] = f.Mark
+	}
+	if want := map[string]string{"phone": "390x844", "tablet": "1024x768"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("marks %v, want %v", got, want)
+	}
+}

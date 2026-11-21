@@ -19,6 +19,7 @@ type PrototypeData struct {
 		Name  string // the prototype page's NAME: the title, else the id, escaped as HTML text
 		Start string // the "start" value of the prototype page's META: the id as JSON
 		Group int    // index into Groups
+		Mark  string // the raw data-doan-prototype value, the player's viewport before the run reports one
 	}
 	// Refused names, once per id, the frames of the file the CLI refuses to export: "unmarked" or "shared".
 	Refused []struct{ ID, Reason string }

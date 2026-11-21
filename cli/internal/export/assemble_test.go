@@ -217,11 +217,14 @@ func TestAssembleShellScriptIsLibAndShellInOneFunction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// viewerApp.js is the app's generated prototype and size-bubble judgments, which shell.js calls.
-	source := strings.Join([]string{viewerFile(t, "lib.js"), viewerFile(t, "inspectPanel.js"), viewerFile(t, "inspectMessage.js"), viewerFile(t, "inspectView.js"), viewerFile(t, "viewerApp.js"), viewerFile(t, "shell.js")}, "\n")
-	want := "(function () {\n" + source + "\n})();"
+	// viewerApp.js is the app's generated prototype and size-bubble judgments, which shell.js and player.js call.
+	// player.js runs first: in a player window (the same file opened with #doan-play=) it plays and the board's
+	// files, in a function of their own, never run.
+	shared := strings.Join([]string{viewerFile(t, "lib.js"), viewerFile(t, "viewerApp.js"), viewerFile(t, "player.js")}, "\n")
+	board := strings.Join([]string{viewerFile(t, "inspectPanel.js"), viewerFile(t, "inspectMessage.js"), viewerFile(t, "inspectView.js"), viewerFile(t, "shell.js")}, "\n")
+	want := "(function () {\n" + shared + "\nif (!startPlayer()) (function () {\n" + board + "\n})();\n})();"
 	if !strings.Contains(string(page), "<script>\n"+want+"\n</script>") {
-		t.Fatal("shell controls, inspection and the generated judgments must share one function")
+		t.Fatal("shell controls, inspection, the player and the generated judgments must share one function")
 	}
 	if !strings.Contains(string(page), "<style>\n"+viewerFile(t, "shell.css")+"\n</style>") {
 		t.Fatal("the shell style is not shell.css")
