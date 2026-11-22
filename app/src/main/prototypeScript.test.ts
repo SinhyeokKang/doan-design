@@ -548,9 +548,10 @@ const canvasDocument = (target: string, body: string, gen = 7, source = prototyp
 const NO_FRAME = "\u0000";
 const noWaitSource = (target: string, gen: number) => {
   const source = prototypeScriptSource(target, gen, "about:srcdoc");
-  const cut = source.replace(`const LATE_FRAME_MS = ${LATE_FRAME_WAIT};`, "const LATE_FRAME_MS = 0;");
-  if (cut === source) throw new Error("no LATE_FRAME_MS literal in the script");
-  return cut;
+  // The transform may write the literal as 2e3, as the caps above allow for.
+  const literal = /const LATE_FRAME_MS = ([0-9_.e]+);/.exec(source);
+  if (literal === null || Number(literal[1]!.replaceAll("_", "")) !== LATE_FRAME_WAIT) throw new Error("no 2 s LATE_FRAME_MS literal in the script");
+  return source.replace(literal[0], "const LATE_FRAME_MS = 0;");
 };
 
 type Report = { gen: number; state?: string; frames: unknown[]; gotos: { value: string; frames: string[] }[]; goto?: string | null };
