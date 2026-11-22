@@ -165,9 +165,12 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
       } catch { failProtocol(); }
     }
   });
+  // Resolves once the server's turn has ended (dispatcher.end emits its turn.failed), after the bounded output drain.
+  let transportGone!: () => void;
+  const gone = new Promise<void>(resolve => { transportGone = resolve; });
   const transportDied = () => {
     if (dead) return; dead = true;
-    dispatcher.end(); starting?.wake(); turnStarted?.(undefined);
+    dispatcher.end(); starting?.wake(); turnStarted?.(undefined); transportGone();
   };
   child.stderr.resume();
   const { group, ending, write: writeLine } = ownProtocolProcess(child, () => dispatcher.clearDeadlines(), transportDied, exited);
@@ -305,6 +308,9 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     // Before turn/start answers there is no native id to expect (startingTurn); a steer then is refused, not held.
     // No model, effort or permission: a steered message runs in the running turn's.
     async steer(prompt, turnId, messageId) {
+      // A server that is going ends its turn only after its output drains (up to 500 ms). Refused before that end, a Send
+      // now would read a running turn and say its message stays queued, so the refusal waits for the end.
+      if (ending() && !dead) await gone;
       if (ending() || startingTurn || turnId !== localTurn || activeTurn === localTurn) throw new Error("not_running");
       await dispatcher.steer({ threadId: sessionId, expectedTurnId: activeTurn, input: [{ type: "text", text: prompt }], clientUserMessageId: messageId }, messageId);
     },
