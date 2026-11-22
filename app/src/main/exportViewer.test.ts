@@ -1981,9 +1981,12 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     const span = frame.frameLocator("#canvas").locator("span");
     const box = (await span.boundingBox())!;
     const mouse = frame.page().mouse;
-    await mouse.move(box.x + 2, box.y + box.height / 2);
+    // The panel just moved the stage, and the page takes a dragging message only once it sees the canvas focused: an
+    // earlier one would record the keys before the drag holds them, and the record is never written again.
+    await pointAt(span, { x: 2, y: box.height / 2 });
     await mouse.down();
     try {
+      await frame.waitForFunction(() => document.activeElement === document.getElementById("canvas"));
       await mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 6 });
       await expect.poll(() => frame.locator("#board").getAttribute("data-keys")).toBe("true,true,true");
     } finally { await mouse.up(); }
