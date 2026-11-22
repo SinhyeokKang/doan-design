@@ -107,7 +107,7 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     console.log(`done  ${name}: ${record.result} (${proc.durationSec}s${proc.timedOut ? ", timed out" : ""})`);
     return record;
   } finally {
-    try { keepEvidence(ws, dir); } finally { await ws.dispose(); }
+    try { await ws.stopCanvasWatch(); keepEvidence(ws, dir); } finally { await ws.dispose(); }
   }
 }
 
@@ -162,7 +162,7 @@ export async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, ki
     // n orders the pass fixture before the fail one in the summary.
     return { record: { scenario: scenario.id, agent: "fixture", n: kind === "pass" ? 1 : 2, dir: join(".scratch/agent-eval", setup.options.round, name), result, checks, judge: judgement, durationSec: null, exitCode: null, timedOut: false }, problems };
   } finally {
-    try { keepEvidence(ws, dir); } finally { await ws.dispose(); }
+    try { await ws.stopCanvasWatch(); keepEvidence(ws, dir); } finally { await ws.dispose(); }
   }
 }
 

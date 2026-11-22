@@ -50,6 +50,24 @@ test("files written just before the watch starts are not reported", async () => 
   }
 });
 
+// The runner's two lanes open and close watches side by side.
+test("a watch keeps reporting while another opens and closes", async () => {
+  const [a, b] = [repo(), repo()];
+  const [logA, logB] = [a, b].map(root => join(root, "..", `${root.split("/").pop()}.jsonl`)) as [string, string];
+  try {
+    const watchA = await watchCanvasDirs(a, logA);
+    const watchB = await watchCanvasDirs(b, logB);
+    writeFileSync(join(b, ".doan/canvases/b.html"), "");
+    await watchB.stop();
+    writeFileSync(join(a, ".doan/canvases/a.html"), "");
+    await watchA.stop();
+    assert.deepEqual(readCanvasNames(readFileSync(logA, "utf8")), [".doan/canvases/a.html"]);
+    assert.deepEqual(readCanvasNames(readFileSync(logB, "utf8")), [".doan/canvases/b.html"]);
+  } finally {
+    for (const path of [a, b, logA, logB]) rmSync(path, { recursive: true, force: true });
+  }
+});
+
 test("a missing log or a recorded watch error leaves the names unknown", () => {
   assert.equal(readCanvasNames(null), null);
   assert.equal(readCanvasNames(`".doan/canvases/a.html"\n{"error":"EMFILE"}\n`), null);

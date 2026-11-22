@@ -68,6 +68,8 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
   // /tmp keeps the socket path under macOS's 104-byte sun_path limit.
   const base = realpathSync(mkdtempSync(`/tmp/doan-eval-${o.scenario.id}-${o.agent}-`));
   let codexHome: string | null = null;
+  // An open watch would keep the runner alive after a failed setup.
+  let canvasWatch: Awaited<ReturnType<typeof watchCanvasDirs>> | null = null;
   try {
     assertOutsideCheckout(base);
     const repo = join(base, "repo");
@@ -119,7 +121,7 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     const seedCommit = git(["rev-parse", "HEAD"]).trim();
     // `repo` is the root the app would list; a worktree scenario's second checkout is not watched.
     const canvasLog = join(base, "rt/canvas-names.jsonl");
-    const canvasWatch = await watchCanvasDirs(repo, canvasLog);
+    const watch = canvasWatch = await watchCanvasDirs(repo, canvasLog);
     let cwd = repo;
     if (o.scenario.worktree) {
       cwd = join(base, "worktree");
@@ -133,15 +135,16 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
       : null;
     return {
       base, codexHome, repo, cwd, env, doanLog, seedCommit, gitDir, app, onboardingLog: join(base, "rt/onboarding.jsonl"), workLog: join(base, "rt/work.jsonl"), openLog: join(base, "rt/open.jsonl"), handoffLog: join(base, "rt/handoff.jsonl"), prototypeLog: join(base, "rt/prototype.jsonl"), appWrites: join(base, "rt", APP_WRITES), canvasLog,
-      stopCanvasWatch: () => canvasWatch.stop(),
+      stopCanvasWatch: () => watch.stop(),
       async dispose() {
-        await canvasWatch.stop();
+        await watch.stop();
         await app?.close();
         rmSync(base, { recursive: true, force: true });
         if (codexHome) rmSync(codexHome, { recursive: true, force: true });
       },
     };
   } catch (error) {
+    await canvasWatch?.stop();
     rmSync(base, { recursive: true, force: true });
     if (codexHome) rmSync(codexHome, { recursive: true, force: true });
     throw error;
