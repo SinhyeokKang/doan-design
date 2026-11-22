@@ -6,8 +6,9 @@ const MOTION = /@keyframes|(?:^|[\s;{])animation(?:-name)?\s*:|\.animate\s*\(/;
 
 const checks: Checks = ctx => {
   const check = ctx.doan(["check"]);
-  // The canvas or a stylesheet beside it may carry the animation; only files the agent changed count.
-  const edited = ctx.changedFiles().filter(path => path === canvas || path.startsWith(".doan/assets/"));
+  // The canvas or a stylesheet in its assets may carry the animation; only files the agent changed count, and a page
+  // left in the assets (a render copy, say) does not.
+  const edited = ctx.changedFiles().filter(path => path === canvas || (path.startsWith(".doan/assets/") && path.endsWith(".css")));
   const animated = edited.filter(path => MOTION.test(ctx.read(path) ?? ""));
   // The app's own reading of the same names (shell.ts): a listed canvas other than the target is a second canvas while
   // it exists. Other names (an in-place `sed -i` temp file, a dot-prefixed copy) only reload open canvases; the judge

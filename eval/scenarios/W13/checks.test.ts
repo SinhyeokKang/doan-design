@@ -56,6 +56,18 @@ test("W13 rejects a copy written into a canvas folder and removed again", async 
   assert.deepEqual(await run("pass", copy(".doan/ds", "landing-copy.html")), ["canvas_folders_only_target"]);
 });
 
+test("W13 counts the animation only in the canvas or a stylesheet, not in a page left in the assets", async () => {
+  const seed = readFileSync(join(import.meta.dirname, "seed", canvasPath), "utf8");
+  assert.deepEqual(await run("pass", repo => {
+    writeFileSync(join(repo, canvasPath), seed);
+    writeFileSync(join(repo, ".doan/assets/motion-test.html"), pass);
+  }), ["canvas_animated"]);
+  assert.deepEqual(await run("pass", repo => {
+    writeFileSync(join(repo, canvasPath), seed);
+    writeFileSync(join(repo, ".doan/assets/landing.css"), `${readFileSync(join(repo, ".doan/assets/landing.css"), "utf8")}.hero h1 { animation: rise 600ms both; }\n@keyframes rise { from { opacity: 0; } }\n`);
+  }), []);
+});
+
 // Only a listed canvas shares the id; other names in the folder reload open canvases, which the guide does not forbid
 // for in-place edits (sed -i and perl -pi write such temp files beside the canvas on macOS).
 test("W13 leaves names the app does not list to the judge", async () => {
