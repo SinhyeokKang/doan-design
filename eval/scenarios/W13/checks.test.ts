@@ -54,8 +54,18 @@ test("W13 rejects a copy written into a canvas folder and removed again", async 
   };
   assert.deepEqual(await run("pass", copy(".doan/canvases", "zz-motion-test.html")), ["canvas_folders_only_target"]);
   assert.deepEqual(await run("pass", copy(".doan/ds", "landing-copy.html")), ["canvas_folders_only_target"]);
-  // Not listed, but every write of it reloads every open canvas of the project.
-  assert.deepEqual(await run("pass", copy(".doan/canvases", ".zz-motion-test.html")), ["canvas_folders_only_target"]);
+});
+
+// Only a listed canvas shares the id; other names in the folder reload open canvases, which the guide does not forbid
+// for in-place edits (sed -i and perl -pi write such temp files beside the canvas on macOS).
+test("W13 leaves names the app does not list to the judge", async () => {
+  const touch = (name: string) => (repo: string) => {
+    writeFileSync(join(repo, ".doan/canvases", name), pass);
+    rmSync(join(repo, ".doan/canvases", name));
+  };
+  assert.deepEqual(await run("pass", touch(".!4242!landing.html")), []);
+  assert.deepEqual(await run("pass", touch("XXNYpMI1")), []);
+  assert.deepEqual(await run("pass", touch(".zz-motion-test.html")), []);
 });
 
 test("W13 accepts a copy outside .doan/ and an atomic save beside the canvas", async () => {
