@@ -1544,9 +1544,13 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     const span = frame.frameLocator("#canvas").locator("span");
     const box = (await span.boundingBox())!;
     const mouse = frame.page().mouse;
-    await mouse.move(box.x + 2, box.y + box.height / 2);
+    // ⇧0 just moved the stage, and the press point lies outside the canvas as Fit drew it.
+    await pointAt(span, { x: 2, y: box.height / 2 });
     await mouse.down();
     try {
+      // The page takes a dragging range only while the canvas has its focus, which the press moves across processes
+      // and can arrive after every move below: the moves would all be dropped and none would follow to draw the range.
+      await frame.waitForFunction(() => document.activeElement === document.getElementById("canvas"));
       await mouse.move(box.x + box.width - 2, box.y + box.height / 2, { steps: 6 });
       await frame.locator(".text-rect").first().waitFor();
     } finally { await mouse.up(); }
