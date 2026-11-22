@@ -194,7 +194,7 @@ func TestSkillGuideHasNoComments(t *testing.T) {
 }
 
 // The agent rules are lettered without gaps, so an agent never looks for a missing rule.
-func TestSkillGuideAgentRulesAreAToF(t *testing.T) {
+func TestSkillGuideAgentRulesAreAToG(t *testing.T) {
 	section := skillBody[strings.Index(skillBody, "## Agent rules"):strings.Index(skillBody, "## Commands")]
 	var letters []string
 	for _, l := range strings.Split(section, "\n") {
@@ -202,8 +202,8 @@ func TestSkillGuideAgentRulesAreAToF(t *testing.T) {
 			letters = append(letters, l[:1])
 		}
 	}
-	if strings.Join(letters, "") != "ABCDEF" {
-		t.Errorf("agent rules are %v, want A–F", letters)
+	if strings.Join(letters, "") != "ABCDEFG" {
+		t.Errorf("agent rules are %v, want A–G", letters)
 	}
 	if !strings.Contains(section, "C. Keep ids unchanged when moving a canvas file: conversation chips (`doan:<canvas-id>/…`) find their target by canvas id.") {
 		t.Error("rule C does not give the conversation chip reason")
@@ -539,6 +539,19 @@ func TestSkillGuidePrototypeLayout(t *testing.T) {
 	}
 	if r := rule("F. "); r != "F. Prototypes: build the interactions the request names, ask only when scope changes the result, and say which are not wired." {
 		t.Errorf("rule F: %q", r)
+	}
+}
+
+// A frame often draws an action without its result (a print button, a link to an undrawn screen). Without a rule,
+// Codex built a print view with copy no canvas showed and presented it as part of the approved screen (agent-eval H3b).
+func TestSkillGuideImplementsOnlyWhatTheFrameDraws(t *testing.T) {
+	const g = "G. Implementing a frame in code: build what it draws; for an action whose result it does not draw, invent no UI or copy and say so in your answer."
+	var found bool
+	for _, l := range strings.Split(skillBody, "\n") {
+		found = found || l == g
+	}
+	if !found {
+		t.Errorf("missing rule G: %q", g)
 	}
 }
 
