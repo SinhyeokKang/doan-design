@@ -541,8 +541,14 @@ html:not(.js) .doan-canvas-bottom { display: none; }
 .vw-insp-status .doan-notice { background: var(--surface-inset); }
 .vw-insp-status .doan-alert-icon { width: var(--size-icon); height: var(--size-icon); }
 .doan-notice.error { color: var(--text-danger); }
-.vw-overlay { position: absolute; inset: 0; pointer-events: none; overflow: clip; }
-.vw-overlay .mark { position: absolute; box-sizing: content-box; border: calc(var(--mark-weight, 1.5px) / var(--canvas-scale, 1)) solid var(--text-accent); margin: calc(-1 * var(--mark-weight, 1.5px) / var(--canvas-scale, 1)); }
+/* The mark's line lies outside the element, so a frame on the canvas edge has its line outside the canvas. The clip
+   box is the canvas grown by that line on every side: the line stays whole, and a mark of something past the canvas
+   still neither paints over the board nor widens its scroll range. The overlay's origin moves out by the line, so a
+   mark placed at the element's x and y draws its line from there with no negative margin, and the text range layer
+   moves back in by the same amount to keep its rects in canvas px. */
+.vw-overlay { --mark-line: calc(var(--mark-weight, 1.5px) / var(--canvas-scale, 1)); position: absolute; inset: calc(-1 * var(--mark-line)); pointer-events: none; overflow: clip; }
+.vw-overlay .mark { position: absolute; box-sizing: content-box; border: var(--mark-line) solid var(--text-accent); }
+#inspect-range { position: absolute; left: var(--mark-line); top: var(--mark-line); }
 @media (resolution < 2dppx) { .vw-overlay { --mark-weight: 1px; } }
 .vw-overlay .mark.hover { border-style: dashed; }
 .vw-overlay .text-rect { position: absolute; background: color-mix(in srgb, var(--affordance-accent) 30%, transparent); }
