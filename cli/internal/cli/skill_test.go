@@ -194,7 +194,7 @@ func TestSkillGuideHasNoComments(t *testing.T) {
 }
 
 // The agent rules are lettered without gaps, so an agent never looks for a missing rule.
-func TestSkillGuideAgentRulesAreAToF(t *testing.T) {
+func TestSkillGuideAgentRulesAreAToG(t *testing.T) {
 	section := skillBody[strings.Index(skillBody, "## Agent rules"):strings.Index(skillBody, "## Commands")]
 	var letters []string
 	for _, l := range strings.Split(section, "\n") {
@@ -202,8 +202,8 @@ func TestSkillGuideAgentRulesAreAToF(t *testing.T) {
 			letters = append(letters, l[:1])
 		}
 	}
-	if strings.Join(letters, "") != "ABCDEF" {
-		t.Errorf("agent rules are %v, want A–F", letters)
+	if strings.Join(letters, "") != "ABCDEFG" {
+		t.Errorf("agent rules are %v, want A–G", letters)
 	}
 	if !strings.Contains(section, "C. Keep ids unchanged when moving a canvas file: conversation chips (`doan:<canvas-id>/…`) find their target by canvas id.") {
 		t.Error("rule C does not give the conversation chip reason")
