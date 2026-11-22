@@ -150,6 +150,37 @@ test("a queue going out after its ended turn keeps its rows until the next turn 
   expect(h.ids()).toEqual([]);
 });
 
+// The flushed turn's start reaches the store before the list read that drops the rows. Until then a row would read
+// the turn as running and offer Send now for the message that turn already carries.
+test("a flushing queue's rows go when the next turn's start merges, without waiting for a list read", async () => {
+  const h = harness();
+  h.store.track(A);
+  await flush();
+  h.store.event(event({ type: "turn.done" }));
+  h.read([summary({ phase: "ended", working: true, queued: 0 })]);
+  h.store.event(event({ type: "user.message", turnId: "t2", text: "Use the spacing…", anchors: [] }));
+  expect(h.ids()).toEqual(["q1", "q2", "q3"]);
+  h.store.event(event({ type: "turn.started", turnId: "t2" }));
+  expect(h.ids()).toEqual([]);
+});
+
+// POSTMORTEM 2026-11-05: an event does not make a read taken while Send now was in flight final.
+test("a row refused back into the queue stays through an event merged after a stale read", async () => {
+  const h = harness();
+  h.store.track(A);
+  await flush();
+  h.store.unqueued(A, "q2");
+  h.store.unqueued(A, "q3");
+  const answer = deferred<{ error: string }>();
+  doan.sendQueuedNow = vi.fn(() => answer.promise);
+  const sent = h.store.sendQueuedNow(A, "q1");
+  h.read([summary({ queued: 0 })]);
+  answer.resolve({ error: "not_running" });
+  await sent;
+  h.store.event(event({ type: "activity", kind: "read", summary: "Reading files" }));
+  expect(h.ids()).toEqual(["q1"]);
+});
+
 // The turn the queue went out as ended into its own judgement before a list read saw it run.
 test("a flushed queue's rows go once a later turn ended, even while that turn is judged", async () => {
   const h = harness();
