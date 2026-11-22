@@ -1514,6 +1514,47 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     expect(await mark.isHidden()).toBe(true);
   });
 
+  // The mark's line lies outside the element, so for a frame at the canvas edge it lies outside the canvas: the
+  // overlay's clip must leave room for it, or the line is cut on the edges the frame shares with the canvas.
+  test("the selection line of a frame as wide as the canvas lies inside the overlay's clip box", async () => {
+    const frame = await openCanvas(compactCart, 320);
+    await clickCanvas(frame.frameLocator("#canvas").locator('[data-doan-frame="cart"]'));
+    await frame.locator("#selected-mark").waitFor();
+    const boxes = await frame.evaluate(() => {
+      const box = (id: string) => {
+        const rect = document.getElementById(id)!.getBoundingClientRect();
+        return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+      };
+      return { canvas: box("canvas"), mark: box("selected-mark"), clip: box("inspect-marks") };
+    });
+    // The line is drawn outside the frame on every side, the frame filling the canvas's width and starting at its top.
+    expect(boxes.mark.left).toBeLessThan(boxes.canvas.left);
+    expect(boxes.mark.right).toBeGreaterThan(boxes.canvas.right);
+    expect(boxes.mark.top).toBeLessThan(boxes.canvas.top);
+    expect(boxes.clip.left).toBeLessThanOrEqual(boxes.mark.left);
+    expect(boxes.clip.top).toBeLessThanOrEqual(boxes.mark.top);
+    expect(boxes.clip.right).toBeGreaterThanOrEqual(boxes.mark.right);
+    expect(boxes.clip.bottom).toBeGreaterThanOrEqual(boxes.mark.bottom);
+    expect(await frame.locator("#inspect-marks").evaluate(el => getComputedStyle(el).overflow)).toBe("clip");
+  });
+
+  // The overlay's origin sits outside the canvas by the mark's line, so the text range layer moves back in by it.
+  test("a text range's rects lie on the canvas text they cover", async () => {
+    const frame = await openCanvas('<section data-doan-frame="f" style="height:250px;padding:12px"><span style="font:32px/40px sans-serif">Drag these words</span></section>', 320);
+    const span = frame.frameLocator("#canvas").locator("span");
+    const box = (await span.boundingBox())!;
+    const mouse = frame.page().mouse;
+    await mouse.move(box.x + 2, box.y + box.height / 2);
+    await mouse.down();
+    try {
+      await mouse.move(box.x + box.width - 2, box.y + box.height / 2, { steps: 6 });
+      await frame.locator(".text-rect").first().waitFor();
+    } finally { await mouse.up(); }
+    const rect = (await frame.locator(".text-rect").first().boundingBox())!;
+    expect(Math.abs(rect.x - box.x)).toBeLessThan(0.5);
+    expect(Math.abs(rect.y - box.y)).toBeLessThan(0.5);
+  });
+
   test("switching to Hand while the inspector yields clears the retained frame", async () => {
     const frame = await openCanvas(compactCart, 320);
     await showInspector(frame);
