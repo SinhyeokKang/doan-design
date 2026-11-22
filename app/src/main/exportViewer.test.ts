@@ -1514,6 +1514,30 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     expect(await mark.isHidden()).toBe(true);
   });
 
+  // The mark's line lies outside the element, so for a frame at the canvas edge it lies outside the canvas: the
+  // overlay's clip must leave room for it, or the line is cut on the edges the frame shares with the canvas.
+  test("the selection line of a frame as wide as the canvas lies inside the overlay's clip box", async () => {
+    const frame = await openCanvas(compactCart, 320);
+    await clickCanvas(frame.frameLocator("#canvas").locator('[data-doan-frame="cart"]'));
+    await frame.locator("#selected-mark").waitFor();
+    const boxes = await frame.evaluate(() => {
+      const box = (id: string) => {
+        const rect = document.getElementById(id)!.getBoundingClientRect();
+        return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+      };
+      return { canvas: box("canvas"), mark: box("selected-mark"), clip: box("inspect-marks") };
+    });
+    // The line is drawn outside the frame on every side, the frame filling the canvas's width and starting at its top.
+    expect(boxes.mark.left).toBeLessThan(boxes.canvas.left);
+    expect(boxes.mark.right).toBeGreaterThan(boxes.canvas.right);
+    expect(boxes.mark.top).toBeLessThan(boxes.canvas.top);
+    expect(boxes.clip.left).toBeLessThanOrEqual(boxes.mark.left);
+    expect(boxes.clip.top).toBeLessThanOrEqual(boxes.mark.top);
+    expect(boxes.clip.right).toBeGreaterThanOrEqual(boxes.mark.right);
+    expect(boxes.clip.bottom).toBeGreaterThanOrEqual(boxes.mark.bottom);
+    expect(await frame.locator("#inspect-marks").evaluate(el => getComputedStyle(el).overflow)).toBe("clip");
+  });
+
   test("switching to Hand while the inspector yields clears the retained frame", async () => {
     const frame = await openCanvas(compactCart, 320);
     await showInspector(frame);
