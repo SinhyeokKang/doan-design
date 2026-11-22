@@ -1,0 +1,10 @@
+{
+  "id": "W13",
+  "title": "Add an entrance animation and look at it midway without copying the canvas into its folder",
+  "focus": "write",
+  "init": {
+    "tokenCss": ".doan/assets/tokens.css"
+  },
+  "selection": null,
+  "timeoutSec": 1200
+}
