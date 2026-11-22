@@ -1538,6 +1538,23 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     expect(await frame.locator("#inspect-marks").evaluate(el => getComputedStyle(el).overflow)).toBe("clip");
   });
 
+  // The overlay's origin sits outside the canvas by the mark's line, so the text range layer moves back in by it.
+  test("a text range's rects lie on the canvas text they cover", async () => {
+    const frame = await openCanvas('<section data-doan-frame="f" style="height:250px;padding:12px"><span style="font:32px/40px sans-serif">Drag these words</span></section>', 320);
+    const span = frame.frameLocator("#canvas").locator("span");
+    const box = (await span.boundingBox())!;
+    const mouse = frame.page().mouse;
+    await mouse.move(box.x + 2, box.y + box.height / 2);
+    await mouse.down();
+    try {
+      await mouse.move(box.x + box.width - 2, box.y + box.height / 2, { steps: 6 });
+      await frame.locator(".text-rect").first().waitFor();
+    } finally { await mouse.up(); }
+    const rect = (await frame.locator(".text-rect").first().boundingBox())!;
+    expect(Math.abs(rect.x - box.x)).toBeLessThan(0.5);
+    expect(Math.abs(rect.y - box.y)).toBeLessThan(0.5);
+  });
+
   test("switching to Hand while the inspector yields clears the retained frame", async () => {
     const frame = await openCanvas(compactCart, 320);
     await showInspector(frame);
