@@ -240,6 +240,19 @@ describe("activityRun", () => {
     expect(acpRow([[started, tool, 0], [done, tool, 1000], [done, general, 1004], [done, general, 1004 + SETTLE_MS]]).drawn).toMatchObject({ running: false, head: "1 step" });
   });
 
+  test("ACP: a completion followed at once by the next tool's stage does not run with the completed tool's words while the indicator settles (Antigravity, command then read)", () => {
+    seq = 0;
+    const started = turn("t1"), command = signal("t1", { kind: "tool", activity: "command", summary: "Running a command" }, 2);
+    const done = [...started, ev("t1", { type: "activity", kind: "command", summary: "Running a command" })];
+    const read = signal("t1", { kind: "tool", activity: "read", path: `${ROOT}/src/b.ts`, summary: "src/b.ts" }, 3);
+    const held = acpRow([[started, command, 0], [done, read, 1000]]);
+    expect(held.shown).toMatchObject({ kind: "tool", text: "Running a command" });
+    expect(held.drawn).toMatchObject({ running: false, head: "1 step", steps: [{ verb: "Ran a command" }] });
+    // Once the indicator settles on the next tool, the row runs with its words.
+    expect(acpRow([[started, command, 0], [done, read, 1000], [done, read, 1000 + SETTLE_MS]]).drawn).toMatchObject({
+      running: true, head: "Reading src/b.ts", steps: [{ verb: "Ran a command" }] });
+  });
+
   test("ACP: a row born from one completion runs while another tool's stage still runs (Copilot, parallel commands)", () => {
     seq = 0;
     const started = turn("t1"), stage = (at: number) => signal("t1", { kind: "tool", activity: "command", summary: "Running a command" }, at);
