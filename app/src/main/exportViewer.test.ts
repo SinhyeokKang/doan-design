@@ -3338,14 +3338,16 @@ describe("isolate.js reports once and keeps the canvas in its document", () => {
     expect(run.posts).toEqual([{ message: { type: "doan-prototype", state: "ready" }, target: "*" }]);
   });
 
-  test("no frame after the load handlers, or two with the id, is missing at the end of the 2 s wait and nothing is hidden", () => {
+  test("no frame, or two with the id, is missing (two at DOMContentLoaded at once, none at the end of the 2 s wait) and nothing is hidden", () => {
     for (const frames of [[], [board().frame, board().frame]]) {
       const run = runIsolate(() => frames);
       run.contentLoaded();
       run.load();
-      run.advance(1999);
-      expect(run.posts).toEqual([]);
-      run.advance(1);
+      if (frames.length === 0) {
+        run.advance(1999);
+        expect(run.posts).toEqual([]);
+        run.advance(1);
+      }
       expect(run.posts).toEqual([{ message: { type: "doan-prototype", state: "missing" }, target: "*" }]);
       expect(run.watching()).toEqual({ observers: 0, timers: 0 });
       expect(run.document.adoptedStyleSheets).toHaveLength(0);
@@ -3392,12 +3394,9 @@ describe("isolate.js reports once and keeps the canvas in its document", () => {
   test("two frames with the id after the load handlers play once one goes within 2 s", () => {
     const b = board();
     const twin = new FakeElement("DIV", { "data-doan-frame": "checkout" });
-    let frames = [b.frame, twin];
+    let frames: FakeElement[] = [];
     const run = runIsolate(() => frames);
     run.contentLoaded();
-    frames = [];
-    run.mutate();
-    run.deliver();
     frames = [b.frame, twin];
     run.load();
     run.advance(1000);
