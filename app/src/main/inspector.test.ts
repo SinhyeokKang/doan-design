@@ -101,12 +101,17 @@ class FakeDebugger extends EventEmitter implements DebuggerLike {
 }
 
 // The window shows `url` from `root`/`path` in FRAME, committed by `session` (the same events the read-state proof uses).
-function show(dbg: FakeDebugger, docs: DocumentBindings, session: string, loader: string, url = URL_A, path = CANVAS.path) {
+function show(dbg: FakeDebugger, docs: DocumentBindings, session: string, loader: string, url = URL_A, path = CANVAS.path, frame = "FRAME") {
+  commitOnly(dbg, docs, session, loader, url, path, frame);
+  dbg.emit("message", {}, "Network.loadingFinished", { requestId: loader }, session);
+}
+
+// The frame has committed the document, but its load has not finished, so there is no proof yet.
+function commitOnly(dbg: FakeDebugger, docs: DocumentBindings, session: string, loader: string, url: string, path: string, frame: string) {
   dbg.emit("message", {}, "Target.attachedToTarget", { sessionId: session, targetInfo: { type: "iframe", url: "" } }, undefined);
   docs.response({ marker: loader, root: CANVAS.root, path, hash: loader, complete: true, stable: true });
-  dbg.emit("message", {}, "Network.responseReceived", { type: "Document", requestId: loader, frameId: "FRAME", loaderId: loader, response: { headers: { "X-Doan-Response": loader } } });
-  dbg.emit("message", {}, "Page.frameNavigated", { frame: { id: "FRAME", parentId: "MAIN", loaderId: loader, url } }, session);
-  dbg.emit("message", {}, "Network.loadingFinished", { requestId: loader }, session);
+  dbg.emit("message", {}, "Network.responseReceived", { type: "Document", requestId: loader, frameId: frame, loaderId: loader, response: { headers: { "X-Doan-Response": loader } } });
+  dbg.emit("message", {}, "Page.frameNavigated", { frame: { id: frame, parentId: "MAIN", loaderId: loader, url } }, session);
 }
 
 function setup(dbg = new FakeDebugger()) {
@@ -195,6 +200,48 @@ test("with no proof yet, waits within the budget for the canvas's document and r
   show(dbg, docs, "S1", "next");
   await vi.advanceTimersByTimeAsync(0);
   expect(await reloading).toMatchObject({ ok: true });
+});
+
+// Right after a switch the new canvas's iframe can commit before the previous one detaches. The previous canvas is
+// then proven shown, but the requested one is on its way, so main waits for its proof instead of answering not-shown.
+test("waits while a frame with the requested URL is committed beside another canvas's proven frame, and reads it", async () => {
+  vi.useFakeTimers();
+  const { dbg, docs, inspector } = setup();
+  show(dbg, docs, "SB", "lb", URL_B, OTHER.path, "FRAME_B");
+  commitOnly(dbg, docs, "SA", "la", URL_A, CANVAS.path, "FRAME_A");
+  const pending = inspector.inspect(request());
+  let settled = false;
+  void pending.then(() => { settled = true; });
+  await vi.advanceTimersByTimeAsync(100);
+  expect(settled).toBe(false);
+  expect(dbg.sent("DOM.enable")).toEqual([]);
+  dbg.emit("message", {}, "Network.loadingFinished", { requestId: "la" }, "SA");
+  dbg.emit("message", {}, "Page.frameDetached", { frameId: "FRAME_B", reason: "remove" }, "SB");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(await pending).toMatchObject({ ok: true });
+  expect(dbg.sent("DOM.querySelector")[0]?.[2]).toBe("SA");
+});
+
+test("while waiting beside another canvas's proven frame, not-shown once the requested URL's frame is gone, unavailable at the budget's end", async () => {
+  vi.useFakeTimers();
+  const { dbg, docs, inspector } = setup();
+  show(dbg, docs, "SB", "lb", URL_B, OTHER.path, "FRAME_B");
+  commitOnly(dbg, docs, "SA", "la", URL_A, CANVAS.path, "FRAME_A");
+  const gone = inspector.inspect(request());
+  await vi.advanceTimersByTimeAsync(100);
+  dbg.emit("message", {}, "Page.frameDetached", { frameId: "FRAME_A", reason: "remove" }, "SA");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(await gone).toEqual({ ok: false, reason: "not-shown" });
+  // A frame that commits the requested URL but never proves it runs into the budget.
+  commitOnly(dbg, docs, "SA2", "la2", URL_A, CANVAS.path, "FRAME_A2");
+  const stuck = inspector.inspect(request());
+  let settled = false;
+  void stuck.then(() => { settled = true; });
+  await vi.advanceTimersByTimeAsync(1999);
+  expect(settled).toBe(false);
+  await vi.advanceTimersByTimeAsync(1);
+  expect(await stuck).toEqual({ ok: false, reason: "unavailable" });
+  expect(dbg.sent("DOM.enable")).toEqual([]);
 });
 
 test("with no proof by the end of the budget, answers unavailable and stops waiting", async () => {
