@@ -7,6 +7,7 @@ import type { Agent } from "./args.ts";
 import { agentEnvironment, isolateUserInstructions } from "./agent.ts";
 import { CLAUDE_ALLOW_RULES, CODEX_RULE, evalCodexRuleText } from "./codex-rule.ts";
 import { sh } from "./context.ts";
+import { watchCanvasDirs } from "./canvas-watch.ts";
 import { assertOutsideCheckout } from "./isolate.ts";
 import type { LoadedScenario } from "./scenario.ts";
 import { APP_WRITES, startFakeApp, type FakeApp } from "./socket.ts";
@@ -36,6 +37,10 @@ export interface Workspace {
   prototypeLog: string;
   // Files the fake app wrote into `repo` with their content; absent until it writes one.
   appWrites: string;
+  // Names reported under `repo`'s canvas directories after the baseline (canvas-watch.ts).
+  canvasLog: string;
+  // Lets the last reports arrive and ends the watch; call it once the agent or fixture has finished writing.
+  stopCanvasWatch(): Promise<void>;
   dispose(): Promise<void>;
 }
 
@@ -63,6 +68,8 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
   // /tmp keeps the socket path under macOS's 104-byte sun_path limit.
   const base = realpathSync(mkdtempSync(`/tmp/doan-eval-${o.scenario.id}-${o.agent}-`));
   let codexHome: string | null = null;
+  // An open watch would keep the runner alive after a failed setup.
+  let canvasWatch: Awaited<ReturnType<typeof watchCanvasDirs>> | null = null;
   try {
     assertOutsideCheckout(base);
     const repo = join(base, "repo");
@@ -112,6 +119,9 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     git(["add", "-A", "-f"]);
     git(["commit", "-q", "--no-verify", "-m", "seed"]);
     const seedCommit = git(["rev-parse", "HEAD"]).trim();
+    // `repo` is the root the app would list; a worktree scenario's second checkout is not watched.
+    const canvasLog = join(base, "rt/canvas-names.jsonl");
+    const watch = canvasWatch = await watchCanvasDirs(repo, canvasLog);
     let cwd = repo;
     if (o.scenario.worktree) {
       cwd = join(base, "worktree");
@@ -124,14 +134,17 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
       ? await startFakeApp({ dir: join(base, "rt"), root: repo, selection: o.scenario.selectionValue ? { root: repo, ...o.scenario.selectionValue } : null, onboarding: o.scenario.onboardingValue, workOthers: o.scenario.workOthers, handoff })
       : null;
     return {
-      base, codexHome, repo, cwd, env, doanLog, seedCommit, gitDir, app, onboardingLog: join(base, "rt/onboarding.jsonl"), workLog: join(base, "rt/work.jsonl"), openLog: join(base, "rt/open.jsonl"), handoffLog: join(base, "rt/handoff.jsonl"), prototypeLog: join(base, "rt/prototype.jsonl"), appWrites: join(base, "rt", APP_WRITES),
+      base, codexHome, repo, cwd, env, doanLog, seedCommit, gitDir, app, onboardingLog: join(base, "rt/onboarding.jsonl"), workLog: join(base, "rt/work.jsonl"), openLog: join(base, "rt/open.jsonl"), handoffLog: join(base, "rt/handoff.jsonl"), prototypeLog: join(base, "rt/prototype.jsonl"), appWrites: join(base, "rt", APP_WRITES), canvasLog,
+      stopCanvasWatch: () => watch.stop(),
       async dispose() {
+        await watch.stop();
         await app?.close();
         rmSync(base, { recursive: true, force: true });
         if (codexHome) rmSync(codexHome, { recursive: true, force: true });
       },
     };
   } catch (error) {
+    await canvasWatch?.stop();
     rmSync(base, { recursive: true, force: true });
     if (codexHome) rmSync(codexHome, { recursive: true, force: true });
     throw error;
@@ -140,7 +153,7 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
 
 // dispose deletes rt/, and the log is what onboarding checks were scored on.
 // It holds no token (eval/lib/socket.ts strips it).
-export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial<Pick<Workspace, "doanLog" | "workLog" | "openLog" | "handoffLog" | "prototypeLog">>, dir: string): void {
+export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial<Pick<Workspace, "doanLog" | "workLog" | "openLog" | "handoffLog" | "prototypeLog" | "canvasLog">>, dir: string): void {
   const keep = (path: string | undefined, name: string) => {
     if (path && existsSync(path)) writeFileSync(join(dir, name), readArtifact(path, LOG_BYTES), { mode: 0o600 });
   };
@@ -150,6 +163,7 @@ export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial
   keep(ws.openLog, "open.jsonl");
   keep(ws.prototypeLog, "prototype.jsonl");
   keep(ws.handoffLog, "handoff.jsonl");
+  keep(ws.canvasLog, "canvas-names.jsonl");
 }
 
 // A Codex run's own CODEX_HOME (isolateUserInstructions) goes with the workspace; when readAgentTranscript could not

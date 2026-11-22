@@ -71,8 +71,9 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     console.log(`start ${name} (${ws.cwd})`);
     const startedAt = new Date().toISOString();
     const proc = await runProcess({ cmd, args, cwd: ws.cwd, env: ws.env, timeoutSec: scenario.timeoutSec, stdoutPath: join(dir, "stdout.log"), stderrPath: join(dir, "stderr.log") });
+    await ws.stopCanvasWatch();
     const evidence = readAgentTranscript(agent, dir, ws.env);
-    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent, ...evidence, doanLog: ws.doanLog, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit, gitDir: ws.gitDir, onboardingLog: ws.onboardingLog, workLog: ws.workLog, openLog: ws.openLog, handoffLog: ws.handoffLog, prototypeLog: ws.prototypeLog, appWrites: ws.appWrites });
+    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent, ...evidence, doanLog: ws.doanLog, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit, gitDir: ws.gitDir, onboardingLog: ws.onboardingLog, workLog: ws.workLog, openLog: ws.openLog, handoffLog: ws.handoffLog, prototypeLog: ws.prototypeLog, appWrites: ws.appWrites, canvasLog: ws.canvasLog });
     const checks = await runChecks(scenario, ctx);
     checks.push(cliProvenance(resolutionPath, scenario.shellCli ? join(ws.base, "bin/doan") : null, join(dir, "resolved-doan.txt")));
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
@@ -106,7 +107,7 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     console.log(`done  ${name}: ${record.result} (${proc.durationSec}s${proc.timedOut ? ", timed out" : ""})`);
     return record;
   } finally {
-    try { keepEvidence(ws, dir); } finally { await ws.dispose(); }
+    try { await ws.stopCanvasWatch(); keepEvidence(ws, dir); } finally { await ws.dispose(); }
   }
 }
 
@@ -139,7 +140,8 @@ export async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, ki
     // `{{repo}}` as in the commands, so the transcript shows the paths that ran.
     const transcript = existsSync(transcriptFile) ? readFileSync(transcriptFile, "utf8").replace(/\{\{\s*repo\s*\}\}/g, ws.repo) : "";
     runCommands(join(scenario.dir, "fixtures", `${kind}.commands.json`));
-    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent: "fixture", transcript, doanLog: ws.doanLog, cli: setup.cli, env, seedCommit: ws.seedCommit, gitDir: ws.gitDir, onboardingLog: ws.onboardingLog, workLog: ws.workLog, openLog: ws.openLog, handoffLog: ws.handoffLog, prototypeLog: ws.prototypeLog, appWrites: ws.appWrites });
+    await ws.stopCanvasWatch();
+    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent: "fixture", transcript, doanLog: ws.doanLog, cli: setup.cli, env, seedCommit: ws.seedCommit, gitDir: ws.gitDir, onboardingLog: ws.onboardingLog, workLog: ws.workLog, openLog: ws.openLog, handoffLog: ws.handoffLog, prototypeLog: ws.prototypeLog, appWrites: ws.appWrites, canvasLog: ws.canvasLog });
     const checks = await runChecks(scenario, ctx);
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
     // A fixed fake judge still goes through prompt building and parsing.
@@ -160,7 +162,7 @@ export async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, ki
     // n orders the pass fixture before the fail one in the summary.
     return { record: { scenario: scenario.id, agent: "fixture", n: kind === "pass" ? 1 : 2, dir: join(".scratch/agent-eval", setup.options.round, name), result, checks, judge: judgement, durationSec: null, exitCode: null, timedOut: false }, problems };
   } finally {
-    try { keepEvidence(ws, dir); } finally { await ws.dispose(); }
+    try { await ws.stopCanvasWatch(); keepEvidence(ws, dir); } finally { await ws.dispose(); }
   }
 }
 

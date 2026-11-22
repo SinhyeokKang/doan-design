@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { relative } from "node:path";
 import { readRegularFileNoFollowSync } from "../../app/src/main/regularFile.ts";
 import { CANVAS_BYTES, LOG_BYTES, MANIFEST_BYTES, readArtifact, resolveInside, resolveOnDisk } from "./artifact.ts";
+import { readCanvasNames } from "./canvas-watch.ts";
 import { toolCalls, type ToolCalls } from "./transcript.ts";
 import type { CheckContext } from "./types.ts";
 
@@ -34,6 +35,8 @@ export interface ContextOptions {
   prototypeLog?: string;
   // The fake app's record of the files it wrote into `repo` (socket.ts initializeRepo).
   appWrites?: string;
+  // Workspace.canvasLog.
+  canvasLog?: string;
 }
 
 export function sh(cmd: string, args: string[], cwd: string, env: NodeJS.ProcessEnv) {
@@ -133,6 +136,7 @@ export function createContext(o: ContextOptions): CheckContext {
       if (!o.onboardingLog || !existsSync(o.onboardingLog)) return [];
       return readArtifact(o.onboardingLog, LOG_BYTES).toString("utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
     },
+    canvasNames: () => readCanvasNames(o.canvasLog && existsSync(o.canvasLog) ? readArtifact(o.canvasLog, LOG_BYTES).toString("utf8") : null),
     work() {
       if (!o.workLog || !existsSync(o.workLog)) return [];
       return readArtifact(o.workLog, LOG_BYTES).toString("utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));

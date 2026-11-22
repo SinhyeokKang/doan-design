@@ -4,11 +4,14 @@
 // height growth.
 //
 // It finds the target frame in the live document at DOMContentLoaded, or after the `load` handlers when it is not
-// there yet (frames made while parsing or in `load` handlers count; later ones do not). The whole document stays as it
-// is and the frame is placed in the viewport in place: its ancestors lose their layout and their other children are
-// hidden, so ancestor selectors, listeners and relative assets keep working. Elements added outside the frame after
-// that moment (a modal appended to body) show. One RunMessage goes to the host; when it went out before the `load`
-// handlers, one FramesMessage follows them with the drawer list. Both carry the document's `data-doan-goto` links.
+// there yet. When the frame cannot play after the `load` handlers either, it watches the document for up to
+// LATE_FRAME_MS and reports as soon as the frame can play, else the frame's state when the time is up: the board
+// follows the document as it changes, so a frame a script makes a little later (after a fetch) shows as playable
+// there. The whole document stays as it is and the frame is placed in the viewport in place: its ancestors lose their
+// layout and their other children are hidden, so ancestor selectors, listeners and relative assets keep working.
+// Elements added outside the frame after that moment (a modal appended to body) show. One RunMessage goes to the
+// host; when it went out before the `load` handlers, one FramesMessage follows them with the drawer list. Both carry
+// the document's `data-doan-goto` links.
 //
 // A click on a link inside the playing frame posts one GotoMessage. The listener is on the window's capture phase and
 // registered before the canvas's own scripts run, so a canvas stopping the click's propagation, even in its own window
@@ -35,6 +38,8 @@ export function prototypeScript(target: string, gen: number, url: string): void 
   // requests.ts's MAX_REPORT_GOTOS. Its MAX_GOTO_FRAMES needs no check here: only the first 1,000 frames enclose.
   const MAX_GOTOS = 1000;
   const GOTO_ATTRIBUTE = "data-doan-goto";
+  // isolate.js waits as long (exportViewer.test.ts compares the literals).
+  const LATE_FRAME_MS = 2000;
   const post = (message: unknown) => parent.postMessage(message, "*");
   const frameId = (el: Element) => el.getAttribute("data-doan-frame") ?? "";
   // querySelectorAll does not reach into <template> content, so frames there are not frames, as in the board.
@@ -84,9 +89,9 @@ export function prototypeScript(target: string, gen: number, url: string): void 
   };
 
   type Found = { state: "ready"; el: Element; size: string } | { state: "missing" | "duplicate" | "unmarked" | "invalid" };
-  const find = (final: boolean): Found | null => {
+  const find = (): Found => {
     const matches = frames().filter(el => frameId(el) === target);
-    if (matches.length === 0) return final ? { state: "missing" } : null;
+    if (matches.length === 0) return { state: "missing" };
     if (matches.length > 1) return { state: "duplicate" };
     const el = matches[0]!;
     const size = el.getAttribute(MARK_ATTRIBUTE);
@@ -137,28 +142,43 @@ export function prototypeScript(target: string, gen: number, url: string): void 
     }, 0);
   }, true);
 
-  let done = false;
-  const finish = (final: boolean): boolean => {
-    if (done) return true;
-    const found = find(final);
-    if (found === null) return false;
-    done = true;
+  const report = (found: Found) => {
     if (found.state === "ready") {
       isolate(found.el);
       playing = found.el;
       post({ gen, state: "ready", size: found.size, frames: list(), gotos: gotos() });
     } else post({ gen, state: found.state, frames: list(), gotos: gotos() });
-    return true;
+  };
+  // A frame that cannot play once the `load` handlers have run gets LATE_FRAME_MS to become playable. The observer
+  // hands over each task's changes at once, so a burst of changes is judged once; it and the timer end with the report.
+  const settle = () => {
+    const now = find();
+    if (now.state === "ready") return report(now);
+    const observer = new MutationObserver(() => {
+      const found = find();
+      if (found.state !== "ready") return;
+      observer.disconnect();
+      clearTimeout(timer);
+      report(found);
+    });
+    const timer = setTimeout(() => {
+      observer.disconnect();
+      report(find());
+    }, LATE_FRAME_MS);
+    observer.observe(document, { childList: true, subtree: true, attributeFilter: ["data-doan-frame", MARK_ATTRIBUTE] });
   };
   // After the `load` handlers: a 0 ms timer queued from a `load` listener runs once every listener has run.
   const afterLoad = (then: () => void) => window.addEventListener("load", () => setTimeout(then, 0), { once: true });
   const atContentLoaded = () => {
-    if (finish(false)) afterLoad(() => post({ gen, frames: list(), gotos: gotos() }));
-    else afterLoad(() => finish(true));
+    // A frame not there yet may still come; one there in any other state is reported now.
+    const found = find();
+    if (found.state === "missing") return afterLoad(settle);
+    report(found);
+    afterLoad(() => post({ gen, frames: list(), gotos: gotos() }));
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", atContentLoaded, { once: true });
   else if (document.readyState === "interactive") atContentLoaded();
-  else setTimeout(() => finish(true), 0);
+  else setTimeout(settle, 0);
 }
 
 export function prototypeScriptSource(target: string, gen: number, url: string): string {

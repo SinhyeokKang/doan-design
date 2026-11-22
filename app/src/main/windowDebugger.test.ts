@@ -14,6 +14,8 @@ class FakeDebugger extends EventEmitter implements DebuggerLike {
   calls: [string, unknown, string | undefined][] = [];
   frames = new Map<string | undefined, Frame>([[undefined, { id: "MAIN", url: "file:///app/index.html" }]]);
   fail: string | null = null;
+  // Per-session failures, as Chromium answers a domain a target type lacks (a worker has no Page domain).
+  failOn: ((method: string, sessionId: string | undefined) => Error | null) | null = null;
   attach(): void {
     if (this.attachError) throw this.attachError;
     this.attached = true;
@@ -24,6 +26,8 @@ class FakeDebugger extends EventEmitter implements DebuggerLike {
   async sendCommand(method: string, params?: object, sessionId?: string): Promise<unknown> {
     this.calls.push([method, params, sessionId]);
     if (method === this.fail) throw new Error(`${method} failed`);
+    const failure = this.failOn?.(method, sessionId);
+    if (failure) throw failure;
     if (method === "Page.getFrameTree") {
       const frame = this.frames.get(sessionId);
       if (!frame) throw new Error("No target with given id");
@@ -81,6 +85,31 @@ test("document observer enables parent and child domains, joins cross-session ev
   dbg.emit("detach");
   expect(docs.current("FRAME", CANVAS)).toBeNull();
 });
+
+// The canvas agent notice's dot field runs a dedicated Worker in the main window, which auto-attach reports too. A
+// worker has no Page domain: Chromium answers Page.enable with "'Page.enable' wasn't found". Clearing the bindings
+// there dropped the shown canvas's proof, and every inspector read answered unavailable until the canvas loaded again.
+for (const failing of ["Page.enable", "Runtime.runIfWaitingForDebugger"]) {
+  test(`a worker target whose ${failing} fails keeps the shown canvas's proof and is still resumed`, async () => {
+    const docs = new DocumentBindings();
+    const dbg = new FakeDebugger();
+    createWindowDebugger(dbg, docs);
+    await vi.waitFor(() => expect(dbg.sent("Target.setAutoAttach")).toHaveLength(1));
+    dbg.target("S1", "iframe", { id: "FRAME", parentId: "MAIN", url: CANVAS });
+    await vi.waitFor(() => expect(dbg.sent("Runtime.runIfWaitingForDebugger")).toHaveLength(1));
+    docs.response({ marker: "response", root: "/repo", path: ".doan/canvases/a.html", hash: "sha256:" + "a".repeat(64), complete: true, stable: true });
+    dbg.emit("message", {}, "Network.responseReceived", { type: "Document", requestId: "request", frameId: "FRAME", loaderId: "loader", response: { headers: { "X-Doan-Response": "response" } } });
+    dbg.emit("message", {}, "Page.frameNavigated", { frame: { id: "FRAME", parentId: "MAIN", loaderId: "loader", url: CANVAS } }, "S1");
+    dbg.emit("message", {}, "Network.loadingFinished", { requestId: "request" }, "S1");
+    const shown = docs.current("FRAME", CANVAS);
+    expect(shown?.generation).toBe("loader");
+    dbg.failOn = (method, session) => (session === "W1" && method === failing ? new Error(`'${method}' wasn't found`) : null);
+    dbg.target("W1", "worker");
+    await vi.waitFor(() => expect(dbg.sent("Runtime.runIfWaitingForDebugger").map(([, , session]) => session)).toContain("W1"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(docs.current("FRAME", CANVAS)).toEqual(shown);
+  });
+}
 
 test("OOPIF process swap preserves the committed document, but actual removal retires it", async () => {
   const docs = new DocumentBindings();
@@ -194,6 +223,29 @@ test("mainFrame reads the window's main frame once, follows its commits and forg
   expect(await debuggerOf.mainFrame()).toBe("MAIN2");
   dbg.emit("detach");
   expect(await debuggerOf.mainFrame()).toBe("MAIN");
+});
+
+// While a window closes, Electron's attach succeeds and detaches again at once ("target closed"). The read state reads
+// the main frame on every document change and runs one more pass for a change during a pass; if that failed attach woke
+// it again, the passes would chain in microtasks and starve the close, so quit never finished.
+test("a closing window's failed re-attach does not wake document listeners again", async () => {
+  const docs = new DocumentBindings();
+  const dbg = new FakeDebugger();
+  const debuggerOf = createWindowDebugger(dbg, docs);
+  await vi.waitFor(() => expect(dbg.sent("Target.setAutoAttach")).toHaveLength(1));
+  dbg.emit("message", {}, "Page.frameNavigated", { frame: { id: "C", parentId: "MAIN", loaderId: "l", url: CANVAS } }, undefined);
+  let changes = 0;
+  docs.onChange(() => { changes++; });
+  dbg.attach = () => {
+    dbg.attached = false;
+    dbg.emit("detach", {}, "target closed");
+  };
+  dbg.failOn = () => dbg.attached ? null : new Error("target closed while handling command");
+  dbg.attached = false;
+  dbg.emit("detach", {}, "target closed");
+  expect(changes).toBe(1);
+  expect(await debuggerOf.mainFrame()).toBeNull();
+  expect(changes).toBe(1);
 });
 
 // The inspector sends its commands only to the session sessionOf names, so a former OOPIF session that outlives its

@@ -194,7 +194,7 @@ func TestSkillGuideHasNoComments(t *testing.T) {
 }
 
 // The agent rules are lettered without gaps, so an agent never looks for a missing rule.
-func TestSkillGuideAgentRulesAreAToF(t *testing.T) {
+func TestSkillGuideAgentRulesAreAToG(t *testing.T) {
 	section := skillBody[strings.Index(skillBody, "## Agent rules"):strings.Index(skillBody, "## Commands")]
 	var letters []string
 	for _, l := range strings.Split(section, "\n") {
@@ -202,8 +202,8 @@ func TestSkillGuideAgentRulesAreAToF(t *testing.T) {
 			letters = append(letters, l[:1])
 		}
 	}
-	if strings.Join(letters, "") != "ABCDEF" {
-		t.Errorf("agent rules are %v, want A–F", letters)
+	if strings.Join(letters, "") != "ABCDEFG" {
+		t.Errorf("agent rules are %v, want A–G", letters)
 	}
 	if !strings.Contains(section, "C. Keep ids unchanged when moving a canvas file: conversation chips (`doan:<canvas-id>/…`) find their target by canvas id.") {
 		t.Error("rule C does not give the conversation chip reason")
@@ -244,10 +244,11 @@ func TestSkillGuideMatchesCLIRules(t *testing.T) {
 
 // Codex's exec tool keeps at most 6,000 tokens of output and cuts the middle, which the end marker cannot detect.
 // It counted the guide that lost a preset (stderr 183 B + plain guide 24,528 B = 24,711 B) as 6,178 tokens,
-// 4.00 B/token. Main's guide before design presets was 18,830 B, already about 78% of the cap, and other
-// sections stay as they are, so the budget is 90%: 5,400 tokens × 4.00 B/token = 21,600 B. It covers the
-// plain output and the --json envelope, each with the note the app's own CLI appends for /Applications/Doan.app.
-const skillOutputBudget = 21600
+// 4.00 B/token, so the cap is about 24,000 B. The budget is 5,500 tokens × 4.00 B/token = 22,000 B, about 92% of
+// the cap: the rest absorbs a denser tokenization than the one measured, a longer bundle path and a release
+// version string. It covers the plain output and the --json envelope, each with the note the app's own CLI
+// appends for /Applications/Doan.app, and every design preset output.
+const skillOutputBudget = 22000
 
 func TestSkillGuideFitsToolOutputCap(t *testing.T) {
 	note := len(bundleNote("/Applications/Doan.app"))
@@ -541,6 +542,19 @@ func TestSkillGuidePrototypeLayout(t *testing.T) {
 	}
 }
 
+// A frame often draws an action without its result (a print button, a link to an undrawn screen). Without a rule,
+// Codex built a print view with copy no canvas showed and presented it as part of the approved screen (agent-eval H3b).
+func TestSkillGuideImplementsOnlyWhatTheFrameDraws(t *testing.T) {
+	const g = "G. Implementing a frame in code: build what it draws; for an action whose result it does not draw, invent no UI or copy and say so in your answer."
+	var found bool
+	for _, l := range strings.Split(skillBody, "\n") {
+		found = found || l == g
+	}
+	if !found {
+		t.Errorf("missing rule G: %q", g)
+	}
+}
+
 // Codex's `doan` prefix rule, and Claude Code's allow rules, match only a command of literal words: `--path "$PWD"`
 // (agent-eval O3b) and calls joined with `;` (O2) or `&&` (W8) ran in Codex's sandbox and could not reach the app.
 func TestSkillGuideCallsAreLiteralCommands(t *testing.T) {
@@ -552,5 +566,33 @@ func TestSkillGuideCallsAreLiteralCommands(t *testing.T) {
 	}
 	if !strings.Contains(syntax, "Run each `doan` call alone, in literal words (no `;`, `&&`, `|` or `$VAR`).") {
 		t.Errorf("the command syntax line does not ask for literal, unjoined calls: %q", syntax)
+	}
+}
+
+// A copy of a canvas written into a canvas folder, even for a moment, is listed as a second canvas with the same id:
+// the app blocks that canvas's conversation and loses a playing prototype's target, and a later doan check never
+// sees it. Agents checking their own work made such copies beside the original to keep its relative links, so the
+// rule names where a copy goes and how its links still resolve (a <base> after the links does not apply to them).
+func TestSkillGuideKeepsCanvasCopiesOutOfCanvasFolders(t *testing.T) {
+	var rule string
+	for _, l := range strings.Split(skillBody, "\n") {
+		// The onboarding steps are numbered too; the canvas conventions come first.
+		if strings.HasPrefix(l, "8. ") {
+			rule = l
+			break
+		}
+	}
+	at := 0
+	for _, required := range []string{
+		"8. Keep ids stable and unique",
+		"Put a temporary copy of a canvas (e.g. to render a variant) outside `.doan/`",
+		"with `<base href=\"file://<absolute canvas folder>/\">` first in `<head>` so its links resolve",
+		"in `.doan/canvases/` or `.doan/ds/` it is listed at once, sharing the canvas id.",
+	} {
+		i := strings.Index(rule[at:], required)
+		if i < 0 {
+			t.Fatalf("rule 8 misses %q in order: %q", required, rule)
+		}
+		at += i + len(required)
 	}
 }

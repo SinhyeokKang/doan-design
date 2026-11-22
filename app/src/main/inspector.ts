@@ -114,6 +114,14 @@ export function createInspector(deps: InspectorDeps): Inspector {
       return doc !== null && (doc.root !== canvas.root || doc.path !== canvas.path);
     });
 
+  // A frame with the requested canvas's URL is committed under the main frame without a proof yet. Right after a switch
+  // the new iframe can commit before the previous canvas's frame detaches, so a proven other canvas alone does not mean
+  // the request lost. A frame whose proof names another canvas at that URL is no such frame: it is the other canvas.
+  const requestedPending = (main: string, canvas: InspectRequest["canvas"]): boolean => {
+    const url = deps.canvasUrl(canvas);
+    return url !== null && deps.documents.frames().some((frame) => frame.parentId === main && frame.url === url && deps.documents.current(frame.id, frame.url) === null);
+  };
+
   // Resolves true on the next bindings change, false once `end` settles first; the listener goes either way.
   const changeBefore = async (end: Promise<void>): Promise<boolean> => {
     let off = () => {};
@@ -134,7 +142,7 @@ export function createInspector(deps: InspectorDeps): Inspector {
     // selection settles, while a missing proof gives it no such moment, so it gets unavailable and its Retry.
     let shown = shownNow(main, canvas);
     while (shown === null) {
-      if (otherShown(main, canvas)) return failed("not-shown");
+      if (otherShown(main, canvas) && !requestedPending(main, canvas)) return failed("not-shown");
       if (!(await changeBefore(end))) return failed("unavailable");
       shown = shownNow(main, canvas);
     }

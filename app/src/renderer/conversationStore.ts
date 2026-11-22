@@ -363,6 +363,10 @@ export class ConversationStore {
     const thread = this.threads.get(event.conversationId);
     if (!thread) { this.unclaimed = [...this.unclaimed, event].slice(-500); return; }
     this.threads.set(event.conversationId, { ...thread, events: mergeEvents(thread.events, [event], event.conversationId) });
+    // The flushed turn's start can arrive well before the list read that drops a flushing queue's rows; meanwhile
+    // those rows would read the turn as running and offer Send now for the message it already carries. Only a start
+    // ends the flushing hold, so other events (streamed deltas) skip the sync.
+    if (event.type === "turn.started") this.syncQueues();
     this.tell(event.conversationId, "event");
     this.host.changed();
   }
