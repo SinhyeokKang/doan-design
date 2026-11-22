@@ -542,6 +542,19 @@ func TestSkillGuidePrototypeLayout(t *testing.T) {
 	}
 }
 
+// A frame often draws an action without its result (a print button, a link to an undrawn screen). Without a rule,
+// Codex built a print view with copy no canvas showed and presented it as part of the approved screen (agent-eval H3b).
+func TestSkillGuideImplementsOnlyWhatTheFrameDraws(t *testing.T) {
+	const g = "G. Implementing a frame in code: build what it draws; for an action whose result it does not draw, invent no UI or copy and say so in your answer."
+	var found bool
+	for _, l := range strings.Split(skillBody, "\n") {
+		found = found || l == g
+	}
+	if !found {
+		t.Errorf("missing rule G: %q", g)
+	}
+}
+
 // Codex's `doan` prefix rule, and Claude Code's allow rules, match only a command of literal words: `--path "$PWD"`
 // (agent-eval O3b) and calls joined with `;` (O2) or `&&` (W8) ran in Codex's sandbox and could not reach the app.
 func TestSkillGuideCallsAreLiteralCommands(t *testing.T) {
