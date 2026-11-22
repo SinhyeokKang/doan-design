@@ -1544,9 +1544,13 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     const span = frame.frameLocator("#canvas").locator("span");
     const box = (await span.boundingBox())!;
     const mouse = frame.page().mouse;
-    await mouse.move(box.x + 2, box.y + box.height / 2);
+    // ⇧0 just moved the stage, and the press point lies outside the canvas as Fit drew it.
+    await pointAt(span, { x: 2, y: box.height / 2 });
     await mouse.down();
     try {
+      // The page takes a dragging range only while the canvas has its focus, which the press moves across processes
+      // and can arrive after every move below: the moves would all be dropped and none would follow to draw the range.
+      await frame.waitForFunction(() => document.activeElement === document.getElementById("canvas"));
       await mouse.move(box.x + box.width - 2, box.y + box.height / 2, { steps: 6 });
       await frame.locator(".text-rect").first().waitFor();
     } finally { await mouse.up(); }
@@ -1963,26 +1967,32 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     await showInspector(frame);
     await frame.evaluate(end => {
       const board = document.getElementById("board")!;
-      if (end === "focus") window.addEventListener("message", e => {
-        if (e.data?.type === "inspect-text" && e.data.dragging) board.focus();
-      }, true);
+      const keys = [["h", "KeyH"], ["v", "KeyV"], [" ", "Space"]] as const;
+      const handled = () => keys.map(([key, code]) => !board.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key, code }))).join(",");
+      // Registered after the page's own listener, so the page has taken this message's drag before the keys are tried.
       window.addEventListener("message", e => {
         if (e.data?.type !== "inspect-text" || !e.data.dragging || board.hasAttribute("data-keys")) return;
+        // The keys the drag holds go unhandled; a page that never entered the drag would handle them here as after the end.
+        board.dataset.held = handled();
+        if (end === "focus") board.focus();
         if (end === "pointerup") window.dispatchEvent(new PointerEvent("pointerup"));
         if (end === "blur") window.dispatchEvent(new Event("blur"));
-        const keys = [["h", "KeyH"], ["v", "KeyV"], [" ", "Space"]] as const;
-        board.dataset.keys = keys.map(([key, code]) => !board.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key, code }))).join(",");
+        board.dataset.keys = handled();
       });
     }, end);
     const span = frame.frameLocator("#canvas").locator("span");
     const box = (await span.boundingBox())!;
     const mouse = frame.page().mouse;
-    await mouse.move(box.x + 2, box.y + box.height / 2);
+    // The panel just moved the stage, and the page takes a dragging message only once it sees the canvas focused: an
+    // earlier one would try the keys before the drag holds them, and they are never tried again.
+    await pointAt(span, { x: 2, y: box.height / 2 });
     await mouse.down();
     try {
+      await frame.waitForFunction(() => document.activeElement === document.getElementById("canvas"));
       await mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 6 });
       await expect.poll(() => frame.locator("#board").getAttribute("data-keys")).toBe("true,true,true");
     } finally { await mouse.up(); }
+    expect(await frame.locator("#board").getAttribute("data-held")).toBe("false,false,false");
   });
 
   test("a folded inspector preserves repeated Escape in the page and in the canvas", async () => {
