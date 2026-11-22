@@ -18,6 +18,17 @@ ARCHITECTURE §11 'Shared formats': `.doan/config.json`, CLI response envelopes,
 - First write the schema change and the fixtures (ones that must pass and ones that must fail). Then make both the TS and Go tests read those fixtures. Writing only one side cannot catch the two implementations drifting apart.
 - Schemas and fixtures live in root `schema/` and `schema/fixtures/` (ARCHITECTURE §11 'Shared formats'). If a change needs a location §11 does not cover, stop and ask. Do not invent locations.
 
+## Tests that wait
+
+A test that waits on time, a real DOM, pointer input, processes, file watchers or messages is the kind that later fails now and then in CI. Write it so it cannot:
+
+- Wait on a condition the code under test produces (the event, the element or the message the step creates), never on a fixed delay or on an earlier, unrelated readiness.
+- Before sending input to a frame, page or process, wait until it is ready to take that input (loaded, its script listening), not only until it exists.
+- Keep every wait well under the test's own limit (POSTMORTEM 2026-10-30), so a slow machine fails at the assertion that names the cause, not at the test limit.
+- Never make such a test pass by raising a timeout alone.
+
+`/implement` reruns these tests repeatedly before its gate ('Gate').
+
 ## TDD required / skippable
 
 **Required** (pure logic that comes from PRODUCT decisions):
