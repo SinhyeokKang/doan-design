@@ -3101,6 +3101,12 @@ describe("isolate.js is the prototype window's isolation", () => {
     expect(keepList(isolateJs)).toBe(keepList(appPrototypeScript));
   });
 
+  test("it waits as long as prototypeScript.ts for a frame made after the load handlers: 2 s", () => {
+    const wait = (source: string) => Number(/const LATE_FRAME_MS = ([0-9_]+);/.exec(source)?.[1]?.replaceAll("_", ""));
+    expect(wait(appPrototypeScript)).toBe(2000);
+    expect(wait(isolateJs)).toBe(wait(appPrototypeScript));
+  });
+
   test("the comparison fails when a copy drifts", () => {
     const drifted = appPrototypeScript.replace("min-height: 100vh !important", "min-height: 50vh !important");
     expect(isolationSheet(drifted)).not.toBe(isolationSheet(isolateJs));
@@ -3209,11 +3215,16 @@ class FakeHistory {
   }
 }
 
+// Timers keep their delay on a fake clock, and a MutationObserver gets the changes `mutate()` records at `deliver()`, as
+// a microtask checkpoint would hand them over.
 function runIsolate(frames: () => FakeElement[], readyState = "loading", frameId = "checkout") {
   const posts: unknown[] = [];
   const windowListeners: Listener[] = [];
   const docListeners: Listener[] = [];
-  const timers: (() => void)[] = [];
+  let now = 0;
+  let lastTimer = 0;
+  const timers: { id: number; at: number; fn: () => void }[] = [];
+  const observers: { callback: () => void; pending: boolean }[] = [];
   const location = { hash: "" };
   const document = {
     readyState,
@@ -3232,9 +3243,40 @@ function runIsolate(frames: () => FakeElement[], readyState = "loading", frameId
   };
   const history = new FakeHistory();
   class CSSStyleSheet { text = ""; replaceSync(text: string) { this.text = text; } }
+  class MutationObserver {
+    private entry: (typeof observers)[number] | null = null;
+    constructor(private callback: () => void) {}
+    observe(target: unknown, options: { childList?: boolean; subtree?: boolean }) {
+      if (target !== document || options.childList !== true || options.subtree !== true) throw new Error("observes less than the document's tree");
+      this.entry = { callback: this.callback, pending: false };
+      observers.push(this.entry);
+    }
+    disconnect() {
+      if (this.entry !== null) observers.splice(observers.indexOf(this.entry), 1);
+      this.entry = null;
+    }
+  }
+  const deliver = () => {
+    for (const observer of [...observers]) {
+      if (!observers.includes(observer) || !observer.pending) continue;
+      observer.pending = false;
+      observer.callback();
+    }
+  };
+  const due = (end: number) => timers.filter(timer => timer.at <= end).sort((a, b) => a.at - b.at || a.id - b.id)[0];
+  const runDue = (end: number) => {
+    for (let next = due(end); next !== undefined; next = due(end)) {
+      now = next.at;
+      timers.splice(timers.indexOf(next), 1);
+      next.fn();
+      deliver();
+    }
+    now = end;
+  };
   runInNewContext(`(function () {\n${isolateJs}\n})();`, {
-    window, document, location, history, CSSStyleSheet, Element: FakeElement, Array, Set,
-    setTimeout: (fn: () => void) => { timers.push(fn); return timers.length; },
+    window, document, location, history, CSSStyleSheet, MutationObserver, Element: FakeElement, Array, Set,
+    setTimeout: (fn: () => void, delay = 0) => { timers.push({ id: ++lastTimer, at: now + Number(delay), fn }); return lastTimer; },
+    clearTimeout: (id: number) => { const index = timers.findIndex(timer => timer.id === id); if (index >= 0) timers.splice(index, 1); },
   });
   const fire = (list: Listener[], type: string, event: unknown = {}) => {
     for (const l of list.filter(l => l.type === type)) l.fn(event);
@@ -3242,7 +3284,14 @@ function runIsolate(frames: () => FakeElement[], readyState = "loading", frameId
   return {
     posts, location, document, timers, windowListeners, history,
     contentLoaded: () => fire(docListeners, "DOMContentLoaded"),
-    load: () => { fire(windowListeners, "load"); while (timers.length > 0) timers.shift()!(); },
+    // The `load` handlers, then the timers due by then.
+    load: () => { fire(windowListeners, "load"); runDue(now); },
+    tick: () => runDue(now),
+    advance: (ms: number) => runDue(now + ms),
+    // A change to the frames the document holds: every observer of it is told at the next `deliver()`.
+    mutate: () => { for (const observer of observers) observer.pending = true; },
+    deliver,
+    watching: () => ({ observers: observers.length, timers: timers.length }),
     dispatch: (type: string, event: unknown) => fire(windowListeners, type, event),
   };
 }
@@ -3289,12 +3338,18 @@ describe("isolate.js reports once and keeps the canvas in its document", () => {
     expect(run.posts).toEqual([{ message: { type: "doan-prototype", state: "ready" }, target: "*" }]);
   });
 
-  test("no frame after the load handlers, or two with the id, is missing and nothing is hidden", () => {
+  test("no frame, or two with the id, is missing (two at DOMContentLoaded at once, none at the end of the 2 s wait) and nothing is hidden", () => {
     for (const frames of [[], [board().frame, board().frame]]) {
       const run = runIsolate(() => frames);
       run.contentLoaded();
       run.load();
+      if (frames.length === 0) {
+        run.advance(1999);
+        expect(run.posts).toEqual([]);
+        run.advance(1);
+      }
       expect(run.posts).toEqual([{ message: { type: "doan-prototype", state: "missing" }, target: "*" }]);
+      expect(run.watching()).toEqual({ observers: 0, timers: 0 });
       expect(run.document.adoptedStyleSheets).toHaveLength(0);
     }
   });
@@ -3304,6 +3359,7 @@ describe("isolate.js reports once and keeps the canvas in its document", () => {
     const run = runIsolate(() => [b.frame, b.other], "loading", "Checkout");
     run.contentLoaded();
     run.load();
+    run.advance(2000);
     expect(run.posts).toEqual([{ message: { type: "doan-prototype", state: "missing" }, target: "*" }]);
   });
 
@@ -3312,8 +3368,78 @@ describe("isolate.js reports once and keeps the canvas in its document", () => {
     expect(runIsolate(() => [b.frame], "interactive").posts).toHaveLength(1);
     const complete = runIsolate(() => [b.frame], "complete");
     expect(complete.posts).toHaveLength(0);
-    complete.timers.shift()!();
+    complete.tick();
     expect(complete.posts).toHaveLength(1);
+  });
+
+  test("a frame made within 2 s after the load handlers plays at once, and the watch stops", () => {
+    const b = board();
+    let made = false;
+    const run = runIsolate(() => (made ? [b.frame, b.other] : [b.other]));
+    run.contentLoaded();
+    run.load();
+    expect(run.posts).toEqual([]);
+    run.advance(500);
+    made = true;
+    run.mutate();
+    expect(run.posts).toEqual([]);
+    run.deliver();
+    expect(run.posts).toEqual([{ message: { type: "doan-prototype", state: "ready" }, target: "*" }]);
+    expect(b.frame.getAttribute("data-doan-proto-frame")).toBe("");
+    expect(run.watching()).toEqual({ observers: 0, timers: 0 });
+    run.advance(2000);
+    expect(run.posts).toHaveLength(1);
+  });
+
+  test("two frames with the id after the load handlers play once one goes within 2 s", () => {
+    const b = board();
+    const twin = new FakeElement("DIV", { "data-doan-frame": "checkout" });
+    let frames: FakeElement[] = [];
+    const run = runIsolate(() => frames);
+    run.contentLoaded();
+    frames = [b.frame, twin];
+    run.load();
+    run.advance(1000);
+    expect(run.posts).toEqual([]);
+    frames = [b.frame];
+    run.mutate();
+    run.deliver();
+    expect(run.posts).toEqual([{ message: { type: "doan-prototype", state: "ready" }, target: "*" }]);
+  });
+
+  test("a frame made after the report gets nothing", () => {
+    const b = board();
+    let made = false;
+    const run = runIsolate(() => (made ? [b.frame] : []));
+    run.contentLoaded();
+    run.load();
+    run.advance(2000);
+    expect(run.posts).toEqual([{ message: { type: "doan-prototype", state: "missing" }, target: "*" }]);
+    made = true;
+    run.mutate();
+    run.deliver();
+    run.advance(2000);
+    expect(run.posts).toHaveLength(1);
+    expect(run.document.adoptedStyleSheets).toHaveLength(0);
+  });
+
+  test("a finished document with no frame yet gets the same wait", () => {
+    const b = board();
+    let made = false;
+    const run = runIsolate(() => (made ? [b.frame] : []), "complete");
+    run.tick();
+    run.advance(1500);
+    expect(run.posts).toEqual([]);
+    made = true;
+    run.mutate();
+    run.deliver();
+    expect(run.posts).toEqual([{ message: { type: "doan-prototype", state: "ready" }, target: "*" }]);
+    const missing = runIsolate(() => [], "complete");
+    missing.tick();
+    missing.advance(1999);
+    expect(missing.posts).toEqual([]);
+    missing.advance(1);
+    expect(missing.posts).toEqual([{ message: { type: "doan-prototype", state: "missing" }, target: "*" }]);
   });
 
   test("every submit's default is stopped, after the canvas's handlers (bubble phase on window)", () => {
@@ -3481,8 +3607,21 @@ describe("isolate.js follows links in a real DOM", { timeout: 60_000 }, () => {
     expect(await frame.evaluate(() => location.hash)).toBe("");
   });
 
+  test("a frame a script makes after the load handlers plays within 2 s, and its links are followed", async () => {
+    const script = `<script>addEventListener("load", () => setTimeout(() => document.body.insertAdjacentHTML("beforeend", ${JSON.stringify(frames(`<a id="x" data-doan-goto="b">Next</a>`))}), 300));</script>`;
+    const frame = await dom.load(isolateDocument("a", script));
+    expect(await dom.flush(frame)).toEqual([]);
+    await frame.evaluate(() => new Promise(resolve => setTimeout(resolve, 600)));
+    const before = await dom.flush(frame);
+    expect(before).toEqual([{ type: "doan-prototype", state: "ready" }]);
+    await frame.evaluate(() => (document.getElementById("x") as HTMLElement).click());
+    expect((await dom.flush(frame)).slice(before.length)).toEqual([{ type: "doan-prototype", goto: "b" }]);
+  });
+
   test("nothing is followed when the frame did not play", async () => {
     const frame = await dom.load(isolateDocument("zz", frames(`<a id="x" data-doan-goto="b">Next</a>`)));
+    // The missing report comes at the end of the 2 s wait after the load handlers.
+    await frame.evaluate(() => new Promise(resolve => setTimeout(resolve, 2100)));
     const before = await dom.flush(frame);
     expect(before).toEqual([{ type: "doan-prototype", state: "missing" }]);
     await frame.evaluate(() => (document.getElementById("x") as HTMLElement).click());

@@ -180,24 +180,42 @@ function isolate(el) {
 }
 
 // At DOMContentLoaded, or after the `load` handlers when the frame is not there yet, as the app's
-// prototype window finds it: a frame a script makes while parsing or in `load` handlers counts.
-let done = false;
-function finish(final) {
-  if (done) return true;
-  const matches = Array.from(document.querySelectorAll("[data-doan-frame]")).filter((el) => el.getAttribute("data-doan-frame") === FRAME);
-  if (matches.length === 0 && !final) return false;
-  done = true;
+// prototype window finds it. When there is not exactly one frame with the id after the `load`
+// handlers, the document is watched for up to LATE_FRAME_MS, as prototypeScript.ts watches it: the
+// frame plays as soon as it is the only one, else the state when the time is up is reported. The run
+// script after this one waits as long, so its links follow a frame the run script finds late. That
+// script also reads the mark, which this one does not, so the player's verdict stays the run script's.
+// prototypeScript.ts waits as long (exportViewer.test.ts compares the literals).
+const LATE_FRAME_MS = 2000;
+const targets = () => Array.from(document.querySelectorAll("[data-doan-frame]")).filter((el) => el.getAttribute("data-doan-frame") === FRAME);
+function report(matches) {
   if (matches.length === 1) {
     isolate(matches[0]);
     playing = matches[0];
     post({ state: "ready" });
   } else post({ state: "missing" });
-  return true;
+}
+function settle() {
+  if (targets().length === 1) return report(targets());
+  const observer = new MutationObserver(() => {
+    const matches = targets();
+    if (matches.length !== 1) return;
+    observer.disconnect();
+    clearTimeout(timer);
+    report(matches);
+  });
+  const timer = setTimeout(() => {
+    observer.disconnect();
+    report(targets());
+  }, LATE_FRAME_MS);
+  observer.observe(document, { childList: true, subtree: true, attributeFilter: ["data-doan-frame"] });
 }
 const afterLoad = (then) => window.addEventListener("load", () => setTimeout(then, 0), { once: true });
 const atContentLoaded = () => {
-  if (!finish(false)) afterLoad(() => finish(true));
+  const matches = targets();
+  if (matches.length === 0) afterLoad(settle);
+  else report(matches);
 };
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", atContentLoaded, { once: true });
 else if (document.readyState === "interactive") atContentLoaded();
-else setTimeout(() => finish(true), 0);
+else setTimeout(settle, 0);

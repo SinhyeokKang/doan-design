@@ -64,10 +64,20 @@ function descendants(root: FakeElement): FakeElement[] {
 }
 
 type Listener = () => void;
+type MutationRecordLike = { type: "childList" } | { type: "attributes"; attributeName: string };
+type ObserveOptions = { childList?: boolean; subtree?: boolean; attributes?: boolean; attributeFilter?: string[] };
+
+// The late-frame wait after the `load` handlers (the spec's 2 s).
+const LATE_FRAME_WAIT = 2000;
 
 function fakeDocument(options: { url?: string; nested?: boolean; top?: boolean; readyState?: string } = {}) {
   const posted: unknown[] = [];
-  const timers: (() => void)[] = [];
+  // Timers keep their delay on a fake clock: `timers()` runs what is due now, `advance()` moves the clock.
+  let now = 0;
+  let lastTimer = 0;
+  const timers: { id: number; at: number; callback: () => void }[] = [];
+  // Observers queue the records a `mutate()` makes and get them at `deliver()`, as a microtask checkpoint would.
+  const observers: { callback: (records: MutationRecordLike[]) => void; options: ObserveOptions; records: MutationRecordLike[] }[] = [];
   const documentListeners = new Map<string, Listener[]>();
   const windowListeners = new Map<string, Listener[]>();
   const add = (map: Map<string, Listener[]>) => (type: string, listener: Listener) => map.set(type, [...(map.get(type) ?? []), listener]);
@@ -87,12 +97,47 @@ function fakeDocument(options: { url?: string; nested?: boolean; top?: boolean; 
       return descendants(html).filter(el => el.hasAttribute(attr));
     },
   };
+  class MutationObserver {
+    private entry: (typeof observers)[number] | null = null;
+    constructor(private callback: (records: MutationRecordLike[]) => void) {}
+    observe(target: unknown, observed: ObserveOptions) {
+      if (target !== document && target !== html) throw new Error("observes something other than the document");
+      this.entry = { callback: this.callback, options: observed, records: [] };
+      observers.push(this.entry);
+    }
+    disconnect() {
+      if (this.entry !== null) observers.splice(observers.indexOf(this.entry), 1);
+      this.entry = null;
+    }
+  }
+  const deliver = () => {
+    for (const observer of [...observers]) {
+      if (!observers.includes(observer) || observer.records.length === 0) continue;
+      observer.callback(observer.records.splice(0));
+    }
+  };
+  const runTimer = () => {
+    const due = timers.filter(timer => timer.at <= now).sort((a, b) => a.at - b.at || a.id - b.id)[0];
+    if (due === undefined) return false;
+    timers.splice(timers.indexOf(due), 1);
+    due.callback();
+    deliver();
+    return true;
+  };
   const top = { postMessage: (message: unknown) => posted.push(message) };
   const context: Record<string, unknown> = {
     location: { href: options.url ?? URL_A },
     document,
     URL,
-    setTimeout: (callback: () => void) => timers.push(callback),
+    setTimeout: (callback: () => void, delay = 0) => {
+      timers.push({ id: ++lastTimer, at: now + Number(delay), callback });
+      return lastTimer;
+    },
+    clearTimeout: (id: number) => {
+      const index = timers.findIndex(timer => timer.id === id);
+      if (index >= 0) timers.splice(index, 1);
+    },
+    MutationObserver,
     addEventListener: add(windowListeners),
     CSSStyleSheet: class { text = ""; replaceSync(text: string) { this.text = text; sheets.push(this); } },
   };
@@ -105,10 +150,40 @@ function fakeDocument(options: { url?: string; nested?: boolean; top?: boolean; 
     run: (target: string, gen = 7, url = URL_A) => runInNewContext(prototypeScriptSource(target, gen, url), context),
     contentLoaded: () => { document.readyState = "interactive"; fire(documentListeners, "DOMContentLoaded"); },
     loaded: () => { document.readyState = "complete"; fire(windowListeners, "load"); },
-    timers: () => { for (const callback of timers.splice(0)) callback(); },
-    // DOMContentLoaded, then the `load` handlers, then the timers queued from them.
-    finish() { this.contentLoaded(); this.loaded(); this.timers(); },
+    timers: () => { while (runTimer()); },
+    advance: (ms: number) => {
+      const end = now + ms;
+      for (;;) {
+        const next = timers.filter(timer => timer.at <= end).sort((a, b) => a.at - b.at || a.id - b.id)[0];
+        if (next === undefined) break;
+        now = next.at;
+        runTimer();
+      }
+      now = end;
+    },
+    // A change to the document: `change` edits the fake tree and `record` is what an observer of it is told.
+    mutate: (change: () => void, attributeName?: string) => {
+      change();
+      const record: MutationRecordLike = attributeName === undefined ? { type: "childList" } : { type: "attributes", attributeName };
+      for (const observer of observers) {
+        const { childList, attributes, attributeFilter } = observer.options;
+        if (observer.options.subtree !== true) continue;
+        if (record.type === "childList" ? childList === true
+          : (attributes === true || attributeFilter !== undefined) && (attributeFilter === undefined || attributeFilter.includes(record.attributeName))) observer.records.push(record);
+      }
+    },
+    deliver,
+    // What is still watching the document: observers connected and timers pending.
+    watching: () => ({ observers: observers.length, timers: timers.length }),
+    // DOMContentLoaded, then the `load` handlers, then the timers queued from them, then the late-frame wait.
+    finish() { this.contentLoaded(); this.loaded(); this.timers(); this.advance(LATE_FRAME_WAIT); },
   };
+}
+
+function remove(child: FakeElement): void {
+  const parent = child.parentElement!;
+  parent.children.splice(parent.children.indexOf(child), 1);
+  child.parentElement = null;
 }
 
 function frameEl(id: string, mark?: string, title?: string): FakeElement {
@@ -225,7 +300,7 @@ describe("resolving and isolating the frame", () => {
     expect(page.posted).toEqual([{ gen: 7, state: "ready", size: "320x568", frames: [{ id: "late", size: "320x568", number: 1 }], gotos: [] }]);
   });
 
-  test("a frame that never appears is missing after the load handlers", () => {
+  test("a frame that never appears is missing at the end of the wait after the load handlers", () => {
     const page = fakeDocument();
     append(page.body, frameEl("other", "1x1"));
     page.run("phone");
@@ -305,6 +380,146 @@ describe("resolving and isolating the frame", () => {
   });
 });
 
+describe("a target frame that becomes playable after the load handlers", () => {
+  // Up to the `load` handlers and the timer queued from them, with no playable target frame by then.
+  const afterLoad = (target = "late", setup: (page: ReturnType<typeof fakeDocument>) => void = () => {}) => {
+    const page = fakeDocument();
+    page.run(target);
+    page.contentLoaded();
+    setup(page);
+    page.loaded();
+    page.timers();
+    expect(page.posted).toEqual([]);
+    return page;
+  };
+
+  test("a marked frame made within the wait plays at once, in one message, and the watch stops", () => {
+    const page = afterLoad();
+    expect(page.watching()).toEqual({ observers: 1, timers: 1 });
+    page.advance(500);
+    const late = frameEl("late", "320x568");
+    page.mutate(() => append(page.body, late));
+    page.deliver();
+    expect(page.posted).toEqual([{ gen: 7, state: "ready", size: "320x568", frames: [{ id: "late", size: "320x568", number: 1 }], gotos: [] }]);
+    expect(late.hasAttribute("data-doan-proto-frame")).toBe(true);
+    expect(page.document.adoptedStyleSheets).toHaveLength(1);
+    expect(page.watching()).toEqual({ observers: 0, timers: 0 });
+    page.advance(LATE_FRAME_WAIT);
+    expect(page.posted).toHaveLength(1);
+  });
+
+  test("a frame that gets its mark, or its ID, within the wait plays", () => {
+    const marked = afterLoad();
+    const unmarked = frameEl("late");
+    marked.mutate(() => append(marked.body, unmarked));
+    marked.deliver();
+    expect(marked.posted).toEqual([]);
+    marked.mutate(() => unmarked.setAttribute("data-doan-prototype", "320x568"), "data-doan-prototype");
+    marked.deliver();
+    expect(marked.posted).toEqual([{ gen: 7, state: "ready", size: "320x568", frames: [{ id: "late", size: "320x568", number: 1 }], gotos: [] }]);
+
+    const named = afterLoad();
+    const other = frameEl("draft", "1x1");
+    named.mutate(() => append(named.body, other));
+    named.deliver();
+    expect(named.posted).toEqual([]);
+    named.mutate(() => other.setAttribute("data-doan-frame", "late"), "data-doan-frame");
+    named.deliver();
+    expect(named.posted).toEqual([{ gen: 7, state: "ready", size: "1x1", frames: [{ id: "late", size: "1x1", number: 1 }], gotos: [] }]);
+  });
+
+  test("a shared ID made in the load handlers and made unique within the wait plays", () => {
+    const first = frameEl("late", "1x1");
+    const second = frameEl("late", "1x1");
+    const page = afterLoad("late", p => { append(p.body, first); append(p.body, second); });
+    page.mutate(() => remove(second));
+    page.deliver();
+    expect(page.posted).toEqual([{ gen: 7, state: "ready", size: "1x1", frames: [{ id: "late", size: "1x1", number: 1 }], gotos: [] }]);
+  });
+
+  test.each([
+    ["nothing", [], "missing"],
+    ["only other frames", [["other", "1x1"]], "missing"],
+    ["an unmarked frame", [["late", undefined]], "unmarked"],
+    ["a frame with an invalid mark", [["late", "0x1"]], "invalid"],
+    ["two frames with the ID", [["late", "1x1"], ["late", "1x1"]], "duplicate"],
+  ] as [string, [string, string | undefined][], string][])("with %s at the end of the wait, that state is reported once", (_name, made, state) => {
+    const page = afterLoad();
+    page.advance(100);
+    page.mutate(() => { for (const [id, mark] of made) append(page.body, frameEl(id, mark)); });
+    page.deliver();
+    page.advance(LATE_FRAME_WAIT - 101);
+    expect(page.posted).toEqual([]);
+    page.advance(1);
+    expect(page.posted).toHaveLength(1);
+    expect(page.posted[0]).toMatchObject({ gen: 7, state });
+    expect(page.document.adoptedStyleSheets).toHaveLength(0);
+    expect(page.watching()).toEqual({ observers: 0, timers: 0 });
+  });
+
+  test("a frame made after the report gets nothing", () => {
+    const page = afterLoad();
+    page.advance(LATE_FRAME_WAIT);
+    expect(page.posted).toEqual([{ gen: 7, state: "missing", frames: [], gotos: [] }]);
+    page.mutate(() => append(page.body, frameEl("late", "1x1")));
+    page.deliver();
+    page.advance(LATE_FRAME_WAIT);
+    expect(page.posted).toHaveLength(1);
+    expect(page.document.adoptedStyleSheets).toHaveLength(0);
+  });
+
+  test("a script injected after the document's load gets the same wait", () => {
+    const ready = fakeDocument({ readyState: "complete" });
+    ready.run("late");
+    ready.timers();
+    expect(ready.posted).toEqual([]);
+    ready.advance(1500);
+    ready.mutate(() => append(ready.body, frameEl("late", "1x1")));
+    ready.deliver();
+    expect(ready.posted).toEqual([{ gen: 7, state: "ready", size: "1x1", frames: [{ id: "late", size: "1x1", number: 1 }], gotos: [] }]);
+
+    const missing = fakeDocument({ readyState: "complete" });
+    missing.run("late");
+    missing.timers();
+    missing.advance(LATE_FRAME_WAIT - 1);
+    expect(missing.posted).toEqual([]);
+    missing.advance(1);
+    expect(missing.posted).toEqual([{ gen: 7, state: "missing", frames: [], gotos: [] }]);
+  });
+
+  test("a frame found at DOMContentLoaded or right after the load handlers starts no watch", () => {
+    const early = fakeDocument();
+    append(early.body, frameEl("phone", "1x1"));
+    early.run("phone");
+    early.contentLoaded();
+    early.loaded();
+    early.timers();
+    expect(early.posted).toHaveLength(2);
+    expect(early.watching()).toEqual({ observers: 0, timers: 0 });
+    const unmarked = fakeDocument();
+    append(unmarked.body, frameEl("phone"));
+    unmarked.run("phone");
+    unmarked.contentLoaded();
+    expect(unmarked.posted).toEqual([{ gen: 7, state: "unmarked", frames: [], gotos: [] }]);
+    unmarked.loaded();
+    unmarked.timers();
+    expect(unmarked.watching()).toEqual({ observers: 0, timers: 0 });
+    const inLoad = afterLoadReady();
+    expect(inLoad.watching()).toEqual({ observers: 0, timers: 0 });
+  });
+
+  function afterLoadReady() {
+    const page = fakeDocument();
+    page.run("late");
+    page.contentLoaded();
+    append(page.body, frameEl("late", "1x1"));
+    page.loaded();
+    page.timers();
+    expect(page.posted).toHaveLength(1);
+    return page;
+  }
+});
+
 interface LinkPlacement {
   name: string;
   html: string;
@@ -326,10 +541,18 @@ const links = JSON.parse(readFileSync(new URL("../../../schema/fixtures/prototyp
 const clicks = JSON.parse(readFileSync(new URL("../../../schema/fixtures/prototype-links/clicks.json", import.meta.url), "utf8")) as { cases: ClickCase[] };
 
 // The injected script runs first in the document, as the prototype window's CDP injection puts it.
-const canvasDocument = (target: string, body: string, gen = 7) =>
-  `<!doctype html><html><head><script>${prototypeScriptSource(target, gen, "about:srcdoc")}</script></head><body>${body}</body></html>`;
-// No fixture frame has this ID, so the run reports `missing` once, after the load handlers, with the whole document.
+const canvasDocument = (target: string, body: string, gen = 7, source = prototypeScriptSource(target, gen, "about:srcdoc")) =>
+  `<!doctype html><html><head><script>${source}</script></head><body>${body}</body></html>`;
+// No fixture frame has this ID, so the run reports `missing` once, after the load handlers and the late-frame wait,
+// with the whole document. The wait is cut to 0 in this copy of the script so each case does not sit out 2 s.
 const NO_FRAME = "\u0000";
+const noWaitSource = (target: string, gen: number) => {
+  const source = prototypeScriptSource(target, gen, "about:srcdoc");
+  // The transform may write the literal as 2e3, as the caps above allow for.
+  const literal = /const LATE_FRAME_MS = ([0-9_.e]+);/.exec(source);
+  if (literal === null || Number(literal[1]!.replaceAll("_", "")) !== LATE_FRAME_WAIT) throw new Error("no 2 s LATE_FRAME_MS literal in the script");
+  return source.replace(literal[0], "const LATE_FRAME_MS = 0;");
+};
 
 type Report = { gen: number; state?: string; frames: unknown[]; gotos: { value: string; frames: string[] }[]; goto?: string | null };
 
@@ -341,7 +564,7 @@ describe("in a real DOM", { timeout: 60_000 }, () => {
   afterAll(async () => { await dom?.close(); }, 30_000);
 
   const report = async (body: string): Promise<Report> => {
-    const posted = await dom.flush(await dom.load(canvasDocument(NO_FRAME, body)));
+    const posted = await dom.flush(await dom.load(canvasDocument(NO_FRAME, body, 7, noWaitSource(NO_FRAME, 7))));
     expect(posted).toHaveLength(1);
     return posted[0] as Report;
   };
@@ -408,6 +631,20 @@ describe("in a real DOM", { timeout: 60_000 }, () => {
       }, { selector: click, host: shadowHost ?? null });
       const after = (await dom.flush(target)).slice(before.length);
       expect(after).toEqual(posts === null ? [] : [{ gen: 9, ...posts }]);
+    });
+
+    test("a frame a script makes after the load handlers plays within the wait, and its links are followed", async () => {
+      const html = `<script>addEventListener("load", () => setTimeout(() => {
+        document.body.insertAdjacentHTML("beforeend", '<div data-doan-frame="a" data-doan-prototype="390x844"><a id="x" data-doan-goto="b"></a></div><div data-doan-frame="b" data-doan-prototype="390x844"></div>');
+      }, 300));</script>`;
+      const frame = await dom.load(canvasDocument("a", html, 9));
+      expect(await dom.flush(frame)).toEqual([]);
+      await frame.evaluate(() => new Promise(resolve => setTimeout(resolve, 600)));
+      const before = await dom.flush(frame) as Report[];
+      expect(before).toHaveLength(1);
+      expect(before[0]).toMatchObject({ gen: 9, state: "ready", size: "390x844" });
+      await frame.evaluate(() => (document.getElementById("x") as HTMLElement).click());
+      expect((await dom.flush(frame)).slice(before.length)).toEqual([{ gen: 9, goto: "b" }]);
     });
 
     test("nothing is followed while no frame plays", async () => {
