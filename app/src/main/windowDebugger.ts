@@ -35,7 +35,7 @@ export function createWindowDebugger(dbg: DebuggerLike, documents: DocumentBindi
   let connected: Promise<void> | null = null;
   let mainFrameId: Promise<string | null> | null = null;
 
-  dbg.on("message", (_event: unknown, method: string, params: { sessionId?: string }, sessionId?: string) => {
+  dbg.on("message", (_event: unknown, method: string, params: { sessionId?: string; targetInfo?: { type?: string } }, sessionId?: string) => {
     // An OOPIF's former session can deliver queued Page/Network events after
     // its replacement commits. Parent events still join the first response.
     if (sessionId) {
@@ -76,11 +76,15 @@ export function createWindowDebugger(dbg: DebuggerLike, documents: DocumentBindi
     if (method === "Target.attachedToTarget" && params.sessionId) {
       sessions.add(params.sessionId);
       const child = params.sessionId;
+      // Only a frame target can hold a canvas document. Auto-attach also reports the window's workers (the canvas agent
+      // notice's dot field runs one), which have no Page domain: clearing the bindings on their failed setup dropped
+      // the shown canvas's proof until that canvas loaded again.
+      const frame = params.targetInfo?.type === "iframe";
       // Auto-attached targets start paused; a path that skips this resume hangs the canvas.
       void (async () => {
-        try { await dbg.sendCommand("Network.enable", {}, child); await dbg.sendCommand("Page.enable", {}, child); }
+        try { if (frame) { await dbg.sendCommand("Network.enable", {}, child); await dbg.sendCommand("Page.enable", {}, child); } }
         catch { documents.clear(); }
-        finally { await dbg.sendCommand("Runtime.runIfWaitingForDebugger", {}, child).catch(() => { documents.clear(); }); }
+        finally { await dbg.sendCommand("Runtime.runIfWaitingForDebugger", {}, child).catch(() => { if (frame) documents.clear(); }); }
       })();
     }
     else if (method === "Target.detachedFromTarget" && params.sessionId) {
