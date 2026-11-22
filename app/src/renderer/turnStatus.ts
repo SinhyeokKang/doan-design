@@ -80,9 +80,10 @@ const fromStage = (status: TurnStatus) => status.kind === "tool" && status.step 
 // count otherwise. A Claude Code or Codex activity is written as its tool starts, so the event rule's tool still runs.
 // An ACP agent writes it only once its tool completed, so there only a stage makes the row run, possibly for a tool not
 // in its steps yet; `acp` is that turn's latest status, before settle, and null for Claude Code and Codex. The shown
-// stage outlives its tool by the settle time, so an ACP row runs only while the latest status is a stage's tool too: a
-// row born from the last tool's completion never runs. The last step reads "Running a command" only when the status
-// came from that step. A Codex MCP startup line keeps its sentence as the head until the turn ends.
+// stage outlives its tool by the settle time, so an ACP row runs only while the latest status is that same stage's tool:
+// a row born from a tool's completion never runs with that tool's words, neither before the general stage settles nor
+// before the next tool's stage does. The last step reads "Running a command" only when the status came from that step.
+// A Codex MCP startup line keeps its sentence as the head until the turn ends.
 export function activityRun(items: readonly ThreadItem[], status: TurnStatus, acp: TurnStatus | null): readonly ThreadItem[] {
   const at = ownEnd(items) - 1;
   const row = items[at];
@@ -91,7 +92,7 @@ export function activityRun(items: readonly ThreadItem[], status: TurnStatus, ac
   let next: ActivityItem = { ...row, running: false, head: stepCount(row.steps.length) };
   if (last?.sentence) {
     if (status.kind !== "none") next = { ...row, running: true, head: runningHead(last) };
-  } else if (status.kind === "tool" && (acp === null || (fromStage(status) && fromStage(acp)))) {
+  } else if (status.kind === "tool" && (acp === null || (fromStage(status) && fromStage(acp) && statusKey(status) === statusKey(acp)))) {
     const own = last !== undefined && last.kind === "command" && status.step === last.key;
     next = { ...row, running: true, head: status.text, ...(own ? { steps: [...row.steps.slice(0, -1), { ...last, verb: "Running a command" }] } : {}) };
   }
