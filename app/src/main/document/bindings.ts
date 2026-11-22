@@ -101,5 +101,12 @@ export class DocumentBindings {
     if (!response?.complete || !response.stable || !response.hash) return null;
     return { ...response, generation: frame.loaderId, frame: frameId };
   }
-  clear(): void { this.responses.clear(); this.loaders.clear(); this.requests.clear(); this.finished.clear(); this.committed.clear(); this.pending.clear(); this.changed(); }
+  // Notifies only when something went: a closing window's re-attach detaches at once and clears again, and a change
+  // from that would wake the read-state proof into another main frame read, chaining passes that starve the quit.
+  clear(): void {
+    const maps = [this.responses, this.loaders, this.requests, this.finished, this.committed, this.pending];
+    if (maps.every(map => map.size === 0)) return;
+    for (const map of maps) map.clear();
+    this.changed();
+  }
 }
