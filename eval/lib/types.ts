@@ -67,6 +67,10 @@ export interface CheckContext {
   onboarding(): { request: any; response: any }[];
   // App-socket v3 exchanges and SHA-256 snapshots at arrival; null means unavailable.
   work(): WorkExchange[];
+  // Repo-relative names the OS reported under `.doan/canvases/` and `.doan/ds/` during the run, in order, repeats
+  // kept (null: an event without a name). Only `repo` is watched, not a worktree scenario's `cwd`. null when no watch
+  // ran or it failed.
+  canvasNames(): (string | null)[] | null;
   // App-socket v4 exchanges (`doan open`) in order, token removed; empty when there were none.
   open(): OpenExchange[];
   // App-socket v5 exchanges (`doan handoff`) in order, token removed; empty when there were none.

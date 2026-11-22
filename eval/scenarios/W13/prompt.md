@@ -1,0 +1,1 @@
+In this repository, add a subtle entrance animation to the hero on the landing canvas (`.doan/canvases/landing.html`): the heading fades and slides up, then the button follows. Before you finish, look at how it renders midway through the animation, not only at the end, and tell me what you saw.

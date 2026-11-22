@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="landing">
+<meta name="doan:width" content="1600">
+<title>Landing</title>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/landing.css">
+<style>
+  @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+  .hero h1, .hero .button { animation: rise 600ms cubic-bezier(0.2, 0, 0, 1) both; }
+  .hero .button { animation-delay: 200ms; }
+  @media (prefers-reduced-motion: reduce) { .hero h1, .hero .button { animation: none; } }
+</style>
+</head>
+<body>
+<main class="page" data-doan-frame="home" data-doan-title="Home (desktop)">
+  <section class="hero" data-doan-id="hero">
+    <h1 data-doan-id="hero-title">Plan the week your team will actually ship</h1>
+    <p data-doan-id="hero-text">One board for priorities, owners and dates, shared with everyone who needs it.</p>
+    <a class="button" href="#start" data-doan-id="hero-cta">Start planning</a>
+  </section>
+</main>
+</body>
+</html>
