@@ -82,7 +82,8 @@ const fromStage = (status: TurnStatus) => status.kind === "tool" && status.step 
 // in its steps yet; `acp` is that turn's latest status, before settle, and null for Claude Code and Codex. The shown
 // stage outlives its tool by the settle time, so an ACP row runs only while the latest status is that same stage's tool:
 // a row born from a tool's completion never runs with that tool's words, neither before the general stage settles nor
-// before the next tool's stage does. The last step reads "Running a command" only when the status came from that step. A Codex MCP startup line keeps its sentence as the head until the turn ends.
+// before the next tool's stage does. The last step reads "Running a command" only when the status came from that step.
+// A Codex MCP startup line keeps its sentence as the head until the turn ends.
 export function activityRun(items: readonly ThreadItem[], status: TurnStatus, acp: TurnStatus | null): readonly ThreadItem[] {
   const at = ownEnd(items) - 1;
   const row = items[at];
