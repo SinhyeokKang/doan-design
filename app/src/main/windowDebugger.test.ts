@@ -225,6 +225,29 @@ test("mainFrame reads the window's main frame once, follows its commits and forg
   expect(await debuggerOf.mainFrame()).toBe("MAIN");
 });
 
+// While a window closes, Electron's attach succeeds and detaches again at once ("target closed"). The read state reads
+// the main frame on every document change and runs one more pass for a change during a pass; if that failed attach woke
+// it again, the passes would chain in microtasks and starve the close, so quit never finished.
+test("a closing window's failed re-attach does not wake document listeners again", async () => {
+  const docs = new DocumentBindings();
+  const dbg = new FakeDebugger();
+  const debuggerOf = createWindowDebugger(dbg, docs);
+  await vi.waitFor(() => expect(dbg.sent("Target.setAutoAttach")).toHaveLength(1));
+  dbg.emit("message", {}, "Page.frameNavigated", { frame: { id: "C", parentId: "MAIN", loaderId: "l", url: CANVAS } }, undefined);
+  let changes = 0;
+  docs.onChange(() => { changes++; });
+  dbg.attach = () => {
+    dbg.attached = false;
+    dbg.emit("detach", {}, "target closed");
+  };
+  dbg.failOn = () => dbg.attached ? null : new Error("target closed while handling command");
+  dbg.attached = false;
+  dbg.emit("detach", {}, "target closed");
+  expect(changes).toBe(1);
+  expect(await debuggerOf.mainFrame()).toBeNull();
+  expect(changes).toBe(1);
+});
+
 // The inspector sends its commands only to the session sessionOf names, so a former OOPIF session that outlives its
 // replacement is never asked.
 test("sessionOf names the frame's current owner, never a former or detached session", () => {
