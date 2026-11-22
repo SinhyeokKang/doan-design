@@ -640,7 +640,8 @@ it("sends no probe and no approval or sandbox for a Codex run on an external pro
 // steer with the server's after-completion error and completes; "refused" answers with an error and then echoes it anyway;
 // "early" echoes the message before its steer reply and completes later; "silent" never answers the steer, echoes it
 // and completes later;
-// "complete" completes the turn with turn/start; "slow" answers turn/start late.
+// "complete" completes the turn with turn/start; "slow" answers turn/start late; "die" exits on the steer without an
+// answer, leaving a descendant that ignores SIGTERM on its stdout, so the server's end waits for the output drain.
 function steerCodex(root: string): string {
   const command = join(root, "codex");
   writeFileSync(command, `#!/usr/bin/env node
@@ -674,6 +675,12 @@ readline.createInterface({input:process.stdin}).on('line', line => {
   if(mode==='refused') { send({id:r.id,error:{code:-32600,message:'no active turn to steer'}}); echo(); done(); }
   if(mode==='early') { echo(); send({id:r.id,result:{turnId:r.params.expectedTurnId}}); setTimeout(done, 50); }
   if(mode==='silent') setTimeout(() => { echo(); done(); }, 500);
+  if(mode==='die') {
+   // The leader exits only once the descendant ignores SIGTERM: the stop at the exit would otherwise end it at once.
+   const ready = ${JSON.stringify(join(root, "ready"))};
+   require('node:child_process').spawn(process.execPath, ['-e', "process.on('SIGTERM',()=>{});require('node:fs').writeFileSync(process.argv[1],'');setTimeout(()=>{},3000)", ready], {stdio:['ignore','inherit','ignore']});
+   setInterval(() => { if (fs.existsSync(ready)) { fs.writeFileSync(${JSON.stringify(join(root, "exited"))}, ''); process.exit(0); } }, 5);
+  }
  }
 });
 `, { mode: 0o700 });
@@ -731,6 +738,21 @@ it("refuses a Codex steer unanswered for 10 s without failing the turn, and stil
     expect(seq).toEqual([{ consumed: "c1" }, { type: "turn.done" }]);
   });
 }, 15000);
+// Send now's refusal says "It stays queued" only while the turn still runs, so a steer refused because the server died
+// must reject after the turn's end: both the one in flight at the exit and one pressed while the output drains.
+it("refuses Codex steers only after the turn's end when the server dies, in flight or pressed while its output drains", async () => {
+  await codexSteerRun("die", async ({ runner, seq, root }) => {
+    const ended = { type: "turn.failed", code: "process_exited" };
+    await runner.send("first", "local-1");
+    const inFlight = runner.steer!("note", "local-1", "c1").then(() => "accepted", () => seq.slice());
+    await vi.waitFor(() => expect(existsSync(join(root, "exited"))).toBe(true));
+    // Past the leader's exit and inside the 500 ms drain.
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const pressed = await runner.steer!("late", "local-1", "c2").then(() => "accepted", () => seq.slice());
+    expect(pressed).toContainEqual(ended);
+    expect(await inFlight).toContainEqual(ended);
+  });
+});
 it("refuses a Codex steer before the turn has its native id, after it ended, and for another turn, without writing it", async () => {
   await codexSteerRun("slow", async ({ runner, seq, root }) => {
     const sending = runner.send("first", "local-1");
