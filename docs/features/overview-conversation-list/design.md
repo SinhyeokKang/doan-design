@@ -2,6 +2,8 @@
 
 이 feature는 이미 develop에 있는 Overview 오른쪽 패널을 다시 디자인하는 standalone redesign이다(AGENTS.md 'Workflow' `/design-draft`·`/design-sync` 예외). 새 시안 파일 `.doan/canvases/overview-conversation-list.html`을 그리고, 기존 시안(`doan-project.html`, `canvas-concurrent-conversations.html` 등)은 고치지 않는다. 이 feature의 브랜치가 머지될 때까지는 새 시안이 이 패널의 기준이다.
 
+**시안 확정**: 사람이 앱에서 시안의 일곱 프레임(list-mixed, current-states, no-current, promoted, list-states, delete, order-hold)을 확정했다(커밋 c34ce73d4 기준). current 행은 hover 때도 10% 채움을 유지한다.
+
 ## 결정
 
 - **목록 이름**: "Conversations". 다른 문구는 아래로 시안에 그렸고, 사람이 시안을 확정하면 함께 확정된다.
