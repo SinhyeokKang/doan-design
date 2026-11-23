@@ -16,9 +16,11 @@ import { join } from "node:path";
 const ROOT = "/code/doan", OTHER = "/code/doan-wt";
 const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "aaaaaaaa-0000-4000-8000-000000000002", C = "aaaaaaaa-0000-4000-8000-000000000003";
 const CANVAS: Canvas = { path: ".doan/canvases/checkout.html", id: "checkout" };
+// An unseen ending by default, so a root's first pick of the run opens it; one already seen gives a fresh start
+// (PRODUCT §5 item 3 'Which conversation shows').
 const summary = (conversationId: string, extra: Partial<ConversationSummary> = {}): ConversationSummary => ({
   conversationId, title: `Title ${conversationId.slice(-1)}`, owner: "doan", provider: "claude", fromHome: true,
-  phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-10-30T00:00:00.000Z", preview: "p", ...extra,
+  phase: "ended", unseen: true, queued: 0, working: false, lastActivityAt: "2026-10-30T00:00:00.000Z", preview: "p", ...extra,
 });
 let seq = 0;
 const event = (conversationId: string, payload: EventPayload, turnId = "t1"): ConversationEvent => ({ v: 1, conversationId, seq: ++seq, turnId, at: "2026-10-30T00:00:00Z", ...payload } as ConversationEvent);
@@ -193,12 +195,12 @@ test("the first entry of the run opens the new conversation state when the conve
   const h = harness();
   h.state.remembered = { [ROOT]: A };
   h.run.show(ROOT);
-  h.answer(ROOT, [summary(A), summary(B, { lastActivityAt: "2026-11-01T00:00:00.000Z" })]);
+  h.answer(ROOT, [summary(A, { unseen: false }), summary(B, { unseen: false, lastActivityAt: "2026-11-01T00:00:00.000Z" })]);
   expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
   expect(h.state.remembered).toEqual({ [ROOT]: A });
   // Back from a canvas with nothing chosen meanwhile: still the new conversation state.
   h.run.show(null);
-  h.answer(ROOT, [summary(A), summary(B, { lastActivityAt: "2026-11-01T00:00:00.000Z" })]);
+  h.answer(ROOT, [summary(A, { unseen: false }), summary(B, { unseen: false, lastActivityAt: "2026-11-01T00:00:00.000Z" })]);
   h.run.show(ROOT);
   expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
   // After the person's choice, a later entry reopens what was chosen, as before.
@@ -215,7 +217,7 @@ test("the first entry still reopens a conversation with something left for the p
   h.answer(ROOT, [summary(A, { unseen: true })]);
   expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
   // Seen while it showed; hopping to a canvas and back keeps it.
-  h.answer(ROOT, [summary(A)]);
+  h.answer(ROOT, [summary(A, { unseen: false })]);
   h.run.show(null);
   h.run.show(ROOT);
   expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
@@ -234,7 +236,7 @@ test("a request on the first entry opens what it asks for, and later entries reo
   const h = harness();
   h.run.request(ROOT, A, null);
   h.run.show(ROOT);
-  h.answer(ROOT, [summary(A)]);
+  h.answer(ROOT, [summary(A, { unseen: false })]);
   expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
   h.run.show(null);
   h.run.show(ROOT);
