@@ -5,7 +5,8 @@
 // with that protocol version, "no-session" answers session/new without a session ID, "exit-init" exits at initialize, after writing FAKE_ACP_STDERR
 // (if set) to stderr.
 // FAKE_ACP_MODELS (JSON) is the `models` member of the session/new and session/load results, in the shape
-// a PoC recorded; FAKE_ACP_LOG names a file that receives every client line; FAKE_ACP_NO_IMAGE answers
+// a PoC recorded; FAKE_ACP_CONFIG reports $HOME/.cursor/acp-config.json's selectedModelVariantId, when there is one, as
+// the current model, as cursor-agent does; FAKE_ACP_LOG names a file that receives every client line; FAKE_ACP_NO_IMAGE answers
 // initialize with promptCapabilities.image false. FAKE_ACP_SESSION (JSON) adds members such as `modes` and
 // `configOptions` to the session/new and session/load results. FAKE_ACP_COMMANDS (JSON) is an availableCommands list the
 // server pushes as Copilot 1.0.105 did: once before the session/new answer and once right after it, and before the
@@ -17,6 +18,10 @@ const readline = require("node:readline");
 const fixture = require(process.argv[2]);
 const mode = process.env.FAKE_ACP ?? "";
 const models = { ...(process.env.FAKE_ACP_MODELS ? { models: JSON.parse(process.env.FAKE_ACP_MODELS) } : {}), ...(process.env.FAKE_ACP_SESSION ? JSON.parse(process.env.FAKE_ACP_SESSION) : {}) };
+if (process.env.FAKE_ACP_CONFIG) {
+  let selected; try { selected = JSON.parse(require("node:fs").readFileSync(`${process.env.HOME}/.cursor/acp-config.json`, "utf8")).selectedModelVariantId; } catch { /* none */ }
+  if (selected) models.models = { ...models.models, currentModelId: selected };
+}
 const sessionId = fixture.turn[0].params.sessionId;
 const send = value => process.stdout.write(JSON.stringify(value) + "\n");
 const commands = process.env.FAKE_ACP_COMMANDS ? JSON.parse(process.env.FAKE_ACP_COMMANDS) : null;

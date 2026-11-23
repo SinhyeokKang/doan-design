@@ -369,6 +369,24 @@ it("sets the chosen model after session/new and again after session/load, before
   await (await openAcp(input("cursor", { env: { ...env, FAKE_ACP_LOG: plain } }), () => {}, () => {}, () => {})).send("hi", "turn");
   expect(logged(plain).some(r => r.method === "session/set_config_option")).toBe(false);
 });
+// Cursor keeps a session/set_config_option model choice in cli-config.json, which the fence keeps closed (its permission
+// allow list), so the request fails in a fenced run. Its ACP server opens session/new and session/load on
+// acp-config.json's selectedModelVariantId (2026.10.22 and 2026.11.22, probe), which Doan writes before the start.
+it("gives Cursor the chosen model through acp-config.json before the start and sends no model request", async () => {
+  const home = temp("doan-acp-home-"), config = join(home, ".cursor", "acp-config.json"), log = logFile();
+  const env = { PATH: process.env.PATH ?? "", HOME: home, FAKE_ACP: "stop:end_turn", FAKE_ACP_LOG: log, FAKE_ACP_CONFIG: "1" };
+  for (const [model, over] of [["gemini-3.8-flash-low", {}], ["composer-2.5[fast=true]", { sessionId: SESSION }]] as const) {
+    const runner = await openAcp(input("cursor", { env, model, ...over }), () => {}, () => {}, () => {});
+    expect(JSON.parse(readFileSync(config, "utf8"))).toEqual({ selectedModelVariantId: model });
+    await runner.send("hi", "turn");
+  }
+  expect(logged(log).some(r => r.method === "session/set_config_option")).toBe(false);
+  // Without a choice, and for another provider, nothing is written.
+  rmSync(config);
+  await (await openAcp(input("cursor", { env }), () => {}, () => {}, () => {})).send("hi", "turn");
+  await (await openAcp(input("copilot", { env: { ...env, FAKE_ACP_CONFIG: "" }, model: "gpt-5" }), () => {}, () => {}, () => {})).send("hi", "turn");
+  expect(() => readFileSync(config)).toThrow();
+});
 it("adds verified images up to 50 MB as ACP image blocks for Antigravity only", async () => {
   const dir = temp("doan-acp-images-");
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
