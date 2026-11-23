@@ -134,16 +134,24 @@ export function recoveryKey(previous: readonly TreeRow[], current: readonly Tree
 }
 const SECTION_ICONS: Record<SettingsSection, typeof Bot> = { general: SlidersHorizontal, agents: Bot, mcp: Plug, notifications: Bell, about: Info };
 const RANK: Record<Slot["kind"], number> = { permission: 4, working: 3, scheduled: 2, unseen: 1, canvas: 0 };
-// A project row shows its roots' own slots, and a bound canvas's slot while that canvas row is not on screen, so a
-// permission request in a collapsed project is never hidden. Among equals the first in `slots` wins.
-export function projectSlot(slots: ReadonlyMap<string, Slot>, roots: readonly string[], shownCanvases: readonly string[]): Slot | undefined {
+// A canvas row's slot shows once, on the nearest rendered row (PRODUCT §5 item 1): its own, else its closed group's
+// head, else the collapsed project's row. A project row shows its roots' own slots and every bound canvas slot no row
+// or head below it carries (`covered`), so a permission request in a collapsed project is never hidden. Among equals
+// the first in `slots` wins.
+export function projectSlot(slots: ReadonlyMap<string, Slot>, roots: readonly string[], covered: readonly string[]): Slot | undefined {
   let best: Slot | undefined;
   for (const [key, slot] of slots) {
     const root = key.split("\n")[0]!;
-    if (!roots.includes(root) || shownCanvases.includes(key)) continue;
+    if (!roots.includes(root) || covered.includes(key)) continue;
     if (!best || RANK[slot.kind] > RANK[best.kind]) best = slot;
   }
   return best;
+}
+// A closed group's head stands for its canvas rows, ranked as on the project row.
+export function groupSlot(slots: ReadonlyMap<string, Slot>, root: string, group: SidebarGroup): Slot | undefined {
+  if (group.open) return undefined;
+  const keys = group.rows.map(row => slotKey(root, row.path));
+  return projectSlot(new Map([...slots].filter(([key]) => keys.includes(key))), [root], []);
 }
 // `described`: a conversation row names its state through its own description, so the mark is decorative.
 function SlotMark({ slot, described = false }: { slot: Slot | undefined; described?: boolean }) {
@@ -303,8 +311,9 @@ export function ShellSidebar(props: Props) {
     const expanded = projectExpanded(project, loaded);
     const groups = expanded && entry?.kind === "list" ? sidebarGroups(sortedCanvases(entry.canvases), project.groups) : [];
     const items = visibleItems(groups);
-    const shown = items.flatMap(item => item.kind === "canvas" ? [slotKey(root!, item.row.path)] : []);
-    const slot = props.slots && projectSlot(props.slots, card.rows.map(row => row.path), shown);
+    // Every listed canvas of an expanded project is carried by its own row or its closed group's head.
+    const covered = groups.flatMap(group => group.rows.map(row => slotKey(root!, row.path)));
+    const slot = props.slots && projectSlot(props.slots, card.rows.map(row => row.path), covered);
     const slow = slowRoots.has(entry!.path);
     const mark = sidebarSlot(entry!, card.name, slot ?? null, slow);
     layouts.set(card.key, { groups, items, mark, state: sidebarSlot(entry!, card.name, null, slow) });
@@ -514,7 +523,7 @@ export function ShellSidebar(props: Props) {
               const key = headKey(entry.path, group.id), countId = `${descriptionPrefix}-${index}-${group.id}`;
               const Icon = group.id === "ds" ? SwatchBook : PanelsTopLeft;
               return <div className="shell-group" key={group.id}>
-                <div ref={rowRef(key)} className="shell-group-head row" role="treeitem" data-key={key} aria-label={group.label} aria-describedby={countId} aria-disabled={locked} aria-level={2} aria-expanded={group.open} tabIndex={active === key ? 0 : -1} onFocus={event => { if (event.target === event.currentTarget) setFocused(key); }} onKeyDown={event => keyboard(event, key)} onClick={() => props.toggleGroup(card.key, group.id)}><ChevronDown aria-hidden="true" /><span className="shell-group-label">{group.label}</span><span className="doan-chip shell-group-count" data-ui-variant="translucent" aria-hidden="true">{group.rows.length}</span><span id={countId} className="sr-only">{countDescription(group.rows.length)}</span></div>
+                <div ref={rowRef(key)} className="shell-group-head row" role="treeitem" data-key={key} aria-label={group.label} aria-describedby={countId} aria-disabled={locked} aria-level={2} aria-expanded={group.open} tabIndex={active === key ? 0 : -1} onFocus={event => { if (event.target === event.currentTarget) setFocused(key); }} onKeyDown={event => keyboard(event, key)} onClick={() => props.toggleGroup(card.key, group.id)}><ChevronDown aria-hidden="true" /><span className="shell-group-label">{group.label}</span><span className="doan-chip shell-group-count" data-ui-variant="translucent" aria-hidden="true">{group.rows.length}</span>{props.slots && <SlotMark slot={groupSlot(props.slots, entry.path, group)} />}<span id={countId} className="sr-only">{countDescription(group.rows.length)}</span></div>
                 {group.open && <div role="group">{group.rows.length ? group.rows.map((row, canvasIndex) => {
                   const descriptionId = `${countId}-${canvasIndex}`;
                   const key = `${entry.path}\n${row.path}`, problem = rowProblem(row), name = canvasStem(row.path);
