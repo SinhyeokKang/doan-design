@@ -54,7 +54,8 @@ A와 B는 병렬로 돌므로 경계 형태를 미리 정한다.
 | Cursor | cursor-agent 2026.11.22-e9042b2 | 미확인 | 미확인 | 시작이 호출 약 2초 뒤 `process_exited`로 거부됐다. 원인은 잡지 못했다(stderr 없음) |
 
 - 원시 ACP 프레임은 잡지 못했다(spawn hook이 Playwright `_electron`에서 읽히지 않음). Copilot 경로가 `locations[].path`에서 왔는지 `rawInput`에서 왔는지는 모른다. `acp.ts`는 둘 다 읽으므로 어댑터 수정은 필요 없다.
-- conductor's call — Cursor와 Antigravity는 다시 돌리지 않고 문서 승격에서 BACKLOG 'Not verified in the real app'에 남긴다. 근거: spec 'ACP provider'가 안 되는 provider는 관찰을 BACKLOG에 남기라고 정했고, 다시 돌리려면 사용자가 Keychain 창 앞에 또 있어야 한다.
+- 4차 실행(사용자 요청, 리드 경유, 같은 실행 규칙): Antigravity는 gemini-3.8-flash-medium으로 확인됐다. 편집 경로(`activity {kind:"edit", path}`)가 왔고 `doan handoff`를 실행해 새 대화가 시작됐다. Cursor는 원인을 찾았다: cursor-agent 2026.11.22가 `acp` 시작 때 `<profile>/.cursor/projects/<id>/`를 만들고, 바깥 fence(`app/src/main/agentAuth/fence.ts` `AGENT_WRITES.cursor`)가 그 쓰기를 막아 약 0.5초 만에 `EPERM`으로 종료 코드 1을 낸다(앱에는 `process_exited`). 같은 fence 안의 `status`·`--version`과 앱 밖 `status`는 authenticated로 성공한다. develop에서 이 버전의 모든 Cursor 대화가 시작되지 않는 결함이다.
+- conductor's call — fence 수정은 이 링크에서 하지 않고 리드와 사용자에게 맡겼다(보안 경계 변경이고 handoff와 무관한 develop 결함). 문서 승격은 Cursor를 BACKLOG 'Not verified in the real app'과 'Known defects'에 원인과 함께 남겼다. 증거 사본: `.scratch/orch/acp-poc2/`.
 - 정리: Electron 종료, 복사본·임시 저장소·Copilot이 쓴 `/tmp/doan-guide.txt` 삭제, Keychain 항목 없음, 3차 실행의 real-state guard 통과. 증거 사본은 conductor 체크아웃 `.scratch/orch/acp-poc/`. 워커 해제, 워크트리 제거(브랜치 `SinhyeokKang/pch-p` 유지).
 
 ## 리뷰·통합 기록
