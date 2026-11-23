@@ -62,11 +62,12 @@ test("worktree is null or one branch name for the agent's second worktree", () =
     assert.throws(() => parseScenarioJson({ ...value, worktree }, "R8"), Error, JSON.stringify(worktree));
 });
 
-test("handoff is null or the canvas the conversation works on", () => {
+test("handoff is null, or the canvas the conversation works on, or null for a Home conversation with no canvas", () => {
   const value = { id: "R10", title: "t", focus: "write", init: null, selection: null };
   assert.equal(parseScenarioJson(value, "R10").handoff, null);
   assert.deepEqual(parseScenarioJson({ ...value, handoff: { canvas: ".doan/canvases/account.html" } }, "R10").handoff, { canvas: ".doan/canvases/account.html" });
-  for (const handoff of ["account", {}, { canvas: "" }, { canvas: "account.html" }, { canvas: ".doan/ds/button.html" }, { canvas: ".doan/canvases/a/b.html" }, { canvas: ".doan/canvases/a.html", key: "x" }, [{ canvas: ".doan/canvases/a.html" }]])
+  assert.deepEqual(parseScenarioJson({ ...value, handoff: { canvas: null } }, "R12").handoff, { canvas: null });
+  for (const handoff of ["account", {}, { canvas: 1 }, { canvas: null, key: "x" }, { canvas: "" }, { canvas: "account.html" }, { canvas: ".doan/ds/button.html" }, { canvas: ".doan/canvases/a/b.html" }, { canvas: ".doan/canvases/a.html", key: "x" }, [{ canvas: ".doan/canvases/a.html" }]])
     assert.throws(() => parseScenarioJson({ ...value, handoff }, "R10"), Error, JSON.stringify(handoff));
 });
 

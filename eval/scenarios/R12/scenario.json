@@ -1,0 +1,9 @@
+{
+  "id": "R12",
+  "title": "Make a new canvas in a Home conversation (no source canvas) and hand the work over to it with doan handoff",
+  "focus": "write",
+  "init": null,
+  "selection": null,
+  "timeoutSec": 900,
+  "handoff": { "canvas": null }
+}
