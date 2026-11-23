@@ -196,6 +196,21 @@ test("while keyboard focus is in the list the order holds; it sorts again once f
   expect(order()).toEqual(["p2", "c1", "c2", "p1"]);
 });
 
+// A list that left (emptied, read again, failed) takes no pointerleave or blur with it.
+test.each(["empty", "loading", "error"] as const)("a list that leaves under the pointer or focus holds no order when rows come back (%s)", gone => {
+  renderWith(mixed, null);
+  const list = () => tree.props as { onFocus(): void; onPointerEnter(): void };
+  list().onPointerEnter(); list().onFocus(); renderWith(mixed, null);
+  renderWith(gone === "empty" ? [] : gone, null);
+  renderWith(gone === "empty" ? [] : gone, null);
+  // The rows come back in the list's order; a later activity change sorts them again.
+  renderWith(mixed, null);
+  const moved = canvasConversationRows([project("p1", 4), summary("c1", paths[0]!, 1), project("p2", 0), summary("c2", paths[1]!, 3)], paths.map(canvas), NOW);
+  renderWith(moved, null);
+  renderWith(moved, null);
+  expect(order()).toEqual(["p2", "c1", "c2", "p1"]);
+});
+
 test("a shown project conversation promoted under focus keeps its row's place and focus", () => {
   renderWith(mixed, "p2");
   rowOf("p2").focus(); renderWith(mixed, "p2");

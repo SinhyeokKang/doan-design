@@ -74,6 +74,8 @@ export function CanvasConversationList({ list, current, project, thumbnails, ope
   const [pointerIn, setPointerIn] = useState(false);
   const [focusIn, setFocusIn] = useState(false);
   const drawn = useRef<string[] | null>(null);
+  // A list that left (emptied, read again, failed) takes no pointerleave or blur with it.
+  if (listed.length === 0 && (pointerIn || focusIn)) { setPointerIn(false); setFocusIn(false); }
   const keys = heldOrder(listed.map(item => item.key), pointerIn || focusIn ? drawn.current : null);
   drawn.current = keys;
   const byKey = new Map(listed.map(item => [item.key, item]));
