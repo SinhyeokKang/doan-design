@@ -320,3 +320,50 @@ test.each(["reply first", "push first"] as const)("a command's leftover follows 
   expect(store.drafts.get("conversation:c9")?.attachments).toEqual([file]);
   expect(store.drafts.get(newKey)?.attachments ?? []).toEqual([]);
 });
+
+// A streamed delta leaves the store's host alone (App, the prototype window), so the panel body redraws its thread by
+// its own subscription to the conversation it shows.
+test("a streamed delta redraws the panel's thread without the host's changed", async () => {
+  const calls = fakeCalls();
+  const history = [
+    { v: 1, conversationId: "c1", seq: 1, turnId: "t1", at: "2026-11-01T00:00:00Z", type: "user.message", text: "Tighten it", anchors: [] },
+    { v: 1, conversationId: "c1", seq: 2, turnId: "t1", at: "2026-11-01T00:00:00Z", type: "turn.started" },
+  ];
+  calls.readConversation.mockImplementation(async () => ({ events: history, lastSeq: 2, turn: "running" }) as never);
+  const list: ListView = [{ conversationId: "c1", canvas: CANVAS, title: "Ideas", owner: "doan", provider: "claude", fromHome: false,
+    phase: "running", unseen: false, queued: 0, working: true, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" }];
+  const changed = vi.fn();
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed }, calls);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, calls);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.sync();
+  await flush();
+  const panel = () => CanvasConversation({
+    calls, run, support: new DockedSupport(() => {}, calls), target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
+    prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
+    onLocate: vi.fn(async () => "shown" as const), onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
+  });
+  render(panel);
+  await flush();
+  expect(agentTexts(render(panel))).toEqual([]);
+  changed.mockClear();
+  hooks.dirty = false;
+  store.event({ v: 1, conversationId: "c1", seq: 3, turnId: "t1", at: "2026-11-01T00:00:01Z", type: "message.delta", messageId: "m1", text: "Hel" });
+  expect(changed).not.toHaveBeenCalled();
+  expect(hooks.dirty).toBe(true);
+  expect(agentTexts(render(panel))).toEqual(["Hel"]);
+  store.event({ v: 1, conversationId: "c1", seq: 4, turnId: "t1", at: "2026-11-01T00:00:01Z", type: "message.delta", messageId: "m1", text: "lo" });
+  expect(agentTexts(render(panel))).toEqual(["Hello"]);
+});
+
+// The streamed reply's text in the thread element's items.
+function agentTexts(node: ReactNode): string[] | null {
+  if (Array.isArray(node)) { for (const child of node) { const found = agentTexts(child); if (found) return found; } return null; }
+  if (!node || typeof node !== "object" || !("props" in node)) return null;
+  const props = (node as { props: { items?: unknown; conversationId?: unknown; children?: ReactNode } }).props;
+  if (props.conversationId !== undefined && "items" in props) {
+    const items = Array.isArray(props.items) ? props.items as { kind: string; text?: string }[] : [];
+    return items.filter(item => item.kind === "agent").map(item => item.text!);
+  }
+  return agentTexts(props.children);
+}
