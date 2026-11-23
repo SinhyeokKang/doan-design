@@ -88,6 +88,8 @@ const drawnText = () => Array.from(el.children).map(line => {
 const probe = window.probe = {
   field,
   set(segments) { el.focus(); field.setValue(segments, String(++draft)); },
+  // The host replacing the value within the same draft (a send empties it, a returned draft fills it).
+  replace(segments) { field.setValue(segments, String(draft)); },
   text: () => field.segments.map(s => s.kind === "text" ? s.text : "\\ufffc").join(""),
   segments: () => field.segments,
   place(anchor, focus = anchor) { el.focus(); field.placeCaret({ anchor, focus }); },
@@ -917,6 +919,73 @@ test("a pending Shift+Enter or Tab does not edit a field locked or removed befor
       expect(await call("changes")).toBe(changes);
     }
   }
+});
+
+test("a chip clipboard copies its JSON and pastes its chips at an empty line and at a body start, one undo step each", { timeout: 60_000 }, async () => {
+  await open([plain("- see "), chip(), plain(" now")]);
+  await call("place", 2, 11);
+  const [plainCopy, json] = await call<string[]>("copy");
+  expect(plainCopy).toBe("see Hero now");
+  expect(JSON.parse(json!)).toEqual({ v: 1, scope: "canvas", segments: [plain("see "), chip(), plain(" now")] });
+  const clipboard = JSON.stringify({ v: 1, scope: "canvas", segments: [chip(), plain(" x")] });
+  // On an empty line the chip starts the line, so the line gets its filler; joining the line removes it again.
+  await open("a\n\nb");
+  await call("place", 2); await call("paste", "Hero x", clipboard);
+  expect(await text()).toBe("a\n￼ x\nb");
+  expect(await consistent()).toBe(true);
+  expect(await frame.evaluate(() => document.querySelectorAll(".field-filler").length)).toBe(1);
+  await press("Meta+z");
+  expect(await text()).toBe("a\n\nb");
+  await press("Meta+Shift+z");
+  await call("place", 2); await press("Backspace");
+  expect(await text()).toBe("a￼ x\nb");
+  expect(await frame.evaluate(() => document.querySelectorAll(".field-filler").length)).toBe(0);
+  expect(await consistent()).toBe(true);
+  // At an item's body start the chip follows the marker; no filler.
+  await open("- \n- b");
+  await call("place", 2); await call("paste", "Hero x", clipboard);
+  expect(await text()).toBe("- ￼ x\n- b");
+  expect(await frame.evaluate(() => document.querySelectorAll(".field-filler").length)).toBe(0);
+  expect(await consistent()).toBe(true);
+  await press("Meta+z");
+  expect(await text()).toBe("- \n- b");
+});
+
+test("the host's value right after a composition ends wins: a send empties the field, a returned draft fills it", { timeout: 60_000 }, async () => {
+  for (const value of [[], [plain("Restored draft")]]) {
+    await open("- a");
+    await call("place", 3);
+    // compositionend and the host's replacement in one task, before the field's deferred run.
+    await run(["compose", "compositionstart"], ["composeText", "나"], ["compose", "compositionend"], ["replace", value]);
+    await dom.flush(frame);
+    await frame.waitForTimeout(150);
+    expect(await text()).toBe(value.length ? "Restored draft" : "");
+    expect(await consistent()).toBe(true);
+  }
+});
+
+test("typing after more than a second without a pause is a new undo step", { timeout: 60_000 }, async () => {
+  await open("");
+  await press("a"); await press("b");
+  await frame.waitForTimeout(1100);
+  await press("c");
+  await press("Meta+z");
+  expect(await text()).toBe("ab");
+  await press("Meta+z");
+  expect(await text()).toBe("");
+});
+
+test("over a selection across items, copy, Shift+→ and Esc delete nothing", { timeout: 60_000 }, async () => {
+  await open("- ab\n- cd");
+  await call("place", 3, 8);
+  // The copy event's own DataTransfer, so the person's system clipboard is untouched (a real ⌘C runs the same handler).
+  expect((await call<string[]>("copy"))[0]).toBe("b\n- c");
+  expect(await text()).toBe("- ab\n- cd");
+  await press("Shift+ArrowRight");
+  expect(await sel()).toEqual({ anchor: 3, focus: 9 });
+  await press("Escape");
+  expect(await text()).toBe("- ab\n- cd");
+  expect(await consistent()).toBe(true);
 });
 
 const focused = () => frame.evaluate(() => document.activeElement?.id);
