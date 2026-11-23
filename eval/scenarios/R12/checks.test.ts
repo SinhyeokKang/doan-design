@@ -43,16 +43,16 @@ test("R12 passes with one accepted request for the new canvas after it was writt
 });
 test("R12 fails when no request arrived, two arrived or the only one was refused", () => {
   const ctx = setup();
-  assert.deepEqual(failed(ctx, []), ["handoff_requested_once", "handoff_path_is_new_canvas", "canvas_written_before_request", "handoff_message_not_empty"]);
+  assert.deepEqual(failed(ctx, []), ["handoff_requested_once"]);
   // Two requests after the final write are a count failure only: the canvas was not written late.
   assert.deepEqual(failed(ctx, [request(ctx), request(ctx)]), ["handoff_requested_once"]);
-  assert.deepEqual(failed(ctx, [request(ctx, { ok: false })]), ["handoff_requested_once", "handoff_path_is_new_canvas", "canvas_written_before_request", "handoff_message_not_empty"]);
+  assert.deepEqual(failed(ctx, [request(ctx, { ok: false })]), ["handoff_requested_once"]);
 });
 test("R12 counts the accepted request: a refused attempt followed by one accepted request passes, two accepted would not", () => {
   const ctx = setup();
   assert.deepEqual(failed(ctx, [request(ctx, { path: ".doan/canvases/account.html", ok: false }), request(ctx)]), []);
   assert.deepEqual(failed(ctx, [request(ctx), request(ctx, { ok: false })]), []);
-  assert.deepEqual(failed(ctx, [request(ctx, { ok: false }), request(ctx, { ok: false })]), ["handoff_requested_once", "handoff_path_is_new_canvas", "canvas_written_before_request", "handoff_message_not_empty"]);
+  assert.deepEqual(failed(ctx, [request(ctx, { ok: false }), request(ctx, { ok: false })]), ["handoff_requested_once"]);
   assert.deepEqual(failed(ctx, [request(ctx), request(ctx)]), ["handoff_requested_once"]);
 });
 test("R12 requires the 390 px width and both screens' copy on the new canvas, in whatever frames", () => {
@@ -94,7 +94,8 @@ test("R12 puts the start of the delivered message in the detail", () => {
 });
 test("R12 fails a request for the source canvas or another path", () => {
   const ctx = setup();
-  assert.ok(failed(ctx, [request(ctx, { path: ".doan/canvases/account.html" })]).includes("handoff_path_is_new_canvas"));
+  // Completeness is one check and per-item validity another: the request is wrong in its path only.
+  assert.deepEqual(failed(ctx, [request(ctx, { path: ".doan/canvases/account.html" })]), ["handoff_path_is_new_canvas"]);
 });
 // Path and message are judged on every accepted request, so a bad second request is not only a count failure.
 test("R12 judges the path and message of every accepted request, not only the first", () => {
