@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { codexMechanism, codexProfileArgs, codexRestart, codexTurnPermission, fenceArgs, fenceDenied, fencedCommand, fenceListingDirs, fencePolicy, fencedEverywhere, profileFencedCommand, resolveFencePaths, SANDBOX_EXEC, sandboxRefused, type FenceListing, type FencePaths } from "./fence";
+import { codexMechanism, codexProfileArgs, cursorWorkerDir, codexRestart, codexTurnPermission, fenceArgs, fenceDenied, fencedCommand, fenceListingDirs, fencePolicy, fencedEverywhere, profileFencedCommand, resolveFencePaths, SANDBOX_EXEC, sandboxRefused, type FenceListing, type FencePaths } from "./fence";
 import { PERMISSION_MODES } from "../conversation/permissionMode";
 import type { Provider } from "./types";
 
@@ -349,5 +349,36 @@ describe("codexTurnPermission", () => {
   it("keeps today's legacy policy for a run with no fence", () => {
     expect(codexTurnPermission("acceptEdits", defaults, { networkAccess: true }, undefined)).toEqual({ approvalPolicy: "on-request", sandboxPolicy: { type: "workspaceWrite", networkAccess: true } });
     expect(codexTurnPermission("default", defaults, {}, undefined)).toEqual({ approvalPolicy: "untrusted", sandboxPolicy: { type: "readOnly" } });
+  });
+});
+
+// cursor-agent 2026.11.22 creates its local worker's socket folder when any acp process starts. The expected paths are
+// the ones the real CLI created (or was refused) in probes; the last one is the PoC's EPERM.
+describe("cursorWorkerDir", () => {
+  const none = () => false;
+  it("names the folder under .cursor/projects by the workspace slug when the path is short", () => {
+    expect(cursorWorkerDir({ home: "/h", cwd: "/r/my.repo", tmpdir: "/var/folders/x/T/" }, none)).toBe("/h/.cursor/projects/r-my-repo");
+  });
+  it("cuts a long path at 83 characters and adds the first 7 hex digits of its SHA-256, as the CLI did", () => {
+    expect(cursorWorkerDir({ home: "/private/tmp/acp-poc2-AJrUff/userData/agent-auth/profiles/cursor", cwd: "/private/tmp/acp-poc2-repo-a4DDvo", tmpdir: "/var/folders/x/T" }, none))
+      .toBe("/private/tmp/acp-poc2-AJrUff/userData/agent-auth/profiles/cursor/.cursor/projects/p-988fa62");
+    expect(cursorWorkerDir({ home: "/private/tmp/cfp-probe-VjCgW4/u2/agent-auth/profiles/cursor", cwd: "/private/tmp/cfp-probe-VjCgW4/repo", tmpdir: "/x" }, none))
+      .toBe("/private/tmp/cfp-probe-VjCgW4/u2/agent-auth/profiles/cursor/.cursor/projects/privat-17deeb0");
+  });
+  it("falls back to the .cursor folder itself, then a sibling of it, when projects/ is over 83 characters", () => {
+    expect(cursorWorkerDir({ home: "/private/tmp/cfp-probe-VjCgW4/userdata-sevencc/agent-auth/profiles/cursor", cwd: "/private/tmp/cfp-probe-VjCgW4/repo", tmpdir: "/x" }, none))
+      .toBe("/private/tmp/cfp-probe-VjCgW4/userdata-sevencc/agent-auth/profiles/cursor/.cursor/p-2497593");
+    expect(cursorWorkerDir({ home: "/private/tmp/cfp-probe-VjCgW4/userdata-seven-cha/agent-auth/profiles/cursor", cwd: "/private/tmp/cfp-probe-VjCgW4/repo", tmpdir: "/x" }, none))
+      .toBe("/private/tmp/cfp-probe-VjCgW4/userdata-seven-cha/agent-auth/profiles/cursor/.cursor-cec846d");
+  });
+  it("falls back to TMPDIR, without its trailing slash, and then /tmp when .cursor is over 83 characters", () => {
+    const home = "/Users/a-long-user-name/Library/Application Support/doan/agent-auth/profiles/cursor";
+    expect(cursorWorkerDir({ home, cwd: "/r", tmpdir: "/var/folders/x/T/" }, none)).toBe("/var/folders/x/T/.cursor/r");
+    expect(cursorWorkerDir({ home, cwd: "/r", tmpdir: undefined }, none)).toBe("/tmp/.cursor/r");
+    expect(cursorWorkerDir({ home, cwd: "/r", tmpdir: `/${"t".repeat(90)}` }, none)).toBe("/tmp/.cursor/r");
+  });
+  it("names the workspace by the nearest folder above the working directory that holds .git, and never the file system root", () => {
+    expect(cursorWorkerDir({ home: "/h", cwd: "/w/repo/app/src", tmpdir: "/t" }, path => path === "/w/repo/.git")).toBe("/h/.cursor/projects/w-repo");
+    expect(cursorWorkerDir({ home: "/h", cwd: "/w/repo", tmpdir: "/t" }, path => path === "/.git")).toBe("/h/.cursor/projects/w-repo");
   });
 });

@@ -102,6 +102,22 @@ describe.runIf(usable)("the outer fence's writes in the agent's folder", () => {
       ".cursor/plugins/a/plugin.json", ".cursor/sandbox.json", ".cursor/x",
     ]);
   });
+  // cursor-agent 2026.11.22 creates its local worker's socket folder at start (mkdir -p). The fence does not let it: the
+  // folder shares .cursor/projects/<workspace>/ with the MCP approvals a later run reads, and a rule that allowed the
+  // mkdir would also let a fenced process move a prepared folder into place. Doan creates it beforehand (prepare.ts).
+  it("lets Cursor's recursive mkdir pass on the worker folder Doan made, and write nothing in it or beside it", () => {
+    const w = world("cursor");
+    mkdirSync(join(w.profile, ".cursor", "projects", "p-988fa62"), { recursive: true });
+    mkdirSync(join(w.profile, "stage"), { recursive: true }); writeFileSync(join(w.profile, "stage", "mcp-approvals.json"), "{}");
+    const paths = resolveFencePaths({ provider: "cursor", userData: w.userData, profileDir: w.profile, attachments: [] }, path => realpathSync.native(path))!;
+    const run = (script: string) => spawnSync(SANDBOX_EXEC, [...fenceArgs("cursor", paths), process.execPath, "-e", script], { env: { PROFILE: w.profile }, encoding: "utf8" }).status;
+    const mkdir = (rel: string) => `require("node:fs").mkdirSync(process.env.PROFILE + "/.cursor/${rel}", { recursive: true })`;
+    expect(run(mkdir("projects/p-988fa62"))).toBe(0);
+    expect(run(`require("node:fs").writeFileSync(process.env.PROFILE + "/.cursor/projects/p-988fa62/mcp-approvals.json", "{}")`)).not.toBe(0);
+    expect(run(mkdir("projects/p-1234567"))).not.toBe(0);
+    expect(run(mkdir("p-1234567"))).not.toBe(0);
+    expect(run(`require("node:fs").renameSync(process.env.PROFILE + "/stage", process.env.PROFILE + "/.cursor/projects/w-repo")`)).not.toBe(0);
+  });
   // Antigravity's ACP server 1.3.0 (a signed-in profile's entries and their times): conversations, brain and its
   // token per turn, its own folder of transcripts and helpers, and per-conversation databases in config/.
   it("lets Antigravity write its conversations, brain and token and none of its config, memory or settings", () => {

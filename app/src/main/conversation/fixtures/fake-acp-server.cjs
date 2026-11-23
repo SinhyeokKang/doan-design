@@ -2,7 +2,8 @@
 // request held until the client answers, a rejected tool call reported as failed, and session/cancel ending the turn.
 // Test-only knobs come from FAKE_ACP: "auth-link" asks for a browser sign-in at session/new, "hang" never answers a prompt,
 // "stop:<reason>" answers a prompt at once with that stopReason ("stop:" with none), "protocol:<n>" answers initialize
-// with that protocol version, "no-session" answers session/new without a session ID, "exit-init" exits at initialize.
+// with that protocol version, "no-session" answers session/new without a session ID, "exit-init" exits at initialize, after writing FAKE_ACP_STDERR
+// (if set) to stderr.
 // FAKE_ACP_MODELS (JSON) is the `models` member of the session/new and session/load results, in the shape
 // a PoC recorded; FAKE_ACP_LOG names a file that receives every client line; FAKE_ACP_NO_IMAGE answers
 // initialize with promptCapabilities.image false. FAKE_ACP_SESSION (JSON) adds members such as `modes` and
@@ -45,7 +46,7 @@ readline.createInterface({ input: process.stdin }).on("line", line => {
   }
   switch (request.method) {
     case "initialize":
-      if (mode === "exit-init") process.exit(7);
+      if (mode === "exit-init") { process.stderr.write(process.env.FAKE_ACP_STDERR ?? "", () => process.exit(7)); break; }
       // "hang-init" never answers initialize, a server still starting.
       if (mode === "hang-init") break;
       send({ jsonrpc: "2.0", id: request.id, result: mode.startsWith("protocol:") ? { ...fixture.initialize, protocolVersion: Number(mode.slice(9)) } : process.env.FAKE_ACP_NO_IMAGE ? { ...fixture.initialize, agentCapabilities: { ...fixture.initialize.agentCapabilities, promptCapabilities: { image: false } } } : fixture.initialize }); break;

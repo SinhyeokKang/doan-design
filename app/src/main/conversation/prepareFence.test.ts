@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 const mocks = vi.hoisted(() => ({ probe: vi.fn(), run: vi.fn() }));
@@ -7,6 +7,7 @@ vi.mock("../onboarding/machine", () => ({ probeShell: mocks.probe, runProcess: m
 import { PROMPT_MS, withFifo } from "../fifo.fixture";
 import { createAccountPrepare, routePrepare, wireAccountPrepare, type AccountPrepare, type AccountRuntime } from "./prepare";
 import { initialAuthState } from "../agentAuth/state";
+import { cursorWorkerDir } from "../agentAuth/fence";
 import type { Lease } from "../agentAuth/manager";
 import type { AccountConnection, AuthState, Provider } from "../agentAuth/types";
 import type { AttachmentRecord } from "./types";
@@ -84,6 +85,45 @@ it("checks Copilot's and Cursor's version in the outer fence and Claude's outsid
   const c = world("claude");
   await prepare("claude", c).run({ root: c.project, mode: "new", runtime: "claude", text: "", anchors: [] }, undefined, "listing");
   expect(mocks.run.mock.calls[0]!.slice(0, 2)).toEqual(["/bin/claude", ["--version"]]);
+});
+// cursor-agent 2026.11.22 exits at start when it cannot create its local worker's socket folder, which a short HOME puts
+// inside the closed .cursor folder. Doan creates it, empty, from outside the fence; the fence opens nothing new.
+function cursorWorld(home: "short" | "long") {
+  // Under /tmp the profile path is short enough for the folder to land in .cursor/projects (cursorWorkerDir).
+  const base = realpathSync.native(mkdtempSync(home === "short" ? "/tmp/dw-" : join(tmpdir(), `doan-fence-${"x".repeat(40)}-`))); roots.push(base);
+  const userData = join(base, "u"), profile = join(userData, "agent-auth", "profiles", "cursor"), project = join(base, "p");
+  for (const dir of [join(profile, ".cursor"), project]) mkdirSync(dir, { recursive: true });
+  writeFileSync(join(userData, "conversation-runtime.json"), "{}");
+  return { base, userData, real: userData, profile, project, socket: join(base, "app.sock") };
+}
+function cursorPrepare(w: ReturnType<typeof cursorWorld>, env: Record<string, string>) {
+  const { runtime, release } = prepare("cursor", w);
+  runtime.acquire = vi.fn(async (): Promise<Lease> => ({ command: "/bin/cursor", env: { PATH: "/shell/bin", ...env }, profileDir: w.profile, release }));
+  return createAccountPrepare(runtime, "/Applications/doan.app/Contents/Resources/bin/doan", () => {}, undefined, undefined, { userData: w.userData, socket: () => w.socket });
+}
+it("creates Cursor's worker socket folder, empty, inside the closed .cursor folder before a fenced run or list read", async () => {
+  for (const use of ["run", "listing"] as const) {
+    const w = cursorWorld("short");
+    const expected = cursorWorkerDir({ home: w.profile, cwd: w.project, tmpdir: "/var/folders/x/T/" });
+    expect(expected.startsWith(`${w.profile}/.cursor/projects/`)).toBe(true);
+    const ready = await cursorPrepare(w, { HOME: w.profile, TMPDIR: "/var/folders/x/T/" })({ root: w.project, mode: "new", runtime: "cursor", text: "", anchors: [] }, undefined, use);
+    expect(ready.fence).toBeDefined();
+    expect(statSync(expected).isDirectory()).toBe(true);
+    expect(readdirSync(expected)).toEqual([]);
+  }
+});
+it("creates nothing for Cursor when the folder lands outside .cursor, or when the run is not fenced", async () => {
+  const w = cursorWorld("long"), tmp = realpathSync.native(mkdtempSync("/tmp/dt-")); roots.push(tmp);
+  const outside = cursorWorkerDir({ home: w.profile, cwd: w.project, tmpdir: tmp });
+  expect(outside.startsWith(`${tmp}/.cursor/`)).toBe(true);
+  await cursorPrepare(w, { HOME: w.profile, TMPDIR: tmp })({ root: w.project, mode: "new", runtime: "cursor", text: "", anchors: [] });
+  expect(existsSync(join(tmp, ".cursor"))).toBe(false);
+  expect(readdirSync(join(w.profile, ".cursor"))).toEqual([]);
+  const short = cursorWorld("short");
+  const { runtime } = prepare("cursor", short, false);
+  runtime.acquire = vi.fn(async (): Promise<Lease> => ({ command: "/bin/cursor", env: { PATH: "/shell/bin", HOME: short.profile }, profileDir: short.profile, release: vi.fn(async () => {}) }));
+  await createAccountPrepare(runtime, "/Applications/doan.app/Contents/Resources/bin/doan")({ root: short.project, mode: "new", runtime: "cursor", text: "", anchors: [] });
+  expect(readdirSync(join(short.profile, ".cursor"))).toEqual([]);
 });
 // sandbox-exec's own failure (missing, 65 for a policy error, 71) says nothing about the CLI's version.
 it("refuses a fenced version check that sandbox-exec could not start as process_exited, without a tool refresh", async () => {

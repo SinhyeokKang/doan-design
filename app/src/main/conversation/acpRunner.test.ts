@@ -1,9 +1,9 @@
-import { afterAll, afterEach, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, readFileSync, realpathSync, rmSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { acpPermission, acpPromptDone, initialAcp, normalizeAcp, AcpConnection } from "./acp";
-import { openAcp } from "./acpRunner";
+import { openAcp, stderrTail } from "./acpRunner";
 import { listModels } from "./runners";
 import { ConversationService } from "./service";
 import { ConversationStore } from "./store";
@@ -266,6 +266,56 @@ it("never records an ACP resume, a server exit at initialize, or an Antigravity 
   expect((exited.opened as Error).message).toBe("process_exited"); expect(exited.order).toEqual(["refused"]);
   const antigravity = await handshake("cursor", { runtime: "antigravity" }, "protocol:2");
   expect((antigravity.opened as Error).message).toBe("runtime_unsupported"); expect(antigravity.order).toEqual(["refused"]);
+});
+
+// A server that exits before initialize answers leaves only process_exited; its stderr names the cause (cursor-agent
+// 2026.11.22 refused by the fence: a mkdir EPERM), so main logs a bounded, redacted tail of it.
+const EPERM = "Error: EPERM: operation not permitted, mkdir '/u/agent-auth/profiles/cursor/.cursor/projects/p-988fa62'";
+it("logs a redacted stderr tail when an ACP server exits before it is ready, and nothing for another refusal", async () => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    const env = { PATH: process.env.PATH ?? "", FAKE_ACP: "exit-init", FAKE_ACP_STDERR: `starting\nAuthorization: Bearer abc.def-ghi\n${EPERM}\n` };
+    await expect(openAcp(input("cursor", { env }), () => {}, () => {}, () => {})).rejects.toThrow(/^process_exited$/);
+    expect(log).toHaveBeenCalledOnce();
+    const line = String(log.mock.calls[0]![0]);
+    expect(line).toContain("doan: cursor ACP server exited before it was ready");
+    expect(line).toContain(EPERM);
+    expect(line).not.toContain("abc.def-ghi");
+    log.mockClear();
+    await expect(openAcp(input("cursor", {}, "protocol:2"), () => {}, () => {}, () => {})).rejects.toThrow(/^runtime_unsupported$/);
+    expect(log).not.toHaveBeenCalled();
+  } finally { log.mockRestore(); }
+});
+describe("stderrTail", () => {
+  it("keeps a short stderr as it is, without its trailing newline", () => {
+    expect(stderrTail(`${EPERM}\n`)).toBe(EPERM);
+    expect(stderrTail("")).toBe("");
+    expect(stderrTail("\n \n")).toBe("");
+  });
+  it("keeps only the last lines, each and all of them bounded", () => {
+    const tail = stderrTail(Array.from({ length: 40 }, (_, i) => `line ${i} ${"x".repeat(500)}`).join("\n"));
+    const lines = tail.split("\n");
+    expect(lines.length).toBeLessThanOrEqual(6);
+    expect(lines.at(-1)!.startsWith("line 39 ")).toBe(true);
+    expect(lines.every(l => l.length <= 300)).toBe(true);
+    expect(tail.length).toBeLessThanOrEqual(1000);
+  });
+  it("redacts tokens, credentials and URL queries, and drops control characters", () => {
+    const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZGEifQ.c2lnbmF0dXJl";
+    const tail = stderrTail([
+      `{"accessToken": "${jwt}", "refreshToken": "r-secret-1"}`,
+      "Authorization: Bearer abc.def-ghi",
+      "GET https://api2.cursor.sh/auth/poll?uuid=1234&verifier=v-secret-2#frag failed",
+      "api_key=k-secret-3 password: p-secret-4",
+      `opaque ${"Ab9_".repeat(12)} end`,
+      "\u001b[31mred\u001b[0m\u0007",
+    ].join("\n"));
+    for (const secret of [jwt, "r-secret-1", "abc.def-ghi", "uuid=1234", "v-secret-2", "k-secret-3", "p-secret-4", "Ab9_Ab9_Ab9_"]) expect(tail).not.toContain(secret);
+    expect(tail).toContain("https://api2.cursor.sh/auth/poll");
+    expect(tail).toContain("[redacted]");
+    expect(tail).toContain("red");
+    expect(/[\u0000-\u0008\u000b-\u001f\u007f]/.test(tail)).toBe(false);
+  });
 });
 
 // ACP model lists from session/new, the chosen model after every open, and Antigravity's image blocks.
