@@ -1,59 +1,58 @@
 # composer 목록 hanging indent — design
 
-이 feature는 이미 develop에 있는 composer 입력란의 목록 표시를 다시 디자인하는 standalone redesign이다(AGENTS.md 'Workflow' `/design-draft`·`/design-sync` 예외). 새 시안 파일 `.doan/canvases/composer-hanging-indent.html`을 그리고, 기존 시안 `composer-markdown.html`은 고치지 않는다. 기존 시안의 `field-wrap` 설명("The field has no hanging indent")은 그대로 남지만, 이 feature의 브랜치가 머지될 때까지 새 시안이 입력란 목록 표시의 기준이다.
+이 feature는 composer 입력란을 ProseMirror 위에 다시 만들어 목록 항목에 hanging indent를 준다. 이미 develop에 있는 화면의 표시를 바꾸므로 standalone redesign이다(AGENTS.md 'Workflow' `/design-draft`·`/design-sync` 예외). 새 시안 파일 `.doan/canvases/composer-hanging-indent.html`을 그리고 기존 시안 `composer-markdown.html`은 고치지 않는다. 기존 시안의 `field-wrap` 설명("The field has no hanging indent")은 남지만, 이 feature의 브랜치가 머지될 때까지 새 시안이 기준이다.
 
 ## 결정
 
-- **구현 방식**: 목록 줄을 블록으로 감싸고, 줄바꿈 문자는 블록 사이의 보이지 않는 span에 둔다. 글자 입력은 지금처럼 브라우저가 처리하고, 줄바꿈 문자를 지우거나 바꾸는 편집만 입력란이 직접 처리한다(사람이 정했다). 모든 편집을 입력란이 처리하는 방식은 IME가 어차피 브라우저 몫이라 예외가 남고 범위가 커서 고르지 않았다.
-- **마커 그리기**: inline-block 마커는 ↓로 항목에 들어갈 때 가로 위치를 잃으므로 마커를 inline-block으로 두지 않는다. 마커 위치와 본문 시작점은 지금 측정값을 지킨다. 측정 계약은 새로 잰다(사람이 정했다).
-- **깊이 상한 없음**: 깊이마다 본문 시작점이 20px씩 밀린다. 말풍선의 4단계 상한을 입력란에 들여오지 않는다(사람이 정했다).
-- **번호 정렬**: 항목마다 자기 본문 시작점에 맞춘다. 말풍선처럼 목록 단위로 맞추지 않는다(사람이 정했다).
-- **줄 시작 커서**: 모든 깊이에서 마커 앞에 그린다(사람이 정했다).
-- **IME 실패 시**: 걸친 선택 위 조합이 사람 확인에서 실패하면 선삭제 코드를 빼고 BACKLOG 'Known defects'에 남긴 채 출시한다(사람이 정했다).
-- **CSS만으로 하지 않는 이유**: `text-indent: hanging each-line`은 Chrome 146에 들어왔고 이 앱의 Electron(Chrome 156)에서 쓸 수 있다([blink-dev Intent to Ship](https://groups.google.com/a/chromium.org/g/blink-dev/c/E8lsWfkyWVk/m/my-groups), [web-features](https://web-platform-dx.github.io/web-features-explorer/features/text-indent-hanging/), 리뷰어가 확인). 하지만 블록 하나에 한 값만 줄 수 있어서, 평평한 입력란에 쓰면 일반 줄까지 들여 쓰이고 깊이와 마커 폭에 따라 값을 바꿀 수 없다.
+- **편집기**: 순수 ProseMirror(`prosemirror-model`, `-state`, `-view`, `-transform`, `-history`, `-keymap`, `-commands`) 위에 입력란을 다시 만든다(사람이 정했다). TipTap은 쓰지 않는다. 텍스트 모델을 지키는 D 모델에서 TipTap이 더하는 것이 없고(gzip 약 33KB와 꺼야 하는 기본 CSS만 더함), 구조 목록(S 모델)은 PRODUCT의 텍스트 모델을 깨기 때문이다(`.scratch/tiptap-poc/poc-result.md`).
+- **문서 모델(D)**: 문서는 문단만 담고 한 줄이 한 문단이다. 문단은 `<div>`로 그린다(`<p>`면 선택 텍스트와 CDP 값에 줄마다 "\n"이 더 생긴다). 마커와 깊이 공백은 입력한 텍스트 그대로다. 목록 표시는 앱의 `listLines`/`fieldRuns` 결과로 만드는 decoration이다.
+- **마커 그리기(glyph)**: 깊이 공백은 `word-spacing`으로 폭 0, 마커 문자는 16px 글자 그대로 12px 열에 맞게 padding, 글머리표는 투명 글자 위 `::before` "•"(사람이 정했다). 목록 줄 문단에 node decoration으로 `--body`(본문 시작점)를 주고 `padding-inline-start: var(--body); text-indent: calc(-1 * var(--body))`로 줄바꿈된 줄을 본문 시작점에 맞춘다. 번호 폭은 숨긴 span에서 한 번 재고 캐시한다: `--body = 20·(depth+1) + max(12, 번호 폭)`.
+- **칩**: inline atom 노드(`contenteditable=false`, 선택 불가, sr-only "Frame " + 라벨). 모델에서는 지금처럼 한 unit이다.
+- **깊이 상한 없음, 번호 정렬은 항목마다, 줄 시작 커서는 모든 깊이에서 마커 앞**(사람이 정했다).
+- **받아들인 차이**: ⌥→의 추가 멈춤과 빈 줄마다 CDP 값에 줄바꿈 하나 추가는 두 PoC 모두에서 남았고, 사람이 알고 이 방향을 골랐다. ⌥→는 구현 중 keymap으로 지금 동작에 맞출 수 있으면 맞춘다.
+- **IME 실패 시**: 사람 확인에서 걸친 선택 위 조합이 실패하면 BACKLOG 'Known defects'에 남기고 출시한다(사람이 정했다).
+- **CSS만으로 하지 않는 이유**: `text-indent: hanging each-line`은 Chrome 146에 들어왔고 이 앱의 Electron(Chrome 156)에서 쓸 수 있다([blink-dev Intent to Ship](https://groups.google.com/a/chromium.org/g/blink-dev/c/E8lsWfkyWVk/m/my-groups), [web-features](https://web-platform-dx.github.io/web-features-explorer/features/text-indent-hanging/)). 블록 하나에 한 값만 줄 수 있어서 평평한 입력란에서는 일반 줄까지 들여 쓰이고 깊이·마커 폭마다 값을 바꿀 수 없다.
 
-## DOM 구조
+## 입력란 구조
 
-- 지금(`chipField.ts` `render()`): 입력란 요소의 평평한 자식들. 텍스트 노드에 `"\n"`이 그대로 들어 있고, 목록은 `span.list-depth`·`span.list-mark` inline-block이 실제 입력 문자 위에 그려진다. 끝이 `"\n"`이면 `<br>`을 붙인다.
-- 바뀐 뒤(블록 구조 후보 둘을 PoC로 비교한다, tasks 1):
-  - **후보 A — 목록 줄만 블록**: 목록 항목 줄은 `span.list-line`(display:block)으로 감싼다. 일반 줄은 평평한 텍스트로 둔다.
-  - **후보 B — 모든 줄 블록**: 모든 줄을 블록으로 감싼다. 일반 줄과 목록 줄의 경계 처리가 사라지는 대신 빈 줄마다 채움이 필요하다. 고르면 클래스 이름은 종류 속성을 가진 중립 이름(`field-line`)으로 한다.
-  - PoC에서 특수 처리가 적은 쪽을 고르고 design.md에 이유와 함께 적는다.
-- 두 후보 공통 규칙:
-  - **줄바꿈 위치**: 목록 줄(B에서는 모든 블록 줄)을 끝내거나 그 앞에 오는 모든 `"\n"`은 블록 밖의 `span.list-nl`(display:none)에 둔다. 각 `span.list-nl`은 정확히 하나의 텍스트 노드 `"\n"`만 갖는다. 두 `span.list-nl` 사이의 빈 줄은 `<br>` 채움으로 높이를 갖는다. 블록 끝에 `"\n"`이 남는 모양은 ↑가 줄바꿈된 줄을 건너뛰게 하므로(프로브) 만들지 않는다.
-  - **커서는 숨긴 span 안에 놓이지 않는다**: `pointAt`이 `span.list-nl` 안의 위치를 돌려주지 않는다. 줄 끝은 그 블록 마지막 텍스트의 끝, 텍스트가 없는 줄 시작은 (부모, 채움 `<br>`의 index)로 대응한다. 숨긴 노드 안의 위치는 Chromium이 앞 줄 끝으로 해석해서, 입력이 앞 줄에 들어간다.
-  - **마커·깊이 그리기**: 깊이 공백과 마커 문자는 폭 0으로 두고, 기호(•, 번호)는 블록의 pseudo-element(min-width를 가질 수 있는 inline-block pseudo)로 그린다. `render()`가 줄마다 본문 시작점에 맞는 `padding-inline-start`와 음수 `text-indent`를 준다. 번호의 실제 폭은 CSS로 알 수 없으므로 render가 재거나 그 값을 줄 방법을 PoC에서 정한다. PoC에서 이 방식이 12px 열, 깊이 폭, 줄 시작 커서 위치를 지키는지 확인한다.
-- 읽기(`units()`, `read()`, `textOf()`, `offsetOf`)는 블록과 `span.list-nl`을 지나 실제 문자만 읽는다. `span.list-nl`의 `"\n"`도 한 unit이다.
-- `misdrawn()`은 블록 구조를 엄격히 확인한다: 예상한 블록·`span.list-nl`·채움 배치, 각 `span.list-nl`이 `"\n"` 하나만 가짐, 계획한 곳에만 `<br>`. 숨긴 span에 글자가 들어가거나 Chromium이 줄을 합치며 스타일 span을 만들면 다시 그린다. 그 밖의 입력마다 다시 그리지 않는다.
+- **편집기 뷰**: `EditorView` 하나가 `div.composer-input`(지금의 contenteditable 자리)을 맡는다. 접근성 역할·속성(textbox/combobox, `aria-*`, `data-chip-field`)은 ProseMirror의 `attributes` prop으로 지금과 같게 둔다.
+- **스키마**: `doc`(문단+), `paragraph`(`<div>`, inline*), `text`, `chip`(inline atom, attrs에 anchor). 다른 노드와 mark는 없다.
+- **텍스트 ↔ 문서**: 지금 segment 모델(`FieldSegment = text | chip`)과 문서를 서로 바꾸는 순수 함수 두 개. 줄바꿈은 문단 경계, 칩은 `chip` 노드. 왕복이 바이트 단위로 같아야 한다(PoC 16개 문자열 통과).
+- **decoration plugin**: 문서가 바뀔 때마다 줄마다 `fieldRuns`로 목록 줄·깊이·마커·스킬 단어를 읽어 node decoration(`--body`, 목록 클래스)과 inline decoration(깊이·마커·스킬 강조)을 만든다.
+- **호스트 API**: 지금 `ChipField`의 공개 메서드와 hook을 그대로 둔다(`setValue`, `segments`, `insertChip`·`insertSkill`·`insertText`, `composing()`, `focus`, `onChange`, 조합 중 칩 대기, draft 전환, `reset`). 호스트(`ComposerParts.tsx`, 네 composer)는 바뀌지 않는다.
 
 ## 편집 처리
 
-- **규칙(텍스트 기준)**: 조합 중이 아닌 `beforeinput` 중 범위가 `"\n"` unit을 포함하는 것은 모두 입력란이 처리한다. 범위는 접히지 않은 선택이면 선택, 아니면 `getTargetRanges()`를 `offsetOf`로 바꾼 것, 그것도 없으면 커서가 줄 시작(뒤로 지우기)이나 줄 끝(앞으로 지우기)일 때 이웃 unit이다. 이 규칙은 DOM 모양이나 대상 범위에 숨긴 노드가 포함되는지와 관계없이 동작한다.
-- **해당하는 편집**: Backspace·Delete, ⌥⌫·⌥⌦, ⌃K·⌃H·⌃D, 선택 위의 `insertText`·`insertReplacementText`, `insertTranspose`(⌃T, 줄 경계에서), ⌘⌫·⌘⌦. 두 일반 줄 사이의 `"\n"` 삭제도 같은 규칙을 따른다.
-- **실행 취소 단위**: 입력란이 처리하는 줄 경계 삭제·교체 중 칩이 없는 것은 `"typing"`으로 commit해서 앞뒤 글자 입력과 지금처럼 한 단계로 묶는다. 칩이 걸리거나 목록 편집(Shift+Enter, Tab, 본문 시작 Backspace)은 지금처럼 각자 한 단계다.
-- **이미 처리하던 것**: 줄바꿈(Shift+Enter, `continueList`), 본문 시작점 Backspace(`removeMarker`, 한 단계 내어쓰기와 깊이 0의 마커 삭제), Tab, 붙여넣기, 잘라내기, 끌어놓기 막기, 칩 관련 편집, 실행 취소.
-- **브라우저가 처리하는 것**: 줄바꿈을 포함하지 않는 글자 입력과 삭제, 줄 안의 맞춤법 제안 교체, 조합. `sync()`가 읽고 `repair()`가 필요할 때만 다시 그린다.
-- **IME 선삭제**: keydown 229에서 선택이 줄바꿈을 걸쳤으면 그 선택을 기억만 한다. 실제로 조합이 시작될 때(`compositionstart`가 이어질 때) 입력란이 선택을 segment 편집으로 지우고 commit한다. 이어지는 조합의 commit은 원래 선택을 시작점으로 그 단계에 합친다. 229 뒤에 조합이 오지 않으면(⌘C, Shift+화살표, Esc) 아무것도 지우지 않는다. 처리 위치는 keydown의 조합 조기 반환(`:323`) 앞이며, `!composingNow`·`!discarding`·`!readOnly`일 때만 한다. Chromium이 조합 시작 때 선택을 직접 지우기 전에 끼어들 수 있는지는 PoC에서 순서를 확인한다(ARCHITECTURE:720이 기록한 macOS 순서: keydown 229가 `compositionstart`보다 먼저).
-- **IME 선삭제의 한계**(BACKLOG에 기록한다): 글자를 만들지 않는 IME 키(한자 변환), 선택한 글자가 필요한 일본어 재변환에도 선택을 지운다. 받아쓰기와 길게 눌러 악센트 입력은 앞선 229 없이 조합을 시작할 수 있어 여전히 줄바꿈을 잃을 수 있다.
-- **커서**: `placeCaret`·`leavePrefix`·`prefixArrow`가 블록 구조에서도 마커 안이나 숨긴 span 안에 커서를 두지 않는다. `placeCaret`은 지금처럼 포커스 없는 입력란을 포커스하지 않는다.
-- **스크롤**: `revealCaret`·`caretRect`(develop의 composer 스크롤 수정)가 블록 구조에서 커서와 빈 줄 채움을 기준으로 동작한다. 지금 `caretRect`는 줄 끝의 `"\n"`이나 마지막 `<br>`을 기준으로 삼으므로 블록 구조에 맞게 고친다.
-- **Look Up**: Electron의 `params.selectionText`는 블록 경계마다 `"\n"`이 생기고 숨긴 `"\n"`은 빠진다. `lookUpLabel`이 공백을 접어서 결과는 같아 보이지만, 칩 이름으로 Look Up하는 경로를 테스트로 확인한다.
+- **글자 입력·삭제·IME**: ProseMirror가 처리하고 DOM과 모델을 맞춘다. 줄을 넘는 삭제(Backspace·Delete·⌥⌫ 등)는 PoC에서 처리 코드 없이 맞았다. macOS 삭제 명령 전체(⌃K·⌃H·⌃D·⌃T·⌘⌫·⌘⌦), 맞춤법 제안 교체는 tasks 1에서 다시 잰다.
+- **keymap**: Enter는 보내기(호스트가 처리), Shift+Enter는 `continueList`, Tab·Shift+Tab은 `indentItem`(위에 항목이 없거나 깊이 0의 Shift+Tab이면 포커스 이동), 본문 시작 Backspace는 `removeMarker`, ←/→는 마커·깊이와 칩을 한 단위로 건너뛴다. 모두 앱의 `composerLists.ts` 함수를 그대로 쓴다. 조합 중 Shift+Enter·Tab은 지금 입력란의 'press' 규칙(조합이 끝난 뒤 실행)을 그대로 옮긴다.
+- **실행 취소**: `prosemirror-history`, `newGroupDelay: 1000`(지금 `TYPING_MERGE_MS`). 커서만 옮긴 transaction 뒤에는 `closeHistory`로 단계를 끊어 지금처럼 새 단계가 되게 한다. 목록 편집·붙여넣기·잘라내기·칩은 각자 한 단계다. Edit 메뉴의 `historyUndo`/`historyRedo` `beforeinput`은 `prosemirror-history`가 스스로 처리한다.
+- **클립보드**: 복사·잘라내기는 지금처럼 segment에서 `text/plain`과 `application/x-doan-field+json`을 만든다(`clipboardTextSerializer`·`handleDOMEvents` 또는 `transformCopied`). 붙여넣기는 `text/plain`을 텍스트 자리에 넣고(문단 나눔 없이 줄바꿈만), 칩 JSON이 있으면 칩을 넣는다. ProseMirror 기본 붙여넣기(구조 삽입)는 쓰지 않는다.
+- **끌어놓기·서식**: 지금처럼 막는다.
+- **줄 시작 칩 앞 커서**: 지금은 U+200B로 메운다. ProseMirror에서도 칩 앞뒤 DOM 커서 위치가 없으므로 같은 방식(또는 ProseMirror의 gapcursor 대신 widget decoration)을 tasks 1에서 정한다.
+- **스크롤**: 코드가 만든 transaction에 `scrollIntoView()`를 걸어 커서를 보이게 한다. 입력란 안에서만 스크롤한다(지금 `revealCaret`과 같은 범위). 빈 줄의 커서 위치를 다시 확인한다.
+- **포커스**: 포커스 없는 입력란에 커서를 놓을 때 포커스하지 않는다(postmortem 2026-10 'Pin completion').
+- **읽기 전용**: `editable` prop이 false. 선택·복사는 된다.
+- **placeholder**: 입력란이 완전히 빌 때만(지금과 같음).
+- **Look Up**: 문단이 `<div>`라서 `selectionText`에 줄바꿈이 더해지지 않는다. 칩 이름으로 Look Up하는 경로를 테스트로 확인한다.
 
 ## 영향받는 구성 요소
 
-- **app (renderer)만** 바뀐다.
-  - `chipField.ts`: `render()`, `runNode()`, 읽기 함수들, `pointAt`, `beforeinput`의 줄바꿈 판단, keydown 229와 `compositionstart`의 선삭제, `misdrawn()`, `placeCaret`, `leavePrefix`, `prefixArrow`, `lineRange`/`rowEdge`, `revealCaret`/`caretRect`.
-  - `skillWords.ts`의 `fieldRuns`(줄 단위로 묶은 run을 돌려주거나, render가 묶는다).
-  - `composerLists.ts`: 줄 구조 계산에 쓰는 순수 함수.
-  - `anchorField.ts`: 범위가 줄바꿈을 포함하는지 판단하는 순수 함수. 결과 segment 계산은 기존 `spliceUnits`를 쓴다.
-  - `styles.css`: 블록, `.list-nl`, 마커 pseudo-element, 깊이. 주석 "No hanging indent in the field"를 고친다.
+- **app (renderer)**
+  - `chipField.ts`: ProseMirror 위로 다시 쓴다. 공개 API는 그대로다.
+  - 새 모듈(예: `fieldSchema.ts`, `fieldDoc.ts`, `fieldDecorations.ts`): 스키마, 텍스트 ↔ 문서, decoration. 이름은 구현 때 정한다.
+  - `anchorField.ts`, `composerLists.ts`, `skillWords.ts`: 그대로 쓰고, 필요한 순수 함수만 더한다.
+  - `styles.css`: 목록 decoration 클래스, glyph 마커, `--body`. ProseMirror 기본 CSS 중 필요한 것(`.ProseMirror` white-space 등)을 `.composer-input` 규칙과 맞춘다. 주석 "No hanging indent in the field"를 고친다.
+- **의존성**: `app/package.json`에 ProseMirror 패키지를 `npm --prefix app install --save-exact`로 런타임 의존성에 추가한다(AGENTS.md 'Commands'). 버전은 tasks 1에서 정한다(PoC가 쓴 것: view 1.43.0, model 1.25.13, state 1.4.4, transform 1.12.7, history 1.5.2, keymap 1.2.3, commands 1.7.2).
+- **main**: Edit 메뉴가 `data-chip-field`에 `historyUndo`/`historyRedo`를 보내는 경로(`app/src/main/index.ts`)는 그대로다.
 - CLI, 스킬, 포맷: 바뀌지 않는다.
 
 ## 순수 함수로 뺄 부분 (`/tdd` 대상)
 
-- 텍스트를 줄 단위 그리기 단위로 나누기: 목록 줄(깊이·마커·본문 범위·본문 시작 열)과 일반 줄, 칩으로 시작하는 줄, `"\n"`이 어느 `span.list-nl`에 들어가는지, 빈 줄 채움 위치. `fieldRuns`·`fieldListItems` 위에 만든다.
-- 편집 범위가 `"\n"`을 포함하는지 판단: unit 범위와 텍스트로. 같은 판단을 IME 선삭제 결정에도 쓴다.
-- unit ↔ DOM 위치 대응 규칙 중 순수하게 뺄 수 있는 부분: 줄 끝과 텍스트 없는 줄 시작이 숨긴 span이 아닌 위치로 대응하는 규칙.
+- segment ↔ ProseMirror 문서 변환(왕복 바이트 일치).
+- 문서에서 decoration 목록 계산(줄마다 목록 여부, `--body`, 깊이·마커·스킬 범위).
+- 번호 폭으로 `--body` 계산(번호 폭 측정은 주입).
+- 실행 취소 단계 경계 규칙(커서만 옮긴 transaction에서 끊기, 입력 1000ms 묶기).
+- 클립보드 `text/plain`과 칩 JSON 만들기·읽기: 지금 `anchorField.ts`의 함수를 그대로 쓴다.
 
 ## 포맷 변경
 
@@ -65,22 +64,22 @@
 
 ## 결정 영향
 
-- PRODUCT §5 item 1 'Lists'의 "the field has no hanging indent" 문장을 바꾼다(사람이 승인했다). 문서 승격 task에서 고친다.
-- ARCHITECTURE §7의 chip field 설명(`:715`~`:720`)을 새 구조로 고친다. "line deletes computed from segments"를 줄 경계를 넘는 삭제·교체까지 넓히고, IME 선삭제 규칙을 더하고, "contenteditable=false marker rejected"는 새 마커 방식에 맞게 고친다.
+- PRODUCT §5 item 1 'Lists'의 "the field has no hanging indent" 문장을 바꾸고, 항목마다 본문 정렬과 줄 시작 커서, 받아들인 차이를 적는다(사람이 승인했다).
+- ARCHITECTURE §7 'Setup'(런타임 의존성)과 chip field 설명(`:715`~`:720`)을 ProseMirror 구조로 고쳐 쓴다.
 - 서빙 범위, sandbox iframe, GitHub 토큰, git 명령에는 닿지 않는다.
 
 ## PoC 의존
 
-- **줄 블록 구조 전체**(tasks 1): 실제 Electron에서 함께 동작하는지 아직 확인되지 않았다. 안 되는 항목이 있으면 멈추고 사람에게 보고한다.
-- **IME 선삭제의 이벤트 순서**: 합성 이벤트로 순서만 PoC에서 확인하고, 실제 입력기 동작은 사람이 확인한다(tasks 5).
+- **순수 ProseMirror D 모델**: TipTap 위에서 잰 D 모델을 순수 ProseMirror로 다시 확인하고, TipTap PoC가 재지 않은 것(macOS 삭제 명령, 맞춤법 제안, 마우스 드래그·세 번 클릭, 이모지 경계, 줄 시작 칩 커서, 칩 클릭·tooltip, ⌥→ keymap 시도, `closeHistory` 실행 취소 경계, `scrollIntoView` 범위)을 잰다(tasks 1).
+- **실제 한글 입력기**: 사람이 확인한다(tasks 5).
 
 ## postmortem에서 가져온 함정
 
-- **2026-11 'Sent anchor chips inserted line breaks into copied text'**(2026-11.md:115): 말풍선 복사의 일이지만, composer의 `text/plain`도 블록·칩이 섞인 경우로 입력 텍스트와 같은지 테스트한다(composer는 segment에서 만들어서 블록이 바꿀 수 없다).
-- **2026-11 'Look Up named a composer chip by its screen-reader text'**(2026-11.md:1110): 블록 구조에서 `selectionText`가 칩 화면 읽기 텍스트를 끼워 넣지 않는지 테스트한다.
-- **2026-10 'Pin completion outlived the guarded intent'**(2026-10.md:771, 재발 :778): `placeCaret`이 포커스 없는 입력란을 포커스하지 않는 규칙을 블록 구조에서도 지킨다.
-- **2026-11-23 composer 스크롤**(2026-11.md 맨 위): 코드가 커서를 놓는 편집은 스스로 스크롤해야 하고, 빈 줄에서의 커서 위치를 따로 재야 한다. 블록 구조에서 빈 줄 채움 기준으로 다시 확인한다.
+- **2026-11 'Sent anchor chips inserted line breaks into copied text'**(2026-11.md:115): 복사 `text/plain`이 블록·칩이 섞인 경우에도 입력 텍스트와 같은지 테스트한다.
+- **2026-11 'Look Up named a composer chip by its screen-reader text'**(2026-11.md:1110): `selectionText`가 칩 화면 읽기 텍스트를 끼워 넣지 않는지 테스트한다.
+- **2026-10 'Pin completion outlived the guarded intent'**(2026-10.md:771, 재발 :778): 포커스 없는 입력란에 커서를 놓을 때 포커스하지 않는다.
+- **2026-11-23 composer 스크롤**(2026-11.md 맨 위): 코드가 놓은 커서도 보이게 스크롤하고, 빈 줄의 커서 위치를 따로 확인한다.
 
 ## 참고한 디자인 프리셋
 
-- `shape`: 기존 화면(입력란)의 시각 체계는 그대로 두고, 줄바꿈된 줄의 위치와 마커 그리기만 바꾼다.
+- `shape`: 입력란의 시각 체계는 그대로 두고, 줄바꿈된 줄의 위치와 마커 그리기만 바꾼다.
