@@ -9,11 +9,13 @@
 두 링크는 한 병렬 그룹이다. 리드가 둘을 최신 `origin/develop`에서 함께 시작하고, PR은 링크 순서(1 → 2)대로 머지한다.
 
 - **겹침 확인**: 링크 1은 `app/src/renderer/chipField.ts`, 새 입력란 모듈, `styles.css`, `app/package.json`·`package-lock.json`, `chipField.test.ts`·`chipField.dom.test.ts`, 시안 `.doan/canvases/composer-hanging-indent.html`을 바꾼다. 호스트(`CanvasConversationPanel.tsx`, `HomeComposerView.tsx`, `ComposerParts.tsx`)와 그 테스트는 바꾸지 않는다(design.md '호스트 API'). 링크 2는 `app/src/main/conversation/*`, `main/prototype/*`, 렌더러의 Overview·캔버스 패널·Home·handoff 모듈, `cli/internal/cli/handoff_rules.go`, `cli/internal/export/viewer/viewerApp.js`(재생성, 원본은 `canvasScript.ts` 쪽), `eval/`을 바꾸고 `styles.css`·`chipField*`·`package.json`은 건드리지 않는다. 겹치는 파일은 공유 문서(PRODUCT, ARCHITECTURE, `docs/design/canvas-conversation.md`, BACKLOG)뿐이라 겹침으로 치지 않는다.
+- **체인 밖 `/ship`(사용자 지시)**: `fix/overview-waiting-row-focus`가 BACKLOG 'Known defects'의 "Pressing a project row that waits for a permission request…"를 고친다. `ProjectOverview.tsx`와 `App.tsx`를 바꾸므로 링크 2와 겹친다. 이 PR은 준비되는 대로 머지하고, 그 뒤 링크 2 conductor에게 `origin/develop`을 병합하라고 한다(`/ship` 'Lead' 4단계).
 - 구현 중 링크 2가 `styles.css`나 `chipField*`를, 링크 1이 호스트 composer 파일을 고쳐야 하면 conductor가 리드에게 알린다. 리드는 `/ship` 'Lead' 4단계대로 경합을 푼다.
 
 1. **composer-list-hanging-indent** — [spec](../composer-list-hanging-indent/spec.md) · [design](../composer-list-hanging-indent/design.md) · [tasks](../composer-list-hanging-indent/tasks.md)
    - 상태: `/feature-review` 완료. 시안 `.doan/canvases/composer-hanging-indent.html` 확정(`ceec7e5ee`). ProseMirror PoC 완료(design.md 'PoC 결과'). tasks 1·2는 develop에서 끝났고 링크는 tasks 3부터 시작한다.
    - 이유: 입력란 하나에 모인 작은 변경이라 먼저 머지한다. tasks.md는 `/ship bypass` 순서를 적었지만 체인 링크는 `/orchestrate`로 돈다. conductor는 배치 하나로 tasks 3, 4, 6, 7, 8을 그 순서대로 진행한다.
+   - **범위에 더한 결함(사용자 지시)**: BACKLOG 'Known defects'의 "A composer at its eight-row maximum shows its caret out of view after code focuses it at its end"를 링크 1에서 고친다. `focusFieldEnd`와 `focus(true)`가 다시 쓰는 `chipField.ts` 안에 있어서다. 코드가 놓은 커서도 보이게 스크롤하는지 Electron DOM 테스트로 고정하고, 고치면 그 BACKLOG 항목을 지운다. 같은 항목이 적은 다른 호출 경로(`CanvasConversationPanel.tsx` 패널 포커스, `App.tsx`의 삭제 뒤 포커스, Home의 `focusEnd`)도 확인한다.
    - tasks 5(사람의 한글 IME 확인)는 링크에서 하지 않는다(사용자 지시, '인계 기록'). 병합을 마친 뒤 리드가 develop 빌드로 사용자와 진행한다. conductor는 PR 본문에 IME 확인이 남았다고 적는다. 확인에서 걸친 선택 위 조합만 실패하면 design.md '결정'대로 BACKLOG 'Known defects'에 남기고, 다른 항목이 실패하면 리드가 사용자에게 보고하고 수정은 `/ship`으로 한다.
 2. **project-conversation-handoff** — [spec](../project-conversation-handoff/spec.md) · [design](../project-conversation-handoff/design.md) · [tasks](../project-conversation-handoff/tasks.md)
    - 상태: `/feature-review` 완료. 새 시안 없음(문구만 바뀜). 선행 조건 overview-conversation-list는 develop에 머지됐다(#377, `81846cf9b`). tasks 0은 conductor가 다시 확인한다.
@@ -67,3 +69,4 @@
 - 2026-11-23 (리드 세션, 체인 작성): 두 feature의 `/feature-review`, 링크 1의 PoC와 시안 확정을 마쳤다. 두 링크는 코드가 겹치지 않아 병렬 그룹으로 묶었다. 모델 경계 넘기 허가는 없다. 아직 '시작 점검'을 묻지 않았다.
 - 2026-11-23 (리드 세션): 사용자가 eval과 Codex 확인에 쓸 개인 Codex 계정을 지정했다. 실제 `~/.codex`가 이미 그 계정이라 바꾼 것은 없다('로그인').
 - 2026-11-23 (리드 세션): 사용자가 시작 점검 1·2에 답했다. 로그인 프로필은 체인이 끝난 뒤에도 남긴다. 한글 IME 확인(링크 1 tasks 5)은 링크에서 하지 않고, 병합을 마친 뒤 리드가 사용자와 진행한다. 체인 시작 지시는 아직 없다.
+- 2026-11-23 (리드 세션): 다른 머신의 머지 뒤 확인(#377, #378)이 BACKLOG에 결함 두 건을 남겼다(`76843b352`). 사용자가 composer 커서 결함은 링크 1 범위에 넣고, 대기 행 포커스 결함은 체인 밖 `/ship`으로 지금 고치라고 했다('순서').
