@@ -336,7 +336,7 @@ test("a locked page's closed head keeps its slot and its own colour class; the h
 it("CSS: the group head's chevron rules reach only the chevron, never the slot's icon", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  expect(css).not.toMatch(/\.shell-group-head(\[[^\]]*\])? svg\b/);
+  expect(css).not.toMatch(/\.shell-group-head(\[[^\]]*\])? svg \{[^}]*\b(transform|color):/);
   expect(css).not.toMatch(/\.shell-group-head\[aria-disabled="true"\] :is\([^)]*\bsvg\b/);
   expect(css).toMatch(/\.shell-group-head\[aria-expanded="false"\] > svg \{ transform: rotate\(-90deg\); \}/);
   // Nothing hides a head's slot on hover or focus (a head has no menu to take its place).

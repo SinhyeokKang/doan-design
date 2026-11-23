@@ -358,9 +358,9 @@ it("a closed head's slot has no action of its own: pressing the head opens the g
   const tree = groupsFixture({ ds: false }, undefined, { slots });
   const head = tree.row("Design system");
   const parts = elements(head.children as ReactNode);
-  const slot = parts.find(item => item.className === "row-slot permission")!;
-  expect(slot).toMatchObject({ role: "img", "aria-label": "Codex needs your answer" });
-  expect(Object.keys(slot).filter(name => /^on[A-Z]/.test(name))).toEqual([]);
+  // The mark is the canvas rows' own SlotMark (its markup: ShellSidebar.test.tsx), handed the slot and no handler.
+  const mark = parts.find(item => "slot" in item)!;
+  expect(mark).toEqual({ slot: { kind: "permission", label: "Codex needs your answer" } });
   (head.onClick as () => void)();
   expect(tree.props.toggleGroup).toHaveBeenCalledWith("common", "ds");
   expect(tree.props.open).not.toHaveBeenCalled();
