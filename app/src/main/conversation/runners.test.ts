@@ -522,7 +522,8 @@ it("forwards the modes Claude reports in its own ids, init only on a turn sent w
 
 const CODEX_OWNER = { kind: "doan" as const, provider: "codex" as const, connectionId: "c1", accountId: "a1", workspaceId: null, profile: "codex" };
 // A Codex app-server that records every line. FAKE_PROBE picks the ephemeral thread/start reply: "" the trusted
-// project's values, "error" an error, "bare" no values, "exit" a server exit; FAKE_CONFIG "error" fails config/read.
+// project's values, "error" an error, "bare" no values, "exit" a server exit; FAKE_CONFIG "error" fails config/read,
+// "plugins" reports plugins and no MCP servers.
 function modeCodex(root: string): string {
   const command = join(root, "codex");
   writeFileSync(command, `#!/usr/bin/env node
@@ -541,15 +542,18 @@ readline.createInterface({input:process.stdin}).on('line', line => {
   if(probe==='error') send({id:r.id,error:{code:-32600,message:'ephemeral threads are not supported'}});
   else send({id:r.id,result:probe==='bare'?{thread:{id:'probe'}}:{thread:{id:'probe'},approvalPolicy:'on-request',sandbox:{type:'workspaceWrite',writableRoots:[],networkAccess:false}}});
  }
- if(r.method==='config/read') send(config==='error'?{id:r.id,error:{code:-32601,message:'Method not found'}}:{id:r.id,result:{config:{approval_policy:null,sandbox_mode:null,sandbox_workspace_write:{network_access:true,writable_roots:['/extra'],exclude_slash_tmp:false},mcp_servers:{'doan-notion':{url:'http://127.0.0.1:1/mcp'},'own.tool':{command:'own'}}}}});
+ const plugins = {'computer-use@openai-bundled':{enabled:true},'off.plug@local':{enabled:false}};
+ if(r.method==='config/read') send(config==='error'?{id:r.id,error:{code:-32601,message:'Method not found'}}:config==='plugins'?{id:r.id,result:{config:{approval_policy:null,sandbox_mode:null,plugins}}}:{id:r.id,result:{config:{approval_policy:null,sandbox_mode:null,sandbox_workspace_write:{network_access:true,writable_roots:['/extra'],exclude_slash_tmp:false},mcp_servers:{'doan-notion':{url:'http://127.0.0.1:1/mcp'},'own.tool':{command:'own'}},plugins}}});
  if(r.method==='turn/start') { const id = 'native-' + (++turn); send({id:r.id,result:{turn:{id}}}); send({method:'turn/completed',params:{threadId:'session',turn:{id,status:'completed'}}}); }
 });
 `, { mode: 0o700 });
   return command;
 }
-// The probe turns off every server config/read named, so it starts none of them (Codex 0.171.0: an empty
-// mcp_servers table merges into the config and disables nothing).
-const PROBE_CONFIG = { mcp_servers: { "doan-notion": { enabled: false }, "own.tool": { enabled: false } } };
+// The probe turns off every server and every plugin config/read named, so it starts none of their MCP servers
+// (Codex 0.171.0: an empty mcp_servers table merges into the config and disables nothing, and a plugin's servers are
+// not in mcp_servers).
+const PROBE_PLUGINS = { "computer-use@openai-bundled": { enabled: false }, "off.plug@local": { enabled: false } };
+const PROBE_CONFIG = { mcp_servers: { "doan-notion": { enabled: false }, "own.tool": { enabled: false } }, plugins: PROBE_PLUGINS };
 const seenLines = (root: string) => readFileSync(join(root, "seen"), "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as { method?: string; params?: Record<string, unknown> });
 it("reads Codex's Default values once per server and states every turn's approval and sandbox, Default included", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-codex-mode-")), command = modeCodex(root);
@@ -597,6 +601,15 @@ it("sends a bare workspaceWrite for Accept edits when config/read fails", async 
     expect(seenLines(root).find(r => r.method === "turn/start")!.params!.sandboxPolicy).toEqual({ type: "workspaceWrite" });
     // Without config/read no server is known by name, so the probe goes out as before rather than refusing the open.
     expect(seenLines(root).find(r => r.method === "thread/start" && r.params?.ephemeral)!.params).toEqual({ cwd: root, ephemeral: true });
+  } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
+});
+it("turns off the plugins config/read names even when it names no MCP server", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-codex-mode-plugins-")), command = modeCodex(root);
+  const events: EventPayload[] = [];
+  const runner = await openRunner({ command, runtime: "codex", owner: CODEX_OWNER, cwd: root, configDir: root, env: { ...process.env, FAKE_CONFIG: "plugins" } }, e => events.push(e), () => {}, () => {});
+  try {
+    await runner.send("x", "t1"); await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
+    expect(seenLines(root).find(r => r.method === "thread/start" && r.params?.ephemeral)!.params).toEqual({ cwd: root, ephemeral: true, config: { plugins: PROBE_PLUGINS } });
   } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
 });
 // A failed or incomplete probe never falls back to sending nothing: an earlier override would stay.
