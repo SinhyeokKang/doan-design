@@ -13,8 +13,9 @@ export type HandoffRefusal = "root_mismatch" | "not_running" | "not_canvas_conve
 // Why a judged handoff did not start; a refused start adds its own code instead (resolved.reason).
 // An earlier build also wrote has_conversation; the renderer still words that line (handoffView.ts).
 export type HandoffReason = "not_listed" | "not_new" | "same_canvas";
-// The conversation whose key asked, as main holds it now. canvas: absent for a project conversation. permissionMode: the conversation's mode now, which a plan
-// approval may have changed during the turn. running: its current turn is accepted and not over.
+// The conversation whose key asked, as main holds it now. canvas: absent for a project conversation. permissionMode:
+// the conversation's mode now, which a plan approval may have changed during the turn. running: its current turn is
+// accepted and not over.
 // startedBy: that turn was a handoff's first. requested: the paths of that turn's handoffs taken already.
 export interface HandoffAsker { root: string; canvas?: Canvas; permissionMode?: string; running: boolean; startedBy?: "handoff"; requested: readonly string[] }
 // The root is compared as a string, as every app-socket request's is (POSTMORTEM 2026-10-22).
@@ -28,7 +29,8 @@ export function handoffEligibility(ask: { root: string; path: string }, asker: H
   return null;
 }
 // done: the asking turn ended done. listed: the root's canvas rows now. snapshot: the rows when the turn was accepted.
-// source: the asking conversation's canvas, absent for a project conversation. settled: a folder refresh or the binding window passed since the turn's end.
+// source: the asking conversation's canvas, absent for a project conversation. settled: a folder refresh or the settle
+// deadline passed since the turn's end.
 // A canvas's own conversations do not count: a handoff adds one beside them.
 export interface HandoffJudgement { done: boolean; path: string; listed: readonly Canvas[]; snapshot: readonly Canvas[]; source?: Canvas; settled: boolean }
 export type HandoffDecision = { kind: "start"; canvas: Canvas } | { kind: "refused"; reason: HandoffReason } | { kind: "cancelled" } | { kind: "wait" };

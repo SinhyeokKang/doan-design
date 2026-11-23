@@ -439,7 +439,7 @@ export class ConversationService {
       const attachments = attached ? attached.recheck() : request.attachments ?? [];
       const guided = !handoff && handoffGuidanceFor(metadata, mode(request.permissionMode));
       // A command goes out as its own text: the provider runs it only as the whole message.
-      const prompt = handoff ? handoffPrompt(handoff.handoffText, metadata, ...(handoff.origin.canvas ? [handoff.origin.canvas] : [])) : command ? request.text
+      const prompt = handoff ? handoffPrompt(handoff.handoffText, metadata, handoff.origin.canvas) : command ? request.text
         : turnPrompt(request.anchors, request.text, metadata, { home: fromHome, attachments, handoff: guided });
       if (prompt === null) throw new Error("bad_request");
       const writes: JournalWrite[] = [{ id, turn: live.turnId, body: { type: "user.message", text: request.text, anchors: request.anchors, ...(attachments.length ? { attachments } : {}), ...(handoff ? { origin: handoff.origin } : {}) } }, { id, turn: live.turnId, body: { type: "turn.started" } }];

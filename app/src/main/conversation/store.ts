@@ -12,10 +12,10 @@ import type { ConversationOwner, Provider } from "../agentAuth/types";
 import type { Canvas, ConversationEvent, EventPayload, Runtime } from "./types";
 interface SessionBinding<R> { runtime: R; origin: "resumed" | "new" | "newDesign"; sessionId: string; configDir: string; cwd: string }
 export type ExternalSession = SessionBinding<Runtime>;
-// model and effort are the conversation's latest choice; canvasesAtStart is the root's canvas list when its most recent
-// turn was accepted, so a project conversation binds only to a canvas that appeared after that; fromHome marks a
-// newDesign started from Home, whose turns carry Home's fixed paragraph (entries without it never do). seenSeq is the
-// last seq the person has seen; an entry without it counts as seen, so an upgrade does not light up every conversation.
+// model and effort are the conversation's latest choice; canvasesAtStart is an earlier build's: the root's canvas list
+// when a project conversation's most recent turn was accepted, for its promotion; still read, never written. fromHome
+// marks a newDesign started from Home, whose turns carry Home's fixed paragraph (entries without it never do). seenSeq is
+// the last seq the person has seen; an entry without it counts as seen, so an upgrade does not light up every conversation.
 // permissionMode is the conversation's chosen mode; Default is stored as no key. claudeRunMode is the mode Claude
 // Code's own settings ran the last Ask first turn in; no key when none was seen. It is kept whatever mode is stored.
 interface MetadataBase {
