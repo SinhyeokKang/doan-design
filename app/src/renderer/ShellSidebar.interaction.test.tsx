@@ -352,6 +352,20 @@ it("on a closed head, → opens it and ← goes to the project row; its rows are
   expect(tree.props.toggleGroup).toHaveBeenCalledOnce();
 });
 
+// PRODUCT §5 item 1: a closed head's slot only marks; a press anywhere on the head, the slot included, toggles the group.
+it("a closed head's slot has no action of its own: pressing the head opens the group and opens no canvas", () => {
+  const slots = new Map<string, SidebarSlot>([["/a\n.doan/ds/button.html", { kind: "permission", label: "Codex needs your answer" }]]);
+  const tree = groupsFixture({ ds: false }, undefined, { slots });
+  const head = tree.row("Design system");
+  const parts = elements(head.children as ReactNode);
+  const slot = parts.find(item => item.className === "row-slot permission")!;
+  expect(slot).toMatchObject({ role: "img", "aria-label": "Codex needs your answer" });
+  expect(Object.keys(slot).filter(name => /^on[A-Z]/.test(name))).toEqual([]);
+  (head.onClick as () => void)();
+  expect(tree.props.toggleGroup).toHaveBeenCalledWith("common", "ds");
+  expect(tree.props.open).not.toHaveBeenCalled();
+});
+
 it("does nothing on → from an open empty group", () => {
   const tree = groupsFixture(undefined, ["canvases/checkout"]);
   const event = tree.press("Design system", "ArrowRight");
