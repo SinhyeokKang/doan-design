@@ -25,7 +25,7 @@ test("W8 requires both a prototype invocation and accepted v6 evidence for the f
 });
 
 test("W8 resolves relative canvas paths from the repository even when cwd differs", () => {
-  const result = checks({ repo: "/repo", cwd: "/elsewhere", calls: { commands: [`doan --repo /repo open ${path} --frame signup-phone --prototype`] },
+  const result = checks({ repo: "/repo", cwd: "/elsewhere", calls: { commands: [`doan open --repo /repo ${path} --frame signup-phone --prototype`] },
     prototype: () => [played], read: () => "canvas", changedFiles: () => [],
   } as unknown as CheckContext);
   assert.deepEqual(result.filter(c => !c.pass).map(c => c.id), []);
