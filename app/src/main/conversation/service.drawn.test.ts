@@ -8,7 +8,7 @@ import { DraftStore } from "./drafts";
 import type { Canvas, ConversationEvent } from "./types";
 
 // Every turn's canvas.drawn events: a new canvas the turn edited, written once it is listed, until the turn's
-// promotion deadline (ARCHITECTURE §7 'Project conversations and promotion' for the window).
+// settle deadline (ARCHITECTURE §7 'Handoff' for the window).
 const paths: string[] = [];
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 const a = { path: ".doan/canvases/a.html", id: "a" }, b = { path: ".doan/canvases/b.html", id: "b" };
@@ -42,7 +42,7 @@ function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; le
   const drawn = (id: string) => store.read(id).filter(e => e.type === "canvas.drawn");
   const turnOf = (id: string) => store.read(id).filter(e => e.type === "turn.started").at(-1)!.turnId;
   const edit = (id: string, path: string) => service.receive(id, { type: "activity", kind: "edit", path, insideDesign: true, summary: "Edit" });
-  const list = (...canvases: Canvas[]) => { listed.push(...canvases); service.refreshed("/repo", canvases.map(canvas => canvas.path)); };
+  const list = (...canvases: Canvas[]) => { listed.push(...canvases); service.refreshed("/repo"); };
   return { dir, service, store, open, runners, listed, hooks, published, start, project, legacy, drawn, turnOf, edit, list };
 }
 const fake = () => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
@@ -59,7 +59,7 @@ describe("canvas.drawn", () => {
       expect(h.published.filter(e => e.type === "canvas.drawn")).toHaveLength(2);
       h.service.receive(id, { type: "turn.done" });
       vi.advanceTimersByTime(10_000);
-      h.service.refreshed("/repo", []);
+      h.service.refreshed("/repo");
       expect(h.drawn(id)).toHaveLength(2);
     });
   }
@@ -80,7 +80,7 @@ describe("canvas.drawn", () => {
   it("writes none for an existing canvas the turn edited", async () => {
     fake();
     const h = fixture({ listed: [a, b] }); const id = await h.start();
-    h.edit(id, at(a)); h.edit(id, at(b)); h.service.refreshed("/repo", [a.path, b.path]);
+    h.edit(id, at(a)); h.edit(id, at(b)); h.service.refreshed("/repo");
     h.service.receive(id, { type: "turn.done" }); vi.advanceTimersByTime(10_000);
     expect(h.drawn(id)).toEqual([]);
   });
@@ -150,9 +150,9 @@ describe("canvas.drawn", () => {
     // An existing canvas renamed: the edit of its new path still names the canvas the turn started with.
     const renamed = fixture({ listed: [a, b] }); const id = await renamed.start();
     renamed.listed.splice(1, 1, { path: ".doan/canvases/b2.html", id: "b" });
-    renamed.edit(id, "/repo/.doan/canvases/b2.html"); renamed.service.refreshed("/repo", [".doan/canvases/b2.html"]);
+    renamed.edit(id, "/repo/.doan/canvases/b2.html"); renamed.service.refreshed("/repo");
     // A new canvas trashed before it was listed.
-    renamed.edit(id, at(c)); renamed.service.refreshed("/repo", []);
+    renamed.edit(id, at(c)); renamed.service.refreshed("/repo");
     renamed.service.receive(id, { type: "turn.done" }); vi.advanceTimersByTime(10_000);
     expect(renamed.drawn(id)).toEqual([]);
   });
@@ -225,7 +225,7 @@ describe("canvas.drawn", () => {
     h.service.receive(id, { type: "turn.done" });
     expect(h.store.read(id).map(e => e.type).slice(-2)).toEqual(["activity", "turn.done"]);
     expect(h.service.list("/repo").find(s => s.conversationId === id)).toMatchObject({ phase: "ended", working: false });
-    h.service.refreshed("/repo", [c.path]); vi.advanceTimersByTime(10_000);
+    h.service.refreshed("/repo"); vi.advanceTimersByTime(10_000);
     expect(spy.mock.calls.filter(([, , event]) => event.type === "canvas.drawn")).toHaveLength(1);
   });
   it("writes one in each conversation when two turns edited the same new path", async () => {

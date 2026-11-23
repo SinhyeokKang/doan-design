@@ -242,7 +242,7 @@ describe("prototypeRevealRequest", () => {
     expect(reveal({ kind: "settings" }, null)).toEqual({ kind: "settings" });
   });
 
-  test("an Open names a conversation of the playing root: the drawing project conversation or a canvas's", () => {
+  test("an Open names a conversation of the playing root: a handoff's project source or a canvas's", () => {
     expect(reveal({ kind: "conversation", conversationId: "c-project" })).toEqual({ kind: "conversation", root: "/r", conversationId: "c-project" });
     expect(reveal({ kind: "conversation", conversationId: "c-other" })).toEqual({ kind: "conversation", root: "/r", conversationId: "c-other", canvas: { id: "other", path: OTHER } });
     expect(reveal({ kind: "conversation", conversationId: "c-proto-wt" })).toBeNull();

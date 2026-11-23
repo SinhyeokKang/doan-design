@@ -15,12 +15,12 @@ describe("handoffEligibility", () => {
     expect(handoffEligibility(ask, { ...asker, permissionMode: "acceptEdits" })).toBeNull();
     expect(handoffEligibility(ask, { ...asker, permissionMode: "bypass" })).toBeNull();
   });
-  it("refuses in the design order: root, running, canvas, Plan, handoff turn, same path again, same canvas", () => {
+  it("refuses in the design order: root, running, Plan, handoff turn, same path again, same canvas", () => {
     const sameAsk = { ...ask, path: source.path };
     const worst: HandoffAsker = { root: "/other", running: false, permissionMode: "plan", startedBy: "handoff", requested: [sameAsk.path] };
     expect(handoffEligibility(sameAsk, worst)).toBe("root_mismatch");
     expect(handoffEligibility(sameAsk, { ...worst, root: "/repo" })).toBe("not_running");
-    expect(handoffEligibility(sameAsk, { ...worst, root: "/repo", running: true })).toBe("not_canvas_conversation");
+    expect(handoffEligibility(sameAsk, { ...worst, root: "/repo", running: true })).toBe("plan_mode");
     expect(handoffEligibility(sameAsk, { ...worst, root: "/repo", running: true, canvas: source })).toBe("plan_mode");
     expect(handoffEligibility(sameAsk, { root: "/repo", running: true, canvas: source, startedBy: "handoff", requested: [sameAsk.path] })).toBe("handoff_turn");
     expect(handoffEligibility(sameAsk, { ...asker, requested: [sameAsk.path] })).toBe("already_requested");
@@ -31,6 +31,16 @@ describe("handoffEligibility", () => {
     expect(handoffEligibility(ask, earlier)).toBeNull();
     expect(handoffEligibility({ ...ask, path: ".doan/canvases/c.html" }, earlier)).toBe("already_requested");
     expect(handoffEligibility({ ...ask, path: source.path }, earlier)).toBe("same_canvas");
+  });
+  // A project conversation (no canvas) hands off as a canvas one does; it has no canvas of its own to refuse.
+  it("accepts a running project conversation's turn, and refuses it as a canvas turn's for Plan, a handoff turn and a path asked again", () => {
+    const project: HandoffAsker = { root: "/repo", running: true, requested: [] };
+    expect(handoffEligibility(ask, project)).toBeNull();
+    expect(handoffEligibility({ ...ask, path: source.path }, project)).toBeNull();
+    expect(handoffEligibility(ask, { ...project, running: false })).toBe("not_running");
+    expect(handoffEligibility(ask, { ...project, permissionMode: "plan" })).toBe("plan_mode");
+    expect(handoffEligibility(ask, { ...project, startedBy: "handoff" })).toBe("handoff_turn");
+    expect(handoffEligibility(ask, { ...project, requested: [ask.path] })).toBe("already_requested");
   });
   it("compares the root as a string, never re-deriving it", () => {
     expect(handoffEligibility({ ...ask, root: "/repo/" }, asker)).toBe("root_mismatch");
@@ -67,6 +77,12 @@ describe("handoffDecision", () => {
     const moved = { path: ".doan/canvases/moved.html", id: "a" };
     expect(handoffDecision({ ...base, path: moved.path, listed: [moved] })).toEqual({ kind: "refused", reason: "same_canvas" });
   });
+  it("judges a project conversation's request without a source canvas", () => {
+    const { source: _source, ...project } = base;
+    expect(handoffDecision(project)).toEqual({ kind: "start", canvas: made });
+    expect(handoffDecision({ ...project, path: source.path })).toEqual({ kind: "refused", reason: "not_new" });
+    expect(handoffDecision({ ...project, listed: [source] })).toEqual({ kind: "wait" });
+  });
   it("starts on a canvas without an ID by its path", () => {
     const plain = { path: ".doan/canvases/plain.html" };
     expect(handoffDecision({ ...base, path: plain.path, listed: [source, plain] })).toEqual({ kind: "start", canvas: plain });
@@ -90,6 +106,11 @@ describe("missedHandoffs", () => {
   });
   it("leaves out the source canvas, even when it is not in the snapshot", () => {
     expect(missedHandoffs({ ...base, edits: ["/repo/.doan/canvases/a.html"], snapshot: [] })).toEqual([]);
+  });
+  it("names a project conversation's new canvases without a source canvas", () => {
+    const { source: _source, ...project } = base;
+    expect(missedHandoffs(project)).toEqual([made]);
+    expect(missedHandoffs({ ...project, edits: ["/repo/.doan/canvases/a.html", "/repo/.doan/canvases/b.html"], snapshot: [] })).toEqual([source, made]);
   });
   it("leaves out a canvas that existed at the turn's start, by ID or by path", () => {
     expect(missedHandoffs({ ...base, snapshot: [source, made] })).toEqual([]);
@@ -139,17 +160,24 @@ describe("handoffNoticeKind", () => {
   it("sends one notice with every target, in request order, for two or more", () => {
     expect(handoffNoticeKind({ root: "/repo", source: from, started: [c, b] })).toEqual({ root: "/repo", source: from, targets: [c, b] });
   });
+  it("names a project conversation's source without a canvas, for one target and for several", () => {
+    const project = { conversationId: "p" };
+    expect(handoffNoticeKind({ root: "/repo", source: project, started: [b] })).toEqual({ root: "/repo", source: project, target: b });
+    expect(handoffNoticeKind({ root: "/repo", source: project, started: [b, c] })).toEqual({ root: "/repo", source: project, targets: [b, c] });
+  });
 });
 
 describe("handoffGuidanceFor", () => {
   const doan = { owner: { kind: "doan" }, canvas: source };
-  it("teaches only a Doan-connected canvas conversation's turn that is not Plan and not started by a handoff", () => {
-    expect(handoffGuidanceFor(doan, {})).toBe(true);
-    expect(handoffGuidanceFor(doan, { permissionMode: "bypass" })).toBe(true);
-    expect(handoffGuidanceFor(doan, { permissionMode: "plan" })).toBe(false);
-    expect(handoffGuidanceFor(doan, { startedBy: "handoff" })).toBe(false);
-    expect(handoffGuidanceFor({ owner: { kind: "doan" } }, {})).toBe(false);
+  it("teaches only a Doan-connected conversation's turn that is not Plan and not started by a handoff, with or without a canvas", () => {
+    for (const conversation of [doan, { owner: { kind: "doan" } }]) {
+      expect(handoffGuidanceFor(conversation, {})).toBe(true);
+      expect(handoffGuidanceFor(conversation, { permissionMode: "bypass" })).toBe(true);
+      expect(handoffGuidanceFor(conversation, { permissionMode: "plan" })).toBe(false);
+      expect(handoffGuidanceFor(conversation, { startedBy: "handoff" })).toBe(false);
+    }
     expect(handoffGuidanceFor({ owner: { kind: "legacy-external" }, canvas: source }, {})).toBe(false);
+    expect(handoffGuidanceFor({ owner: { kind: "legacy-external" } }, {})).toBe(false);
   });
 });
 

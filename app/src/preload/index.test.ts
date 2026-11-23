@@ -757,8 +757,8 @@ test("prototype reveal requests and Last used picks reach their listeners until 
   expect(picks.mock.calls).toEqual([[{ provider: "claude", model: "sonnet", effort: null, modelPicked: true }]]);
 });
 
-// The prototype window's playing target, which the main window reads to say which project conversation draws it.
-test("the prototype target arrives from its pushes; the drawing conversation goes to main with its target", async () => {
+// The prototype window's playing target arrives from its pushes and its read; no drawing conversation goes back to main.
+test("the prototype target arrives from its pushes and its read, and nothing reports a drawing conversation", async () => {
   const targets = vi.fn();
   const stop = api.onPrototypeTarget(targets);
   emitter.emit("prototype:target", {}, { root: "/r", canvas: { id: "proto", path: ".doan/canvases/proto.html" } });
@@ -768,8 +768,8 @@ test("the prototype target arrives from its pushes; the drawing conversation goe
   expect(targets.mock.calls).toEqual([[{ root: "/r", canvas: { id: "proto", path: ".doan/canvases/proto.html" } }], [null]]);
   mocks.invoke.mockClear();
   await api.readPrototypeTarget();
-  await api.setPrototypeDrawing({ root: "/r", canvas: { path: ".doan/canvases/loose.html" }, generation: 2, conversationId: "p1" });
-  expect(mocks.invoke.mock.calls).toEqual([["prototype:readTarget"], ["prototype:setDrawing", { root: "/r", canvas: { path: ".doan/canvases/loose.html" }, generation: 2, conversationId: "p1" }]]);
+  expect(mocks.invoke.mock.calls).toEqual([["prototype:readTarget"]]);
+  expect(api).not.toHaveProperty("setPrototypeDrawing");
 });
 
 // The frame the prototype window plays, which the toolbar's frame drawer marks: main's answer unless a push came first.

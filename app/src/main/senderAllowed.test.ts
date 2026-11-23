@@ -183,19 +183,16 @@ describe("prototype window", () => {
   });
 });
 
-// The drawing project conversation: the main window reads the prototype window's target and says which project
-// conversation draws it; the prototype window reads only that id.
-test("the drawing relay's requests belong to their windows and its events are not requests", async () => {
+// The prototype window's playing target: the main window reads it, and its push is no request. The drawing and
+// promotion relays are gone, so no window may call their channels.
+test("the playing target's read belongs to the main window, and the removed relay channels to none", async () => {
   const { PROTOTYPE_CHANNELS } = await import("./prototype/ipc");
-  for (const channel of [PROTOTYPE_CHANNELS.readTarget, PROTOTYPE_CHANNELS.setDrawing]) {
-    expect(senderAllowed(channel, "main"), channel).toBe(true);
-    expect(senderAllowed(channel, "prototype"), channel).toBe(false);
+  expect(senderAllowed(PROTOTYPE_CHANNELS.readTarget, "main")).toBe(true);
+  expect(senderAllowed(PROTOTYPE_CHANNELS.readTarget, "prototype")).toBe(false);
+  for (const kind of ["main", "prototype"]) {
+    expect(senderAllowed(PROTOTYPE_CHANNELS.target, kind), kind).toBe(false);
+    for (const channel of ["prototype:setDrawing", "prototype:drawing", "prototype:drawingChanged", "prototype:promoted", "prototype:promotedChanged"]) expect(senderAllowed(channel, kind), `${channel} ${kind}`).toBe(false);
   }
-  for (const channel of [PROTOTYPE_CHANNELS.drawing, PROTOTYPE_CHANNELS.promoted]) {
-    expect(senderAllowed(channel, "prototype"), channel).toBe(true);
-    expect(senderAllowed(channel, "main"), channel).toBe(false);
-  }
-  for (const kind of ["main", "prototype"]) for (const channel of [PROTOTYPE_CHANNELS.target, PROTOTYPE_CHANNELS.drawingChanged, PROTOTYPE_CHANNELS.promotedChanged]) expect(senderAllowed(channel, kind), `${channel} ${kind}`).toBe(false);
 });
 // The playing frame the toolbar's drawer marks: main pushes it to the main window, which may also read it.
 test("the playing frame is the main window's read only", async () => {

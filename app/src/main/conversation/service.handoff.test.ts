@@ -114,10 +114,13 @@ describe("a handoff request", () => {
     h.service.receive(id, { type: "turn.done" });
     expect(h.ask(h.key(0), b.path)).toBe("not_running");
   });
-  it("refuses a project conversation, which promotion binds instead", async () => {
-    const h = fixture(); await h.start({ mode: "newDesign" }, ["canvas"]);
-    expect(h.prompt(0)).not.toContain(HANDOFF_GUIDANCE);
-    expect(h.ask(h.key(0), b.path)).toBe("not_canvas_conversation");
+  it("takes a project conversation's request, whose turn carries the guidance, also for a canvas that already exists", async () => {
+    const h = fixture(); const id = await h.start({ mode: "newDesign" }, ["canvas"]);
+    expect(h.prompt(0)).toContain(HANDOFF_GUIDANCE);
+    expect(h.ask(h.key(0), b.path)).toBeNull();
+    expect(h.last(id)).toMatchObject({ type: "handoff.requested", canvas: { path: b.path }, turnId: h.turnOf(id) });
+    expect(h.ask(h.key(0), a.path)).toBeNull();
+    expect(h.ask(h.key(0), b.path)).toBe("already_requested");
   });
   it("refuses in Plan, by the conversation's mode now, and takes the request once a plan approval changed it", async () => {
     const h = fixture({ provider: "claude" }); await h.start({ permissionMode: "plan" });
@@ -157,7 +160,7 @@ describe("the end of a turn that asked", () => {
     await Promise.resolve();
     expect(h.on(b)).toBeUndefined();
     expect(h.service.list("/repo").find(s => s.conversationId === id)?.working).toBe(true);
-    h.listed.push(b); h.service.refreshed("/repo", [b.path]);
+    h.listed.push(b); h.service.refreshed("/repo");
     await h.settled();
     expect(h.on(b)).toBeDefined();
     expect(h.service.list("/repo").find(s => s.conversationId === id)?.working).toBe(false);
@@ -167,7 +170,7 @@ describe("the end of a turn that asked", () => {
     refreshed.ask(refreshed.key(0), b.path);
     refreshed.service.queue(id, { text: "and the cart", anchors: [] });
     refreshed.service.receive(id, { type: "turn.done" });
-    refreshed.service.refreshed("/repo", []);
+    refreshed.service.refreshed("/repo");
     await refreshed.settled();
     expect(refreshed.last(id)).toMatchObject({ type: "handoff.resolved", outcome: "refused", reason: "not_listed" });
     await vi.waitFor(() => expect(refreshed.store.read(id).filter(e => e.type === "user.message").map(e => e.type === "user.message" && e.text)).toEqual(["Make a checkout page", "and the cart"]));
@@ -248,7 +251,7 @@ describe("the end of a turn that asked", () => {
     h.service.receive(id, { type: "turn.done" });
     await h.start({ text: "another conversation on a" });
     expect(h.resolutions(id)).toEqual([]);
-    h.listed.push(b); h.service.refreshed("/repo", [b.path]);
+    h.listed.push(b); h.service.refreshed("/repo");
     await h.settled();
     expect(h.resolutions(id)).toMatchObject([{ outcome: "started" }]);
     expect(h.on(b)).toBeDefined();
@@ -432,46 +435,217 @@ describe("the conversation a handoff started", () => {
   });
 });
 
-describe("a handoff beside the root's project turns", () => {
-  it("keeps a project turn judged meanwhile from taking the requested canvas, and the handoff starts there", async () => {
-    const h = fixture();
-    const project = await h.start({ mode: "newDesign", text: "Draw something" }, ["canvas"]);
-    const source = await h.start();
-    expect(h.ask(h.key(1), b.path)).toBeNull();
+// A project conversation (no canvas) hands off as a canvas conversation does; it is never bound to a canvas, and the
+// project conversations of a root run side by side (ARCHITECTURE §7 'Handoff').
+describe("a project conversation's handoff", () => {
+  const project = (h: ReturnType<typeof fixture>, text = "Draw a checkout page") => h.start({ mode: "newDesign", text }, ["canvas"]);
+  const at = (canvas: Canvas) => `/repo/${canvas.path}`;
+  it.each(["claude", "codex"] as const)("starts the next %s conversation from the Overview with the source's settings, and the source stays a project conversation", async provider => {
+    const h = fixture({ provider }); const id = await project(h);
+    const requestedIn = h.turnOf(id);
+    expect(h.ask(h.key(0), b.path, "/repo", "Continue the checkout.")).toBeNull();
     h.listed.push(b);
-    h.service.receive(project, { type: "turn.done" });
-    h.service.refreshed("/repo", [b.path]);
-    expect(h.entry(project).canvas).toBeUndefined();
-    h.service.receive(source, { type: "turn.done" });
+    h.service.setPermissionMode(id, "bypass");
+    h.service.receive(id, { type: "turn.done" });
     await h.settled();
-    expect(h.on(b)?.conversationId).not.toBe(project);
-    expect(h.on(b)).toBeDefined();
+    const target = h.on(b)!;
+    expect(target).toMatchObject({ root: "/repo", canvas: b, model: "gpt-x", effort: "high", permissionMode: "bypass", session: { runtime: provider } });
+    expect(target).not.toHaveProperty("fromHome");
+    expect(h.store.read(target.conversationId)[0]).toEqual(expect.objectContaining({ type: "user.message", text: "Continue the checkout.", anchors: [], origin: { kind: "handoff", conversationId: id } }));
+    expect(JSON.parse(h.prompt(1).split("\n\n")[1]!)).toEqual({ context: { root: "/repo", canvas: b }, handoffText: "Continue the checkout." });
+    expect(h.prompt(1)).not.toContain(HANDOFF_GUIDANCE);
+    expect(h.last(id)).toMatchObject({ type: "handoff.resolved", outcome: "started", target: { conversationId: target.conversationId, canvas: b }, turnId: requestedIn });
+    expect(h.entry(id)).not.toHaveProperty("canvas");
+    expect(h.store.read(id).some(e => e.type === "conversation.bound")).toBe(false);
+    expect(h.notices).toEqual([{ root: "/repo", source: { conversationId: id }, target: { conversationId: target.conversationId, canvas: b } }]);
   });
-  it("keeps a project turn judged after the start from taking the canvas over", async () => {
-    const h = fixture();
-    const project = await h.start({ mode: "newDesign", text: "Draw something" }, ["canvas"]);
-    const source = await h.start();
-    h.ask(h.key(1), b.path); h.listed.push(b);
-    h.service.receive(source, { type: "turn.done" });
+  it("sends one notice without a source canvas for several started conversations", async () => {
+    const h = fixture(); const id = await project(h);
+    h.ask(h.key(0), b.path); h.ask(h.key(0), c.path); h.listed.push(b, c);
+    h.service.receive(id, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(id)).toHaveLength(2));
+    expect(h.notices).toEqual([{ root: "/repo", source: { conversationId: id }, targets: [{ conversationId: h.on(b)!.conversationId, canvas: b }, { conversationId: h.on(c)!.conversationId, canvas: c }] }]);
+  });
+  // No promotion: a turn's canvases never move the conversation, whatever it made or edited.
+  it.each([
+    ["one new canvas without a request", [c], [] as Canvas[]],
+    ["an existing canvas it edited", [a], [a]],
+    ["two new canvases without a request", [b, c], []],
+  ] as const)("stays a project conversation after a turn that drew %s, and starts nothing", async (_name, edited, existing) => {
+    const h = fixture({ listed: [...existing] }); const id = await project(h);
+    for (const canvas of edited) { if (!h.listed.includes(canvas)) h.listed.push(canvas); h.edit(id, at(canvas)); }
+    h.service.receive(id, { type: "turn.done" });
+    h.service.refreshed("/repo");
+    await Promise.resolve();
+    expect(h.entry(id)).not.toHaveProperty("canvas");
+    expect(h.store.read(id).some(e => e.type === "conversation.bound")).toBe(false);
+    expect(h.store.list()).toHaveLength(1);
+    expect(h.prepare).toHaveBeenCalledOnce();
+    expect(h.notices).toEqual([]);
+  });
+  it("starts only the requested new canvas of a turn that also edited an existing one, whose drawn card names the new one", async () => {
+    const h = fixture(); const id = await project(h);
+    h.edit(id, at(a)); h.listed.push(b); h.edit(id, at(b));
+    h.ask(h.key(0), b.path);
+    h.service.receive(id, { type: "turn.done" });
     await h.settled();
-    const target = h.on(b)!.conversationId;
-    h.service.receive(target, { type: "turn.done" });
-    h.service.receive(project, { type: "turn.done" });
-    h.service.refreshed("/repo", []);
-    expect(h.entry(project).canvas).toBeUndefined();
-    expect(h.on(b)?.conversationId).toBe(target);
+    expect(h.store.list().filter(m => m.conversationId !== id).map(m => m.canvas)).toEqual([b]);
+    expect(h.entry(id)).not.toHaveProperty("canvas");
+    expect(h.store.read(id).filter(e => e.type === "canvas.drawn").map(e => e.type === "canvas.drawn" && e.canvas)).toEqual([b]);
   });
-  it("lets a promoted Codex conversation that reuses its runner hand off with the key it opened with", async () => {
-    const h = fixture();
-    const id = await h.start({ mode: "newDesign", text: "Draw b" }, ["canvas"]);
+  it("starts and sends two project conversations of a root side by side", async () => {
+    const h = fixture(); const first = await project(h, "first"), second = await project(h, "second");
+    expect(h.service.list("/repo").filter(row => row.working)).toHaveLength(2);
+    h.service.receive(first, { type: "turn.done" });
+    await h.service.send(first, "first again", []);
+    h.service.receive(second, { type: "turn.done" });
+    await h.service.send(second, "second again", []);
+    expect(h.texts(first)).toEqual(["first", "first again"]);
+    expect(h.texts(second)).toEqual(["second", "second again"]);
+  });
+  it("starts a conversation for each of a project turn and a canvas turn that hand off to the same new canvas", async () => {
+    const h = fixture(); const id = await project(h); const canvas = await h.start();
+    expect(h.ask(h.key(0), b.path)).toBeNull(); expect(h.ask(h.key(1), b.path)).toBeNull();
+    h.listed.push(b);
+    h.service.receive(id, { type: "turn.done" }); h.service.receive(canvas, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(id)).toHaveLength(1));
+    await vi.waitFor(() => expect(h.resolutions(canvas)).toHaveLength(1));
+    expect([...h.resolutions(id), ...h.resolutions(canvas)]).toMatchObject([{ outcome: "started" }, { outcome: "started" }]);
+    expect(h.all(b)).toHaveLength(2);
+  });
+  it("holds a message queued while the handoff waits and moves it to the one started conversation", async () => {
+    const h = fixture(); const id = await project(h);
+    h.ask(h.key(0), b.path);
+    h.service.receive(id, { type: "turn.done" });
+    expect(h.service.list("/repo")[0]?.working).toBe(true);
+    h.service.queue(id, { text: "and the cart", anchors: [] });
+    await Promise.resolve(); await Promise.resolve();
+    expect(h.texts(id)).toEqual(["Draw a checkout page"]);
+    h.listed.push(b); h.service.refreshed("/repo");
+    await h.settled();
+    expect(h.drafts.queued(h.on(b)!.conversationId).map(item => item.text)).toEqual(["and the cart"]);
+    expect(h.drafts.queued(id)).toEqual([]);
+    expect(h.service.list("/repo").find(row => row.conversationId === id)?.working).toBe(false);
+  });
+  it("sends a queue at once after a turn without a request, as a canvas conversation's", async () => {
+    const h = fixture(); const id = await project(h);
+    h.service.queue(id, { text: "and the cart", anchors: [] });
+    h.service.receive(id, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.texts(id)).toEqual(["Draw a checkout page", "and the cart"]));
+  });
+  // POSTMORTEM 2026-11 'A queue taken back as a draft was still sent by the flush already under way'.
+  it.each([
+    ["a Stop", (h: ReturnType<typeof fixture>, id: string) => { void h.service.interrupt(id); }],
+    ["a stop of its provider", (h: ReturnType<typeof fixture>) => { void h.service.stopRuns("codex"); }],
+  ] as const)("sends nothing after %s takes a refused handoff's queue back before its flush", async (_name, take) => {
+    const h = fixture(); const id = await project(h);
+    h.ask(h.key(0), b.path);
+    h.service.receive(id, { type: "turn.done" });
+    h.service.queue(id, { text: "and the cart", anchors: [] });
+    h.service.refreshed("/repo");
+    take(h, id);
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(h.texts(id)).toEqual(["Draw a checkout page"]);
+    expect(h.drafts.returned(id)).toMatchObject({ text: "and the cart" });
+  });
+  it.each([
+    ["fails", (h: ReturnType<typeof fixture>, id: string) => { h.service.receive(id, { type: "turn.failed", code: "process_exited" }); }],
+    ["is stopped", async (h: ReturnType<typeof fixture>, id: string) => { await h.service.interrupt(id); }],
+    ["hits the usage limit", (h: ReturnType<typeof fixture>, id: string) => { h.service.receive(id, { type: "turn.failed", code: "rate_limited", detail: "limit" }); }],
+  ] as const)("cancels the request of a turn that %s", async (_name, end) => {
+    const h = fixture(); const id = await project(h);
+    h.ask(h.key(0), b.path); h.listed.push(b);
+    await end(h, id);
+    expect(h.last(id)).toMatchObject({ type: "handoff.resolved", outcome: "cancelled" });
+    expect(h.on(b)).toBeUndefined();
+    expect(h.prepare).toHaveBeenCalledOnce();
+  });
+  it("cancels a waiting request when its provider signs out, and writes nothing when the app quits", async () => {
+    const out = fixture(); const id = await project(out);
+    out.ask(out.key(0), b.path); out.service.receive(id, { type: "turn.done" });
+    await out.service.stopRuns("codex");
+    expect(out.resolutions(id)).toMatchObject([{ outcome: "cancelled" }]);
+    const quit = fixture(); const other = await project(quit);
+    quit.ask(quit.key(0), b.path); quit.service.receive(other, { type: "turn.done" });
+    await quit.service.quit();
+    quit.listed.push(b); quit.service.refreshed("/repo");
+    await Promise.resolve();
+    expect(quit.resolutions(other)).toEqual([]);
+    expect(quit.prepare).toHaveBeenCalledOnce();
+  });
+  // POSTMORTEM 2026-11 'The same conversation read as finished in its row while Delete said the agent was working'.
+  it("lists the source working and refuses its Delete while a start prepares, then both let go once it is cancelled", async () => {
+    const h = fixture(); const id = await project(h);
+    h.ask(h.key(0), b.path); h.listed.push(b);
+    let release = () => {};
+    const prepared = h.prepare.getMockImplementation()!;
+    h.prepare.mockImplementationOnce(async (...args) => { await new Promise<void>(resolve => { release = resolve; }); return prepared(...args); });
+    h.service.receive(id, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.prepare).toHaveBeenCalledTimes(2));
+    expect(h.service.list("/repo").find(row => row.conversationId === id)?.working).toBe(true);
+    expect(() => h.service.delete(id)).toThrow("busy");
+    // A removal's Stop cancels the start under way: it is refused at its next check and opens no runner.
+    const removing = h.service.interruptProjectTurn(id, h.service.list("/repo")[0]!.projectTurnId!);
+    h.open.mock.calls[0]![2]();
+    await removing;
+    release();
+    await h.drained(1);
+    expect(h.on(b)).toBeUndefined();
+    expect(h.open).toHaveBeenCalledOnce();
+    expect(h.resolutions(id)).toMatchObject([{ outcome: "cancelled" }]);
+    expect(h.service.list("/repo").find(row => row.conversationId === id)?.working).toBe(false);
+    expect(() => h.service.delete(id)).not.toThrow();
+  });
+  it("refuses as not listed a target trashed before the judgement", async () => {
+    const h = fixture(); const id = await project(h);
+    h.listed.push(b); h.ask(h.key(0), b.path);
+    h.listed.splice(h.listed.indexOf(b), 1);
+    h.service.receive(id, { type: "turn.done" });
+    h.service.refreshed("/repo");
+    await h.settled();
+    expect(h.last(id)).toMatchObject({ type: "handoff.resolved", outcome: "refused", reason: "not_listed" });
+  });
+  it("teaches no handoff in Plan, takes a request after a plan approval, and writes no missed line for that turn", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    const h = fixture({ provider: "claude" }); const id = await h.start({ mode: "newDesign", text: "Plan a checkout", permissionMode: "plan" }, ["canvas"]);
+    expect(h.prompt(0)).not.toContain(HANDOFF_GUIDANCE);
+    expect(h.ask(h.key(0), b.path)).toBe("plan_mode");
+    h.open.mock.calls[0]![0].modeReported!({ source: "status", mode: "acceptEdits" }, undefined, undefined);
+    expect(h.ask(h.key(0), b.path)).toBeNull();
+    h.listed.push(b, c); h.edit(id, at(b)); h.edit(id, at(c));
+    h.service.receive(id, { type: "turn.done" });
+    vi.advanceTimersByTime(10_000); await Promise.resolve();
+    expect(h.missed(id)).toEqual([]);
+  });
+  it("lets a Codex project conversation that reuses its runner hand off with the key it opened with", async () => {
+    const h = fixture(); const id = await project(h, "Draw b");
     const key = h.key(0);
-    h.listed.push(b);
-    h.service.receive(id, { type: "turn.done" }); h.service.refreshed("/repo", [b.path]);
-    expect(h.entry(id).canvas).toEqual(b);
+    h.service.receive(id, { type: "turn.done" });
     await h.service.send(id, "Now draw c", []);
     expect(h.open).toHaveBeenCalledOnce();
     expect(h.prompt(0, 1)).toContain(HANDOFF_GUIDANCE);
     expect(h.ask(key, c.path)).toBeNull();
+  });
+});
+// A project Remove stops the root's project conversations: a request still waiting for its judgement or its start is
+// cancelled with it, so no conversation starts in a root on its way out (as a deletion cancels it).
+describe("a project removal", () => {
+  it("cancels a handoff waiting for its judgement and returns once the conversation stops working", async () => {
+    const h = fixture({ provider: "claude" }); const id = await h.start({ mode: "newDesign", text: "Draw b" }, ["canvas"]);
+    h.ask(h.key(0), b.path);
+    h.service.queue(id, { text: "and the cart", anchors: [] });
+    h.service.receive(id, { type: "turn.done" });
+    h.open.mock.calls[0]![2]();
+    const turn = h.service.list("/repo")[0]!.projectTurnId!;
+    expect(turn).toBe(h.turnOf(id));
+    await h.service.interruptProjectTurn(id, turn);
+    expect(h.resolutions(id)).toMatchObject([{ outcome: "cancelled" }]);
+    expect(h.drafts.returned(id)).toMatchObject({ text: "and the cart" });
+    expect(h.service.projectRemovalBusy(["/repo"])).toBe(false);
+    h.listed.push(b); h.service.refreshed("/repo");
+    await Promise.resolve();
+    expect(h.on(b)).toBeUndefined();
+    expect(h.prepare).toHaveBeenCalledOnce();
   });
 });
 
@@ -494,7 +668,7 @@ describe("a handoff a stop, a quit or a broken history meets", () => {
     await h.service.stopRuns("codex");
     expect(resolutions(h, id)).toMatchObject([{ outcome: "cancelled" }]);
     expect(h.drafts.returned(id)).toMatchObject({ text: "and the cart" });
-    h.listed.push(b); h.service.refreshed("/repo", [b.path]);
+    h.listed.push(b); h.service.refreshed("/repo");
     await Promise.resolve(); await Promise.resolve();
     expect(h.on(b)).toBeUndefined();
     expect(h.prepare).toHaveBeenCalledOnce();
@@ -584,7 +758,7 @@ describe("a handoff a stop, a quit or a broken history meets", () => {
     h.service.queue(id, { text: "and the cart", anchors: [] });
     await Promise.resolve(); await Promise.resolve();
     expect(h.store.read(id).filter(e => e.type === "user.message")).toHaveLength(1);
-    h.listed.push(b); h.service.refreshed("/repo", [b.path]);
+    h.listed.push(b); h.service.refreshed("/repo");
     await h.settled();
     const target = h.on(b)!.conversationId;
     expect(h.drafts.queued(target).map(item => item.text)).toEqual(["and the cart"]);
@@ -596,7 +770,7 @@ describe("a handoff a stop, a quit or a broken history meets", () => {
     h.ask(h.key(0), b.path);
     h.service.receive(id, { type: "turn.done" });
     h.service.queue(id, { text: "and the cart", anchors: [] });
-    h.service.refreshed("/repo", []);
+    h.service.refreshed("/repo");
     await h.settled();
     expect(h.last(id)).toMatchObject({ type: "handoff.resolved", outcome: "refused", reason: "not_listed" });
     await vi.waitFor(() => expect(h.store.read(id).filter(e => e.type === "user.message").map(e => e.type === "user.message" && e.text)).toEqual(["Make a checkout page", "and the cart"]));
@@ -624,24 +798,9 @@ describe("a handoff a stop, a quit or a broken history meets", () => {
     await expect(waiting).rejects.toThrow("busy");
     expect(h.store.read(id).some(e => e.type === "handoff.resolved")).toBe(false);
     expect(foldConversation(h.store.read(id), id, true).handoffs[h.turnOf(id)]?.[0]?.outcome).toBe("cancelled");
-    h.listed.push(b); h.service.refreshed("/repo", [b.path]);
+    h.listed.push(b); h.service.refreshed("/repo");
     await Promise.resolve();
     expect(h.prepare).toHaveBeenCalledOnce();
-  });
-  it("drops a handoff whose history stopped taking writes, so it no longer contests a project turn's canvas", async () => {
-    const h = fixture();
-    const project = await h.start({ mode: "newDesign", text: "Draw something" }, ["canvas"]);
-    const source = await h.start();
-    h.ask(h.key(1), b.path);
-    const append = h.store.append.bind(h.store);
-    vi.spyOn(h.store, "append").mockImplementation((id, turn, event) => { if (id === source) throw new Error("EIO"); return append(id, turn, event); });
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    h.service.receive(source, { type: "activity", kind: "other", summary: "x" });
-    const x = { path: ".doan/canvases/x.html", id: "x" };
-    h.listed.push(x);
-    h.service.receive(project, { type: "turn.done" });
-    h.service.refreshed("/repo", [x.path]);
-    expect(h.entry(project).canvas).toEqual(x);
   });
 });
 
@@ -741,7 +900,7 @@ describe("a turn that asks for several canvases", () => {
     h.service.receive(id, { type: "turn.done" });
     await Promise.resolve(); await Promise.resolve();
     expect(h.prepare).toHaveBeenCalledOnce();
-    h.service.refreshed("/repo", []);
+    h.service.refreshed("/repo");
     await vi.waitFor(() => expect(h.resolutions(id)).toHaveLength(2));
     expect(outcomes(h, id)).toEqual([[b.path, "refused", "not_listed"], [c.path, "started", undefined]]);
   });
@@ -753,12 +912,12 @@ describe("a turn that asks for several canvases", () => {
     expect(h.prepare).toHaveBeenCalledOnce();
     expect(h.service.list("/repo").find(s => s.conversationId === id)?.working).toBe(true);
     const release = hold(h, 1);
-    h.listed.push(c); h.service.refreshed("/repo", [c.path]);
+    h.listed.push(c); h.service.refreshed("/repo");
     await vi.waitFor(() => expect(h.prepare).toHaveBeenCalledTimes(2));
-    h.service.refreshed("/repo", []);
+    h.service.refreshed("/repo");
     release();
     await vi.waitFor(() => expect(h.resolutions(id)).toHaveLength(2));
-    h.service.refreshed("/repo", []);
+    h.service.refreshed("/repo");
     await Promise.resolve(); await Promise.resolve();
     expect(h.prepare).toHaveBeenCalledTimes(3);
     expect(outcomes(h, id)).toEqual([[b.path, "started", undefined], [c.path, "started", undefined]]);
@@ -838,22 +997,6 @@ describe("a turn that asks for several canvases", () => {
     expect(outcomes(h, id)).toEqual([[b.path, "cancelled", undefined], [c.path, "cancelled", undefined]]);
     expect(h.prepare).toHaveBeenCalledOnce();
   });
-  it("keeps a project turn judged meanwhile from taking any requested canvas, the second one included", async () => {
-    const h = fixture();
-    const project = await h.start({ mode: "newDesign", text: "Draw something" }, ["canvas"]);
-    const source = await h.start();
-    expect(h.ask(h.key(1), b.path)).toBeNull();
-    expect(h.ask(h.key(1), c.path)).toBeNull();
-    h.listed.push(c);
-    h.service.receive(project, { type: "turn.done" });
-    h.service.refreshed("/repo", [c.path]);
-    expect(h.entry(project).canvas).toBeUndefined();
-    h.listed.push(b);
-    h.service.receive(source, { type: "turn.done" });
-    await vi.waitFor(() => expect(h.resolutions(source)).toHaveLength(2));
-    expect(h.on(c)?.conversationId).not.toBe(project);
-    expect(h.on(c)).toBeDefined();
-  });
 });
 
 // A guided turn that ended done gets a missed line for each new canvas it edited and asked no handoff for, at the
@@ -913,9 +1056,9 @@ describe("missed handoffs", () => {
     const h = fixture(); const id = await h.start();
     h.edit(id, at(c));
     h.service.receive(id, { type: "turn.done" });
-    h.service.refreshed("/repo", []);
+    h.service.refreshed("/repo");
     vi.advanceTimersByTime(4_000);
-    h.listed.push(c); h.service.refreshed("/repo", [c.path]);
+    h.listed.push(c); h.service.refreshed("/repo");
     deadline();
     expect(h.missed(id)).toMatchObject([{ canvas: c }]);
   });
@@ -1007,13 +1150,14 @@ describe("missed handoffs", () => {
     expect(h.missed(target)).toEqual([]);
     expect(h.missed(id)).toEqual([]);
   });
-  it("writes none for a project turn, also one promoted to the canvas it edited", async () => {
-    const { h, id } = await none(async h => {
-      const id = await h.start({ mode: "newDesign", text: "Draw c" }, ["canvas"]);
-      h.listed.push(c); h.edit(id, at(c)); h.service.receive(id, { type: "turn.done" }); h.service.refreshed("/repo", [c.path]);
-      return id;
-    });
-    expect(h.entry(id).canvas).toEqual(c);
+  it("writes one for a project turn's new canvas, which leaves the conversation a project one", async () => {
+    fake();
+    const h = fixture(); const id = await h.start({ mode: "newDesign", text: "Draw c" }, ["canvas"]); const turn = h.turnOf(id);
+    h.listed.push(c); h.edit(id, at(a)); h.edit(id, at(c));
+    h.service.receive(id, { type: "turn.done" }); h.service.refreshed("/repo");
+    deadline();
+    expect(h.missed(id)).toMatchObject([{ type: "handoff.missed", canvas: c, turnId: turn }]);
+    expect(h.entry(id)).not.toHaveProperty("canvas");
   });
   it("writes none for a failed or a stopped turn", async () => {
     await none(async h => { const id = await h.start(); h.listed.push(c); h.edit(id, at(c)); h.service.receive(id, { type: "turn.failed", code: "process_exited" }); return id; });
