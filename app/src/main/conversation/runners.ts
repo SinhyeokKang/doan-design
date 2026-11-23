@@ -203,10 +203,12 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
       const config = await dispatcher.request("config/read", { cwd: input.cwd }).catch((error: unknown) => { if (error instanceof RpcError) return null; throw error; });
       // The probe turns off every configured MCP server and every plugin, whose MCP servers config/read does not
       // list, so it starts none; the approval and sandbox it reports are unchanged (PoC, 0.171.0). Without
-      // config/read it names none and the probe starts them as before.
+      // config/read it names none and the probe starts them as before. The apps feature (the signed-in account's
+      // codex_apps connection) is turned off always: config/read reports it only when set, and thread/start accepts
+      // it whether or not config sets it, as it does a feature name it does not know (PoC, 0.158.0 and 0.171.0).
       const off = (names: string[]) => names.length ? Object.fromEntries(names.map(name => [name, { enabled: false }])) : undefined;
       const servers = off(codexServerNames(config)), plugins = off(codexPluginNames(config));
-      const probe = await dispatcher.request("thread/start", { cwd: input.cwd, ephemeral: true, ...(servers || plugins ? { config: { ...(servers ? { mcp_servers: servers } : {}), ...(plugins ? { plugins } : {}) } } : {}) }).catch((error: unknown) => { if (error instanceof RpcError) throw new Error("session_unavailable"); throw error; });
+      const probe = await dispatcher.request("thread/start", { cwd: input.cwd, ephemeral: true, config: { ...(servers ? { mcp_servers: servers } : {}), ...(plugins ? { plugins } : {}), features: { apps: false } } }).catch((error: unknown) => { if (error instanceof RpcError) throw new Error("session_unavailable"); throw error; });
       const read = codexDefaults(probe); if (!read) throw new Error("session_unavailable");
       defaults = read;
       // Accept edits carries the configured network access and roots; without config/read it sends the narrower bare policy.
