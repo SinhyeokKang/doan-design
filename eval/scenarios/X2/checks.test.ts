@@ -38,7 +38,7 @@ test("X2 accepts delivered exports, including export-then-copy and --repo from a
   assert.deepEqual(failures([command], null), ["output_at_requested_path", "output_is_prototype_export", "output_not_canvas_viewer"]);
   assert.deepEqual(failures([command], "hand-made page"), ["output_is_prototype_export", "output_not_canvas_viewer"]);
   assert.deepEqual(failures([command], prototype, [path]), ["repo_unchanged"]);
-  assert.deepEqual(failures([`doan --repo ${repo} export ${path} --frame signup-phone --prototype -o /tmp/out.html`], prototype, [], prototype, dir), []);
+  assert.deepEqual(failures([`doan export --repo ${repo} ${path} --frame signup-phone --prototype -o /tmp/out.html`], prototype, [], prototype, dir), []);
   assert.deepEqual(failures([command.replace(path, join(repo, path))], prototype, [], prototype, dir), []);
 }));
 

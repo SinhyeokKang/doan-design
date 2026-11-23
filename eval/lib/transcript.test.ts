@@ -99,8 +99,8 @@ test("Claude doan tool results use tool_use_id and skip echo and MCP tools", () 
 });
 
 test("shell words keep quoted flag assignments together", () => {
-  assert.deepEqual(commandWords('doan --repo="/tmp/my repo" active --json'), [["doan", "--repo=/tmp/my repo", "active", "--json"]]);
-  assert.deepEqual(commandWords('doan -repo=\'active\' check'), [["doan", "-repo=active", "check"]]);
+  assert.deepEqual(commandWords('doan active --repo="/tmp/my repo" --json'), [["doan", "active", "--repo=/tmp/my repo", "--json"]]);
+  assert.deepEqual(commandWords('doan check -repo=\'active\''), [["doan", "check", "-repo=active"]]);
   assert.deepEqual(commandWords('echo "doan active"'), [["echo", "doan active"]]);
 });
 
@@ -181,8 +181,17 @@ test("doanPositionals knows every flag doan's flag set defines, with its arity",
 // SplitArgs reads flags before, between and after the positionals, so a check that wants a flag must take it from the
 // same reading, never from the raw words around the command.
 test("doanArgs reads flags wherever doan's flag set does, and marks a command the CLI refuses", () => {
-  assert.deepEqual(doanArgs(["doan", "--provider", "copilot", "onboarding", "-session=s", "check", "--json"]),
+  assert.deepEqual(doanArgs(["doan", "onboarding", "--provider", "copilot", "-session=s", "check", "--json"]),
     { positionals: ["onboarding", "check"], flags: [{ name: "provider", value: "copilot" }, { name: "session", value: "s" }, { name: "json", value: undefined }], refused: false });
+  // A flag or -- before the command is refused (run.go), but its words are still read for an attempt check.
+  assert.deepEqual(doanArgs(["doan", "--provider", "copilot", "onboarding", "-session=s", "check", "--json"]),
+    { positionals: ["onboarding", "check"], flags: [{ name: "provider", value: "copilot" }, { name: "session", value: "s" }, { name: "json", value: undefined }], refused: true });
+  assert.deepEqual(doanArgs(["doan", "--", "active"]), { positionals: ["active"], flags: [], refused: true });
+  assert.equal(doanCommand(["doan", "--repo", ".", "active"]), undefined);
+  assert.equal(doanCommand(["doan", "--json", "active"]), undefined);
+  // Behind a trailing comment, and with an unresolved flag value, a flag-first call still never reads as run.
+  assert.equal(doanArgs(parseCommand("doan --json active # status").words[0]!)?.refused, true);
+  assert.deepEqual(parseCommand("doan --repo $R active"), { words: [], incomplete: true });
   // A value flag takes the next word whatever it looks like.
   assert.deepEqual(doanArgs(["doan", "work", "update", "a.html", "--note", "--prototype"]),
     { positionals: ["work", "update", "a.html"], flags: [{ name: "note", value: "--prototype" }], refused: false });
@@ -265,6 +274,62 @@ test("a template command stays unread when the run did not record a command for 
   ] as const) {
     const { commands } = toolCalls(rollout.join("\n"));
     assert.equal(incompleteRead(commands), true, label);
+  }
+});
+
+// A literal exec_command in a Codex exec script may stand in a branch that never runs, a function never called or after
+// a throw; Codex records each process the script ran, so a literal counts as run only when a record matches it.
+test("a Codex exec literal counts as run only when the script's window recorded it, once per record", () => {
+  const event = (payload: object) => JSON.stringify({ type: "response_item", payload });
+  const call = (input: string, id = "call_s") => event({ type: "custom_tool_call", call_id: id, name: "exec", input });
+  const output = (id = "call_s") => event({ type: "custom_tool_call_output", call_id: id, output: "" });
+  const record = (command: unknown) => JSON.stringify({ type: "event_msg", payload: { type: "item_completed", item: { type: "CommandExecution", command, status: "completed" } } });
+  const ran = (cmd: string) => record(["/bin/zsh", "-c", cmd]);
+  const exec = (cmd: string) => `await tools.exec_command({cmd: ${JSON.stringify(cmd)}});`;
+  const read = (lines: string[]) => toolCalls(lines.join("\n"));
+  for (const source of [
+    `if (false) { ${exec("doan init")} } ${exec("doan active --json")}`,
+    `async function later() { ${exec("doan init")} } ${exec("doan active --json")}`,
+    `${exec("doan active --json")} throw new Error("stop"); ${exec("doan init")}`,
+  ]) {
+    const calls = read([call(source), ran("doan active --json"), output()]);
+    assert.ok(calls.commands.includes("doan active --json"), source);
+    assert.ok(!calls.commands.flatMap(commandWords).some(words => doanCommand(words) === "init"), source);
+    assert.deepEqual(calls.commandCandidates, ["doan init"], source);
+    // A command that ran without a record cannot be ruled out, so no absence check holds beside it.
+    assert.equal(incompleteRead(calls.commands), true, source);
+  }
+  // A command named more than once runs as many times as the window recorded it.
+  const twice = `${exec("doan check --json")} if (retry) { ${exec("doan check --json")} }`;
+  assert.deepEqual(read([call(twice), ran("doan check --json"), output()]).commandCandidates, ["doan check --json"]);
+  const both = read([call(twice), ran("doan check --json"), ran("doan check --json"), output()]);
+  assert.equal(both.commandCandidates, undefined);
+  assert.equal(incompleteRead(both.commands), false);
+  // Every literal that has its record is run, and nothing is a candidate.
+  const all = read([call(`${exec("doan active --json")} ${exec("doan ls --json")}`), ran("doan ls --json"), ran("doan active --json"), output()]);
+  assert.deepEqual(all.commands, ["doan active --json", "doan ls --json"]);
+  assert.equal(all.commandCandidates, undefined);
+});
+
+// Without records Codex wrote for this script alone, the literals are what is known to have run, as before.
+test("a Codex exec script's literals count as run when its window gives no usable record", () => {
+  const event = (payload: object) => JSON.stringify({ type: "response_item", payload });
+  const call = (input: string, id = "call_s") => event({ type: "custom_tool_call", call_id: id, name: "exec", input });
+  const output = (id = "call_s") => event({ type: "custom_tool_call_output", call_id: id, output: "" });
+  const record = (command: unknown) => JSON.stringify({ type: "event_msg", payload: { type: "item_completed", item: { type: "CommandExecution", command, status: "completed" } } });
+  const ran = (cmd: string) => record(["/bin/zsh", "-c", cmd]);
+  const source = `if (false) { await tools.exec_command({cmd: "doan init"}); } await tools.exec_command({cmd: "doan active --json"});`;
+  const other = event({ type: "function_call", call_id: "call_o", name: "exec_command", arguments: JSON.stringify({ cmd: "doan ls --json" }) });
+  for (const [label, lines] of [
+    ["no record", [call(source), output()]],
+    ["no output", [call(source), ran("doan active --json")]],
+    ["shared window", [call(source), other, ran("doan active --json"), output(), event({ type: "function_call_output", call_id: "call_o", output: "" })]],
+    ["unknown argv", [call(source), ran("doan active --json"), record(["doan", "init"]), output()]],
+  ] as const) {
+    const calls = toolCalls(lines.join("\n"));
+    assert.ok(calls.commands.includes("doan init"), label);
+    assert.ok(calls.commands.includes("doan active --json"), label);
+    assert.equal(calls.commandCandidates, undefined, label);
   }
 });
 
@@ -461,7 +526,7 @@ test("DOAN_COMMAND_FLAGS is run.go's per-command flag table", () => {
   assert.equal(doanArgs(["doan", "work", "update", "a.html", "--frame", "f", "--note", "n"])?.refused, false);
   assert.equal(doanArgs(["doan", "work", "start", "a.html", "--frame", "f"])?.refused, true);
   assert.equal(doanArgs(["doan", "onboarding", "status", "--session", "s", "--json"])?.refused, false);
-  assert.equal(doanArgs(["doan", "--repo", ".", "onboarding", "status"])?.refused, true);
+  assert.equal(doanArgs(["doan", "onboarding", "status", "--repo", "."])?.refused, true);
 });
 
 // What a command does with its positionals and repeated flags is the CLI's to say: each case runs the real CLI, and
@@ -504,6 +569,11 @@ test("the reader refuses the argument shapes the CLI refuses as usage errors", (
     ["open", ".doan/canvases/a.html", "--frame", "a\u007fb"],
     ["export", ".doan/canvases/a.html", "-o", "out.html", "--frame", "f".repeat(201), "--prototype"],
     ["export", ".doan/canvases/a.html", "-o", "out.html", "--frame", "a\nb", "--prototype"],
+    // The command must be the first argument (ARCHITECTURE §12 'Parsing, output and structure').
+    ["--repo", ".", "design-skill"],
+    ["--json", "design-skill"],
+    ["-json=false", "design-skill"],
+    ["-", "design-skill"],
   ]) assert.equal(doanArgs(["doan", ...args, "--json"])?.refused, usage(args), args.join(" "));
 });
 

@@ -124,6 +124,7 @@ export function buildJudgePrompt(input: JudgeInput, limits = JUDGE_LIMITS): stri
   const commands = summaryCommands(calls.commands);
   const callSummary = truncate(JSON.stringify({ doanActive, doanDesignSkill, mcpTools: [...new Set(calls.mcpTools)], toolSearches: calls.toolSearches?.slice(0, 10), omittedToolSearches: Math.max(0, (calls.toolSearches?.length ?? 0) - 10), outputs, commands }), 20_000, "head");
   const patchCandidates = truncate(JSON.stringify({ patchCandidates: calls.patchCandidates ?? [] }), 4_000, "head");
+  const commandCandidates = truncate(JSON.stringify({ commandCandidates: calls.commandCandidates ?? [] }), 4_000, "head");
   const checks = truncate(JSON.stringify(input.checks, null, 2), limits.checks, "head");
   const more = input.changed.length - limits.changed;
   const changed = input.changed.slice(0, limits.changed).join("\n") + (more > 0 ? `\n(${more} more files)` : "");
@@ -134,6 +135,7 @@ export function buildJudgePrompt(input: JudgeInput, limits = JUDGE_LIMITS): stri
     "Output excerpts are matched by call id; scope=batch is shared script output, not proof of which inner call produced it. Invocation flags alone do not establish success.",
     "doanDesignSkill records preset lookup invocations and requested IDs; a catalog lookup has no ID; incompleteCommands means some commands could not be read to the end, so the list may be missing lookups (see the raw commands). These calls alone do not establish that the preset body was read successfully or applied.",
     "patchCandidates are unresolved lexical code-mode mentions, not execution evidence; their presence alone does not establish a deletion.",
+    "commandCandidates are code-mode exec_command literals that no recorded process matched, not execution evidence: they may sit in code that never ran, or have run unrecorded.",
     "toolSearches show the agent looking for tools; an empty result means no available tool matched that lookup.",
     ".agents/skills/doan/SKILL.md and .claude/skills/doan/SKILL.md are discovery stubs that point to doan skill; reading a stub and then running doan skill is expected.",
     "Score the run against the rubric. Automatic checks already ran; you cannot overturn a failed one, so judge what they do not cover.",
@@ -147,6 +149,7 @@ export function buildJudgePrompt(input: JudgeInput, limits = JUDGE_LIMITS): stri
     block(diff.truncated ? `Diff (truncated to the first ${limits.diff} characters)` : "Diff", diff.text),
     block(callSummary.truncated ? "Invoked commands and MCP tools (truncated to the first 20000 characters)" : "Invoked commands and MCP tools", callSummary.text),
     ...(calls.patchCandidates?.length ? [block(patchCandidates.truncated ? "Unresolved patch candidates (truncated to the first 4000 characters)" : "Unresolved patch candidates", patchCandidates.text)] : []),
+    ...(calls.commandCandidates?.length ? [block(commandCandidates.truncated ? "Unresolved command candidates (truncated to the first 4000 characters)" : "Unresolved command candidates", commandCandidates.text)] : []),
     block(transcript.truncated ? `Transcript (truncated to the last ${limits.transcript} characters)` : "Transcript", transcript.text),
   ].join("\n");
 }

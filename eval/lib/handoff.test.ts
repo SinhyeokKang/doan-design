@@ -24,7 +24,7 @@ test("v5 validators decide all shared schema fixtures", () => {
 test("handoffCommands reads doan handoff only, whatever the flags around it", () => {
   const calls = shell(
     `doan handoff ${path} --message - <<'EOF'\nhello\nEOF`,
-    `/tmp/bin/doan --repo /r handoff ${path} --message "x" --json`,
+    `/tmp/bin/doan handoff --repo /r ${path} --message "x" --json`,
     "echo 'doan handoff x.html'",
     "doan ls --json",
   );
