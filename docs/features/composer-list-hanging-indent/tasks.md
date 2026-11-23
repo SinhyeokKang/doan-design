@@ -20,7 +20,7 @@
    - 결과(측정값, 통과 여부, ProseMirror 패키지 버전, 줄 시작 칩 커서 방식, ⌥→ 결과)를 design.md 'PoC 결과'에 적고 develop에 커밋한다. 안 되는 항목이 있으면 멈추고 사람에게 보고한다.
    - 검증: 위 항목마다 기댓값과 측정값, 통과 여부가 design.md 'PoC 결과'에 있다.
    - ── 커밋 경계(docs(feature), develop) ──
-2. **시안**(develop): `/design-draft`로 새 파일 `.doan/canvases/composer-hanging-indent.html`에 입력란 목록 프레임을 그린다. 기존 시안은 고치지 않는다. 담을 상태:
+2. **시안**(완료, 2026-11-23, `composer-hanging-indent.html` 확정, design.md 기록) (develop): `/design-draft`로 새 파일 `.doan/canvases/composer-hanging-indent.html`에 입력란 목록 프레임을 그린다. 기존 시안은 고치지 않는다. 담을 상태:
    - 줄바꿈된 항목(•와 번호, 깊이 0·1·2·5, "9."·"10."·"100."이 섞인 목록)
    - 일반 줄, 들여쓴 일반 줄, 칩으로 시작하는 줄의 줄바꿈
    - 칩이 본문에 있고 그 칩으로 줄바꿈 줄이 시작하는 항목

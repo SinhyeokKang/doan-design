@@ -2,6 +2,8 @@
 
 이 feature는 composer 입력란을 ProseMirror 위에 다시 만들어 목록 항목에 hanging indent를 준다. 이미 develop에 있는 화면의 표시를 바꾸므로 standalone redesign이다(AGENTS.md 'Workflow' `/design-draft`·`/design-sync` 예외). 새 시안 파일 `.doan/canvases/composer-hanging-indent.html`을 그리고 기존 시안 `composer-markdown.html`은 고치지 않는다. 기존 시안의 `field-wrap` 설명("The field has no hanging indent")은 남지만, 이 feature의 브랜치가 머지될 때까지 새 시안이 기준이다.
 
+**시안 확정**: 사람이 앱에서 `composer-hanging-indent.html`의 일곱 프레임(wrap-bullets, wrap-ordered, wrap-chips, caret-line-start, scrolled-max, wrap-home, wrap-narrow)을 확정했다(커밋 a04234513 기준). 시안은 정적 블록과 마커 폭으로 본문 시작점을 정하는 작은 스크립트로 같은 위치를 그린다. 구현은 ProseMirror decoration으로 같은 위치를 만든다.
+
 ## 결정
 
 - **편집기**: 순수 ProseMirror(`prosemirror-model`, `-state`, `-view`, `-transform`, `-history`, `-keymap`, `-commands`) 위에 입력란을 다시 만든다(사람이 정했다). TipTap은 쓰지 않는다. 텍스트 모델을 지키는 D 모델에서 TipTap이 더하는 것이 없고(gzip 약 33KB와 꺼야 하는 기본 CSS만 더함), 구조 목록(S 모델)은 PRODUCT의 텍스트 모델을 깨기 때문이다(`.scratch/tiptap-poc/poc-result.md`).
