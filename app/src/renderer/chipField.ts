@@ -230,6 +230,7 @@ export class ChipField {
     const result = insertSkillText(this.segments, before.focus, name);
     this.render(result.segments);
     this.placeCaret({ anchor: result.caret, focus: result.caret });
+    this.revealCaret();
     this.commit("insert", before);
   }
 
@@ -288,6 +289,7 @@ export class ChipField {
   private restore(segments: FieldSegment[], selection: Selection): void {
     this.render(segments);
     this.placeCaret(selection);
+    this.revealCaret();
     this.mergeable = false;
     this.announceSkills();
     this.hooks.onChange(this.segments);
@@ -638,6 +640,7 @@ export class ChipField {
     const before = this.readSelection();
     this.render(edit.segments);
     this.placeCaret({ anchor: edit.caret, focus: edit.caret });
+    this.revealCaret();
     this.commit(kind, before);
   }
 
@@ -651,6 +654,7 @@ export class ChipField {
     const { segments, caret } = spliceUnits(this.segments, start, end, inserted);
     this.render(segments);
     this.placeCaret({ anchor: caret, focus: caret });
+    this.revealCaret();
     this.commit(kind, before);
   }
 
@@ -769,6 +773,23 @@ export class ChipField {
       if (point.comparePoint(entry.node, 0) >= 0) return entry.at;
     }
     return entries.total;
+  }
+
+  // Chromium scrolls the field to the caret only after its own edits; a caret placed by code after a redraw (Shift+Enter,
+  // paste, a chip, undo) stays where the field was scrolled. Only the field scrolls, as for typing: the composers cap
+  // its height and let it scroll inside its card.
+  private revealCaret(): void {
+    const selection = document.getSelection();
+    if (document.activeElement !== this.el || !selection?.focusNode) return;
+    const range = document.createRange();
+    range.setStart(selection.focusNode, selection.focusOffset);
+    // A caret on an empty last line has no rect of its own; the <br> drawn there holds its row.
+    const last = this.el.lastChild;
+    const rect = range.getClientRects()[0] ?? (last instanceof HTMLElement && this.breaks.has(last) ? last.getBoundingClientRect() : null);
+    if (!rect) return;
+    const box = this.el.getBoundingClientRect();
+    if (rect.bottom > box.bottom) this.el.scrollTop += rect.bottom - box.bottom;
+    else if (rect.top < box.top) this.el.scrollTop -= box.top - rect.top;
   }
 
   // A unit offset → DOM point, preferring a text node so typing continues in it.
