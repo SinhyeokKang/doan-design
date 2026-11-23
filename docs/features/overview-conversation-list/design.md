@@ -4,13 +4,13 @@
 
 ## 결정
 
-- **목록 이름**: "Conversations". 다른 문구는 시안에서 확정한다. 후보는 아래와 같다.
+- **목록 이름**: "Conversations". 다른 문구는 아래로 시안에 그렸고, 사람이 시안을 확정하면 함께 확정된다.
 
-  | 위치 | 지금 | 후보 |
+  | 위치 | 지금 | 시안 |
   |---|---|---|
   | 패널 제목과 region 라벨 (`RightPanel.tsx`) | Canvas conversations | Conversations |
   | 크기 조절 핸들 (`App.tsx`) | Resize canvas conversations | Resize conversations |
-  | 빈 목록 (`CanvasConversationList.tsx`) | No canvas conversations yet. / When a conversation draws or edits a canvas, the canvas shows here. | No conversations yet. / Conversations you start here or on a canvas show here. |
+  | 빈 목록 (`CanvasConversationList.tsx`) | No canvas conversations yet. / When a conversation draws or edits a canvas, the canvas shows here. | No conversations yet. / Conversations you start in the Overview or on a canvas show here. |
   | 로딩 (`CanvasConversationList.tsx`) | Loading canvas conversations | Loading conversations |
 
 - **행 순서**: 종류를 나누지 않는 한 목록이다. 최근 활동이 앞에 오고, 같은 시각일 때는 아래 순서를 따른다.
@@ -21,7 +21,7 @@
 - **순서 고정**: 사이드바의 'Viewed canvas's conversations' 규칙(PRODUCT §5 item 1)과 같다. 포인터나 키보드 포커스가 목록 안에 있는 동안 순서를 고정하고, 새 행은 끝에 붙인다. 둘 다 목록을 떠나면 한 번 다시 정렬한다. 상태 표시는 그동안에도 바뀐다.
 - **프로젝트 대화 행 모양**:
   - 높이와 정렬은 캔버스 행과 같다.
-  - 썸네일 자리(72×48)에는 inset 채움 위에 대화 아이콘을 두고(아이콘은 시안에서 정한다) `aria-hidden`으로 숨긴다. `Thumb`의 "Preview unavailable" 문구를 쓰지 않는다.
+  - 썸네일 자리(72×48)에는 inset 채움 위에 대화 아이콘을 두고(시안: lucide `message-square`, `--text-metadata`) `aria-hidden`으로 숨긴다. `Thumb`의 "Preview unavailable" 문구를 쓰지 않는다.
   - 첫 줄은 캔버스 행과 같다(provider 로고, 제목, 상태 표시, 시간·Delete).
   - 캡션 줄에는 캔버스 이름 대신 "Overview"를 쓴다. 스크린리더도 이 캡션으로 두 종류를 구분한다.
   - 그 아래 미리보기 두 줄이 온다.
