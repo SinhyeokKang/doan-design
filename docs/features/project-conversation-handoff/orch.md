@@ -43,8 +43,14 @@ A와 B는 병렬로 돌므로 경계 형태를 미리 정한다.
 
 ## ACP PoC 결과
 
-(배치 P가 끝나면 적는다.)
+- 1차 실행(2026-11-23): 임시 HOME으로 띄워 macOS가 로그인 키체인을 찾지 못했고("키체인을 발견할 수 없음"), 복사한 vault를 풀지 못해 세 provider 모두 로그아웃으로 거부됐다(Cursor·Antigravity `not_logged_in`, Copilot `session_unavailable`). 관찰 없음. 설정 단계의 `doan check`가 격리되지 않은 `DOAN_RUNTIME`으로 돌아 실제 `sessions.jsonl`에 지워진 임시 경로를 가리키는 줄 두 개(6139, 6140)가 붙었다. 덧붙이기 기록이라 그대로 두었다.
+- 2차 실행: 같은 원인(임시 HOME). 120초 게이트로 끝났다.
+- 3차 실행(리드 규칙): 실제 HOME, userData 복사본, 격리된 `DOAN_RUNTIME`, 메인 체크아웃의 Electron 바이너리. 진행 중.
 
 ## 리뷰·통합 기록
 
-(배치마다 적는다.)
+- A: 구현 `7802800ab`·`1852e5bd6` → 통합 `72b4ab207`·`43d7bcfd1`. 독립 리뷰(Opus high) 🔴 0·🟡 2·⚪ 5(`.scratch/orch/review-A.md`). 수정 라운드 진행 중: 보류된 Claude 턴 끝 뒤 판정에 들어간 handoff를 프로젝트 제거가 취소하지 않음, 고아가 된 프로토타입 target 중계 제거, 프로토타입 창이 Overview 원본 대화가 남아 있는지 읽는 API(B 리뷰 🟡 1의 main 쪽), ⚪ 1·2·3·5. ⚪ 4(handoff 대상 시작의 runner가 제거 끝에 아직 닫히는 중일 수 있음)는 기록·상태가 남지 않아 둔다.
+- `origin/develop` 병합 `07cf30f65`(#379, `ProjectOverview.tsx`의 권한 요청 항목 포커스). 리드 지시.
+- D: `87e133726`·`1d1319542`·`b247de835` → 통합 `40ab2a584`·`638af3787`·`5da982af8`. 독립 리뷰(Sonnet medium) 🔴 0·🟡 2, 둘 다 고침(R12 판정을 수락된 요청에만, fail fixture에 다른 경로 요청). R10의 같은 판정 구조는 이 feature 전부터 있던 것이라 두고 PR에 적는다. A 병합 뒤 `prompt.md`는 그대로 맞았다. 워커 해제, 워크트리 제거(브랜치 `SinhyeokKang/pch-d` 유지).
+- B: `a188e8982`·`61f377931`·`760bae9e6`·`2dcdee86c` → 통합 `5f22c6f8c`·`1a80e59bd`·`c2f3e2554`·`85e1b0fae`(트리가 B 브랜치와 같음, eval 제외). 독립 리뷰(Opus high) 🔴 0·🟡 2·⚪ 6(`.scratch/orch/review-B.md`). ⚪ 1·2·3·4·6은 고침. 🟡 1(프로토타입 창이 지워진 Overview 원본에 Open을 남김, spec 위반)과 🟡 2의 렌더러 fixture, ⚪ 5는 A의 수정이 통합된 뒤 B에 보낸다.
+- 사용량 한도로 A·B가 한 번씩 멈췄다가 이어서 끝냈다.
