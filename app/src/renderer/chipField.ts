@@ -230,6 +230,7 @@ export class ChipField {
     const result = insertSkillText(this.segments, before.focus, name);
     this.render(result.segments);
     this.placeCaret({ anchor: result.caret, focus: result.caret });
+    this.revealCaret();
     this.commit("insert", before);
   }
 
@@ -288,6 +289,7 @@ export class ChipField {
   private restore(segments: FieldSegment[], selection: Selection): void {
     this.render(segments);
     this.placeCaret(selection);
+    this.revealCaret();
     this.mergeable = false;
     this.announceSkills();
     this.hooks.onChange(this.segments);
@@ -638,6 +640,7 @@ export class ChipField {
     const before = this.readSelection();
     this.render(edit.segments);
     this.placeCaret({ anchor: edit.caret, focus: edit.caret });
+    this.revealCaret();
     this.commit(kind, before);
   }
 
@@ -651,6 +654,7 @@ export class ChipField {
     const { segments, caret } = spliceUnits(this.segments, start, end, inserted);
     this.render(segments);
     this.placeCaret({ anchor: caret, focus: caret });
+    this.revealCaret();
     this.commit(kind, before);
   }
 
@@ -771,6 +775,19 @@ export class ChipField {
     return entries.total;
   }
 
+  // Chromium scrolls the field to the caret only after its own edits; a caret placed by code after a redraw (Shift+Enter,
+  // paste, a chip, undo) stays where the field was scrolled. Only the field scrolls, as for typing: the composers cap
+  // its height and let it scroll inside its card.
+  private revealCaret(): void {
+    const selection = document.getSelection();
+    if (document.activeElement !== this.el || !selection?.focusNode) return;
+    const rect = caretRect(selection.focusNode, selection.focusOffset, this.breaks);
+    if (!rect) return;
+    const box = this.el.getBoundingClientRect();
+    if (rect.bottom > box.bottom) this.el.scrollTop += rect.bottom - box.bottom;
+    else if (rect.top < box.top) this.el.scrollTop -= box.top - rect.top;
+  }
+
   // A unit offset → DOM point, preferring a text node so typing continues in it.
   private pointAt(offset: number): [Node, number] {
     const entries = this.units();
@@ -865,6 +882,17 @@ function drawsRun(node: HTMLElement, run: FieldRun): boolean {
 function opensBody(segments: readonly FieldSegment[], unit: number): boolean {
   const next = sliceUnits(segments, unit, unit + 1)[0];
   return next === undefined || next.kind === "chip" || next.text === "\n";
+}
+// A collapsed caret on an empty line has no rect of its own: the line break after it stands on its row, and on the
+// empty last line the <br> the field drew there.
+function caretRect(node: Node, offset: number, breaks: WeakSet<Node>): DOMRect | null {
+  const range = document.createRange();
+  range.setStart(node, offset);
+  const rect = range.getClientRects()[0];
+  if (rect || !(node instanceof Text)) return rect ?? null;
+  if (node.data[offset] === "\n") { range.setEnd(node, offset + 1); return range.getClientRects()[0] ?? null; }
+  const next = offset === node.length ? node.nextSibling : null;
+  return next instanceof HTMLElement && breaks.has(next) ? next.getBoundingClientRect() : null;
 }
 function ordered({ anchor, focus }: Selection): [number, number] { return anchor <= focus ? [anchor, focus] : [focus, anchor]; }
 function indexIn(node: Node): number { return Array.prototype.indexOf.call(node.parentNode!.childNodes, node); }
