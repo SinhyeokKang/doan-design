@@ -25,7 +25,7 @@
 
 1. 링크 1 tasks 5(한글 IME): 사용자가 답했다. 병합을 마친 뒤 리드가 사용자와 진행한다. VoiceOver 읽기 순서는 그 자리에서 사용자에게 묻는다.
 2. 로그인 프로필: 사용자가 답했다. 체인이 끝난 뒤에도 남긴다.
-3. 남겨 둔 프로필의 Claude Code·Codex 로그인이 살아 있는지 리드가 링크 2 시작 전에 확인한다. 끊겼으면 사용자에게 승인을 청한다.
+3. 남겨 둔 프로필의 Claude Code·Codex 로그인: 2026-11-23 리드가 확인했고 둘 다 살아 있다. Claude는 `CLAUDE_CONFIG_DIR=<profiles>/claude claude auth status`에서 `loggedIn: true`(만료 2026-12-12), Codex는 `CODEX_HOME=<profiles>/codex codex -c 'cli_auth_credentials_store="keyring"' login status`에서 로그인됨. Codex 상태는 이 `-c` 없이 물으면 "Not logged in"으로 나온다. Cursor·Copilot·Antigravity는 `agent-auth/vault`에 있고 상태는 확인하지 않았다.
 
 ## 상시 권한
 
@@ -35,7 +35,7 @@
 ## 로그인
 
 - 링크 2의 `/runtime-test`(Overview·Home에서 보낸 프로젝트 대화의 handoff, Codex Ask 모드의 `doan handoff` 승인, 동시 실행)는 실제 Claude Code와 Codex 로그인이 필요하다. 링크 1은 로그인이 필요 없다(tasks 5의 IME 확인은 임시 HOME에서 띄운다).
-- **Codex 계정(사용자 지정)**: `/agent-eval`과 `/runtime-test`의 Codex 확인은 사용자가 지정한 개인 계정으로 한다. 지금 실제 HOME의 `~/.codex/auth.json`이 그 계정이다(2026-11-23 리드가 id_token의 email로 확인). eval 러너는 이 `auth.json`을 링크하고, 앱은 실제 HOME의 Codex 프로필을 쓰므로 따로 바꿀 것이 없다. 이메일은 공개 저장소에 적지 않고 리드가 brief로 전달한다. 확인 직전에 `auth.json`의 email이 그 계정인지 보고, 다르면 멈추고 리드에게 알린다.
+- **Codex 계정(사용자 지정)**: `/agent-eval`과 `/runtime-test`의 Codex 확인은 사용자가 지정한 개인 계정으로 한다. eval 러너가 링크하는 실제 HOME의 `~/.codex/auth.json`과, 앱이 쓰는 로그인 프로필의 Codex(`<userData>/agent-auth/profiles/codex`, 토큰은 Keychain)가 둘 다 그 계정이다(2026-11-23 리드가 id_token의 email과 `agent-auth/metadata.json`으로 확인). 따로 바꿀 것이 없다. 이메일은 공개 저장소에 적지 않고 리드가 brief로 전달한다. 확인 직전에 `auth.json`의 email이 그 계정인지 보고, 다르면 멈추고 리드에게 알린다.
 - 링크 2 tasks 1의 ACP PoC(Cursor, Antigravity, GitHub Copilot)는 AGENTS.md 'Real agent sign-ins'대로 격리된 복사본으로 돌린다. 이 provider는 `agent-auth/vault`에 있어 userData 복사본도 로그인된 채로 읽힌다.
 - 로그인된 userData: `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`(메인 체크아웃, 이전 체인에서 남김). 링크는 각자 워크트리를 가지므로 이 절대 경로를 쓴다. 새 로그인을 청하기 전에 이 프로필이 아직 연결돼 있는지 먼저 확인한다. 리드는 시작 점검에서 필요한 로그인이 살아 있는지 확인하고, 끊겼으면 사용자에게 승인을 청한다.
 - Claude Code와 Codex는 복사본에서 로그인이 풀린다(Keychain 항목이 `CLAUDE_CONFIG_DIR` 해시에 묶임, Codex는 `reauthRequired`). 이 둘을 쓰는 probe는 원래 경로를 쓰고, 한 userData에는 Electron 하나만 띄우며, 끝나면 `folders.json`·`ui-state.json`을 되돌린다. 지우는 probe는 복사본에서 하되 그때는 새 로그인이 필요하다.
