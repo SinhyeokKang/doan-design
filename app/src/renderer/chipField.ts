@@ -497,6 +497,12 @@ export class ChipField {
       return true;
     }
     if (!type.startsWith("delete")) return false;
+    // Backspace and ⌃H at a body start are taken at their keydown (deleteKey); a deletion that comes with no key
+    // (dictation, assistive technology) arrives only here.
+    if (type === "deleteContentBackward" && start === end) {
+      const edit = removeMarker(this.segments, start);
+      if (edit) { event.preventDefault(); this.edit(edit, "own"); return true; }
+    }
     const range = this.deletion(type, event, start, end);
     if (!range) return false;
     event.preventDefault();

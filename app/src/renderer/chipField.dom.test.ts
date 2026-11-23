@@ -537,6 +537,18 @@ test("Backspace at a body start removes the marker or outdents, each one undo st
   expect(await consistent()).toBe(true);
 });
 
+test("a deletion at a body start with no key (dictation, assistive technology) removes the marker or outdents too", { timeout: 60_000 }, async () => {
+  // Only the beforeinput arrives; a synthetic one has no default action, so an unhandled one would change nothing.
+  await open("- Title\n  - Child");
+  await call("place", 12);
+  expect(await call("input", "deleteContentBackward")).toBe(true);
+  expect(await text()).toBe("- Title\n- Child");
+  expect(await call("input", "deleteContentBackward")).toBe(true);
+  expect(await text()).toBe("- Title\nChild");
+  await press("Meta+z");
+  expect(await text()).toBe("- Title\n- Child");
+});
+
 test("Shift+Enter continues, outdents and ends a list; each is one undo step apart from the typing", { timeout: 60_000 }, async () => {
   await open("1. Header\n   1. Logo");
   await press("x");
