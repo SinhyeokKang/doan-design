@@ -256,6 +256,27 @@ test("a list item wraps under its own body, at every depth and marker width", { 
   expect(hundred).toBeGreaterThan(ten!);
 });
 
+test("a marker's box is its line's row, so the bullet sits as in a plain line and the last line does not overflow", { timeout: 60_000 }, async () => {
+  await open("- Parent\n  - Child\n    - Caret at depth 2\n10. Ten");
+  // The bullet is drawn at the marker box's top: a box shorter than the row would put it lower than the row's text.
+  const boxes = await frame.evaluate(() => Array.from(document.querySelectorAll(".field-mark")).map(mark => {
+    const line = mark.parentElement!.getBoundingClientRect(), box = mark.getBoundingClientRect();
+    return [Math.round((box.top - line.top) * 10) / 10, Math.round(box.height * 10) / 10];
+  }));
+  expect(boxes).toEqual([[0, 24], [0, 24], [0, 24], [0, 24]]);
+  expect(await frame.evaluate(() => { const el = document.getElementById("f")!; return el.scrollHeight - el.clientHeight; })).toBe(0);
+  // The row's negative indent stays on the row: the marker's own text is not pulled out of its box, and a chip's name
+  // starts at its label's left edge instead of being cut off by the label's overflow.
+  expect(await frame.evaluate(() => getComputedStyle(document.querySelector(".field-mark")!).textIndent)).toBe("0px");
+  await open([plain("- see "), chip(), plain(" now")]);
+  const label = await frame.evaluate(() => {
+    const span = document.querySelector(".anchor-chip span:not(.sr-only)")!, range = document.createRange();
+    range.setStart(span.firstChild!, 0); range.setEnd(span.firstChild!, 1);
+    return Math.round(range.getBoundingClientRect().left - span.getBoundingClientRect().left);
+  });
+  expect(label).toBe(0);
+});
+
 test("depth spaces take no width, and lines off a list wrap to the line start", { timeout: 60_000 }, async () => {
   // A depth-0 item's typed leading spaces, and two or four typed spaces for the same depth, draw at the same place.
   await open("- a\n  - b\n- c\n    - d\n  - e");

@@ -756,13 +756,17 @@ body:has(.shell-top) { background: transparent; }
    marker column (--space-3, or data-mark, the marker's measured width with its space, when wider, so "100. " moves
    only its own body); a negative text-indent of the column brings the first row back to the marker. The marker keeps its
    characters, and the gap to the body is letter-spacing on them: padding would leave the caret at the body start
-   inside it. The space after the marker is plain text, so the body-start caret and text composed there sit outside
-   the marker. "- " and "* " keep their characters unpainted under a drawn bullet; a number is painted as typed, in
+   inside it. The marker is an inline-block so its box is the row's 24 px: the bullet is drawn at its top, and an
+   inline box (shorter than the row) would set it 1.5 px low and let the last line overflow the field. Its own
+   text-indent is 0, or the row's negative indent would pull "-" out of its box. The space after the marker is plain
+   text, so the body-start caret and text composed there sit outside the marker. "- " and "* " keep their characters unpainted under a drawn bullet; a number is painted as typed, in
    plain figures. Depth spaces take no width whatever was typed (word-spacing set from the measured space); the
    padding draws the depth. */
 .composer-input > div { margin: 0; }
 .composer-input > .field-item { padding-inline-start: calc((attr(data-depth type(<number>), 0) + 1) * var(--space-5) + max(var(--space-3), attr(data-mark type(<length>), 0px))); text-indent: calc(-1 * max(var(--space-3), attr(data-mark type(<length>), 0px))); }
-.field-mark { position: relative; font-variant-numeric: normal; letter-spacing: calc(var(--type-label-letter-spacing) + (max(var(--space-3), attr(data-mark type(<length>), 0px)) - attr(data-mark type(<length>), 0px)) / attr(data-chars type(<number>), 1)); }
+.field-mark { display: inline-block; position: relative; text-indent: 0; font-variant-numeric: normal; letter-spacing: calc(var(--type-label-letter-spacing) + (max(var(--space-3), attr(data-mark type(<length>), 0px)) - attr(data-mark type(<length>), 0px)) / attr(data-chars type(<number>), 1)); }
+/* A chip is a box of its own: the row's negative indent would shift its name 12 px into the label's overflow. */
+.composer-input > .field-item .anchor-chip { text-indent: 0; }
 .field-mark[data-kind="ul"] { color: transparent; }
 .field-mark[data-kind="ul"]::before { content: "•"; position: absolute; left: 0; top: 0; color: var(--text-standard); }
 .field-depth { tab-size: 0; }
