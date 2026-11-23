@@ -6,7 +6,7 @@
 - **promotion**: 완전히 없앤다. 대비책으로 남기지 않는다(사람이 정했다).
 - **기존 캔버스만 고친 턴**: 아무 일도 일어나지 않고 대화가 Overview에 남는다. handoff는 새 캔버스에만 된다는 규칙도 그대로다(사람이 정했다).
 - **화면 이동**: 캔버스 handoff와 같은 규칙이다. 원본 페이지는 '그 대화를 보여주는 Overview'다. Home에서 보낸 대화가 새 캔버스를 바로 열던 동작은 이 규칙으로 대체한다(사람이 정했다).
-- **Drawing 미리보기**: 없앤다. 캔버스 → 캔버스 handoff와 맞춘다. 캔버스 handoff의 대상 패널은 그리는 동안 원본 대화를 미리 보여주지 않으므로, 프로젝트 대화도 같게 한다(사람이 "캔버스 to 캔버스와 맞춰야 한다"고 했다).
+- **Drawing 미리보기**: 없앤다. 캔버스 → 캔버스 handoff에도 미리보기가 없으므로 두 경우가 같아진다(사람이 "다 같이 하거나 다 같이 안 하거나" 중 안 하는 쪽을 골랐다). handoff 뒤 그 캔버스에 남는 것은 원본 대화가 아니라 새 대화라서, 남지 않을 대화를 비활성 composer로 보여줄 이유가 없다. 그리는 동안의 진행은 대상 캔버스 보드의 작업 표시(glow와 notice, PRODUCT §5 item 2 'Agent indicator')가 이미 보여준다.
 - **원본 표기**: 새 대화의 첫 카드는 "Handed off from Overview", 토스트는 "Overview handed off to <target file>"과 "Overview handed off to <n> canvases"다. Open은 그 루트의 Overview를 열고 원본 대화를 요청한다(사람이 정했다).
 - **Home 안내**: Home에서 시작한 대화는 이제 캔버스에 묶이지 않으므로 `HOME_GUIDANCE`가 모든 턴에 붙는다(지금도 `fromHome && !metadata.canvas` 조건이라 코드 변경은 없다). conductor's call — 문구가 "Home에서 캔버스 선택 없이 보냈다"는 사실만 말하므로 계속 맞다.
 
