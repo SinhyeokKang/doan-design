@@ -223,6 +223,19 @@ export function prototypeRememberedConversation(saved: unknown, playing: Playing
   return typeof id === "string" && CONVERSATION_ID.test(id) ? id : null;
 }
 
+// `prototype:conversationListed`: whether a conversation is indexed under the playing root, for a handoff card whose
+// source is a project conversation (it shows that conversation as deleted otherwise). The window may ask only about the
+// playing root, and learns this one fact; null when the request names another root, nothing plays, main's index cannot
+// be read or the request is malformed. A list change of the playing root (prototypeReceives) is the cue to ask again.
+export function prototypeConversationListed(payload: unknown, playing: PlayingCanvas | null, conversations: readonly ScopedConversation[] | null): boolean | null {
+  const request = record(payload);
+  if (request === null || Object.keys(request).some(key => key !== "root" && key !== "conversationId")) return null;
+  const { root, conversationId: id } = request;
+  if (typeof root !== "string" || typeof id !== "string" || !id || id.length > 512) return null;
+  if (playing === null || root !== playing.root || conversations === null) return null;
+  return conversations.some(conversation => conversation.conversationId === id && conversation.root === root);
+}
+
 // The playing root's folder entry, for the panel's body: the list's health and its canvas rows (listed-canvas checks,
 // answer chips). Only that root; it carries canvas rows, not conversations.
 export function prototypeEntry(entries: readonly FolderEntry[], playing: PlayingCanvas | null): FolderEntry | null {

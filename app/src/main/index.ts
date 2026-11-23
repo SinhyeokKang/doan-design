@@ -106,7 +106,7 @@ import { applyConversationWork, endConversationWork, type ConversationWork } fro
 import { othersOnCanvas } from "./workOthers";
 import { PROTOTYPE_CHANNELS, PROTOTYPE_WINDOW_REQUESTS } from "./prototype/ipc";
 import {
-  prototypeAuthSnapshot, prototypeConversationScope, prototypeEntry, prototypeListElsewhere, prototypeListRows, prototypeReceives, prototypeRememberedConversation, prototypeRevealRequest, prototypeWorkItems,
+  prototypeAuthSnapshot, prototypeConversationListed, prototypeConversationScope, prototypeEntry, prototypeListElsewhere, prototypeListRows, prototypeReceives, prototypeRememberedConversation, prototypeRevealRequest, prototypeWorkItems,
   type ConversationBroadcast, type ResumeSession, type ScopedConversation,
 } from "./prototype/conversationScope";
 import { canvasKeyString } from "./prototype/targets";
@@ -964,7 +964,7 @@ async function start(): Promise<void> {
   const hostRequests: ReadonlySet<string> = new Set([
     PROTOTYPE_CHANNELS.export, PROTOTYPE_CHANNELS.revealExport, PROTOTYPE_CHANNELS.visible, PROTOTYPE_CHANNELS.showing, PROTOTYPE_CHANNELS.reveal,
     PROTOTYPE_CHANNELS.auth, PROTOTYPE_CHANNELS.work, PROTOTYPE_CHANNELS.composer, PROTOTYPE_CHANNELS.remember, PROTOTYPE_CHANNELS.entry,
-    PROTOTYPE_CHANNELS.rememberedConversation,
+    PROTOTYPE_CHANNELS.rememberedConversation, PROTOTYPE_CHANNELS.conversationListed,
   ]);
   handle(PROTOTYPE_CHANNELS.visible, null, (_event, value: unknown) => value === undefined ? { visible: prototype.visible() } : null);
   for (const channel of PROTOTYPE_WINDOW_REQUESTS) {
@@ -1579,6 +1579,12 @@ async function start(): Promise<void> {
     bringForward(window);
     window.focus();
     send(PROTOTYPE_CHANNELS.revealRequest, request);
+  });
+  // An index that cannot be read answers nothing rather than "not listed", which the card would draw as deleted.
+  handle(PROTOTYPE_CHANNELS.conversationListed, null, (_event, value: unknown) => {
+    let conversations: ScopedConversation[] | null;
+    try { conversations = conversationStore.list(); } catch { conversations = null; }
+    return prototypeConversationListed(value, prototype.controller.playing(), conversations);
   });
   handle(PROTOTYPE_CHANNELS.auth, null, async (_event, value: unknown) => value === undefined && authIpc ? prototypeAuthSnapshot(await authIpc.read()) : null);
   handle(PROTOTYPE_CHANNELS.entry, null, (_event, value: unknown) => {

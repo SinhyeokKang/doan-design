@@ -113,6 +113,9 @@ const api = {
   // it again when the view's root changes.
   readTargetEntry: (): Promise<FolderEntry | null> => ipcRenderer.invoke("prototype:entry"),
   onTargetEntry: (listener: (entry: FolderEntry | null) => void): (() => void) => listen("prototype:entryChanged", listener),
+  // Whether a conversation is still indexed under the playing root (a handoff card's Overview source); null when root is
+  // not the playing root or main cannot tell.
+  conversationListed: (request: { root: string; conversationId: string }): Promise<boolean | null> => ipcRenderer.invoke("prototype:conversationListed", request),
 
   // Provider readiness: the main preload's snapshot with every account's identity left out. Only snapshots newer than
   // the last delivered, so an initial read that loses a race with a change never replaces the newer state.

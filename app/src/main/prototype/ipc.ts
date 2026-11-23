@@ -58,6 +58,9 @@ export const PROTOTYPE_CHANNELS = {
   // The conversation the main window last showed on the playing canvas (its ui-state), by id only; the window reads
   // nothing else of ui-state and never writes it.
   rememberedConversation: "prototype:rememberedConversation",
+  // Whether a conversation is still indexed under the playing root (conversationScope.ts prototypeConversationListed):
+  // `{root, conversationId}` → boolean | null.
+  conversationListed: "prototype:conversationListed",
   // A composer pick to remember as Last used. Main hands it to the main window, which owns ui-state and applies it
   // as its own composer's (rememberChoice, preferenceAfterPick); a write from main would be lost to the main
   // window's next whole-file save.
@@ -80,7 +83,7 @@ export const PROTOTYPE_WINDOW_REQUESTS: readonly string[] = [
   PROTOTYPE_CHANNELS.mode, PROTOTYPE_CHANNELS.export, PROTOTYPE_CHANNELS.revealExport, PROTOTYPE_CHANNELS.visible,
   PROTOTYPE_CHANNELS.panel, PROTOTYPE_CHANNELS.showing, PROTOTYPE_CHANNELS.reveal,
   PROTOTYPE_CHANNELS.auth, PROTOTYPE_CHANNELS.work, PROTOTYPE_CHANNELS.composer, PROTOTYPE_CHANNELS.remember, PROTOTYPE_CHANNELS.entry,
-  PROTOTYPE_CHANNELS.rememberedConversation,
+  PROTOTYPE_CHANNELS.rememberedConversation, PROTOTYPE_CHANNELS.conversationListed,
 ];
 
 // From the moment the host sets the iframe's src to the run's result. The slowest measured canvas answered in under
@@ -286,6 +289,10 @@ export interface PrototypeWindowApi {
   rememberChoice(choice: ComposerChoice): Promise<void>;
   readTargetEntry(): Promise<FolderEntry | null>;
   onTargetEntry(listener: (entry: FolderEntry | null) => void): () => void;
+  // Whether a conversation is still indexed under the playing root: a handoff card from the Overview names a project
+  // conversation the window does not list. null when root is not the playing root or main cannot tell; ask again on a
+  // `conversation:listChanged` of that root.
+  conversationListed(request: { root: string; conversationId: string }): Promise<boolean | null>;
   // The main window's `conversation:list`, naming the canvas the window shows: main answers its rows only while it
   // plays that canvas, else `{error: "not_playing"}` (the view of the new target follows).
   listConversations(request: { root: string; canvas: Canvas }): Promise<ConversationSummary[] | ConversationError>;
