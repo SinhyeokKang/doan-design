@@ -110,7 +110,7 @@ export interface CanvasConversationProps {
   // A handoff card from the Overview: Open shows its source conversation in this root's Overview.
   onOpenOverview?(conversationId: string): void;
   // Whether a conversation of this root still exists, for a handoff card from the Overview; without it the source counts
-  // as there (the prototype window lists only the canvas's conversations).
+  // as there (the prototype window lists only the canvas's conversations), as it does while the list is read or failed.
   conversationListed?(conversationId: string): boolean;
   // The canvases terminal sessions work on: the terminal session choice waits while its session is among them.
   work: readonly WorkItem[];

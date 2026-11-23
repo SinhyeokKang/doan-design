@@ -80,7 +80,7 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
       {errorText && <span className="strip-error" role="alert"><AlertIcon />{errorText}</span>}
     </span>
     <span className="strip-actions">{view.actions.map(action => {
-      // The draft (workspace-strip, states-strip) fills Allow; the other answers, Skip, Edit on Home and Open rest on the panel
+      // The draft (workspace-strip, states-strip) fills Allow; the other answers, Skip and Edit on Home rest on the panel
       // white, since the strip's inset fill is subtle's own grey.
       const variant = action.command === "answer" ? (action.kind === "allow" ? "prominent" : "panel") : action.command === "editOnHome" || action.command === "skip" ? "panel" : undefined;
       const key = action.command === "answer" ? `answer-${action.optionId}` : action.command;

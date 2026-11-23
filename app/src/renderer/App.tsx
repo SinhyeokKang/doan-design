@@ -216,6 +216,10 @@ export function validHistoryVisit(entries: readonly FolderEntry[], visit: Visit)
 const HEADER_SHOW_INSPECTOR = '.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]';
 
 // paint: the renderer entry's first-paint buddy and how to apply another; without it (tests) nothing is painted.
+// The Overview's Conversations list and its open header menu, asked by role and name: the canvas page's panel shares
+// their classes, and a class rename would silently turn the check off.
+const OVERVIEW_LISTS = '[role="region"][aria-label="Conversations"], [role="menu"][aria-label="Project conversations"]';
+
 export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const [homeDirectory, setHomeDirectory] = useState<string | null>(null);
   const [screen, setScreen] = useState<"home" | "workspace" | "addProjects" | "settings" | "projectSettings">("home");
@@ -1937,7 +1941,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     } else {
       // The Overview composer's draft or IME composition, or keyboard focus in its Conversations list or an open
       // header menu: the person is at work on the Overview (PRODUCT §5 item 2 'Handoff').
-      const inList = !!(active as { closest?: (selector: string) => unknown } | null)?.closest?.(".ov-right, .conv-menu");
+      const inList = !!(active as { closest?: (selector: string) => unknown } | null)?.closest?.(OVERVIEW_LISTS);
       typing = hasDraft(overviewRun.current!.store.drafts.get(key)) || !!overviewComposerLink.current?.composing() || inList;
     }
     return { canvas, overview, locked: locked(), dialog: topDialog() !== null, firstRun: wizard !== null || buddyIntro.open, typing, chose };
@@ -2781,7 +2785,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
           onOpenHandoff={(canvas, id) => openConversationCanvas(panelTarget.root, canvas, id, { kind: "card" })}
           onOpenOverview={id => openOverviewConversation(panelTarget.root, id)}
-          conversationListed={id => Array.isArray(panelList) && panelList.some(c => c.conversationId === id)} work={work} />}
+          conversationListed={id => !Array.isArray(panelList) || panelList.some(c => c.conversationId === id)} work={work} />}
       </ConversationPanel></>}
     {/* Its own key space: the Overview beside it is keyed by the same root, and siblings sharing a key remount on every render. */}
     {problem && <ProblemOverlay key={`problem\n${loadedRoot}`} view={problem} details={detailsOpen} detail={detailText} pressed={retryPending ? "retry" : pressed && pressed.root === loadedRoot ? pressed.name : null}

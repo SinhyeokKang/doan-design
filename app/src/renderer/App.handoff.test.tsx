@@ -445,7 +445,7 @@ test("typing in the Overview composer, or focus in the Conversations list or the
     const props = overviewProps()!;
     props.composerLink.current = { element: () => null, composing: () => how === "composing", focus: () => {}, insert: () => "inserted" };
     if (how === "draft") props.run.setDrafts(drafts => new Map(drafts).set("conversation:c1", { segments: [{ text: "Make it" }], preset: null, attachments: [], shape: "capsule" }));
-    const selector = how === "list" ? ".ov-right" : how === "menu" ? ".conv-menu" : null;
+    const selector = how === "list" ? '[role="region"][aria-label="Conversations"]' : how === "menu" ? '[role="menu"][aria-label="Project conversations"]' : null;
     (document as unknown as { activeElement: unknown }).activeElement = { closest: (query: string) => selector && query.split(",").map(part => part.trim()).includes(selector) ? {} : null };
     render(); await flushAll();
     clearController(); harness.toast.show.mockClear();
@@ -487,4 +487,16 @@ test("several handoffs elsewhere toast once; Open shows the source conversation 
   harness.setState!({ ...initialCanvasState() }); render(); await flushAll();
   expect(harness.controller!.showOverview).toHaveBeenCalled();
   expect(overviewProps()!.run.view("/w/a")).toEqual({ kind: "conversation", conversationId: "c1" });
+});
+
+// A problem or reading overlay over the Overview hides the source conversation: the toast comes at once, without the
+// wait for the target's read that a move from a visible source page would take.
+test("the Overview under a problem overlay is not the source page: the toast comes at once", async () => {
+  await onSourceOverview(listA([drafts]));
+  folders([{ path: "/w/a", kind: "error", message: "unexpected end of JSON input", config: "/w/a/.doan/config.json" } as FolderEntry]);
+  await flushAll();
+  clearController(); harness.toast.show.mockClear();
+  handoff(fromOverview);
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).toHaveBeenCalledWith(expect.stringMatching(/ Overview handed off to checkout-flow\.html$/), "Open", expect.any(Function));
 });

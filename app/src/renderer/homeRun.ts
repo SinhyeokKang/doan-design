@@ -571,7 +571,7 @@ export class HomeRun {
     this.applied.set(root, n);
     this.revision++;
     for (const [id, mark] of this.seen) if (mark.root === root && mark.from !== null && n >= mark.from) this.seen.delete(id);
-    // The canvas main bound each conversation to; the strip's Done names it and Open goes there.
+    // The canvas main bound each conversation to: an entry's Open (a toast's, a notification's) goes there.
     const rows = this.rows(root);
     this.conversations = this.conversations.map(item => {
       if (item.root !== root) return item;

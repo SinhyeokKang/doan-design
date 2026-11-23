@@ -284,6 +284,21 @@ test("a draft in the default new state, or the person's New, keeps a handoff's c
   expect(chose.run.view()).toMatchObject({ kind: "new" });
 });
 
+// POSTMORTEM 2026-11-14 draft carry: the person's own start comes first. A list naming a handoff's conversation can
+// land before this panel's start reply, even after the person emptied the field; the start's reply still shows theirs.
+test("a handoff's conversation listed before this panel's start reply does not take the panel", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([]);
+  const revision = h.run.revision();
+  const done = h.run.startSending(checkout);
+  h.answer([summary(D, { startedBy: "handoff", phase: "running", working: true })]);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+  h.run.started(checkout, A, "claude", revision);
+  done();
+  expect(h.run.view()).toEqual({ kind: "conversation", conversationId: A });
+});
+
 // Nothing shows a project conversation drawing a canvas: the panel leaves the default new state alone, as for a canvas
 // conversation's handoff target (PRODUCT §5 item 2 'Handoff').
 test("a project conversation drawing this canvas shows no preview over the default new state", () => {

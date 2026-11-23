@@ -335,10 +335,12 @@ export class CanvasRun {
   // A conversation newly started on a canvas showing only the default new state shows (followNewConversation), with the
   // new state's draft when it has none, unless this panel's own start from that draft is in flight (POSTMORTEM
   // 2026-11-14: a draft whose send can be in flight never moves; the composer empties only the key it sent from). A
-  // handoff's conversation takes it only while that draft is empty, so no draft ever moves to one.
+  // handoff's conversation takes it only while that draft is empty and no start of this panel's is in flight: the
+  // person's own start, whose reply can land after a list that names the handoff's, comes first.
   private followNew(s: CanvasState, known: ReadonlySet<string>, list: readonly ConversationSummary[]): boolean {
     const key = canvasKey(s.target);
-    const id = followNewConversation(known, list, s.target.canvas, { deleting: conversationId => this.store.deleting(conversationId), draft: hasDraft(this.store.drafts.get(key)) });
+    const held = this.starting.has(key) || hasDraft(this.store.drafts.get(key));
+    const id = followNewConversation(known, list, s.target.canvas, { deleting: conversationId => this.store.deleting(conversationId), draft: held });
     if (id === null) return false;
     if (!this.starting.has(key)) this.store.setDrafts(drafts => (hasDraft(drafts.get(key)) ? carryDraft(drafts, key, `conversation:${id}`) : drafts));
     delete s.defaultNew;
