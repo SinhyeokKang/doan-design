@@ -3097,6 +3097,12 @@ const keepList = (source: string): string => {
   return m[1]!.replace(/\s+/g, " ").trim();
 };
 
+// The body of `ownBackground` in a source: its signature is typed in prototypeScript.ts and not in isolate.js.
+const ownBackgroundBody = (source: string): string => {
+  const fn = extractFunction(source, "ownBackground");
+  return normalize(fn.slice(fn.indexOf("{")));
+};
+
 // A function of a viewer file, loaded alone in a context with no globals.
 const loadFunctions = (source: string, names: string[]): Lib =>
   runInNewContext(`${names.map(name => extractFunction(source, name)).join("\n")}\n({ ${names.join(", ")} })`, {}) as Lib;
@@ -3115,6 +3121,27 @@ describe("isolate.js is the prototype window's isolation", () => {
     const wait = (source: string) => Number(/const LATE_FRAME_MS = ([0-9_]+);/.exec(source)?.[1]?.replaceAll("_", ""));
     expect(wait(appPrototypeScript)).toBe(2000);
     expect(wait(isolateJs)).toBe(wait(appPrototypeScript));
+  });
+
+  test("its sheet clears ancestor paint only in a marked document, and never on the frame", () => {
+    expect(isolationSheet(appPrototypeScript)).toContain("[data-doan-proto-clear][data-doan-proto-path], [data-doan-proto-clear] [data-doan-proto-path] { background: none !important; box-shadow: none !important; outline: none !important; }");
+  });
+
+  test("its own-background judgment is prototypeScript.ts's, as text", () => {
+    expect(ownBackgroundBody(appPrototypeScript).length).toBeGreaterThan(100);
+    expect(ownBackgroundBody(isolateJs)).toBe(ownBackgroundBody(appPrototypeScript));
+    expect(ownBackgroundBody(appPrototypeScript.replace("/ 100", "/ 10"))).not.toBe(ownBackgroundBody(isolateJs));
+  });
+
+  test("a background colour is the frame's own only when it is fully opaque", () => {
+    const { ownBackground } = loadFunctions(isolateJs, ["ownBackground"]);
+    const table: [string, boolean][] = [
+      ["rgba(0, 0, 0, 0)", false], ["rgb(255, 255, 255)", true], ["rgba(0, 0, 0, 0.5)", false], ["rgba(0, 0, 0, 1)", true],
+      ["oklch(0.5 0.1 200 / 0)", false], ["oklch(0.5 0.1 200)", true], ["color(srgb 1 1 1 / 0.5)", false], ["lab(50 0 0 / none)", false],
+      ["rgb(0 0 0 / 50%)", false], ["transparent", false], ["hsla(0, 0%, 0%, 0)", false],
+      ["rgb(0 0 0 / 100%)", true], ["color(srgb 1 1 1 / 1)", true], ["hsla(0, 0%, 0%, 1)", true], ["rgba(0, 0, 0, 0.999)", false], ["rgba(0, 0, 0, x)", false],
+    ];
+    for (const [color, own] of table) expect(ownBackground(color), color).toBe(own);
   });
 
   test("the comparison fails when a copy drifts", () => {
@@ -3227,8 +3254,12 @@ class FakeHistory {
 
 // Timers keep their delay on a fake clock, and a MutationObserver gets the changes `mutate()` records at `deliver()`, as
 // a microtask checkpoint would hand them over.
-function runIsolate(frames: () => FakeElement[], readyState = "loading", frameId = "checkout") {
+// The root and the body are stand-ins unless a case passes its own; `backgrounds` is the computed background colour
+// the script reads for an element, transparent unless a case sets one.
+function runIsolate(frames: () => FakeElement[], readyState = "loading", frameId = "checkout", page: { html?: FakeElement; body?: FakeElement } = {}) {
   const posts: unknown[] = [];
+  const backgrounds = new Map<FakeElement, string>();
+  const computed: FakeElement[] = [];
   const windowListeners: Listener[] = [];
   const docListeners: Listener[] = [];
   let now = 0;
@@ -3238,6 +3269,8 @@ function runIsolate(frames: () => FakeElement[], readyState = "loading", frameId
   const location = { hash: "" };
   const document = {
     readyState,
+    documentElement: page.html ?? new FakeElement("HTML"),
+    body: page.body ?? new FakeElement("BODY"),
     adoptedStyleSheets: [] as unknown[],
     addEventListener: (type: string, fn: (e: unknown) => void, opts?: ListenerOptions) => docListeners.push(listener(type, fn, opts)),
     querySelectorAll: (selector: string) => {
@@ -3285,6 +3318,7 @@ function runIsolate(frames: () => FakeElement[], readyState = "loading", frameId
   };
   runInNewContext(`(function () {\n${isolateJs}\n})();`, {
     window, document, location, history, CSSStyleSheet, MutationObserver, Element: FakeElement, Array, Set,
+    getComputedStyle: (el: FakeElement) => { computed.push(el); return { backgroundColor: backgrounds.get(el) ?? "rgba(0, 0, 0, 0)" }; },
     setTimeout: (fn: () => void, delay = 0) => { timers.push({ id: ++lastTimer, at: now + Number(delay), fn }); return lastTimer; },
     clearTimeout: (id: number) => { const index = timers.findIndex(timer => timer.id === id); if (index >= 0) timers.splice(index, 1); },
   });
@@ -3292,10 +3326,10 @@ function runIsolate(frames: () => FakeElement[], readyState = "loading", frameId
     for (const l of list.filter(l => l.type === type)) l.fn(event);
   };
   return {
-    posts, location, document, timers, windowListeners, history,
-    contentLoaded: () => fire(docListeners, "DOMContentLoaded"),
+    posts, location, document, timers, windowListeners, history, backgrounds, computed,
+    contentLoaded: () => { document.readyState = "interactive"; fire(docListeners, "DOMContentLoaded"); },
     // The `load` handlers, then the timers due by then.
-    load: () => { fire(windowListeners, "load"); runDue(now); },
+    load: () => { document.readyState = "complete"; fire(windowListeners, "load"); runDue(now); },
     tick: () => runDue(now),
     advance: (ms: number) => runDue(now + ms),
     // A change to the frames the document holds: every observer of it is told at the next `deliver()`.
@@ -3335,6 +3369,66 @@ describe("isolate.js reports once and keeps the canvas in its document", () => {
     expect(run.document.adoptedStyleSheets).toHaveLength(1);
     run.load();
     expect(run.posts).toHaveLength(1);
+  });
+
+  test("an opaque frame marks the root to clear ancestor paint, at isolation or after the load handlers, and the mark stays", () => {
+    const opaque = board();
+    const html = new FakeElement("HTML").append(opaque.body);
+    const run = runIsolate(() => [opaque.frame], "loading", "checkout", { html, body: opaque.body });
+    run.backgrounds.set(opaque.frame, "rgb(255, 255, 255)");
+    run.contentLoaded();
+    const sheet = (run.document.adoptedStyleSheets[0] as { text: string }).text.replace(/\s+/g, " ");
+    expect(sheet).toContain("[data-doan-proto-clear][data-doan-proto-path], [data-doan-proto-clear] [data-doan-proto-path] { background: none !important; box-shadow: none !important; outline: none !important; }");
+    expect(html.getAttribute("data-doan-proto-clear")).toBe("");
+    expect(opaque.frame.getAttribute("data-doan-proto-clear")).toBeNull();
+    run.backgrounds.set(opaque.frame, "rgba(0, 0, 0, 0)");
+    run.load();
+    expect(html.getAttribute("data-doan-proto-clear")).toBe("");
+
+    const late = board();
+    const lateHtml = new FakeElement("HTML").append(late.body);
+    const lateRun = runIsolate(() => [late.frame], "loading", "checkout", { html: lateHtml, body: late.body });
+    lateRun.contentLoaded();
+    expect(lateHtml.getAttribute("data-doan-proto-clear")).toBeNull();
+    lateRun.backgrounds.set(late.frame, "rgb(17, 24, 39)");
+    lateRun.load();
+    expect(lateHtml.getAttribute("data-doan-proto-clear")).toBe("");
+  });
+
+  test("a frame with no opaque background colour, or that is the body, leaves the root unmarked", () => {
+    const clear = board();
+    const html = new FakeElement("HTML").append(clear.body);
+    const run = runIsolate(() => [clear.frame], "loading", "checkout", { html, body: clear.body });
+    run.backgrounds.set(clear.frame, "rgba(255, 255, 255, 0.5)");
+    run.contentLoaded();
+    run.load();
+    expect(run.posts).toHaveLength(1);
+    expect(html.getAttribute("data-doan-proto-clear")).toBeNull();
+
+    const body = new FakeElement("BODY", { "data-doan-frame": "checkout" });
+    const root = new FakeElement("HTML").append(body);
+    const bodyRun = runIsolate(() => [body], "loading", "checkout", { html: root, body });
+    bodyRun.backgrounds.set(body, "rgb(255, 255, 255)");
+    bodyRun.contentLoaded();
+    bodyRun.load();
+    expect(bodyRun.posts).toHaveLength(1);
+    expect(root.getAttribute("data-doan-proto-clear")).toBeNull();
+    expect(bodyRun.computed).toEqual([]);
+  });
+
+  test("a frame isolated after the load handlers is judged once", () => {
+    const b = board();
+    const html = new FakeElement("HTML").append(b.body);
+    let made = false;
+    const run = runIsolate(() => (made ? [b.frame] : []), "loading", "checkout", { html, body: b.body });
+    run.backgrounds.set(b.frame, "rgb(255, 255, 255)");
+    run.contentLoaded();
+    made = true;
+    run.load();
+    run.advance(2000);
+    expect(run.posts).toHaveLength(1);
+    expect(html.getAttribute("data-doan-proto-clear")).toBe("");
+    expect(run.computed.filter(el => el === b.frame)).toHaveLength(1);
   });
 
   test("a frame made in a load handler is found after the load handlers", () => {
@@ -4278,6 +4372,54 @@ describe("prototype viewer files", () => {
     expect(line?.[0]).toMatch(/ hidden>/);
     expect(line?.[1]!.replace(/<[^>]*>/g, "")).toBe("This prototype’s frame didn’t load. Ask the sender to fix the canvas, then export it again.");
     expect(declarations(protoCss, ".proto-line[hidden]")).toEqual(["display: none"]);
+  });
+});
+
+// The exported prototype file runs isolate.js alone; the canvas file's player runs the app's run script after it in the
+// same document (player.js), so the document is judged by both and must end the same.
+describe("ancestor paint around a frame playing from an exported file, in a real DOM", { timeout: 60_000 }, () => {
+  const ANCESTOR_PAINT = `<style>
+    html { background: rgb(1, 2, 3); }
+    body { margin: 0; background: linear-gradient(rgb(31, 41, 55), rgb(17, 24, 39)); }
+    #wrap { padding: 8px; background: rgb(250, 250, 250); box-shadow: 0 0 8px rgb(0, 0, 0); outline: 2px solid rgb(255, 0, 0); }
+    [data-doan-frame] { border-radius: 24px; }
+  </style>`;
+  const playing = (style: string) => `${ANCESTOR_PAINT}<div id="wrap"><div data-doan-frame="a" data-doan-prototype="390x844" style="${style}">A</div></div>`;
+  const playerDocument = (body: string) =>
+    `<!doctype html><html><head><script>window.name = "a";</script><script>(function () {\n${isolateJs}\n})();</script><script>${generated().prototypeScriptSource("a", 1, "about:srcdoc")}</script></head><body>${body}</body></html>`;
+  const paint = async (html: string) => {
+    const frame = await dom.load(html);
+    const posted = await dom.flush(frame);
+    expect(posted).toContainEqual({ type: "doan-prototype", state: "ready" });
+    return frame.evaluate(() => {
+      const read = (el: Element) => {
+        const style = getComputedStyle(el);
+        return { image: style.backgroundImage, color: style.backgroundColor, shadow: style.boxShadow, outline: style.outlineStyle };
+      };
+      return { clear: document.documentElement.hasAttribute("data-doan-proto-clear"), html: read(document.documentElement), body: read(document.body), wrap: read(document.getElementById("wrap")!) };
+    });
+  };
+  const CLEARED = { image: "none", color: "rgba(0, 0, 0, 0)", shadow: "none", outline: "none" };
+
+  test.each([["isolate.js", isolateDocument.bind(null, "a")], ["the player's isolate.js and run script", playerDocument]] as const)("%s: an opaque frame clears every ancestor's paint", async (_name, doc) => {
+    const seen = await paint(doc(playing("background: rgb(255, 255, 255)")));
+    expect(seen).toEqual({ clear: true, html: CLEARED, body: CLEARED, wrap: CLEARED });
+  });
+
+  test.each([["isolate.js", isolateDocument.bind(null, "a")], ["the player's isolate.js and run script", playerDocument]] as const)("%s: a transparent frame or a gradient alone keeps ancestor paint", async (_name, doc) => {
+    for (const style of ["background: transparent", "background: linear-gradient(rgb(255, 255, 255), rgb(240, 240, 240))"]) {
+      const seen = await paint(doc(playing(style)));
+      expect(seen.clear, style).toBe(false);
+      expect(seen.html.color, style).toBe("rgb(1, 2, 3)");
+      expect(seen.body.image, style).toMatch(/^linear-gradient\(/);
+      expect(seen.wrap, style).toEqual({ image: "none", color: "rgb(250, 250, 250)", shadow: "rgb(0, 0, 0) 0px 0px 8px 0px", outline: "solid" });
+    }
+  });
+
+  test("the player's second judgment reads the frame after the first cleared its ancestors, and the clear stays", async () => {
+    // An inherited background is the wrapper's until the wrapper's paint goes, then nothing.
+    const seen = await paint(playerDocument(playing("background: inherit")));
+    expect(seen).toEqual({ clear: true, html: CLEARED, body: CLEARED, wrap: CLEARED });
   });
 });
 

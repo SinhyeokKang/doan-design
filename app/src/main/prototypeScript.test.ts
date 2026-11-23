@@ -85,6 +85,9 @@ function fakeDocument(options: { url?: string; nested?: boolean; top?: boolean; 
   const body = element("body");
   const html = element("html", [], [head, body]);
   const sheets: { text: string }[] = [];
+  // The computed background colour the script reads for an element: transparent unless a case sets one.
+  const backgrounds = new Map<FakeElement, string>();
+  const computed: FakeElement[] = [];
   const document = {
     readyState: options.readyState ?? "loading",
     documentElement: html,
@@ -94,7 +97,7 @@ function fakeDocument(options: { url?: string; nested?: boolean; top?: boolean; 
     querySelectorAll: (selector: string) => {
       const attr = /^\[([a-z-]+)\]$/.exec(selector)?.[1];
       if (attr === undefined) throw new SyntaxError(`unsupported selector ${selector}`);
-      return descendants(html).filter(el => el.hasAttribute(attr));
+      return [html, ...descendants(html)].filter(el => el.hasAttribute(attr));
     },
   };
   class MutationObserver {
@@ -138,6 +141,7 @@ function fakeDocument(options: { url?: string; nested?: boolean; top?: boolean; 
       if (index >= 0) timers.splice(index, 1);
     },
     MutationObserver,
+    getComputedStyle: (el: FakeElement) => { computed.push(el); return { backgroundColor: backgrounds.get(el) ?? "rgba(0, 0, 0, 0)" }; },
     addEventListener: add(windowListeners),
     CSSStyleSheet: class { text = ""; replaceSync(text: string) { this.text = text; sheets.push(this); } },
   };
@@ -146,7 +150,7 @@ function fakeDocument(options: { url?: string; nested?: boolean; top?: boolean; 
   context.parent = options.nested ? { postMessage: (message: unknown) => posted.push(message) } : top;
   const fire = (map: Map<string, Listener[]>, type: string) => { for (const listener of map.get(type) ?? []) listener(); };
   return {
-    posted, body, html, document, sheets,
+    posted, body, html, document, sheets, backgrounds, computed,
     run: (target: string, gen = 7, url = URL_A) => runInNewContext(prototypeScriptSource(target, gen, url), context),
     contentLoaded: () => { document.readyState = "interactive"; fire(documentListeners, "DOMContentLoaded"); },
     loaded: () => { document.readyState = "complete"; fire(windowListeners, "load"); },
@@ -276,6 +280,9 @@ describe("resolving and isolating the frame", () => {
     expect(page.sheets[0]!.text).toContain("@supports (height: 100dvh) { :root { --doan-viewport-height: 100dvh !important; } }");
     expect(page.sheets[0]!.text).toMatch(/\[data-doan-proto-frame\] \{[^}]*width: 100% !important;[^}]*min-height: 100vh !important; box-sizing: border-box !important; \}/);
     expect(page.sheets[0]!.text).not.toMatch(/\[data-doan-proto-frame\] \{[^}]*(?<!min-)height: (?!auto)/);
+    // Ancestor paint goes only once the document is marked, and never on the frame, which gets no path attribute.
+    expect(page.sheets[0]!.text.replace(/\s+/g, " ")).toContain("[data-doan-proto-clear][data-doan-proto-path], [data-doan-proto-clear] [data-doan-proto-path] { background: none !important; box-shadow: none !important; outline: none !important; }");
+    expect(page.html.hasAttribute("data-doan-proto-clear")).toBe(false);
     // A modal appended after isolation is not hidden.
     const modal = element("div");
     append(page.body, modal);
@@ -286,6 +293,85 @@ describe("resolving and isolating the frame", () => {
     expect(page.posted[1]).toEqual({ gen: 7, frames: [{ id: "phone", title: "Phone", size: "390x844", number: 1 }, { id: "tablet", size: "820x1180", number: 2 }], gotos: [] });
     expect(parseFramesReport("prototype", page.posted[1])).not.toBeNull();
     expect(page.posted).toHaveLength(2);
+  });
+
+  test("a frame with an opaque background colour marks the document to clear ancestor paint when it is isolated", () => {
+    const page = fakeDocument();
+    const phone = frameEl("phone", "390x844");
+    append(page.body, element("main", [], [phone]));
+    page.backgrounds.set(phone, "rgb(255, 255, 255)");
+    page.run("phone");
+    page.contentLoaded();
+    expect(page.html.getAttribute("data-doan-proto-clear")).toBe("");
+    expect(page.body.hasAttribute("data-doan-proto-clear")).toBe(false);
+    expect(phone.hasAttribute("data-doan-proto-clear")).toBe(false);
+  });
+
+  test("a frame with no opaque background colour leaves ancestor paint, after the load handlers too", () => {
+    for (const color of ["rgba(0, 0, 0, 0)", "rgba(255, 255, 255, 0.5)"]) {
+      const page = fakeDocument();
+      const phone = frameEl("phone", "390x844");
+      append(page.body, phone);
+      page.backgrounds.set(phone, color);
+      page.run("phone");
+      page.finish();
+      expect(page.posted[0], color).toMatchObject({ state: "ready" });
+      expect(page.html.hasAttribute("data-doan-proto-clear"), color).toBe(false);
+    }
+  });
+
+  test("a background that arrives by the end of the load handlers is judged again then, and a clear is never taken back", () => {
+    const late = fakeDocument();
+    const phone = frameEl("phone", "390x844");
+    append(late.body, phone);
+    late.run("phone");
+    late.contentLoaded();
+    expect(late.html.hasAttribute("data-doan-proto-clear")).toBe(false);
+    late.backgrounds.set(phone, "rgb(17, 24, 39)");
+    late.loaded();
+    expect(late.html.hasAttribute("data-doan-proto-clear")).toBe(false);
+    late.timers();
+    expect(late.html.getAttribute("data-doan-proto-clear")).toBe("");
+
+    const gone = fakeDocument();
+    const tablet = frameEl("tablet", "820x1180");
+    append(gone.body, tablet);
+    gone.backgrounds.set(tablet, "rgb(255, 255, 255)");
+    gone.run("tablet");
+    gone.contentLoaded();
+    gone.backgrounds.set(tablet, "rgba(0, 0, 0, 0)");
+    gone.finish();
+    expect(gone.html.getAttribute("data-doan-proto-clear")).toBe("");
+  });
+
+  test("a frame isolated after the load handlers is judged once", () => {
+    const page = fakeDocument();
+    page.run("late");
+    page.contentLoaded();
+    const late = frameEl("late", "320x568");
+    append(page.body, late);
+    page.backgrounds.set(late, "rgb(255, 255, 255)");
+    page.loaded();
+    page.timers();
+    page.advance(LATE_FRAME_WAIT);
+    expect(page.posted).toHaveLength(1);
+    expect(page.html.getAttribute("data-doan-proto-clear")).toBe("");
+    expect(page.computed.filter(el => el === late)).toHaveLength(1);
+  });
+
+  test("a frame that is the body or the root is never judged", () => {
+    for (const which of ["body", "html"] as const) {
+      const page = fakeDocument();
+      const frame = which === "body" ? page.body : page.html;
+      frame.setAttribute("data-doan-frame", "page");
+      frame.setAttribute("data-doan-prototype", "390x844");
+      page.backgrounds.set(frame, "rgb(255, 255, 255)");
+      page.run("page");
+      page.finish();
+      expect(page.posted[0], which).toMatchObject({ state: "ready" });
+      expect(page.html.hasAttribute("data-doan-proto-clear"), which).toBe(false);
+      expect(page.computed, which).toEqual([]);
+    }
   });
 
   test("a frame made in a load handler is found after them, in one message", () => {
@@ -615,6 +701,97 @@ describe("in a real DOM", { timeout: 60_000 }, () => {
       expect(message.frames).toHaveLength(1000);
       expect(message.gotos).toHaveLength(1000);
       expect(message.gotos.at(-1)).toEqual({ value: "f0", frames: ["f999"] });
+    });
+  });
+
+  describe("ancestor paint around the playing frame", () => {
+    // Every ancestor paints something the frame's rounded corners would show: the root and the body differently, so a
+    // rule reaching only one of them fails.
+    const ANCESTOR_PAINT = `<style>
+      html { background: rgb(1, 2, 3); }
+      body { margin: 0; background: linear-gradient(rgb(31, 41, 55), rgb(17, 24, 39)); }
+      #wrap { padding: 8px; box-shadow: 0 0 8px rgb(0, 0, 0); outline: 2px solid rgb(255, 0, 0); border: 4px solid; border-image: linear-gradient(red, blue) 1; }
+      [data-doan-frame] { border-radius: 24px; box-shadow: 0 4px 12px rgb(0, 0, 0); }
+    </style>`;
+    const playing = (style: string) => `<div data-doan-frame="a" data-doan-prototype="390x844" style="${style}">A</div>`;
+    const painted = (body: string, { head = "", bodyAttrs = "" } = {}) =>
+      `<!doctype html><html><head><script>${prototypeScriptSource("a", 7, "about:srcdoc")}</script>${ANCESTOR_PAINT}${head}</head><body${bodyAttrs}>${body}</body></html>`;
+    const paint = async (body: string, options: { head?: string; bodyAttrs?: string } = {}) => {
+      const frame = await dom.load(painted(body, options));
+      const posted = await dom.flush(frame) as Report[];
+      expect(posted[0]).toMatchObject({ state: "ready" });
+      return frame.evaluate(() => {
+        const read = (el: Element | null) => {
+          if (el === null) return null;
+          const style = getComputedStyle(el);
+          return { image: style.backgroundImage, color: style.backgroundColor, shadow: style.boxShadow, outline: style.outlineStyle, borderImage: style.borderImageSource };
+        };
+        const frameEl = document.querySelector("[data-doan-proto-frame]")!;
+        return {
+          clear: document.documentElement.hasAttribute("data-doan-proto-clear"),
+          html: read(document.documentElement), body: read(document.body), wrap: read(document.getElementById("wrap")), outer: read(document.getElementById("outer")),
+          frame: { color: getComputedStyle(frameEl).backgroundColor, radius: getComputedStyle(frameEl).borderTopLeftRadius, shadow: getComputedStyle(frameEl).boxShadow },
+          before: getComputedStyle(document.body, "::before").backgroundColor,
+        };
+      });
+    };
+    const CLEARED = { image: "none", color: "rgba(0, 0, 0, 0)", shadow: "none", outline: "none", borderImage: "none" };
+    const WHITE_FRAME = { color: "rgb(255, 255, 255)", radius: "24px", shadow: "rgb(0, 0, 0) 0px 4px 12px 0px" };
+
+    test("an opaque frame clears the root's, the body's and every wrapper's paint, and keeps its own", async () => {
+      const seen = await paint(`<div id="wrap">${playing("background: rgb(255, 255, 255)")}</div>`);
+      expect(seen.clear).toBe(true);
+      expect(seen.html).toEqual(CLEARED);
+      expect(seen.body).toEqual(CLEARED);
+      expect(seen.wrap).toEqual(CLEARED);
+      expect(seen.frame).toEqual(WHITE_FRAME);
+    });
+
+    test.each([
+      ["transparent", "background: transparent"],
+      ["half-transparent colour", "background: rgba(255, 255, 255, 0.5)"],
+      ["gradient alone", "background: linear-gradient(rgb(255, 255, 255), rgb(240, 240, 240))"],
+      ["half-transparent texture alone", "background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.2) 0 4px, transparent 4px 8px)"],
+    ])("a frame with no opaque background colour (%s) keeps ancestor paint", async (_name, style) => {
+      const seen = await paint(`<div id="wrap">${playing(style)}</div>`);
+      expect(seen.clear).toBe(false);
+      expect(seen.html!.color).toBe("rgb(1, 2, 3)");
+      expect(seen.body!.image).toMatch(/^linear-gradient\(/);
+      expect(seen.wrap).toMatchObject({ shadow: "rgb(0, 0, 0) 0px 0px 8px 0px", outline: "solid" });
+    });
+
+    test("a frame that is the body's own child clears the body and the root", async () => {
+      const seen = await paint(playing("background: rgb(255, 255, 255)"));
+      expect(seen.clear).toBe(true);
+      expect(seen.html).toEqual(CLEARED);
+      expect(seen.body).toEqual(CLEARED);
+    });
+
+    test("a frame that is the body is not judged, and the root keeps its paint", async () => {
+      const seen = await paint("A", { bodyAttrs: ' data-doan-frame="a" data-doan-prototype="390x844" style="background: rgb(255, 255, 255)"' });
+      expect(seen.clear).toBe(false);
+      expect(seen.html!.color).toBe("rgb(1, 2, 3)");
+    });
+
+    test("an enclosing frame is an ancestor like any other: its paint goes and the playing frame's stays", async () => {
+      const seen = await paint(`<div id="wrap"><div id="outer" data-doan-frame="outer" style="background: rgb(200, 200, 200)">${playing("background: rgb(255, 255, 255)")}</div></div>`);
+      expect(seen.clear).toBe(true);
+      expect(seen.outer).toEqual(CLEARED);
+      expect(seen.frame).toEqual(WHITE_FRAME);
+    });
+
+    test("an ancestor's ::before keeps its paint", async () => {
+      const seen = await paint(`<div id="wrap">${playing("background: rgb(255, 255, 255)")}</div>`, { head: '<style>body::before { content: "x"; display: block; background: rgb(0, 128, 0); }</style>' });
+      expect(seen.clear).toBe(true);
+      expect(seen.before).toBe("rgb(0, 128, 0)");
+    });
+
+    test("a background from a stylesheet DOMContentLoaded did not wait for is judged after the load handlers", async () => {
+      const late = '<link rel="stylesheet" href="data:text/css,%5Bdata-doan-frame%5D%7Bbackground%3Argb(255%2C255%2C255)%7D">';
+      const seen = await paint(`<div id="wrap">${playing("")}</div>`, { head: late });
+      expect(seen.frame.color).toBe("rgb(255, 255, 255)");
+      expect(seen.clear).toBe(true);
+      expect(seen.html).toEqual(CLEARED);
     });
   });
 
