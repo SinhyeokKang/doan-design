@@ -749,6 +749,19 @@ test("a long draft focused at its end by code shows its caret at the field's max
     expect(await sel()).toEqual({ anchor: draft.length, focus: draft.length });
     await inView();
   }
+  // From another control with the caret left at the start (a preset picked from the docked card's list): focusing
+  // shows the old caret, and the caret put at the end must still come into view.
+  for (const how of ["focusEnd", "fieldFocusEnd"]) {
+    await open(draft);
+    await call("setMax", 192);
+    await call("place", 0);
+    await call("blur");
+    await frame.evaluate(() => { document.getElementById("f")!.scrollTop = 0; });
+    await call(how);
+    expect(await call("focused")).toBe("f");
+    expect(await sel()).toEqual({ anchor: draft.length, focus: draft.length });
+    await inView();
+  }
   // From another control, and App's element focus() with the caret already at the end.
   for (const how of ["focusEnd", "fieldFocusEnd", "elementFocus"]) {
     await open(draft);
