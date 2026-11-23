@@ -433,7 +433,7 @@ const fromList = (conversationId: string, after: ListFocus, button = trigger()) 
   return button;
 };
 
-test("a Canvas conversations row's Delete asks first, deletes through main, and sends focus to the target the list gave", async () => {
+test("a Conversations list row's Delete asks first, deletes through main, and sends focus to the target the list gave", async () => {
   const { row, head } = listTargets();
   try {
     await openOverview([summary("c1", { unseen: true }), onCanvas("c2"), summary("c3", { canvas: { path: ".doan/canvases/b.html" }, fromHome: false })]);
@@ -455,7 +455,7 @@ test("a Canvas conversations row's Delete asks first, deletes through main, and 
   } finally { delete FIELDS['.ov-right .cv-row[data-key="c3"]']; delete FIELDS[".ov-right .rp-head"]; }
 });
 
-test("the last Canvas conversations row's deletion sends focus to the panel title", async () => {
+test("the last Conversations list row's deletion sends focus to the panel title", async () => {
   const { head } = listTargets();
   try {
     await openOverview([summary("c1", { unseen: true }), onCanvas("c2")]);
@@ -466,7 +466,7 @@ test("the last Canvas conversations row's deletion sends focus to the panel titl
   } finally { delete FIELDS['.ov-right .cv-row[data-key="c3"]']; delete FIELDS[".ov-right .rp-head"]; }
 });
 
-test.each([["a refusal", true], ["Cancel", false]])("Canvas conversations, %s: the row stays and focus returns to its Delete", async (_name, confirm) => {
+test.each([["a refusal", true], ["Cancel", false]])("Conversations list, %s: the row stays and focus returns to its Delete", async (_name, confirm) => {
   const { row, head } = listTargets();
   try {
     await openOverview([summary("c1", { unseen: true }), onCanvas("c2")]);
@@ -485,7 +485,7 @@ test.each([["a refusal", true], ["Cancel", false]])("Canvas conversations, %s: t
 
 // the row the list chose left too before focus moved (another deletion, a re-read): focus goes to the
 // panel title, not to the deleted row's Delete, which leaves with its row and would drop focus to the page.
-test("a Canvas conversations deletion whose next row also left sends focus to the panel title", async () => {
+test("a Conversations list deletion whose next row also left sends focus to the panel title", async () => {
   const { row, head } = listTargets();
   delete FIELDS['.ov-right .cv-row[data-key="c3"]'];
   try {
