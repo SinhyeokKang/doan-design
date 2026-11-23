@@ -718,6 +718,24 @@ test("Shift+Enter at the field's maximum height scrolls the new line into view, 
 
 test("a long draft focused at its end by code shows its caret at the field's maximum height", { timeout: 60_000 }, async () => {
   const draft = Array.from({ length: 14 }, (_, i) => `- line ${i + 1}`).join("\n");
+  const inView = async () => {
+    const view = await call<{ top: number; bottom: number; height: number; scrolled: boolean }>("caretInView");
+    expect(view.scrolled).toBe(true);
+    expect(view.top).toBeGreaterThanOrEqual(0);
+    expect(view.bottom).toBeLessThanOrEqual(view.height);
+  };
+  // The field already has focus with its caret at the start, scrolled to the top: a caret code then puts at the end
+  // (a conversation switched back, a preset picked) must scroll into view. Chromium's own edits scroll; code's do not.
+  for (const how of ["focusEnd", "fieldFocusEnd"]) {
+    await open(draft);
+    await call("setMax", 192);
+    await call("place", 0);
+    await frame.evaluate(() => { document.getElementById("f")!.scrollTop = 0; });
+    await call(how);
+    expect(await sel()).toEqual({ anchor: draft.length, focus: draft.length });
+    await inView();
+  }
+  // From another control, and App's element focus() with the caret already at the end.
   for (const how of ["focusEnd", "fieldFocusEnd", "elementFocus"]) {
     await open(draft);
     await call("setMax", 192);
@@ -726,10 +744,7 @@ test("a long draft focused at its end by code shows its caret at the field's max
     await call(how);
     expect(await call("focused")).toBe("f");
     expect(await sel()).toEqual({ anchor: draft.length, focus: draft.length });
-    const view = await call<{ top: number; bottom: number; height: number; scrolled: boolean }>("caretInView");
-    expect(view.scrolled).toBe(true);
-    expect(view.top).toBeGreaterThanOrEqual(0);
-    expect(view.bottom).toBeLessThanOrEqual(view.height);
+    await inView();
   }
 });
 
