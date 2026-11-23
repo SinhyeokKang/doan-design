@@ -4421,3 +4421,25 @@ describe("inspector message boundary", () => {
     expect(parse({ type: "inspect-marks", epoch: 3, seq: 2, selected: { x: NaN, y: 0, width: 10, height: 20 }, hover: null, alt: false })).toBeNull();
   });
 });
+
+// PRODUCT §5 item 3 'Browser player' and 'Prototype file': as in the prototype window once it is open, a frame change
+// keeps the browser window's size and position. No viewer script sizes or moves a window, and the board opens the
+// player without window features, so the browser alone decides the player's first size.
+describe("the export player and the prototype file never size or move the browser window", () => {
+  const sources: Record<string, string> = {
+    "shell.js": shellJs, "player.js": playerJs, "viewerApp.js": viewerAppJs, "lib.js": lib, "prototype.js": protoJs, "isolate.js": isolateJs,
+  };
+
+  test("no viewer script calls resizeTo, resizeBy, moveTo or moveBy on a window", () => {
+    for (const [name, source] of Object.entries(sources)) {
+      expect(source, name).not.toBe("");
+      expect(source, name).not.toMatch(/\.\s*(resizeTo|resizeBy|moveTo|moveBy)\s*\(/);
+      expect(source, name).not.toMatch(/\[\s*["'`](resizeTo|resizeBy|moveTo|moveBy)["'`]\s*\]/);
+    }
+  });
+
+  test("the board opens the player with a URL and a target name only, no window features", () => {
+    const opens = [...Object.values(sources).join("\n").matchAll(/window\.open\(([^)]*\([^)]*\)[^)]*|[^)]*)\)/g)].map(match => match[1]!);
+    expect(opens).toEqual(["playerAddress(location.href, frameId), PLAYER_NAME"]);
+  });
+});
