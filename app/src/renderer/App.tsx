@@ -429,7 +429,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const [inspectorPanel, setInspectorState] = useState<NonNullable<UiState["inspector"]>>({ open: false });
   const inspectorTouched = useRef(false);
   const changeInspector = (change: (previous: NonNullable<UiState["inspector"]>) => NonNullable<UiState["inspector"]>) => { inspectorTouched.current = true; setInspectorState(change); };
-  // The Overview's canvas conversations panel width on this device (undefined: its default), apart from the canvas
+  // The Overview's Conversations panel width on this device (undefined: its default), apart from the canvas
   // panel's, the same way: a resize before the read wins.
   const [overviewSaved, setOverviewSaved] = useState<number | undefined>(undefined);
   const overviewTouched = useRef(false);
@@ -1584,7 +1584,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     window.doan.trashCanvas(root, row.path).then(done, () => done({ kind: "refused", reason: "failed" }));
   }
   // A title menu row's Delete asks first. Cancel and Escape return focus to the menu's
-  // trigger (`beforeModal`); the row's button is inside the closed menu. A Canvas conversations row's Delete passes
+  // trigger (`beforeModal`); the row's button is inside the closed menu. A Conversations list row's Delete passes
   // itself as the trigger.
   function openDelete(target: DeleteTarget, trigger: HTMLElement | null): boolean {
     if (locked() || live.current.modal) return false;

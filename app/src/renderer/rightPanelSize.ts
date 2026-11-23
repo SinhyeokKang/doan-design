@@ -1,4 +1,4 @@
-// Size rules for the canvas page's conversation panel and the Overview's canvas conversations panel.
+// Size rules for the canvas page's conversation panel and the Overview's Conversations panel.
 // Pure: the renderer measures the window and the shell column and passes them in.
 
 export interface PanelBounds {
@@ -8,7 +8,7 @@ export interface PanelBounds {
 
 // The narrowest either right panel goes, whatever the window: its head, composer and cards still fit at 280.
 export const PANEL_MIN = 280;
-// The Overview's canvas conversations panel starts at its former fixed width.
+// The Overview's Conversations panel starts at its former fixed width.
 export const OVERVIEW_PANEL_DEFAULT = 280;
 const DEFAULT_FLOOR = 320;
 const DEFAULT_WINDOW_SHARE = 0.28;

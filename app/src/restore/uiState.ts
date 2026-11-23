@@ -66,7 +66,7 @@ export interface UiState {
   // The canvas page's inspector, one per device like the conversation panel. Unlike it, a missing or unusable
   // `open` is closed: only the person opens the inspector. A missing `width` is the inspector's default.
   inspector?: { open: boolean; width?: number };
-  // The Overview's canvas conversations panel, apart from the canvas panel's. Missing is
+  // The Overview's Conversations panel, apart from the canvas panel's. Missing is
   // its default.
   overviewPanel?: { width: number };
   // The shell sidebar, one per device: its width (missing is the default; the renderer clamps a kept width), whether

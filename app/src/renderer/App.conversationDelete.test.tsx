@@ -415,7 +415,7 @@ test.each([["a refusal", true], ["Cancel", false]])("canvas panel, %s: focus ret
   expect(harness.toast.show).toHaveBeenCalledTimes(confirm ? 1 : 0);
 });
 
-// a Canvas conversations row's Delete takes the title menu's confirmation and deletion;
+// a Conversations list row's Delete takes the title menu's confirmation and deletion;
 // focus goes to the target the list computed before the alert opened, and Cancel or Escape returns it to that Delete.
 type ListFocus = { kind: "row"; key: string } | { kind: "title" };
 type ListProps = { list: unknown; onDelete(item: { key: string; conversationId: string; title: string; provider: string }, button: unknown, after: ListFocus): void };
