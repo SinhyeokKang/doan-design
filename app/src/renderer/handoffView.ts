@@ -14,22 +14,34 @@ export const HANDOFF_WAIT_MS = 10_000;
 const fileName = (path: string) => path.split("/").at(-1) ?? path;
 
 // The screen when a handoff started. canvas: the canvas page on screen, null for Home, the Overview and pages.
-// typing: the source conversation's composer has focus with a draft or an IME composition in it. chose: the person moved
-// or chose something in the panel since the handoff was announced.
-export interface HandoffScreen { canvas: { root: string; canvas: Canvas } | null; locked: boolean; dialog: boolean; firstRun: boolean; typing: boolean; chose: boolean }
+// overview: the Overview on screen with the conversation its main column shows (null: the new conversation state); null
+// elsewhere and while a problem or reading overlay covers it. typing: in the source's composer, a draft or an IME
+// composition (a canvas source's only while it has focus), or for an Overview source keyboard focus in its Conversations
+// list or an open header menu. chose: the person moved or chose something in the panel or the Overview since the
+// handoff was announced.
+export interface HandoffScreen {
+  canvas: { root: string; canvas: Canvas } | null;
+  overview: { root: string; conversationId: string | null } | null;
+  locked: boolean; dialog: boolean; firstRun: boolean; typing: boolean; chose: boolean;
+}
 
-// The screen moves only from the source conversation's canvas page with nothing in the way; a person typing there
-// keeps their place too (PRODUCT §5 item 2 'Handoff').
+// The source page: the source canvas's page for a canvas conversation, else the root's Overview showing the source
+// conversation (a project conversation's source has no canvas).
+function onSourcePage(screen: HandoffScreen, notice: ConversationHandoffNotice): boolean {
+  const source = notice.source;
+  if (source.canvas) return !!screen.canvas && screen.canvas.root === notice.root && sameCanvas(screen.canvas.canvas, source.canvas);
+  return !!screen.overview && screen.overview.root === notice.root && screen.overview.conversationId === source.conversationId;
+}
+// The screen moves only from the source page with nothing in the way; a person typing there keeps their place too
+// (PRODUCT §5 item 2 'Handoff').
 export function handoffMove(screen: HandoffScreen, notice: HandoffNotice): "move" | "toast" {
-  const on = screen.canvas;
-  if (!on || on.root !== notice.root || !sameCanvas(on.canvas, notice.source.canvas)) return "toast";
+  if (!onSourcePage(screen, notice)) return "toast";
   return screen.locked || screen.dialog || screen.firstRun || screen.typing || screen.chose ? "toast" : "move";
 }
-// Several started handoffs never move the screen: the source canvas page already shows a card for each, so nothing is
-// shown there; anywhere else one summary toast.
+// Several started handoffs never move the screen: the source page already shows a card for each, so nothing is shown
+// there; anywhere else one summary toast.
 export function handoffMultiStep(screen: HandoffScreen, notice: HandoffMultiNotice): "none" | "toast" {
-  const on = screen.canvas;
-  return on && on.root === notice.root && sameCanvas(on.canvas, notice.source.canvas) ? "none" : "toast";
+  return onSourcePage(screen, notice) ? "none" : "toast";
 }
 // listed: the renderer's list names the target. expired: HANDOFF_WAIT_MS passed since the notice.
 export function handoffArrival(screen: HandoffScreen, notice: HandoffNotice, listed: boolean, expired: boolean): "move" | "toast" | "wait" {
@@ -38,11 +50,16 @@ export function handoffArrival(screen: HandoffScreen, notice: HandoffNotice, lis
   return expired ? "toast" : "wait";
 }
 
-export function handoffCardHead(source: Canvas, project: string, listed: boolean): string {
-  return listed ? `Handed off from ${fileName(source.path)}` : `Handed off from ${fileName(source.path)} · No longer in ${project}`;
+// listed: the source canvas is still listed, or for an Overview source its conversation still exists. The card sits on
+// the target canvas, whose header already names the project, so the Overview goes unnamed.
+export function handoffCardHead(source: { canvas?: Canvas }, project: string, listed: boolean): string {
+  if (!source.canvas) return listed ? "Handed off from Overview" : "Handed off from Overview · Conversation deleted";
+  const name = fileName(source.canvas.path);
+  return listed ? `Handed off from ${name}` : `Handed off from ${name} · No longer in ${project}`;
 }
-export function handoffToastText(notice: ConversationHandoffNotice): string {
-  const source = fileName(notice.source.canvas.path);
+// The toast shows on any screen, so an Overview source names its project.
+export function handoffToastText(notice: ConversationHandoffNotice, project: string): string {
+  const source = notice.source.canvas ? fileName(notice.source.canvas.path) : `${project} Overview`;
   return "targets" in notice ? `${source} handed off to ${notice.targets.length} canvases` : `${source} handed off to ${fileName(notice.target.canvas.path)}`;
 }
 // The toast's Open once the target is no longer listed, after the shipped deep-link refusal.

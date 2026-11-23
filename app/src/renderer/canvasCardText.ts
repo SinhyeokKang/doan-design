@@ -69,7 +69,7 @@ export function middleCut(name: string, keep: number): string {
   return `${name.slice(0, head)}…${name.slice(name.length - tail)}`;
 }
 
-// Where the thread's trailing cards start and end. A promoted conversation's "moved to" marker is no part of a turn, so
+// Where the thread's trailing cards start and end. An earlier build's "moved to" marker is no part of a turn, so
 // one written after the cards does not hide them; without cards the run is empty at the thread's end.
 export function trailingCards(items: readonly ThreadItem[]): { start: number; end: number } {
   let end = items.length;

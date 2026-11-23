@@ -66,7 +66,7 @@ function overview(patch: Partial<ProjectOverviewProps> = {}) {
   const render = () => {
     const props: ProjectOverviewProps = {
       run, support, root: ROOT, project: "acme", entry: ENTRY, worktrees: [ENTRY], homeDirectory: "/w",
-      notice: null, unavailable: null, list, seen: new Set(), holder: null, prefs: {}, defaults: null, now: Date.parse("2026-11-01T00:03:00.000Z"),
+      notice: null, unavailable: null, list, seen: new Set(), prefs: {}, defaults: null, now: Date.parse("2026-11-01T00:03:00.000Z"),
       onWorktree: () => {}, onOpenCanvas: () => {}, onRetryList: () => {}, onStart: async () => ({ ok: true, conversationId: A }), onSettings: () => {},
       onSendConversation: async () => {}, onAction: () => {}, onProjectSettings: () => {}, ...patch,
     };

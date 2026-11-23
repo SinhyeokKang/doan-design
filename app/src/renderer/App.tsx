@@ -24,9 +24,9 @@ import { CanvasTrashDialog, trashDialogView, type TrashMove } from "./CanvasTras
 import { ConversationDeleteDialog, unsentDraft, type DeleteTarget } from "./ConversationDeleteDialog";
 import { deleteAvailability, deleteDialogView, deleteRefusalText, quoted } from "./conversationDelete";
 import { focusFieldEnd } from "./chipField";
-import { draftKey, EMPTY_DRAFT } from "./dockedRules";
+import { draftKey, EMPTY_DRAFT, hasDraft } from "./dockedRules";
 import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
-import type { ConversationHandoffNotice, HandoffNotice } from "../main/conversation/handoff";
+import type { ConversationHandoffNotice, HandoffMultiNotice, HandoffNotice } from "../main/conversation/handoff";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { useControlFocusRecovery } from "./canvasControlFocus";
 import { CANVAS_RETRY_IDLE, canvasFailedShown, canvasRetryPressed, canvasRetrySettled } from "./canvasRetry";
@@ -68,7 +68,7 @@ import { CanvasConversations } from "./RightPanel";
 import { CanvasRun, type CanvasTarget } from "./canvasRun";
 import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle, composerFixed, settleChips } from "./CanvasConversationPanel";
 import { captureAvailability } from "./canvasCapture";
-import { DRAWING_PREVIEW_REASON, canvasUnlistedText, DUPLICATE_CANVAS_TEXT, sidebarRowRequest } from "./canvasConversation";
+import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT, sidebarRowRequest } from "./canvasConversation";
 import { canvasStrongestSignal, panelOpenFor, type CanvasSignal, type PanelArrival, type PanelFocus, type PanelTrigger } from "./rightPanelOpen";
 import { HANDOFF_WAIT_MS, handoffArrival, handoffGoneText, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
 import { bubbleAddAvailability, PICKER_UNAVAILABLE, pickerAvailability, targetAnchor, type CanvasLoad, type Rect } from "./canvasPicker";
@@ -78,7 +78,6 @@ import type { DockedFieldLink } from "./DockedComposer";
 import type { LocateOutcome } from "./ConversationThread";
 import type { PrototypeReveal } from "../main/prototype/ipc";
 import { REVEAL_UNSHOWN, revealDecision, revealName } from "./revealDecision";
-import type { PrototypeTargetRef } from "../main/prototype/drawing";
 import { replyChipTarget } from "./replyChipTarget";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { distinctTargets } from "./anchorField";
@@ -375,9 +374,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     },
     // The controller's own wait for the project's read; the person's next navigation starts after this.
     cancelMove: () => controller.current?.cancelWorkspaceOpen(),
-    openCanvas: (root, row, conversation) => conversation
-      ? live.current.openCanvasConversation(root, row, conversation.conversationId, { kind: "notification", permission: conversation.waiting })
-      : live.current.openShellCanvas(root, row),
+    openCanvas: (root, row, conversation) => live.current.openCanvasConversation(root, row, conversation.conversationId, { kind: "notification", permission: conversation.waiting }),
     goHome: () => live.current.home(),
     removeNow: (paths, group) => live.current.removeNow(paths, group),
     toast: (message, label, run) => live.current.toast.show(message, label, run),
@@ -513,8 +510,6 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     listRetry: root => homeRun.current.listRetry(root),
     markSeen: (id, seq) => homeRun.current.markSeenThrough(id, seq),
     focused: () => document.hasFocus(),
-    readsProjectThreads: true,
-    drawing: (root, canvas) => homeRun.current.drawing(root, canvas),
     remembered: (root, canvas) => !memoryRead.current ? undefined : sharedCanvasId(root, canvas) ? null : conversationByCanvas.current[root]?.[conversationCanvasKey(canvas)] ?? null,
     remember: (root, canvas, conversationId) => {
       const key = conversationCanvasKey(canvas), current = conversationByCanvas.current;
@@ -903,7 +898,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (view.kind !== "conversation" || view.conversationId !== item.conversationId) run.select(root, item.conversationId);
     queueMicrotask(() => focusFieldEnd(document.querySelector<HTMLElement>(".workspace .ov-main .composer-input")));
   }
-  function openConversationCanvas(root: string, canvas: Canvas, conversationId?: string, trigger: PanelTrigger = { kind: "promotion" }) {
+  // A project conversation in its root's Overview: the Overview opens, then asks for it.
+  function openOverviewConversation(root: string, conversationId: string) {
+    showShellOverview(root, undefined, () => askConversation(root, conversationId));
+  }
+  function openConversationCanvas(root: string, canvas: Canvas, conversationId?: string, trigger: PanelTrigger = { kind: "card" }) {
     const listed = entriesRef.current.find(entry => entry.path === root);
     const row = listed?.kind === "list" ? listed.canvases.find(row => sameCanvas(canvas, row)) : undefined;
     if (!row) { live.current.toast.show(unavailableCanvasMessage(listed, canvas.path, live.current.projectLabel(root))); return; }
@@ -1365,22 +1364,6 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   useEffect(() => window.doan.onOpenLink(result => live.current.openLink(result)), []);
   useEffect(() => window.doan.onPrototypeReveal(request => live.current.prototypeReveal(request)), []);
   useEffect(() => window.doan.onPrototypeLastUsed(choice => live.current.prototypeLastUsed(choice)), []);
-  // The project conversation drawing the prototype window's canvas, which that window cannot read: this window tells
-  // main its id for every new target (main forgets it on each) and whenever it changes. Each target names its play
-  // (`generation`), which the report carries back so main can refuse one made for an earlier play of the same canvas.
-  // Subscribed first, then read.
-  const [prototypeTarget, setPrototypeTarget] = useState<{ target: PrototypeTargetRef | null }>({ target: null });
-  useEffect(() => {
-    let pushed = false;
-    const stop = window.doan.onPrototypeTarget(target => { pushed = true; setPrototypeTarget({ target }); });
-    void window.doan.readPrototypeTarget().then(target => { if (!pushed) setPrototypeTarget({ target }); }, console.error);
-    return stop;
-  }, []);
-  const prototypeDrawing = prototypeTarget.target ? homeRun.current.drawing(prototypeTarget.target.root, prototypeTarget.target.canvas) : null;
-  useEffect(() => {
-    const target = prototypeTarget.target;
-    if (target) void window.doan.setPrototypeDrawing({ ...target, conversationId: prototypeDrawing }).catch(console.error);
-  }, [prototypeTarget, prototypeDrawing]);
   // `doan open` requests: main sends them only once links are ready, and each is answered by its id.
   useEffect(() => window.doan.onOpenRequest(request => live.current.openCanvasRequest(request)), []);
   // A started handoff, and every later render's check of the one still waiting for its read.
@@ -1662,7 +1645,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // What keeps Move to Trash unavailable, for the menu and the open dialog alike (main judges again).
   function trashWorking(root: string, row: CanvasRow) {
     const list = homeRun.current.listState(root);
-    return trashBlock({ root, path: row.path, ...(row.id ? { id: row.id } : {}) }, Array.isArray(list) ? list : null, work, (at, canvas) => homeRun.current.drawing(at, canvas),
+    return trashBlock({ root, path: row.path, ...(row.id ? { id: row.id } : {}) }, Array.isArray(list) ? list : null, work,
       (at, canvas) => canvasRun.current!.startingOn({ root: at, canvas })) !== null;
   }
   // ARCHITECTURE §7 'Canvas row menu IPC': main shows the save panel, runs the CLI and answers once; the item stays
@@ -1852,10 +1835,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       case "reply": void replyChip(step.root, step.link).then(missing); return;
       case "settings": openSettings({ section: "agents", ...(step.provider ? { provider: step.provider } : {}) }); return;
       case "conversation":
-        if (step.canvas) openConversationCanvas(step.root, step.canvas, step.conversationId, { kind: "promotion" });
+        if (step.canvas) openConversationCanvas(step.root, step.canvas, step.conversationId, { kind: "card" });
         else showShellOverview(step.root, undefined, () => askConversation(step.root, step.conversationId));
         return;
-      case "handoff": openConversationCanvas(step.root, step.canvas, step.conversationId, { kind: "promotion" }); return;
+      case "handoff": openConversationCanvas(step.root, step.canvas, step.conversationId, { kind: "card" }); return;
     }
   }
   // The prototype composer's pick, as this window's own composers remember theirs (Last used, and a fixed Settings
@@ -1881,21 +1864,26 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (!opened) { answer({ kind: "canvas_not_found" }); return; }
     answer({ kind: "opened", frame: request.frame === undefined ? "none" : decision.row.frames?.some(frame => frame.id === request.frame) ? "found" : "missing" });
   }
-  // A started handoff moves from its source canvas through Quick Open's path, with
-  // the panel on the receiving conversation and focus on its card, or shows the toast. A target the renderer's list does
-  // not name yet waits for that read up to HANDOFF_WAIT_MS; leaving the source canvas, or any move or panel choice of the
-  // person's meanwhile, turns the move into the toast (POSTMORTEM 2026-10-25: an action offered before a read finishes
-  // waits for it; 2026-10-26: a later choice of the person's is never replaced). Unlike a link, it never closes a dialog:
-  // the person did not ask for this move. Several started handoffs never move: a summary toast, or nothing on the
-  // source canvas page, whose lines already show each one.
+  // A started handoff moves from its source page (the source canvas's page, or for a project conversation the root's
+  // Overview showing it) through Quick Open's path, with the panel on the receiving conversation and focus on its card,
+  // or shows the toast. A target the renderer's list does not name yet waits for that read up to HANDOFF_WAIT_MS;
+  // leaving the source page, or any move or panel or Overview choice of the person's meanwhile, turns the move into the
+  // toast (POSTMORTEM 2026-10-25: an action offered before a read finishes waits for it; 2026-10-26: a later choice of
+  // the person's is never replaced). Unlike a link, it never closes a dialog: the person did not ask for this move.
+  // Several started handoffs never move: a summary toast, or nothing on the source page, whose lines already show each
+  // one.
   interface HandoffWait { notice: HandoffNotice; expired: boolean; timer: ReturnType<typeof setTimeout>; intent: number; revision: number; entry: FolderEntry | undefined }
   const handoffWait = useRef<HandoffWait | null>(null);
   // A toast's Open whose canvas the list did not name yet: it waits the same way, and a later move of the person's drops
-  // it. to: the single handoff's target, or a summary's source.
+  // it. to: the single handoff's target, or a summary's source canvas.
   interface HandoffOpen { root: string; to: { conversationId: string; canvas: Canvas }; expired: boolean; timer: ReturnType<typeof setTimeout>; intent: number; entry: FolderEntry | undefined }
   const handoffOpen = useRef<HandoffOpen | null>(null);
+  // The source page's revision: the canvas panel's, or the Overview's for the root it shows (an Overview not on screen
+  // has none; asking it would make that root's state).
+  const sourceRevision = (notice: ConversationHandoffNotice) => notice.source.canvas ? canvasRun.current!.revision()
+    : shownOverviewRef.current === notice.root ? overviewRun.current!.revision(notice.root) : -1;
   const handoffWaitFor = (notice: HandoffNotice, entry: FolderEntry | undefined): HandoffWait => {
-    const wait: HandoffWait = { notice, expired: false, intent: navigationIntent.current, revision: canvasRun.current!.revision(), entry,
+    const wait: HandoffWait = { notice, expired: false, intent: navigationIntent.current, revision: sourceRevision(notice), entry,
       timer: setTimeout(() => { wait.expired = true; live.current.handoffCheck(); }, HANDOFF_WAIT_MS) };
     return wait;
   };
@@ -1903,7 +1891,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const earlier = handoffWait.current;
     if (earlier) { clearTimeout(earlier.timer); handoffWait.current = null; handoffToast(earlier.notice, earlier.notice.target, earlier.entry); }
     if ("targets" in notice) {
-      if (handoffMultiStep(handoffScreen(notice, false), notice) === "toast") handoffToast(notice, notice.source, listedRow(notice.root, notice.source.canvas).entry);
+      if (handoffMultiStep(handoffScreen(notice, false), notice) !== "toast") return;
+      const source = notice.source;
+      if (source.canvas) handoffToast(notice, { conversationId: source.conversationId, canvas: source.canvas }, listedRow(notice.root, source.canvas).entry);
+      else overviewToast(notice);
       return;
     }
     handoffWait.current = handoffWaitFor(notice, listedRow(notice.root, notice.target.canvas).entry);
@@ -1917,7 +1908,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const wait = handoffWait.current;
     if (!wait) return;
     const notice = wait.notice, row = listedRow(notice.root, notice.target.canvas).row;
-    const chose = wait.intent !== navigationIntent.current || wait.revision !== canvasRun.current!.revision();
+    const chose = wait.intent !== navigationIntent.current || wait.revision !== sourceRevision(notice);
     const step = handoffArrival(handoffScreen(notice, chose), notice, row !== undefined, wait.expired);
     if (step === "wait") return;
     clearTimeout(wait.timer);
@@ -1930,19 +1921,31 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     return currentScreen.current === "workspace" && !!open && open.folder === root && shownOverviewRef.current === null && sameCanvas(canvas, open.row.id ? { path: open.canvas, id: open.row.id } : { path: open.canvas });
   }
   function handoffScreen(notice: ConversationHandoffNotice, chose: boolean): HandoffScreen {
-    const open = openRef.current;
-    const canvas = currentScreen.current === "workspace" && open && shownOverviewRef.current === null ? { root: open.folder, canvas: open.row.id ? { path: open.canvas, id: open.row.id } : { path: open.canvas } } : null;
-    // The source conversation's composer holding focus with something in it: a draft, or an IME composition.
-    const key = `conversation:${notice.source.conversationId}`, link = composerLink.current, field = link?.element() ?? null, active = document.activeElement;
-    const draft = canvasRun.current!.composerKey() === key ? overviewRun.current!.store.drafts.get(key) : undefined;
-    const filled = !!draft && (draft.segments.length > 0 || draft.preset !== null || draft.attachments.length > 0);
-    const typing = !!field && !!active && field.contains(active) && (filled || link!.composing());
-    return { canvas, locked: locked(), dialog: topDialog() !== null, firstRun: wizard !== null || buddyIntro.open, typing, chose };
+    const open = openRef.current, onWorkspace = currentScreen.current === "workspace";
+    const canvas = onWorkspace && open && shownOverviewRef.current === null ? { root: open.folder, canvas: open.row.id ? { path: open.canvas, id: open.row.id } : { path: open.canvas } } : null;
+    // The Overview on screen with what its main column shows; a problem or reading overlay hides it.
+    const shownRoot = onWorkspace && !overlaidRef.current ? shownOverviewRef.current : null;
+    const shownView = shownRoot ? overviewRun.current!.view(shownRoot) : null;
+    const overview = shownRoot && shownView && shownView.kind !== "wait" ? { root: shownRoot, conversationId: shownView.kind === "conversation" ? shownView.conversationId : null } : null;
+    const key = `conversation:${notice.source.conversationId}`, active = document.activeElement;
+    let typing: boolean;
+    if (notice.source.canvas) {
+      // The source conversation's composer holding focus with something in it: a draft, or an IME composition.
+      const link = composerLink.current, field = link?.element() ?? null;
+      const draft = canvasRun.current!.composerKey() === key ? overviewRun.current!.store.drafts.get(key) : undefined;
+      typing = !!field && !!active && field.contains(active) && (hasDraft(draft) || link!.composing());
+    } else {
+      // The Overview composer's draft or IME composition, or keyboard focus in its Conversations list or an open
+      // header menu: the person is at work on the Overview (PRODUCT §5 item 2 'Handoff').
+      const inList = !!(active as { closest?: (selector: string) => unknown } | null)?.closest?.(".ov-right, .conv-menu");
+      typing = hasDraft(overviewRun.current!.store.drafts.get(key)) || !!overviewComposerLink.current?.composing() || inList;
+    }
+    return { canvas, overview, locked: locked(), dialog: topDialog() !== null, firstRun: wizard !== null || buddyIntro.open, typing, chose };
   }
   // entry: the project of Open's canvas as the renderer listed it when the handoff was announced. A list read since then
   // that still lacks the canvas answers at once; before any, Open waits for it.
   function handoffToast(notice: ConversationHandoffNotice, to: HandoffOpen["to"], entry: FolderEntry | undefined) {
-    live.current.toast.show(handoffToastText(notice), "Open", () => {
+    live.current.toast.show(handoffToastText(notice, live.current.projectLabel(notice.root)), "Open", () => {
       const earlier = handoffOpen.current;
       if (earlier) clearTimeout(earlier.timer);
       const wait: HandoffOpen = { root: notice.root, to, expired: false, intent: navigationIntent.current, entry,
@@ -1950,6 +1953,14 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       handoffOpen.current = wait;
       live.current.handoffCheck();
     });
+  }
+  // Several handoffs from the Overview: Open shows the source conversation in its root's Overview, and a source deleted
+  // meanwhile leaves the toast without Open, as its card has none (PRODUCT §5 item 2 'Handoff').
+  function overviewToast(notice: HandoffMultiNotice) {
+    const { root } = notice, { conversationId } = notice.source, text = handoffToastText(notice, live.current.projectLabel(root));
+    const list = homeRun.current.listState(root);
+    if (Array.isArray(list) && !list.some(c => c.conversationId === conversationId)) { live.current.toast.show(text); return; }
+    live.current.toast.show(text, "Open", () => openOverviewConversation(root, conversationId));
   }
   function handoffOpenCheck() {
     const wait = handoffOpen.current;
@@ -2103,7 +2114,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // composer that takes no input.
   const duplicated = panelCanvas?.row.id !== undefined && entry?.kind === "list" && entry.canvases.filter(row => row.id === panelCanvas.row.id).length > 1;
   const panelProject = panelTarget ? cards.find(card => card.rows.some(row => row.path === panelTarget.root))?.name ?? projectNames(entries.map(entry => entry.path)).get(panelTarget.root) ?? panelTarget.root : "";
-  const panelBlocked = !panelTarget ? null : state.unlisted ? canvasUnlistedText(panelProject) : duplicated ? DUPLICATE_CANVAS_TEXT : canvasRun.current!.drawingPreview() ? DRAWING_PREVIEW_REASON : null;
+  const panelBlocked = !panelTarget ? null : state.unlisted ? canvasUnlistedText(panelProject) : duplicated ? DUPLICATE_CANVAS_TEXT : null;
   // The folded panel's badge: the strongest signal across the canvas's conversations, working included.
   const panelBadge = panelTarget && Array.isArray(panelList) && !rightPanel.open ? canvasStrongestSignal(panelList, panelTarget.canvas, homeRun.current.seenPending()) : null;
   // Show conversation: with a badge the panel unfolds on the conversation it stands for, focus on its request when it
@@ -2175,6 +2186,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const pickIntent = useRef<{ field: HTMLElement | null; from: Element | null; focus: FocusIntent; pressed?: boolean; bubble: boolean } | null>(null);
   // The shown composer's field, which the panel's composer registers (DockedFieldLink).
   const composerLink = useRef<DockedFieldLink | null>(null);
+  // The Overview composer's, for a handoff from the conversation it shows (an IME composition keeps the screen).
+  const overviewComposerLink = useRef<DockedFieldLink | null>(null);
   const togglePick = () => {
     const instance = controller.current;
     if (!instance) return;
@@ -2616,7 +2629,6 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const timer = setTimeout(() => homeRun.current.modalChanged(false), 0);
     return () => clearTimeout(timer);
   }, [modal]);
-  useEffect(() => { if (state.open) homeRun.current.canvasShown(state.open.folder, state.open.canvas); }, [state.open?.folder, state.open?.canvas]);
   useEffect(() => { homeRun.current.entriesChanged(); }, [entries]);
   // The canvas page, not the Overview's thumbnails or a canvas under the overlay, makes a canvas seen; a change while it
   // stays shown marks it again.
@@ -2672,10 +2684,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // permission toasts the others. A problem or reading root keeps it over its overlay, without the
   // Open that would lead under it (ARCHITECTURE §7 'Problem overlay'); it follows the overlay, so a re-read shorter
   // than 300 ms does not flash it in.
-  const stripShown = overlaid && shown && stripView(shown.state, { provider: shown.conversation.provider, project: projectLabel(shown.conversation.root), branch: null, canvas: shown.conversation.canvas ? canvasLabel({ path: shown.conversation.canvas, url: "" }) : null });
+  const stripShown = overlaid && shown && stripView(shown.state, { provider: shown.conversation.provider, project: projectLabel(shown.conversation.root), branch: null });
   const strip = shown && stripShown && <div className="strip-slot"><KeyedConversationStrip conversationId={shown.conversation.conversationId} provider={shown.conversation.provider} state={shown.state}
-    view={{ ...stripShown, actions: stripShown.actions.filter(action => action.command !== "open") }}
-    onEditOnHome={() => void run.editOnHome(shown.conversation.conversationId)} onOpen={() => run.openConversation(shown.conversation.conversationId)}
+    view={stripShown}
+    onEditOnHome={() => void run.editOnHome(shown.conversation.conversationId)}
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const shellSlots = sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas);
   const sidebarId = (home: boolean) => home ? "doan-page-sidebar" : "doan-workspace-sidebar";
@@ -2708,7 +2720,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   return <TooltipProvider>
   {screen === "home" && <Home header={topBar(true)} sidebar={sidebar(true)}
     entries={entries} homeDirectory={homeDirectory} shellProjects={shellProjects} loaded={loadedRoot} select={select} prefs={homeMemory}
-    memory={composerMemory} running={run.running()} restore={run.restore} start={(request, last) => run.start(request, last)} openConversation={id => run.openConversation(id)} addProjects={openAddProjects}
+    memory={composerMemory} working={run.workingRoots()} restore={run.restore} start={(request, last) => run.start(request, last)} addProjects={openAddProjects}
     defaults={preferences ? preferences.preferences.newConversation : undefined} openSettings={openSettings} onRemember={rememberPick} buddy={buddySelection.shown} />}
   {onSettings && <SettingsPage header={topBar(true)} sidebar={sidebar(true)} section={settings.section} arrival={settings.arrival} onState={settingsReport}
     agents={{ signIn: agentSignIn(), preferences, save: savePreferences, project: settingsProject }} buddy={buddySelection}
@@ -2740,9 +2752,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
       unavailable={null}
-      list={run.listState(overview.path)} seen={run.seenPending()} holder={run.running().get(overview.path) ?? null}
+      list={run.listState(overview.path)} seen={run.seenPending()} composerLink={overviewComposerLink}
       prefs={homeMemory} defaults={preferences ? preferences.preferences.newConversation : undefined} now={clock} onRemember={rememberPick}
-      onWorktree={root => { chipFocus.current = true; showShellOverview(root); }} onOpenCanvas={(canvas, conversationId) => openConversationCanvas(overview.path, canvas, conversationId, { kind: "promotion" })}
+      onWorktree={root => { chipFocus.current = true; showShellOverview(root); }} onOpenCanvas={(canvas, conversationId) => openConversationCanvas(overview.path, canvas, conversationId, { kind: "card" })}
       onReplyChip={link => replyChip(overview.path, link)}
       onRetryList={() => run.retryList(overview.path)} listRetry={run.listRetry(overview.path)} onStart={(request, last) => run.start(request, last, { stay: true })}
       onSendConversation={(provider, request) => run.send(overview.path, provider, request)}
@@ -2767,8 +2779,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
           frames={state.layout?.frames} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => setArrival(current => current?.seq === seq ? null : current)}
           onLocate={locateChip} onReplyChip={link => replyChip(panelTarget.root, link)} onChoose={() => controller.current?.dropPendingLocate()} pick={{ pressed: picking, enabled: pickerReady, reason: pickerView.reason, onToggle: togglePick }} composerLink={composerLink} canvasPress={controller.current?.canvasPress}
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
-          onOpenProjectConversation={id => showShellOverview(panelTarget.root, undefined, () => askConversation(panelTarget.root, id))}
-          onOpenHandoff={(canvas, id) => openConversationCanvas(panelTarget.root, canvas, id, { kind: "promotion" })} work={work} />}
+          onOpenHandoff={(canvas, id) => openConversationCanvas(panelTarget.root, canvas, id, { kind: "card" })}
+          onOpenOverview={id => openOverviewConversation(panelTarget.root, id)}
+          conversationListed={id => Array.isArray(panelList) && panelList.some(c => c.conversationId === id)} work={work} />}
       </ConversationPanel></>}
     {/* Its own key space: the Overview beside it is keyed by the same root, and siblings sharing a key remount on every render. */}
     {problem && <ProblemOverlay key={`problem\n${loadedRoot}`} view={problem} details={detailsOpen} detail={detailText} pressed={retryPending ? "retry" : pressed && pressed.root === loadedRoot ? pressed.name : null}

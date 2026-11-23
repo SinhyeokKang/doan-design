@@ -75,8 +75,8 @@ function setup(patch: Partial<DockedComposerProps> = {}, drafts: [string, Docked
     onPickerOpen: vi.fn(), onPickModel: vi.fn(), onPickEffort: vi.fn(), onPickFast: vi.fn(), onSettings: vi.fn(),
     presets: undefined, suggested: [], onPresetsOpen: vi.fn(), onPresetsRetry: vi.fn(),
     thumbnails: {}, onAttach: vi.fn(), onFiles: vi.fn(), onAttachmentRemoved: vi.fn(),
-    turn: "idle", busy: null, canvasGone: false, queued: [],
-    onSend: send, onQueue: queue, onStop: vi.fn(), onRemoveQueued: vi.fn(async () => true), onOpen: vi.fn(),
+    turn: "idle", canvasGone: false, queued: [],
+    onSend: send, onQueue: queue, onStop: vi.fn(), onRemoveQueued: vi.fn(async () => true),
     ...patch,
   };
   const render = (withQueue = false) => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return elements(DockedComposer(props), withQueue); };

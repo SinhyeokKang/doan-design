@@ -20,7 +20,7 @@ import {
 import { composerAction, composerShape, focusAfter, steerAllPlan, type ComposerAction, type ComposerTurn, type FocusAction } from "./composerRules";
 import {
   canvasGoneText, composerPlaceholder, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT, sameDraft, settleSent,
-  type DockedBusy, type DockedDraft, type DockedMode, type DockedRefusal,
+  type DockedDraft, type DockedMode, type DockedRefusal,
 } from "./dockedRules";
 import { slashKey, pasteAction } from "./HomeComposerView";
 import type { ChipInsert } from "./chipField";
@@ -105,9 +105,8 @@ export interface DockedComposerProps {
   // handed back so the host can tell main. `report` shows a refusal (the limit, a file main refused) as this composer's
   // notice on the draft the files were added to, which may no longer be the one shown when an answer lands.
   onAttach(report: (text: string) => void): void; onFiles(files: File[], pasted: boolean, report: (text: string) => void): void; onAttachmentRemoved(attachment: AttachmentDraft): void;
-  // This conversation's turn. `busy`: another conversation holds the root (from the host's list).
+  // This conversation's turn.
   turn: ComposerTurn;
-  busy: DockedBusy | null;
   // A conversation whose canvas left the project cannot continue.
   canvasGone: boolean;
   // Why Send waits for the host's project (it turned into a problem while open); the thread stays readable.
@@ -144,7 +143,6 @@ export interface DockedComposerProps {
   onStop(): void;
   // Whether main removed it (a row whose Send now is in flight is not).
   onRemoveQueued(id: string): Promise<boolean>;
-  onOpen(conversationId: string): void;
   // The canvas panel's: Pick from canvas, the field link, and chip locate for a chip clicked in the field.
   pick?: DockedPicker;
   link?: MutableRefObject<DockedFieldLink | null>;
@@ -224,7 +222,6 @@ export function DockedComposer(props: DockedComposerProps) {
   const shown = useRef(key); shown.current = key;
   const field = useRef<ComposerFieldHandle | null>(null);
   const removeButtons = useRef<(HTMLButtonElement | null)[]>([]);
-  const hostSawBusy = useRef(new Set<string>());
   // The composer's own box, which places the chip note.
   const root = useRef<HTMLDivElement | null>(null);
   const slashList = useRef<HTMLDivElement | null>(null);
@@ -243,10 +240,6 @@ export function DockedComposer(props: DockedComposerProps) {
   // rule at once and the stored one catches up below.
   const text = plainText(draft.segments);
   const shape = composerShape(draft.shape, { empty: text === "", chips: chipCount(draft, pinned), overflows: text.includes("\n") });
-  // A busy refusal stands in for the host's busy until the host has reported the busy conversation itself; once the
-  // host's busy has shown and cleared again, the refusal no longer holds Send.
-  if (props.busy && refusal?.kind === "busy") hostSawBusy.current.add(key);
-  const busy = props.busy ?? (refusal?.kind === "busy" && !hostSawBusy.current.has(key) ? refusal.busy : null);
   const locked = !!props.locked && !!props.unavailable;
   // A blocked refusal holds Send with its reason until the person changes the draft.
   const blocked = refusal?.kind === "blocked" ? refusal : null;
@@ -264,7 +257,7 @@ export function DockedComposer(props: DockedComposerProps) {
   const lead = playing ? playingMessage(draft, matched, playing.frame) : undefined;
   // A command goes out alone, so neither the playing frame's place limit nor the attachments' state holds it.
   const checked = lead === null && !commandFirst && !isSending && !props.unavailable ? { enabled: false, reason: { text: ANCHOR_LIMIT_TEXT } }
-    : dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft: commandFirst ? { ...draft, preset: null, attachments: [] } : draft, skills: commandFirst ? [] : matched, turn: props.turn, busy, sending: isSending, unavailable: props.unavailable ?? null, external: !!props.fixed, limited });
+    : dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft: commandFirst ? { ...draft, preset: null, attachments: [] } : draft, skills: commandFirst ? [] : matched, turn: props.turn, sending: isSending, unavailable: props.unavailable ?? null, external: !!props.fixed });
   const availability = blocked && !isSending && !props.unavailable ? { enabled: false, reason: { text: blocked.text, ...(blocked.action ? { action: blocked.action } : {}) } }
     : props.held && checked.enabled ? { enabled: false, reason: checked.reason } : checked;
   // The person's own message decides Stop, Queue and Send: the pinned frame goes with every request but is not
@@ -315,7 +308,6 @@ export function DockedComposer(props: DockedComposerProps) {
     setLimitAt(current => current === at ? null : current);
   };
   function clearRefusal(at: string) {
-    hostSawBusy.current.delete(at);
     if (refusals.has(at)) setRefusals(previous => { const next = new Map(previous); next.delete(at); return next; });
   }
   // A capsule becomes a box once its text wraps at the capsule's own width. A box is never measured: it
@@ -610,7 +602,6 @@ export function DockedComposer(props: DockedComposerProps) {
     {reason && !reason.noAgent && (reason.alert
       ? <div className="doan-notice error composer-notice" role="alert" id={reasonId}><AlertIcon /><span className="grow-text selectable">{reason.text}</span></div>
       : <div className="composer-reason docked-reason" role="status" id={reasonId}><span>{reason.text}</span>
-        {reason.open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation" onClick={() => props.onOpen(reason.open!)}>Open</button>}
         {reason.action && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => props.onSettings(reason.action!.target)}>{reason.action.label}</button>}</div>)}
     {(limitAt === key || full) && <div className="composer-reason docked-reason" role="status"><span>{ANCHOR_LIMIT_TEXT}</span></div>}
     {noteShown && <span className="chip-missing chip-note" id={noteId} role="status" style={{ left: missingAt.left, top: missingAt.top }}>{LOCATE_MISSING_TEXT}</span>}

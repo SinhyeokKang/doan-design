@@ -212,7 +212,7 @@ test("while the page is locked every way out is ignored, one case per navigation
     ["canvas row (openShellCanvas)", () => { (page()!.props.sidebar.props.open as (root: string, row: CanvasRow) => void)("/w/b", rowA); render(); }],
     ["Overview item (showShellOverview)", () => { page()!.props.sidebar.props.overview!("/w/b" as never); render(); }],
     ["Home send's move (HomeRun openOverview)", () => { const host = (hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as { host: { openOverview(root: string, arrived: () => boolean, unavailable: () => void): void } }).host; host.openOverview("/w/b", () => true, vi.fn()); render(); }],
-    ["Home run's canvas (HomeRun openCanvas)", () => { const host = (hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as { host: { openCanvas(root: string, row: CanvasRow): void } }).host; host.openCanvas("/w/b", rowA); render(); }],
+    ["Home run's canvas (HomeRun openCanvas)", () => { const host = (hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as { host: { openCanvas(root: string, row: CanvasRow, conversation: { conversationId: string; waiting: boolean }): void } }).host; host.openCanvas("/w/b", rowA, { conversationId: "c1", waiting: false }); render(); }],
   ];
   for (const [name, move] of moves) {
     beforeEachReset();

@@ -291,10 +291,6 @@ describe("composerTurn", () => {
 });
 
 describe("at the usage limit", () => {
-  test("Queue takes a message for the reset, not an empty field", () => {
-    expect(dockedAvailability(input({ limited: true }))).toEqual({ enabled: true, reason: null });
-    expect(dockedAvailability(input({ limited: true, draft: EMPTY_DRAFT })).enabled).toBe(false);
-  });
   test("a refused start names the reset time when main gave one", () => {
     expect(dockedRefusal("rate_limited", { kind: "new", root: "/r" }, "codex", "doan-design", "at 3:00\u202fPM"))
       .toEqual({ kind: "notice", text: "Codex reached a usage limit. Send again after it resets at 3:00\u202fPM." });

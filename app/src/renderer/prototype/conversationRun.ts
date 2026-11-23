@@ -21,7 +21,7 @@ import { conversationButton, playingFrameChip, prototypeHeadTitle, prototypeShow
 // Everything the panel calls: `window.doanPrototype`'s members of the same names as `window.doan`'s, and its own.
 export type PrototypeConversationCalls = ConversationCalls & StoreCalls & DockedSupportCalls & ResumeCalls & VisibleCalls
   & Pick<DoanApi, "deleteConversation" | "markConversationSeen" | "onConversationEvent" | "onConversationStage" | "onConversationBoundary" | "onConversationListChanged" | "getWork" | "onWorkChanged">
-  & Pick<PrototypeWindowApi, "listConversations" | "setShowing" | "reveal" | "rememberChoice" | "readComposerSettings" | "onComposerSettings" | "readTargetEntry" | "onTargetEntry" | "readDrawing" | "onDrawing" | "readPromoted" | "onPromoted" | "rememberedConversation">;
+  & Pick<PrototypeWindowApi, "listConversations" | "setShowing" | "reveal" | "rememberChoice" | "readComposerSettings" | "onComposerSettings" | "readTargetEntry" | "onTargetEntry" | "rememberedConversation">;
 
 export interface PrototypeRunHost {
   changed(): void;
@@ -70,14 +70,6 @@ export class PrototypeConversationRun {
   private showing: { id: string | null; key: string | null; gen: number | null } | undefined = undefined;
   // Only a list read started after a successful write can supersede that mark, including with a newer unread ending.
   private seenMarks = new Map<string, SeenMark>();
-  // The project conversation drawing the playing canvas, by id only: main relays it from the main window, which reads
-  // project conversations this window cannot.
-  private drawingId: string | null = null;
-  // Moves with every push and every read: a read answered after a newer push or read is dropped.
-  private drawingTurn = 0;
-  // The project conversation main saw become the playing canvas's current one, by id, likewise relayed.
-  private promotedId: string | null = null;
-  private promotedTurn = 0;
   // The conversation last seen on the playing canvas on this device, as main reads it from ui-state (the main window
   // is its only writer, so this window never writes it): undefined until the read for this canvas settles, which holds
   // the first pick; null for none, or a failed read. Moves with every switch of canvas, so a late answer for the canvas
@@ -95,8 +87,6 @@ export class PrototypeConversationRun {
       listRetry: root => (this.view?.root === root ? this.listRetry() : LIST_RETRY_IDLE),
       markSeen: (conversationId, seq) => { void this.markSeen(conversationId, seq); },
       focused: () => host.focused(),
-      drawing: root => (this.view?.root === root ? this.drawingId : null),
-      promoted: root => (this.view?.root === root ? this.promotedId : null),
       remembered: (root, canvas) => (this.key !== null && canvasKey({ root, canvas }) === this.key ? this.rememberedId : undefined),
       changed: () => this.changed(),
     }, this.store, calls);
@@ -124,10 +114,7 @@ export class PrototypeConversationRun {
       this.calls.onWorkChanged(items => { this.workItems = items; this.host.changed(); }),
       this.calls.onTargetEntry(entry => { if (entry === null || entry.path === this.view?.root) { this.entryValue = entry; this.host.changed(); } }),
       this.calls.onComposerSettings(settings => { this.settingsValue = settings; this.host.changed(); }),
-      this.calls.onDrawing(conversationId => { this.drawingTurn++; this.setDrawing(conversationId); }),
-      this.calls.onPromoted(conversationId => { this.promotedTurn++; this.setPromoted(conversationId); }),
     ];
-    this.readRelayed();
     void this.calls.getWork().then(items => { this.workItems = items; this.host.changed(); }, console.error);
     void this.calls.readComposerSettings().then(settings => { if (settings && !this.settingsValue) { this.settingsValue = settings; this.host.changed(); } }, console.error);
     return () => { for (const off of offs) off(); };
@@ -143,7 +130,6 @@ export class PrototypeConversationRun {
     const target = this.target()!;
     const key = canvasKey(target);
     if (key !== this.key) {
-      const switched = this.key !== null;
       this.key = key;
       this.epoch++;
       this.missed = false;
@@ -151,11 +137,6 @@ export class PrototypeConversationRun {
       this.retrying = false;
       this.listFailures = 0;
       this.last = null;
-      // The relayed drawing and promotion belong to a target. Main nulls them for every new target and may push the new
-      // one's before this view arrives (views wait behind the still capture), so the old values go and main is asked
-      // again: its answer is for the target playing now.
-      // (The first target's were read at connect.)
-      if (switched) { this.drawingId = null; this.promotedId = null; this.readRelayed(); }
       this.readRemembered();
     }
     this.last = playingFrameChip(view, this.last);
@@ -310,13 +291,6 @@ export class PrototypeConversationRun {
     this.changed();
   }
 
-  // Subscribed before (connect): a push that lands after the read began wins over the read's answer.
-  private readRelayed(): void {
-    const drawing = ++this.drawingTurn, promoted = ++this.promotedTurn;
-    void this.calls.readDrawing().then(conversationId => { if (drawing === this.drawingTurn) this.setDrawing(conversationId); }, console.error);
-    void this.calls.readPromoted().then(conversationId => { if (promoted === this.promotedTurn) this.setPromoted(conversationId); }, console.error);
-  }
-
   // Main answers for the canvas it plays; the answer applies only while this window still holds the canvas it asked for.
   private readRemembered(): void {
     const turn = ++this.rememberedTurn;
@@ -326,19 +300,6 @@ export class PrototypeConversationRun {
       this.rememberedId = conversationId;
       this.sync();
     });
-  }
-
-  // The canvas run decides the notice from it with the list, so it picks again.
-  private setPromoted(conversationId: string | null): void {
-    if (conversationId === this.promotedId) return;
-    this.promotedId = conversationId;
-    this.sync();
-  }
-
-  private setDrawing(conversationId: string | null): void {
-    if (conversationId === this.drawingId) return;
-    this.drawingId = conversationId;
-    this.sync();
   }
 
   private readEntry(): void {

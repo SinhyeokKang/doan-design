@@ -18,7 +18,7 @@ import { requestTitleText, stripRequestLines } from "../main/conversation/reques
 import { useProjectSkills, type SkillsCalls } from "./useProjectSkills";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import { textSegments } from "./anchorField";
-import { DRAWING_PREVIEW_REASON, canvasConversationError, canvasConversationMenu, noticeOpenName, resumeHeld, titleMenuOrder } from "./canvasConversation";
+import { canvasConversationError, canvasConversationMenu, resumeHeld, titleMenuOrder } from "./canvasConversation";
 import { sameCanvas } from "./canvasConversationRows";
 import type { CanvasRun, CanvasTarget, CanvasView, ResumeReply } from "./canvasRun";
 import { focusFieldEnd } from "./chipField";
@@ -97,7 +97,7 @@ export interface CanvasConversationProps {
   onLocate(anchor: Anchor): Promise<LocateOutcome>;
   // A chip in an agent's reply: the host locates it on this canvas or opens another canvas.
   onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
-  // The person chose what the panel shows (a conversation, New, a notice's Open).
+  // The person chose what the panel shows (a conversation, New).
   onChoose?(): void;
   // The composer's Pick from canvas, and the page's way into its field (pick results); a host without a board has neither.
   pick?: DockedPicker;
@@ -105,12 +105,13 @@ export interface CanvasConversationProps {
   // Sign in and the composer's settings actions.
   onSettings(target: SettingsTarget): void;
   onNotice(text: string): void;
-  // The drawing project conversation's Open: its root's Overview shows it.
-  onOpenProjectConversation(conversationId: string): void;
-  // The promotion notice's Open. Without it the panel shows that conversation itself.
-  onOpenPromoted?(conversationId: string): void;
   // A canvas card's or handoff card's Open: that canvas of this root with its panel on that conversation, or the canvas alone.
   onOpenHandoff?(canvas: Canvas, conversationId?: string): void;
+  // A handoff card from the Overview: Open shows its source conversation in this root's Overview.
+  onOpenOverview?(conversationId: string): void;
+  // Whether a conversation of this root still exists, for a handoff card from the Overview; without it the source counts
+  // as there (the prototype window lists only the canvas's conversations).
+  conversationListed?(conversationId: string): boolean;
   // The canvases terminal sessions work on: the terminal session choice waits while its session is among them.
   work: readonly WorkItem[];
   // The page's canvas press signal, for the composer's preset lists (the app's document never sees a canvas press).
@@ -242,8 +243,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const listed = Array.isArray(list) ? list : null;
   const view = run.view() ?? { kind: "wait" as const };
   const conversationId = view.kind === "conversation" ? view.conversationId : null;
-  const preview = view.kind === "conversation" && view.preview === true;
-  const unavailable = props.blocked ?? (preview ? DRAWING_PREVIEW_REASON : null);
+  const unavailable = props.blocked;
   const summary = conversationId ? listed?.find(c => c.conversationId === conversationId) : undefined;
   const thread = conversationId ? store.thread(conversationId) : null;
   // A streamed delta does not redraw the host (ConversationStore.event), so the thread is redrawn from its own
@@ -443,7 +443,6 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const changedFast = fastToSend(pick.fast, fixed ? null : chosen, picker.effort?.fast ?? null);
   const send = async (request: DockedRequest): Promise<DockedOutcome> => {
     const revision = run.revision();
-    const sentUnder = notice;
     if (mode.kind === "new" || mode.kind === "resume") {
       const runtime = mode.kind === "resume" ? mode.provider : chosen;
       if (!runtime) return { error: "no_agent" };
@@ -476,7 +475,6 @@ export function CanvasConversation(props: CanvasConversationProps) {
       store.queued(root, mode.conversationId, queuedMessage(reply.scheduled.itemId, request));
       return { ok: true, itemId: reply.scheduled.itemId };
     }
-    run.sent(target, revision, sentUnder);
     return { ok: true };
   };
   const queue = async (request: DockedRequest): Promise<DockedOutcome> => {
@@ -490,7 +488,6 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const refuse = (code: string, provider: Provider, resets: string | null): DockedRefusal => {
     const error = canvasConversationError(code, mode, provider, project, [], resets);
     switch (error.kind) {
-      case "busy": return { kind: "busy", busy: error.busy };
       case "blocked": return { kind: "blocked", text: error.text, ...(error.action ? { action: error.action } : {}) };
       case "notice": {
         return { kind: "notice", text: error.text, ...(error.retry ? { retry: true } : {}), ...(error.startNew ? { startNew: true } : {}) };
@@ -500,7 +497,6 @@ export function CanvasConversation(props: CanvasConversationProps) {
     }
   };
   const newView = view.kind === "new" ? view : null;
-  const openConversation = (id: string) => { props.onChoose?.(); run.select(id); };
   // A refused terminal session switches to the new conversation that shares its field; a conversation another sign-in
   // owns leaves for a new one on this canvas, taking the refused draft along.
   const startNewAfterRefusal = () => {
@@ -511,7 +507,6 @@ export function CanvasConversation(props: CanvasConversationProps) {
 
   // A preset's line and the suggestion stand in for it inside the composer (dockedRules composerPlaceholder).
   const placeholder = view.kind === "new" && mode.kind === "new" ? NEW_PLACEHOLDER : REPLY_PLACEHOLDER;
-  const notice = view.kind === "wait" ? null : view.notice;
   // A held session a terminal process holds is not offered to run, but its choice shows, waiting.
   const offer = newView?.start.offer ?? (held && newView?.resume && "runtime" in newView.resume ? newView.resume.runtime ?? null : null);
   const resume = offer ? newView : null;
@@ -534,7 +529,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onSignIn={() => props.onSettings({ section: "agents", provider })}
         limitResets={liveReset(summary?.limitResetsAt, props.now, localClock())} resendHidden={store.resendHidden(conversationId)}
         onRetry={() => store.retryThread(conversationId)} retry={thread ? { running: thread.read === "retrying", failures: thread.failures ?? 0 } : undefined}
-        onOpenCanvas={() => {}} {...(props.onOpenHandoff ? { onOpenHandoff: props.onOpenHandoff } : {})}
+        onOpenCanvas={() => {}} {...(props.onOpenHandoff ? { onOpenHandoff: props.onOpenHandoff } : {})} {...(props.onOpenOverview ? { onOpenOverview: props.onOpenOverview } : {})}
+        {...(props.conversationListed ? { conversationListed: props.conversationListed } : {})}
         onOpenLink={url => void openReplyLink(target => calls.openLink(target), url, props.onNotice)}
         onCopy={text => Promise.resolve(copyText(text))}
         onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
@@ -548,13 +544,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
           {prompts.length > 0 && !started && !resume && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
             <SuggestionButton key={prompt.label} prompt={prompt} onPick={() => { store.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }} />)}</div>}
         </>}
-      {notice && <div className="doan-notice thread-notice" role="status"><Info className="doan-alert-icon" aria-hidden="true" /><span className="strip-text selectable"><span>{notice.text}</span></span>
-        <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel"
-          aria-label={noticeOpenName(notice.kind)}
-          onClick={() => notice.kind === "drawing" ? props.onOpenProjectConversation(notice.open) : (props.onOpenPromoted ?? openConversation)(notice.open)}>Open</button></span></div>}
     </div>
-    {preview && <span className="sr-only" role="status">{unavailable}</span>}
-    <fieldset className="cp-foot" disabled={preview} inert={preview}>
+    <div className="cp-foot">
       <DockedComposer skills={projectSkills.skills} passthrough={projectSkills.passthrough} onSkillsWanted={projectSkills.read} onCard={next => store.showCard(key, next)} card={card} mode={mode} project={project} homeDirectory={null} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined} chipScope={canvasScope(target)}
         {...(props.pick ? { pick: props.pick } : {})} {...(props.composerLink ? { link: props.composerLink } : {})} onLocate={props.onLocate} canvasPress={props.canvasPress}
         drafts={store.drafts} onDrafts={update => store.setDrafts(update)}
@@ -570,7 +561,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.retryPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => dropAttachment(calls, attachment)}
-        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={null} canvasGone={false} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}
+        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} canvasGone={false} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}
         unavailable={unavailable} locked={unavailable !== null} playing={props.playing ?? null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
         stepAside={{ waiting: asking, notice: !conversationId && view.kind !== "wait" && !!resume }}
         refuse={refuse} onStartNew={startNewAfterRefusal}
@@ -588,8 +579,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
           store.unqueued(conversationId, itemId);
           return true;
         }}
-        onOpen={openConversation} />
-    </fieldset>
+      />
+    </div>
     {replacing && <ReplaceDraftDialog confirm={replacing.confirm} onKeep={() => { setReplacing(null); focusField(); }}
       onReplace={() => { setReplacing(null); editAndResend(replacing.conversationId); }} />}
   </div>;

@@ -53,9 +53,9 @@ export function stripState(events: readonly ConversationEvent[]): StripState {
 }
 
 export type StripAction =
-  | { command: "stop" | "skip" | "editOnHome" | "dismiss" | "open"; label: string }
+  | { command: "stop" | "skip" | "editOnHome" | "dismiss"; label: string }
   | { command: "answer"; label: string; optionId: string; kind: PermissionOption["kind"]; detail?: string };
-export interface StripContext { provider: Provider; project: string; branch: string | null; canvas: string | null }
+export interface StripContext { provider: Provider; project: string; branch: string | null }
 // live: the strip's own region; a permission request is an alert announced once per alertKey.
 export interface StripView { title: string; body: string | null; live: "status" | "alert"; alertKey: string | null; actions: StripAction[] }
 
@@ -110,6 +110,7 @@ export function stripView(state: StripState, ctx: StripContext): StripView {
       return view(copy.title, copy.body, recover);
     }
     case "interrupted": return view("Stopped", state.reason === "user" ? "You stopped the agent." : "The agent stopped before it finished.", recover);
-    case "done": return view("Done", ctx.canvas ? `${ctx.canvas} is ready.` : null, ctx.canvas ? [{ command: "open", label: "Open" }, dismiss] : [dismiss]);
+    // A handoff's toast says where the work went, so Done names no canvas.
+    case "done": return view("Done", null, [dismiss]);
   }
 }

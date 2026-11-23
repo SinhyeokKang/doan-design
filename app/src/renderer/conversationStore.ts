@@ -73,7 +73,7 @@ export class ConversationStore {
   private startsAsked = new Map<string, symbol>();
   // Providers of conversations started here, before a list names them.
   private providers = new Map<string, Provider>();
-  // Each screen's run hears a thread change for its own seen and promotion rules: "read" once its history was read,
+  // Each screen's run hears a thread change for its own seen and draft rules: "read" once its history was read,
   // "event" for each live event merged into it.
   private listeners = new Set<(conversationId: string, change: "read" | "event") => void>();
   // The hosts drawing a conversation (the Overview, the canvas panels) hear each live event merged into its thread:
@@ -127,7 +127,7 @@ export class ConversationStore {
     return [...(this.queues.get(conversationId)?.items ?? []).filter(item => item.pressed !== undefined).sort((a, b) => a.pressed! - b.pressed!)
       .map(item => ({ id: item.id, ...item.message ?? { text: item.text, anchors: [], attachments: [] } })), ...pending];
   }
-  // A send main has not answered yet: it may wait for the previous turn's promotion judgement (at most 10 s) or process
+  // A send main has not answered yet: it may wait for the previous turn's handoffs to settle (at most 10 s) or process
   // before its turn starts, and the thread would show nothing meanwhile. It shows as sending until its turn's own message
   // arrives (`after`: the last event seen at the press) or the returned settle runs on main's answer.
   sendPending(conversationId: string, message: SendingMessage): () => void {
@@ -300,8 +300,8 @@ export class ConversationStore {
     this.readThread(conversationId);
     this.host.changed();
   }
-  // Main's answers for files being added, applied to each chip in whichever draft holds it now (a promotion may have
-  // moved it); a chip removed meanwhile releases its file. Image thumbnails and refusals go back to the caller.
+  // Main's answers for files being added, applied to each chip in whichever draft holds it now (a conversation gone
+  // from the list may have moved it); a chip removed meanwhile releases its file. Image thumbnails and refusals go back to the caller.
   settleAttachments(keys: readonly string[], results: readonly (AttachmentResult | null)[]): { notices: string[]; images: { key: string; thumbnail: Uint8Array }[] } {
     const notices: string[] = [], images: { key: string; thumbnail: Uint8Array }[] = [];
     const drafts = new Map(this.drafts);

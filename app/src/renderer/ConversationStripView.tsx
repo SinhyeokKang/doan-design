@@ -11,12 +11,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 
 interface Props {
   conversationId: string; provider: Provider; state: StripState; view: StripView;
-  onEditOnHome(): void; onDismiss(): void; onOpen(): void;
+  onEditOnHome(): void; onDismiss(): void;
 }
 
 // The temporary Home-conversation strip at the top of the workspace body, the shared panel
 // notice with actions, until the conversation panel replaces it.
-export function ConversationStrip({ conversationId, provider, state, view, onEditOnHome, onDismiss, onOpen }: Props) {
+export function ConversationStrip({ conversationId, provider, state, view, onEditOnHome, onDismiss }: Props) {
   const stop = useRef<HTMLButtonElement | null>(null);
   const dismiss = useRef<HTMLButtonElement | null>(null);
   // Whether Stop held focus when it left the page. React detaches a ref before it removes the node, so the node is
@@ -62,7 +62,6 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
       void window.doan.interruptConversation({ conversationId }).catch(console.error);
     }
     else if (action.command === "editOnHome") onEditOnHome();
-    else if (action.command === "open") onOpen();
     else onDismiss();
   };
   const mark = state.kind === "starting" ? <span className="doan-spinner" aria-hidden="true" />
@@ -83,7 +82,7 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
     <span className="strip-actions">{view.actions.map(action => {
       // The draft (workspace-strip, states-strip) fills Allow; the other answers, Skip, Edit on Home and Open rest on the panel
       // white, since the strip's inset fill is subtle's own grey.
-      const variant = action.command === "answer" ? (action.kind === "allow" ? "prominent" : "panel") : action.command === "editOnHome" || action.command === "open" || action.command === "skip" ? "panel" : undefined;
+      const variant = action.command === "answer" ? (action.kind === "allow" ? "prominent" : "panel") : action.command === "editOnHome" || action.command === "skip" ? "panel" : undefined;
       const key = action.command === "answer" ? `answer-${action.optionId}` : action.command;
       // data-strip-stop: App focuses Stop after a Home send's move, never a permission answer.
       const button = <button key={key} ref={action.command === "stop" ? stopRef : action.command === "dismiss" ? dismiss : undefined} data-strip-stop={action.command === "stop" ? "" : undefined} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={variant} onClick={() => run(action)}>

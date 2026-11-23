@@ -55,7 +55,7 @@ export function conversationLine(c: ConversationSummary, now: number, seen: Read
   };
 }
 
-// A conversation bound to no canvas; a promoted one carries its canvas from then on.
+// A conversation bound to no canvas; one an earlier build promoted carries its canvas from then on.
 const isProject = (c: ConversationSummary) => c.canvas === undefined;
 
 // The most recent activity first. ISO times compare as strings, and an unreadable history's empty time sorts last; the
@@ -79,8 +79,8 @@ export function projectConversationMenu(list: readonly ConversationSummary[], no
 
 // wait: the list was not read yet, so nothing is shown rather than a new conversation that then changes. reread: the
 // requested conversation is not listed yet (a start's reply can overtake its list notice); read again with it held.
-// forget: the remembered conversation was promoted, so ui-state drops it. fresh: the first pick of the run found nothing
-// left for the person in the conversation it would reopen.
+// forget: the remembered conversation is on a canvas now (an earlier build promoted it), so ui-state drops it. fresh:
+// the first pick of the run found nothing left for the person in the conversation it would reopen.
 export type OverviewPick =
   | { kind: "wait" }
   | { kind: "reread"; conversationId: string }
@@ -119,21 +119,16 @@ export function pickOverviewConversation(list: readonly ConversationSummary[] | 
 // absence later means it is gone rather than not listed yet.
 export interface OverviewCurrent { root: string; conversationId: string | null; listed: boolean }
 export interface DraftMove { from: string; to: string }
-// No seen seq here: only the host holds the thread events and knows whether the person saw the turn end, so it marks
-// seen through the promotion marker event itself.
-export type OverviewChange =
-  | { kind: "keep" }
-  | { kind: "promoted"; conversationId: string; title: string; canvas: Canvas; draft: DraftMove }
-  | { kind: "gone"; draft: DraftMove };
+export type OverviewChange = { kind: "keep" } | { kind: "gone"; draft: DraftMove };
 
-// After a list read for `root`. The draft moves to the root's new conversation key so the typed text,
-// composition included, stays in the same field.
+// After a list read for `root`: a listed conversation that is gone resets the Overview, its draft moving to the root's
+// new conversation key so the typed text, composition included, stays in the same field. Nothing else moves the main
+// conversation, not even a canvas an earlier build's promotion gave it.
 export function overviewAfterListChange(current: OverviewCurrent, change: { root: string; list: readonly ConversationSummary[] }): OverviewChange {
   const id = current.conversationId;
   if (change.root !== current.root || id === null) return { kind: "keep" };
   // The provider does not take part in the key; it is here only to build an existing mode.
   const draft = { from: draftKey({ kind: "existing", conversationId: id, provider: "claude" }), to: draftKey({ kind: "new", root: current.root }) };
-  const c = change.list.find(item => item.conversationId === id);
-  if (!c) return current.listed ? { kind: "gone", draft } : { kind: "keep" };
-  return c.canvas ? { kind: "promoted", conversationId: id, title: c.title, canvas: c.canvas, draft } : { kind: "keep" };
+  if (change.list.some(item => item.conversationId === id)) return { kind: "keep" };
+  return current.listed ? { kind: "gone", draft } : { kind: "keep" };
 }

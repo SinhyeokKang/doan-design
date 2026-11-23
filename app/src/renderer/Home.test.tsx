@@ -37,8 +37,8 @@ function render(entries: FolderEntry[], memory: Partial<ComposerMemory> = {}, pr
   const cards = groupProjects(entries, new Map());
   const sidebar = <ShellSidebar home cards={cards} projects={{}} loaded={entries[0]?.path ?? null} canvas={entries[0]?.kind === "list" ? entries[0].canvases[0]?.path : undefined} homeDirectory={null} search={() => {}} toggle={() => {}} disclose={() => {}} toggleGroup={() => {}} worktree={() => {}} open={() => {}} overview={() => {}} action={() => {}} remove={async () => {}} projectSettings={() => {}} canvasMenu={NO_CANVAS_MENU} />;
   return renderToStaticMarkup(<TooltipProvider><Home header={<header className="top shell-top" />} sidebar={sidebar} entries={entries} homeDirectory="/Users/ada" shellProjects={{}} loaded={null} select={null}
-    prefs={{}} memory={{ current: { ...emptyComposer(), auth: AUTH, presets: LISTED, greeting: null, ...memory } }} restore={null}
-    start={async () => ({ ok: true })} openConversation={() => {}} addProjects={() => {}} openSettings={() => {}} {...props} /></TooltipProvider>);
+    prefs={{}} memory={{ current: { ...emptyComposer(), auth: AUTH, presets: LISTED, greeting: null, ...memory } }} working={new Set()} restore={null}
+    start={async () => ({ ok: true })} addProjects={() => {}} openSettings={() => {}} {...props} /></TooltipProvider>);
 }
 
 test("Home is the shell with the sidebar and a composer body: no project cards, setup checklist or connection banner", () => {

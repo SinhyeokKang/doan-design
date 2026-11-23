@@ -193,7 +193,7 @@ test("focus on Stop moves to the field when Stop becomes a disabled Send; focus 
     render();
     const slot = { tagName: "BUTTON" }, other = { tagName: "BUTTON" }, focus = vi.fn();
     hooks.refs[2]!.current = { focus, element: () => null, composing: () => false };
-    hooks.refs[5]!.current = { querySelector: (selector: string) => selector === ".composer-send" ? slot : null };
+    hooks.refs[4]!.current = { querySelector: (selector: string) => selector === ".composer-send" ? slot : null };
     vi.stubGlobal("document", { activeElement: focused === "stop" ? slot : other, hasFocus: () => true });
     props.turn = "holding";
     render();
@@ -230,14 +230,15 @@ test("an accepted send clears the notice an earlier refusal left", async () => {
   expect(render().some(item => item.children === "Answer or stop the request above.")).toBe(true);
 });
 
-const refuseBlocked = () => ({ kind: "blocked" as const, text: "No agent is ready to run." });
+const BLOCKED = "This canvas isn’t listed in doan-design, so its conversation can’t continue.";
+const refuseBlocked = () => ({ kind: "blocked" as const, text: BLOCKED });
 test("a refusal belongs to the draft it was sent from: another conversation does not show it", async () => {
   const { props, render } = setup({ refuse: refuseBlocked, onSend: async () => ({ error: "no_agent" }) }, [["conversation:a", draft("Draw it")], ["conversation:b", draft("Other")]]);
   (button(render(), "Send").onClick as () => void)();
   await flush();
   expect(button(render(), "Send").disabled).toBe(true);
   props.mode = B;
-  expect(render().some(item => item.children === "No agent is ready to run.")).toBe(false);
+  expect(render().some(item => item.children === BLOCKED)).toBe(false);
   expect(button(render(), "Send").disabled).toBe(false);
 });
 
@@ -824,8 +825,8 @@ test("Home Control+Enter still sends through its actual ComposerField", async ()
   const start = vi.fn(async () => ({ ok: true as const }));
   const tree = elements(HeroComposer({
     entries: [{ kind: "list", path: "/project", servedRev: 0, canvases: [] }], homeDirectory: null,
-    shellProjects: {}, loaded: null, select: null, prefs: {}, memory, running: new Map(), restore: null,
-    greeting: "Start", start, openConversation: vi.fn(), addProjects: vi.fn(), openSettings: vi.fn(),
+    shellProjects: {}, loaded: null, select: null, prefs: {}, memory, working: new Set(), restore: null,
+    greeting: "Start", start, addProjects: vi.fn(), openSettings: vi.fn(),
   }));
   pressControl(tree); await flush();
   expect(start).toHaveBeenCalledWith(expect.objectContaining({ text: "Draw a page" }), expect.anything());

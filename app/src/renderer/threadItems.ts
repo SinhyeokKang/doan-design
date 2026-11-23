@@ -237,7 +237,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         if (!item.handoff) item.handoff = { outcome: "missed" };
         continue;
       }
-      // Written while the turn runs or up to main's promotion deadline after its end.
+      // Written while the turn runs or up to main's settle deadline after its end.
       case "canvas.drawn":
         card(event.turnId, event.canvas).drawn = true;
         continue;
