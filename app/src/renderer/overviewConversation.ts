@@ -79,18 +79,28 @@ export function projectConversationMenu(list: readonly ConversationSummary[], no
 
 // wait: the list was not read yet, so nothing is shown rather than a new conversation that then changes. reread: the
 // requested conversation is not listed yet (a start's reply can overtake its list notice); read again with it held.
-// forget: the remembered conversation was promoted, so ui-state drops it.
+// forget: the remembered conversation was promoted, so ui-state drops it. fresh: the first pick of the run found nothing
+// left for the person in the conversation it would reopen.
 export type OverviewPick =
   | { kind: "wait" }
   | { kind: "reread"; conversationId: string }
   | { kind: "conversation"; conversationId: string }
   | { kind: "canvas"; conversationId: string; canvas: Canvas }
-  | { kind: "new"; forget: boolean };
+  | { kind: "new"; forget: boolean; fresh?: true };
+
+// Nothing left for the person: no turn running or starting, nothing queued or waiting out a usage limit, no pending
+// request, and its last turn's end already seen (main's mark, or this run's `seen` that a list read has not shown yet).
+// An unreadable history says nothing about having been seen, so it never counts.
+function endedAndSeen(c: ConversationSummary, seen: ReadonlySet<string>): boolean {
+  return !c.readError && c.phase === "ended" && !c.working && c.queued === 0 && c.scheduledAt === undefined && (!c.unseen || seen.has(c.conversationId));
+}
 
 // The requested conversation, the one last shown on this device, the latest project conversation,
 // else a new one. A remembered conversation that is gone is skipped; an unreadable one is not the latest, but a
-// requested or remembered one still opens so its thread can say it cannot be read.
-export function pickOverviewConversation(list: readonly ConversationSummary[] | null, remembered: string | undefined, request: string | null): OverviewPick {
+// requested or remembered one still opens so its thread can say it cannot be read. `fresh` is given only for the root's
+// first automatic pick of the run (this run's seen marks): a person coming back to the app starts with a new
+// conversation rather than one already finished and read.
+export function pickOverviewConversation(list: readonly ConversationSummary[] | null, remembered: string | undefined, request: string | null, fresh: ReadonlySet<string> | null = null): OverviewPick {
   if (list === null) return { kind: "wait" };
   if (request !== null) {
     const asked = list.find(c => c.conversationId === request);
@@ -99,9 +109,10 @@ export function pickOverviewConversation(list: readonly ConversationSummary[] | 
   }
   const last = remembered === undefined ? undefined : list.find(c => c.conversationId === remembered);
   if (last?.canvas) return { kind: "new", forget: true };
-  if (last) return { kind: "conversation", conversationId: last.conversationId };
-  const latest = list.filter(c => isProject(c) && !c.readError).sort(byActivity)[0];
-  return latest ? { kind: "conversation", conversationId: latest.conversationId } : { kind: "new", forget: false };
+  const candidate = last ?? list.filter(c => isProject(c) && !c.readError).sort(byActivity)[0];
+  if (!candidate) return { kind: "new", forget: false };
+  if (fresh && endedAndSeen(candidate, fresh)) return { kind: "new", forget: false, fresh: true };
+  return { kind: "conversation", conversationId: candidate.conversationId };
 }
 
 // The Overview's main conversation: null is the new conversation state. listed: it has appeared in a list read, so its

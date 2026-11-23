@@ -27,6 +27,9 @@ export interface OverviewRunHost {
   remembered(): Readonly<Record<string, string>> | null;
   remember(root: string, conversationId: string | null): void;
   markSeen(conversationId: string, seq: number): void;
+  // Conversations this run marked seen that a list read has not shown as seen yet (HomeRun's seenPending); none when
+  // absent.
+  seen?(): ReadonlySet<string>;
   focused(): boolean;
   // A requested conversation bound to a canvas opens that canvas with its conversation in the panel.
   openCanvas(root: string, canvas: Canvas, conversationId: string, scroll: ScrollTo | null): void;
@@ -51,6 +54,9 @@ interface RootState {
   revision: number;
   intent: number;
   leftAt?: number;
+  // The first automatic pick: undefined until it runs; true while the new conversation state it showed for a fresh
+  // start holds (until the person's or an entry's choice moves intent), so a return from a canvas keeps it.
+  fresh?: boolean;
   // asked: the list was read again for it once; after: reads started before the request.
   request: { conversationId: string; after: number; asked: boolean; scroll: ScrollTo | null } | null;
   moved: Moved | null;
@@ -137,7 +143,8 @@ export class OverviewRun {
       const s = this.state(root);
       // Reopened with nothing asked for it meanwhile: the conversation is picked again; the drafts by key stay. The
       // moved line stays until the next send or choice (PRODUCT §5 item 3 'Promotion'), not until the Overview is left.
-      if (s.leftAt !== undefined && s.leftAt === s.intent && !s.request) delete s.current;
+      // A fresh start's new conversation state is kept: picking again would reopen the conversation it set aside.
+      if (s.leftAt !== undefined && s.leftAt === s.intent && !s.request && !(s.fresh === true && s.intent === 0)) delete s.current;
       this.resolve(root, s);
     }
     this.checkSeen();
@@ -304,7 +311,10 @@ export class OverviewRun {
     }
     const remembered = this.host.remembered();
     if (s.current !== undefined || !read || remembered === null) return;
-    const pick = pickOverviewConversation(read, remembered[root], null);
+    // Fresh only for the root's first pick of the run and before any choice (a request or start moves intent).
+    const first = s.fresh === undefined && s.intent === 0;
+    const pick = pickOverviewConversation(read, remembered[root], null, first ? this.host.seen?.() ?? new Set() : null);
+    s.fresh = pick.kind === "new" && pick.fresh === true;
     if (pick.kind === "conversation") this.setCurrent(root, s, pick.conversationId, true);
     else if (pick.kind === "new") {
       s.revision++;
