@@ -6,8 +6,8 @@ import { CanvasConversationList, type CanvasConversationListProps } from "./Canv
 export function CanvasConversations(props: Omit<CanvasConversationListProps, "scroller" | "title">) {
   const scroller = useRef<HTMLElement>(null);
   const title = useRef<HTMLHeadingElement>(null);
-  return <aside className="right doan-scroll ov-right" role="region" aria-label="Canvas conversations" ref={scroller}>
-    <h2 className="phead rp-head" tabIndex={-1} ref={title}>Canvas conversations</h2>
+  return <aside className="right doan-scroll ov-right" role="region" aria-label="Conversations" ref={scroller}>
+    <h2 className="phead rp-head" tabIndex={-1} ref={title}>Conversations</h2>
     <CanvasConversationList {...props} scroller={scroller} title={title} />
   </aside>;
 }
