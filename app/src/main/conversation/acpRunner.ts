@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { constants } from "node:fs";
+import { constants, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { open } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
@@ -25,6 +26,7 @@ const EARLY_SESSIONS = 4;
 // One server per turn: it is opened for a prompt, resumes the session with session/load and is stopped when the turn
 // ends, so the account lease (and the plaintext working credential) never outlives a running turn.
 export async function openAcp(input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void): Promise<Runner> {
+  if (input.runtime === "cursor" && input.model && input.env.HOME) chooseCursorModel(input.env.HOME, input.model);
   // Every mode of a Doan-connection run is fenced: no ACP server sandboxes its own commands.
   const launch = fencedCommand(input.command, input.args ?? [], input.fence ? fenceArgs(input.runtime, input.fence.paths) : undefined, input.fence?.exec);
   const child = spawn(launch.command, launch.args, { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
@@ -213,6 +215,21 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     stop: () => stopTurn("user"),
     close: () => stopTurn("appQuit"),
   };
+}
+// Cursor keeps a session/set_config_option model choice in cli-config.json, which the fence keeps closed because it
+// holds the permission allow list a later conversation runs under, so in a fenced run the request fails and the start
+// with it; `acp --model` writes the same file. Its ACP server opens session/new and session/load on acp-config.json's
+// selectedModelVariantId, the file's only member (2026.10.22 and 2026.11.22, probe), so Doan writes the choice there
+// from outside the fence; the server then reports it as current and no model request is sent. Two Cursor starts with
+// different models at the same moment can read each other's choice: that run's request is sent and refuses the start.
+// A file that cannot be written leaves the same request.
+function chooseCursorModel(home: string, model: string): void {
+  const dir = join(home, ".cursor"), file = join(dir, "acp-config.json"), temp = `${file}.${randomUUID()}.tmp`;
+  try {
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    writeFileSync(temp, JSON.stringify({ selectedModelVariantId: model }, null, 2), { mode: 0o600, flag: "wx" });
+    renameSync(temp, file);
+  } catch { try { rmSync(temp, { force: true }); } catch { /* the write already failed */ } }
 }
 const RECENT_STDERR = 16384, TAIL_LINES = 6, TAIL_LINE = 300, TAIL_TEXT = 1000;
 // Credential shapes a CLI may print when it fails: a JWT (Cursor's tokens), an Authorization scheme's value, a URL's
