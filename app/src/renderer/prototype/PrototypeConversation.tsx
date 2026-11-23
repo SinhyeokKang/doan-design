@@ -50,8 +50,9 @@ export function PrototypeConversationPanel({ run, calls, now, onNotice = () => {
     onSettings={settingsTarget => reveal({ kind: "settings", ...(settingsTarget.provider ? { provider: settingsTarget.provider } : {}) })}
     onNotice={onNotice}
     // A handoff card from the Overview: the main window shows its source conversation there. This window lists only the
-    // canvas's conversations, so it cannot tell a deleted source and keeps Open; the main window answers for it.
+    // canvas's conversations, so whether the source still exists is main's answer (the run's).
     onOpenOverview={conversationId => reveal({ kind: "conversation", conversationId })}
+    conversationListed={conversationId => run.conversationListed(conversationId)}
     onOpenHandoff={(canvas, conversationId) => reveal({ kind: "handoff", canvas, ...(conversationId ? { conversationId } : {}) })}
     work={run.work()} playing={run.playing()} />;
 }
