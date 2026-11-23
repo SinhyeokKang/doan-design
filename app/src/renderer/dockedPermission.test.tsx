@@ -82,7 +82,7 @@ function overview(patch: Partial<ProjectOverviewProps> = {}) {
 async function panel(patch: Partial<CanvasConversationProps> = {}) {
   let list: ListView = [];
   const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
-  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   await flush();
@@ -93,7 +93,7 @@ async function panel(patch: Partial<CanvasConversationProps> = {}) {
       calls: window.doan, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme", entry: ENTRY,
       list, seen: new Set(), prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
       onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
-      onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [], ...patch,
+      onSettings: vi.fn(), onNotice: vi.fn(), work: [], ...patch,
     };
     effects.length = 0;
     renderToStaticMarkup(<TooltipProvider><CanvasConversation {...props} /></TooltipProvider>);

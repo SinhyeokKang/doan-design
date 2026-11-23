@@ -50,7 +50,7 @@ function render(list: ListView, patch: Partial<ProjectOverviewProps> = {}, setup
   support.presets = { v: 1, ok: true, result: { version: "1", presets: PRESETS } };
   const props: ProjectOverviewProps = {
     run, support, root: ROOT, project: "doan", entry: entry(ROOT, [".doan/canvases/checkout.html"]), worktrees: [entry(ROOT, [])], homeDirectory: "/code",
-    notice: null, unavailable: null, list, seen: new Set(), holder: null, prefs: {}, defaults: null, now: Date.parse("2026-10-30T00:03:00.000Z"),
+    notice: null, unavailable: null, list, seen: new Set(), prefs: {}, defaults: null, now: Date.parse("2026-10-30T00:03:00.000Z"),
     onWorktree: () => {}, onOpenCanvas: () => {}, onRetryList: () => {}, onStart: async () => ({ ok: true }), onSettings: () => {},
     onSendConversation: async () => {}, onAction: () => {}, onProjectSettings: () => {}, ...patch,
   };
@@ -100,16 +100,6 @@ test("the Overview's suggested prompts are the shared suggestion button", () => 
   const prompts = suggestedPrompts(entry(ROOT, [".doan/canvases/checkout.html"]), "doan", PRESETS);
   expect(prompts.length).toBeGreaterThan(0);
   expect(suggestionButtons(render([]))).toEqual(sharedSuggestions(prompts));
-});
-
-test("a promotion leaves the moved line with Open above the suggestions", () => {
-  const html = render([summary()], {}, run => {
-    run.sync();
-    (run as unknown as { roots: Map<string, { current: unknown; moved: unknown }> }).roots.get(ROOT)!.current = { conversationId: null, listed: false };
-    (run as unknown as { roots: Map<string, { moved: unknown }> }).roots.get(ROOT)!.moved = { conversationId: A, title: "Checkout copy", canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } };
-  });
-  // One line; only the title gives way, and the whole sentence stays in the text (and the tooltip).
-  expect(html).toMatch(/<div class="doan-notice moved" role="status">.*<span class="grow-text moved-text selectable" data-state="closed" data-slot="tooltip-trigger"><span class="moved-title">Checkout copy<\/span><span class="moved-rest"> moved to checkout\.<\/span><\/span><button[^>]*>Open<\/button><\/div><div class="ov-suggestions"/);
 });
 
 test("selectable: the notice text, not the notice's moved line", () => {
@@ -277,14 +267,6 @@ test("the composer tells the docked buddy when the conversation waits for an ans
   expect(slot(fresh)).toBe('<div class="docked-buddy-slot" aria-hidden="true">');
   expect(slot(render([summary()]))).toBe('<div class="docked-buddy-slot" aria-hidden="true">');
   expect(slot(render([summary({ phase: "waiting" })]))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-waiting="">');
-  // The moved line with its Open button sits where the suggestions do: a reason of its own.
-  const moved = render([summary()], {}, run => {
-    run.sync();
-    (run as unknown as { roots: Map<string, { current: unknown; moved: unknown }> }).roots.get(ROOT)!.current = { conversationId: null, listed: false };
-    (run as unknown as { roots: Map<string, { moved: unknown }> }).roots.get(ROOT)!.moved = { conversationId: A, title: "Checkout copy", canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } };
-  });
-  expect(moved).toContain('class="doan-notice moved"');
-  expect(slot(moved)).toContain(' data-notice=""');
   expect(slot(render([]))).not.toContain("data-notice");
 });
 

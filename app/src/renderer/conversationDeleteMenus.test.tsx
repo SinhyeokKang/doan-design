@@ -92,7 +92,7 @@ function overview(list: ListView, current: string | null | undefined) {
 function canvas(list: ListView, current: string | null) {
   const lists = new Map<string, ListView>([[ROOT, list]]);
   const store = new ConversationStore({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
-  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
+  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   run.select(current);

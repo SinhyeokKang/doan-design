@@ -86,7 +86,7 @@ function reset() {
   doan = {
     onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationStage: on("stage"), onConversationBoundary: on("boundary"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })), readConversation: vi.fn(async () => ({ error: "not_found" })), onOpenAddProjects: on("openAddProjects"),
     onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
-    onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"), onPrototypeTarget: on("prototypeTarget"), readPrototypeTarget: vi.fn(async () => null), setPrototypeDrawing: vi.fn(async () => true), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}),
+    onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"), onPrototypeTarget: on("prototypeTarget"), readPrototypeTarget: vi.fn(async () => null), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })), readBuddyIntro: vi.fn(async () => false),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
@@ -383,4 +383,108 @@ test("a single handoff still waiting turns into its toast when a summary arrives
   handoff(multi);
   expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
   expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("drafts.html handed off to checkout-flow.html", "Open", expect.any(Function));
+});
+
+// A project conversation's handoff: its source page is the root's Overview showing the source conversation
+// (PRODUCT §5 item 2 'Handoff').
+const { ProjectOverview } = await import("./ProjectOverview");
+type OverviewProps = { root: string; composerLink: { current: unknown }; run: { view(root: string): { kind: string; conversationId?: string }; select(root: string, id: string | null): void; setDrafts(update: (drafts: Map<string, unknown>) => Map<string, unknown>): void } };
+const overviewProps = () => find<OverviewProps>(ProjectOverview)[0]?.props;
+const projectConversation = (conversationId: string, minute: number) => ({ conversationId, title: conversationId, owner: "doan", provider: "claude", fromHome: false,
+  phase: "running", unseen: false, queued: 0, working: true, lastActivityAt: `2026-11-01T00:0${minute}:00.000Z`, preview: "" });
+const fromOverview = { root: "/w/a", source: { conversationId: "c1" }, target: { conversationId: "c2", canvas: { path: C, id: "checkout" } } } as unknown as HandoffNotice;
+const multiFromOverview = { root: "/w/a", source: { conversationId: "c1" },
+  targets: [{ conversationId: "c2", canvas: { path: C, id: "checkout" } }, { conversationId: "c3", canvas: { path: P, id: "payment" } }] } as unknown as HandoffMultiNotice;
+// The Overview of /w/a showing c1, the most recent of its project conversations.
+async function onSourceOverview(list = listA([drafts, checkout, payment])) {
+  doan.listConversations = vi.fn(async () => [projectConversation("c1", 5), projectConversation("c9", 1)]);
+  doan.readConversation = vi.fn(async () => ({ events: [], lastSeq: 0, turn: "idle" }));
+  await overview(list);
+  await flushAll();
+  expect(overviewProps()!.run.view("/w/a")).toEqual({ kind: "conversation", conversationId: "c1" });
+}
+
+test("from the Overview showing its source conversation the handoff moves to the target; Back shows that conversation again", async () => {
+  await onSourceOverview();
+  const project = overviewProps() && find<{ project: string }>(ProjectOverview)[0]!.props.project;
+  clearController();
+  handoff(fromOverview);
+  expect(harness.toast.show).not.toHaveBeenCalled();
+  const [root, row, , options] = lastOpen();
+  expect([root, row.path]).toEqual(["/w/a", C]);
+  harness.controller!.destination!.mockReturnValue({ root: "/w/a", canvas: C });
+  showCanvas(checkout);
+  options.opened(); render();
+  expect(panel()!.arrival).toMatchObject({ focus: "handoff", handoff: { root: "/w/a", canvas: { path: C, id: "checkout" }, conversationId: "c2" } });
+  expect(back()).toBe(true);
+  const top = all(tree).find(element => typeof element.type === "function" && element.type.name === "TopBar")!;
+  (top.props.previous as () => void)(); render();
+  harness.setState!({ ...initialCanvasState() }); render(); await flushAll();
+  expect(overviewProps()?.root).toBe("/w/a");
+  expect(overviewProps()!.run.view("/w/a")).toEqual({ kind: "conversation", conversationId: "c1" });
+  expect(project).toBeTruthy();
+});
+
+test("the same root's Overview showing another conversation, or New, keeps the screen and toasts with the project's name", async () => {
+  for (const shown of ["c9", null]) {
+    reset();
+    await onSourceOverview();
+    const project = find<{ project: string }>(ProjectOverview)[0]!.props.project;
+    overviewProps()!.run.select("/w/a", shown); render(); await flushAll();
+    clearController(); harness.toast.show.mockClear();
+    handoff(fromOverview);
+    expect(harness.controller!.openCanvas, String(shown)).not.toHaveBeenCalled();
+    expect(harness.toast.show, String(shown)).toHaveBeenCalledExactlyOnceWith(`${project} Overview handed off to checkout-flow.html`, "Open", expect.any(Function));
+  }
+});
+
+test("typing in the Overview composer, or focus in the Conversations list or the header menu, keeps the screen", async () => {
+  for (const how of ["draft", "composing", "list", "menu"] as const) {
+    reset();
+    await onSourceOverview();
+    const props = overviewProps()!;
+    props.composerLink.current = { element: () => null, composing: () => how === "composing", focus: () => {}, insert: () => "inserted" };
+    if (how === "draft") props.run.setDrafts(drafts => new Map(drafts).set("conversation:c1", { segments: [{ text: "Make it" }], preset: null, attachments: [], shape: "capsule" }));
+    const selector = how === "list" ? ".ov-right" : how === "menu" ? ".conv-menu" : null;
+    (document as unknown as { activeElement: unknown }).activeElement = { closest: (query: string) => selector && query.split(",").map(part => part.trim()).includes(selector) ? {} : null };
+    render(); await flushAll();
+    clearController(); harness.toast.show.mockClear();
+    handoff(fromOverview);
+    expect(harness.controller!.openCanvas, how).not.toHaveBeenCalled();
+    expect(harness.toast.show, how).toHaveBeenCalledWith(expect.stringMatching(/ Overview handed off to checkout-flow\.html$/), "Open", expect.any(Function));
+  }
+});
+
+test("a choice of the person's in the Overview while the target's read is awaited turns the move into the toast", async () => {
+  await onSourceOverview(listA([drafts]));
+  clearController();
+  handoff(fromOverview);
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  overviewProps()!.run.select("/w/a", "c9"); render();
+  folders([listA([drafts, checkout])]);
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).toHaveBeenCalledWith(expect.stringMatching(/ Overview handed off to checkout-flow\.html$/), "Open", expect.any(Function));
+});
+
+test("several handoffs on the Overview showing their source neither move nor toast", async () => {
+  await onSourceOverview();
+  clearController();
+  handoff(multiFromOverview);
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).not.toHaveBeenCalled();
+});
+
+test("several handoffs elsewhere toast once; Open shows the source conversation in its Overview", async () => {
+  await onSourceOverview();
+  const project = find<{ project: string }>(ProjectOverview)[0]!.props.project;
+  overviewProps()!.run.select("/w/a", "c9"); render();
+  showCanvas(payment); await flushAll();
+  clearController();
+  handoff(multiFromOverview);
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(`${project} Overview handed off to 2 canvases`, "Open", expect.any(Function));
+  (harness.toast.show.mock.lastCall![2] as () => void)(); render();
+  harness.setState!({ ...initialCanvasState() }); render(); await flushAll();
+  expect(harness.controller!.showOverview).toHaveBeenCalled();
+  expect(overviewProps()!.run.view("/w/a")).toEqual({ kind: "conversation", conversationId: "c1" });
 });

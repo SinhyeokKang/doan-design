@@ -2,8 +2,8 @@ import { describe, expect, test } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { WorkItem } from "../main/workState";
 import {
-  canvasConversationError, canvasConversationMenu, canvasNotice, DRAWING_TEXT, DUPLICATE_CANVAS_TEXT, newConversationMode, noticeOpenName,
-  earliestWaiting, pickShownConversation, PROMOTED_TEXT, resumeHeld, shouldMarkSeen, sidebarRowRequest, titleMenuOrder, type ShownInput,
+  canvasConversationError, canvasConversationMenu, DUPLICATE_CANVAS_TEXT, newConversationMode,
+  earliestWaiting, pickShownConversation, resumeHeld, shouldMarkSeen, sidebarRowRequest, titleMenuOrder, type ShownInput,
 } from "./canvasConversation";
 import { dockedRefusal, type DockedMode } from "./dockedRules";
 import { startErrorView } from "./homeComposer";
@@ -357,35 +357,6 @@ describe("sidebarRowRequest", () => {
     const list = [summary({ conversationId: "x", phase: "waiting" }), summary({ conversationId: "y", unseen: true }), home({ conversationId: "h", phase: "waiting" })];
     expect(sidebarRowRequest(list, billing, "permission", SEEN)).toBe("x");
     expect(sidebarRowRequest(list, billing, "unseen", SEEN)).toBe("y");
-  });
-});
-
-describe("canvasNotice", () => {
-  const a = summary({ conversationId: "a" });
-  const promoted = summary({ conversationId: "proj" });
-  const promotedNotice = { kind: "promoted", text: PROMOTED_TEXT, open: "proj" };
-
-  test("the promotion's words name no current conversation", () => {
-    expect(PROMOTED_TEXT).toBe("A project conversation moved to this canvas.");
-    expect(noticeOpenName("promoted")).toBe("Open the moved conversation");
-    expect(noticeOpenName("drawing")).toBe("Open the project conversation");
-  });
-
-  test("a project conversation that joined this canvas is announced while another shows, never moving the panel", () => {
-    expect(canvasNotice([a, promoted], billing, "a", { previous: [a, project] })).toEqual(promotedNotice);
-    expect(canvasNotice([a, promoted], billing, null, { previous: [a, project] })).toEqual(promotedNotice);
-    expect(canvasNotice([a, promoted], billing, "proj", { previous: [a, project] })).toBeNull();
-  });
-
-  test("an announced promotion stays while its conversation is on this canvas", () => {
-    expect(canvasNotice([a, promoted], billing, "a", { previous: [a, promoted], promoted: "proj" })).toEqual(promotedNotice);
-    expect(canvasNotice([a], billing, "a", { previous: [a, promoted], promoted: "proj" })).toBeNull();
-  });
-
-  test("a project conversation drawing this canvas is announced over the new conversation state only", () => {
-    const notice = { kind: "drawing", text: DRAWING_TEXT, open: "proj" };
-    expect(canvasNotice([a], billing, null, { drawing: "proj" })).toEqual(notice);
-    expect(canvasNotice([a], billing, "a", { drawing: "proj" })).toBeNull();
   });
 });
 

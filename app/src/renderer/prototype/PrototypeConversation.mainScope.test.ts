@@ -53,14 +53,14 @@ beforeEach(() => {
     conversations: () => all.map(c => ({ conversationId: c.conversationId, root: ROOT, ...(c.canvas ? { canvas: c.canvas } : {}) })),
   });
   const calls = {
-    onConversationEvent: on, onConversationStage: on, onConversationBoundary: on, onWorkChanged: on, onTargetEntry: on, onComposerSettings: on, onDrawing: on, onPromoted: on,
+    onConversationEvent: on, onConversationStage: on, onConversationBoundary: on, onWorkChanged: on, onTargetEntry: on, onComposerSettings: on, 
     onConversationListChanged: (listener: typeof listChanged) => { listChanged = listener; return () => {}; },
     listConversations: (payload: unknown) => {
       const reply = list(payload);
       return new Promise(resolve => replies.push({ payload, deliver: () => resolve(reply) }));
     },
     setShowing: async (conversationId: string | null) => showing.set("prototype", { conversationId }),
-    getWork: async () => [], rememberedConversation: async () => null, readTargetEntry: async () => null, readComposerSettings: async () => null, readDrawing: async () => null, readPromoted: async () => null,
+    getWork: async () => [], rememberedConversation: async () => null, readTargetEntry: async () => null, readComposerSettings: async () => null,
     readConversation: async ({ conversationId }: { conversationId: string }) => ({ events: [], lastSeq: 0, conversationId }),
     takeConversationDraft: async () => null, markConversationSeen: async () => {},
     conversationResumeTarget: async () => ({ available: false as const, reason: "no_record" as const }), scheduledMessages: async () => [],

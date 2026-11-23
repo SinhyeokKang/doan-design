@@ -37,7 +37,7 @@ function render(entries: FolderEntry[], memory: Partial<ComposerMemory> = {}, pr
   const cards = groupProjects(entries, new Map());
   const sidebar = <ShellSidebar home cards={cards} projects={{}} loaded={entries[0]?.path ?? null} canvas={entries[0]?.kind === "list" ? entries[0].canvases[0]?.path : undefined} homeDirectory={null} search={() => {}} toggle={() => {}} disclose={() => {}} toggleGroup={() => {}} worktree={() => {}} open={() => {}} overview={() => {}} action={() => {}} remove={async () => {}} projectSettings={() => {}} canvasMenu={NO_CANVAS_MENU} />;
   return renderToStaticMarkup(<TooltipProvider><Home header={<header className="top shell-top" />} sidebar={sidebar} entries={entries} homeDirectory="/Users/ada" shellProjects={{}} loaded={null} select={null}
-    prefs={{}} memory={{ current: { ...emptyComposer(), auth: AUTH, presets: LISTED, greeting: null, ...memory } }} running={new Map()} restore={null}
+    prefs={{}} memory={{ current: { ...emptyComposer(), auth: AUTH, presets: LISTED, greeting: null, ...memory } }} restore={null}
     start={async () => ({ ok: true })} openConversation={() => {}} addProjects={() => {}} openSettings={() => {}} {...props} /></TooltipProvider>);
 }
 
@@ -129,22 +129,18 @@ test("a preset chip and attachments sit above the request; Send is enabled; the 
   expect(html).toContain('<div class="home-suggestions" role="group" aria-label="Suggested prompts" inert="">');
 });
 
-test("Tab order is project, chip ×, field, toolbar, Send, worktree, suggestions, then the reason line's Open", () => {
+test("Tab order is project, chip ×, field, toolbar, Send, worktree, then suggestions", () => {
   const worktrees: FolderEntry[] = ["/code/doan-design", "/code/doan-wt"].map((path, i) => ({ ...project(path), git: { common: "/code/doan-design/.git", main: "/code/doan-design", branch: i ? "feat" : "main", worktrees: [] } }));
-  const html = render(worktrees, { preset: PRESETS[3]!, text: "" }, { running: new Map([["/code/doan-design", { conversationId: "c1", waiting: false }]]) });
+  const html = render(worktrees, { preset: PRESETS[3]!, text: "" });
   // The sidebar also has a worktree selector. This order is the Home composer's.
   const stage = html.slice(html.indexOf('class="home-stage"'));
   const order = [...stage.matchAll(/<(button|div class="composer-input doan-scroll")[^>]*?(aria-label="([^"]*)"|>([^<]*))/g)].map(m => m[3] ?? m[4] ?? "");
   const at = (label: string) => order.findIndex(item => item.startsWith(label));
-  const sequence = ["Project:", "Remove preset", "Message", "Attach files or folders", "Design presets", "Agent:", "Send", "Worktree:", "Open"].map(at);
+  const sequence = ["Project:", "Remove preset", "Message", "Attach files or folders", "Design presets", "Agent:", "Send", "Worktree:"].map(at);
   expect(sequence.every(index => index >= 0)).toBe(true);
   expect([...sequence].sort((a, b) => a - b)).toEqual(sequence);
-  expect(html).toContain('<div class="composer-reason" role="status"><span>Another conversation is still running in doan-design.</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation">Open</button></div>');
-});
-
-test("after a late project_busy the reason line shows before the list names the conversation, without Open", () => {
-  const html = render([project("/code/doan-design")], { text: "Draw it" }, { running: new Map([["/code/doan-design", { conversationId: "", waiting: false }]]) });
-  expect(html).toContain('<div class="composer-reason" role="status"><span>Another conversation is still running in doan-design.</span></div>');
+  // Project conversations run side by side: no line says another one is still running.
+  expect(html).not.toContain("is still running in");
 });
 
 test("near the limit a counter shows what is left; over it Send is disabled and the reason says to shorten", () => {
