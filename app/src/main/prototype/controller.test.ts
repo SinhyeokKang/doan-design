@@ -90,10 +90,10 @@ describe("prototype controller", () => {
     expect(t.calls).toEqual([]);
   });
 
-  test("choosing another frame stills the ready screen before the refit, then fits, activates and loads a new run", async () => {
+  test("choosing another frame stills the ready screen, then activates and loads a new run in the window as it is", async () => {
     const t = opened();
     t.controller.request(PROTOTYPE_CHANNELS.choose, "prototype", { frame: "tablet" });
-    const effects = [["capture", phone, "fit"], ["fit", { width: 820, height: 1180 }], ["activate"], ["load", { gen: 2, url: proto.url, frame: "tablet" }]];
+    const effects = [["capture", phone, "fit"], ["activate"], ["load", { gen: 2, url: proto.url, frame: "tablet" }]];
     expect(t.calls).toEqual(effects);
     await vi.waitFor(() => expect(t.calls).toEqual([...effects, ["snapshot", 2, [1, 2], BOX], ["view", 2, "loading"]]));
   });
@@ -212,7 +212,7 @@ describe("prototype controller", () => {
     await vi.waitFor(() => expect(t.calls.at(-1)).toEqual(["view", 2, "loading"]));
     t.calls.length = 0;
     t.controller.request(PROTOTYPE_CHANNELS.back, "prototype", undefined);
-    const effects = [["fit", { width: 390, height: 844 }], ["activate"], ["kill", 2], ["load", { gen: 3, url: proto.url, frame: "phone" }]];
+    const effects = [["activate"], ["kill", 2], ["load", { gen: 3, url: proto.url, frame: "phone" }]];
     expect(t.calls).toEqual([...effects, ["snapshot", 3, [1, 2], BOX], ["view", 3, "loading"]]);
     expect(t.views.at(-1)?.previousStopped).toBe(true);
   });
@@ -356,7 +356,7 @@ describe("playFromCli", () => {
     // The ready run's still goes out first, so the view follows it.
     await vi.waitFor(() => expect(t.views.at(-1)?.gen).toBe(2));
     expect(t.calls.filter(call => Array.isArray(call) && call[0] !== "capture" && call[0] !== "snapshot")).toEqual([
-      ["fit", { width: 820, height: 1180 }], ["activate"], ["load", { gen: 2, url: proto.url, frame: "tablet" }], ["view", 2, "loading"],
+      ["activate"], ["load", { gen: 2, url: proto.url, frame: "tablet" }], ["view", 2, "loading"],
     ]);
     expect(t.views.at(-1)).toMatchObject({ frame: "tablet", canGoBack: true });
   });
@@ -430,14 +430,28 @@ describe("the conversation panel", () => {
     expect(t.calls).toEqual([]);
   });
 
-  test("a play with the panel open fits the window with it and keeps the width the fit gave", () => {
+  test("the opening play with the panel open fits the window with it and keeps the width the fit gave", () => {
     const t = opened();
-    t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true, width: 300 });
+    t.setOpenedPanel(300);
+    t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true });
+    t.controller.windowClosing();
+    t.calls.length = 0;
+    t.setFittedPanel(280);
+    t.controller.play("main", play);
+    expect(t.calls[0]).toEqual(["create", phone, 300]);
+    expect(t.views.at(-1)?.panel).toEqual({ open: true, width: 280 });
+  });
+
+  test("a frame change with the panel open keeps the window and the panel's width", async () => {
+    const t = opened();
+    t.setOpenedPanel(300);
+    t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true });
     t.calls.length = 0;
     t.setFittedPanel(280);
     t.controller.request(PROTOTYPE_CHANNELS.choose, "prototype", { frame: "tablet" });
-    expect(t.calls).toContainEqual(["fit", { width: 820, height: 1180 }, 280]);
-    expect(t.views.at(-1)?.panel).toEqual({ open: true, width: 280 });
+    t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 2, state: "ready", size: "900x1200", frames, gotos: [] });
+    expect(t.calls.some(call => Array.isArray(call) && (call[0] === "fit" || call[0] === "create"))).toBe(false);
+    await vi.waitFor(() => expect(t.views.at(-1)).toMatchObject({ gen: 2, phase: "ready", panel: { open: true, width: 300 } }));
   });
 
   test("the still of a ready run is taken with the open panel's width P, which capture leaves out with its gap", () => {
@@ -450,10 +464,11 @@ describe("the conversation panel", () => {
   });
 
   // A link click the window forwards: main checks the role and shape, then judges it against its own run.
-  test("a link to another listed frame refits and starts it without bringing the window forward", async () => {
+  test("a link to another listed frame starts it in the window as it is, without bringing the window forward", async () => {
     const t = opened();
     t.controller.request(PROTOTYPE_CHANNELS.goto, "prototype", { gen: 1, goto: "tablet" });
-    expect(t.calls.slice(0, 3)).toEqual([["capture", phone, "fit"], ["fit", { width: 820, height: 1180 }], ["load", { gen: 2, url: proto.url, frame: "tablet" }]]);
+    expect(t.calls.slice(0, 2)).toEqual([["capture", phone, "fit"], ["load", { gen: 2, url: proto.url, frame: "tablet" }]]);
+    expect(t.calls.some(call => Array.isArray(call) && call[0] === "fit")).toBe(false);
     expect(t.calls.some(call => Array.isArray(call) && call[0] === "activate")).toBe(false);
     await vi.waitFor(() => expect(t.views.at(-1)).toMatchObject({ gen: 2, frame: "tablet", phase: "loading", canGoBack: true }));
     expect(t.controller.playingFrame()).toBe("tablet");

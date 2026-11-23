@@ -219,14 +219,35 @@ test("the text edit menu opens for a field in the frame content, and nothing ope
 
 // A minimum above the current width does not widen the window, so the bounds go first when it rises; bounds below the
 // current minimum keep the minimum's width, so the minimum goes first when it falls.
+const ready = (size: string) => ({ gen: 1, state: "ready", size, frames: [{ id: "phone", size, number: 1 }, { id: "tablet", size: "820x1180", number: 2 }], gotos: [] });
+
+// The opening run's ready size differs from its mark: the one refit left.
 test("a refit into a work area narrower than 640 lowers the minimum before it narrows the window", async () => {
   const { prototype, window } = await opened();
   prototype.controller.request("prototype:panel", "prototype", { open: true });
   expect(window.minimum).toEqual([640, 360]);
   workArea = { x: 0, y: 0, width: 600, height: 1000 };
-  prototype.controller.play("main", { ...play, frame: "tablet" });
+  prototype.controller.request("prototype:result", "prototype", ready("820x1180"));
   expect(window.bounds.width).toBe(600);
   expect(window.minimum).toEqual([600, 360]);
+});
+
+test("a frame change keeps the window's size, position and minimum, with the panel closed and open", async () => {
+  const { prototype, window } = await opened();
+  prototype.controller.request("prototype:result", "prototype", ready("390x844"));
+  const resized = { x: 50, y: 60, width: 700, height: 500 };
+  window.setContentBounds(resized);
+  order.length = 0;
+  prototype.controller.play("main", { ...play, frame: "tablet", mark: "820x1180" });
+  prototype.controller.request("prototype:result", "prototype", { ...ready("820x1180"), gen: 2 });
+  expect(window.bounds).toEqual(resized);
+  expect(order.filter(entry => entry.startsWith("minimum"))).toEqual([]);
+  prototype.controller.request("prototype:panel", "prototype", { open: true });
+  expect(window.minimum).toEqual([640, 360]);
+  prototype.controller.play("main", play);
+  prototype.controller.request("prototype:result", "prototype", { ...ready("1000x700"), gen: 3 });
+  expect(window.bounds).toEqual(resized);
+  expect(window.minimum).toEqual([640, 360]);
 });
 
 test("opening the panel on a narrow window raises the minimum after the bounds", async () => {

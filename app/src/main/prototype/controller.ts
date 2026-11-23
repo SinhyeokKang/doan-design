@@ -15,7 +15,8 @@ import { CLOSED, type PrototypeState, type Resolve, type Step } from "./windowSt
 
 export interface PrototypeHost {
   // `panel`: the conversation panel's width while it is open, else null. With the panel open the window fits the shown
-  // size plus the panel (prototypePanelFit) and answers the panel width it gave; null otherwise.
+  // size plus the panel (prototypePanelFit) and answers the panel width it gave; null otherwise. `fit` is only the
+  // opening run's refit to a ready size that differs from its mark: a later frame keeps the window as it is.
   create(size: PrototypeSize, panel: number | null): number | null;
   fit(size: PrototypeSize, panel: number | null): number | null;
   // Open the conversation panel: widen a narrow window (openPanelResize) and keep it at least 640; answers the width.
@@ -114,7 +115,7 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
   // Leaving a ready run by any path (a reload, a source change, a restore, Retry, another target, a failure or a lost
   // frame) takes a still of its screen. A reload keeps the old iframe showing until the new run is ready; if that run
   // then fails, the renderer stops the old one behind this still, and a capture taken then would hold the loading
-  // overlay. Started before the step's effects, so a refit for another target cannot reach the image.
+  // overlay. Started before the step's effects, so none of them can reach the image.
   const leavingReady = (previous: PrototypeState): Promise<Still | null> | null => {
     if (!previous.open || previous.phase !== "ready" || previous.run === null || !state.open) return null;
     if (state.gen === previous.gen && state.phase === "ready") return null;

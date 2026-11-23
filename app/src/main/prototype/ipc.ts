@@ -255,7 +255,7 @@ export interface PrototypeComposerSettings {
 
 // `prototype:snapshot`: the iframe area of the window as PNG bytes, captured when a ready run turns failed or
 // unavailable and sent before that view. `gen` is the view's gen it belongs under. `box` is where the image was taken
-// in the content panel; the window shows it there, even after a mode switch or a refit moved the frame.
+// in the content panel; the window shows it there, even after a mode switch or a window resize moved the frame.
 export interface PrototypeSnapshot {
   gen: number;
   png: Uint8Array;

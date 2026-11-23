@@ -42,8 +42,9 @@ function place(start: number, size: number, areaStart: number, areaSize: number)
   return Math.max(areaStart, Math.min(start, areaStart + areaSize - size));
 }
 
-// Content bounds for a first play or a replaced frame. A new window is centred in the work area; a replaced frame
-// keeps the window's top-left and is moved only as far as it takes to stay inside.
+// Content bounds for the play that opens the window, and for its one refit when that run's ready size differs from
+// the mark: a new window is centred in the work area; the refit keeps the window's top-left and moves only as far as it
+// takes to stay inside. Any later frame keeps the window as it is.
 export function fitPrototypeWindow(size: PrototypeSize, workArea: Rect, current?: Rect): Rect {
   const width = Math.max(PROTOTYPE_WINDOW_MIN_WIDTH, Math.min(size.width + 2 * PROTOTYPE_CHROME.side, workArea.width));
   return placed(width, size, headerHeight(prototypeSideLayout(width, null).rows), workArea, current);
@@ -91,7 +92,7 @@ export function openPanelResize(window: Rect, workArea: Rect, remembered: number
   return { bounds: { ...window, x: place(window.x, width, workArea.x, workArea.width), width }, panel: PROTOTYPE_PANEL_MIN_WIDTH, minimum };
 }
 
-// A new play with the panel open: the shown width + 24 (8 on each side and 8 before the panel) + the panel, at least
+// An opening play with the panel open: the shown width + 24 (8 on each side and 8 before the panel) + the panel, at least
 // 640, so the content panel is the shown width. When that is wider than the work area the panel gives way first, down
 // to 280, then the content panel. The panel never exceeds the fitted window's maximum, so a frame narrower than the
 // panel's share leaves the rest to the content panel. The name's row comes from the area left of the fitted panel.
