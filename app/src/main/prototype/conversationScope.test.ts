@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { ConversationEvent, StageSignal } from "../conversation/types";
 import type { CanvasRow, FolderEntry } from "../view";
 import {
-  PROTOTYPE_CONVERSATION_METHODS, prototypeAuthSnapshot, prototypeRememberedConversation, prototypeComposerSettings, prototypeEntry, prototypeConversationScope, prototypeListElsewhere, prototypeListRows, prototypeReceives, prototypeRevealRequest, prototypeWorkItems,
+  PROTOTYPE_CONVERSATION_METHODS, prototypeAuthSnapshot, prototypeConversationListed, prototypeRememberedConversation, prototypeComposerSettings, prototypeEntry, prototypeConversationScope, prototypeListElsewhere, prototypeListRows, prototypeReceives, prototypeRevealRequest, prototypeWorkItems,
   type PlayingCanvas, type ScopedConversation,
 } from "./conversationScope";
 import type { WorkItem } from "../workState";
@@ -216,9 +216,49 @@ describe("prototypeReceives", () => {
     expect(receives({ channel: "conversation:handoff", value: multi })).toBe(true);
   });
 
+  // A project conversation's handoff has no source canvas: it goes only when it lands on the playing canvas.
+  test("a project conversation's handoff goes when it lands on the playing canvas, and never by its source", () => {
+    const project = (root: string, to: string) => ({ root, source: { conversationId: "c-project" }, target: { conversationId: "t", canvas: { id: to, path: `.doan/canvases/${to}.html` } } });
+    expect(receives({ channel: "conversation:handoff", value: project("/r", "proto") })).toBe(true);
+    expect(receives({ channel: "conversation:handoff", value: project("/r", "other") })).toBe(false);
+    expect(receives({ channel: "conversation:handoff", value: project("/r-wt", "proto") })).toBe(false);
+    const multi = { root: "/r", source: { conversationId: "c-project" }, targets: [{ conversationId: "a", canvas: { id: "x", path: ".doan/canvases/x.html" } }, { conversationId: "b", canvas: { id: "proto", path: PROTO } }] };
+    expect(receives({ channel: "conversation:handoff", value: multi })).toBe(true);
+    expect(receives({ channel: "conversation:handoff", value: { ...multi, targets: [multi.targets[0]!] } })).toBe(false);
+  });
+
   test("nothing goes while nothing plays", () => {
     expect(receives({ channel: "conversation:event", value: ev("c-proto") }, null)).toBe(false);
     expect(receives({ channel: "conversation:listChanged", value: { root: "/r" } }, null)).toBe(false);
+  });
+});
+
+// A handoff card from the Overview names a project conversation the window cannot list: the window asks whether it is
+// still a conversation of the playing root, to draw it as deleted otherwise.
+describe("prototypeConversationListed", () => {
+  const listed = (payload: unknown, playing: PlayingCanvas | null = PLAYING, conversations: readonly ScopedConversation[] | null = CONVERSATIONS) =>
+    prototypeConversationListed(payload, playing, conversations);
+
+  test("answers whether a conversation of the playing root is indexed, a project one included", () => {
+    expect(listed({ root: "/r", conversationId: "c-project" })).toBe(true);
+    expect(listed({ root: "/r", conversationId: "c-other" })).toBe(true);
+    expect(listed({ root: "/r", conversationId: "gone" })).toBe(false);
+  });
+
+  // Worktrees share nothing here: a conversation of another root is not this root's.
+  test("answers false for another root's conversation and nothing about a root that is not playing", () => {
+    expect(listed({ root: "/r", conversationId: "c-proto-wt" })).toBe(false);
+    expect(listed({ root: "/r-wt", conversationId: "c-proto-wt" })).toBeNull();
+    expect(listed({ root: "/r", conversationId: "c-project" }, null)).toBeNull();
+  });
+
+  test("answers nothing while main's index cannot be read", () => {
+    expect(listed({ root: "/r", conversationId: "c-project" }, PLAYING, null)).toBeNull();
+  });
+
+  test("refuses a malformed request", () => {
+    for (const payload of [undefined, null, "c-project", { root: "/r" }, { conversationId: "c-project" }, { root: "/r", conversationId: 1 }, { root: "/r", conversationId: "" }, { root: "/r", conversationId: "x".repeat(513) }, { root: "/r", conversationId: "c-project", extra: true }])
+      expect(listed(payload), JSON.stringify(payload)).toBeNull();
   });
 });
 

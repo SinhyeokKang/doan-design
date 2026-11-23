@@ -52,6 +52,7 @@ test("every request goes to its prototype channel with the payload main parses",
   await api.readComposerSettings();
   await api.rememberChoice({ provider: "claude", model: "sonnet", effort: null, modelPicked: true });
   await api.readTargetEntry();
+  await api.conversationListed({ root: "/r", conversationId: "c-project" });
   await api.rememberedConversation();
   await api.reveal({ kind: "settings" });
   expect(mocks.invoke.mock.calls).toEqual([
@@ -61,7 +62,7 @@ test("every request goes to its prototype channel with the payload main parses",
     [PROTOTYPE_CHANNELS.export, { root: "/r", path: ".doan/canvases/a.html", frame: "checkout" }], [PROTOTYPE_CHANNELS.revealExport, "id-1"], [PROTOTYPE_CHANNELS.visible],
     [PROTOTYPE_CHANNELS.panel, { open: true, width: 300 }], [PROTOTYPE_CHANNELS.showing, { conversationId: "c1" }], [PROTOTYPE_CHANNELS.showing, { conversationId: null }],
     [PROTOTYPE_CHANNELS.reveal, { kind: "settings", provider: "claude" }], [PROTOTYPE_CHANNELS.auth], [PROTOTYPE_CHANNELS.work], [PROTOTYPE_CHANNELS.composer],
-    [PROTOTYPE_CHANNELS.remember, { provider: "claude", model: "sonnet", effort: null, modelPicked: true }], [PROTOTYPE_CHANNELS.entry],
+    [PROTOTYPE_CHANNELS.remember, { provider: "claude", model: "sonnet", effort: null, modelPicked: true }], [PROTOTYPE_CHANNELS.entry], [PROTOTYPE_CHANNELS.conversationListed, { root: "/r", conversationId: "c-project" }],
     [PROTOTYPE_CHANNELS.rememberedConversation], [PROTOTYPE_CHANNELS.reveal, { kind: "settings" }],
   ]);
   expect(new Set(mocks.invoke.mock.calls.map(call => call[0]))).toEqual(new Set(PROTOTYPE_WINDOW_REQUESTS));

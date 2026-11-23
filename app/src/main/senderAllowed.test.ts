@@ -183,16 +183,15 @@ describe("prototype window", () => {
   });
 });
 
-// The prototype window's playing target: the main window reads it, and its push is no request. The drawing and
-// promotion relays are gone, so no window may call their channels.
-test("the playing target's read belongs to the main window, and the removed relay channels to none", async () => {
+// The drawing and promotion relays and the playing-target push that fed them are gone, so no window may call their
+// channels. Whether a handoff's source conversation is listed is the prototype window's read.
+test("the removed relay channels belong to no window, and the listed-conversation read to the prototype window", async () => {
   const { PROTOTYPE_CHANNELS } = await import("./prototype/ipc");
-  expect(senderAllowed(PROTOTYPE_CHANNELS.readTarget, "main")).toBe(true);
-  expect(senderAllowed(PROTOTYPE_CHANNELS.readTarget, "prototype")).toBe(false);
   for (const kind of ["main", "prototype"]) {
-    expect(senderAllowed(PROTOTYPE_CHANNELS.target, kind), kind).toBe(false);
-    for (const channel of ["prototype:setDrawing", "prototype:drawing", "prototype:drawingChanged", "prototype:promoted", "prototype:promotedChanged"]) expect(senderAllowed(channel, kind), `${channel} ${kind}`).toBe(false);
+    for (const channel of ["prototype:target", "prototype:readTarget", "prototype:setDrawing", "prototype:drawing", "prototype:drawingChanged", "prototype:promoted", "prototype:promotedChanged"]) expect(senderAllowed(channel, kind), `${channel} ${kind}`).toBe(false);
   }
+  expect(senderAllowed(PROTOTYPE_CHANNELS.conversationListed, "prototype")).toBe(true);
+  expect(senderAllowed(PROTOTYPE_CHANNELS.conversationListed, "main")).toBe(false);
 });
 // The playing frame the toolbar's drawer marks: main pushes it to the main window, which may also read it.
 test("the playing frame is the main window's read only", async () => {

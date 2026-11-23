@@ -185,6 +185,26 @@ describe("a steered message the agent never reported (Claude)", () => {
     expect(h.drafts.queued(id)).toEqual([]);
     expect(h.drafts.returned(id)).toBeUndefined();
   });
+  // A project removal's Stop meets an end held for an unreported steer: the interrupted it sends is dropped, and the
+  // held turn.done is written once the group is gone. The handoff that end would judge belongs to a root on its way out.
+  it("cancels a project turn's handoff whose held end is written after a project removal's Stop", async () => {
+    const h = fixture(); const id = await h.startProject();
+    const b = { path: ".doan/canvases/b.html", id: "b" };
+    expect(h.service.requestHandoff({ root: "/repo", handoff: h.open.mock.calls[0]![0].env.DOAN_HANDOFF!, path: b.path, text: "go on" })).toBeNull();
+    const { itemId } = h.service.queue(id, { text: "also this", anchors: [] });
+    h.service.sendNow(id, itemId).catch(() => {});
+    await tick();
+    h.listed.push(b);
+    h.runs[0]!.emit({ type: "turn.done" });
+    expect(h.types(id)).not.toContain("turn.done");
+    const removing = h.service.interruptProjectTurn(id, h.summary(id).projectTurnId!);
+    h.runs[0]!.exited();
+    await removing;
+    await tick();
+    expect(h.store.read(id).filter(e => e.type === "handoff.resolved")).toMatchObject([{ outcome: "cancelled" }]);
+    expect(h.store.list().some(m => m.canvas?.id === "b")).toBe(false);
+    expect(h.open).toHaveBeenCalledOnce();
+  });
   it("finds a folded message by its attachment's source_uuid", async () => {
     const h = fixture(); const { id, messageId } = await steered(h);
     h.runs[0]!.emit({ type: "turn.done" });

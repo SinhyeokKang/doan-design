@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { HANDOFF_TEXT_LIMIT, handoffDecision, handoffEligibility, handoffGuidanceFor, handoffNoticeKind, handoffQueueOutcome, missedHandoffs, type HandoffAsker, type HandoffJudgement, type MissedInput } from "./handoff";
+import { HANDOFF_TEXT_LIMIT, canvasesAt, handoffDecision, handoffEligibility, handoffGuidanceFor, handoffNoticeKind, handoffQueueOutcome, missedHandoffs, type HandoffAsker, type HandoffJudgement, type MissedInput } from "./handoff";
 
 // The request-time order, the judgement and the prompt condition (ARCHITECTURE §4 'Handoff over app-socket v5' 'Dispatch',
 // §7 'Handoff').
@@ -127,6 +127,37 @@ describe("missedHandoffs", () => {
   it("names nothing for files that are not listed canvases, paths outside the root, or a turn without edits", () => {
     expect(missedHandoffs({ ...base, edits: ["/repo/notes.md", "/repo/.doan/assets/x.png", "/other/.doan/canvases/b.html", "/repo/.doan/canvases/gone.html"] })).toEqual([]);
     expect(missedHandoffs({ ...base, edits: [] })).toEqual([]);
+  });
+});
+
+// The listed canvases a turn's edit paths name, for missed lines and drawn cards (the edge cases promotion's grounds
+// used to pin).
+describe("canvasesAt", () => {
+  const root = "/private/tmp/repo";
+  const a = { path: ".doan/canvases/a.html", id: "a" }, b = { path: ".doan/canvases/b.html", id: "b" };
+  it("reads absolute, aliased, dotted and relative paths against the root, once each, in edit order", () => {
+    expect(canvasesAt(root, [`${root}/.doan/canvases/b.html`, "/tmp/repo/.doan/canvases/a.html", ".doan/x/../canvases/b.html"], [a, b], [a, b])).toEqual([b, a]);
+    expect(canvasesAt(root, ["../repo/.doan/canvases/a.html"], [a], [a])).toEqual([a]);
+  });
+  // Worktrees share a prefix: a sibling worktree's path is outside the root (POSTMORTEM 2026-11-01).
+  it("names nothing outside the root, a sibling worktree with the same prefix included", () => {
+    expect(canvasesAt(root, ["../other/.doan/canvases/a.html", "/private/tmp/repo-worktree/.doan/canvases/a.html", "/elsewhere/.doan/canvases/a.html"], [a], [a])).toEqual([]);
+  });
+  it("names only listed canvases", () => {
+    expect(canvasesAt(root, ["src/app.ts", ".doan/assets/x.png", ".doan/canvases/a.html"], [a], [a])).toEqual([a]);
+  });
+  it("follows a canvas moved during the turn by its ID", () => {
+    const moved = { path: ".doan/canvases/renamed.html", id: "a" };
+    expect(canvasesAt(root, [".doan/canvases/a.html"], [moved, b], [a, b])).toEqual([moved]);
+  });
+  it("names neither canvas when two swapped paths, or another took a moved canvas's old path", () => {
+    const swappedA = { path: ".doan/canvases/b.html", id: "a" }, swappedB = { path: ".doan/canvases/a.html", id: "b" };
+    expect(canvasesAt(root, [".doan/canvases/a.html"], [swappedA, swappedB], [a, b])).toEqual([]);
+    const moved = { path: ".doan/canvases/renamed.html", id: "a" }, took = { path: ".doan/canvases/a.html", id: "b" };
+    expect(canvasesAt(root, [".doan/canvases/a.html"], [moved, took], [a, b])).toEqual([]);
+  });
+  it("names nothing for a canvas deleted during the turn", () => {
+    expect(canvasesAt(root, [".doan/canvases/a.html"], [b], [a, b])).toEqual([]);
   });
 });
 

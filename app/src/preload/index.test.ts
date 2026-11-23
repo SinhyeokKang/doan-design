@@ -757,19 +757,9 @@ test("prototype reveal requests and Last used picks reach their listeners until 
   expect(picks.mock.calls).toEqual([[{ provider: "claude", model: "sonnet", effort: null, modelPicked: true }]]);
 });
 
-// The prototype window's playing target arrives from its pushes and its read; no drawing conversation goes back to main.
-test("the prototype target arrives from its pushes and its read, and nothing reports a drawing conversation", async () => {
-  const targets = vi.fn();
-  const stop = api.onPrototypeTarget(targets);
-  emitter.emit("prototype:target", {}, { root: "/r", canvas: { id: "proto", path: ".doan/canvases/proto.html" } });
-  emitter.emit("prototype:target", {}, null);
-  stop();
-  emitter.emit("prototype:target", {}, { root: "/r", canvas: { path: ".doan/canvases/loose.html" } });
-  expect(targets.mock.calls).toEqual([[{ root: "/r", canvas: { id: "proto", path: ".doan/canvases/proto.html" } }], [null]]);
-  mocks.invoke.mockClear();
-  await api.readPrototypeTarget();
-  expect(mocks.invoke.mock.calls).toEqual([["prototype:readTarget"]]);
-  expect(api).not.toHaveProperty("setPrototypeDrawing");
+// The playing-target push and the drawing report it fed are gone; the playing frame below stays.
+test("offers no prototype target and reports no drawing conversation", () => {
+  for (const name of ["onPrototypeTarget", "readPrototypeTarget", "setPrototypeDrawing"]) expect(api, name).not.toHaveProperty(name);
 });
 
 // The frame the prototype window plays, which the toolbar's frame drawer marks: main's answer unless a push came first.
