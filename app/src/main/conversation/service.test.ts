@@ -428,7 +428,8 @@ it("a native start still pending after Stop cannot outlive project removal or st
     expect(runner.close).not.toHaveBeenCalled();
     let settled = false;
     const stop = h.service.interruptProjectTurn(id, turn).then(() => { settled = true; });
-    await vi.advanceTimersByTimeAsync(10_100);
+    // Within the removal's wait for the group (the exit wait; no promotion judgement extends it any more).
+    await vi.advanceTimersByTimeAsync(9_900);
     expect(settled).toBe(false);
     expect(h.service.projectRemovalBusy(["/repo"])).toBe(true);
     expect(h.service.list("/repo")[0]?.working).toBe(true);
@@ -779,7 +780,8 @@ describe("project conversations of one root", () => {
     open(); const a = (await first).conversationId;
     h.service.receive(a, { type: "turn.done" });
     const c = (await h.service.start(homeRequest)).conversationId;
-    h.open.mock.calls[0]![2]();
+    // b opened first, while a still prepared: a's exit is its own runner's.
+    h.open.mock.calls.find(call => call[0].env.DOAN_CONVERSATION_ID === a)![2]();
     await h.service.send(a, "again", []);
     expect(h.service.list("/repo").filter(row => row.working).map(row => row.conversationId).sort()).toEqual([a, b, c].sort());
   });
@@ -1256,9 +1258,11 @@ describe("queue limits, working state and sign-out while held", () => {
 describe("cancelled waits and their queues", () => {
   const a = { path: ".doan/canvases/a.html", id: "a" };
   const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
-  // A project conversation whose next send waits for its earlier turn's judgement, with a message queued behind it.
+  // A project conversation whose next send waits for its earlier turn's handoff judgement (the canvas is not listed
+  // yet), with a message queued behind it.
   async function judgementWait(h: ReturnType<typeof homeFixture>) {
     const id = (await h.service.start(homeRequest)).conversationId;
+    expect(h.service.requestHandoff({ root: "/repo", handoff: h.open.mock.calls[0]![0].env.DOAN_HANDOFF!, path: ".doan/canvases/b.html", text: "go on" })).toBeNull();
     h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
     const waiting = h.service.send(id, "next", []);
     await new Promise(resolve => setTimeout(resolve, 10));
@@ -1994,8 +1998,9 @@ describe("delete", () => {
       h.service.receive(id, { type: "permission.request", requestId: "r", tool: "Write", summary: "Write a.html", options: [{ id: "allow", label: "Allow", kind: "allow" }] });
       return id;
     }],
-    ["waiting for its judgement", async (h: ReturnType<typeof homeFixture>) => {
+    ["waiting for its handoff's judgement", async (h: ReturnType<typeof homeFixture>) => {
       const id = (await h.service.start(homeRequest)).conversationId;
+      h.service.requestHandoff({ root: "/repo", handoff: h.open.mock.calls[0]![0].env.DOAN_HANDOFF!, path: ".doan/canvases/b.html", text: "go on" });
       h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
       return id;
     }],

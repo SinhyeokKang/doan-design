@@ -158,7 +158,7 @@ function attachment(value: unknown): boolean {
   return typeof value.size === "number" && Number.isSafeInteger(value.size) && value.size >= 0 && (value.kind === "image" || value.kind === "file");
 }
 function origin(value: unknown): boolean {
-  return object(value) && value.kind === "handoff" && bounded(value.conversationId, LIMITS.label) && validCanvas(value.canvas);
+  return object(value) && value.kind === "handoff" && bounded(value.conversationId, LIMITS.label) && (value.canvas === undefined || validCanvas(value.canvas));
 }
 function event(value: unknown, id: string, seq: number): value is ConversationEvent {
   return object(value) && value.v === 1 && value.conversationId === id && value.seq === seq && validId(value.turnId) &&
@@ -284,10 +284,10 @@ export class ConversationStore {
   acceptStart(entries: ConversationMetadata[], id: string, writes: JournalWrite[]): ConversationEvent[] {
     return this.acceptChange({ kind: "start", id }, entries, writes);
   }
-  // Binding and promotion change a conversation already in the index, so its log is cut back to its prefix instead of
-  // removed; each kind has its own test of whether the new index holds it. A change touches its own conversation only:
-  // the archiving kinds (restore, a non-empty replaced, a start writing to another history) are an earlier build's,
-  // which only recovery reads.
+  // An earlier build's binding and promotion changed a conversation already in the index, so its log was cut back to its
+  // prefix instead of removed; each kind has its own test of whether the new index holds it. A change touches its own
+  // conversation only: the archiving kinds (restore, a non-empty replaced, a start writing to another history), binding
+  // and promotion are an earlier build's, which only recovery reads.
   acceptChange(change: JournalChange, entries: ConversationMetadata[], writes: JournalWrite[]): ConversationEvent[] {
     this.recover();
     const currentIndex = this.readIndex();

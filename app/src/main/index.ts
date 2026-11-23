@@ -112,9 +112,7 @@ import {
 import { canvasKeyString } from "./prototype/targets";
 import { parseComposerChoice, parseRevealRequest } from "./prototype/requests";
 import { createPrototypeShowing } from "./prototype/showing";
-import { createPrototypeDrawing } from "./prototype/drawing";
 import { createTargetRelay } from "./prototype/targetRelay";
-import { createPrototypePromoted } from "./prototype/promoted";
 import { parseUiState } from "../restore/uiState";
 import { createComposerSettings } from "./prototype/composerSettings";
 import { createPrototypeWindow } from "./prototypeWindow";
@@ -378,8 +376,6 @@ const prototype = createPrototypeWindow({
     prototypeAttachmentsClosed(`prototype:${contents}`);
     if (replaced) return;
     prototypeShowing.closed();
-    prototypeDrawing.closed();
-    prototypePromoted.closed();
     prototypeResume = null;
     prototypeWorkSent = "[]";
     prototypeEntrySent = null;
@@ -407,18 +403,11 @@ let indexedConversations: () => ScopedConversation[] = () => [];
 // The conversation the prototype window's open panel shows, for notifications (showing.ts).
 const prototypeShowing = createPrototypeShowing({ playing: () => prototype.controller.playing(), generation: () => prototype.controller.canvasGeneration(), conversations: () => indexedConversations(), entries: () => shell?.entries() ?? [] });
 
-// The drawing project conversation of the playing canvas, which the main window says and main relays by id (drawing.ts).
-const prototypeDrawing = createPrototypeDrawing({ playing: () => prototype.controller.playing(), generation: () => prototype.controller.canvasGeneration(), conversations: () => indexedConversations() });
-// A project conversation promoted to the playing canvas's conversation, from main's own events (promoted.ts).
-const prototypePromoted = createPrototypePromoted({ playing: () => prototype.controller.playing(), generation: () => prototype.controller.canvasGeneration() });
-// The target push to the main window and the id relays to the prototype window (targetRelay.ts).
+// The target and playing-frame pushes to the main window (targetRelay.ts).
 const prototypeRelay = createTargetRelay({
-  playing: () => prototype.controller.playing(), frame: () => prototype.controller.playingFrame(), generation: () => prototype.controller.canvasGeneration(), open: () => prototype.window() !== undefined,
-  drawing: () => prototypeDrawing.current(), promoted: () => prototypePromoted.current(),
+  playing: () => prototype.controller.playing(), frame: () => prototype.controller.playingFrame(), generation: () => prototype.controller.canvasGeneration(),
   sendTarget: target => send(PROTOTYPE_CHANNELS.target, target),
   sendPlaying: playing => send(PROTOTYPE_CHANNELS.playing, playing),
-  sendDrawing: conversationId => prototype.send(PROTOTYPE_CHANNELS.drawingChanged, { conversationId }),
-  sendPromoted: conversationId => prototype.send(PROTOTYPE_CHANNELS.promotedChanged, { conversationId }),
 });
 
 // The buddy a new prototype window's page starts with; the saved one once preferences are read.
@@ -931,8 +920,8 @@ async function start(): Promise<void> {
       }
     }
     armWorkTimer();
-    for (const { root, changed } of refreshes.calls) {
-      try { conversations?.refreshed(root, changed); } catch (error) { console.error("doan: conversation promotion check failed", error); }
+    for (const { root } of refreshes.calls) {
+      try { conversations?.refreshed(root); } catch (error) { console.error("doan: conversation handoff check failed", error); }
     }
     for (const root of choices.keys()) {
       if (!entries.some(entry => entry.path === root && entry.kind === "uninitialized")) choices.delete(root);
@@ -976,7 +965,7 @@ async function start(): Promise<void> {
   const hostRequests: ReadonlySet<string> = new Set([
     PROTOTYPE_CHANNELS.export, PROTOTYPE_CHANNELS.revealExport, PROTOTYPE_CHANNELS.visible, PROTOTYPE_CHANNELS.showing, PROTOTYPE_CHANNELS.reveal,
     PROTOTYPE_CHANNELS.auth, PROTOTYPE_CHANNELS.work, PROTOTYPE_CHANNELS.composer, PROTOTYPE_CHANNELS.remember, PROTOTYPE_CHANNELS.entry,
-    PROTOTYPE_CHANNELS.drawing, PROTOTYPE_CHANNELS.promoted, PROTOTYPE_CHANNELS.rememberedConversation,
+    PROTOTYPE_CHANNELS.rememberedConversation,
   ]);
   handle(PROTOTYPE_CHANNELS.visible, null, (_event, value: unknown) => value === undefined ? { visible: prototype.visible() } : null);
   for (const channel of PROTOTYPE_WINDOW_REQUESTS) {
@@ -1007,10 +996,10 @@ async function start(): Promise<void> {
     return id === null ? DESIGN_SKILL_REFUSED : interpretGet(await runDesignSkill(cli, id), id);
   });
   // Move to Trash and Export act only on rows of main's own list. Busy is judged on main's grounds:
-  // this root's conversations, its unjudged project turns and terminal work.
+  // this root's conversations, its starts not accepted yet and terminal work.
   const canvasTrash = createCanvasTrash({
     entries: () => ready.entries(),
-    busy: target => trashBusy(target, conversations?.list(target.root) ?? [], conversations?.projectEvidence(target.root) ?? [], workItems(workState), conversations?.startingCanvases(target.root) ?? []),
+    busy: target => trashBusy(target, conversations?.list(target.root) ?? [], workItems(workState), conversations?.startingCanvases(target.root) ?? []),
     trashItem: path => electronShell.trashItem(path),
     trashed: (root, canvas) => conversationDraftStore?.discardCanvasStarts(root, canvas),
   });
@@ -1330,11 +1319,10 @@ async function start(): Promise<void> {
   // plays there (prototypeReceives).
   const broadcast = (message: ConversationBroadcast): void => {
     send(message.channel, message.value);
-    if (message.channel === "conversation:listChanged" || (message.channel === "conversation:event" && message.value.type === "conversation.bound")) known = null;
+    if (message.channel === "conversation:listChanged") known = null;
     if (prototype.window() === undefined) return;
     const list = message.channel === "conversation:event" || message.channel === "conversation:stage" || message.channel === "conversation:boundary" ? knownFor(message.value.conversationId) : known ?? [];
     if (prototypeReceives(message, prototype.controller.playing(), list)) prototype.send(message.channel, message.value);
-    if (message.channel === "conversation:event" && prototypePromoted.event(message.value, list)) prototypeRelay.promoted();
   };
   const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, (event, deferNotice) => { broadcast({ channel: "conversation:event", value: event }); if (!deferNotice) notify.event(event); updates?.conversationsChanged(); starPrompt?.event(event); }, (root, canvas) => {
     const project = ready.entries().find(entry => entry.path === root);
@@ -1580,17 +1568,9 @@ async function start(): Promise<void> {
   // The prototype window's conversation panel (hostRequests above). Each request was allowed for the prototype role
   // only; the parsers check the role again.
   handle(PROTOTYPE_CHANNELS.showing, undefined, (_event, value: unknown, kind) => { prototypeShowing.set(kind, value); });
-  // The drawing project conversation: the target read and the report are the main window's requests (mainOnly), the
-  // id read the prototype window's (drawing.ts checks the role again).
+  // The playing target and frame: the main window's reads (mainOnly).
   handle(PROTOTYPE_CHANNELS.readTarget, null, (_event, value: unknown) => value === undefined ? prototypeRelay.target() : null);
   handle(PROTOTYPE_CHANNELS.playing, null, (_event, value: unknown) => value === undefined ? prototypeRelay.playingTarget() : null);
-  handle(PROTOTYPE_CHANNELS.setDrawing, false, (_event, value: unknown, kind) => {
-    const taken = prototypeDrawing.set(kind, value);
-    if (taken) prototypeRelay.drawing();
-    return taken;
-  });
-  handle(PROTOTYPE_CHANNELS.promoted, null, (_event, value: unknown) => value === undefined ? prototypeRelay.readPromoted() : null);
-  handle(PROTOTYPE_CHANNELS.drawing, null, (_event, value: unknown) => value === undefined ? prototypeRelay.readDrawing() : null);
   // A chip or a main-window-only button: the main window comes forward as for a notification's click, then decides
   // what it can show (a dialog, a page lock or first run keeps everything as it is).
   handle(PROTOTYPE_CHANNELS.reveal, undefined, (_event, value: unknown, kind) => {

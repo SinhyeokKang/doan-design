@@ -32,9 +32,10 @@ export interface QuestionResolved { type: "question.resolved"; requestId: string
 // A file or folder the person attached by local path; doan sends the path, not the bytes. A folder has no size: main
 // never walks it to count one.
 export type AttachmentRecord = { name: string; size: number; kind: "image" | "file"; path: string } | { name: string; kind: "directory"; path: string };
-// The first message of a conversation a handoff started: the earlier conversation and its canvas. Its text is that
-// agent's handoff, kept as written and never read for {{n}} markers (anchors stay empty).
-export interface HandoffOrigin { kind: "handoff"; conversationId: string; canvas: Canvas }
+// The first message of a conversation a handoff started: the earlier conversation and its canvas, absent when that was
+// a project conversation (the root's Overview). Its text is that agent's handoff, kept as written and never read for
+// {{n}} markers (anchors stay empty). An earlier build reads only an origin with a canvas.
+export interface HandoffOrigin { kind: "handoff"; conversationId: string; canvas?: Canvas }
 // reason: a judgement's reason (handoff.ts HandoffReason) or the refused start's code. target sits in its own object
 // because the event's envelope already has a conversationId, the history's own.
 export type HandoffResolution = { outcome: "started"; target: { conversationId: string; canvas: Canvas } } | { outcome: "refused"; reason: string } | { outcome: "cancelled" };
@@ -63,11 +64,11 @@ export type EventPayload =
   // archived and restored: written only by earlier builds, which archived a canvas's previous conversation and made an
   // archived one current again; still read, never written by this build.
   | { type: "conversation.archived" }
-  // A project conversation was bound to this canvas.
+  // An earlier build bound a project conversation to this canvas (promotion); still read, never written by this build.
   | { type: "conversation.bound"; canvas: Canvas }
   | { type: "conversation.restored" }
   // The turn asked for a handoff (in that turn); its resolution comes once the turn ended and was judged, with the
-  // requesting turn's id, as conversation.bound does. A request a restart finds unresolved reads as cancelled.
+  // requesting turn's id. A request a restart finds unresolved reads as cancelled.
   | { type: "handoff.requested"; canvas: { path: string }; text: string }
   // canvas: the path of the request it resolves, since a turn may ask for several. A line written before that has none
   // and resolves the turn's only request.

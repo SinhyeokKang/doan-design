@@ -149,8 +149,8 @@ export function prototypeReceives(message: ConversationBroadcast, playing: Playi
 }
 
 // A reveal the main window may act on, or null. A chip and an answer's chip belong to a conversation of the playing
-// canvas; an Open names a conversation or a listed canvas of the playing root (the drawing project conversation and a
-// handoff's target are not on the playing canvas). Sign in needs no target.
+// canvas; an Open names a conversation or a listed canvas of the playing root (a handoff's project source and its
+// target are not on the playing canvas). Sign in needs no target.
 export function prototypeRevealRequest(payload: RevealPayload, playing: PlayingCanvas | null, conversations: readonly ScopedConversation[], entries: readonly FolderEntry[]): PrototypeReveal | null {
   if (payload.kind === "settings") return payload.provider === undefined ? { kind: "settings" } : { kind: "settings", provider: payload.provider };
   const row = playingRow(playing, entries);

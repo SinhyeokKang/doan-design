@@ -69,18 +69,9 @@ export const PROTOTYPE_CHANNELS = {
   // To the main window: a checked reveal (PrototypeReveal) and a Last used pick (ComposerChoice).
   revealRequest: "prototype:revealRequest",
   lastUsed: "prototype:lastUsed",
-  // The drawing project conversation (drawing.ts). To the main window: the playing target (PrototypeTargetRef | null)
-  // whenever it changes, and its read; from the main window: which project conversation draws it. To the prototype
-  // window: that conversation's id only (`{conversationId}`), and its read.
+  // To the main window: the playing target (targetRelay.ts PrototypeTargetRef | null) whenever it changes, and its read.
   target: "prototype:target",
   readTarget: "prototype:readTarget",
-  setDrawing: "prototype:setDrawing",
-  drawing: "prototype:drawing",
-  drawingChanged: "prototype:drawingChanged",
-  // A project conversation promoted to the playing canvas's conversation (promoted.ts), by id only (`{conversationId}`),
-  // and its read.
-  promoted: "prototype:promoted",
-  promotedChanged: "prototype:promotedChanged",
   // To the main window: the frame the window plays (PrototypePlaying | null) whenever it changes, and the main window's
   // read of it. The toolbar's frame drawer marks that row while it is a frame of the canvas the main window shows.
   playing: "prototype:playing",
@@ -92,7 +83,7 @@ export const PROTOTYPE_WINDOW_REQUESTS: readonly string[] = [
   PROTOTYPE_CHANNELS.mode, PROTOTYPE_CHANNELS.export, PROTOTYPE_CHANNELS.revealExport, PROTOTYPE_CHANNELS.visible,
   PROTOTYPE_CHANNELS.panel, PROTOTYPE_CHANNELS.showing, PROTOTYPE_CHANNELS.reveal,
   PROTOTYPE_CHANNELS.auth, PROTOTYPE_CHANNELS.work, PROTOTYPE_CHANNELS.composer, PROTOTYPE_CHANNELS.remember, PROTOTYPE_CHANNELS.entry,
-  PROTOTYPE_CHANNELS.drawing, PROTOTYPE_CHANNELS.promoted, PROTOTYPE_CHANNELS.rememberedConversation,
+  PROTOTYPE_CHANNELS.rememberedConversation,
 ];
 
 // From the moment the host sets the iframe's src to the run's result. The slowest measured canvas answered in under
@@ -224,8 +215,8 @@ export interface PanelRequest {
   width?: number;
 }
 
-// `prototype:reveal`, from the prototype window: a person's chip, an answer's chip, Sign in, the drawing project
-// conversation's or a notice's Open, and a handoff line's or card's Open.
+// `prototype:reveal`, from the prototype window: a person's chip, an answer's chip, Sign in, a notice's Open, and a
+// handoff line's or card's Open.
 export type RevealPayload =
   | { kind: "chip"; conversationId: string; anchor: Anchor }
   | { kind: "reply"; conversationId: string; link: ReplyAnchor }
@@ -298,14 +289,6 @@ export interface PrototypeWindowApi {
   rememberChoice(choice: ComposerChoice): Promise<void>;
   readTargetEntry(): Promise<FolderEntry | null>;
   onTargetEntry(listener: (entry: FolderEntry | null) => void): () => void;
-  // The project conversation drawing the playing canvas, by id only (null for none); its Open reveals it in the main
-  // window as `{kind: "conversation", conversationId}`.
-  readDrawing(): Promise<string | null>;
-  onDrawing(listener: (conversationId: string | null) => void): () => void;
-  // A project conversation promoted to the playing canvas's conversation, by id only (null for none); the panel's
-  // promotion notice, whose Open reveals it in the main window.
-  readPromoted(): Promise<string | null>;
-  onPromoted(listener: (conversationId: string | null) => void): () => void;
   // The main window's `conversation:list`, naming the canvas the window shows: main answers its rows only while it
   // plays that canvas, else `{error: "not_playing"}` (the view of the new target follows).
   listConversations(request: { root: string; canvas: Canvas }): Promise<ConversationSummary[] | ConversationError>;
