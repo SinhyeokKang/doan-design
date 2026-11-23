@@ -102,9 +102,9 @@ describe.runIf(usable)("the outer fence's writes in the agent's folder", () => {
       ".cursor/plugins/a/plugin.json", ".cursor/sandbox.json", ".cursor/x",
     ]);
   });
-  // cursor-agent 2026.11.22 creates its local worker's socket folder at start (mkdir -p). The fence does not let it: the
+  // cursor-agent (2026.10.22 and 2026.11.22) creates its local worker's socket folder at start (mkdir -p). The fence does not let it: the
   // folder shares .cursor/projects/<workspace>/ with the MCP approvals a later run reads, and a rule that allowed the
-  // mkdir would also let a fenced process move a prepared folder into place. Doan creates it beforehand (prepare.ts).
+  // mkdir would also allow a rename onto the same path. Doan creates it beforehand (prepare.ts).
   it("lets Cursor's recursive mkdir pass on the worker folder Doan made, and write nothing in it or beside it", () => {
     const w = world("cursor");
     mkdirSync(join(w.profile, ".cursor", "projects", "p-988fa62"), { recursive: true });

@@ -269,7 +269,7 @@ it("never records an ACP resume, a server exit at initialize, or an Antigravity 
 });
 
 // A server that exits before initialize answers leaves only process_exited; its stderr names the cause (cursor-agent
-// 2026.11.22 refused by the fence: a mkdir EPERM), so main logs a bounded, redacted tail of it.
+// refused a mkdir by the fence: EPERM), so main logs a bounded, redacted tail of it.
 const EPERM = "Error: EPERM: operation not permitted, mkdir '/u/agent-auth/profiles/cursor/.cursor/projects/p-988fa62'";
 it("logs a redacted stderr tail when an ACP server exits before it is ready, and nothing for another refusal", async () => {
   const log = vi.spyOn(console, "error").mockImplementation(() => {});

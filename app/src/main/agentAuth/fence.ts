@@ -75,10 +75,10 @@ const AGENT_WRITES: Record<Provider, AgentWrites> = {
     files: [".tmp", "installation_id", ".sandbox_migration", "models_cache.json", "auth.json.lock", "auth.lock"], pattern: "\\.sqlite[^/]*$" },
   // Copilot 1.0.105 (dedicated HOME: version, status and an ACP session) and a signed-in profile's entries.
   copilot: { folder: ".copilot", dirs: ["session-state", "logs", "plugin-data"], files: ["config.json", "settings.json", "session-store.db"] },
-  // Cursor 2026.10.22 (dedicated HOME: version, status and an ACP session) and a signed-in profile's entries, rechecked
-  // on 2026.11.22. Its cli-config.json stays closed: it holds the permission allow list a later conversation runs under,
-  // which Cursor's own sandbox protects as well, and Cursor runs without writing it (probe). projects/ stays closed too
-  // (cursorWorkerDir).
+  // Cursor 2026.10.22 (dedicated HOME: version, status and an ACP session) and a signed-in profile's entries,
+  // rechecked on 2026.11.22. Its cli-config.json stays closed: it holds the permission allow list a later conversation
+  // runs under, which Cursor's own sandbox protects as well. Cursor's refreshes of it fail and the run goes on (probe);
+  // only a model request fails with it, so Doan sets the model in acp-config.json from outside instead (acpRunner.ts). projects/ stays closed too (cursorWorkerDir).
   cursor: { folder: ".cursor", dirs: ["acp-sessions", "ai-tracking"], files: ["statsig-cache.json", "agent-cli-state.json", "auth.json"] },
   // The Antigravity ACP server 1.3.0, from a signed-in profile's entries and their times (no isolated probe: the server
   // runs only signed in). Its config/ holds per-conversation databases named by a UUID beside the memory, skills,
@@ -103,15 +103,15 @@ function agentParams(provider: Provider, profile: string): [string, string][] {
   const folder = name ? `${profile}/${name}` : profile;
   return [["AGENT_FOLDER", folder], ...(name ? HOME_STORES.map((store, i): [string, string] => [`HOME_STORE_${i + 1}`, `${profile}/${store}`]) : []), ...dirs.map((dir, i): [string, string] => [`AGENT_DIR_${i + 1}`, `${folder}/${dir}`]), ...files.map((file, i): [string, string] => [`AGENT_FILE_${i + 1}`, `${folder}/${file}`])];
 }
-// cursor-agent 2026.11.22 creates its local worker's socket folder (mkdir -p) when any process with a workspace starts,
-// acp included, and exits when it cannot. With a short HOME the folder is inside .cursor: under projects/, beside each
+// cursor-agent (2026.10.22 and 2026.11.22, probe) creates its local worker's socket folder (mkdir -p) when `acp`
+// starts and exits when it cannot. With a short HOME the folder is inside .cursor: under projects/, beside each
 // workspace's MCP approvals and disabled list that a later run reads, or in .cursor itself. Seatbelt cannot tell a
-// mkdir from a rename onto the same path, so a rule letting the fenced process make the folder would also let it move a
-// prepared one, approvals inside, into place. Doan creates the empty folder from outside the fence instead (prepare.ts);
-// the fenced CLI's mkdir -p then finds it. The path rule is the CLI's own (its worker socket path, 2026.11.22 probe):
-// <data>/projects, else <data>, else $TMPDIR/.cursor, else /tmp/.cursor, the first one at most 83 characters long, then
-// the workspace slug; a path over 91 characters is cut to 83 and given the first 7 hex digits of its SHA-256. The
-// workspace is the nearest folder holding .git above the working directory (never the root), else the directory itself.
+// mkdir from a rename onto the same path, so a rule letting the fenced process make the folder would open a place a
+// later run reads from. Doan creates the empty folder from outside the fence instead (prepare.ts);
+// the fenced CLI's mkdir -p then finds it. The path rule is the CLI's own: <data>/projects, else <data>, else
+// $TMPDIR/.cursor, else /tmp/.cursor, the first one at most 83 characters long, then the workspace slug; a path over 91
+// characters is cut to 83 and given the first 7 hex digits of its SHA-256. The workspace is the nearest folder holding
+// .git above the working directory (never the root), else the directory itself.
 export function cursorWorkerDir(at: { home: string; cwd: string; tmpdir: string | undefined }, exists: (path: string) => boolean = existsSync): string {
   const data = join(at.home, ".cursor"), tmp = (at.tmpdir || "/tmp").replace(/(.)\/$/, "$1");
   const base = [join(data, "projects"), data, join(tmp, ".cursor")].find(path => path.length <= 83) ?? "/tmp/.cursor";

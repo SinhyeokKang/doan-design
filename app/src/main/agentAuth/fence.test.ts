@@ -352,7 +352,7 @@ describe("codexTurnPermission", () => {
   });
 });
 
-// cursor-agent 2026.11.22 creates its local worker's socket folder when any acp process starts. The expected paths are
+// cursor-agent (2026.10.22 and 2026.11.22) creates its local worker's socket folder when acp starts. The expected paths are
 // the ones the real CLI created (or was refused) in probes; the last one is the PoC's EPERM.
 describe("cursorWorkerDir", () => {
   const none = () => false;

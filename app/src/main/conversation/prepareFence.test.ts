@@ -86,7 +86,7 @@ it("checks Copilot's and Cursor's version in the outer fence and Claude's outsid
   await prepare("claude", c).run({ root: c.project, mode: "new", runtime: "claude", text: "", anchors: [] }, undefined, "listing");
   expect(mocks.run.mock.calls[0]!.slice(0, 2)).toEqual(["/bin/claude", ["--version"]]);
 });
-// cursor-agent 2026.11.22 exits at start when it cannot create its local worker's socket folder, which a short HOME puts
+// cursor-agent (2026.10.22 and 2026.11.22) exits at start when it cannot create its local worker's socket folder, which a short HOME puts
 // inside the closed .cursor folder. Doan creates it, empty, from outside the fence; the fence opens nothing new.
 function cursorWorld(home: "short" | "long") {
   // Under /tmp the profile path is short enough for the folder to land in .cursor/projects (cursorWorkerDir).
