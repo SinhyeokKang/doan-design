@@ -7,7 +7,7 @@ import { DELETE_TOOLTIP, deleteItemLabel, type DeleteAvailability } from "./conv
 import type { DockedDraft } from "./dockedRules";
 
 // What a Delete hands the host: the conversation, and where it came from. From a title menu, the shown conversation's
-// deletion moves focus to that screen's composer. From the Overview's Canvas conversations list (`canvasList`), focus
+// deletion moves focus to that screen's composer. From the Overview's Conversations list (`canvasList`), focus
 // goes to `after`, which the list computed before the alert took focus from it. From the sidebar's conversation list,
 // focus goes to the tree row `after`, else `canvasRow` when that row left too, even for the shown conversation.
 export type ListFocus = { kind: "row"; key: string } | { kind: "title" };
@@ -55,7 +55,7 @@ export function ConversationDeleteDialog({ view, reason, pending, cancel, confir
   const dismiss = () => { if (!pending) cancel(); };
   return <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="conversation-delete-title" aria-describedby="conversation-delete-body"
     ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); dismiss(); }}
-    // A Canvas conversations Delete pressed from the keyboard opens the alert while its tooltip still exits; that
+    // A Conversations list Delete pressed from the keyboard opens the alert while its tooltip still exits; that
     // tooltip's dismissable layer takes the next Escape and prevents its default, so no cancel event would follow. The
     // keydown itself cancels, and preventing its default keeps the native cancel from cancelling a second time.
     onKeyDown={event => { if (event.key !== "Escape" || event.nativeEvent.isComposing) return; event.preventDefault(); dismiss(); }}>

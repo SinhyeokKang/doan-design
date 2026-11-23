@@ -100,7 +100,7 @@ import { BuddyIntro, Wizard } from "./Onboarding";
 import { isMainCheckout } from "./projectStep";
 import { ProjectOverview } from "./ProjectOverview";
 import { useThumbnails } from "./thumbnails";
-import { canvasConversationRows } from "./canvasConversationRows";
+import { canvasConversationRows, type CanvasConversationRow } from "./canvasConversationRows";
 import type { CanvasList } from "./CanvasConversationList";
 import { QuickOpen } from "./QuickOpenDialog";
 import { missingCanvasMessage, openLinkRefusal, removedCanvasMessage, sameShownConversation, unavailableCanvasMessage, type ConversationLists, type SearchResult, type ShownConversation } from "./quickOpen";
@@ -429,7 +429,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const [inspectorPanel, setInspectorState] = useState<NonNullable<UiState["inspector"]>>({ open: false });
   const inspectorTouched = useRef(false);
   const changeInspector = (change: (previous: NonNullable<UiState["inspector"]>) => NonNullable<UiState["inspector"]>) => { inspectorTouched.current = true; setInspectorState(change); };
-  // The Overview's canvas conversations panel width on this device (undefined: its default), apart from the canvas
+  // The Overview's Conversations panel width on this device (undefined: its default), apart from the canvas
   // panel's, the same way: a resize before the read wins.
   const [overviewSaved, setOverviewSaved] = useState<number | undefined>(undefined);
   const overviewTouched = useRef(false);
@@ -889,6 +889,19 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const list = homeRun.current.listState(root);
     const waiting = Array.isArray(list) && list.some(c => c.conversationId === conversationId && c.phase === "waiting");
     overviewRun.current!.request(root, conversationId, waiting ? "permission" : null);
+  }
+  // A Conversations row in the Overview: a canvas row opens its canvas; a project row shows its conversation in the main
+  // column with no Back/Forward visit, as the title menu's pick does. One waiting for an answer opens as a toast's Open
+  // does (scrolled to its request, focus on its first choice); otherwise the composer takes focus. The row of the
+  // conversation already shown only moves focus: picking it again would move the root's revision and drop a start or
+  // send reply still on its way.
+  function openOverviewRow(root: string, item: CanvasConversationRow) {
+    if (item.kind === "canvas") { if (item.row) openCanvasConversation(root, item.row, item.conversationId, { kind: "overviewRow" }); return; }
+    const run = overviewRun.current!;
+    if (item.status?.kind === "permission") { run.request(root, item.conversationId, "permission"); return; }
+    const view = run.view(root);
+    if (view.kind !== "conversation" || view.conversationId !== item.conversationId) run.select(root, item.conversationId);
+    queueMicrotask(() => focusFieldEnd(document.querySelector<HTMLElement>(".workspace .ov-main .composer-input")));
   }
   function openConversationCanvas(root: string, canvas: Canvas, conversationId?: string, trigger: PanelTrigger = { kind: "promotion" }) {
     const listed = entriesRef.current.find(entry => entry.path === root);
@@ -1571,7 +1584,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     window.doan.trashCanvas(root, row.path).then(done, () => done({ kind: "refused", reason: "failed" }));
   }
   // A title menu row's Delete asks first. Cancel and Escape return focus to the menu's
-  // trigger (`beforeModal`); the row's button is inside the closed menu. A Canvas conversations row's Delete passes
+  // trigger (`beforeModal`); the row's button is inside the closed menu. A Conversations list row's Delete passes
   // itself as the trigger.
   function openDelete(target: DeleteTarget, trigger: HTMLElement | null): boolean {
     if (locked() || live.current.modal) return false;
@@ -2558,11 +2571,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (overviewComposerFocus === 0 || sceneRef.current) return;
     document.querySelector<HTMLElement>(".workspace .ov-main .composer-input")?.focus();
   }, [overviewComposerFocus]);
-  // The Overview's right panel: canvases with a current conversation, thumbnails asked for those only.
+  // The Overview's right panel: the root's project and canvas conversations, thumbnails asked for canvas rows only. Its
+  // current row follows the conversation the main column shows, not the list read.
   const listed = overview ? run.listState(overview.path) : null;
   const canvasList: CanvasList = overview === null || listed === null ? [] : typeof listed === "string" ? listed
     : canvasConversationRows(listed, overview.kind === "list" ? overview.canvases : [], clock, run.seenPending());
-  const thumbs = useThumbnails(overview?.kind === "list" ? overview.path : null, typeof canvasList === "string" ? [] : canvasList.flatMap(item => item.row ? [item.row] : []));
+  const thumbs = useThumbnails(overview?.kind === "list" ? overview.path : null, typeof canvasList === "string" ? [] : canvasList.flatMap(item => item.kind === "canvas" && item.row ? [item.row] : []));
+  const overviewShown = overview ? overviewRun.current!.view(overview.path) : null;
   // Fast turned itself off: that provider's Last used follows, and the conversation's own switch
   // held in a composer goes, so the next turn is not asked for Fast again. Only here, as events arrive: this channel
   // never replays history, so a restart cannot undo a Fast the person turned on again (shouldTurnOffFast).
@@ -2734,10 +2749,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       onAction={(name, root) => action(name, root)}
       onProjectSettings={root => openProjectSettings(root)}
       onSettings={target => openSettings(target)} onNotice={text => toast.show(text)} onDeleteConversation={openDelete} />}
-    {overview && <ResizeHandle className="doan-overview-handle" label="Resize canvas conversations" width={shownOverviewPanel} bounds={panelLimits} preview={previewPanel}
+    {overview && <ResizeHandle className="doan-overview-handle" label="Resize conversations" width={shownOverviewPanel} bounds={panelLimits} preview={previewPanel}
       onResize={width => { overviewTouched.current = true; setOverviewSaved(width); }} />}
-    {overview ? <div className="right-stack" inert={overlaid}><CanvasConversations key={overview.path} list={canvasList} project={projectLabel(overview.path)} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible}
-      open={item => { if (item.row) openCanvasConversation(overview.path, item.row, item.conversationId, { kind: "overviewRow" }); }} retry={() => run.retryList(overview.path)} listRetry={run.listRetry(overview.path)}
+    {overview ? <div className="right-stack" inert={overlaid}><CanvasConversations key={overview.path} list={canvasList} current={overviewShown?.kind === "conversation" ? overviewShown.conversationId : null}
+      project={projectLabel(overview.path)} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible}
+      open={item => openOverviewRow(overview.path, item)} retry={() => run.retryList(overview.path)} listRetry={run.listRetry(overview.path)}
       onDelete={(item, button, after) => openDelete({ conversationId: item.conversationId, root: overview.path, title: item.title, provider: item.provider, from: "canvasList", after }, button)} /></div>
       : <><InspectorColumn shown={inspectorShown} width={shownInspector} bounds={inspectorLimits} onHide={() => foldInspector(false)} onResize={resizeInspector} preview={previewInspector}
         selection={inspectorSelection} document={state.layout?.document ?? null} inspect={inspectCall} tree={elementTree} onNotice={text => toast.show(text)}

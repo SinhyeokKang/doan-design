@@ -63,7 +63,10 @@ vi.mock("./CanvasController", async original => ({
     }
   },
 }));
-vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
+// The rows the Overview asks thumbnails for, and the fields given focus.
+const probe = vi.hoisted(() => ({ thumbRows: [] as unknown[], focused: [] as unknown[], fields: {} as Record<string, unknown> }));
+vi.mock("./thumbnails", () => ({ useThumbnails: (_root: unknown, rows: unknown[]) => { probe.thumbRows = rows; return { thumbnails: new Map(), onVisible: vi.fn() }; } }));
+vi.mock("./chipField", async original => ({ ...await original<typeof import("./chipField")>(), focusFieldEnd: (field: unknown) => { if (field) probe.focused.push(field); } }));
 
 const { App, TopBar } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
@@ -93,6 +96,7 @@ let tree: ReactNode;
 function reset() {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
   listeners = {}; windowListeners = {};
+  probe.thumbRows = []; probe.focused = []; probe.fields = {};
   harness.toast.show.mockClear(); harness.signIn.windowFocused.mockClear();
   const on = (name: string) => vi.fn((listener: (...args: never[]) => void) => { listeners[name] = listener; return () => {}; });
   doan = {
@@ -105,7 +109,7 @@ function reset() {
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), onFoldersSaveFailed: vi.fn(() => () => {}), openSettings: vi.fn(async () => true),
   };
   vi.stubGlobal("window", { doan, addEventListener: (name: string, listener: (event: never) => void) => { windowListeners[name] = listener; }, removeEventListener: vi.fn() });
-  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [], hasFocus: () => true });
+  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector: (selector: string) => probe.fields[selector] ?? null, querySelectorAll: () => [], hasFocus: () => true });
   vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
   vi.stubGlobal("HTMLElement", class {});
 }
@@ -293,7 +297,7 @@ test("a read that fails still lets saves through, with the panel's own state", a
 // the Overview's canvas conversations panel has its own handle and its own remembered
 // width; changing one panel's width leaves the other's alone.
 type Handle = { label?: string; onResize(width: number | undefined): void };
-const overviewHandle = () => find<Handle>(ResizeHandle).find(element => element.props.label === "Resize canvas conversations")?.props;
+const overviewHandle = () => find<Handle>(ResizeHandle).find(element => element.props.label === "Resize conversations")?.props;
 const savedPanels = () => doan.saveUiState!.mock.lastCall?.[0] as { rightPanel?: unknown; overviewPanel?: unknown } | undefined;
 const toOverview = () => { find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render(); };
 
@@ -523,7 +527,7 @@ test("an Overview row opens its canvas with that conversation and unfolds the pa
   folders([listed("/w/a")]);
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
   await flushAll();
-  const row = { key: "c1", conversationId: "c1", row: rowA };
+  const row = { kind: "canvas", key: "c1", conversationId: "c1", row: rowA };
   find<{ open(item: unknown): void }>(CanvasConversations)[0]!.props.open(row); render();
   const [root, opened, , options] = harness.controller!.openCanvas!.mock.lastCall as [string, CanvasRow, unknown, { opened(): void }];
   expect([root, opened.path]).toEqual(["/w/a", rowA.path]);
@@ -1395,5 +1399,123 @@ describe("the inspector column", () => {
     render(); folders([listed("/w/a")]);
     find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
     expect(find(InspectorColumn)).toHaveLength(0);
+  });
+});
+
+// The Overview's Conversations list: project conversations beside canvas conversations; the shown one is current and
+// a project row opens in the Overview's main column (PRODUCT §5 item 3 'Project Overview').
+describe("the Overview's Conversations list", () => {
+  type Run = { view(root: string): { kind: string; conversationId?: string }; select(root: string, id: string | null): void; started(root: string, id: string, provider?: string): void;
+    scrollRequest(id: string): unknown; revision(root: string): number; show(root: string | null): void };
+  type ListItem = { kind: string; key: string; conversationId: string };
+  type List = { list: unknown; current: string | null; open(item: unknown): void };
+  const COMPOSER = ".workspace .ov-main .composer-input";
+  const project = (conversationId: string, patch: Record<string, unknown> = {}) => ({ conversationId, title: `Title ${conversationId}`, owner: "doan", provider: "claude", fromHome: true,
+    phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "", ...patch });
+  const run = () => find<{ run: Run }>(ProjectOverview)[0]!.props.run;
+  const list = () => find<List>(CanvasConversations)[0]!.props;
+  const item = (key: string) => (list().list as ListItem[]).find(row => row.key === key)!;
+  const history = () => { const bar = find<{ back: boolean; forward: boolean }>(TopBar)[0]!.props; return [bar.back, bar.forward]; };
+  // The Overview of /w/a after its first list read; `remembered` is the conversation ui-state names for the root.
+  async function overviewWith(conversations: unknown[], remembered: string | null = "p1") {
+    doan.listConversations!.mockResolvedValue(conversations);
+    render();
+    readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, ...(remembered ? { conversationByRoot: { "/w/a": remembered } } : {}) }); await flushAll();
+    folders([listed("/w/a")]); toOverview();
+    await flushAll();
+  }
+  const listChanged = async (conversations: unknown[]) => {
+    doan.listConversations!.mockResolvedValue(conversations);
+    listeners.conversationList!({ root: "/w/a" } as never); await flushAll();
+  };
+
+  test("the panel is named Conversations and lists project and canvas conversations together", async () => {
+    await overviewWith([project("p1", { unseen: true }), rowSummary({ conversationId: "c1", lastActivityAt: "2026-11-01T00:01:00.000Z" })]);
+    expect((list().list as ListItem[]).map(row => [row.key, row.kind])).toEqual([["c1", "canvas"], ["p1", "project"]]);
+    expect(overviewHandle()).toBeDefined();
+  });
+
+  test("thumbnails are asked only for canvas rows", async () => {
+    await overviewWith([project("p1", { unseen: true }), rowSummary({ conversationId: "c1" })]);
+    expect(probe.thumbRows).toEqual([rowA]);
+  });
+
+  test("current is the conversation the main column shows, and follows a title menu pick before any list read", async () => {
+    await overviewWith([project("p1", { unseen: true }), project("p2")]);
+    expect(list().current).toBe("p1");
+    const reads = doan.listConversations!.mock.calls.length;
+    run().select("/w/a", "p2"); render();
+    expect(list().current).toBe("p2");
+    run().select("/w/a", null); render();
+    expect(list().current).toBeNull();
+    expect(doan.listConversations!.mock.calls.length).toBe(reads);
+  });
+
+  test("no current while the column waits or shows the new conversation state; a started conversation becomes current when a list read has it", async () => {
+    doan.listConversations!.mockResolvedValue(new Promise(() => {}));
+    render(); folders([listed("/w/a")]); toOverview();
+    expect(run().view("/w/a").kind).toBe("wait");
+    expect(list().current).toBeNull();
+    reset();
+    // p1's ending was seen, so the run's first pick starts fresh.
+    await overviewWith([project("p1")]);
+    expect(run().view("/w/a").kind).toBe("new");
+    expect(list().current).toBeNull();
+    run().started("/w/a", "p9", "claude"); render();
+    expect((list().list as ListItem[]).map(row => row.key)).toEqual(["p1"]);
+    await listChanged([project("p1"), project("p9", { phase: "running", working: true, lastActivityAt: "2026-11-01T00:05:00.000Z" })]);
+    expect(item("p9").kind).toBe("project");
+    expect(list().current).toBe("p9");
+  });
+
+  // POSTMORTEM 2026-11-23: the list read and the run's own state arrive apart; a promoted row is a canvas row.
+  test("the shown conversation promoted to a canvas: its row turns into a canvas row and no row is current", async () => {
+    await overviewWith([project("p1", { unseen: true }), project("p2")]);
+    await listChanged([{ ...project("p1"), canvas: { path: rowA.path, id: "a" }, startedBy: "promotion" }, project("p2")]);
+    expect(item("p1").kind).toBe("canvas");
+    expect(list().current).toBeNull();
+  });
+
+  test("a project row shows its conversation in the main column, focus for the composer, with no Back/Forward visit and no canvas opened", async () => {
+    await overviewWith([project("p1", { unseen: true }), project("p2")]);
+    probe.fields[COMPOSER] = { field: "overview" };
+    clearController();
+    const before = history();
+    list().open(item("p2")); render(); await flushAll();
+    expect(run().view("/w/a")).toEqual({ kind: "conversation", conversationId: "p2" });
+    expect(list().current).toBe("p2");
+    expect(probe.focused).toEqual([{ field: "overview" }]);
+    expect(history()).toEqual(before);
+    expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+    expect(harness.controller!.showOverview).not.toHaveBeenCalled();
+    expect(harness.controller!.openWorkspace).not.toHaveBeenCalled();
+  });
+
+  test("a project row waiting for an answer opens scrolled to its request, as a toast's Open does, and leaves the composer alone", async () => {
+    await overviewWith([project("p1", { unseen: true }), project("p2", { phase: "waiting", working: true })]);
+    probe.fields[COMPOSER] = { field: "overview" };
+    list().open(item("p2")); render(); await flushAll();
+    expect(run().view("/w/a")).toEqual({ kind: "conversation", conversationId: "p2" });
+    expect(run().scrollRequest("p2")).toMatchObject({ to: "permission" });
+    expect(probe.focused).toEqual([]);
+  });
+
+  test("the row of the conversation already shown changes nothing but focus", async () => {
+    await overviewWith([project("p1", { unseen: true }), project("p2")]);
+    probe.fields[COMPOSER] = { field: "overview" };
+    const revision = run().revision("/w/a");
+    list().open(item("p1")); render(); await flushAll();
+    expect(run().view("/w/a")).toEqual({ kind: "conversation", conversationId: "p1" });
+    expect(run().revision("/w/a")).toBe(revision);
+    expect(probe.focused).toEqual([{ field: "overview" }]);
+  });
+
+  test("a row press is a pick: it ends a fresh start, so coming back reopens the picked conversation", async () => {
+    await overviewWith([project("p1"), project("p2")]);
+    expect(run().view("/w/a").kind).toBe("new");
+    list().open(item("p2")); render(); await flushAll();
+    expect(run().view("/w/a")).toEqual({ kind: "conversation", conversationId: "p2" });
+    run().show(null); run().show("/w/a"); render();
+    expect(run().view("/w/a")).toEqual({ kind: "conversation", conversationId: "p2" });
   });
 });
