@@ -97,6 +97,13 @@ export function codexWorkspace(reply: unknown): CodexWorkspace {
     ...(Array.isArray(roots) && roots.every(root => typeof root === "string") ? { writableRoots: [...roots] as string[] } : {}),
   };
 }
+// Every MCP server name config/read reports, so the Default probe can turn each off: the ephemeral thread would
+// otherwise start them all once more. Only these names: an override for a server the config lacks fails thread/start
+// ("invalid transport"), and an empty mcp_servers table merges into the config and turns nothing off (0.171.0).
+export function codexServerNames(reply: unknown): string[] {
+  const servers = record(reply) && record(reply.config) ? reply.config.mcp_servers : undefined;
+  return record(servers) ? Object.keys(servers) : [];
+}
 // Every Codex turn states its values, Default included: an override holds for later turns and across thread/resume,
 // and null does not clear it (0.163.0). A bare workspaceWrite would turn the user's network access off, so Accept
 // edits carries the configured network access and roots.

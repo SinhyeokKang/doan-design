@@ -541,12 +541,15 @@ readline.createInterface({input:process.stdin}).on('line', line => {
   if(probe==='error') send({id:r.id,error:{code:-32600,message:'ephemeral threads are not supported'}});
   else send({id:r.id,result:probe==='bare'?{thread:{id:'probe'}}:{thread:{id:'probe'},approvalPolicy:'on-request',sandbox:{type:'workspaceWrite',writableRoots:[],networkAccess:false}}});
  }
- if(r.method==='config/read') send(config==='error'?{id:r.id,error:{code:-32601,message:'Method not found'}}:{id:r.id,result:{config:{approval_policy:null,sandbox_mode:null,sandbox_workspace_write:{network_access:true,writable_roots:['/extra'],exclude_slash_tmp:false}}}});
+ if(r.method==='config/read') send(config==='error'?{id:r.id,error:{code:-32601,message:'Method not found'}}:{id:r.id,result:{config:{approval_policy:null,sandbox_mode:null,sandbox_workspace_write:{network_access:true,writable_roots:['/extra'],exclude_slash_tmp:false},mcp_servers:{'doan-notion':{url:'http://127.0.0.1:1/mcp'},'own.tool':{command:'own'}}}}});
  if(r.method==='turn/start') { const id = 'native-' + (++turn); send({id:r.id,result:{turn:{id}}}); send({method:'turn/completed',params:{threadId:'session',turn:{id,status:'completed'}}}); }
 });
 `, { mode: 0o700 });
   return command;
 }
+// The probe turns off every server config/read named, so it starts none of them (Codex 0.171.0: an empty
+// mcp_servers table merges into the config and disables nothing).
+const PROBE_CONFIG = { mcp_servers: { "doan-notion": { enabled: false }, "own.tool": { enabled: false } } };
 const seenLines = (root: string) => readFileSync(join(root, "seen"), "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as { method?: string; params?: Record<string, unknown> });
 it("reads Codex's Default values once per server and states every turn's approval and sandbox, Default included", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-codex-mode-")), command = modeCodex(root);
@@ -560,7 +563,7 @@ it("reads Codex's Default values once per server and states every turn's approva
     }
     const lines = seenLines(root);
     expect(lines.filter(r => r.method && r.method !== "turn/start").map(r => [r.method, r.params])).toEqual([
-      ["initialize", expect.anything()], ["initialized", undefined], ["thread/start", { cwd: root }], ["thread/start", { cwd: root, ephemeral: true }], ["config/read", { cwd: root }]]);
+      ["initialize", expect.anything()], ["initialized", undefined], ["thread/start", { cwd: root }], ["config/read", { cwd: root }], ["thread/start", { cwd: root, ephemeral: true, config: PROBE_CONFIG }]]);
     const userDefault = { approvalPolicy: "on-request", sandboxPolicy: { type: "workspaceWrite", writableRoots: [], networkAccess: false } };
     expect(lines.filter(r => r.method === "turn/start").map(r => ({ approvalPolicy: r.params?.approvalPolicy, sandboxPolicy: r.params?.sandboxPolicy }))).toEqual([
       // No choice on the send: the mode the server was opened with.
@@ -580,7 +583,7 @@ it("probes after a Codex resume too, whose thread still carries the last overrid
   try {
     await runner.send("x", "t1"); await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
     const lines = seenLines(root);
-    expect(lines.filter(r => r.method === "thread/resume" || r.method === "thread/start").map(r => r.params)).toEqual([{ threadId: "session" }, { cwd: root, ephemeral: true }]);
+    expect(lines.filter(r => r.method === "thread/resume" || r.method === "thread/start").map(r => r.params)).toEqual([{ threadId: "session" }, { cwd: root, ephemeral: true, config: PROBE_CONFIG }]);
     expect(lines.find(r => r.method === "turn/start")!.params).toMatchObject({ approvalPolicy: "on-request", sandboxPolicy: { type: "workspaceWrite", writableRoots: [], networkAccess: false } });
   } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
 });
@@ -592,6 +595,8 @@ it("sends a bare workspaceWrite for Accept edits when config/read fails", async 
     await runner.send("x", "t1"); await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
     expect(seenLines(root).find(r => r.method === "turn/start")!.params).toMatchObject({ approvalPolicy: "on-request", sandboxPolicy: { type: "workspaceWrite" } });
     expect(seenLines(root).find(r => r.method === "turn/start")!.params!.sandboxPolicy).toEqual({ type: "workspaceWrite" });
+    // Without config/read no server is known by name, so the probe goes out as before rather than refusing the open.
+    expect(seenLines(root).find(r => r.method === "thread/start" && r.params?.ephemeral)!.params).toEqual({ cwd: root, ephemeral: true });
   } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
 });
 // A failed or incomplete probe never falls back to sending nothing: an earlier override would stay.
