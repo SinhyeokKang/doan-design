@@ -26,8 +26,8 @@ test("the decorations sit on the item's paragraph and its text", () => {
   const set = fieldDecorations(doc, segments, fieldRuns(segments, new Set(["copy-check"]), new Set()), measure);
   const found = set.find().map(d => [d.from, d.to, (d as unknown as { type: { attrs: Record<string, string> } }).type.attrs]);
   // Paragraph 2 ("- Title") spans positions 7..16; its "-" is 8..9.
-  expect(found).toContainEqual([7, 16, { class: "field-item", style: "--depth: 0; --mark-width: 10px" }]);
-  expect(found).toContainEqual([8, 9, { class: "field-mark", "data-kind": "ul", style: "--mark-chars: 1" }]);
+  expect(found).toContainEqual([7, 16, { class: "field-item", "data-depth": "0", "data-mark": "10px" }]);
+  expect(found).toContainEqual([8, 9, { class: "field-mark", "data-kind": "ul", "data-mark": "10px", "data-chars": "1" }]);
   expect(found).toContainEqual([17, 19, { class: "field-depth", style: "word-spacing: -5px" }]);
   expect(found.filter(([, , attrs]) => (attrs as Record<string, string>).class === "skill-word")).toHaveLength(1);
 });
