@@ -113,7 +113,7 @@ test("a person who leaves Retry before the empty list arrives keeps focus", () =
 });
 
 // The Overview's Conversations list mixes project rows (no canvas) with canvas rows.
-const project = (conversationId: string, minutes: number): ConversationSummary => ({ ...summary(conversationId, "", minutes), canvas: undefined });
+const project = (conversationId: string, minutes: number): ConversationSummary => { const { canvas: _bound, ...unbound } = summary(conversationId, "", minutes); return unbound; };
 const mixed = canvasConversationRows([project("p1", 0), summary("c1", paths[0]!, 1), project("p2", 2), summary("c2", paths[1]!, 3)], paths.map(canvas), NOW);
 function renderWith(list: Parameters<typeof CanvasConversationList>[0]["list"], current: string | null) {
   hooks.cursor = 0; hooks.refCursor = 0; hooks.layouts = [];
@@ -124,7 +124,11 @@ function renderWith(list: Parameters<typeof CanvasConversationList>[0]["list"], 
   };
 }
 const order = () => (tree.props.children as ReactElement<RowProps>[]).map(row => row.props.item.key);
-const pressWith = (key: string, current: string | null) => { (tree.props.onKeyDown as (event: unknown) => void)({ key, preventDefault: noop }); renderWith(mixed, current); };
+// The focused row's own focus handler runs, as the browser's focus event would.
+const pressWith = (key: string, current: string | null) => {
+  (tree.props.onKeyDown as (event: unknown) => void)({ key, preventDefault: noop }); renderWith(mixed, current);
+  rowOf(focused.at(-1)!).focus(); renderWith(mixed, current);
+};
 
 test("↑/↓, Home and End move between project and canvas rows alike, without opening any", () => {
   renderWith(mixed, null);

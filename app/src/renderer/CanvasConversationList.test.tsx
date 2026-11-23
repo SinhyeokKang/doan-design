@@ -183,7 +183,7 @@ describe("canvas conversation list", () => {
 
   // D11: busy while the list is read again; the same failure again changes the line by a no-break space.
   test("Retry runs while the list is read again, and a repeated failure is announced again", () => {
-    const html = (listRetry: { running: boolean; failures: number }) => markup(<TooltipProvider><CanvasConversationList list="error" listRetry={listRetry} project="acme-web" thumbnails={thumbnails}
+    const html = (listRetry: { running: boolean; failures: number }) => markup(<TooltipProvider><CanvasConversationList list="error" listRetry={listRetry} current={null} project="acme-web" thumbnails={thumbnails}
       open={noop} retry={noop} onVisible={noop} onDelete={noop} scroller={{ current: null }} title={{ current: null }} /></TooltipProvider>);
     expect(html({ running: true, failures: 0 }).replace(/<svg.*?<\/svg>/, "<svg/>")).toBe('<div class="rp-error" role="status"><svg/><span>Couldn’t read conversations</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-disabled="true" aria-busy="true"><span class="doan-spinner" aria-hidden="true"></span>Retry</button></div>');
     expect(html({ running: false, failures: 1 })).toContain("<span>Couldn’t read conversations\u00a0</span>");
