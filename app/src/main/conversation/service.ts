@@ -1399,7 +1399,9 @@ export class ConversationService {
     const drawing = this.drawWatches.get(live.turnId);
     if (drawing) { drawing.endedAt = live.endedAt ?? Date.now(); if (exitedAt !== undefined) drawing.exitedAt = exitedAt; this.armDrawn(live.turnId, drawing); }
     if (turn?.requests.length && turn.state === undefined && turn.turnId === live.turnId) {
-      if (type !== "turn.done") this.cancelHandoff(id, turn);
+      // A project removal's Stop of this turn may meet an end held for an unreported steer, which comes as turn.done
+      // once the group is gone: its handoffs belong to a root on its way out.
+      if (type !== "turn.done" || live.removalStop?.turnId === live.turnId) this.cancelHandoff(id, turn);
       else {
         turn.state = "judging"; turn.endedAt = live.endedAt ?? Date.now(); if (exitedAt !== undefined) turn.exitedAt = exitedAt;
         for (const request of turn.requests) request.state = "judging";
