@@ -31,10 +31,12 @@ let event: Listener<ConversationEvent> | null;
 let lists: Map<string, (reply: ConversationSummary[] | { error: string }) => void>;
 let focused: boolean;
 let run: PrototypeConversationRun;
+// conversationListed asks, answered by the test: [root, conversationId, resolve].
+let listedAsks: [string, string, (answer: boolean | null) => void][];
 
 beforeEach(() => {
   vi.stubGlobal("window", {});
-  order = []; listChanged = null; event = null; lists = new Map(); focused = true;
+  order = []; listChanged = null; event = null; lists = new Map(); focused = true; listedAsks = [];
   const on = (name: string, keep?: (listener: never) => void) => vi.fn((listener: never) => { order.push(`on:${name}`); keep?.(listener); return () => {}; });
   calls = {
     onConversationEvent: on("event", listener => { event = listener; }),
@@ -54,6 +56,7 @@ beforeEach(() => {
     // The body's sends: pending until a test answers them.
     startConversation: vi.fn(() => new Promise(() => {})), sendConversation: vi.fn(() => new Promise(() => {})), queueConversation: vi.fn(() => new Promise(() => {})),
     rememberedConversation: vi.fn(async () => null),
+    conversationListed: vi.fn(({ root, conversationId }: { root: string; conversationId: string }) => new Promise<boolean | null>(resolve => { listedAsks.push([root, conversationId, resolve]); })),
   };
   run = new PrototypeConversationRun(calls as unknown as PrototypeConversationCalls, { changed: () => {}, notice: () => {}, focused: () => focused });
 });
@@ -661,5 +664,51 @@ describe("read persistence across windows", () => {
     await flush();
     expect(run.seen().has("A")).toBe(true);
     expect(run.button().badge).toBeNull();
+  });
+});
+
+// A handoff card from the Overview names a project conversation this window does not list: main answers whether it is
+// still indexed under the playing root (PRODUCT §5 item 2 'Handoff': a deleted source has no Open). Unknown (null, or
+// not answered yet) reads as there, as the main window's loading list does.
+describe("the source of a handoff card from the Overview", () => {
+  const answerListed = async (conversationId: string, value: boolean | null, root = ROOT) => {
+    const at = listedAsks.findIndex(([r, id]) => r === root && id === conversationId);
+    const [, , resolve] = listedAsks.splice(at, 1)[0]!;
+    resolve(value);
+    await flush();
+  };
+  test("asks main once for the playing root and reads as there until main says it is gone", async () => {
+    await playing();
+    expect(run.conversationListed("c0")).toBe(true);
+    expect(run.conversationListed("c0")).toBe(true);
+    expect(calls.conversationListed).toHaveBeenCalledExactlyOnceWith({ root: ROOT, conversationId: "c0" });
+    await answerListed("c0", false);
+    expect(run.conversationListed("c0")).toBe(false);
+  });
+  test("null from main is unknown: the source reads as there", async () => {
+    await playing();
+    run.conversationListed("c0");
+    await answerListed("c0", null);
+    expect(run.conversationListed("c0")).toBe(true);
+  });
+  test("a list change of the playing root asks again; another root's does not", async () => {
+    await playing();
+    run.conversationListed("c0");
+    await answerListed("c0", true);
+    listChanged!({ root: TWIN });
+    expect(calls.conversationListed).toHaveBeenCalledTimes(1);
+    listChanged!({ root: ROOT });
+    expect(calls.conversationListed).toHaveBeenCalledTimes(2);
+    await answer(ROOT, [summary({})]);
+    await answerListed("c0", false);
+    expect(run.conversationListed("c0")).toBe(false);
+  });
+  test("an answer for the root left behind is dropped, and the new root is asked afresh", async () => {
+    await playing();
+    run.conversationListed("c0");
+    run.setView(view({ root: TWIN }));
+    await answerListed("c0", false, ROOT);
+    expect(run.conversationListed("c0")).toBe(true);
+    expect(calls.conversationListed).toHaveBeenLastCalledWith({ root: TWIN, conversationId: "c0" });
   });
 });

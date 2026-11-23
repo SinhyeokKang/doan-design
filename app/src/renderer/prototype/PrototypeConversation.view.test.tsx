@@ -76,7 +76,7 @@ beforeEach(() => {
   const off = () => vi.fn(() => () => {});
   calls = {
     onConversationEvent: off(), onConversationStage: off(), onConversationBoundary: off(), onConversationListChanged: off(), onWorkChanged: off(), onTargetEntry: off(), onComposerSettings: off(), onAgentAuth: off(), onAgentUsage: off(), readAgentUsage: vi.fn(async () => []), onWindowVisible: off(),
-    listConversations: vi.fn(async () => listed), getWork: vi.fn(async () => []), rememberedConversation: vi.fn(async () => null), readTargetEntry: vi.fn(async () => ({ path: ROOT, kind: "list", servedRev: 0, canvases: [{ ...CHECKOUT, url: "u" }] })),
+    listConversations: vi.fn(async () => listed), getWork: vi.fn(async () => []), rememberedConversation: vi.fn(async () => null), conversationListed: vi.fn(async () => null), readTargetEntry: vi.fn(async () => ({ path: ROOT, kind: "list", servedRev: 0, canvases: [{ ...CHECKOUT, url: "u" }] })),
     readComposerSettings: vi.fn(async () => ({ home: null, newConversation: null, buddy: "doany" })),
     readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), markConversationSeen: vi.fn(async () => {}),
     setShowing: vi.fn(async () => {}), reveal: vi.fn(async () => {}), rememberChoice: vi.fn(async () => {}),
@@ -170,8 +170,10 @@ describe("main-window-only buttons go to main as reveals", () => {
     panel.onOpenHandoff!(CHECKOUT as never, "c3" as never);
     // A canvas card's Open other than a handed-off one names the canvas alone; the main window opens it as Quick Open does.
     panel.onOpenHandoff!(CHECKOUT as never);
-    // A handoff card from the Overview: its Open goes to the source conversation, which the main window shows there.
+    // A handoff card from the Overview: its Open goes to the source conversation, which the main window shows there, and
+    // whether that source still exists is the run's answer from main.
     panel.onOpenOverview!("p1" as never);
+    expect(panel.conversationListed!("p1" as never)).toBe(true);
     expect((calls.reveal as ReturnType<typeof vi.fn>).mock.calls.map(([request]) => request)).toEqual([
       { kind: "reply", conversationId: "c1", link: { canvas: "checkout", kind: "frame", id: "pay" } },
       { kind: "settings", provider: "codex" },
