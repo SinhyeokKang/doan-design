@@ -17,8 +17,8 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| B1 | tasks 2, 3, 4 | `app/src/renderer/canvasConversationRows{,.test}.ts`, `CanvasConversationList{,.test,.keyboard.test}.tsx`, `RightPanel{,.test}.tsx`, `App.tsx`, `App.conversationPanel.test.tsx`, `App.conversationDelete.test.tsx`, `styles.css` | 없음 | Claude Opus high — 여러 구성 요소에 걸친 union 타입, 포커스·순서 고정·이벤트와 목록 읽기 사이의 경합을 다룬다 | `/ship bypass`(push 전 정지): 테스트 red→green, `/verify`, `/runtime-test` 프로브 3개 | 대기 |
-| R1 | B1 리뷰 | 읽기만 | B1 | Claude Opus medium — 경합·포커스 판단은 필요하지만 보고만 한다 | `/code-review` 보고서, 🔴 0 | 대기 |
+| B1 | tasks 2, 3, 4 | `app/src/renderer/canvasConversationRows{,.test}.ts`, `CanvasConversationList{,.test,.keyboard.test}.tsx`, `RightPanel{,.test}.tsx`, `App.tsx`, `App.conversationPanel.test.tsx`, `App.conversationDelete.test.tsx`, `styles.css` | 없음 | Claude Opus high — 여러 구성 요소에 걸친 union 타입, 포커스·순서 고정·이벤트와 목록 읽기 사이의 경합을 다룬다 | `/ship bypass`(push 전 정지): 테스트 red→green, `/verify`, `/runtime-test` 프로브 3개 | 완료(`90497388d`, verify PASS, 프로브 3개 통과) |
+| R1 | B1 리뷰 | 읽기만 | B1 | Claude Opus medium — 경합·포커스 판단은 필요하지만 보고만 한다 | `/code-review` 보고서, 🔴 0 | 진행 중 |
 | B2 | task 5 | B1과 같다 + `docs/design/project.md` | B1·R1 | B1 워커 후속 Task(Opus high) — B1 맥락 재사용 | `/design-sync` 보고서: 차이 0 또는 문서화 | 대기 |
 | D | task 6 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/design/*.md`, `docs/BACKLOG.md`, feature 디렉터리 삭제 | B2 | 지휘자 | tasks.md 6의 grep | 대기 |
 
