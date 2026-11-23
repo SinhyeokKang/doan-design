@@ -88,11 +88,11 @@ export type OverviewPick =
   | { kind: "canvas"; conversationId: string; canvas: Canvas }
   | { kind: "new"; forget: boolean; fresh?: true };
 
-// Nothing left for the person: no turn running or starting, nothing queued or waiting out a usage limit, no pending
-// request, and its last turn's end already seen (main's mark, or this run's `seen` that a list read has not shown yet).
-// An unreadable history says nothing about having been seen, so it never counts.
+// Nothing left for the person: no turn running or starting, nothing queued or waiting out a usage limit, no returned
+// draft, no pending request, and its last turn's end already seen (main's mark, or this run's `seen` that a list read
+// has not shown yet). An unreadable history says nothing about having been seen, so it never counts.
 function endedAndSeen(c: ConversationSummary, seen: ReadonlySet<string>): boolean {
-  return !c.readError && c.phase === "ended" && !c.working && c.queued === 0 && c.scheduledAt === undefined && (!c.unseen || seen.has(c.conversationId));
+  return !c.readError && c.phase === "ended" && !c.working && c.queued === 0 && c.scheduledAt === undefined && !c.returnedDraft && (!c.unseen || seen.has(c.conversationId));
 }
 
 // The requested conversation, the one last shown on this device, the latest project conversation,
