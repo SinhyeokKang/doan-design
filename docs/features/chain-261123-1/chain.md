@@ -80,3 +80,4 @@
   - Cursor fence: PR의 미검증 항목.
   - 다른 머신이 남긴 것: 막 시작한 대화가 Overview 목록에서 current가 되는지.
   - 부하에서 흔들리는 테스트: `clone.test.ts`, `quickOpen.test.ts`, `usageRead.test.ts`.
+- 2026-11-24 (리드 세션): 사용자 지시로 한글 IME 확인(#382 tasks 5)은 다른 머지를 기다리지 않고 #382가 머지되면 바로 연다. 실행 스크립트: 메인 체크아웃 `.scratch/runtime-test/ime-382/launch.mjs`(격리 환경, develop 빌드, 입력란 텍스트를 `http://127.0.0.1:47382/field`로 읽음).
