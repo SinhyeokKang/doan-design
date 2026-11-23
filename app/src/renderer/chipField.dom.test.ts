@@ -822,9 +822,9 @@ test("Edit > Undo and Redo from the menu step the field's history", { timeout: 6
 });
 
 test("composing at an empty item's body and over a selection across items", { timeout: 60_000 }, async () => {
-  const session = await cdp();
   // The composed text is never inside the unpainted marker.
   await open("- ");
+  const session = await cdp();
   await session.send("Input.imeSetComposition", { text: "하", selectionStart: 1, selectionEnd: 1 });
   expect(await frame.evaluate(() => document.getSelection()!.focusNode!.parentElement!.className)).not.toMatch(/field-mark/);
   await session.send("Input.insertText", { text: "한" });
@@ -840,6 +840,32 @@ test("composing at an empty item's body and over a selection across items", { ti
   expect(await consistent()).toBe(true);
   await press("Meta+z");
   expect(await text()).toBe("- ab\n- cd");
+  // At an item's line start, before its marker: the line becomes plain text, and nothing is lost or doubled.
+  await open("- a\n- b");
+  await call("place", 4);
+  await session.send("Input.imeSetComposition", { text: "하", selectionStart: 1, selectionEnd: 1 });
+  // While composing, the syllable stands outside the unpainted marker, so it shows.
+  expect(await frame.evaluate(() => { const n = document.getSelection()!.focusNode!; return (n.nodeType === 3 ? n.parentElement! : n as Element).closest(".field-mark") === null; })).toBe(true);
+  await session.send("Input.insertText", { text: "한" });
+  await dom.flush(frame);
+  expect(await text()).toBe("- a\n한- b");
+  // ProseMirror draws the line again once the composition has ended.
+  await frame.waitForTimeout(100);
+  expect(await call("spans")).toEqual(['field-mark:ul "-"']);
+  expect(await consistent()).toBe(true);
+  expect(await frame.evaluate(() => document.querySelectorAll(".field-filler").length)).toBe(0);
+  await press("Meta+z");
+  expect(await text()).toBe("- a\n- b");
+  expect(await frame.evaluate(() => document.querySelectorAll(".field-filler").length)).toBe(0);
+  // A composition cancelled at an item's line start leaves the item as it was.
+  await call("place", 4);
+  await session.send("Input.imeSetComposition", { text: "하", selectionStart: 1, selectionEnd: 1 });
+  await session.send("Input.imeCancelComposition" as never).catch(async () => { await session.send("Input.insertText", { text: "" }); });
+  await dom.flush(frame);
+  await frame.waitForTimeout(100);
+  expect(await text()).toBe("- a\n- b");
+  expect(await frame.evaluate(() => document.querySelectorAll(".field-filler").length)).toBe(0);
+  expect(await textboxValue()).toBe("- a\n- b");
   // A line-start chip's place takes composed text before the chip.
   await open([plain("a\n"), chip()]);
   await call("place", 2);

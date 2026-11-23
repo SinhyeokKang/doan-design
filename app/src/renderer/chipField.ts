@@ -10,7 +10,7 @@ import {
 } from "./anchorField";
 import { continueList, fieldListItems, indentItem, removeMarker, type FieldEdit } from "./composerLists";
 import { fieldDecorations, type Measure } from "./fieldDecorations";
-import { docFromSegments, fieldSchema, fixFillers, posFromUnit, segmentsFromDoc, sliceFromSegments, unitFromPos } from "./fieldDoc";
+import { docFromSegments, FILLER, fieldSchema, fixFillers, posFromUnit, segmentsFromDoc, sliceFromSegments, unitFromPos } from "./fieldDoc";
 import { fieldRuns, fieldSkillRuns, insertSkillText, replaceSlashSkill, sameSkillNames, skillAnnouncements } from "./skillWords";
 
 // The composer field's editing over a contenteditable element, on ProseMirror (ARCHITECTURE §7 'Chip field').
@@ -77,6 +77,8 @@ export class ChipField {
   // The next document change starts its own undo step: the caret moved since the last one, or the last one was an
   // edit of the field's own (a list edit, a chip, paste, cut, undo) that typing must not join.
   private moved = false;
+  // A filler stands at an item's line start for the open composition (openItemLineStart).
+  private composingAtItem = false;
   private closeNext = false;
   private readonly widths = new Map<string, number>();
   private ruler: HTMLElement | null = null;
@@ -100,6 +102,7 @@ export class ChipField {
       handleDOMEvents: {
         keydown: (_view, event) => this.onKeyDownFirst(event),
         beforeinput: (_view, event) => this.onBeforeInput(event as InputEvent),
+        compositionstart: () => { this.openItemLineStart(); return false; },
         compositionend: () => { this.onCompositionEnd(); return false; },
         copy: (_view, event) => this.onCopy(event, false),
         cut: (_view, event) => this.onCopy(event, true),
@@ -164,7 +167,7 @@ export class ChipField {
   // After every change outside a composition, a filler only before a line-start chip, and a caret never before one.
   private readonly fillers = new Plugin({
     appendTransaction: (_trs, _old, state) => {
-      if (this.view.composing) return null;
+      if (this.view.composing || this.composingAtItem) return null;
       const tr = state.tr;
       fixFillers(tr);
       const { anchor, head } = tr.selection, past = (pos: number) => posFromUnit(tr.doc, unitFromPos(tr.doc, pos));
@@ -212,6 +215,7 @@ export class ChipField {
     this.press = null;
     this.moved = false;
     this.closeNext = false;
+    this.composingAtItem = false;
     this.view.updateState(this.createState(segments));
     this.markEmpty();
     this.announceSkills(false);
@@ -301,6 +305,8 @@ export class ChipField {
 
   private dispatch(tr: Transaction): void {
     const before = this.view.state;
+    // A filler put in for a composition changes no unit: no undo step, no caret move, nothing for the host.
+    if (tr.getMeta(FILLER_ONLY)) { this.view.updateState(before.apply(tr)); return; }
     const ours = tr.getMeta(OWN) as string | undefined;
     if (tr.docChanged) {
       // Typing within a second merges into one step, as in a textarea; ProseMirror's history groups by time, and the
@@ -584,11 +590,29 @@ export class ChipField {
   // Korean input ends one syllable's composition and starts the next in the same key event, so a waiting chip goes in
   // only after the event has run and only if no new composition started meanwhile. ProseMirror reads the composed text
   // into the document before this timer.
+  // An item's line start has no text of its own before the marker, so a composition there would go into the marker's
+  // span: unpainted for a bullet, spaced for a number. While it lasts the line gets a filler, so the composed text
+  // stands in plain text before the marker (the filler's mark is not inclusive); onCompositionEnd removes it, and no
+  // filler stays on an item line, where the accessible value must be the typed text.
+  private openItemLineStart(): void {
+    if (this.view.composing || this.readOnly()) return;
+    const { anchor, focus } = this.readSelection();
+    if (anchor !== focus || !fieldListItems(this.segments).some(item => item.start === focus)) return;
+    const doc = this.view.state.doc, at = posFromUnit(doc, focus);
+    if (doc.resolve(at).parentOffset !== 0) return;
+    const tr = this.view.state.tr.insert(at, fieldSchema.text(FILLER, [fieldSchema.marks.filler.create()]));
+    tr.setSelection(TextSelection.create(tr.doc, at + 1)).setMeta(FILLER_ONLY, true).setMeta("addToHistory", false);
+    this.composingAtItem = true;
+    this.view.dispatch(tr);
+  }
+
   private onCompositionEnd(): void {
     clearTimeout(this.compositionTimer);
     this.compositionTimer = setTimeout(() => {
       if (this.disposed) return;
-      // The fillers wait while a composition is open; a composition at a line-start chip's place leaves one to remove.
+      // The fillers wait while a composition is open; a composition at a line-start chip's or item's place leaves one
+      // to remove.
+      this.composingAtItem = false;
       if (!this.composing()) this.view.dispatch(this.view.state.tr);
       this.flushPending(); this.flushPress();
     }, 0);
@@ -733,6 +757,7 @@ export class ChipField {
 
 // Marks the field's own transactions: "own" is an undo step of its own, "undo" a history step.
 const OWN = "doanFieldEdit";
+const FILLER_ONLY = "doanFieldFiller";
 
 // The next (or previous) Tab stop in document order from a composer field, for the Ctrl+Tab that Chromium leaves alone.
 const TABBABLE = 'a[href], button:not(:disabled), input:not(:disabled):not([type="hidden"]), select:not(:disabled), textarea:not(:disabled), [tabindex], [contenteditable="true"]';
