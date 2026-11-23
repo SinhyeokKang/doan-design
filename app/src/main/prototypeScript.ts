@@ -121,6 +121,8 @@ export function prototypeScript(target: string, gen: number, url: string): void 
         height: auto !important; min-height: 0 !important; max-height: none !important;
         transform: none !important; translate: none !important; scale: none !important; rotate: none !important; zoom: 1 !important;
         filter: none !important; contain: none !important; overflow: visible !important; columns: auto !important; }
+      [data-doan-proto-clear][data-doan-proto-path], [data-doan-proto-clear] [data-doan-proto-path] {
+        background: none !important; box-shadow: none !important; outline: none !important; }
       [data-doan-proto-frame] { position: relative !important; inset: auto !important; float: none !important; margin: 0 !important;
         transform: none !important; translate: none !important; scale: none !important; rotate: none !important; zoom: 1 !important;
         width: 100% !important; min-width: 0 !important; max-width: none !important; min-height: 100vh !important; box-sizing: border-box !important; }
@@ -128,7 +130,34 @@ export function prototypeScript(target: string, gen: number, url: string): void 
       @supports (height: 100dvh) { :root { --doan-viewport-height: 100dvh !important; } }
     `);
     document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+    judge(el);
+    // A linked stylesheet with no script after it may still be loading at DOMContentLoaded, so the frame's background
+    // is read again once the `load` handlers have run.
+    if (document.readyState !== "complete") afterLoad(() => judge(el));
   };
+
+  // A frame that paints its own opaque background colour is the whole picture, so its ancestors' paint (the root's
+  // and the body's background above all) must not show around its rounded corners. Only ever added: a document judged
+  // once to clear stays cleared, so a later read of a background that inherited the cleared paint changes nothing.
+  // The root and the body are not judged when they are the frame: clearing would reach the frame itself.
+  const judge = (el: Element) => {
+    if (el === document.documentElement || el === document.body) return;
+    if (ownBackground(getComputedStyle(el).backgroundColor)) document.documentElement.setAttribute("data-doan-proto-clear", "");
+  };
+  // Whether a computed background-color is fully opaque. Chromium writes the alpha after "/" in the space syntax, as
+  // the fourth argument of rgba() and hsla(), and leaves it out when it is 1. A background image never counts: a
+  // texture or a half-transparent gradient often takes its colour from the body. A frame a script detached computes
+  // "", which does not count either. isolate.js holds the same body
+  // (exportViewer.test.ts compares them).
+  function ownBackground(color: string): boolean {
+    if (color === "" || color === "transparent") return false;
+    const slash = color.lastIndexOf("/");
+    let alpha = "1";
+    if (slash >= 0) alpha = color.slice(slash + 1).replace(")", "").trim();
+    else if (/^(rgba|hsla)\(/.test(color)) alpha = (color.slice(color.indexOf("(") + 1, -1).split(",")[3] ?? "1").trim();
+    const value = alpha === "none" ? 0 : alpha.endsWith("%") ? parseFloat(alpha) / 100 : parseFloat(alpha);
+    return value === 1;
+  }
 
   let playing: Element | null = null;
   window.addEventListener("click", event => {
