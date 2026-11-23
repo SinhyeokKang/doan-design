@@ -104,6 +104,13 @@ export function codexServerNames(reply: unknown): string[] {
   const servers = record(reply) && record(reply.config) ? reply.config.mcp_servers : undefined;
   return record(servers) ? Object.keys(servers) : [];
 }
+// Every plugin key config/read reports (`<plugin>@<marketplace>`): a plugin's own MCP servers are not in
+// mcp_servers, and naming one there fails thread/start ("invalid transport"), so the probe turns the plugin off
+// instead; a key for a plugin that is not installed starts nothing and fails nothing (PoC, 0.171.0).
+export function codexPluginNames(reply: unknown): string[] {
+  const plugins = record(reply) && record(reply.config) ? reply.config.plugins : undefined;
+  return record(plugins) ? Object.keys(plugins) : [];
+}
 // Every Codex turn states its values, Default included: an override holds for later turns and across thread/resume,
 // and null does not clear it (0.163.0). A bare workspaceWrite would turn the user's network access off, so Accept
 // edits carries the configured network access and roots.
