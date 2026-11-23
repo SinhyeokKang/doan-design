@@ -4,7 +4,7 @@
 
 **develop에서 먼저 하는 것(tasks 1, 2)**: `/ship`은 `/tdd`부터 시작하므로, PoC 결과를 적은 design.md 커밋과 확정된 시안은 lead가 conductor를 띄우기 전에 develop에 있어야 한다.
 
-1. **PoC — 순수 ProseMirror D 모델**(develop, `.scratch/prosemirror-poc/`): `.scratch/tiptap-poc/`의 D 모델을 TipTap 없이 ProseMirror 패키지만으로 다시 만들고, `app/runtime/electronDom.ts`(숨긴 창)로 잰다. 실행 명령은 `node .scratch/prosemirror-poc/build.mjs && node .scratch/prosemirror-poc/probe.ts`다. 296px 폭, shipped CSS, Geist 16/24.
+1. **PoC — 순수 ProseMirror D 모델**(완료, 2026-11-23, 결과는 design.md 'PoC 결과') (develop, `.scratch/prosemirror-poc/`): `.scratch/tiptap-poc/`의 D 모델을 TipTap 없이 ProseMirror 패키지만으로 다시 만들고, `app/runtime/electronDom.ts`(숨긴 창)로 잰다. 실행 명령은 `node .scratch/prosemirror-poc/build.mjs && node .scratch/prosemirror-poc/probe.ts`다. 296px 폭, shipped CSS, Geist 16/24.
    - TipTap PoC D 항목 재확인: 줄바꿈 x(차이 ≤ 0.5px), 마커·본문 x, 16개 문자열 왕복, 목록 keymap 15건과 실행 취소, 줄 넘는 native 삭제 4건, ↑/↓, ⌘←/⌘→, 복사, 선택 텍스트, CDP 값, IME(CDP)
    - 새로 잴 것과 기댓값:
      - macOS 삭제 명령 ⌃K·⌃H·⌃D·⌃T·⌘⌫·⌘⌦가 줄 경계에서 입력 텍스트를 지금 입력란과 같게 바꿈(지금 입력란의 결과 문자열을 기준으로 적는다)
@@ -57,13 +57,13 @@
      - VoiceOver가 줄바꿈된 항목을 순서대로 읽음(확인 못 하면 미확인으로 남긴다)
    - 걸친 선택 위 조합이 실패하면 design.md '결정'대로 BACKLOG 'Known defects'에 재현 조건을 남긴다. 다른 항목이 실패하면 멈추고 보고한다.
    - 검증: 사람이 확인 결과를 말하고, conductor가 PR 본문에 적는다.
-6. **`/design-sync`**: 새 시안과 구현을 실제 앱에서 computed style로 비교해 맞춘다. docked composer와 Home composer에서 시안의 프레임을 잰다. `docs/design/canvas-conversation.md`의 'Composer field lists' 절(머리의 Reference를 새 시안으로, 'Marker', 'Depth', 'Line-start caret', 'No hanging indent', 'Names (CDP)', 깊이 0 앞 공백 deviation)을 새 측정값으로 바꾸고, 받아들인 차이(⌥→, CDP 빈 줄)를 deviation으로 적는다. 고친 내용과 측정 기록은 `/design-sync`가 자체 커밋한다.
+6. **`/design-sync`**: 새 시안과 구현을 실제 앱에서 computed style로 비교해 맞춘다. docked composer와 Home composer에서 시안의 프레임을 잰다. `docs/design/canvas-conversation.md`의 'Composer field lists' 절(머리의 Reference를 새 시안으로, 'Marker', 'Depth', 'Line-start caret', 'No hanging indent', 'Names (CDP)', 깊이 0 앞 공백 deviation)을 새 측정값으로 바꾸고, 받아들인 차이(CDP 빈 줄)와 ⌘⌫·⌘⌦가 줄바꿈된 항목에서 지우는 범위를 deviation으로 적는다. 고친 내용과 측정 기록은 `/design-sync`가 자체 커밋한다.
    - 검증: `/design-sync` 보고서에서 차이가 0이거나 남은 차이가 문서화돼 있다.
 7. **문서 승격**: 아래를 현재 규칙으로 고쳐 쓰고(영어, 문서별 커밋), `docs/features/composer-list-hanging-indent/`를 지운다.
    - PRODUCT §5 item 1 'Lists'(hanging indent, 항목마다 본문 정렬, 줄 시작 커서, 받아들인 차이)
    - ARCHITECTURE §7 'Setup'(ProseMirror 런타임 의존성과 버전 고정)과 chip field(`:715`~`:720`): ProseMirror 문서 모델(줄 = 문단 `<div>`, 칩 = inline atom), decoration으로 그리는 목록, 클립보드·실행 취소·메뉴 실행 취소·스크롤
    - `docs/design/canvas-conversation.md`에서 `/design-sync`가 고치지 않은 문장
-   - BACKLOG: 'Undecided'의 hanging indent 항목 삭제, 'Known defects'에 ⌥→ 추가 멈춤(남았으면)과 CDP 빈 줄 차이, IME 실패 시 그 재현 조건
+   - BACKLOG: 'Undecided'의 hanging indent 항목 삭제, 'Known defects'에 CDP 빈 줄 차이, IME 실패 시 그 재현 조건
    - 검증:
      - `grep -rni "no hanging indent" docs/PRODUCT.md docs/ARCHITECTURE.md docs/design`의 결과가 없다.
      - `grep -n "prosemirror" docs/ARCHITECTURE.md`에 의존성과 구조 설명이 있다.

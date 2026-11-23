@@ -9,7 +9,8 @@
 - **마커 그리기(glyph)**: 깊이 공백은 `word-spacing`으로 폭 0, 마커 문자는 16px 글자 그대로 12px 열에 맞게 padding, 글머리표는 투명 글자 위 `::before` "•"(사람이 정했다). 목록 줄 문단에 node decoration으로 `--body`(본문 시작점)를 주고 `padding-inline-start: var(--body); text-indent: calc(-1 * var(--body))`로 줄바꿈된 줄을 본문 시작점에 맞춘다. 번호 폭은 숨긴 span에서 한 번 재고 캐시한다: `--body = 20·(depth+1) + max(12, 번호 폭)`.
 - **칩**: inline atom 노드(`contenteditable=false`, 선택 불가, sr-only "Frame " + 라벨). 모델에서는 지금처럼 한 unit이다.
 - **깊이 상한 없음, 번호 정렬은 항목마다, 줄 시작 커서는 모든 깊이에서 마커 앞**(사람이 정했다).
-- **받아들인 차이**: ⌥→의 추가 멈춤과 빈 줄마다 CDP 값에 줄바꿈 하나 추가는 두 PoC 모두에서 남았고, 사람이 알고 이 방향을 골랐다. ⌥→는 구현 중 keymap으로 지금 동작에 맞출 수 있으면 맞춘다.
+- **받아들인 차이**: 빈 줄마다 CDP 값에 줄바꿈이 하나 더 들어간다. 사람이 알고 이 방향을 골랐다. ⌥→의 추가 멈춤은 PoC에서 keymap으로 지금 동작과 같게 맞췄다.
+- **번들**: gzip 약 62KB 늘어난다(입력란 코드 약 11KB → 73KB). 사람이 받아들였다.
 - **IME 실패 시**: 사람 확인에서 걸친 선택 위 조합이 실패하면 BACKLOG 'Known defects'에 남기고 출시한다(사람이 정했다).
 - **CSS만으로 하지 않는 이유**: `text-indent: hanging each-line`은 Chrome 146에 들어왔고 이 앱의 Electron(Chrome 156)에서 쓸 수 있다([blink-dev Intent to Ship](https://groups.google.com/a/chromium.org/g/blink-dev/c/E8lsWfkyWVk/m/my-groups), [web-features](https://web-platform-dx.github.io/web-features-explorer/features/text-indent-hanging/)). 블록 하나에 한 값만 줄 수 있어서 평평한 입력란에서는 일반 줄까지 들여 쓰이고 깊이·마커 폭마다 값을 바꿀 수 없다.
 
@@ -28,8 +29,12 @@
 - **실행 취소**: `prosemirror-history`, `newGroupDelay: 1000`(지금 `TYPING_MERGE_MS`). 커서만 옮긴 transaction 뒤에는 `closeHistory`로 단계를 끊어 지금처럼 새 단계가 되게 한다. 목록 편집·붙여넣기·잘라내기·칩은 각자 한 단계다. Edit 메뉴의 `historyUndo`/`historyRedo` `beforeinput`은 `prosemirror-history`가 스스로 처리한다.
 - **클립보드**: 복사·잘라내기는 지금처럼 segment에서 `text/plain`과 `application/x-doan-field+json`을 만든다(`clipboardTextSerializer`·`handleDOMEvents` 또는 `transformCopied`). 붙여넣기는 `text/plain`을 텍스트 자리에 넣고(문단 나눔 없이 줄바꿈만), 칩 JSON이 있으면 칩을 넣는다. ProseMirror 기본 붙여넣기(구조 삽입)는 쓰지 않는다.
 - **끌어놓기·서식**: 지금처럼 막는다.
-- **줄 시작 칩 앞 커서**: 지금은 U+200B로 메운다. ProseMirror에서도 칩 앞뒤 DOM 커서 위치가 없으므로 같은 방식(또는 ProseMirror의 gapcursor 대신 widget decoration)을 tasks 1에서 정한다.
-- **스크롤**: 코드가 만든 transaction에 `scrollIntoView()`를 걸어 커서를 보이게 한다. 입력란 안에서만 스크롤한다(지금 `revealCaret`과 같은 범위). 빈 줄의 커서 위치를 다시 확인한다.
+- **줄 시작 칩 앞 커서**: 문서 안에 'filler' mark를 단 U+200B를 두고, 정리 단계와 ←·Backspace·⌥⌫·⌘⌫ keymap으로 지금 입력란과 같게 동작시킨다. widget decoration은 입력·IME를 잃거나 커서 사각형이 없어서 쓰지 않는다(PoC). 모델(segment)로 바꿀 때 filler는 unit이 아니다.
+- **스크롤**: ProseMirror 기본 `scrollIntoView`는 페이지까지 스크롤하므로 `handleScrollToSelection`으로 입력란만 스크롤한다(PoC에서 지금 위치와 7가지 경우 모두 같음, 빈 줄 포함).
+- **세 번 클릭**: 기본은 줄바꿈을 빼므로 `handleTripleClick`으로 지금과 같게 한다.
+- **칩 클릭**: `handleClickOn`으로 커서를 칩 뒤에 두고 호스트 hook에 칩 요소를 넘긴다.
+- **⌥→**: 줄 끝에서 다음 줄의 첫 멈춤 자리(항목이면 본문 시작, 아니면 줄 시작)로 가는 keymap. ⌥←와 IME에는 영향이 없다.
+- **마커 간격**: 마커와 본문 사이 간격은 padding이 아니라 `letter-spacing`으로 준다. padding이면 본문 시작 커서가 x 30.7에 놓인다(PoC).
 - **포커스**: 포커스 없는 입력란에 커서를 놓을 때 포커스하지 않는다(postmortem 2026-10 'Pin completion').
 - **읽기 전용**: `editable` prop이 false. 선택·복사는 된다.
 - **placeholder**: 입력란이 완전히 빌 때만(지금과 같음).
@@ -53,6 +58,16 @@
 - 번호 폭으로 `--body` 계산(번호 폭 측정은 주입).
 - 실행 취소 단계 경계 규칙(커서만 옮긴 transaction에서 끊기, 입력 1000ms 묶기).
 - 클립보드 `text/plain`과 칩 JSON 만들기·읽기: 지금 `anchorField.ts`의 함수를 그대로 쓴다.
+
+## PoC 결과
+
+- 실행: `node .scratch/prosemirror-poc/build.mjs && node .scratch/prosemirror-poc/probe.ts`(약 1분), 2026-11-23, Electron 45.0.0 / Chrome 156.0.8078.48. 기준값은 같은 하네스에 올린 지금 입력란에서 쟀다. 전문: `.scratch/prosemirror-poc/poc-result.md`(gitignored).
+- 버전(정확히 고정): prosemirror-model 1.25.13, -state 1.4.4, -view 1.43.0, -transform 1.12.7, -history 1.5.2, -keymap 1.2.3, -commands 1.7.2.
+- 통과: 줄바꿈 x 차이 0.00px(깊이 0~3, "1./10./100."), 16개 문자열 바이트 왕복, 목록 keymap 15/15와 한 단계 실행 취소, 줄 넘는 native 삭제 4/4, ↑/↓·⌘←/⌘→, 복사, 선택 텍스트, CDP IME(항목 안, 두 항목 걸친 선택), macOS 삭제 명령 22/24(실행 취소 24/24), 이모지·서로게이트·ZWJ·국기 9/9, 두 번 클릭·드래그·Shift+↑/↓, 읽기 전용 선택·복사, placeholder.
+- handler를 더해 같아진 것: 세 번 클릭, 커서 이동 뒤 실행 취소 경계(`closeHistory`), 최대 높이 스크롤, 칩 클릭, ⌥→, 줄 시작 칩 커서(filler mark).
+- 다른 것: ⌘⌫·⌘⌦ 2/24는 줄바꿈된 항목에서 한 줄에 든 글자가 달라 지운 범위가 다르다(규칙은 같음). CDP 값의 빈 줄 차이(받아들임). 본문 시작에서 ↓ 뒤 ↑의 x가 일반 줄 하나에서 9.3px 다르다(마커 밖으로 커서를 옮기는 기존 규칙에서 온 것으로 보이며, 구현 때 확인한다).
+- 측정 못 한 것: 숨긴 창이라 커서가 실제로 그려지는 위치(selection 좌표로 대신 잼), 실제 맞춤법 제안 교체(숨긴 창에서 맞춤법 표시가 안 됨, 합성 이벤트로는 통과), Electron Look Up 메뉴 텍스트, tooltip UI, 실제 한글 입력기(tasks 5).
+- 번들(gzip): ProseMirror 패키지 64,625 B, PoC 입력란 전체 72,945 B, 지금 입력란 11,240 B.
 
 ## 포맷 변경
 
