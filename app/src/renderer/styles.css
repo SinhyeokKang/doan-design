@@ -1436,6 +1436,8 @@ button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-ba
 /* A hairline between rows, inset to the row's padding; it hides next to a hovered row so the fill reads as one shape. */
 .cv-item + .cv-item::before { content: ""; position: absolute; top: 0; left: var(--space-2); right: var(--space-2); height: 1px; background: var(--border-standard); }
 .cv-item:has(> .cv-row:not([aria-disabled="true"]):hover)::before, .cv-item:has(> .cv-row:not([aria-disabled="true"]):hover) + .cv-item::before { display: none; }
+/* A row with keyboard focus hides them too: its ring is inset 2 px, so a hairline at its edge reads as a second edge. */
+.cv-item:has(> .cv-row:focus-visible)::before, .cv-item:has(> .cv-row:focus-visible) + .cv-item::before { display: none; }
 /* Rows start at the top: the preview makes them taller than the thumbnail. No minimum height: a canvas row's 48px
    thumbnail and its padding already make it 72px, and a project row, which has no thumbnail, is as tall as its text. */
 .cv-row { display: flex; align-items: flex-start; gap: var(--space-2); width: 100%; padding: var(--space-3) var(--space-2); border-radius: var(--radius-row); text-align: start; }

@@ -264,6 +264,12 @@ describe("project rows", () => {
     expect(css).toMatch(/\.cv-item:has\(> \.cv-row\[aria-current="true"\]\)::before/);
   });
 
+  // A keyboard-focused row hides the hairlines beside it, as a hovered row does, so its inset ring reads as one shape.
+  test("keyboard focus on a row hides the hairlines beside it", () => {
+    const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+    expect(css).toMatch(/\.cv-item:has\(> \.cv-row:focus-visible\)::before, \.cv-item:has\(> \.cv-row:focus-visible\) \+ \.cv-item::before \{ display: none; \}/);
+  });
+
   test("rows have no minimum height, so a project row is as tall as its text", () => {
     const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
     const rule = /\n\.cv-row \{[^}]*\}/.exec(css)![0];
