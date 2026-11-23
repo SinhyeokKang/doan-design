@@ -145,7 +145,11 @@ export class ChipField {
     clearTimeout(this.compositionTimer);
     this.ruler?.remove();
     fields.delete(this.el);
+    // destroy() removes the contenteditable ProseMirror wrote, which is the host's read-only state: a field created
+    // again on the same element (StrictMode runs the layout effect twice) would read a locked field as editable.
+    const editable = this.el.getAttribute("contenteditable");
     this.view.destroy();
+    if (editable !== null) this.el.setAttribute("contenteditable", editable);
     this.el.removeAttribute("data-chip-field");
   }
 
@@ -285,6 +289,9 @@ export class ChipField {
   focus(caretAtEnd: boolean): void {
     if (caretAtEnd) { const end = unitLength(this.segments); this.placeCaret({ anchor: end, focus: end }); }
     this.pointer = false;
+    // The element takes focus itself: ProseMirror's focus() does nothing while the field is read-only (a composer
+    // sending its message), and the host focuses it right after the send.
+    if (document.activeElement !== this.el) this.el.focus();
     this.view.focus();
     if (caretAtEnd) this.revealCaret();
   }

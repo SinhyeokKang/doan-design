@@ -156,6 +156,8 @@ const probe = window.probe = {
   lock() { el.contentEditable = "false"; },
   unlock() { el.contentEditable = "true"; },
   dispose() { field.dispose(); },
+  // React keeps the element when it creates the field again (StrictMode runs the layout effect twice).
+  recreate() { field.dispose(); probe.field = new Probe.ChipField(el, { onChange() {}, onInput() {}, onAnnounce() {}, scope: () => "canvas" }, [{ kind: "text", text: "- a" }], "again"); return el.getAttribute("contenteditable"); },
   blur() { document.getElementById("before").focus(); },
   // A copy or cut event with its own DataTransfer: what the field puts on the clipboard, without the system clipboard.
   copy(type = "copy") { const data = new DataTransfer(); el.dispatchEvent(new ClipboardEvent(type, { clipboardData: data, bubbles: true, cancelable: true })); return [data.getData("text/plain"), data.getData("application/x-doan-field+json")]; },
@@ -481,14 +483,14 @@ test("emoji, surrogate pairs and ZWJ sequences at a line boundary delete whole",
   expect(await text()).toBe("a😀b👨‍👩‍👧");
   await press("Backspace");
   expect(await text()).toBe("ab👨‍👩‍👧");
-  await press("End"); await press("Backspace");
+  await press("Meta+ArrowRight"); await press("Backspace");
   expect(await text()).toBe("ab");
   await open("a\n😀b🇰🇷");
   await call("place", 1); await press("Delete");
   expect(await text()).toBe("a😀b🇰🇷");
   await press("Delete");
   expect(await text()).toBe("ab🇰🇷");
-  await press("End"); await press("Backspace");
+  await press("Meta+ArrowRight"); await press("Backspace");
   expect(await text()).toBe("ab");
   expect(await consistent()).toBe(true);
 });
@@ -727,6 +729,22 @@ test("a long draft focused at its end by code shows its caret at the field's max
     expect(view.top).toBeGreaterThanOrEqual(0);
     expect(view.bottom).toBeLessThanOrEqual(view.height);
   }
+});
+
+test("a read-only field still takes focus from code, and keeps its read-only state when the field is created again", { timeout: 60_000 }, async () => {
+  // While a message is sending the composer is read-only, and the host focuses it again right after the send.
+  for (const how of ["focusEnd", "fieldFocusEnd"]) {
+    await open("- a");
+    await call("lock"); await dom.flush(frame);
+    await call("blur");
+    await call(how);
+    expect([how, await call("focused")]).toEqual([how, "f"]);
+  }
+  await open("- a");
+  await call("lock"); await dom.flush(frame);
+  expect(await call("recreate")).toBe("false");
+  await dom.flush(frame);
+  expect(await frame.evaluate(() => document.getElementById("f")!.isContentEditable)).toBe(false);
 });
 
 test("Edit > Undo and Redo from the menu step the field's history", { timeout: 60_000 }, async () => {
