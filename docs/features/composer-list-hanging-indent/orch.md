@@ -31,4 +31,4 @@
 
 ## 리뷰·검증 기록
 
-(진행하며 적는다)
+- 2026-11-23 A 1차(`ctx_cdc3bc4cd333`): 사용량 한도로 중단됐다. 커밋 없이 워크트리 `composer-indent-a`에 미커밋 작업이 남았다(ProseMirror 재작성, `fieldDoc.ts`·`fieldDecorations.ts`, DOM 테스트 28/32 통과). 남은 일과 실패 테스트 4건은 그 워크트리의 `.scratch/handoff-A.md`에 있다. PoC의 9.3px ↓/↑ 차이는 예전 inline-block 마커에서 온 것이라 옮기지 않았다고 워커가 보고했다(검토 필요).
