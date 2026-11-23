@@ -3140,6 +3140,8 @@ describe("isolate.js is the prototype window's isolation", () => {
       ["oklch(0.5 0.1 200 / 0)", false], ["oklch(0.5 0.1 200)", true], ["color(srgb 1 1 1 / 0.5)", false], ["lab(50 0 0 / none)", false],
       ["rgb(0 0 0 / 50%)", false], ["transparent", false], ["hsla(0, 0%, 0%, 0)", false],
       ["rgb(0 0 0 / 100%)", true], ["color(srgb 1 1 1 / 1)", true], ["hsla(0, 0%, 0%, 1)", true], ["rgba(0, 0, 0, 0.999)", false], ["rgba(0, 0, 0, x)", false],
+      // A detached element computes every property as "".
+      ["", false],
     ];
     for (const [color, own] of table) expect(ownBackground(color), color).toBe(own);
   });
