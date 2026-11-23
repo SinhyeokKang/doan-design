@@ -72,6 +72,13 @@ const probe = window.probe = {
   spans: () => Array.from(el.querySelectorAll(".list-mark,.list-depth,.skill-word")).map(n => n.className + (n.dataset.kind ? ":" + n.dataset.kind : "") + (n.dataset.depth ? ":" + n.dataset.depth : "") + " " + JSON.stringify(n.textContent)),
   box(selector, i = 0) { const n = el.querySelectorAll(selector)[i].getBoundingClientRect(), b = el.getBoundingClientRect(); return { x: Math.round(n.left - b.left), y: Math.round(n.top - b.top), w: Math.round(n.width), h: Math.round(n.height) }; },
   caret() { const r = document.getSelection().getRangeAt(0).getClientRects()[0], b = el.getBoundingClientRect(); return r ? { x: Math.round(r.left - b.left), y: Math.round(r.top - b.top) } : null; },
+  // The caret's row inside the field's visible box. A caret on an empty last line has no rect of its own; the trailing
+  // <br> the field draws there stands in for it.
+  caretInView() {
+    const range = document.getSelection().getRangeAt(0), b = el.getBoundingClientRect();
+    const r = range.getClientRects()[0] ?? (el.lastChild?.nodeName === "BR" ? el.lastChild.getBoundingClientRect() : null);
+    return r ? { top: Math.round(r.top - b.top), bottom: Math.round(r.bottom - b.top), height: Math.round(b.height), scrolled: el.scrollTop > 0 } : null;
+  },
   host: () => document.getSelection().anchorNode?.parentElement?.className ?? "",
   changes: () => changes,
   compose(type) { el.dispatchEvent(new CompositionEvent(type, { data: "" })); },
@@ -265,6 +272,23 @@ test("Shift+Enter continues, outdents and ends a list; each is one undo step apa
   await open("plain");
   await press("Shift+Enter");
   expect(await text()).toBe("plain\n");
+});
+
+test("Shift+Enter at the field's maximum height scrolls the new line into view, on a list or off it", { timeout: 60_000 }, async () => {
+  for (const start of ["one\ntwo\nthree\nfour", "- one\n- two\n- three\n- four"]) {
+    await open(start);
+    // Four rows of 24 px, as the composers cap theirs at eight.
+    await frame.evaluate(() => { document.getElementById("f")!.style.maxHeight = "96px"; });
+    await call("place", start.length);
+    for (let line = 0; line < 3; line++) {
+      await press("Shift+Enter");
+      const caret = await call<{ top: number; bottom: number; height: number; scrolled: boolean } | null>("caretInView");
+      expect(caret).not.toBeNull();
+      expect(caret!.scrolled).toBe(true);
+      expect(caret!.top).toBeGreaterThanOrEqual(0);
+      expect(caret!.bottom).toBeLessThanOrEqual(caret!.height);
+    }
+  }
 });
 
 test("Tab's indent moves an item under the one above as one undo step, and refuses with no parent", { timeout: 60_000 }, async () => {
