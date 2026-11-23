@@ -18,7 +18,7 @@ Conducts one small, surgical change in the order **`/tdd` → commit → `/imple
 
 When `/ship`, `/orchestrate` or `/chain` is invoked in the develop checkout, this session is the **lead** (AGENTS.md 'Workflow' Lead and conductors): it starts a conductor for the work and merges the result, and runs none of the steps below. Harness and docs changes it still makes itself on develop (AGENTS.md 'Commit conventions'). A lead holds several conductors at once; that is the point of the split.
 
-**If this session is the lead, read [lead.md](lead.md) now and follow it** before anything else: how lead and conductor message each other, and the Lead steps 1–5 (start the conductor, watch, review the PR, resolve contention, merge and clean up).
+**If this session is the lead, read [lead.md](lead.md) now and follow it** before anything else: how lead and conductor message each other, and the Lead steps 1–6 (start the conductor, watch, review the PR, resolve contention, merge and clean up, verify what the conductors left unverified).
 
 The steps below are for the conductor and for `/orchestrate` workers.
 
