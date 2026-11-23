@@ -627,11 +627,11 @@ body:has(.shell-top) { background: transparent; }
    sits, label, count at the end. Rows and lines inside a group move in by the chevron and its gap, so a row's icon sits
    under the group label. */
 .shell-side .shell-group-head { padding-inline: 10px; color: var(--text-subtle); font-weight: var(--type-weight-medium); letter-spacing: var(--type-body-sm-letter-spacing); }
-.shell-group-head svg { width: var(--size-icon); height: var(--size-icon); flex: none; color: var(--text-metadata); transition: transform var(--time-state) var(--ease-state); }
-.shell-group-head[aria-expanded="false"] svg { transform: rotate(-90deg); }
+.shell-group-head > svg { width: var(--size-icon); height: var(--size-icon); flex: none; color: var(--text-metadata); transition: transform var(--time-state) var(--ease-state); }
+.shell-group-head[aria-expanded="false"] > svg { transform: rotate(-90deg); }
 .shell-group-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .shell-group-count { flex: none; font-variant-numeric: tabular-nums; }
-.shell-side .shell-group-head[aria-disabled="true"] :is(svg, .shell-group-count) { color: var(--text-disabled); }
+.shell-side .shell-group-head[aria-disabled="true"] > :is(svg, .shell-group-count) { color: var(--text-disabled); }
 .shell-side .shell-group .shell-canvas-row { padding-left: calc(10px + var(--size-icon) + var(--space-2)); }
 /* The viewed canvas row with two or more conversations (sidebar-canvas-conversations draft): its icon sits in the 16px
    lead spot and the chevron takes it on hover or keyboard focus, as on the project row. :focus-visible, not
