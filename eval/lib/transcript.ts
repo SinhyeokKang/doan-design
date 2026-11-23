@@ -77,6 +77,8 @@ function readDoanArgs(words: string[]): { args: DoanArgs; ambiguous: boolean } |
     if (!known || (inline !== undefined && !/^(?:1|0|t|T|true|TRUE|True|f|F|false|FALSE|False)$/.test(inline))) refused = true;
     flags.push({ name, value: inline });
   }
+  // Run refuses any flag or `--` before the command (ARCHITECTURE §12 'Parsing, output and structure').
+  if (words.length > 2 && words[1]!.startsWith("-")) refused = true;
   const command = positionals[0];
   if (command !== undefined) {
     const own = DOAN_COMMAND_FLAGS[command === "work" && positionals[1] === "update" ? "work update" : command] ?? [];
@@ -87,7 +89,8 @@ function readDoanArgs(words: string[]): { args: DoanArgs; ambiguous: boolean } |
 }
 
 // `refused` marks what the CLI rejects before running anything (an unknown flag or one the command does not take, a
-// value flag with no value, a boolean that is not one, an argument shape the command refuses); such a command ran
+// value flag with no value, a boolean that is not one, a flag before the command, an argument shape the command
+// refuses); such a command ran
 // nothing, but an attempt check may still want its words, so an unknown flag is kept as a flag that takes no value.
 export function doanArgs(words: string[]): DoanArgs | undefined {
   return readDoanArgs(words)?.args;
@@ -109,13 +112,18 @@ export function doanCommand(words: string[]): string | undefined {
   return doanPositionals(words)?.[0];
 }
 
-// `patch` is the text of every apply_patch call given a literal, run or only a candidate.
-interface ExtractedCall { name: string; command?: string; patch?: string; patchCandidate?: string }
+// `patch` is the text of every apply_patch call given a literal, run or only a candidate. `commandCandidate` is an
+// exec_command literal its script's recorded processes do not account for (pairedWithRecords).
+interface ExtractedCall { name: string; command?: string; patch?: string; patchCandidate?: string; commandCandidate?: string }
 
 // Stands in for an exec_command whose command is not a plain string (a template, a variable, an expression): it ran
 // something the reader cannot see, unless the run recorded it (recordedExecs). parseCommand reads it as incomplete, so
 // no absence check holds beside it, and it yields no words, so it is never evidence of a particular command either.
 const UNREADABLE_EXEC = "$exec_command_with_a_cmd_that_is_not_a_string_literal";
+// Stands in for an exec_command literal that no recorded process matches: it may sit in code that never ran, but Codex
+// also leaves some commands that did run unrecorded (seen in recorded runs: a `doan active --json` whose result is in
+// the script's output), so it is neither run nor ruled out, and no absence check holds beside it.
+const UNRECORDED_EXEC = "$exec_command_literal_with_no_recorded_run";
 
 function execCalls(source: string): ExtractedCall[] {
   const tokens = scriptTokens(source);
@@ -181,37 +189,27 @@ function shellScript(argv: unknown): string | undefined {
 }
 
 // Codex records each process an exec script starts as an item_completed CommandExecution event: the argv it ran, but
-// no call id, between the script's custom_tool_call and its output. For a script with a command the reader cannot see,
-// those records are what ran, so they replace its unread marker, keyed by call id. The marker stays unless the script's
-// output arrived (a later command could still be the script's), no other tool call was open while a record arrived
-// (the record could be that call's), every record in the window reads as a shell script, and a record is left after
-// taking out one for each literal command the script names (otherwise nothing recorded stands for the unread one).
+// no call id, between the script's custom_tool_call and its output. Those records are what the script ran, keyed by
+// call id, but only when the window is usable: the script's output arrived (a later command could still be the
+// script's), no other tool call was open while a record arrived (the record could be that call's), every record reads
+// as a shell script, and there is at least one (a Codex version without records writes none). Otherwise the script's
+// literals are read as run, as the reader did before records were read.
 function recordedExecs(transcript: string): Map<string, string[]> {
-  const open = new Map<string, { ran: (string | undefined)[]; shared: boolean }>();
+  const open = new Map<string, { ran: (string | undefined)[]; shared: boolean; script: boolean }>();
   const recorded = new Map<string, string[]>();
-  const unreadScripts = new Map<string, string[]>();
   for (const line of transcript.split(/\r?\n/)) {
     let event;
     try { event = JSON.parse(line); } catch { continue; }
     if (!record(event) || !record(event.payload)) continue;
     const p = event.payload;
     if (event.type === "response_item" && typeof p.call_id === "string") {
-      if (p.type === "custom_tool_call" || p.type === "function_call") {
-        open.set(p.call_id, { ran: [], shared: false });
-        const commands = rolloutCalls(event).flatMap(call => call.command === undefined ? [] : [call.command]);
-        if (p.type === "custom_tool_call" && commands.includes(UNREADABLE_EXEC)) unreadScripts.set(p.call_id, commands.filter(command => command !== UNREADABLE_EXEC));
-      }
+      if (p.type === "custom_tool_call" || p.type === "function_call")
+        open.set(p.call_id, { ran: [], shared: false, script: p.type === "custom_tool_call" && /^(?:functions\.)?exec$/.test(String(p.name)) });
       const window = open.get(p.call_id);
       if (window && (p.type === "custom_tool_call_output" || p.type === "function_call_output")) {
         open.delete(p.call_id);
-        const literals = unreadScripts.get(p.call_id);
-        if (!literals || window.shared || window.ran.includes(undefined)) continue;
-        const left = window.ran as string[];
-        for (const literal of literals) {
-          const at = left.indexOf(literal);
-          if (at >= 0) left.splice(at, 1);
-        }
-        if (left.length) recorded.set(p.call_id, left);
+        if (!window.script || window.shared || !window.ran.length || window.ran.includes(undefined)) continue;
+        recorded.set(p.call_id, window.ran as string[]);
       }
     }
     if (event.type === "event_msg" && p.type === "item_completed" && record(p.item) && p.item.type === "CommandExecution") {
@@ -224,12 +222,27 @@ function recordedExecs(transcript: string): Map<string, string[]> {
   return recorded;
 }
 
+// A script's calls read against what its window recorded: each literal command takes one matching record (so a command
+// named twice and run once is run once), a literal left without one is only a candidate, and the records no literal
+// took stand for the commands the reader cannot see, if the script has any.
+function pairedWithRecords(calls: ExtractedCall[], records: readonly string[]): ExtractedCall[] {
+  const left = [...records];
+  const paired = calls.map(call => {
+    if (call.command === undefined || call.command === UNREADABLE_EXEC) return call;
+    const at = left.indexOf(call.command);
+    if (at >= 0) { left.splice(at, 1); return call; }
+    return { name: call.name, command: UNRECORDED_EXEC, commandCandidate: call.command };
+  });
+  if (!left.length || !paired.some(call => call.command === UNREADABLE_EXEC)) return paired;
+  return [...paired.filter(call => call.command !== UNREADABLE_EXEC), ...left.map(command => ({ name: "exec_command", command }))];
+}
+
 function rolloutCalls(event: { type?: string; payload?: { type?: string; name?: string; input?: string; arguments?: string; call_id?: string } }, recorded?: Map<string, string[]>): ExtractedCall[] {
   if (event.type !== "response_item") return [];
   const p = event.payload;
   if (p?.type === "custom_tool_call" && /^(?:functions\.)?exec$/.test(p.name ?? "") && typeof p.input === "string") {
-    const calls = execCalls(p.input), ran = typeof p.call_id === "string" ? recorded?.get(p.call_id) : undefined;
-    return ran ? [...calls.filter(call => call.command !== UNREADABLE_EXEC), ...ran.map(command => ({ name: "exec_command", command }))] : calls;
+    const calls = execCalls(p.input), records = typeof p.call_id === "string" ? recorded?.get(p.call_id) : undefined;
+    return records ? pairedWithRecords(calls, records) : calls;
   }
   if (p?.type === "custom_tool_call" && /^(?:functions\.)?apply_patch$/.test(p.name ?? "") && typeof p.input === "string") return [{ name: "apply_patch", patch: p.input }];
   if (p?.type !== "function_call" || typeof p.name !== "string") return [];
@@ -1059,16 +1072,19 @@ function toolSearches(transcript: string): ToolSearch[] {
 }
 
 // patchFiles: the files apply_patch calls name (added, updated, deleted or moved to), candidates included.
-export interface ToolCalls { doan?: RecordedCall[]; commands: string[]; mcpTools: string[]; patchCandidates?: string[]; patchFiles?: string[]; outputs?: InvocationOutput[]; toolSearches?: ToolSearch[] }
+// commandCandidates: Codex exec literals no recorded process matches (pairedWithRecords), lexical evidence only.
+export interface ToolCalls { doan?: RecordedCall[]; commands: string[]; mcpTools: string[]; patchCandidates?: string[]; commandCandidates?: string[]; patchFiles?: string[]; outputs?: InvocationOutput[]; toolSearches?: ToolSearch[] }
 
 export function toolCalls(transcript: string): ToolCalls {
   const outputs = invocationOutputs(transcript);
   const searches = toolSearches(transcript);
+  const recorded = recordedExecs(transcript);
   const patchCalls = transcript.split(/\r?\n/).flatMap(line => {
-    try { return rolloutCalls(JSON.parse(line)); }
+    try { return rolloutCalls(JSON.parse(line), recorded); }
     catch { return []; }
   });
   const patchCandidates = patchCalls.flatMap(call => call.patchCandidate === undefined ? [] : [call.patchCandidate]);
+  const commandCandidates = patchCalls.flatMap(call => call.commandCandidate === undefined ? [] : [call.commandCandidate]);
   const patchFiles = [...new Set(patchCalls.flatMap(call => [...(call.patch ?? "").matchAll(/^\*\*\* (?:(?:Add|Update|Delete) File|Move to): (.+)$/gm)].map(m => m[1]!.trim())))];
-  return { commands: [...new Set(shellCommands(transcript))], mcpTools: [...new Set(mcpTools(transcript))], ...(patchCandidates.length ? { patchCandidates } : {}), ...(patchFiles.length ? { patchFiles } : {}), ...(outputs.length ? { outputs } : {}), ...(searches.length ? { toolSearches: searches } : {}) };
+  return { commands: [...new Set(shellCommands(transcript))], mcpTools: [...new Set(mcpTools(transcript))], ...(patchCandidates.length ? { patchCandidates } : {}), ...(commandCandidates.length ? { commandCandidates } : {}), ...(patchFiles.length ? { patchFiles } : {}), ...(outputs.length ? { outputs } : {}), ...(searches.length ? { toolSearches: searches } : {}) };
 }
