@@ -156,8 +156,8 @@ export interface DockedComposerProps {
   // Context window line only.
   usage?: RingUsage;
   // What the host shows over the card that the docked buddy steps aside for: a permission or question card at the
-  // thread's end waiting for an answer, and a new conversation's notice or choice with a button (Overview's moved line,
-  // the canvas panel's terminal-session choice). A queued row is the composer's own. Suggested prompts are no reason:
+  // thread's end waiting for an answer, and a new conversation's notice or choice with a button (the canvas panel's
+  // terminal-session choice). A queued row is the composer's own. Suggested prompts are no reason:
   // their list leaves room above the card for the buddy's body.
   stepAside?: { waiting: boolean; notice: boolean };
   // The prototype window's playing frame: pinned first in the card's chip row, outside the field (nothing removes or
