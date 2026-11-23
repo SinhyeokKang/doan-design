@@ -72,3 +72,11 @@
 - 2026-11-23 (리드 세션): 다른 머신의 머지 뒤 확인(#377, #378)이 BACKLOG에 결함 두 건을 남겼다(`76843b352`). 사용자가 composer 커서 결함은 링크 1 범위에 넣고, 대기 행 포커스 결함은 체인 밖 `/ship`으로 지금 고치라고 했다('순서').
 - 2026-11-23 21:14 (리드 세션, 체인 시작): 사용자가 체인 시작을 지시했다. 시작 점검은 위 답으로 끝났다. 두 링크를 병렬 그룹으로 함께 시작했다. 체인 밖 `/ship` conductor(`fix/overview-waiting-row-focus`, `/Users/sinhyeok/orca/workspaces/doan-design/overview-waiting-row-focus`)가 함께 돈다.
 - 2026-11-23 (리드 세션): 체인 밖 `/ship` 두 건을 머지했다. #379 대기 행 포커스(`f7c95a365`), #380 닫힌 그룹의 표시를 그룹 머리로(`7ce4867bb`, 사용자 결정). 링크 2가 #379를, 링크 1이 #380을 병합하게 했다. Cursor가 fence EPERM으로 시작하지 못하는 develop 결함은 사용자 지시로 체인 밖 `/ship`(`fix/cursor-fence-projects`)이 고친다. 링크 2의 PR #381이 열렸다(runtime-test 4/4, agent-eval 10/10, 실제 상태 검사의 exit 1은 링크 1 워크트리의 셸 `doan check` 때문). 링크 1 머지 뒤에 머지한다.
+- 2026-11-24 (리드 세션): 사용자 지시로, 이 머신에서 다룬 PR(#379부터)의 미검증 항목은 모든 conductor PR(#382, #381, Cursor fence)이 머지된 뒤 리드가 develop 체크아웃의 머지된 HEAD에서 확인한다(`/ship` 'Lead' 6단계). 대상:
+  - #379: 토스트·알림의 Open이 권한 요청의 첫 선택지로 포커스하는지.
+  - #380: 실제 페이지 잠금에서의 그룹 머리 표시, 사용량 한도 시계 표시, 실제 provider 대화, Show sidebar 버튼.
+  - #381: 프로젝트 대화에서 ACP provider(Copilot, Antigravity)의 handoff. Cursor는 fence 수정 머지 뒤.
+  - #382: 한글 IME와 VoiceOver(사용자와 함께; 항목에 걸친 선택에서 ⌘C·Shift+→·Esc 포함), 준비된 에이전트가 있을 때의 스킬 강조, 캔버스에서 골라 넣은 칩, 긴 초안이 있는 대화로 돌아올 때의 커서.
+  - Cursor fence: PR의 미검증 항목.
+  - 다른 머신이 남긴 것: 막 시작한 대화가 Overview 목록에서 current가 되는지.
+  - 부하에서 흔들리는 테스트: `clone.test.ts`, `quickOpen.test.ts`, `usageRead.test.ts`.
