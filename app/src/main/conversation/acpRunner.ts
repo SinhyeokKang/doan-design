@@ -84,9 +84,12 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
   const decoder = new StringDecoder("utf8");
   child.stdout.on("data", (bytes: Buffer) => acp.receive(decoder.write(bytes)));
   // Antigravity asks for a browser sign-in when its stored token no longer works; a run never signs in.
-  const errors = new StringDecoder("utf8"); let stderr = "";
+  // recent: the stream's last bytes, for the log line of a server that exits before it is ready.
+  const errors = new StringDecoder("utf8"); let stderr = "", recent = "";
   child.stderr.on("data", (bytes: Buffer) => {
-    stderr = (stderr + errors.write(bytes)).slice(-65536);
+    const text = errors.write(bytes);
+    recent = (recent + text).slice(-RECENT_STDERR);
+    stderr = (stderr + text).slice(-65536);
     let end: number;
     while ((end = stderr.indexOf("\n")) >= 0) {
       const line = stderr.slice(0, end); stderr = stderr.slice(end + 1);
@@ -147,6 +150,13 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     const detail = failure || (error instanceof Error ? error.message : "");
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the exit and failure callbacks set these while the session opens
     const code = (dead || detail === "process_exited") && !failure ? "process_exited" : ["runtime_unsupported", "session_unavailable"].includes(detail) ? detail : transportCode(detail);
+    // An exit the server chose (a stop closes the connection first, so dead is not yet set) leaves only process_exited;
+    // its stderr names the cause, such as a store the fence keeps closed. dead is set once stderr has drained.
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the exit callback sets this while the session opens
+    if (code === "process_exited" && dead) {
+      const tail = stderrTail(recent.length === RECENT_STDERR ? recent.slice(recent.indexOf("\n") + 1) : recent);
+      console.error(`doan: ${input.runtime} ACP server exited before it was ready (exit ${child.exitCode ?? child.signalCode ?? "unknown"})${tail ? `; stderr tail:\n  ${tail.split("\n").join("\n  ")}` : "; no stderr"}`);
+    }
     // Cursor answers a first turn that met the plan limit as a completed reply and saves no session, so the next load
     // finds none; the protocol marks nothing, and the account's usage tells that apart from a session that is gone.
     // The run's lease (and its credential copy) is released once the group stopped above is gone, so the read must take
@@ -203,6 +213,26 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     stop: () => stopTurn("user"),
     close: () => stopTurn("appQuit"),
   };
+}
+const RECENT_STDERR = 16384, TAIL_LINES = 6, TAIL_LINE = 300, TAIL_TEXT = 1000;
+// Credential shapes a CLI may print when it fails: a JWT (Cursor's tokens), an Authorization scheme's value, a URL's
+// query and fragment, a value named like a secret, and any long opaque run. Order matters: the scheme before the name.
+const REDACTIONS: [RegExp, string][] = [
+  [/\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]*)?/g, "[redacted]"],
+  [/\b(bearer|basic|token)\s+[^\s"',;]+/gi, "$1 [redacted]"],
+  [/\b(https?:\/\/[^\s?#"'<>]+)[?#][^\s"'<>]*/gi, "$1?[redacted]"],
+  [/(["']?[A-Za-z_-]*(?:token|secret|passw(?:or)?d|authorization|api[_-]?key|cookie|credential)[A-Za-z_-]*["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;}]+)/gi, '$1"[redacted]"'],
+  // No slash: a path's folders would join into one run.
+  [/[A-Za-z0-9+_=-]{40,}/g, "[redacted]"],
+];
+// The last few stderr lines, each and all bounded, with terminal escapes and control characters dropped and anything
+// shaped like a credential replaced: the line goes to main's log, and a failing CLI may print a request or a token.
+export function stderrTail(text: string): string {
+  const lines = text.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "").split(/\r?\n|\r/)
+    .map(line => REDACTIONS.reduce((out, [pattern, to]) => out.replace(pattern, to), line.replace(/[\x00-\x1f\x7f]/g, " ")).trim().slice(0, TAIL_LINE))
+    .filter(Boolean).slice(-TAIL_LINES);
+  while (lines.length > 1 && lines.join("\n").length > TAIL_TEXT) lines.shift();
+  return lines.join("\n");
 }
 // Only a file that still carries an image signature and is within the paste cap; anything else goes by path alone.
 // Read asynchronously: up to ten 50 MB images would otherwise hold main.

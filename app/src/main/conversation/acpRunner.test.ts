@@ -289,6 +289,8 @@ it("logs a redacted stderr tail when an ACP server exits before it is ready, and
 describe("stderrTail", () => {
   it("keeps a short stderr as it is, without its trailing newline", () => {
     expect(stderrTail(`${EPERM}\n`)).toBe(EPERM);
+    const app = "Error: EPERM: operation not permitted, mkdir '/Users/ada/Library/Application Support/doan/agent-auth/profiles/cursor/.cursor/p-2497593'";
+    expect(stderrTail(app)).toBe(app);
     expect(stderrTail("")).toBe("");
     expect(stderrTail("\n \n")).toBe("");
   });
@@ -307,10 +309,11 @@ describe("stderrTail", () => {
       "Authorization: Bearer abc.def-ghi",
       "GET https://api2.cursor.sh/auth/poll?uuid=1234&verifier=v-secret-2#frag failed",
       "api_key=k-secret-3 password: p-secret-4",
+      "{'access_token': 'ya29.short-secret-5', 'expires_in': 3599}",
       `opaque ${"Ab9_".repeat(12)} end`,
       "\u001b[31mred\u001b[0m\u0007",
     ].join("\n"));
-    for (const secret of [jwt, "r-secret-1", "abc.def-ghi", "uuid=1234", "v-secret-2", "k-secret-3", "p-secret-4", "Ab9_Ab9_Ab9_"]) expect(tail).not.toContain(secret);
+    for (const secret of [jwt, "r-secret-1", "abc.def-ghi", "uuid=1234", "v-secret-2", "k-secret-3", "p-secret-4", "short-secret-5", "Ab9_Ab9_Ab9_"]) expect(tail).not.toContain(secret);
     expect(tail).toContain("https://api2.cursor.sh/auth/poll");
     expect(tail).toContain("[redacted]");
     expect(tail).toContain("red");
