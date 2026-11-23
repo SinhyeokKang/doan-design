@@ -105,6 +105,12 @@ const probe = window.probe = {
     const r = range.getClientRects()[0];
     return rel(r ?? field.view.coordsAtPos(field.view.state.selection.head));
   },
+  // The caret's x, and whether its box lies within line \`line\`'s block (0-based). Where the caret's box sits inside
+  // the 24 px row follows the font's ascent and the device pixel ratio's rounding, so only its row is pinned.
+  caretOn(line) {
+    const c = probe.caret(), l = rel(el.children[line].getBoundingClientRect());
+    return { x: c.x, onLine: c.top >= l.top && c.bottom <= l.bottom };
+  },
   // Every unit's box in line \`line\` (0-based), relative to the field: [x, y] of each character or chip.
   rects(line) {
     const div = el.children[line], out = [];
@@ -201,6 +207,7 @@ const text = () => call<string>("text");
 const sel = () => call<{ anchor: number; focus: number }>("sel");
 const consistent = () => call<boolean>("consistent");
 const caret = () => call<{ x: number; y: number }>("caret");
+const caretOn = (line: number) => call<{ x: number; onLine: boolean }>("caretOn", line);
 const rects = (line: number) => call<[number, number][]>("rects", line);
 
 const NESTED = "Intro\n- Title\n  - Run /copy-check on it\n    - Under 40\n* Buttons\n1. Header\n   1. Logo";
@@ -313,7 +320,7 @@ test("the line-start caret stands before the marker at every depth, the body-sta
   }
   // An empty item's caret stands at the body start and typing fills the body, outside the marker.
   await open("a\n- ");
-  expect(await caret()).toMatchObject({ x: 32, y: 26 });
+  expect(await caretOn(1)).toEqual({ x: 32, onLine: true });
   await press("x");
   expect(await text()).toBe("a\n- x");
   expect(await frame.evaluate(() => document.getSelection()!.focusNode!.parentElement!.className)).not.toMatch(/field-(mark|depth)/);
@@ -369,7 +376,7 @@ test("a chip keeps its own arrow steps after a marker and at a line start, where
   await open([plain("a\n"), chip(), plain(" body")]);
   await call("place", 3); await press("ArrowLeft");
   expect(await sel()).toEqual({ anchor: 2, focus: 2 });
-  expect(await caret()).toMatchObject({ x: 0, y: 26 });
+  expect(await caretOn(1)).toEqual({ x: 0, onLine: true });
   await press("ArrowLeft");
   expect(await sel()).toEqual({ anchor: 1, focus: 1 });
   await press("ArrowRight");
@@ -443,8 +450,11 @@ test("⌘← and ⌘→ stop at a wrapped row's start (the body start) and end, 
 
 test("Shift+↓, a drag, three clicks and two clicks select as on plain lines", { timeout: 60_000 }, async () => {
   await open("one two\nthree four\nfive");
-  await call("place", 2); await press("Shift+ArrowDown");
-  expect(await sel()).toEqual({ anchor: 2, focus: 10 });
+  // Chromium carries the caret's x to the next row and takes the nearer side of the character there. "one t|wo" (x 37.2)
+  // stands 1 px from "three|" (38.2) and 3 px from either neighbor's midpoint (measured); a caret within half a pixel
+  // of a midpoint ("on|e" at 18.1 over "thr" at 17.7) lands on either side with the device pixel ratio.
+  await call("place", 5); await press("Shift+ArrowDown");
+  expect(await sel()).toEqual({ anchor: 5, focus: 13 });
   // Three clicks take the line with its line break, so typing replaces the whole line; two clicks take the word only.
   await frame.locator("#f").click({ position: { x: 30, y: 30 }, clickCount: 3 }); await dom.flush(frame);
   expect(await sel()).toEqual({ anchor: 8, focus: 19 });
@@ -702,7 +712,7 @@ test("copy, the selected text and the accessibility value keep the typed text", 
 
 test("a trailing line break, an empty last line and a read-only field", { timeout: 60_000 }, async () => {
   await open("- a\n");
-  expect(await caret()).toMatchObject({ x: 0, y: 26 });
+  expect(await caretOn(1)).toEqual({ x: 0, onLine: true });
   await press("x");
   expect(await text()).toBe("- a\nx");
   // The placeholder shows only while the field is completely empty.
