@@ -1,0 +1,11 @@
+[
+  [
+    "handoff",
+    ".doan/canvases/account-mobile.html",
+    "--message",
+    "Request: start a mobile version of the account screen as a new canvas, account-mobile, 390 px wide with the Profile and Billing frames stacked in one column; the original account canvas stays as it is. Done: account-mobile.html has both frames with the same copy. Left: tune the tap targets of the Save and Update card buttons.",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ]
+]

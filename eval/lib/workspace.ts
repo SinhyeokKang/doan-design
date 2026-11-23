@@ -90,7 +90,7 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
       return filtered;
     });
     mkdirSync(join(base, "rt"), { mode: 0o700 });
-    // The key the app puts in a canvas conversation's environment; the fake app knows the same one.
+    // The key the app puts in a conversation's environment; the fake app knows the same one.
     const handoff = o.scenario.handoff ? { key: randomBytes(32).toString("hex"), canvas: o.scenario.handoff.canvas } : null;
     const shared = { ...agentEnvironment(process.env), PATH: [join(base, "bin"), ...path].join(delimiter), DOAN_RUNTIME: join(base, "rt/runtime.json"), ...(handoff ? { DOAN_HANDOFF: handoff.key } : {}) };
     // Codex itself, outside its sandbox, writes refreshed tokens through this home's links and reads instructions and

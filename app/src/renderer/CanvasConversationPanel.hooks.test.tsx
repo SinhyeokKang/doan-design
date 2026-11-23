@@ -66,7 +66,7 @@ function render(component: () => ReactNode): ReactNode {
 
 test("a chosen terminal session becomes a new conversation while it works, and stays one after", async () => {
   const store = new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
-  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
+  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   await flush();
@@ -76,7 +76,7 @@ test("a chosen terminal session becomes a new conversation while it works, and s
     calls: window.doan, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list: [], seen: new Set(),
     prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
     onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
-    onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work,
+    onSettings: vi.fn(), onNotice: vi.fn(), work,
   });
   const mode = () => { const view = run.view(); return view?.kind === "new" ? view.start.mode : null; };
   render(panel([]));
@@ -107,7 +107,7 @@ test("a Claude session a terminal process holds waits on first entry and returns
   const target = vi.fn(async () => ({ available: false, reason: "session_in_use", runtime: "claude", session: "s1" }) as unknown);
   (window as unknown as { doan: { conversationResumeTarget: unknown } }).doan.conversationResumeTarget = target;
   const store = new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
-  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
+  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   await flush();
@@ -116,7 +116,7 @@ test("a Claude session a terminal process holds waits on first entry and returns
     calls: window.doan, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list: [], seen: new Set(),
     prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
     onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
-    onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work,
+    onSettings: vi.fn(), onNotice: vi.fn(), work,
   });
   const working: readonly WorkItem[] = [{ touched: 0, turn: "none:t", session: "s1", provider: "claude", root: ROOT, path: CANVAS.path }], none: readonly WorkItem[] = [];
   expect(resumeChoice(render(panel(working)))).toEqual({ offer: "claude", held: true });
@@ -146,7 +146,7 @@ test("a held Claude session returns when its work ends and the process is free",
   const target = vi.fn(async () => ({ available: false, reason: "session_in_use", runtime: "claude", session: "s1" }) as unknown);
   (window as unknown as { doan: { conversationResumeTarget: unknown } }).doan.conversationResumeTarget = target;
   const store = new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
-  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
+  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   await flush();
@@ -155,7 +155,7 @@ test("a held Claude session returns when its work ends and the process is free",
     calls: window.doan, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list: [], seen: new Set(),
     prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
     onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
-    onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work,
+    onSettings: vi.fn(), onNotice: vi.fn(), work,
   });
   expect(resumeChoice(render(panel([{ touched: 0, turn: "none:t", session: "s1", provider: "claude", root: "/w/other", path: ".doan/canvases/x.html" }])))).toEqual({ offer: "claude", held: true });
   target.mockResolvedValue({ available: true, runtime: "claude", lastCheckAt: "2026-11-01T14:02:00", session: "s1" });
@@ -170,7 +170,7 @@ test("a held Claude session returns when its work ends and the process is free",
 // The page's canvas press signal reaches the panel's composer unchanged, so its preset lists close on a canvas press.
 test("the panel hands the page's canvas press signal to its composer", async () => {
   const store = new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
-  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
+  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   await flush();
@@ -180,7 +180,7 @@ test("the panel hands the page's canvas press signal to its composer", async () 
     calls: window.doan, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list: [], seen: new Set(),
     prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
     onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
-    onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [], canvasPress,
+    onSettings: vi.fn(), onNotice: vi.fn(), work: [], canvasPress,
   }));
   const composer = (node: ReactNode): Record<string, unknown> | null => {
     if (Array.isArray(node)) { for (const child of node) { const found = composer(child); if (found) return found; } return null; }
@@ -205,7 +205,7 @@ test("a handoff arrival waits for the receiving canvas and conversation, then is
   (window as unknown as { doan: Record<string, unknown> }).doan.readConversation = vi.fn(async ({ conversationId }: { conversationId: string }) => conversationId === "c-recv" ? { events: [card], lastSeq: 1, turn: "idle" } : { events: [], lastSeq: 0, turn: "idle" });
   vi.stubGlobal("document", { querySelector: () => null });
   const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
-  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: DRAFTS });
   run.sync();
   await flush();
@@ -216,7 +216,7 @@ test("a handoff arrival waits for the receiving canvas and conversation, then is
     calls: window.doan, run, support, target: { root: ROOT, canvas }, canvasName: "x", project: "acme-web", entry, list, seen: new Set(),
     prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival, onArrived,
     onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
-    onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
+    onSettings: vi.fn(), onNotice: vi.fn(), work: [],
   });
   // The render that brings the arrival still draws the old canvas's conversation; the page's layout effect then shows
   // the new canvas before the panel's effect runs.
@@ -252,7 +252,7 @@ test("a new conversation started from the panel sends the Fast it shows and reme
     readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), listConversations: vi.fn(() => new Promise(() => {})),
   });
   const store = new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
-  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
+  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   await flush();
@@ -264,7 +264,7 @@ test("a new conversation started from the panel sends the Fast it shows and reme
     calls: window.doan, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list: [], seen: new Set(),
     prefs: { lastProvider: "claude", fast: { claude: true } }, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
     onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
-    onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [], onRemember,
+    onSettings: vi.fn(), onNotice: vi.fn(), work: [], onRemember,
   });
   const composer = dockedProps(render(panel))! as { picker: { effort: { ariaLabel: string } | null }; onSend(request: unknown): Promise<unknown> };
   expect(composer.picker.effort?.ariaLabel).toBe("Effort: default, Fast on");
@@ -282,7 +282,7 @@ test("the title menu keeps the order it opened with while open; a new conversati
   let list: import("./conversationStore").ListView = [summary("a", "2026-11-01T00:01:00.000Z"), summary("b", "2026-11-01T00:02:00.000Z")];
   const calls = { ...window.doan, readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null) } as unknown as typeof window.doan;
   const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, calls);
-  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, remembered: () => null, changed: vi.fn() }, store, calls);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, remembered: () => null, changed: vi.fn() }, store, calls);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   run.select("a");
@@ -319,7 +319,7 @@ test("rows added while the title menu is open keep their places across later lis
   let list: import("./conversationStore").ListView = [summary("a", "2026-11-01T00:01:00.000Z")];
   const calls = { ...window.doan, readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null) } as unknown as typeof window.doan;
   const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, calls);
-  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, remembered: () => null, changed: vi.fn() }, store, calls);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, remembered: () => null, changed: vi.fn() }, store, calls);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   const all = (node: ReactNode): ReactElement<Record<string, unknown>>[] => {
@@ -371,7 +371,7 @@ test("the panel hands the ring usage from its calls object, hidden for a legacy 
     hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
     const list = [summary(owner)] as never;
     const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
-    const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
+    const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
     run.show({ root: ROOT, canvas: CANVAS });
     run.sync();
     run.select("c1");
@@ -380,7 +380,7 @@ test("the panel hands the ring usage from its calls object, hidden for a legacy 
       calls: window.doan as never, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
       prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
       onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
-      onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
+      onSettings: vi.fn(), onNotice: vi.fn(), work: [],
     });
     render(panel);
     const entries = [{ provider: "claude", inFlight: false }];
@@ -406,7 +406,7 @@ test("the ring's usage stays hidden until the shown conversation's summary arriv
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
   const known = [{ conversationId: "c1", root: ROOT, canvas: CANVAS, title: "t", provider: "claude", owner: "legacy-external", fromHome: false, phase: "idle", updatedAt: "2026-11-01T14:00:00Z", lastSeq: 1 }] as never;
   const store = new ConversationStore({ list: () => known, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
-  const run = new CanvasRun({ list: () => known, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
+  const run = new CanvasRun({ list: () => known, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   run.select("c1");
@@ -415,7 +415,7 @@ test("the ring's usage stays hidden until the shown conversation's summary arriv
     calls: window.doan as never, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
     prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
     onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
-    onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
+    onSettings: vi.fn(), onNotice: vi.fn(), work: [],
   });
   const usage = (list: never) => (composerProps(render(panel(list)))!.usage as { hidden: boolean }).hidden;
   expect(run.view()).toMatchObject({ kind: "conversation", conversationId: "c1" });

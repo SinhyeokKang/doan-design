@@ -751,14 +751,32 @@ body:has(.shell-top) { background: transparent; }
 /* A contenteditable has no placeholder: ChipField marks an empty field and its aria-placeholder is drawn over it, inset
    by the field's padding. */
 .composer-input[data-empty]::before { content: attr(aria-placeholder); position: absolute; inset-inline: 0 var(--space-1); color: var(--text-metadata); pointer-events: none; }
-/* A list item's marker and depth spaces (ChipField, and the sent bubble): spans over the typed text, which stays text
-   for the caret, deletion and copy. No hanging indent in the field: a wrapped line starts at the line start. Every
-   marker stands one --space-5 step in, so a depth-0 list reads as indented, and each depth adds one more step. The
-   marker column is --space-3: a bullet then a short gap, a number ("1. ", wider than the column) then its typed space;
-   a wider marker ("100. ") widens only its own span. "- " and "* " keep their characters unpainted under a drawn
-   bullet; a number is painted as typed, in plain figures: the body's tabular "1" is padded to a "0"'s width, which
-   widens the gap after "1." by about 3 px. A depth span is as wide as its depth in steps whatever spaces were typed, so
-   a depth-0 item's typed leading spaces take no width. */
+/* Composer field lists (ChipField, fieldDecorations.ts): a list item's line is a block that wraps under its body
+   (hanging indent). Its padding puts wrapped rows at the body start, one --space-5 step in per depth plus one, then the
+   marker column (--space-3, or data-mark, the marker's measured width with its space, when wider, so "100. " moves
+   only its own body); a negative text-indent of the column brings the first row back to the marker. The marker keeps its
+   characters, and the gap to the body is letter-spacing on them: padding would leave the caret at the body start
+   inside it. The marker is an inline-block so its box is the row's 24 px: the bullet is drawn at its top, and an
+   inline box (shorter than the row) would set it 1.5 px low and let the last line overflow the field. Its own
+   text-indent is 0, or the row's negative indent would pull "-" out of its box. The space after the marker is plain
+   text, so the body-start caret and text composed there sit outside the marker. "- " and "* " keep their characters unpainted under a drawn bullet; a number is painted as typed, in
+   plain figures. Depth spaces take no width whatever was typed (word-spacing set from the measured space); the
+   padding draws the depth. */
+.composer-input > div { margin: 0; }
+.composer-input > .field-item { padding-inline-start: calc((attr(data-depth type(<number>), 0) + 1) * var(--space-5) + max(var(--space-3), attr(data-mark type(<length>), 0px))); text-indent: calc(-1 * max(var(--space-3), attr(data-mark type(<length>), 0px))); }
+.field-mark { display: inline-block; position: relative; text-indent: 0; font-variant-numeric: normal; letter-spacing: calc(var(--type-label-letter-spacing) + (max(var(--space-3), attr(data-mark type(<length>), 0px)) - attr(data-mark type(<length>), 0px)) / attr(data-chars type(<number>), 1)); }
+/* A chip is a box of its own: the row's negative indent would shift its name 12 px into the label's overflow. */
+.composer-input > .field-item .anchor-chip { text-indent: 0; }
+.field-mark[data-kind="ul"] { color: transparent; }
+.field-mark[data-kind="ul"]::before { content: "•"; position: absolute; left: 0; top: 0; color: var(--text-standard); }
+.field-depth { tab-size: 0; }
+/* ProseMirror's own rule for the image it puts after a chip that ends a line, so the caret has a place there. */
+.composer-input img.ProseMirror-separator { display: inline !important; border: none !important; margin: 0 !important; }
+/* A sent bubble's list marker and depth spaces (UserMessage): spans over the typed text. Every marker stands one
+   --space-5 step in, so a depth-0 list reads as indented, and each depth adds one more step. The marker column is
+   --space-3: a bullet then a short gap, a number ("1. ", wider than the column) then its typed space; a wider marker
+   ("100. ") widens only its own span. "- " and "* " keep their characters unpainted under a drawn bullet; a number is
+   painted as typed, in plain figures. */
 .list-mark { display: inline-block; position: relative; min-width: var(--space-3); margin-inline-start: var(--space-5); font-variant-numeric: normal; }
 .list-mark[data-kind="ul"] { color: transparent; }
 .list-mark[data-kind="ul"]::before { content: "•"; position: absolute; left: 0; top: 0; color: var(--text-standard); }
@@ -1376,17 +1394,8 @@ button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-ba
 .ov-main .conversation-thread .thread { max-width: 720px; margin-inline: auto; }
 .ov-col { width: calc(100% - 2 * var(--space-6)); max-width: 720px; margin-inline: auto; }
 .ov-foot { flex: none; padding: var(--space-3) 0 var(--space-4); }
-/* New conversation: the moved line and the suggestions sit right above the composer. */
-/* A lucide glyph renders 24px unless a rule sizes it; the shared notice rules size only their own alert icon. */
-.doan-notice.moved { margin-bottom: var(--space-3); }
-/* A list never read: the canvas panel's thread notice, 12 above the suggestions as the moved line is. */
+/* A list never read: the canvas panel's thread notice sits 12 above the suggestions. */
 .ov-new > .thread-notice { margin-bottom: var(--space-3); }
-.doan-notice.moved > svg { width: var(--size-icon); height: var(--size-icon); }
-/* One line: a title is the whole first message (up to 512 characters), so only it gives way and "moved to <canvas>."
-   stays readable; the text keeps the full sentence for assistive tech and the tooltip. */
-.moved-text { display: flex; min-width: 0; white-space: nowrap; }
-.moved-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.moved-rest { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 /* The docked buddy stays on the composer card while the suggestions show; the space under them keeps the last row
    clear of its body (about 44 px above the card's edge), so every row takes its whole click. */
 .ov-suggestions { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-8); }
@@ -1684,7 +1693,7 @@ button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-ba
 .doan-conv-panel .conversation-thread .ti-reply { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .doan-conv-panel .conversation-thread .bg-line { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .doan-conv-panel .conversation-thread .bg-line .bg-icon { margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon-sm)) / 2); }
-.cp-foot { flex: none; min-width: 0; margin: 0; border: 0; padding: var(--space-3); }
+.cp-foot { flex: none; padding: var(--space-3); }
 .cp-resume { margin-top: auto; margin-bottom: var(--space-1); }
 /* A reason whose action label is long puts the action under the text, so the text keeps the row's width. */
 .docked-reason.reason-stack { flex-wrap: wrap; }

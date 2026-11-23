@@ -60,53 +60,47 @@ describe("trashBusy", () => {
   const work = (root: string, path = target.path): WorkItem => ({ root, path, session: null, provider: null, touched: 0, turn: "none:t" });
 
   test("a canvas conversation running, waiting or still working blocks; an ended one does not", () => {
-    expect(trashBusy(target, [summary({ phase: "running" })], [], [])).toBe(true);
-    expect(trashBusy(target, [summary({ phase: "waiting" })], [], [])).toBe(true);
-    expect(trashBusy(target, [summary({ working: true })], [], [])).toBe(true);
-    expect(trashBusy(target, [summary({ unseen: true })], [], [])).toBe(false);
+    expect(trashBusy(target, [summary({ phase: "running" })], [])).toBe(true);
+    expect(trashBusy(target, [summary({ phase: "waiting" })], [])).toBe(true);
+    expect(trashBusy(target, [summary({ working: true })], [])).toBe(true);
+    expect(trashBusy(target, [summary({ unseen: true })], [])).toBe(false);
   });
 
   // Several conversations of one canvas run side by side; one that works is enough, and every one counts.
   test("any one of the canvas's conversations that runs, waits or works blocks, whatever the others do", () => {
     const ended = summary({ conversationId: "c1" });
-    expect(trashBusy(target, [ended, summary({ conversationId: "c2", phase: "running" })], [], [])).toBe(true);
-    expect(trashBusy(target, [summary({ conversationId: "c2", phase: "waiting" }), ended], [], [])).toBe(true);
-    expect(trashBusy(target, [ended, summary({ conversationId: "c2", working: true })], [], [])).toBe(true);
-    expect(trashBusy(target, [ended, summary({ conversationId: "c2", unseen: true })], [], [])).toBe(false);
+    expect(trashBusy(target, [ended, summary({ conversationId: "c2", phase: "running" })], [])).toBe(true);
+    expect(trashBusy(target, [summary({ conversationId: "c2", phase: "waiting" }), ended], [])).toBe(true);
+    expect(trashBusy(target, [ended, summary({ conversationId: "c2", working: true })], [])).toBe(true);
+    expect(trashBusy(target, [ended, summary({ conversationId: "c2", unseen: true })], [])).toBe(false);
   });
 
   test("conversations match by id when either side has one, else by path", () => {
-    expect(trashBusy(target, [summary({ phase: "running", canvas: { path: ".doan/canvases/old.html", id: "a" } })], [], [])).toBe(true);
-    expect(trashBusy(target, [summary({ phase: "running", canvas: { path: target.path } })], [], [])).toBe(false);
-    expect(trashBusy({ root: "/repo", path: target.path }, [summary({ phase: "running", canvas: { path: target.path } })], [], [])).toBe(true);
+    expect(trashBusy(target, [summary({ phase: "running", canvas: { path: ".doan/canvases/old.html", id: "a" } })], [])).toBe(true);
+    expect(trashBusy(target, [summary({ phase: "running", canvas: { path: target.path } })], [])).toBe(false);
+    expect(trashBusy({ root: "/repo", path: target.path }, [summary({ phase: "running", canvas: { path: target.path } })], [])).toBe(true);
   });
 
   // The first conversation of a canvas is in no list until main accepts it, yet it is preparing (PRODUCT §5 'Canvas
   // row menu'): main's starts not accepted yet count, matched as the list's conversations are.
   test("a start not accepted yet blocks on its own canvas only, matched by id when either side has one", () => {
-    expect(trashBusy(target, [], [], [], [{ path: target.path, id: "a" }])).toBe(true);
-    expect(trashBusy(target, [], [], [], [{ path: ".doan/canvases/old.html", id: "a" }])).toBe(true);
-    expect(trashBusy(target, [], [], [], [{ path: ".doan/canvases/b.html", id: "b" }])).toBe(false);
-    expect(trashBusy({ root: "/repo", path: target.path }, [], [], [], [{ path: target.path }])).toBe(true);
-    expect(trashBusy(target, [], [], [], [])).toBe(false);
+    expect(trashBusy(target, [], [], [{ path: target.path, id: "a" }])).toBe(true);
+    expect(trashBusy(target, [], [], [{ path: ".doan/canvases/old.html", id: "a" }])).toBe(true);
+    expect(trashBusy(target, [], [], [{ path: ".doan/canvases/b.html", id: "b" }])).toBe(false);
+    expect(trashBusy({ root: "/repo", path: target.path }, [], [], [{ path: target.path }])).toBe(true);
+    expect(trashBusy(target, [], [], [])).toBe(false);
   });
 
-  test("an unjudged project turn blocks only when its edits or observed changes name this path", () => {
-    expect(trashBusy(target, [], [{ edits: [], changed: [] }], [])).toBe(false);
-    expect(trashBusy(target, [], [{ edits: [], changed: [target.path] }], [])).toBe(true);
-    expect(trashBusy(target, [], [{ edits: ["/repo/.doan/canvases/a.html"], changed: [] }], [])).toBe(true);
-    expect(trashBusy(target, [], [{ edits: [".doan/canvases/a.html"], changed: [] }], [])).toBe(true);
-    expect(trashBusy(target, [], [{ edits: ["/repo/.doan/canvases/b.html"], changed: [".doan/canvases/b.html"] }], [])).toBe(false);
-    // Another worktree's file is outside this root.
-    expect(trashBusy(target, [], [{ edits: ["/repo-wt/.doan/canvases/a.html"], changed: [] }], [])).toBe(false);
-    // macOS /tmp is /private/tmp: an agent may report either spelling.
-    expect(trashBusy({ ...target, root: "/private/tmp/repo" }, [], [{ edits: ["/tmp/repo/.doan/canvases/a.html"], changed: [] }], [])).toBe(true);
+  // A project conversation has no canvas to match: a canvas it draws is not blocked, as a handoff's target is not.
+  test("a project conversation that runs or works blocks no canvas", () => {
+    const { canvas: _canvas, ...project } = summary({ phase: "running", working: true });
+    expect(trashBusy(target, [project], [])).toBe(false);
   });
 
   test("terminal work blocks on the same root and path only", () => {
-    expect(trashBusy(target, [], [], [work("/repo")])).toBe(true);
-    expect(trashBusy(target, [], [], [work("/repo-wt")])).toBe(false);
-    expect(trashBusy(target, [], [], [work("/repo", ".doan/canvases/b.html")])).toBe(false);
+    expect(trashBusy(target, [], [work("/repo")])).toBe(true);
+    expect(trashBusy(target, [], [work("/repo-wt")])).toBe(false);
+    expect(trashBusy(target, [], [work("/repo", ".doan/canvases/b.html")])).toBe(false);
   });
 });
 

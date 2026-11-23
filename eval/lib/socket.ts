@@ -375,8 +375,9 @@ export interface FakeApp { runtimePath: string; onboardingLog: string; workLog: 
 // workOthers: the other sessions the fake reports on v3 start and update answers; without it the fake is an older app
 // whose answers carry no `others`.
 // handoff: the conversation the fake stands for. `key` is the DOAN_HANDOFF value its environment carries and `canvas` the
-// canvas it works on; without it the fake is an older app that does not know v5.
-interface FakeAppOptions { dir: string; root: string; selection: Obj | null; onboarding?: OnboardingScript | null; workOthers?: Obj[] | null; handoff?: { key: string; canvas: string } | null }
+// canvas it works on, null for a project conversation, which has none and so never meets same_canvas; without `handoff`
+// the fake is an older app that does not know v5.
+interface FakeAppOptions { dir: string; root: string; selection: Obj | null; onboarding?: OnboardingScript | null; workOthers?: Obj[] | null; handoff?: { key: string; canvas: string | null } | null }
 
 // The manifest initializeRepo keeps beside the runtime file.
 export const APP_WRITES = "app-writes.json";
@@ -473,7 +474,7 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
         : parsed.root !== o.root ? fail("project_not_open", "The project is not open in Doan.")
         : parsed.handoff !== o.handoff.key ? fail("not_app_conversation", "This is not a Doan app conversation.")
         : typeof parsed.path === "string" && handoffTaken.has(parsed.path) ? fail("already_requested", "This turn already handed off to this canvas.")
-        : parsed.path === o.handoff.canvas ? fail("same_canvas", "The target is the canvas this conversation works on.")
+        : o.handoff.canvas !== null && parsed.path === o.handoff.canvas ? fail("same_canvas", "The target is the canvas this conversation works on.")
         : { v: 5, ok: true, requested: true };
       if (response.ok && typeof parsed.path === "string") handoffTaken.add(parsed.path);
       // The target's hash when the request arrived, so a check can tell a canvas written before the request from one

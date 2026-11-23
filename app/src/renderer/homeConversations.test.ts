@@ -2,14 +2,9 @@ import { expect, test } from "vitest";
 import type { FolderEntry } from "../main/view";
 import type { AttachmentDraft, PresetSummary } from "./homeComposer";
 import {
-  anotherConversation, newCanvasCandidates, permissionToastKey, rememberRequest, removalConfirm, removalQuestionLabel, restoreRequest,
+  permissionToastKey, rememberRequest, removalConfirm, removalQuestionLabel, restoreRequest,
   type LastRequest,
 } from "./homeConversations";
-
-// Only a running conversation blocks, so the reason line has one sentence.
-test("Home's reason line names only a running conversation", () => {
-  expect(anotherConversation("doan-design")).toBe("Another conversation is still running in doan-design.");
-});
 
 test("removing a project with a running conversation asks first and names the conversations to stop", () => {
   const running = [{ conversationId: "c1", waiting: false }, { conversationId: "c2", waiting: true }];
@@ -86,11 +81,6 @@ test("a different draft asks before it is replaced; the same request does not", 
 });
 
 // App wiring rules, pure so App's event handlers stay thin.
-test("new canvas candidates are the rows absent when the request was sent and not checked yet", () => {
-  const rows = [{ path: ".doan/canvases/a.html" }, { path: ".doan/canvases/b.html" }, { path: ".doan/canvases/c.html" }];
-  expect(newCanvasCandidates(rows, [".doan/canvases/a.html"], [".doan/canvases/c.html"]).map(r => r.path)).toEqual([".doan/canvases/b.html"]);
-});
-
 test("a permission request toasts once, and only when its project is not on screen", () => {
   const ask = { kind: "permission" as const, requestId: "r1", summary: "Edit x", options: [] };
   expect(permissionToastKey(ask, { kind: "working", activity: null }, false)).toBe("r1");

@@ -309,7 +309,7 @@ func TestHandoffFailureSteps(t *testing.T) {
 		{"If it still fails", "Applications", "Settings… > About"},
 	})
 	for code, words := range map[string][]string{
-		"not_app_conversation": {"Doan app", "canvas conversation", "open the new canvas"},
+		"not_app_conversation": {"`doan handoff` works only in a conversation in the Doan app", "open the new canvas"},
 		"root_mismatch":        {"without --repo"},
 		"canvas_not_found":     {"`doan ls`"},
 		"already_requested":    {"This turn already requested a handoff to this canvas; hand off each other new canvas once"},
@@ -322,6 +322,10 @@ func TestHandoffFailureSteps(t *testing.T) {
 				t.Errorf("%s: %q missing from %q", code, word, steps)
 			}
 		}
+	}
+	// A project conversation hands off too, so the step no longer says only a canvas conversation does.
+	if steps := strings.Join(handoffFailure("not_app_conversation", "m").NextSteps, "\n"); strings.Contains(steps, "canvas conversation") {
+		t.Errorf("not_app_conversation: still names a canvas conversation: %q", steps)
 	}
 	for _, code := range []string{"app_protocol_mismatch", "project_not_open", "not_running", "not_canvas_conversation", "plan_mode", "handoff_turn", "same_canvas"} {
 		if len(handoffFailure(code, "m").NextSteps) == 0 {

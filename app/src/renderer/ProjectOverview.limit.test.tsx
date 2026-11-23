@@ -63,7 +63,7 @@ function setup(listed: ConversationSummary = summary) {
   support.auth = AUTH;
   const props: ProjectOverviewProps = {
     run, support, root: ROOT, project: "doan", entry, worktrees: [entry], homeDirectory: "/code",
-    notice: null, unavailable: null, list, seen: new Set(), holder: null, prefs: {}, defaults: null, now: Date.now(),
+    notice: null, unavailable: null, list, seen: new Set(), prefs: {}, defaults: null, now: Date.now(),
     onWorktree: () => {}, onOpenCanvas: () => {}, onRetryList: () => {}, onStart: async () => ({ ok: true }), onSettings: () => {},
     onSendConversation: send, onAction: () => {}, onProjectSettings: () => {},
   };

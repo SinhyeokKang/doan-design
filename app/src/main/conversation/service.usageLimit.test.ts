@@ -66,7 +66,7 @@ function fixture(options: { provider?: Provider; files?: QueueFiles; listed?: Ca
   // The limit stopped the turn; the usage read after it settles on a later tick.
   const limited = async (id: string, activity = false, detail = "You've hit your usage limit.") => {
     if (activity) service.receive(id, { type: "activity", kind: "read", summary: "Reading files" });
-    service.receive(id, { type: "turn.failed", code: "rate_limited", detail }); service.refreshed("/repo", []);
+    service.receive(id, { type: "turn.failed", code: "rate_limited", detail }); service.refreshed("/repo");
     await drain(); expect(summary(id).working).toBe(false);
   };
   return { dir, service, store, runs, open, prepare, drafts, clock, limitWindows, published, notices, summary, texts, start, startProject, limit, noLimit, limited, listed,
@@ -133,8 +133,8 @@ describe("a send while the limit holds", () => {
     h.clock.advance(HOUR + MIN);
     await drain(); expect(h.texts(a).at(-1)).toBe("to a"); expect(h.texts(b).at(-1)).toBe("to b");
   });
-  // Another project conversation of the root holds it at the reset: the schedule waits and goes once the root is free.
-  it("waits for the root another project conversation holds", async () => {
+  // Project conversations of a root run side by side, so another one running never holds a schedule back.
+  it("goes out at the reset while another project conversation of the root runs", async () => {
     const h = fixture(); h.limit(RESET);
     const first = await h.startProject("first"); await h.limited(first, true);
     h.service.schedule(first, { text: "after the reset", anchors: [] });
@@ -142,24 +142,18 @@ describe("a send while the limit holds", () => {
     h.noLimit();
     const other = await h.startProject("other");
     h.clock.advance(MIN); await drain();
-    expect(h.summary(first)).toMatchObject({ scheduledAt: iso(RESET), working: false });
-    expect(h.texts(first)).toEqual(["first"]);
-    h.service.receive(other, { type: "turn.done" }); h.service.refreshed("/repo", []);
-    await drain(); expect(h.texts(first)).toEqual(["first", "after the reset"]);
+    expect(h.texts(first)).toEqual(["first", "after the reset"]);
+    expect(h.summary(other).working).toBe(true);
   });
-  // A turn the limit stopped is judged as any project turn; a schedule due before that judgement waits for it.
-  it("waits for its own turn's judgement when it comes due before it", async () => {
+  // A project turn the limit stopped is not judged: its schedule shows and goes out at the reset as a canvas one's.
+  it("shows a project turn's schedule once the usage read is over and sends it at the reset without a refresh", async () => {
     const h = fixture(); h.limit(NOW + 30_000);
     const id = await h.startProject();
     h.service.receive(id, { type: "turn.failed", code: "rate_limited", detail: "limit" });
     await drain(); expect(h.service.scheduled(id)).toHaveLength(1);
-    // Still working while it waits for its judgement, so not shown as scheduled yet.
-    expect(h.summary(id).working).toBe(true);
-    expect(h.summary(id)).not.toHaveProperty("scheduledAt");
+    expect(h.summary(id)).toMatchObject({ scheduledAt: iso(NOW + 30_000), working: false });
     h.clock.advance(30_000 + MIN); await drain();
-    expect(h.texts(id)).toEqual(["make a page"]);
-    h.service.refreshed("/repo", []);
-    await drain(); expect(h.texts(id)).toEqual(["make a page", "make a page"]);
+    expect(h.texts(id)).toEqual(["make a page", "make a page"]);
   });
   it("leaves a legacy external, an ACP provider's and a new conversation's send as before", async () => {
     for (const provider of ["cursor", "copilot", "antigravity"] as const) {
@@ -239,30 +233,32 @@ describe("a turn the limit stopped before the agent did anything", () => {
   });
 });
 
-// A project turn waits for its judgement after it ends, and the list shows it working meanwhile, so the composer queues.
-// What it queues then waits for the same reset as a canvas conversation's does (ARCHITECTURE §7 'Usage-limit schedule').
-describe("a project conversation's queue made while its limited turn waits for its judgement", () => {
-  it("waits for the reset once the reset is known before the judgement", async () => {
+// A project turn the limit stopped stays working while the usage read runs, so the composer queues. What it queues then
+// waits for the same reset as a canvas conversation's does, and a folder refresh never sends it early (ARCHITECTURE §7
+// 'Usage-limit schedule'; POSTMORTEM 2026-11 'A project conversation's queue made while its rate-limited turn waited for
+// judgement went out before the reset').
+describe("a project conversation's queue made while its limited turn's usage read runs", () => {
+  it("waits for the reset once the reset is known, whatever folder refresh comes", async () => {
     const h = fixture(); h.limit(RESET);
     const id = await h.startProject();
     h.service.receive(id, { type: "turn.failed", code: "rate_limited", detail: "limit" });
     expect(h.summary(id).working).toBe(true);
     h.service.queue(id, { text: "next", anchors: [] });
     await drain();
-    h.service.refreshed("/repo", []); await drain();
+    h.service.refreshed("/repo"); await drain();
     expect(h.texts(id)).toEqual(["make a page"]);
     expect(h.service.scheduled(id).map(item => item.text)).toEqual(["make a page", "next"]);
     expect(h.summary(id)).toMatchObject({ scheduledAt: iso(RESET), working: false });
     h.clock.advance(HOUR + MIN); await drain();
     expect(h.texts(id)).toEqual(["make a page", "make a page\n\nnext"]);
   });
-  it("waits for the usage read when the judgement comes first", async () => {
+  it("waits for the usage read when a folder refresh comes first", async () => {
     const h = fixture(); h.limit(RESET);
     const id = await h.startProject();
     const read = h.holdRead();
     h.service.receive(id, { type: "turn.failed", code: "rate_limited", detail: "limit" });
     h.service.queue(id, { text: "next", anchors: [] });
-    h.service.refreshed("/repo", []); await drain();
+    h.service.refreshed("/repo"); await drain();
     expect(h.texts(id)).toEqual(["make a page"]);
     read.answer(); await drain();
     expect(h.texts(id)).toEqual(["make a page"]);
@@ -275,7 +271,7 @@ describe("a project conversation's queue made while its limited turn waits for i
     h.service.receive(id, { type: "activity", kind: "read", summary: "Reading files" });
     h.service.receive(id, { type: "turn.failed", code: "rate_limited", detail: "limit" });
     h.service.queue(id, { text: "next", anchors: [] });
-    h.service.refreshed("/repo", []); await drain();
+    h.service.refreshed("/repo"); await drain();
     read.answer(); await drain();
     expect(h.texts(id)).toEqual(["make a page"]);
     expect(h.drafts.returned(id)).toMatchObject({ text: "next", reason: "turn_failed" });
@@ -498,21 +494,17 @@ describe("schedule timers", () => {
       expect(texts()).toEqual(["hello", "hello"]);
     } finally { vi.useRealTimers(); }
   });
-  // Two project conversations of one root due at the same time: one goes, the other once the root is free again.
-  it("sends two schedules of one root one after the other", async () => {
+  // Two project conversations of one root due at the same time both go: neither holds the root.
+  it("sends two schedules of one root at the same time", async () => {
     const h = fixture();
-    const first = await h.startProject("first"); h.service.receive(first, { type: "turn.done" }); h.service.refreshed("/repo", []);
-    const second = await h.startProject("second"); h.service.receive(second, { type: "turn.done" }); h.service.refreshed("/repo", []);
+    const first = await h.startProject("first"); h.service.receive(first, { type: "turn.done" });
+    const second = await h.startProject("second"); h.service.receive(second, { type: "turn.done" });
     h.limit(RESET);
     await h.service.send(first, "again", []); await h.limited(first, true);
     h.service.schedule(first, { text: "first after", anchors: [] }); h.service.schedule(second, { text: "second after", anchors: [] });
     h.clock.advance(HOUR + MIN); await drain();
-    const went = [first, second].filter(id => h.texts(id).at(-1)?.endsWith(" after"));
-    expect(went).toHaveLength(1);
-    const other = went[0] === first ? second : first;
-    expect(h.summary(other)).toMatchObject({ scheduledAt: iso(RESET), working: false });
-    h.service.receive(went[0]!, { type: "turn.done" }); h.service.refreshed("/repo", []); await drain();
-    expect(h.texts(other).at(-1)).toBe(other === first ? "first after" : "second after");
+    expect(h.texts(first).at(-1)).toBe("first after");
+    expect(h.texts(second).at(-1)).toBe("second after");
   });
 });
 

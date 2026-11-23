@@ -9,17 +9,15 @@ import { sameCanvas } from "./canvasConversationRows";
 export interface TrashSubject { root: string; path: string; id?: string }
 
 // What keeps Move to Trash disabled, for display only: main judges again on `canvas:trash` (canvasTrash.ts trashBusy).
-// `list` is main's conversation list for `root`, null while it is loading or failed (main still re-checks). `drawing`
-// is HomeRun's `drawing`: a project conversation that drew this canvas and has not been bound to it yet. `starting`:
+// `list` is main's conversation list for `root`, null while it is loading or failed (main still re-checks). `starting`:
 // a start from this window's canvas panel main has not answered, whose conversation no list names before main accepts
 // it (CanvasRun.startingOn); the prototype window's own starts are left to main's refusal.
-export type TrashBlock = "conversation" | "drawing" | "terminal";
+export type TrashBlock = "conversation" | "terminal";
 
 export function trashBlock(
   target: TrashSubject,
   list: readonly ConversationSummary[] | null,
   work: readonly WorkItem[],
-  drawing: (root: string, canvas: Canvas) => string | null,
   starting: (root: string, canvas: Canvas) => boolean = () => false,
 ): TrashBlock | null {
   // An empty id names nothing (`doan ls` may list one).
@@ -28,7 +26,6 @@ export function trashBlock(
   // Any conversation of the canvas running, waiting for an answer or `working` (preparing its turn, about to send its
   // queue): main's trashBusy counts the same set, so the item is never enabled only to be refused as busy.
   if (list?.some(c => c.canvas !== undefined && sameCanvas(c.canvas, canvas) && (c.working || c.phase !== "ended"))) return "conversation";
-  if (drawing(target.root, canvas) !== null) return "drawing";
   if (work.some(item => item.root === target.root && item.path === target.path)) return "terminal";
   return null;
 }

@@ -1,29 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { BIND_GRACE_MS, PROMOTION_SETTLE_MS, promotionDeadline } from "./project";
+import { BIND_GRACE_MS, SETTLE_MS, settleDeadline } from "./project";
 import { backgroundTasks, endPromptWait, endSteerWait, initialTransport, normalizeClaude, promptTransport, steerTransport } from "./transport";
 import { afterTurnCleanup } from "./process";
 import type { EventPayload, TransportState } from "./types";
 
-// A project turn's judgement waits for the watcher only once the turn's process group is gone: it cannot write any more.
-describe("promotionDeadline", () => {
-  const settle = PROMOTION_SETTLE_MS, grace = BIND_GRACE_MS;
+// A turn's handoffs, missed lines and drawn canvases are judged once the watcher may list what it wrote: the whole
+// window while its process group is there, a settle time once it is gone (it cannot write any more).
+describe("settleDeadline", () => {
+  const settle = SETTLE_MS, grace = BIND_GRACE_MS;
   it("waits the whole window while the group is still there", () => {
-    expect(promotionDeadline({ endedAt: 1000, settle, grace })).toBe(1000 + grace);
+    expect(settleDeadline({ endedAt: 1000, settle, grace })).toBe(1000 + grace);
   });
   it("judges a settle time after the group went", () => {
-    expect(promotionDeadline({ endedAt: 1000, exitedAt: 1500, settle, grace })).toBe(1500 + settle);
+    expect(settleDeadline({ endedAt: 1000, exitedAt: 1500, settle, grace })).toBe(1500 + settle);
   });
   it("counts the settle time from the end when the process was gone before it", () => {
-    expect(promotionDeadline({ endedAt: 1000, exitedAt: 900, settle, grace })).toBe(1000 + settle);
-    expect(promotionDeadline({ endedAt: 1000, exitedAt: 1000, settle, grace })).toBe(1000 + settle);
+    expect(settleDeadline({ endedAt: 1000, exitedAt: 900, settle, grace })).toBe(1000 + settle);
+    expect(settleDeadline({ endedAt: 1000, exitedAt: 1000, settle, grace })).toBe(1000 + settle);
   });
   it("never goes past the window", () => {
-    expect(promotionDeadline({ endedAt: 1000, exitedAt: 1000 + grace, settle, grace })).toBe(1000 + grace);
+    expect(settleDeadline({ endedAt: 1000, exitedAt: 1000 + grace, settle, grace })).toBe(1000 + grace);
   });
   it("uses the PoC's watcher maximum with a margin", () => {
-    expect(PROMOTION_SETTLE_MS).toBe(5572);
-    expect(PROMOTION_SETTLE_MS).toBeLessThan(BIND_GRACE_MS);
+    expect(SETTLE_MS).toBe(5572);
+    expect(SETTLE_MS).toBeLessThan(BIND_GRACE_MS);
   });
 });
 

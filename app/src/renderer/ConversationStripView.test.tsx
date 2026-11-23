@@ -29,17 +29,17 @@ vi.mock("react", async original => {
 beforeEach(() => { hooks.refs = []; hooks.effects = []; hooks.at = 0; hooks.reuse = false; hooks.states = []; hooks.stateAt = 0; });
 afterEach(() => { hooks.mock = false; vi.unstubAllGlobals(); });
 
-const CTX: StripContext = { provider: "claude", project: "doan-design", branch: "main", canvas: null };
+const CTX: StripContext = { provider: "claude", project: "doan-design", branch: "main" };
 const ASK: StripState = { kind: "permission", requestId: "r1", summary: "Edit .doan/canvases/design-system.html", options: [{ id: "d", label: "Deny", kind: "deny" }, { id: "aa", label: "Always allow", kind: "allowAlways" }, { id: "a", label: "Allow", kind: "allow" }] };
 const noop = () => {};
-const render = (state: StripState, ctx = CTX) => renderToStaticMarkup(<TooltipProvider><ConversationStrip conversationId="c1" provider="claude" state={state} view={stripView(state, ctx)} onEditOnHome={noop} onDismiss={noop} onOpen={noop} /></TooltipProvider>);
+const render = (state: StripState, ctx = CTX) => renderToStaticMarkup(<TooltipProvider><ConversationStrip conversationId="c1" provider="claude" state={state} view={stripView(state, ctx)} onEditOnHome={noop} onDismiss={noop} /></TooltipProvider>);
 
 function elements(node: ReactNode): Record<string, unknown>[] {
   return Children.toArray(node).flatMap(child => isValidElement<{ children?: ReactNode; [key: string]: unknown }>(child) ? [child.props, ...elements(child.props.children)] : []);
 }
-function buttons(state: StripState, calls: { edit?: () => void; dismiss?: () => void; open?: () => void } = {}) {
+function buttons(state: StripState, calls: { edit?: () => void; dismiss?: () => void } = {}) {
   hooks.mock = true;
-  const tree = ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, { ...CTX, canvas: "design-system" }), onEditOnHome: calls.edit ?? noop, onDismiss: calls.dismiss ?? noop, onOpen: calls.open ?? noop });
+  const tree = ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, CTX), onEditOnHome: calls.edit ?? noop, onDismiss: calls.dismiss ?? noop });
   return elements(tree).filter(props => typeof props.onClick === "function");
 }
 const text = (props: Record<string, unknown>) => Children.toArray(props.children as ReactNode).filter(child => typeof child === "string").join("");
@@ -55,10 +55,10 @@ test("the strip is the shared notice with the provider mark, a status line and i
 test("starting shows a spinner, failed an alert mark and done a check, as the states board draws them", () => {
   expect(render({ kind: "starting" })).toContain('<span class="strip-agent doan-alert-icon"><span class="doan-spinner" aria-hidden="true"></span></span>');
   expect(render({ kind: "failed", code: "process_exited" })).toMatch(/<span class="strip-agent doan-alert-icon"><svg[^>]*class="lucide[^"]*strip-alert"/);
-  expect(render({ kind: "done" }, { ...CTX, canvas: "design-system" })).toMatch(/<span class="strip-agent doan-alert-icon"><svg[^>]*class="lucide[^"]*strip-ok"/);
+  expect(render({ kind: "done" }, CTX)).toMatch(/<span class="strip-agent doan-alert-icon"><svg[^>]*class="lucide[^"]*strip-ok"/);
   // The state's tone colours the strip's text and mark: failed is an error, done is ok, the rest neutral.
   expect(render({ kind: "failed", code: "process_exited" })).toContain('<div class="convo-strip doan-notice error" role="region"');
-  expect(render({ kind: "done" }, { ...CTX, canvas: "design-system" })).toContain('<div class="convo-strip doan-notice ok" role="region"');
+  expect(render({ kind: "done" }, CTX)).toContain('<div class="convo-strip doan-notice ok" role="region"');
   expect(render({ kind: "starting" })).toContain('<div class="convo-strip doan-notice" role="region"');
 });
 
@@ -78,7 +78,7 @@ test("the request line keeps its whole text in a name tooltip, and a saving choi
   expect(html).not.toMatch(/\stitle=/);
   expect(html).toContain('data-ui-variant="panel" data-state="closed" data-slot="tooltip-trigger">Allow with suggested permissions</button>');
   hooks.mock = true;
-  const tree = ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, CTX), onEditOnHome: noop, onDismiss: noop, onOpen: noop });
+  const tree = ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, CTX), onEditOnHome: noop, onDismiss: noop });
   const props = elements(tree);
   expect(props.some(p => p.text === ASK.summary)).toBe(true);
   expect(props.some(p => p.children === detail)).toBe(true);
@@ -118,19 +118,18 @@ test("Stop calls interruptConversation; Edit on Home, Dismiss and Open call thei
   const stop = buttons({ kind: "working", activity: null }).find(props => Children.toArray(props.children as ReactNode).includes("Stop"))!;
   (stop.onClick as () => void)();
   expect(interrupt).toHaveBeenCalledWith({ conversationId: "c1" });
-  const edit = vi.fn(), dismiss = vi.fn(), open = vi.fn();
+  const edit = vi.fn(), dismiss = vi.fn();
   for (const props of buttons({ kind: "failed", code: "process_exited" }, { edit, dismiss })) (props.onClick as () => void)();
   expect(edit).toHaveBeenCalledTimes(1);
   expect(dismiss).toHaveBeenCalledTimes(1);
-  for (const props of buttons({ kind: "done" }, { open, dismiss })) (props.onClick as () => void)();
-  expect(open).toHaveBeenCalledTimes(1);
+  for (const props of buttons({ kind: "done" }, { dismiss })) (props.onClick as () => void)();
   expect(dismiss).toHaveBeenCalledTimes(2);
 });
 
-test("failed and stopped offer Edit on Home (panel) and Dismiss; done offers Open (panel) and Dismiss", () => {
+test("failed and stopped offer Edit on Home (panel) and Dismiss; done offers Dismiss only", () => {
   expect(render({ kind: "failed", code: "not_logged_in" })).toContain('<b>Claude Code’s sign-in expired</b><span>Edit your request on Home and choose another agent.</span></span></span><span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Edit on Home</button><button type="button" class="doan-button" data-ui-size="sm">Dismiss</button></span>');
   expect(render({ kind: "interrupted", reason: "user" })).toContain("<b>Stopped</b><span>You stopped the agent.</span>");
-  expect(render({ kind: "done" }, { ...CTX, canvas: "design-system" })).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Open</button><button type="button" class="doan-button" data-ui-size="sm">Dismiss</button>');
+  expect(render({ kind: "done" }, CTX)).toContain('<span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm">Dismiss</button></span>');
 });
 
 // The alert line is keyed to its request, so React keeps the node (one announcement) while the
@@ -138,7 +137,7 @@ test("failed and stopped offer Edit on Home (panel) and Dismiss; done offers Ope
 test("the alert line keeps its key across redraws of one request and changes it for the next; Stop carries its marker", () => {
   hooks.mock = true;
   const line = (state: StripState) => {
-    const tree = ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, CTX), onEditOnHome: noop, onDismiss: noop, onOpen: noop });
+    const tree = ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, CTX), onEditOnHome: noop, onDismiss: noop });
     // The text column (strip-main) holds the line, then the error line when there is one.
     const main = Children.toArray((tree.props as { children: ReactNode }).children).find(child => isValidElement<{ className?: string }>(child) && child.props.className === "strip-main") as { props: { children: ReactNode } };
     return Children.toArray(main.props.children).find(child => isValidElement<{ className?: string; role?: string }>(child) && child.props.className === "strip-text") as { key: string | null; props: { role: string } };
@@ -158,7 +157,7 @@ test("the alert line keeps its key across redraws of one request and changes it 
 // made earlier, and a strip is keyed by its conversation in App.
 function strip() {
   const dismissFocus = vi.fn();
-  const draw = (state: StripState) => { hooks.mock = true; hooks.at = 0; hooks.effects = []; const all = elements(ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, CTX), onEditOnHome: noop, onDismiss: noop, onOpen: noop })); hooks.reuse = true; return all; };
+  const draw = (state: StripState) => { hooks.mock = true; hooks.at = 0; hooks.effects = []; const all = elements(ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, CTX), onEditOnHome: noop, onDismiss: noop })); hooks.reuse = true; return all; };
   const effects = () => { hooks.refs[1]!.current = { focus: dismissFocus }; for (const effect of hooks.effects) effect(); };
   // The Stop button's callback ref, as React attaches it; its cleanup runs when React detaches Stop, before removal.
   const attachStop = (all: Record<string, unknown>[]) => { const node = { focus: vi.fn() }; const ref = all.find(props => props["data-strip-stop"] === "")!.ref as (node: unknown) => (() => void); return { node, detach: ref(node) }; };
@@ -216,7 +215,7 @@ test("a person whose focus was elsewhere when Stop went away keeps it", () => {
 });
 
 test("the strip App draws is keyed by its conversation, so another conversation gets a fresh instance", () => {
-  const strip = (conversationId: string) => KeyedConversationStrip({ conversationId, provider: "claude", state: ASK, view: stripView(ASK, CTX), onEditOnHome: noop, onDismiss: noop, onOpen: noop });
+  const strip = (conversationId: string) => KeyedConversationStrip({ conversationId, provider: "claude", state: ASK, view: stripView(ASK, CTX), onEditOnHome: noop, onDismiss: noop });
   expect(strip("c1").type).toBe(ConversationStrip);
   expect(strip("c1").key).toBe("c1");
   expect(strip("c2").key).toBe("c2");
@@ -226,7 +225,7 @@ test("the strip App draws is keyed by its conversation, so another conversation 
 // the buttons stay, and the line goes on the next press, another request or the turn's end.
 test("a refused Skip or permission answer shows its error line until the next press, another request or the turn's end", async () => {
   const flush = async () => { for (let i = 0; i < 4; i++) await Promise.resolve(); };
-  const draw = (state: StripState) => { hooks.mock = true; hooks.at = 0; hooks.stateAt = 0; const tree = ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, CTX), onEditOnHome: noop, onDismiss: noop, onOpen: noop }); hooks.reuse = true; return tree; };
+  const draw = (state: StripState) => { hooks.mock = true; hooks.at = 0; hooks.stateAt = 0; const tree = ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, CTX), onEditOnHome: noop, onDismiss: noop }); hooks.reuse = true; return tree; };
   const press = (state: StripState, label: string) => (elements(draw(state)).find(props => typeof props.onClick === "function" && text(props) === label)!.onClick as () => void)();
   const line = (state: StripState) => /<span class="strip-error" role="alert"><svg[^>]*class="lucide[^"]*doan-alert-icon"[^>]*>.*?<\/svg>([^<]*)<\/span>/.exec(renderToStaticMarkup(<TooltipProvider>{draw(state)}</TooltipProvider>))?.[1] ?? null;
   const refused = async (): Promise<void | { error: string }> => ({ error: "unknown" });

@@ -674,6 +674,19 @@ describe("canvas cards and the handoff card", () => {
     }
     expect(opened).toEqual([[CHECKOUT, "c2"], [CHECKOUT, undefined], [CHECKOUT, undefined], [DRAFTS, "c0"]]);
   });
+  // A project conversation's handoff: the source is the root's Overview, and Open shows the source conversation there.
+  test("a handoff card from the Overview names the Overview; Open shows the source conversation there; a deleted source has no Open", () => {
+    const fromOverview: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0" }, text: "Pick up **Payment**." };
+    const opened: string[] = [];
+    const listed = (id: string) => id === "c0";
+    expect(html([fromOverview], { conversationListed: listed, onOpenOverview: id => opened.push(id) }))
+      .toMatch(/<span id="[^"]+">Handed off from Overview<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger">Open<\/button><\/div>/);
+    expect(html([fromOverview], { conversationListed: () => false, onOpenOverview: id => opened.push(id) }))
+      .toMatch(/<span id="[^"]+">Handed off from Overview · Conversation deleted<\/span><\/div>/);
+    const element = HandoffCard({ entry: fromOverview as Extract<ThreadItem, { kind: "handoffCard" }>, headId: "h", project: "p", canvasListed: () => false, conversationListed: listed, onOpenOverview: id => opened.push(id) });
+    (findButton(element)!.props as { onClick(): void }).onClick();
+    expect(opened).toEqual(["c0"]);
+  });
 });
 function findButton(node: unknown): ReactElement | null {
   if (!node || typeof node !== "object" || !("props" in node)) return null;

@@ -20,13 +20,8 @@ export function slotKey(root: string, canvas?: string): string { return canvas =
 // limit's reset (limitReset.ts scheduledSlot).
 export interface Slot { kind: "permission" | "working" | "scheduled" | "unseen"; label: string; source?: "terminal" }
 
-// Home's reason line and the removal confirmation: project conversations started outside Home count
-// too, so the sentence no longer says where the conversation came from. The removal dialog has no conversation of its
-// own to compare with, so it says "A" where the reason line says "Another". Only a running conversation blocks a start;
-// the removal also stops one waiting for an answer and says so.
-export function anotherConversation(project: string): string {
-  return `Another conversation is still running in ${project}.`;
-}
+// The removal confirmation: project conversations started outside Home count too, so the sentence does not say where
+// the conversation came from. The removal also stops one waiting for an answer and says so.
 function aConversation(project: string, waiting: boolean): string {
   return waiting ? `A conversation in ${project} needs your answer.` : `A conversation is still running in ${project}.`;
 }
@@ -95,11 +90,6 @@ export function restoreRequest(draft: ComposerDraft, last: LastRequest, project:
     request,
     confirm: empty || same ? null : { ...REPLACE_DRAFT, body: `Your draft will be replaced by the last request you sent to ${project}.` },
   };
-}
-
-// The canvas rows a Home turn may have drawn: absent when the request was sent and not looked at yet (§7.3).
-export function newCanvasCandidates<T extends { path: string }>(rows: readonly T[], atStart: readonly string[], checked: readonly string[]): T[] {
-  return rows.filter(row => !atStart.includes(row.path) && !checked.includes(row.path));
 }
 
 // The toast is secondary to the slot: once per request, and only when that project is not on screen.

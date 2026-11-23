@@ -102,7 +102,7 @@ function reset() {
   doan = {
     onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationStage: on("stage"), onConversationBoundary: on("boundary"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })), readConversation: vi.fn(async () => ({ error: "not_found" })), onOpenAddProjects: on("openAddProjects"),
     onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
-    onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"), onPrototypeTarget: on("prototypeTarget"), readPrototypeTarget: vi.fn(async () => null), setPrototypeDrawing: vi.fn(async () => true), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}),
+    onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })), readBuddyIntro: vi.fn(async () => false),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
@@ -1466,14 +1466,6 @@ describe("the Overview's Conversations list", () => {
     await listChanged([project("p1"), project("p9", { phase: "running", working: true, lastActivityAt: "2026-11-01T00:05:00.000Z" })]);
     expect(item("p9").kind).toBe("project");
     expect(list().current).toBe("p9");
-  });
-
-  // POSTMORTEM 2026-11-23: the list read and the run's own state arrive apart; a promoted row is a canvas row.
-  test("the shown conversation promoted to a canvas: its row turns into a canvas row and no row is current", async () => {
-    await overviewWith([project("p1", { unseen: true }), project("p2")]);
-    await listChanged([{ ...project("p1"), canvas: { path: rowA.path, id: "a" }, startedBy: "promotion" }, project("p2")]);
-    expect(item("p1").kind).toBe("canvas");
-    expect(list().current).toBeNull();
   });
 
   test("a project row shows its conversation in the main column, focus for the composer, with no Back/Forward visit and no canvas opened", async () => {

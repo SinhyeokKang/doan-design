@@ -446,7 +446,8 @@ describe("conversation list, seen marker and send extras", () => {
       }
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
-  it("refuses extras on a legacy external conversation and passes project_busy through", async () => {
+  // Project conversations no longer hold their root, so project_busy is not a code a send answers any more.
+  it("refuses extras on a legacy external conversation, and answers an unknown failure for project_busy", async () => {
     const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
     try {
       const h = sendFixture(dir);
@@ -454,7 +455,7 @@ describe("conversation list, seen marker and send extras", () => {
       await h.handle(true, "models", { root: "/repo", runtime: "claude" });
       for (const extra of [{ model: "sonnet" }, { attachments: [{ id: "a" }] }, { permissionMode: "plan" }]) expect(await h.handle(true, "send", { conversationId: "legacy", text: "y", ...extra })).toEqual({ error: "bad_request" });
       h.send.mockRejectedValueOnce(new Error("project_busy"));
-      expect(await h.handle(true, "send", { conversationId: "legacy", text: "y" })).toEqual({ error: "project_busy" });
+      expect(await h.handle(true, "send", { conversationId: "legacy", text: "y" })).toEqual({ error: "unknown" });
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
   // An earlier sign-in's conversation is its own refusal, not collapsed into unknown or session_unavailable.
@@ -505,7 +506,7 @@ describe("queue channels", () => {
       expect(await h.handle(true, "removeQueued", { conversationId: id, itemId: queued.itemId })).toBeUndefined();
       expect(await h.handle(true, "removeQueued", { conversationId: id, itemId: queued.itemId })).toEqual({ error: "stale" });
       // Judged and with nothing left to wait for, the conversation is not working.
-      h.service.receive(id, { type: "turn.done" }); h.service.refreshed("/repo", []);
+      h.service.receive(id, { type: "turn.done" }); h.service.refreshed("/repo");
       expect(await h.handle(true, "queue", { conversationId: id, text: "y" })).toEqual({ error: "not_running" });
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
@@ -947,7 +948,7 @@ describe("usage-limit schedule channels", () => {
   async function stopped(h: ReturnType<typeof limited>): Promise<string> {
     const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
     h.service.receive(id, { type: "activity", kind: "read", summary: "Reading files" });
-    h.service.receive(id, { type: "turn.failed", code: "rate_limited", detail: "Rate limited" }); h.service.refreshed("/repo", []);
+    h.service.receive(id, { type: "turn.failed", code: "rate_limited", detail: "Rate limited" }); h.service.refreshed("/repo");
     await vi.waitFor(() => expect(h.service.list("/repo")[0]).toMatchObject({ limitResetsAt: new Date(RESET).toISOString(), working: false }));
     return id;
   }

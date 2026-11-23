@@ -75,7 +75,7 @@ function elements(node: ReactNode): Record<string, unknown>[] {
 function setup(memory: Partial<ComposerMemory> = {}, props: Partial<HeroComposerProps> = {}) {
   const box = { current: { ...emptyComposer(), auth: AUTH, presets: LISTED, ...memory } };
   const start = vi.fn(async (_request: unknown, _last: unknown) => ({ ok: true } as const));
-  const all: HeroComposerProps = { entries: [ENTRY], homeDirectory: null, shellProjects: {}, loaded: null, select: null, prefs: {}, memory: box, running: new Map(), restore: null, greeting: "Where should we start?", start, openConversation: vi.fn(), addProjects: vi.fn(), openSettings: vi.fn(), ...props };
+  const all: HeroComposerProps = { entries: [ENTRY], homeDirectory: null, shellProjects: {}, loaded: null, select: null, prefs: {}, memory: box, working: new Set(), restore: null, greeting: "Where should we start?", start, addProjects: vi.fn(), openSettings: vi.fn(), ...props };
   const render = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; hooks.deps = []; return elements(HeroComposer(all)); };
   return { box, start, render, props: all };
 }
@@ -1018,11 +1018,11 @@ test("exact skill Enter sends the displayed word and refreshes after a turn ends
   render(); await runEffects(); await flush();
   call(field(render()), "onKeyDown", key("Enter")); await flush();
   expect(start.mock.calls[0]?.[0]).toMatchObject({ text: "Use the project skill `deploy`.\n\n/deploy" });
-  props.running = new Map([[ENTRY.path, { conversationId: "c" }]]);
+  props.working = new Set([ENTRY.path]);
   render(); await runEffects();
   await flush();
   const before = doan.listConversationSkills!.mock.calls.length;
-  props.running = new Map(); render(); await runEffects();
+  props.working = new Set(); render(); await runEffects();
   expect(doan.listConversationSkills!.mock.calls.length).toBeGreaterThan(before);
 });
 
@@ -1123,7 +1123,6 @@ test.each([
   ["no ready agent", "No agent is ready to run.", { auth: { revision: 1, providers: [] } }, {}],
   ["text over the limit", "Shorten the message to send it.", { text: "x".repeat(33000) }, {}],
   ["attachments being checked", "Checking attachments", { attachments: [{ key: "a", id: "1", name: "brief.pdf", kind: "file", pasted: false, status: "checking", size: 10, path: "/Users/ada/brief.pdf" }] }, {}],
-  ["another conversation running", "Another conversation is still running in doan-design.", {}, { running: new Map([["/code/doan-design", { conversationId: "c1", waiting: false }]]) }],
 ] as [string, string, Partial<ComposerMemory>, Partial<HeroComposerProps>][])("with %s Send stays focusable and carries the reason as its tooltip and description", (_name, reason, memory, props) => {
   const tree = setup({ text: "Draw a pricing page.", ...memory }, props).render();
   const send = find(tree, item => item["aria-label"] === "Send");

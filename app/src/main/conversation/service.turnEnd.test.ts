@@ -5,11 +5,11 @@ import { join } from "node:path";
 import { ConversationStore } from "./store";
 import { ConversationService, resolveListedCanvas, type OpenRunner, type Prepare, type Runner } from "./service";
 import { DraftStore } from "./drafts";
-import { BIND_GRACE_MS, PROMOTION_SETTLE_MS } from "./project";
+import { BIND_GRACE_MS, SETTLE_MS } from "./project";
 import type { Provider } from "../agentAuth/types";
 import type { Canvas, EventPayload } from "./types";
 
-// When a finished turn is judged, how its process is ended, what a Send now the agent never reported does, and the
+// What a send after a finished turn waits for, how its process is ended, what a Send now the agent never reported does, and the
 // background work a done turn leaves.
 const paths: string[] = [];
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
@@ -47,15 +47,16 @@ function fixture(options: { provider?: Provider; legacy?: boolean; listed?: Canv
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 const fake = () => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
 
-describe("judging a project turn once its process group is gone", () => {
-  it("judges a settle time after the group went, and a send fired at turn.done starts then (POSTMORTEM 2026-10-28)", async () => {
+// A project turn is never judged: a send after it waits only for its process group, as a canvas conversation's does
+// (POSTMORTEM 2026-10-28). A turn that asked for a handoff is judged a settle time after its group went.
+describe("a send after a project turn", () => {
+  it("starts once the group is gone when it was fired at turn.done (POSTMORTEM 2026-10-28)", async () => {
     fake(); const h = fixture(); const id = await h.startProject();
     h.runs[0]!.emit({ type: "turn.done" });
     const sending = h.service.send(id, "next", []);
-    h.runs[0]!.exited();
-    await vi.advanceTimersByTimeAsync(PROMOTION_SETTLE_MS - 1);
+    await vi.advanceTimersByTimeAsync(0);
     expect(h.open).toHaveBeenCalledOnce();
-    await vi.advanceTimersByTimeAsync(1);
+    h.runs[0]!.exited();
     await sending;
     expect(h.open).toHaveBeenCalledTimes(2);
     expect(h.texts(id)).toEqual(["make a page", "next"]);
@@ -63,45 +64,38 @@ describe("judging a project turn once its process group is gone", () => {
   it.each([["failed", { type: "turn.failed", code: "unknown" } as const], ["interrupted", { type: "interrupted", reason: "user" } as const]])("does the same for a %s turn", async (_name, terminal) => {
     fake(); const h = fixture(); const id = await h.startProject();
     h.runs[0]!.emit(terminal); h.runs[0]!.exited();
-    const sending = h.service.send(id, "next", []);
-    await vi.advanceTimersByTimeAsync(PROMOTION_SETTLE_MS);
-    await sending;
+    await h.service.send(id, "next", []);
     expect(h.open).toHaveBeenCalledTimes(2);
   });
-  it("judges a settle time after the end when the process was gone before it", async () => {
+  it("starts at once when the process was gone before the end", async () => {
     fake(); const h = fixture(); const id = await h.startProject();
     // The group went first: the service writes process_exited itself.
     h.runs[0]!.exited();
     expect(h.types(id).at(-1)).toBe("turn.failed");
-    const sending = h.service.send(id, "next", []);
-    await vi.advanceTimersByTimeAsync(PROMOTION_SETTLE_MS);
-    await sending;
+    await h.service.send(id, "next", []);
     expect(h.open).toHaveBeenCalledTimes(2);
   });
-  it("judges at a folder refresh that comes first", async () => {
-    fake(); const h = fixture(); await h.startProject();
+  it("binds nothing at a folder refresh that lists a canvas the turn made", async () => {
+    fake(); const h = fixture(); const id = await h.startProject();
     h.listed.push({ path: ".doan/canvases/new.html", id: "new" });
     h.runs[0]!.emit({ type: "turn.done" }); h.runs[0]!.exited();
-    h.service.refreshed("/repo", [".doan/canvases/new.html"]);
-    expect(h.store.list()[0]!.canvas).toEqual({ path: ".doan/canvases/new.html", id: "new" });
+    h.service.refreshed("/repo");
+    expect(h.store.list()[0]).not.toHaveProperty("canvas");
+    expect(h.summary(id).working).toBe(false);
   });
-  it("keeps the 10 s bound while the group is still there (a Codex server stays between turns)", async () => {
+  it("goes at once on a Codex server that stays between turns", async () => {
     fake(); const h = fixture({ provider: "codex" }); const id = await h.startProject();
     h.runs[0]!.emit({ type: "turn.done" });
-    let sent = false; const sending = h.service.send(id, "next", []).then(() => { sent = true; });
-    await vi.advanceTimersByTimeAsync(BIND_GRACE_MS - 1);
-    expect(sent).toBe(false);
-    await vi.advanceTimersByTimeAsync(1); await sending;
+    await h.service.send(id, "next", []);
     expect(h.texts(id)).toEqual(["make a page", "next"]);
   });
-  it("rule is the same for an ACP provider whose group ends with the turn", async () => {
+  it("goes once an ACP provider's group ended with the turn", async () => {
     fake(); const h = fixture({ provider: "cursor" }); const id = await h.startProject();
     h.runs[0]!.emit({ type: "turn.done" }); h.runs[0]!.exited();
-    const sending = h.service.send(id, "next", []);
-    await vi.advanceTimersByTimeAsync(PROMOTION_SETTLE_MS); await sending;
+    await h.service.send(id, "next", []);
     expect(h.open).toHaveBeenCalledTimes(2);
   });
-  it("a Stop while the send waits for the judgement hands the queue back and refuses the send", async () => {
+  it("a Stop before the queue goes hands it back, and nothing opens later", async () => {
     fake(); const h = fixture(); const id = await h.startProject();
     h.service.queue(id, { text: "queued", anchors: [] });
     h.runs[0]!.emit({ type: "turn.done" });
@@ -111,15 +105,20 @@ describe("judging a project turn once its process group is gone", () => {
     await vi.advanceTimersByTimeAsync(BIND_GRACE_MS);
     expect(h.open).toHaveBeenCalledOnce();
   });
-  it("judges a handoff a settle time after the group went", async () => {
-    fake(); const h = fixture({ listed: [{ path: ".doan/canvases/a.html", id: "a" }] }); const id = await h.startCanvas();
+  it.each(["canvas", "project"] as const)("judges a %s turn's handoff a settle time after the group went, and a send fired at turn.done starts then", async kind => {
+    fake(); const h = fixture({ listed: [{ path: ".doan/canvases/a.html", id: "a" }] }); const id = kind === "canvas" ? await h.startCanvas() : await h.startProject();
     const key = h.open.mock.calls[0]![0].env.DOAN_HANDOFF!;
     expect(h.service.requestHandoff({ root: "/repo", handoff: key, path: ".doan/canvases/b.html", text: "go on" })).toBeNull();
-    h.runs[0]!.emit({ type: "turn.done" }); h.runs[0]!.exited();
-    await vi.advanceTimersByTimeAsync(PROMOTION_SETTLE_MS - 1);
+    h.runs[0]!.emit({ type: "turn.done" });
+    const sending = h.service.send(id, "next", []);
+    h.runs[0]!.exited();
+    await vi.advanceTimersByTimeAsync(SETTLE_MS - 1);
     expect(h.types(id).at(-1)).toBe("turn.done");
+    expect(h.open).toHaveBeenCalledOnce();
     await vi.advanceTimersByTimeAsync(1);
-    expect(h.store.read(id).at(-1)).toMatchObject({ type: "handoff.resolved", outcome: "refused", reason: "not_listed" });
+    await sending;
+    expect(h.store.read(id).find(e => e.type === "handoff.resolved")).toMatchObject({ outcome: "refused", reason: "not_listed" });
+    expect(h.texts(id).at(-1)).toBe("next");
   });
 });
 
@@ -150,13 +149,14 @@ describe("ending a finished turn's process", () => {
     h.runs[0]!.exited();
     await vi.waitFor(() => expect(h.texts(id)).toEqual(["hello", "queued"]));
   });
-  it("a send waiting for a project judgement ends the process before it waits", async () => {
+  it("a send waiting for a handoff's judgement ends the process before it waits", async () => {
     const h = fixture(); const id = await h.startProject();
+    expect(h.service.requestHandoff({ root: "/repo", handoff: h.open.mock.calls[0]![0].env.DOAN_HANDOFF!, path: ".doan/canvases/b.html", text: "go on" })).toBeNull();
     h.runs[0]!.emit({ type: "turn.done" });
     const sending = h.service.send(id, "next", []).catch(() => {});
     await tick();
     expect(h.runs[0]!.runner.endAfterTurn).toHaveBeenCalled();
-    h.service.refreshed("/repo", []); h.runs[0]!.exited(); await sending;
+    h.service.refreshed("/repo"); h.runs[0]!.exited(); await sending;
   });
 });
 
@@ -184,6 +184,26 @@ describe("a steered message the agent never reported (Claude)", () => {
     await now;
     expect(h.drafts.queued(id)).toEqual([]);
     expect(h.drafts.returned(id)).toBeUndefined();
+  });
+  // A project removal's Stop meets an end held for an unreported steer: the interrupted it sends is dropped, and the
+  // held turn.done is written once the group is gone. The handoff that end would judge belongs to a root on its way out.
+  it("cancels a project turn's handoff whose held end is written after a project removal's Stop", async () => {
+    const h = fixture(); const id = await h.startProject();
+    const b = { path: ".doan/canvases/b.html", id: "b" };
+    expect(h.service.requestHandoff({ root: "/repo", handoff: h.open.mock.calls[0]![0].env.DOAN_HANDOFF!, path: b.path, text: "go on" })).toBeNull();
+    const { itemId } = h.service.queue(id, { text: "also this", anchors: [] });
+    h.service.sendNow(id, itemId).catch(() => {});
+    await tick();
+    h.listed.push(b);
+    h.runs[0]!.emit({ type: "turn.done" });
+    expect(h.types(id)).not.toContain("turn.done");
+    const removing = h.service.interruptProjectTurn(id, h.summary(id).projectTurnId!);
+    h.runs[0]!.exited();
+    await removing;
+    await tick();
+    expect(h.store.read(id).filter(e => e.type === "handoff.resolved")).toMatchObject([{ outcome: "cancelled" }]);
+    expect(h.store.list().some(m => m.canvas?.id === "b")).toBe(false);
+    expect(h.open).toHaveBeenCalledOnce();
   });
   it("finds a folded message by its attachment's source_uuid", async () => {
     const h = fixture(); const { id, messageId } = await steered(h);

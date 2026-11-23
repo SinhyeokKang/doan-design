@@ -113,16 +113,9 @@ const api = {
   // it again when the view's root changes.
   readTargetEntry: (): Promise<FolderEntry | null> => ipcRenderer.invoke("prototype:entry"),
   onTargetEntry: (listener: (entry: FolderEntry | null) => void): (() => void) => listen("prototype:entryChanged", listener),
-  // The project conversation drawing the playing canvas, by id only, then each change (null when none, after a play of
-  // another canvas and when the main window no longer says one draws it).
-  readDrawing: (): Promise<string | null> => ipcRenderer.invoke("prototype:drawing"),
-  onDrawing: (listener: (conversationId: string | null) => void): (() => void) =>
-    listen<{ conversationId: string | null }>("prototype:drawingChanged", value => listener(value.conversationId)),
-  // A project conversation promoted to the playing canvas's conversation, by id only, then each change (null after a
-  // play of another canvas).
-  readPromoted: (): Promise<string | null> => ipcRenderer.invoke("prototype:promoted"),
-  onPromoted: (listener: (conversationId: string | null) => void): (() => void) =>
-    listen<{ conversationId: string | null }>("prototype:promotedChanged", value => listener(value.conversationId)),
+  // Whether a conversation is still indexed under the playing root (a handoff card's Overview source); null when root is
+  // not the playing root or main cannot tell.
+  conversationListed: (request: { root: string; conversationId: string }): Promise<boolean | null> => ipcRenderer.invoke("prototype:conversationListed", request),
 
   // Provider readiness: the main preload's snapshot with every account's identity left out. Only snapshots newer than
   // the last delivered, so an initial read that loses a race with a change never replaces the newer state.

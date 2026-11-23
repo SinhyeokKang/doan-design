@@ -79,8 +79,8 @@ function setup(patch: Partial<DockedComposerProps> = {}, drafts: [string, Docked
     onPickerOpen: vi.fn(), onPickModel: vi.fn(), onPickEffort: vi.fn(), onPickFast: vi.fn(), onSettings: vi.fn(),
     presets: undefined, suggested: [], onPresetsOpen: vi.fn(), onPresetsRetry: vi.fn(),
     thumbnails: {}, onAttach: vi.fn(), onFiles: vi.fn(), onAttachmentRemoved: vi.fn(),
-    turn: "idle", busy: null, canvasGone: false, queued: [],
-    onSend: send, onQueue: queue, onStop: vi.fn(), onRemoveQueued: vi.fn(async () => true), onOpen: vi.fn(),
+    turn: "idle", canvasGone: false, queued: [],
+    onSend: send, onQueue: queue, onStop: vi.fn(), onRemoveQueued: vi.fn(async () => true),
     ...patch,
   };
   const draw = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return DockedComposer(props); };
@@ -193,7 +193,7 @@ test("focus on Stop moves to the field when Stop becomes a disabled Send; focus 
     render();
     const slot = { tagName: "BUTTON" }, other = { tagName: "BUTTON" }, focus = vi.fn();
     hooks.refs[2]!.current = { focus, element: () => null, composing: () => false };
-    hooks.refs[5]!.current = { querySelector: (selector: string) => selector === ".composer-send" ? slot : null };
+    hooks.refs[4]!.current = { querySelector: (selector: string) => selector === ".composer-send" ? slot : null };
     vi.stubGlobal("document", { activeElement: focused === "stop" ? slot : other, hasFocus: () => true });
     props.turn = "holding";
     render();
@@ -216,28 +216,6 @@ test("a queued message carries its files' names, sizes and kinds for the thread,
   expect(queue).toHaveBeenCalledWith({ text: "With the notes", anchors: [], attachments: [{ id: "f" }, { id: "d" }], files: [{ name: "notes.md", size: 4096, kind: "file", path: "/Users/ada/notes.md" }, { name: "references", kind: "directory", path: "/Users/ada/references" }] });
 });
 
-test("a late project_busy keeps the draft and shows Home's busy sentence until the person edits", async () => {
-  const { store, render } = setup({ onSend: async () => ({ error: "project_busy" }) }, [["conversation:a", draft("Draw it")]]);
-  (button(render(), "Send").onClick as () => void)();
-  await flush();
-  expect(draftText(store.current.get("conversation:a"))).toBe("Draw it");
-  expect(render().some(item => item.children === "Another conversation is still running in doan-design.")).toBe(true);
-  expect(button(render(), "Send").disabled).toBe(true);
-  type(render(), "Draw it again");
-  expect(render().some(item => item.children === "Another conversation is still running in doan-design.")).toBe(false);
-});
-
-test("a busy refusal gives way once the host has reported that conversation and it ends", async () => {
-  const { props, render } = setup({ onSend: async () => ({ error: "project_busy" }) }, [["conversation:a", draft("Draw it")]]);
-  (button(render(), "Send").onClick as () => void)();
-  await flush();
-  expect(button(render(), "Send").disabled).toBe(true);
-  props.busy = { kind: "project", open: "c9" };
-  expect(render().some(item => item["aria-label"] === "Open the running conversation")).toBe(true);
-  props.busy = null;
-  expect(button(render(), "Send").disabled).toBe(false);
-});
-
 test("an accepted send clears the notice an earlier refusal left", async () => {
   let reply: DockedOutcome = { error: "rate_limited" };
   const { props, render } = setup({ onSend: async () => reply }, [["conversation:a", draft("Draw it")]]);
@@ -252,12 +230,15 @@ test("an accepted send clears the notice an earlier refusal left", async () => {
   expect(render().some(item => item.children === "Answer or stop the request above.")).toBe(true);
 });
 
+const BLOCKED = "This canvas isn’t listed in doan-design, so its conversation can’t continue.";
+const refuseBlocked = () => ({ kind: "blocked" as const, text: BLOCKED });
 test("a refusal belongs to the draft it was sent from: another conversation does not show it", async () => {
-  const { props, render } = setup({ onSend: async () => ({ error: "project_busy" }) }, [["conversation:a", draft("Draw it")], ["conversation:b", draft("Other")]]);
+  const { props, render } = setup({ refuse: refuseBlocked, onSend: async () => ({ error: "no_agent" }) }, [["conversation:a", draft("Draw it")], ["conversation:b", draft("Other")]]);
   (button(render(), "Send").onClick as () => void)();
   await flush();
+  expect(button(render(), "Send").disabled).toBe(true);
   props.mode = B;
-  expect(render().some(item => item.children === "Another conversation is still running in doan-design.")).toBe(false);
+  expect(render().some(item => item.children === BLOCKED)).toBe(false);
   expect(button(render(), "Send").disabled).toBe(false);
 });
 
@@ -313,7 +294,7 @@ test("sends from two conversations stay pending independently, and each reply se
 });
 
 test("chips the host adds turn a capsule into a box, and a draft the host changes drops its refusal", async () => {
-  const { props, store, draw, render } = setup({ onSend: async () => ({ error: "project_busy" }) }, [["conversation:a", draft("Draw it")]]);
+  const { props, store, draw, render } = setup({ refuse: refuseBlocked, onSend: async () => ({ error: "no_agent" }) }, [["conversation:a", draft("Draw it")]]);
   (button(render(), "Send").onClick as () => void)();
   await flush();
   expect(button(render(), "Send").disabled).toBe(true);
@@ -333,12 +314,12 @@ test("a live blocking reason and its action show over an old error notice, and t
   let tree = render();
   expect(tree.some(item => item.children === "Claude Code reached a usage limit. Send again after it resets.")).toBe(true);
   expect(field(tree)["aria-describedby"]).toBeUndefined();
-  props.busy = { kind: "project", open: "other" };
+  props.auth = { revision: 2, providers: [{ ...status("claude"), account: null }] };
   tree = render();
   const ids = String(field(tree)["aria-describedby"]).split(" ");
   expect(ids.every(id => tree.some(item => item.id === id))).toBe(true);
-  expect(tree.some(item => item["aria-label"] === "Open the running conversation")).toBe(true);
-  props.busy = null; props.turn = "waiting";
+  expect(tree.some(item => item.children === "Open Agents settings")).toBe(true);
+  props.auth = AUTH; props.turn = "waiting";
   tree = render();
   expect(tree.some(item => item.children === "Answer or stop the request above.")).toBe(true);
 });
@@ -499,8 +480,6 @@ test("a dropped or pasted file's refusal lands on the draft it was added to, eve
 
 // U39: the reason line sits on the white column, not in a notice, so its buttons are subtle (Home's Open is).
 test("the reason line's buttons are subtle", async () => {
-  const busy = setup({ busy: { kind: "project", open: "other" } }, [["conversation:a", draft("Draw it")]]);
-  expect(button(busy.render(), "Open the running conversation")["data-ui-variant"]).toBe("subtle");
   const refuse = () => ({ kind: "blocked" as const, text: "No agent is ready to run.", action: { label: "Sign in to an agent", target: { section: "agents" as const } } });
   // Each composer below is a fresh one: the harness's hook slots are shared.
   hooks.states = []; hooks.refs = [];
@@ -846,8 +825,8 @@ test("Home Control+Enter still sends through its actual ComposerField", async ()
   const start = vi.fn(async () => ({ ok: true as const }));
   const tree = elements(HeroComposer({
     entries: [{ kind: "list", path: "/project", servedRev: 0, canvases: [] }], homeDirectory: null,
-    shellProjects: {}, loaded: null, select: null, prefs: {}, memory, running: new Map(), restore: null,
-    greeting: "Start", start, openConversation: vi.fn(), addProjects: vi.fn(), openSettings: vi.fn(),
+    shellProjects: {}, loaded: null, select: null, prefs: {}, memory, working: new Set(), restore: null,
+    greeting: "Start", start, addProjects: vi.fn(), openSettings: vi.fn(),
   }));
   pressControl(tree); await flush();
   expect(start).toHaveBeenCalledWith(expect.objectContaining({ text: "Draw a page" }), expect.anything());

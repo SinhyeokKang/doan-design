@@ -63,8 +63,6 @@ const mainOnly = new Set([
   "buddy-intro:read", "buddy-intro:close",
   // Play prototype from the toolbar and the size bubble; prototype:changed is an event main sends the prototype window.
   PROTOTYPE_CHANNELS.play,
-  // The prototype window's playing target, and the project conversation the main window says draws it.
-  PROTOTYPE_CHANNELS.readTarget, PROTOTYPE_CHANNELS.setDrawing,
   // The frame the prototype window plays, for the toolbar's frame drawer.
   PROTOTYPE_CHANNELS.playing,
 ]);

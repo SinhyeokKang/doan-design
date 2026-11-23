@@ -51,7 +51,7 @@ function attachment(name: string, extra: Partial<AttachmentDraft> = {}): Attachm
 }
 const base = (over: Partial<SendInput> = {}): SendInput => ({
   skills: [], projects: 1, root: list("/r/doan-design"), projectName: "doan-design", auth: snapshot(dto("claude")), provider: "claude",
-  text: "Draw a pricing page.", preset: null, attachments: [], running: null, sending: false, ...over,
+  text: "Draw a pricing page.", preset: null, attachments: [], sending: false, ...over,
 });
 
 // composeRequest
@@ -176,18 +176,6 @@ test("attachments being checked, and one that moved, block Send", () => {
     .toEqual({ enabled: false, reason: { kind: "checking", text: "Checking attachments" } });
   expect(sendAvailability(base({ attachments: [attachment("brand-guidelines.pdf", { status: "missing" })] })))
     .toEqual({ enabled: false, reason: { kind: "attachmentMissing", text: "brand-guidelines.pdf was moved or deleted. Remove it, or attach it again." } });
-});
-
-test("a second Home send to a root with a running Home conversation says so and offers Open", () => {
-  expect(sendAvailability(base({ running: { conversationId: "conv-1" } })))
-    .toEqual({ enabled: false, reason: { kind: "running", text: "Another conversation is still running in doan-design.", open: "conv-1" } });
-});
-
-// The draft's home-toast and home-remove-running frames show an empty composer, with suggestions and
-// no reason line, while a Home conversation runs in the chosen project; the line appears once something is typed.
-test("an empty composer has no reason line even while a Home conversation runs in its project", () => {
-  expect(sendAvailability(base({ text: "", running: { conversationId: "conv-1" } }))).toEqual({ enabled: false, reason: null });
-  expect(sendAvailability(base({ text: "", preset: PRESETS[0]!, running: { conversationId: "conv-1" } })).reason?.kind).toBe("running");
 });
 
 test("while sending, Send is disabled without a reason line", () => {
