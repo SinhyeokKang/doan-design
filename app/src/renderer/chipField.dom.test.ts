@@ -178,6 +178,8 @@ const probe = window.probe = {
   insertChip: anchor => field.insertChip(anchor),
   focusEnd() { Probe.focusFieldEnd(el); },
   fieldFocusEnd() { field.focus(true); },
+  // App focuses a composer by selector with the element's own focus().
+  elementFocus() { el.focus(); },
   scrollTop: () => el.scrollTop,
   setMax(px) { el.style.maxHeight = px + "px"; },
   setWidth(px) { el.style.width = px + "px"; },
@@ -716,7 +718,7 @@ test("Shift+Enter at the field's maximum height scrolls the new line into view, 
 
 test("a long draft focused at its end by code shows its caret at the field's maximum height", { timeout: 60_000 }, async () => {
   const draft = Array.from({ length: 14 }, (_, i) => `- line ${i + 1}`).join("\n");
-  for (const how of ["focusEnd", "fieldFocusEnd"]) {
+  for (const how of ["focusEnd", "fieldFocusEnd", "elementFocus"]) {
     await open(draft);
     await call("setMax", 192);
     await call("blur");
