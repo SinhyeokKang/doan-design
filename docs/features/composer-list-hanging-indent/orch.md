@@ -13,15 +13,16 @@
 - 실제 앱 GUI probe(`/runtime-test`, `/design-sync`) 전에 리드에게 알린다(링크 2 probe와 겹치지 않게).
 - 배치 하나로 진행: 변경이 입력란 하나에 모여 있어 나눌 이유가 없다(conductor 판단 — tasks.md 머리).
 - 문서 승격(tasks 7)과 최종 게이트(tasks 8)는 conductor가 통합 브랜치에서 한다(conductor 판단 — orchestrate §4 docs freshness 커밋). `/design-sync`가 고치는 `docs/design/canvas-conversation.md`와 BACKLOG 커서 결함 삭제, 커서 결함 postmortem은 워커 배치에 들어간다.
-- 본문 시작에서 ↓ 뒤 ↑ x가 9.3px 다른 PoC 관찰(design.md 'PoC 결과')은 워커가 구현 때 원인을 확인하고 지금 입력란과 같게 맞춘다(conductor 판단 — spec '편집' 화살표 기준).
+- 본문 시작에서 ↓ 뒤 ↑ x가 9.3px 다른 PoC 관찰(design.md 'PoC 결과')은 옮기지 않는다. 예전 입력란은 inline-block 마커 글자 끝(x 30.7)을 ↓의 목표 x로 삼았고, 새 입력란은 본문 시작 x 32에서 가장 가까운 경계로 간다(conductor 판단 — spec '편집'의 "가로 위치를 지킨다"에 더 가깝다).
+- 리뷰 R의 사람 결정 항목(걸친 선택 + ⌘C·Shift+→·Esc를 tasks 5에 넣을지)은 tasks 5가 리드 몫이라 PR 본문에 적어 리드에게 넘긴다. 입력기 없는 경우는 DOM 테스트로 고정한다(conductor 판단).
 
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| A 구현 | tasks 3, 4, 커서 결함 | `app/src/renderer/chipField.ts`, 새 입력란 모듈, `styles.css`, `app/package.json`·`package-lock.json`, `chipField*.test.ts`, 커서 결함 BACKLOG 줄, postmortem | 없음 | Opus high — 편집기 전체를 다시 쓰고 IME·실행 취소·클립보드 회귀 위험이 크다 | `npm --prefix app test`·`typecheck`·`lint`·`build`, `/runtime-test` 짧은 probe | 대기 |
-| R 리뷰 | A의 `/code-review` | 읽기만 | A | Opus high — 큰 diff와 편집 동작 판단 | 보고서 | 대기 |
-| A 수정 | R의 🔴/🟡 | A와 같음 | R | A 워커 그대로 | A와 같음 | 대기 |
+| A 구현 | tasks 3, 4, 커서 결함 | `app/src/renderer/chipField.ts`, 새 입력란 모듈, `styles.css`, `app/package.json`·`package-lock.json`, `chipField*.test.ts`, 커서 결함 BACKLOG 줄, postmortem | 없음 | Opus high — 편집기 전체를 다시 쓰고 IME·실행 취소·클립보드 회귀 위험이 크다 | `npm --prefix app test`·`typecheck`·`lint`·`build`, `/runtime-test` 짧은 probe | 완료 `4c699ded5` |
+| R 리뷰 | A의 `/code-review` | 읽기만 | A | Opus high — 큰 diff와 편집 동작 판단 | 보고서 | 완료(🔴0 🟡2 ⚪6) |
+| A 수정 | R의 🔴/🟡 | A와 같음 | R | A 워커 그대로 | A와 같음 | 진행 중(1라운드) |
 | A design-sync | tasks 6 | A + `docs/design/canvas-conversation.md` | A 수정 | A 워커 그대로 — 구현 맥락이 필요 | `/design-sync` 보고서 차이 0 또는 문서화 | 대기 |
 | C 문서 | tasks 7 | PRODUCT, ARCHITECTURE, BACKLOG, `docs/design/canvas-conversation.md` 나머지, feature 디렉터리 삭제 | A design-sync 통합 | conductor | tasks 7 grep 검증 | 대기 |
 | C 게이트 | tasks 8 | — | C 문서 | conductor | `node .agents/skills/verify/scripts/verify.mjs` PASS | 대기 |
@@ -32,3 +33,5 @@
 ## 리뷰·검증 기록
 
 - 2026-11-23 A 1차(`ctx_cdc3bc4cd333`): 사용량 한도로 중단됐다. 커밋 없이 워크트리 `composer-indent-a`에 미커밋 작업이 남았다(ProseMirror 재작성, `fieldDoc.ts`·`fieldDecorations.ts`, DOM 테스트 28/32 통과). 남은 일과 실패 테스트 4건은 그 워크트리의 `.scratch/handoff-A.md`에 있다. PoC의 9.3px ↓/↑ 차이는 예전 inline-block 마커에서 온 것이라 옮기지 않았다고 워커가 보고했다(검토 필요).
+- 2026-11-23 A 2차(`ctx_42c590d70650`): 완료. 커밋 `f0e12f966..4c699ded5`, app test·typecheck·lint·build·verify.mjs 통과, 실제 앱 probe 57/57 두 번(리드 GUI 차례 조율). 미확인: 실제 앱 스킬 강조(격리 프로필에 준비된 에이전트 없음), 실제 앱 칩 삽입, 실제 한글 IME·VoiceOver(tasks 5).
+- 2026-11-23 리뷰 R(`ctx_1f7344ab5bc9`, `.scratch/review-R.md`): 🔴0 🟡2 ⚪6. 🟡1 `/` 목록에서 Shift+Enter가 host보다 먼저 줄을 바꿔 실행 취소 단계가 하나 더 생김. 🟡2 커서 결함 테스트가 예전 코드에서도 통과(이미 포커스된 경우 미고정), postmortem 원인 문장 부정확. ⚪1·2·4·5와 걸친 선택 키 테스트를 함께 수정 라운드 1로 보냈다(`ctx_c4342391d442`).
