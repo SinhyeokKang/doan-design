@@ -124,6 +124,7 @@ describe("pickOverviewConversation", () => {
       ["a queued message", { queued: 1 }],
       ["messages waiting out a usage limit", { queued: 1, scheduledAt: ago(-HOUR) }],
       ["an ending not seen yet", { unseen: true }],
+      ["a returned draft waiting in it", { returnedDraft: true }],
     ])("%s still reopens it", (_, patch) => {
       const candidate = summary({ conversationId: "old", ...patch });
       expect(pickOverviewConversation([candidate, newer], "old", null, none)).toEqual({ kind: "conversation", conversationId: "old" });
