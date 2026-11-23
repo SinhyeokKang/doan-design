@@ -379,14 +379,22 @@ export class ChipField {
     // prevent it), the press is answered and the deferred run must not act on it too.
     if (this.press && event.key === (this.press.kind === "break" ? "Enter" : "Tab")) this.press = null;
     if (event.metaKey && !event.ctrlKey && !event.altKey && event.key.toLowerCase() === "z" && this.readOnly()) { event.preventDefault(); return true; }
-    // Enter is the host's (send) and Esc too; ProseMirror would prevent both. An Enter the host leaves alone arrives as
-    // an insertParagraph and breaks the line.
-    return (event.key === "Enter" && !event.shiftKey) || event.key === "Escape";
+    // Enter and Shift+Enter go past ProseMirror, which would prevent them, to the host's onKey (send, or the \`/\` list's
+    // pick on either), and Esc too. A key the host leaves alone arrives as an insertParagraph or insertLineBreak and
+    // breaks the line (onBeforeInput). Only then: a Shift+Enter that ended a composition finds the syllable read.
+    if (event.key === "Enter" && !event.metaKey && !event.ctrlKey && !event.altKey) { this.readDom(); return true; }
+    return event.key === "Escape";
+  }
+
+  // ProseMirror reads DOM changes from a MutationObserver; a composition that ended in this same task (macOS sends the
+  // ending key right after compositionend) is read only in a later microtask. Its own keydown reads it first, but the
+  // keys above skip that handler. The observer is not public API; the field pins prosemirror-view's exact version.
+  private readDom(): void {
+    (this.view as unknown as { domObserver: { forceFlush(always: boolean): void } }).domObserver.forceFlush(true);
   }
 
   private onKey(event: KeyboardEvent): boolean {
     const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
-    if (event.key === "Enter" && event.shiftKey && plain) { this.lineBreak(); return true; }
     if (event.metaKey && !event.ctrlKey && !event.altKey && event.key.toLowerCase() === "z") { this.undoRedo(!event.shiftKey); return true; }
     if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && plain) return this.lineStartChip(event.key === "ArrowLeft", event.shiftKey) || this.prefixArrow(event.key === "ArrowLeft", event.shiftKey);
     if (event.key === "ArrowRight" && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey) return this.nextLineStop();

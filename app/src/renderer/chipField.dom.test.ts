@@ -801,8 +801,7 @@ async function composeThenPress(start: string, caretAt: number, key: "Enter" | "
 }
 
 test("Shift+Enter ending a composition continues the list once, after the syllable, in the measured macOS order", { timeout: 60_000 }, async () => {
-  // The field takes the resent Shift+Enter at its keydown, so no insertLineBreak follows it.
-  expect(await composeThenPress("- a", 3, "Enter", true)).toEqual([false, true]);
+  expect(await composeThenPress("- a", 3, "Enter", true)).toEqual([false, false]);
   expect(await text()).toBe("- a나\n- ");
   expect(await consistent()).toBe(true);
   await press("Meta+z");
@@ -848,6 +847,20 @@ test("a resent key the host takes answers the press: no line break or indent com
   // A host that takes the resent Tab itself, as the next-message suggestion takes Tab on an empty field.
   expect(await composeThenPress("- a\n- b", 7, "Tab", false, true, { takes: "Tab" })).toEqual([true, true]);
   expect(await text()).toBe("- a\n- b나Next");
+});
+
+test("a Shift+Enter the host takes changes nothing first: the \`/\` list's pick is one undo step", { timeout: 60_000 }, async () => {
+  // ComposerField's onKey sees every key first: Home's \`/\` list picks its row on Shift+Enter (slashKey ignores Shift)
+  // and prevents the key, so no line break may come before the pick.
+  await open("/");
+  await call("setHost", { slash: true });
+  await call("place", 1);
+  const changes = await call<number>("changes");
+  await press("Shift+Enter");
+  expect(await text()).toBe("/demo ");
+  expect(await call("changes")).toBe(changes + 1);
+  await press("Meta+z");
+  expect(await text()).toBe("/");
 });
 
 test("without a resent Tab, one that cannot move the item moves focus from the deferred run", { timeout: 60_000 }, async () => {
