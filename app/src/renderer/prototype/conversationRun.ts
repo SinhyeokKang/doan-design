@@ -77,10 +77,13 @@ export class PrototypeConversationRun {
   private rememberedId: string | null | undefined = undefined;
   private rememberedTurn = 0;
   // Whether the source of a handoff card from the Overview is still indexed under the playing root, by conversation id,
-  // as main answered (null: unknown, or not answered yet). This window lists only the canvas's conversations, so it asks
-  // main; a list change of the playing root asks again, and a switch of root forgets every answer. The turn drops an
-  // answer asked before either.
-  private sourceListed = new Map<string, boolean | null>();
+  // as main answered. This window lists only the canvas's conversations, so it asks main; a list change of the playing
+  // root asks again, and a switch of root forgets every answer. An unknown answer (null: main played another root
+  // meanwhile, or could not read its index) is not kept, so the next render asks again. sourceAsks: the asks in flight
+  // with the turn they were asked in, one per id and turn. The turn drops an answer asked before a list change or a
+  // switch of root.
+  private sourceListed = new Map<string, boolean>();
+  private sourceAsks = new Map<string, number>();
   private sourceTurn = 0;
 
   constructor(private readonly calls: PrototypeConversationCalls, private readonly host: PrototypeRunHost) {
@@ -136,7 +139,7 @@ export class PrototypeConversationRun {
     this.views++;
     if (view === null) { this.run.show(null); this.changed(); return; }
     // The push covers only folder list changes: another root is read here.
-    if (before?.root !== view.root) { this.readEntry(); this.sourceTurn++; this.sourceListed.clear(); }
+    if (before?.root !== view.root) { this.readEntry(); this.sourceTurn++; this.sourceListed.clear(); this.sourceAsks.clear(); }
     const target = this.target()!;
     const key = canvasKey(target);
     if (key !== this.key) {
@@ -306,22 +309,26 @@ export class PrototypeConversationRun {
   conversationListed(conversationId: string): boolean {
     const root = this.view?.root;
     if (root === undefined) return true;
-    if (!this.sourceListed.has(conversationId)) this.askSource(root, conversationId);
+    // Called while the card renders: the ask starts at most once per id and turn, and an answer that changes what the
+    // card shows draws it again. An unknown answer changes nothing, so asking again on the next render cannot loop.
+    if (!this.sourceListed.has(conversationId) && this.sourceAsks.get(conversationId) !== this.sourceTurn) this.askSource(root, conversationId);
     return this.sourceListed.get(conversationId) !== false;
   }
   private askSource(root: string, conversationId: string): void {
-    if (!this.sourceListed.has(conversationId)) this.sourceListed.set(conversationId, null);
     const turn = this.sourceTurn;
+    this.sourceAsks.set(conversationId, turn);
     void this.calls.conversationListed({ root, conversationId }).catch((error: unknown) => { console.error(error); return null; }).then(answer => {
+      if (this.sourceAsks.get(conversationId) === turn) this.sourceAsks.delete(conversationId);
       if (turn !== this.sourceTurn || this.view?.root !== root) return;
-      this.sourceListed.set(conversationId, answer);
-      this.host.changed();
+      const had = this.sourceListed.get(conversationId);
+      if (answer === null) this.sourceListed.delete(conversationId); else this.sourceListed.set(conversationId, answer);
+      if (had !== (answer ?? undefined)) this.host.changed();
     });
   }
   // An earlier answer stays until the new one lands, so the card does not flicker.
   private askSourcesAgain(root: string): void {
     this.sourceTurn++;
-    for (const conversationId of this.sourceListed.keys()) this.askSource(root, conversationId);
+    for (const conversationId of new Set([...this.sourceListed.keys(), ...this.sourceAsks.keys()])) this.askSource(root, conversationId);
   }
 
   // Main answers for the canvas it plays; the answer applies only while this window still holds the canvas it asked for.

@@ -214,12 +214,11 @@ export function validHistoryVisit(entries: readonly FolderEntry[], visit: Visit)
 }
 
 const HEADER_SHOW_INSPECTOR = '.doan-canvas-head .doan-panel-show[data-panel-target="inspector"]';
-
-// paint: the renderer entry's first-paint buddy and how to apply another; without it (tests) nothing is painted.
 // The Overview's Conversations list and its open header menu, asked by role and name: the canvas page's panel shares
 // their classes, and a class rename would silently turn the check off.
 const OVERVIEW_LISTS = '[role="region"][aria-label="Conversations"], [role="menu"][aria-label="Project conversations"]';
 
+// paint: the renderer entry's first-paint buddy and how to apply another; without it (tests) nothing is painted.
 export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const [homeDirectory, setHomeDirectory] = useState<string | null>(null);
   const [screen, setScreen] = useState<"home" | "workspace" | "addProjects" | "settings" | "projectSettings">("home");

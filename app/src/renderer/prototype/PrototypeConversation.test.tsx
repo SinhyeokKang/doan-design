@@ -691,6 +691,20 @@ describe("the source of a handoff card from the Overview", () => {
     await answerListed("c0", null);
     expect(run.conversationListed("c0")).toBe(true);
   });
+  // Main answers null while it plays another root or cannot read its index: the next render asks again rather than
+  // keeping a deleted source's Open until the next list change.
+  test("a null answer is not kept: the next render asks again and takes a later false", async () => {
+    await playing();
+    run.conversationListed("c0");
+    await answerListed("c0", null);
+    expect(run.conversationListed("c0")).toBe(true);
+    expect(calls.conversationListed).toHaveBeenCalledTimes(2);
+    expect(run.conversationListed("c0")).toBe(true);
+    expect(calls.conversationListed).toHaveBeenCalledTimes(2);
+    await answerListed("c0", false);
+    expect(run.conversationListed("c0")).toBe(false);
+    expect(calls.conversationListed).toHaveBeenCalledTimes(2);
+  });
   test("a list change of the playing root asks again; another root's does not", async () => {
     await playing();
     run.conversationListed("c0");
