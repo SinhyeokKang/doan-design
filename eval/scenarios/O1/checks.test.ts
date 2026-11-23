@@ -43,7 +43,7 @@ test("attempts the CLI refused are read from tool calls, not from quoted text", 
     [doan("sign-in --session s_eval --provider claude --stop --request x"), "no_stop_or_paste"],
     [doan("sign-in paste --session s_eval --provider antigravity --request x"), "no_stop_or_paste"],
     [`'/Applications/My Apps/doan.app/Contents/Resources/bin/doan' onboarding check --session s_eval --provider copilot --request k0 --json`, "no_copilot_check"],
-    // The CLI reads flags before the command as well.
+    // The CLI refuses a flag before the command, but the attempt still counts.
     ["doan --provider copilot onboarding check --session s_eval --request k0 --json", "no_copilot_check"],
     ["doan --session s_eval -path repo onboarding project inspect --request i0", "absolute_paths_only"],
   ];

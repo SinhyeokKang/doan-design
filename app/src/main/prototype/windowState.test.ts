@@ -65,6 +65,22 @@ describe("first play", () => {
     expect(differs.effects).toEqual([{ kind: "fit", size: { width: 400, height: 700 } }]);
     expect(prototypeView(differs.state, w.resolve)?.run?.markWidth).toBe(400);
   });
+
+  test("a later frame's ready size never refits, whatever its listed mark said", () => {
+    const w = world();
+    const opened = ready(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state).state;
+    const picked = ok(choose(opened, "tablet", w.resolve)).state;
+    const shown = ready(picked, "1000x700");
+    expect(shown.effects).toEqual([]);
+    expect(prototypeView(shown.state, w.resolve)?.run).toMatchObject({ markWidth: 1000, markHeight: 700 });
+  });
+
+  test("leaving the opening run before it answers drops its refit", () => {
+    const w = world();
+    const loading = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
+    const moved = ok(play(loading, { target: C, size: card }, w.resolve)).state;
+    expect(ready(moved, "500x500", [{ id: "card", size: "500x500", number: 1 }]).effects).toEqual([]);
+  });
 });
 
 describe("plays on an open window", () => {
@@ -81,17 +97,17 @@ describe("plays on an open window", () => {
     expect(step.state).toBe(state);
   });
 
-  test("another target fits to its mark, starts a new run, activates and is recorded", () => {
+  test("another target keeps the window's size, starts a new run, activates and is recorded", () => {
     const { w, state } = opened();
     const step = ok(play(state, { target: C, size: card }, w.resolve));
-    expect(step.effects).toEqual([{ kind: "fit", size: card }, { kind: "activate" }, { kind: "load", gen: 2, url: "http://h/t/tok/k1/other.html", frame: "card" }]);
+    expect(step.effects).toEqual([{ kind: "activate" }, { kind: "load", gen: 2, url: "http://h/t/tok/k1/other.html", frame: "card" }]);
     expect(prototypeView(step.state, w.resolve)).toMatchObject({ gen: 2, phase: "loading", frame: "card", frames: [], canGoBack: true, canGoForward: false });
   });
 
   test("the same canvas and frame in another worktree is another target", () => {
     const { w, state } = opened();
     const step = ok(play(state, { target: A_WT, size: phone }, w.resolve));
-    expect(step.effects.map(e => e.kind)).toEqual(["fit", "activate", "load"]);
+    expect(step.effects.map(e => e.kind)).toEqual(["activate", "load"]);
   });
 
   test("leaving a run that never answered kills its renderer", () => {
@@ -100,10 +116,10 @@ describe("plays on an open window", () => {
     expect(ok(play(loading, { target: C, size: card }, w.resolve)).effects).toContainEqual({ kind: "kill", gen: 1 });
   });
 
-  test("the drawer plays a listed frame of the same canvas at its listed size", () => {
+  test("the drawer plays a listed frame of the same canvas in the window as it is", () => {
     const { w, state } = opened();
     const step = ok(choose(state, "tablet", w.resolve));
-    expect(step.effects).toEqual([{ kind: "fit", size: tablet }, { kind: "activate" }, { kind: "load", gen: 2, url: "http://h/t/tok/k1/proto.html", frame: "tablet" }]);
+    expect(step.effects).toEqual([{ kind: "activate" }, { kind: "load", gen: 2, url: "http://h/t/tok/k1/proto.html", frame: "tablet" }]);
     expect(prototypeView(step.state, w.resolve)).toMatchObject({ frame: "tablet", title: "Tablet", frames: listed, canGoBack: true });
   });
 
@@ -374,10 +390,10 @@ describe("Back and Forward", () => {
     return { w, state: s };
   }
 
-  test("Back plays the previous entry at its remembered size without recording", () => {
+  test("Back plays the previous entry without a refit or recording", () => {
     const { w, state } = three();
     const step = ok(back(state, w.resolve));
-    expect(step.effects).toEqual([{ kind: "fit", size: tablet }, { kind: "activate" }, { kind: "load", gen: 4, url: "http://h/t/tok/k1/proto.html", frame: "tablet" }]);
+    expect(step.effects).toEqual([{ kind: "activate" }, { kind: "load", gen: 4, url: "http://h/t/tok/k1/proto.html", frame: "tablet" }]);
     expect(step.state.history.entries).toHaveLength(3);
     expect(prototypeView(step.state, w.resolve)).toMatchObject({ frame: "tablet", canGoBack: true, canGoForward: true });
   });
@@ -432,11 +448,11 @@ describe("link moves", () => {
     return { w, state };
   }
 
-  test("another listed frame fits to its listed mark, starts a new run and is recorded, without activating", () => {
+  test("another listed frame keeps the window's size, starts a new run and is recorded, without activating", () => {
     const { w, state } = opened();
     const step = ok(goto(state, { gen: state.gen, goto: "tablet" }, w.resolve));
     // No activate: a canvas's timer click must not show a hidden app or take focus from another app.
-    expect(step.effects).toEqual([{ kind: "fit", size: tablet }, { kind: "load", gen: 2, url: "http://h/t/tok/k1/proto.html", frame: "tablet" }]);
+    expect(step.effects).toEqual([{ kind: "load", gen: 2, url: "http://h/t/tok/k1/proto.html", frame: "tablet" }]);
     expect(step.state.history.entries.map(entry => entry.target)).toEqual([A, B]);
     expect(prototypeView(step.state, w.resolve)).toMatchObject({ gen: 2, phase: "loading", frame: "tablet", title: "Tablet", frames: listed, canGoBack: true, canGoForward: false });
   });

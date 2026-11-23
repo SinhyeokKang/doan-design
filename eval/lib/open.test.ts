@@ -22,7 +22,7 @@ test("v4 validators decide all shared schema fixtures", () => {
 test("openCalls reads the canvas and frame whatever the flag spelling, and only for doan open", () => {
   const calls = openCalls({ calls: shell(
     `doan open ${path} --frame profile-form --json`,
-    `/tmp/bin/doan --repo /r open ${path} --frame=profile-form`,
+    `/tmp/bin/doan open --repo /r ${path} --frame=profile-form`,
     `doan open --frame profile-form ${path}`,
     `doan open ${path}`,
     "echo 'doan open x.html'",

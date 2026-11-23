@@ -710,3 +710,53 @@ describe("a sent list comes back as typed", () => {
     await vi.waitFor(() => expect(typed(h.store.drafts.get(`root:${ROOT}`)?.segments)).toBe("  - Fix ◆\n  - shorter\n1. then\n1. footer"));
   });
 });
+
+// A streamed reply sends a delta every few tens of milliseconds. Only the hosts that draw that conversation redraw for
+// one: the store's host (App, the prototype window) is left alone, while the runs' own listeners still hear it.
+describe("a streamed delta", () => {
+  test("merges into the thread and tells the thread's subscribers and the store listeners, without the host's changed", async () => {
+    const h = harness();
+    h.store.track(A);
+    await flush();
+    const thread = vi.fn(), listener = vi.fn();
+    h.store.subscribeThread(A, thread);
+    h.store.subscribe(listener);
+    h.host.changed.mockClear();
+    const before = h.store.thread(A);
+    h.store.event(event({ type: "message.delta", messageId: "m1", text: "Hel" }));
+    expect(h.store.thread(A)).not.toBe(before);
+    expect(h.store.thread(A)!.events.at(-1)).toMatchObject({ type: "message.delta", text: "Hel" });
+    expect(thread).toHaveBeenCalledOnce();
+    expect(listener).toHaveBeenCalledWith(A, "event");
+    expect(h.host.changed).not.toHaveBeenCalled();
+  });
+
+  test("any other live event still calls the host's changed and tells the thread's subscribers", async () => {
+    const h = harness();
+    h.store.track(A);
+    await flush();
+    const thread = vi.fn();
+    h.store.subscribeThread(A, thread);
+    h.host.changed.mockClear();
+    h.store.event(event({ type: "message.done", messageId: "m1", text: "Hello" }));
+    expect(thread).toHaveBeenCalledOnce();
+    expect(h.host.changed).toHaveBeenCalledOnce();
+  });
+
+  test("a thread subscription hears only its own conversation, and nothing once it is dropped", async () => {
+    const h = harness();
+    const B = "bbbbbbbb-0000-4000-8000-000000000002";
+    h.store.track(A);
+    h.store.track(B);
+    await flush();
+    const onA = vi.fn(), onB = vi.fn();
+    const stopA = h.store.subscribeThread(A, onA);
+    h.store.subscribeThread(B, onB);
+    h.store.event(event({ type: "message.delta", messageId: "m1", text: "Hel" }));
+    expect(onA).toHaveBeenCalledOnce();
+    expect(onB).not.toHaveBeenCalled();
+    stopA();
+    h.store.event(event({ type: "message.delta", messageId: "m1", text: "lo" }));
+    expect(onA).toHaveBeenCalledOnce();
+  });
+});

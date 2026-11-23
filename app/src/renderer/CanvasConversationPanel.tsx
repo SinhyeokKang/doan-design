@@ -246,6 +246,16 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const unavailable = props.blocked ?? (preview ? DRAWING_PREVIEW_REASON : null);
   const summary = conversationId ? listed?.find(c => c.conversationId === conversationId) : undefined;
   const thread = conversationId ? store.thread(conversationId) : null;
+  // A streamed delta does not redraw the host (ConversationStore.event), so the thread is redrawn from its own
+  // subscription; an event merged between this render and the subscription is drawn as it starts.
+  const [, redrawThread] = useState(0);
+  const drawnThread = useRef(thread); drawnThread.current = thread;
+  useEffect(() => {
+    if (!conversationId) return;
+    const stop = store.subscribeThread(conversationId, () => redrawThread(n => n + 1));
+    if (store.thread(conversationId) !== drawnThread.current) redrawThread(n => n + 1);
+    return stop;
+  }, [store, conversationId]);
   const provider: Provider | null = conversationId ? summary?.provider ?? store.providerOf(conversationId) : null;
   // The terminal session still works in a terminal: its choice waits and a new conversation is the mode. A chosen
   // resume becomes new for good (the layout effect below), so it never comes back under a draft when the session ends.

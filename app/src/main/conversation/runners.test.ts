@@ -522,7 +522,8 @@ it("forwards the modes Claude reports in its own ids, init only on a turn sent w
 
 const CODEX_OWNER = { kind: "doan" as const, provider: "codex" as const, connectionId: "c1", accountId: "a1", workspaceId: null, profile: "codex" };
 // A Codex app-server that records every line. FAKE_PROBE picks the ephemeral thread/start reply: "" the trusted
-// project's values, "error" an error, "bare" no values, "exit" a server exit; FAKE_CONFIG "error" fails config/read.
+// project's values, "error" an error, "bare" no values, "exit" a server exit; FAKE_CONFIG "error" fails config/read,
+// "plugins" reports plugins and no MCP servers.
 function modeCodex(root: string): string {
   const command = join(root, "codex");
   writeFileSync(command, `#!/usr/bin/env node
@@ -541,12 +542,19 @@ readline.createInterface({input:process.stdin}).on('line', line => {
   if(probe==='error') send({id:r.id,error:{code:-32600,message:'ephemeral threads are not supported'}});
   else send({id:r.id,result:probe==='bare'?{thread:{id:'probe'}}:{thread:{id:'probe'},approvalPolicy:'on-request',sandbox:{type:'workspaceWrite',writableRoots:[],networkAccess:false}}});
  }
- if(r.method==='config/read') send(config==='error'?{id:r.id,error:{code:-32601,message:'Method not found'}}:{id:r.id,result:{config:{approval_policy:null,sandbox_mode:null,sandbox_workspace_write:{network_access:true,writable_roots:['/extra'],exclude_slash_tmp:false}}}});
+ const plugins = {'computer-use@openai-bundled':{enabled:true},'off.plug@local':{enabled:false}};
+ if(r.method==='config/read') send(config==='error'?{id:r.id,error:{code:-32601,message:'Method not found'}}:config==='plugins'?{id:r.id,result:{config:{approval_policy:null,sandbox_mode:null,plugins}}}:{id:r.id,result:{config:{approval_policy:null,sandbox_mode:null,sandbox_workspace_write:{network_access:true,writable_roots:['/extra'],exclude_slash_tmp:false},mcp_servers:{'doan-notion':{url:'http://127.0.0.1:1/mcp'},'own.tool':{command:'own'}},plugins}}});
  if(r.method==='turn/start') { const id = 'native-' + (++turn); send({id:r.id,result:{turn:{id}}}); send({method:'turn/completed',params:{threadId:'session',turn:{id,status:'completed'}}}); }
 });
 `, { mode: 0o700 });
   return command;
 }
+// The probe turns off every server and every plugin config/read named, so it starts none of their MCP servers
+// (Codex 0.171.0: an empty mcp_servers table merges into the config and disables nothing, and a plugin's servers are
+// not in mcp_servers). It always turns off the apps feature too, whose codex_apps connection config/read names nowhere.
+const PROBE_APPS = { features: { apps: false } };
+const PROBE_PLUGINS = { "computer-use@openai-bundled": { enabled: false }, "off.plug@local": { enabled: false } };
+const PROBE_CONFIG = { mcp_servers: { "doan-notion": { enabled: false }, "own.tool": { enabled: false } }, plugins: PROBE_PLUGINS, ...PROBE_APPS };
 const seenLines = (root: string) => readFileSync(join(root, "seen"), "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as { method?: string; params?: Record<string, unknown> });
 it("reads Codex's Default values once per server and states every turn's approval and sandbox, Default included", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-codex-mode-")), command = modeCodex(root);
@@ -560,7 +568,7 @@ it("reads Codex's Default values once per server and states every turn's approva
     }
     const lines = seenLines(root);
     expect(lines.filter(r => r.method && r.method !== "turn/start").map(r => [r.method, r.params])).toEqual([
-      ["initialize", expect.anything()], ["initialized", undefined], ["thread/start", { cwd: root }], ["thread/start", { cwd: root, ephemeral: true }], ["config/read", { cwd: root }]]);
+      ["initialize", expect.anything()], ["initialized", undefined], ["thread/start", { cwd: root }], ["config/read", { cwd: root }], ["thread/start", { cwd: root, ephemeral: true, config: PROBE_CONFIG }]]);
     const userDefault = { approvalPolicy: "on-request", sandboxPolicy: { type: "workspaceWrite", writableRoots: [], networkAccess: false } };
     expect(lines.filter(r => r.method === "turn/start").map(r => ({ approvalPolicy: r.params?.approvalPolicy, sandboxPolicy: r.params?.sandboxPolicy }))).toEqual([
       // No choice on the send: the mode the server was opened with.
@@ -580,7 +588,7 @@ it("probes after a Codex resume too, whose thread still carries the last overrid
   try {
     await runner.send("x", "t1"); await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
     const lines = seenLines(root);
-    expect(lines.filter(r => r.method === "thread/resume" || r.method === "thread/start").map(r => r.params)).toEqual([{ threadId: "session" }, { cwd: root, ephemeral: true }]);
+    expect(lines.filter(r => r.method === "thread/resume" || r.method === "thread/start").map(r => r.params)).toEqual([{ threadId: "session" }, { cwd: root, ephemeral: true, config: PROBE_CONFIG }]);
     expect(lines.find(r => r.method === "turn/start")!.params).toMatchObject({ approvalPolicy: "on-request", sandboxPolicy: { type: "workspaceWrite", writableRoots: [], networkAccess: false } });
   } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
 });
@@ -592,6 +600,18 @@ it("sends a bare workspaceWrite for Accept edits when config/read fails", async 
     await runner.send("x", "t1"); await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
     expect(seenLines(root).find(r => r.method === "turn/start")!.params).toMatchObject({ approvalPolicy: "on-request", sandboxPolicy: { type: "workspaceWrite" } });
     expect(seenLines(root).find(r => r.method === "turn/start")!.params!.sandboxPolicy).toEqual({ type: "workspaceWrite" });
+    // Without config/read no server is known by name, so the probe names none rather than refusing the open; the apps
+    // feature needs no name and is turned off all the same.
+    expect(seenLines(root).find(r => r.method === "thread/start" && r.params?.ephemeral)!.params).toEqual({ cwd: root, ephemeral: true, config: PROBE_APPS });
+  } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
+});
+it("turns off the plugins config/read names even when it names no MCP server", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-codex-mode-plugins-")), command = modeCodex(root);
+  const events: EventPayload[] = [];
+  const runner = await openRunner({ command, runtime: "codex", owner: CODEX_OWNER, cwd: root, configDir: root, env: { ...process.env, FAKE_CONFIG: "plugins" } }, e => events.push(e), () => {}, () => {});
+  try {
+    await runner.send("x", "t1"); await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
+    expect(seenLines(root).find(r => r.method === "thread/start" && r.params?.ephemeral)!.params).toEqual({ cwd: root, ephemeral: true, config: { plugins: PROBE_PLUGINS, ...PROBE_APPS } });
   } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
 });
 // A failed or incomplete probe never falls back to sending nothing: an earlier override would stay.

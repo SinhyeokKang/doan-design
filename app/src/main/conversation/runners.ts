@@ -18,7 +18,7 @@ import { connectorLabels } from "../mcpConnectors/presets";
 import { backgroundTasks, claudeSessionLost, CLAUDE_QUESTION_TOOL, claudePermissionRequest, claudeQuestion, claudeQuestionResult, claudeModeReport, claudeUnansweredSupport, endPromptWait, endSteerWait, endTransport, initialTransport, normalizeClaude, promptTransport, steerTransport, storedAnswers, transportError, type ClaudeQuestion } from "./transport";
 import { questionAnswer } from "./questionAnswer";
 import { promptSuggestionText } from "./promptSuggestion";
-import { claudePermission, codexDefaults, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
+import { claudePermission, codexDefaults, codexPluginNames, codexServerNames, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
 import { codexMechanism, codexProfileArgs, codexTurnPermission, fenceArgs, fencedCommand, sandboxRefused } from "../agentAuth/fence";
 import type { OpenRunner, Prepared, ReadListing, ReadModels, Runner } from "./service";
 import type { EventPayload, FailureCode, SkillSummary } from "./types";
@@ -200,11 +200,19 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     // keep an earlier override. A run on an external profile (a terminal session) takes no mode
     // and states nothing, so an override its thread carries from the terminal stays.
     if (input.owner) {
-      const probe = await dispatcher.request("thread/start", { cwd: input.cwd, ephemeral: true }).catch((error: unknown) => { if (error instanceof RpcError) throw new Error("session_unavailable"); throw error; });
+      const config = await dispatcher.request("config/read", { cwd: input.cwd }).catch((error: unknown) => { if (error instanceof RpcError) return null; throw error; });
+      // The probe turns off every configured MCP server and every plugin, whose MCP servers config/read does not
+      // list, so it starts none; the approval and sandbox it reports are unchanged (PoC, 0.171.0). Without
+      // config/read it names none and the probe starts them as before. The apps feature (the signed-in account's
+      // codex_apps connection) is turned off always: config/read reports it only when set, and thread/start accepts
+      // it whether or not config sets it, as it does a feature name it does not know (PoC, 0.158.0 and 0.171.0).
+      const off = (names: string[]) => names.length ? Object.fromEntries(names.map(name => [name, { enabled: false }])) : undefined;
+      const servers = off(codexServerNames(config)), plugins = off(codexPluginNames(config));
+      const probe = await dispatcher.request("thread/start", { cwd: input.cwd, ephemeral: true, config: { ...(servers ? { mcp_servers: servers } : {}), ...(plugins ? { plugins } : {}), features: { apps: false } } }).catch((error: unknown) => { if (error instanceof RpcError) throw new Error("session_unavailable"); throw error; });
       const read = codexDefaults(probe); if (!read) throw new Error("session_unavailable");
       defaults = read;
       // Accept edits carries the configured network access and roots; without config/read it sends the narrower bare policy.
-      workspace = codexWorkspace(await dispatcher.request("config/read", { cwd: input.cwd }).catch((error: unknown) => { if (error instanceof RpcError) return null; throw error; }));
+      workspace = codexWorkspace(config);
     }
     if (ending()) throw new Error("process_exited");
   // oxlint-disable-next-line typescript/no-unnecessary-condition -- the child exit callback sets this while the thread opens

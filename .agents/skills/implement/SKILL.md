@@ -43,6 +43,7 @@ Fix 🔴/🟡 and rerun tests and type checks. If not everything is resolved wit
 
 - **All** tests from AGENTS.md 'Commands' green, type check passes.
 - All 🔴/🟡 resolved.
+- Each new or changed test that waits (`/tdd` 'Tests that wait') passes when run alone 20 times in a row with the area's command from AGENTS.md 'Commands', 10 of them while the machine is under CPU load; the report gives the counts. A single failure is a defect to fix, not a retry.
 - If anything is not met or could not be run, stop and report. Do not report a check you did not run as passed.
 
 ## Report

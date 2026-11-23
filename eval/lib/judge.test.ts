@@ -150,6 +150,12 @@ test("unresolved patch candidates are labelled and cannot evict invocation summa
   assert.ok(prompt.length < 10_000);
 });
 
+test("command candidates reach the judge as unresolved mentions, not execution evidence", () => {
+  const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "", calls: { commands: [], mcpTools: [], commandCandidates: ["doan init --json"] } });
+  assert.match(prompt, /"commandCandidates":\["doan init --json"\]/);
+  assert.match(prompt, /commandCandidates are .*not execution evidence/i);
+});
+
 test("patch candidates reach the judge as unresolved mentions, not execution evidence", () => {
   const patch = '*** Begin Patch\n*** Delete File: .doan/canvases/team.html\n*** End Patch';
   const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "", calls: { commands: [], mcpTools: [], patchCandidates: [patch] } });
@@ -167,7 +173,7 @@ function invocationSummary(transcript: string) {
 test("preset shell lookups retain IDs and distinguish executed commands from quoted examples", () => {
   const transcript = [
     JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "Run doan design-skill prose-only" }] } }),
-    ...["doan design-skill --json", "DOAN_RUNTIME=/tmp/runtime command -p /tmp/doan --repo '/tmp/repo path' design-skill 'clarify' --json", "doan --json design-skill --repo=/tmp/repo context", "echo 'doan design-skill quoted'", "command -v doan design-skill discovery-only", "doan --repo design-skill skill", "doan active --json"].map(command =>
+    ...["doan design-skill --json", "DOAN_RUNTIME=/tmp/runtime command -p /tmp/doan design-skill --repo '/tmp/repo path' 'clarify' --json", "doan design-skill --json --repo=/tmp/repo context", "echo 'doan design-skill quoted'", "command -v doan design-skill discovery-only", "doan skill --repo design-skill", "doan active --json"].map(command =>
       JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Bash", input: { command } }] } })),
     JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", content: "Guide: doan design-skill guide-only" }] } }),
   ].join("\n");
