@@ -45,7 +45,17 @@ A와 B는 병렬로 돌므로 경계 형태를 미리 정한다.
 
 - 1차 실행(2026-11-23): 임시 HOME으로 띄워 macOS가 로그인 키체인을 찾지 못했고("키체인을 발견할 수 없음"), 복사한 vault를 풀지 못해 세 provider 모두 로그아웃으로 거부됐다(Cursor·Antigravity `not_logged_in`, Copilot `session_unavailable`). 관찰 없음. 설정 단계의 `doan check`가 격리되지 않은 `DOAN_RUNTIME`으로 돌아 실제 `sessions.jsonl`에 지워진 임시 경로를 가리키는 줄 두 개(6139, 6140)가 붙었다. 덧붙이기 기록이라 그대로 두었다.
 - 2차 실행: 같은 원인(임시 HOME). 120초 게이트로 끝났다.
-- 3차 실행(리드 규칙): 실제 HOME, userData 복사본, 격리된 `DOAN_RUNTIME`, 메인 체크아웃의 Electron 바이너리. 진행 중.
+- 3차 실행(리드 규칙): 실제 HOME, userData 복사본, 격리된 `DOAN_RUNTIME`, 메인 체크아웃의 Electron 바이너리(Safe Storage 항목이 그 경로를 믿는다). 캔버스 대화에서 새 캔버스를 만들고 `doan check`를 돌리라고 했다.
+
+| provider | 버전 | 편집 경로 | `doan handoff` | 결과 |
+|---|---|---|---|---|
+| GitHub Copilot | Copilot CLI 1.0.114 | 왔다(`activity {kind:"edit", path:<캔버스 절대 경로>}`) | 실행했다. `handoff.resolved started`, 새 대화 시작 | 확인 |
+| Antigravity | ACP 서버 1.3.0, gemini-3.8-flash-high | 미확인 | 미확인 | 셸 도구만 13번 부른 뒤 서버가 "No capacity available for model gemini-3.8-flash-high"로 답하고 턴이 끝났다. 파일을 쓰기 전이다 |
+| Cursor | cursor-agent 2026.11.22-e9042b2 | 미확인 | 미확인 | 시작이 호출 약 2초 뒤 `process_exited`로 거부됐다. 원인은 잡지 못했다(stderr 없음) |
+
+- 원시 ACP 프레임은 잡지 못했다(spawn hook이 Playwright `_electron`에서 읽히지 않음). Copilot 경로가 `locations[].path`에서 왔는지 `rawInput`에서 왔는지는 모른다. `acp.ts`는 둘 다 읽으므로 어댑터 수정은 필요 없다.
+- conductor's call — Cursor와 Antigravity는 다시 돌리지 않고 문서 승격에서 BACKLOG 'Not verified in the real app'에 남긴다. 근거: spec 'ACP provider'가 안 되는 provider는 관찰을 BACKLOG에 남기라고 정했고, 다시 돌리려면 사용자가 Keychain 창 앞에 또 있어야 한다.
+- 정리: Electron 종료, 복사본·임시 저장소·Copilot이 쓴 `/tmp/doan-guide.txt` 삭제, Keychain 항목 없음, 3차 실행의 real-state guard 통과. 증거 사본은 conductor 체크아웃 `.scratch/orch/acp-poc/`. 워커 해제, 워크트리 제거(브랜치 `SinhyeokKang/pch-p` 유지).
 
 ## 리뷰·통합 기록
 
