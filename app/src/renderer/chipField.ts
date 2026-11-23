@@ -284,8 +284,9 @@ export class ChipField {
     return anchor === 0 && focus === 0;
   }
 
-  // A caret put at the end by code scrolls into view like the field's own edits do: placeCaret scrolls in a focused
-  // field (a draft switched back, a preset picked), and Chromium shows the selection of a field it focuses.
+  // A caret put at the end by code scrolls into view like the field's own edits do. In a focused field placeCaret
+  // scrolls (a draft switched back); an unfocused one (a preset picked from the card's list) shows, as it takes focus,
+  // the caret it had before, and only then gets the new one, so the reveal comes last.
   focus(caretAtEnd: boolean): void {
     if (caretAtEnd) { const end = unitLength(this.segments); this.placeCaret({ anchor: end, focus: end }); }
     this.pointer = false;
@@ -293,6 +294,7 @@ export class ChipField {
     // sending its message), and the host focuses it right after the send.
     if (document.activeElement !== this.el) this.el.focus();
     this.view.focus();
+    if (caretAtEnd) this.revealCaret();
   }
 
   // ── transactions ─────────────────────────────────────────────────────────────────────────────────────────────
