@@ -1,5 +1,5 @@
 import { lstat, realpath } from "node:fs/promises";
-import { join, posix, relative, isAbsolute } from "node:path";
+import { join, relative, isAbsolute } from "node:path";
 import { canvasKind } from "../formats/canvasPath";
 import type { ConversationSummary } from "./conversation/summary";
 import { sameCanvas } from "./conversation/sessions";
@@ -38,27 +38,14 @@ export function trashTarget(entries: readonly FolderEntry[], request: TrashReque
   return { root: entry.path, path: row.path, ...(id ? { id } : {}) };
 }
 
-// An agent-reported edit path as a path of `root`, or null outside it: the rule of `conversation/project.ts` `inside`,
-// which reads the same edits for promotion. On macOS /tmp and /var are links into /private, so either spelling counts.
-function insideRoot(root: string, path: string): string | null {
-  const candidates = [path];
-  if (root.startsWith("/private/") && path.startsWith("/") && !path.startsWith("/private/")) candidates.push(`/private${path}`);
-  for (const candidate of candidates) {
-    const relative = posix.relative(root, posix.resolve(root, candidate));
-    if (relative && !relative.startsWith("../") && relative !== ".." && !posix.isAbsolute(relative)) return relative;
-  }
-  return null;
-}
-
-// Check 5, main's own grounds (the renderer's trashBlock is display only). `conversations`, `evidence` and `starting`
-// are this root's: the conversation list, the unjudged project turns (ConversationService.projectEvidence), which may
-// still bind to a canvas they edited, and the canvases of starts not accepted yet, which no list names
-// (ConversationService.startingCanvases). Worktrees share ids and paths, so nothing of another root counts (POSTMORTEM
-// 2026-11-01).
+// Check 5, main's own grounds (the renderer's trashBlock is display only). `conversations` and `starting` are this
+// root's: the conversation list and the canvases of starts not accepted yet, which no list names
+// (ConversationService.startingCanvases). A canvas a project conversation is drawing is not held, as a handoff's target
+// is not: neither has a conversation of its own yet. Worktrees share ids and paths, so nothing of another root counts
+// (POSTMORTEM 2026-11-01).
 export function trashBusy(
   target: Pick<TrashTarget, "root" | "path" | "id">,
   conversations: readonly ConversationSummary[],
-  evidence: readonly { edits: readonly string[]; changed: readonly string[] }[],
   work: readonly WorkItem[],
   starting: readonly Canvas[] = [],
 ): boolean {
@@ -68,7 +55,6 @@ export function trashBusy(
   // same set, so an enabled item is not refused as busy for a conversation state alone.
   // Every conversation of the canvas counts: several run side by side.
   if (conversations.some(c => c.canvas !== undefined && sameCanvas(c.canvas, canvas) && (c.working || c.phase !== "ended"))) return true;
-  if (evidence.some(e => e.changed.includes(target.path) || e.edits.some(edit => insideRoot(target.root, edit) === target.path))) return true;
   return work.some(item => item.root === target.root && item.path === target.path);
 }
 

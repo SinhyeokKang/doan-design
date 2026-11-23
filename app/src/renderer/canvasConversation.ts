@@ -5,7 +5,7 @@ import type { WorkItem } from "../main/workState";
 import { PROVIDER_NAMES, type SettingsAction } from "./agentAuthView";
 import { sameCanvas } from "./canvasConversationRows";
 import { conversationWork } from "./conversationList";
-import { dockedRefusal, type DockedBusy, type DockedMode } from "./dockedRules";
+import { dockedRefusal, type DockedMode } from "./dockedRules";
 import type { Slot } from "./homeConversations";
 import { MAX_ATTACHMENTS, startErrorView } from "./homeComposer";
 import { byActivity, menuItem, type MenuItem } from "./overviewConversation";
@@ -13,16 +13,6 @@ import { byActivity, menuItem, type MenuItem } from "./overviewConversation";
 // Which conversation the canvas panel shows, its dropdown, seen marks, the new conversation's start mode and its
 // refusals. The canvas host owns the reads and every call to main; these
 // functions only decide.
-
-export const DRAWING_PREVIEW_REASON = "You can reply here when this conversation moves to the canvas.";
-export const DRAWING_TEXT = "A project conversation is drawing this canvas. Sending here starts a separate conversation.";
-export const PROMOTED_TEXT = "A project conversation moved to this canvas.";
-// Shown above the composer with Open on `open`.
-export interface CanvasNotice { kind: "drawing" | "promoted"; text: string; open: string }
-// The accessible name of the notice's Open.
-export function noticeOpenName(kind: CanvasNotice["kind"]): string {
-  return kind === "drawing" ? "Open the project conversation" : "Open the moved conversation";
-}
 
 const onCanvas = (c: ConversationSummary, canvas: Canvas) => c.canvas !== undefined && sameCanvas(c.canvas, canvas);
 
@@ -94,27 +84,6 @@ export function sidebarRowRequest(list: readonly ConversationSummary[], canvas: 
   return list.find(c => onCanvas(c, canvas) && conversationWork(c, seen)?.kind === slot)?.conversationId ?? null;
 }
 
-export interface NoticeContext {
-  // The list read before this one: a conversation on this canvas that was a project conversation there was just promoted.
-  previous?: readonly ConversationSummary[] | null;
-  // A promotion the panel announces now. It stays while that conversation is on this canvas, because main reads the
-  // list again right after a bind and the read before it no longer shows the change; the host drops it when the
-  // person acts.
-  promoted?: string | null;
-  // A project conversation drawing this canvas before its promotion is judged, as the host knows it.
-  drawing?: string | null;
-}
-
-// The notice above the composer. A promotion moves only a panel on the default new state (followNewConversation), so it
-// is announced unless the panel already shows it; a drawing project conversation is announced only over the new
-// conversation state.
-export function canvasNotice(list: readonly ConversationSummary[], canvas: Canvas, shown: string | null, context: NoticeContext = {}): CanvasNotice | null {
-  const promoted = list.find(c => onCanvas(c, canvas) && (c.conversationId === context.promoted
-    || context.previous?.some(p => p.conversationId === c.conversationId && p.canvas === undefined)));
-  if (promoted && promoted.conversationId !== shown) return { kind: "promoted", text: PROMOTED_TEXT, open: promoted.conversationId };
-  return shown === null && context.drawing ? { kind: "drawing", text: DRAWING_TEXT, open: context.drawing } : null;
-}
-
 // The title menu's order: this canvas's conversations by latest activity. While the menu is open (`frozen`, the order
 // it opened with) rows keep their places and a new conversation goes at the end, so a row never moves under the pointer.
 export function titleMenuOrder(list: readonly ConversationSummary[], canvas: Canvas, frozen: readonly string[] | null): string[] {
@@ -176,12 +145,11 @@ export function canvasUnlistedText(project: string): string { return `This canva
 export const ATTACHMENT_LIMIT_TEXT = `Only ${MAX_ATTACHMENTS} attachments can be added to a message. Remove some, then send again.`;
 export const DUPLICATE_CANVAS_TEXT = "Another canvas has the same ID, so this conversation can’t continue. Run doan check in a terminal to find it.";
 
-// busy: the busy line with Open. blocked: the composer keeps the draft but takes no input, with this reason line.
+// blocked: the composer keeps the draft but takes no input, with this reason line.
 // notice: under the card; retry offers Retry, startNew "Start a new conversation" (a terminal session, another sign-in).
 // attachments: those chips read as moved, and the draft's own reason line explains it (the shipped composer rule).
 // resend: nothing was working to queue behind, so the host sends the same draft instead (the shipped queue rule).
 export type CanvasConversationError =
-  | { kind: "busy"; busy: DockedBusy }
   | { kind: "attachments"; missing: readonly string[] }
   | { kind: "resend" }
   | { kind: "blocked"; text: string; action?: SettingsAction }
@@ -201,7 +169,6 @@ export function canvasConversationError(code: string, mode: DockedMode, provider
   if (code === "project_not_open") return { kind: "blocked", text: startErrorView(code, provider, project).text };
   if (code === "no_agent" && mode.kind === "new") return { kind: "blocked", text: startErrorView(code, provider, project).text, action: { label: "Sign in to an agent", target: { section: "agents" } } };
   const refusal = dockedRefusal(code, mode, provider, project, resets);
-  if (refusal.kind === "busy") return refusal;
   // dockedRefusal's gone is canvas_not_found, answered above.
   const text = refusal.kind === "notice" ? refusal.text : canvasUnlistedText(project);
   if (mode.kind === "resume") return { kind: "notice", text, retry: false, startNew: true };

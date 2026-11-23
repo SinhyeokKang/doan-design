@@ -16,7 +16,6 @@ import { PROVIDER_NAMES } from "./agentAuthView";
 import { toMessage, type FieldSegment } from "./anchorField";
 import { canvasLabel } from "./canvasTree";
 import { groupProjects } from "./homeCards";
-import { anotherConversation } from "./homeConversations";
 import { displayPath } from "./projectDisplay";
 import { projectReadingLine, projectUnavailableLine } from "./problemView";
 
@@ -79,11 +78,9 @@ export interface SendInput {
   root: FolderEntry | null; projectName: string;
   auth: AuthSnapshot | null | undefined; provider: Provider | null;
   text: string; preset: PresetRef | null; skills: readonly string[]; attachments: readonly AttachmentDraft[];
-  // A project conversation still running in this root (HomeRun.running).
-  running: { conversationId: string } | null;
   sending: boolean;
 }
-export type SendReason = { kind: "noProject" | "projectUnavailable" | "noAgent" | "agentUnavailable" | "overLimit" | "anchorMarkers" | "checking" | "attachmentMissing"; text: string } | { kind: "running"; text: string; open: string };
+export type SendReason = { kind: "noProject" | "projectUnavailable" | "noAgent" | "agentUnavailable" | "overLimit" | "anchorMarkers" | "checking" | "attachmentMissing"; text: string };
 
 // An empty composer and a send in flight disable Send without a reason line (spec 9).
 export function sendAvailability(input: SendInput): { enabled: boolean; reason: SendReason | null } {
@@ -95,9 +92,8 @@ export function sendAvailability(input: SendInput): { enabled: boolean; reason: 
   if (input.root.kind !== "list") return off({ kind: "projectUnavailable", text: projectUnavailableLine(input.projectName) });
   const agent = agentProblem(input.auth, input.provider);
   if (agent) return off(agent);
-  // An empty composer shows no line, running or not: Home keeps its suggestions until something is typed.
+  // An empty composer shows no line: Home keeps its suggestions until something is typed.
   if (!input.text.trim() && !input.preset && input.attachments.length === 0) return off(null);
-  if (input.running) return off({ kind: "running", text: anotherConversation(input.projectName), open: input.running.conversationId });
   const draft = draftProblem(input.text, input.preset, input.attachments, input.skills);
   return draft ? off(draft) : { enabled: true, reason: null };
 }

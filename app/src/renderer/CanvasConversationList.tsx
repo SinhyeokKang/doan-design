@@ -80,7 +80,7 @@ export function CanvasConversationList({ list, current, project, thumbnails, ope
   drawn.current = keys;
   const byKey = new Map(listed.map(item => [item.key, item]));
   const rows = keys.flatMap(key => { const item = byKey.get(key); return item ? [item] : []; });
-  // A canvas row under the shown conversation's key (promoted while shown) is not current.
+  // Only a project row is the Overview's current one, never a canvas row under that key (an earlier build's promotion).
   const currentKey = rows.find(item => item.kind === "project" && item.key === current)?.key ?? null;
   const [active, setActive] = useState<string | null>(null);
   const tabKey = active !== null && keys.includes(active) ? active : currentKey ?? keys[0] ?? null;

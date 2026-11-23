@@ -211,19 +211,6 @@ test.each(["empty", "loading", "error"] as const)("a list that leaves under the 
   expect(order()).toEqual(["p2", "c1", "c2", "p1"]);
 });
 
-test("a shown project conversation promoted under focus keeps its row's place and focus", () => {
-  renderWith(mixed, "p2");
-  rowOf("p2").focus(); renderWith(mixed, "p2");
-  for (const effect of hooks.layouts) effect();
-  const promoted = canvasConversationRows([project("p1", 0), summary("c1", paths[0]!, 1), summary("p2", paths[2]!, 2), summary("c2", paths[1]!, 3)], paths.map(canvas), NOW);
-  renderWith(promoted, null);
-  for (const effect of hooks.layouts) effect();
-  expect(order()).toEqual(["p1", "c1", "p2", "c2"]);
-  expect(rowOf("p2").item).toMatchObject({ kind: "canvas" });
-  expect(focused).toEqual([]);
-  expect(tabStop()).toBe("p2");
-});
-
 test("the loading line names the list", () => {
   renderWith("loading", null);
   const loading = tree.type as () => ReactElement<{ children: ReactElement<{ children: unknown }> }>;

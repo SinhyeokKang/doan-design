@@ -118,12 +118,12 @@ export interface HeroComposerProps {
   // ui-state's Home memory; null until the saved state is read.
   prefs: HomeMemory | null;
   memory: { current: ComposerMemory };
-  // Running Home conversations by root (one per root).
-  running: ReadonlyMap<string, { conversationId: string }>;
+  // Roots with a project conversation working: the skills list is read again once that work ends, since a turn can
+  // add a skill.
+  working: ReadonlySet<string>;
   restore: { request: LastRequest; seq: number } | null;
   greeting: string;
   start(request: StartInput, last: LastRequest): Promise<StartOutcome>;
-  openConversation(conversationId: string): void;
   // The project picker's Add Projects… opens the Add Projects page.
   addProjects(): void;
   // Settings > Agents' New conversations; null is Last used, undefined not read yet.
@@ -309,7 +309,7 @@ export function HeroComposer(props: HeroComposerProps) {
 
   // The draft
   const { text, preset, attachments } = m;
-  const projectSkills = useProjectSkills(MAIN_SKILLS, root, provider, root && props.running.has(root) ? "running" : "idle", generation);
+  const projectSkills = useProjectSkills(MAIN_SKILLS, root, provider, root && props.working.has(root) ? "running" : "idle", generation);
   const skills = projectSkills.skills;
   const skillNames = new Set(skills.filter(skill => skill.kind !== "command").map(skill => skill.name));
   const matched = fieldSkillRuns(textSegments(text), skillNames).map(run => run.name);
@@ -322,9 +322,8 @@ export function HeroComposer(props: HeroComposerProps) {
   const isCommand = first !== "text" && first !== "skill";
   const presetHeld = isCommand && preset !== null;
   const chips = [...attachments.map(a => ({ label: attachmentChipView(a, props.homeDirectory).label })), ...(preset ? [{ label: preset.title, preset: true }] : [])];
-  const running = root ? props.running.get(root) ?? null : null;
   // A command goes out alone, so the attachments it leaves here do not hold it.
-  const availability = sendAvailability({ projects: cards.length, root: entry, projectName: project, auth, provider, text, preset: isCommand ? null : preset, skills: isCommand ? [] : matched, attachments: isCommand ? [] : attachments, running, sending });
+  const availability = sendAvailability({ projects: cards.length, root: entry, projectName: project, auth, provider, text, preset: isCommand ? null : preset, skills: isCommand ? [] : matched, attachments: isCommand ? [] : attachments, sending });
   const composed = composeRequest(text, preset, matched, attachments.length);
   const counter = lengthCounter(composed.length);
   const slash = slashQuery(text, dismissed, new Set([...skillNames, ...commandNames]));
@@ -514,8 +513,7 @@ export function HeroComposer(props: HeroComposerProps) {
     if (outcome.error === "attachment_missing") {
       const { missing = [], replaced } = outcome;
       update(current => ({ sending: null, notice: null, attachments: markRefused(current.attachments, missing, replaced) }));
-    // A late project_busy is shown by the reason line, which the run's list now carries.
-    } else if (outcome.error === "project_busy") update({ sending: null, notice: null });
+    }
     // Codex's /review before any message told the thread a permission mode: the card says to send one first; the text stays.
     else if (outcome.error === "command_mode_stale") {
       update({ sending: null, notice: null, card: { ...STALE_MODE_CARD } });
@@ -688,7 +686,7 @@ export function HeroComposer(props: HeroComposerProps) {
       {notice && <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text selectable" id={`${listId}-notice`}>{notice.text}</span>{notice.retry && retryButton({ running: sending, variant: "subtle", describedBy: `${listId}-notice`, onRetry: () => void send(true) })}</div>}
       {!notice && reason && reason.kind !== "noAgent" && (reason.kind === "attachmentMissing"
         ? <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text selectable">{reason.text}</span></div>
-        : <div className="composer-reason" role="status"><span>{reason.text}</span>{reason.kind === "running" && reason.open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation" onClick={() => props.openConversation(reason.open)}>Open</button>}</div>)}
+        : <div className="composer-reason" role="status"><span>{reason.text}</span></div>)}
       <div className="sr-only" role="status">{announcement}</div>
     </div>
     {/* Escape is Keep draft, so both put focus back in the field. An alertdialog, as every confirmation. */}

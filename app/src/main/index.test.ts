@@ -80,7 +80,7 @@ const mocks = await vi.hoisted(async () => {
     // The callback main gave the service for a running turn's stage.
     stageConversation: undefined as ((signal: unknown) => void) | undefined,
     // The conversation service main created, so a test can pin what main asks it.
-    conversationService: undefined as { list(root: string): unknown[]; projectEvidence(root: string): unknown[] } | undefined,
+    conversationService: undefined as { list(root: string): unknown[] } | undefined,
     preferences: { read: vi.fn(), current: vi.fn(), update: vi.fn(), buddyKey: vi.fn() },
     createPreferencesStore: vi.fn(),
     // The GitHub star card's state; its file and timing are covered in starPromptStore.test.ts.
@@ -2037,7 +2037,7 @@ describe("canvas trash on main's grounds", () => {
   function service() {
     const s = mocks.conversationService;
     if (!s) throw new Error("no conversation service");
-    return { list: vi.spyOn(s, "list").mockReturnValue([]), evidence: vi.spyOn(s, "projectEvidence").mockReturnValue([]) };
+    return { list: vi.spyOn(s, "list").mockReturnValue([]) };
   }
   function work() {
     const state = mocks.startRuntime.mock.calls[0]?.[1];
@@ -2060,9 +2060,7 @@ describe("canvas trash on main's grounds", () => {
     expect(await invoke("canvas:trashPlan", window().webContents, null, { root, path })).toEqual({ kind: "ready" });
     expect(await trash()).toEqual({ kind: "trashed" });
     expect(asked.list.mock.calls.every(([at]) => at === root)).toBe(true);
-    expect(asked.evidence.mock.calls.every(([at]) => at === root)).toBe(true);
     expect(asked.list).toHaveBeenCalled();
-    expect(asked.evidence).toHaveBeenCalled();
     expect(mocks.electronShell.trashItem.mock.calls).toEqual([[join(root, path)]]);
     expect(mocks.discardCanvasStarts).toHaveBeenCalledExactlyOnceWith(root, { path, id: "a" });
   });
@@ -2090,10 +2088,11 @@ describe("canvas trash on main's grounds", () => {
     expect(mocks.electronShell.trashItem).not.toHaveBeenCalled();
   });
 
-  test("refuses as busy for an unjudged project turn of this root that edited the canvas", async () => {
-    service().evidence.mockImplementation(at => at === root ? [{ edits: [join(root, path)], changed: [] }] : []);
-    expect(await trash()).toEqual({ kind: "refused", reason: "busy" });
-    expect(mocks.electronShell.trashItem).not.toHaveBeenCalled();
+  // A canvas a project conversation draws is not held, as a handoff's target is not.
+  test("moves a canvas while a project conversation of this root runs", async () => {
+    const { canvas: _canvas, ...project } = summary({ phase: "running", working: true });
+    service().list.mockImplementation(at => at === root ? [project] : []);
+    expect(await trash()).toEqual({ kind: "trashed" });
   });
 
   test("refuses as busy for terminal work on this root and path", async () => {
@@ -2103,10 +2102,9 @@ describe("canvas trash on main's grounds", () => {
     expect(mocks.electronShell.trashItem).not.toHaveBeenCalled();
   });
 
-  test("another root's conversation, project turn or terminal work on the same path does not block this root", async () => {
+  test("another root's conversation or terminal work on the same path does not block this root", async () => {
     const asked = service();
     asked.list.mockImplementation(at => at === other ? [summary({ phase: "running" })] : []);
-    asked.evidence.mockImplementation(at => at === other ? [{ edits: [join(other, path)], changed: [path] }] : []);
     work()(other);
     expect(await trash()).toEqual({ kind: "trashed" });
     expect(mocks.electronShell.trashItem).toHaveBeenNthCalledWith(1, join(root, path));

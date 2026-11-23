@@ -1,0 +1,11 @@
+[
+  [
+    "handoff",
+    ".doan/canvases/account.html",
+    "--message",
+    "Request: make a 390 px mobile version of account with Profile and Billing stacked. Done: account-mobile has both screens. Left: tune the tap targets.",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ]
+]

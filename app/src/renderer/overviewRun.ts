@@ -42,8 +42,7 @@ export interface OverviewRunHost {
 
 // Where the thread scrolls once it draws a requested conversation: its pending permission request.
 export type ScrollTo = "permission";
-export interface Moved { conversationId: string; title: string; canvas: Canvas }
-export type OverviewView = { kind: "wait" } | { kind: "new"; moved: Moved | null } | { kind: "conversation"; conversationId: string };
+export type OverviewView = { kind: "wait" } | { kind: "new" } | { kind: "conversation"; conversationId: string };
 
 interface RootState {
   // undefined until a pick; a null conversation is the new conversation state. listed: seen in a list read.
@@ -59,7 +58,6 @@ interface RootState {
   fresh?: boolean;
   // asked: the list was read again for it once; after: reads started before the request.
   request: { conversationId: string; after: number; asked: boolean; scroll: ScrollTo | null } | null;
-  moved: Moved | null;
 }
 
 // main's own measure of what is to be seen (summary.ts lastTurnSeq).
@@ -91,8 +89,6 @@ export class OverviewRun {
   private visible: string | null = null;
   // The turn end the person saw per conversation (shown in the main column with the window focused), as a seq.
   private seenEnd = new Map<string, number>();
-  // Promoted conversations whose seen end is to be marked through their binding marker once it is merged.
-  private promotions = new Map<string, number>();
   // Waiting conversations already toasted, by the request they wait on (the list's preview names it).
   private asked = new Map<string, string>();
   private scroll: { conversationId: string; to: ScrollTo; seq: number } | null = null;
@@ -105,7 +101,6 @@ export class OverviewRun {
       notice: text => host.notice?.(text), changed: () => host.changed(),
     }, calls);
     this.store.subscribe((conversationId, change) => {
-      this.markPromotion(conversationId);
       this.checkSeen();
       const root = change === "read" ? this.rootShowing(conversationId) : undefined;
       if (root) this.store.takeDraft(root, conversationId);
@@ -118,7 +113,7 @@ export class OverviewRun {
     // new conversation that then changes.
     const s = this.roots.get(root);
     if (!s?.current) return { kind: "wait" };
-    return s.current.conversationId === null ? { kind: "new", moved: s.moved } : { kind: "conversation", conversationId: s.current.conversationId };
+    return s.current.conversationId === null ? { kind: "new" } : { kind: "conversation", conversationId: s.current.conversationId };
   }
   thread(conversationId: string): Thread | null { return this.store.thread(conversationId); }
   providerOf(conversationId: string): Provider | null { return this.store.providerOf(conversationId); }
@@ -141,8 +136,7 @@ export class OverviewRun {
     this.visible = root;
     if (root) {
       const s = this.state(root);
-      // Reopened with nothing asked for it meanwhile: the conversation is picked again; the drafts by key stay. The
-      // moved line stays until the next send or choice (PRODUCT §5 item 3 'Promotion'), not until the Overview is left.
+      // Reopened with nothing asked for it meanwhile: the conversation is picked again; the drafts by key stay.
       // A fresh start's new conversation state is kept: picking again would reopen the conversation it set aside.
       if (s.leftAt !== undefined && s.leftAt === s.intent && !s.request && !(s.fresh === true && s.intent === 0)) delete s.current;
       this.resolve(root, s);
@@ -158,7 +152,6 @@ export class OverviewRun {
     s.request = null;
     s.revision++; s.intent++;
     if (conversationId === null) {
-      s.moved = null;
       if (s.current?.conversationId !== null) { s.current = { conversationId: null, listed: false }; this.host.remember(root, null); }
     } else this.setCurrent(root, s, conversationId, true);
     this.host.changed();
@@ -187,7 +180,6 @@ export class OverviewRun {
   sent(root: string, conversationId: string, revision?: number): void {
     const s = this.state(root);
     if (revision !== undefined && revision !== s.revision) return;
-    s.moved = null;
     this.host.remember(root, conversationId);
     this.host.changed();
   }
@@ -218,17 +210,15 @@ export class OverviewRun {
   live(root: string, conversationId: string): boolean { return this.store.live(root, conversationId); }
   // main deleted it, in whichever root. A root that showed it shows the new
   // conversation state with a newer revision, so a start or send reply sent before cannot replace that; a request
-  // still waiting for it is dropped, so the list is not read again for it. The memory and the moved line go too. The
-  // store's records go through its own deleted, which App calls as well.
+  // still waiting for it is dropped, so the list is not read again for it. The memory goes too. The store's records go
+  // through its own deleted, which App calls as well.
   deleted(conversationId: string): void {
     for (const s of this.roots.values()) {
       if (s.request?.conversationId === conversationId) s.request = null;
-      if (s.moved?.conversationId === conversationId) s.moved = null;
       if (s.current?.conversationId === conversationId) { s.revision++; s.current = { conversationId: null, listed: false }; }
     }
     for (const [root, remembered] of Object.entries(this.host.remembered() ?? {})) if (remembered === conversationId) this.host.remember(root, null);
     this.seenEnd.delete(conversationId);
-    this.promotions.delete(conversationId);
     this.asked.delete(conversationId);
     if (this.scroll?.conversationId === conversationId) this.scroll = null;
     this.host.changed();
@@ -237,8 +227,8 @@ export class OverviewRun {
   // conversation:event, subscribed at App mount so nothing is lost before a read.
   event(event: ConversationEvent): void { this.store.event(event); }
 
-  // After every list read HomeRun applied (and any change of the memory): picks waiting for the list, promotions,
-  // the waiting toast and queues.
+  // After every list read HomeRun applied (and any change of the memory): picks waiting for the list, a gone main
+  // conversation, the waiting toast and queues.
   sync(): void {
     // The host's calls (a reread, a seen mark) report back through HomeRun, which asks for another sync: that one
     // runs after this one instead of inside it.
@@ -269,7 +259,7 @@ export class OverviewRun {
 
   private state(root: string): RootState {
     let s = this.roots.get(root);
-    if (!s) { s = { request: null, moved: null, revision: 0, intent: 0 }; this.roots.set(root, s); }
+    if (!s) { s = { request: null, revision: 0, intent: 0 }; this.roots.set(root, s); }
     return s;
   }
   private rootShowing(conversationId: string): string | undefined {
@@ -278,7 +268,6 @@ export class OverviewRun {
   private setCurrent(root: string, s: RootState, conversationId: string, listed: boolean): void {
     s.revision++;
     s.current = { conversationId, listed };
-    s.moved = null;
     this.host.remember(root, conversationId);
     if (this.store.track(conversationId)) this.store.takeDraft(root, conversationId);
     this.checkSeen();
@@ -322,7 +311,7 @@ export class OverviewRun {
       if (pick.forget) this.host.remember(root, null);
     }
   }
-  // A promoted or gone main conversation leaves the root in the new conversation state.
+  // A gone main conversation leaves the root in the new conversation state.
   private afterList(root: string, s: RootState, list: readonly ConversationSummary[]): void {
     const current = s.current;
     if (!current || current.conversationId === null) return;
@@ -339,21 +328,6 @@ export class OverviewRun {
     s.revision++;
     s.current = { conversationId: null, listed: false };
     this.host.remember(root, null);
-    if (change.kind !== "promoted") return;
-    s.moved = { conversationId: id, title: change.title, canvas: change.canvas };
-    // Marked through the promotion marker only when the person had seen the turn's end; the list
-    // notice and the marker event come in either order (POSTMORTEM 2026-10-26).
-    const thread = this.store.thread(id), seen = this.seenEnd.get(id);
-    const end = thread ? lastTurnSeq(thread.events) : null;
-    if (end !== null && seen !== undefined && seen >= end) { this.promotions.set(id, seen); this.markPromotion(id); }
-  }
-  private markPromotion(conversationId: string): void {
-    const after = this.promotions.get(conversationId);
-    if (after === undefined) return;
-    const marker = this.store.thread(conversationId)?.events.find(event => event.type === "conversation.bound" && event.seq > after);
-    if (!marker) return;
-    this.promotions.delete(conversationId);
-    this.host.markSeen(conversationId, marker.seq);
   }
   private moveDraft({ from, to }: DraftMove): void { this.store.moveDraft(from, to); }
   // Another project conversation of the shown root waits while the main column shows something else.

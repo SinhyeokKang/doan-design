@@ -10,7 +10,7 @@ const ASK: EventPayload = {
   type: "permission.request", requestId: "r1", tool: "Edit", summary: "Edit .doan/canvases/design-system.html",
   options: [{ id: "d", label: "Deny", kind: "deny" }, { id: "aa", label: "Always allow", kind: "allowAlways" }, { id: "a", label: "Allow", kind: "allow" }],
 };
-const CTX: StripContext = { provider: "claude", project: "doan-design", branch: "main", canvas: null };
+const CTX: StripContext = { provider: "claude", project: "doan-design", branch: "main" };
 
 test("an accepted conversation starts before its first event, and stays starting until output", () => {
   expect(stripState([])).toEqual({ kind: "starting" });
@@ -88,12 +88,10 @@ test("stopped offers Edit on Home; a stop the person did not make says so", () =
   expect(stripView({ kind: "interrupted", reason: "crashed" }, CTX).body).toBe("The agent stopped before it finished.");
 });
 
-test("done names the new canvas with Open; without one only Dismiss", () => {
+// A handoff's toast says where the work went (PRODUCT §5 item 2 'Handoff'), so Done names no canvas.
+test("done says Done with Dismiss only", () => {
   const done = stripState(events(...started, { type: "turn.done" }));
   expect(done).toEqual({ kind: "done" });
-  expect(stripView(done, { ...CTX, canvas: "design-system" })).toEqual({
-    title: "Done", body: "design-system is ready.", live: "status", alertKey: null, actions: [{ command: "open", label: "Open" }, { command: "dismiss", label: "Dismiss" }],
-  });
   expect(stripView(done, CTX)).toEqual({ title: "Done", body: null, live: "status", alertKey: null, actions: [{ command: "dismiss", label: "Dismiss" }] });
 });
 
@@ -117,7 +115,7 @@ test("focus stays on Stop while it is drawn; once a finished turn takes it away,
   expect(focusAfterStop(view({ kind: "permission", requestId: "r2", summary: "s", options: [{ id: "a", label: "Allow", kind: "allow" }] }))).toBe("stop");
   expect(focusAfterStop(view({ kind: "failed", code: "process_exited" }))).toBe("dismiss");
   expect(focusAfterStop(view({ kind: "interrupted", reason: "crashed" }))).toBe("dismiss");
-  expect(focusAfterStop(stripView({ kind: "done" }, { ...CTX, canvas: "design-system" }).actions)).toBe("dismiss");
+  expect(focusAfterStop(stripView({ kind: "done" }, CTX).actions)).toBe("dismiss");
 });
 
 const QUESTION: EventPayload = { type: "question.request", requestId: "q1", questions: [

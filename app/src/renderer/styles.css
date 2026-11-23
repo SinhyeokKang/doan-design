@@ -1394,17 +1394,8 @@ button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-ba
 .ov-main .conversation-thread .thread { max-width: 720px; margin-inline: auto; }
 .ov-col { width: calc(100% - 2 * var(--space-6)); max-width: 720px; margin-inline: auto; }
 .ov-foot { flex: none; padding: var(--space-3) 0 var(--space-4); }
-/* New conversation: the moved line and the suggestions sit right above the composer. */
-/* A lucide glyph renders 24px unless a rule sizes it; the shared notice rules size only their own alert icon. */
-.doan-notice.moved { margin-bottom: var(--space-3); }
-/* A list never read: the canvas panel's thread notice, 12 above the suggestions as the moved line is. */
+/* A list never read: the canvas panel's thread notice sits 12 above the suggestions. */
 .ov-new > .thread-notice { margin-bottom: var(--space-3); }
-.doan-notice.moved > svg { width: var(--size-icon); height: var(--size-icon); }
-/* One line: a title is the whole first message (up to 512 characters), so only it gives way and "moved to <canvas>."
-   stays readable; the text keeps the full sentence for assistive tech and the tooltip. */
-.moved-text { display: flex; min-width: 0; white-space: nowrap; }
-.moved-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.moved-rest { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 /* The docked buddy stays on the composer card while the suggestions show; the space under them keeps the last row
    clear of its body (about 44 px above the card's edge), so every row takes its whole click. */
 .ov-suggestions { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-8); }
@@ -1702,7 +1693,7 @@ button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-ba
 .doan-conv-panel .conversation-thread .ti-reply { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .doan-conv-panel .conversation-thread .bg-line { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .doan-conv-panel .conversation-thread .bg-line .bg-icon { margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon-sm)) / 2); }
-.cp-foot { flex: none; min-width: 0; margin: 0; border: 0; padding: var(--space-3); }
+.cp-foot { flex: none; padding: var(--space-3); }
 .cp-resume { margin-top: auto; margin-bottom: var(--space-1); }
 /* A reason whose action label is long puts the action under the text, so the text keeps the row's width. */
 .docked-reason.reason-stack { flex-wrap: wrap; }

@@ -8,7 +8,7 @@ import { textSegments } from "./anchorField";
 import { composerAction } from "./composerRules";
 import {
   canvasGoneText, composerPlaceholder, composerTurn, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT, type DockedDraft, type DockedInput,
-  type DockedBusy, type PlaceholderInput,
+  type PlaceholderInput,
 } from "./dockedRules";
 import { presetPlaceholder, type AttachmentDraft, type ModelPickerView, type PresetSummary } from "./homeComposer";
 
@@ -24,7 +24,7 @@ const EXISTING = { kind: "existing", conversationId: "c1", provider: "claude" } 
 const draft = ({ text, ...patch }: Partial<DockedDraft> & { text?: string }): DockedDraft => ({ ...EMPTY_DRAFT, ...(text === undefined ? {} : { segments: textSegments(text) }), ...patch });
 const payment: Anchor = { frame: { id: "payment", title: "Payment" } };
 const file = (patch: Partial<AttachmentDraft>): AttachmentDraft => ({ key: "k", id: "id", name: "notes.md", kind: "file", pasted: false, status: "ready", ...patch });
-const input = (patch: Partial<DockedInput>): DockedInput => ({ skills: [], mode: EXISTING, project: "doan-design", auth: READY, provider: "claude", draft: draft({ text: "Make it lighter" }), turn: "idle", busy: null, sending: false, ...patch });
+const input = (patch: Partial<DockedInput>): DockedInput => ({ skills: [], mode: EXISTING, project: "doan-design", auth: READY, provider: "claude", draft: draft({ text: "Make it lighter" }), turn: "idle", sending: false, ...patch });
 
 describe("draftKey", () => {
   test("keeps drafts per conversation, and a new conversation's draft per root", () => {
@@ -82,30 +82,15 @@ describe("dockedAvailability", () => {
     expect(dockedAvailability(input({ draft: draft({ segments: [chip] }) }))).toEqual({ enabled: true, reason: null });
     expect(dockedAvailability(input({ draft: draft({ text: "   " }) }))).toEqual({ enabled: false, reason: null });
   });
-  test("another project conversation running blocks with Home's sentence and Open", () => {
-    expect(dockedAvailability(input({ mode: { kind: "new", root: "/r" }, busy: { kind: "project", open: "c9" } })))
-      .toEqual({ enabled: false, reason: { text: "Another conversation is still running in doan-design.", open: "c9" } });
-    // A late refusal names no conversation until the list arrives: the line has no Open.
-    expect(dockedAvailability(input({ busy: { kind: "project", open: null } })).reason).toEqual({ text: "Another conversation is still running in doan-design." });
-  });
-  test("has no restore busy line", () => {
-    // @ts-expect-error -- the only busy line left is another project conversation's.
-    const restore: DockedBusy = { kind: "restore", open: "c2" };
-    expect(restore.kind).toBe("restore");
-  });
-  test("an empty field shows the busy line only once something is typed, as on Home", () => {
-    expect(dockedAvailability(input({ draft: EMPTY_DRAFT, busy: { kind: "project", open: "c9" } })).reason).toBeNull();
-  });
   test("while this conversation runs, text queues and the permission wait explains the line without blocking", () => {
     expect(dockedAvailability(input({ turn: "running" }))).toEqual({ enabled: true, reason: null });
     expect(dockedAvailability(input({ turn: "waiting" }))).toEqual({ enabled: true, reason: { text: "Answer or stop the request above." } });
     expect(dockedAvailability(input({ turn: "waiting", draft: EMPTY_DRAFT }))).toEqual({ enabled: false, reason: { text: "Answer or stop the request above." } });
   });
-  // Its turn ended and main still works on it (holding): a message goes to the queue, so neither limit on starting a turn
-  // applies yet, and an empty field is a disabled Send with no line.
-  test("while this conversation holds after its turn, text queues past the project limit", () => {
+  // Its turn ended and main still works on it (holding): a message goes to the queue, and an empty field is a disabled
+  // Send with no line.
+  test("while this conversation holds after its turn, text queues", () => {
     expect(dockedAvailability(input({ turn: "holding" }))).toEqual({ enabled: true, reason: null });
-    expect(dockedAvailability(input({ turn: "holding", busy: { kind: "project", open: "c9" } }))).toEqual({ enabled: true, reason: null });
     expect(dockedAvailability(input({ turn: "holding", draft: EMPTY_DRAFT }))).toEqual({ enabled: false, reason: null });
   });
   test("a fixed provider that cannot run offers its fix in Settings, not another agent", () => {
@@ -140,8 +125,8 @@ describe("dockedMessage", () => {
 });
 
 describe("dockedRefusal", () => {
-  test("project_busy becomes the busy line until the list names the conversation; a conversation's busy is a notice", () => {
-    expect(dockedRefusal("project_busy", EXISTING, "claude", "doan-design")).toEqual({ kind: "busy", busy: { kind: "project", open: null } });
+  // Project conversations run side by side, so main refuses none for another conversation of the project.
+  test("a conversation's busy is a notice", () => {
     expect(dockedRefusal("busy", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code is finishing a previous run. Try again in a moment." });
   });
   test("canvas_not_found replaces the composer with the canvas-gone line", () => {
@@ -306,12 +291,6 @@ describe("composerTurn", () => {
 });
 
 describe("at the usage limit", () => {
-  // The message waits in the queue for the reset, so another project conversation holding the root does not stop it
-  // being queued; main waits for the root when the reset comes.
-  test("Queue is not held by another conversation in the project", () => {
-    expect(dockedAvailability(input({ limited: true, busy: { kind: "project", open: "c9" } }))).toEqual({ enabled: true, reason: null });
-    expect(dockedAvailability(input({ limited: true, draft: EMPTY_DRAFT })).enabled).toBe(false);
-  });
   test("a refused start names the reset time when main gave one", () => {
     expect(dockedRefusal("rate_limited", { kind: "new", root: "/r" }, "codex", "doan-design", "at 3:00\u202fPM"))
       .toEqual({ kind: "notice", text: "Codex reached a usage limit. Send again after it resets at 3:00\u202fPM." });

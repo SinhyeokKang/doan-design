@@ -20,19 +20,30 @@ describe("followNewConversation", () => {
     expect(followNewConversation(null, [old, summary({ conversationId: "new" })], billing)).toBeNull();
   });
 
-  test("a conversation a handoff started never moves the panel", () => {
-    expect(followNewConversation(KNOWN, [old, summary({ conversationId: "h", startedBy: "handoff" })], billing)).toBeNull();
-    expect(followNewConversation(KNOWN, [summary({ conversationId: "h", startedBy: "handoff", lastActivityAt: at(9) }), summary({ conversationId: "mine", lastActivityAt: at(1) })], billing)).toBe("mine");
+  // A handoff's conversation takes the panel only when the person neither chose New nor typed in it: the default state
+  // with an empty draft (PRODUCT §5 item 2 'Handoff'). Its origin, a canvas or the Overview, is only in its history, so
+  // both read the same here.
+  test("a conversation a handoff started takes the default new state with an empty draft, from a canvas or the Overview", () => {
+    expect(followNewConversation(KNOWN, [old, summary({ conversationId: "h", startedBy: "handoff" })], billing)).toBe("h");
+    expect(followNewConversation(KNOWN, [old, summary({ conversationId: "h", startedBy: "handoff" })], billing, { draft: false })).toBe("h");
+  });
+  test("a draft in the default new state keeps a handoff's conversation out; the person's own new conversation still takes it", () => {
+    expect(followNewConversation(KNOWN, [old, summary({ conversationId: "h", startedBy: "handoff" })], billing, { draft: true })).toBeNull();
+    expect(followNewConversation(KNOWN, [summary({ conversationId: "h", startedBy: "handoff", lastActivityAt: at(9) }), summary({ conversationId: "mine", lastActivityAt: at(1) })], billing, { draft: true })).toBe("mine");
+  });
+  test("the person's New keeps a handoff's conversation out, as it does every other", () => {
+    expect(followNewConversation(null, [old, summary({ conversationId: "h", startedBy: "handoff" })], billing)).toBeNull();
+  });
+  test("a handoff's conversation the default state's list named, on another canvas, being deleted or unreadable is not followed", () => {
+    expect(followNewConversation(new Set(["old", "h"]), [old, summary({ conversationId: "h", startedBy: "handoff" })], billing)).toBeNull();
+    expect(followNewConversation(KNOWN, [summary({ conversationId: "h", startedBy: "handoff", canvas: { path: ".doan/canvases/home.html", id: "home" } })], billing)).toBeNull();
+    expect(followNewConversation(KNOWN, [summary({ conversationId: "h", startedBy: "handoff" })], billing, { deleting: id => id === "h" })).toBeNull();
+    expect(followNewConversation(KNOWN, [summary({ conversationId: "h", startedBy: "handoff", readError: true, lastActivityAt: "" })], billing)).toBeNull();
   });
 
-  // A promoted conversation was listed as a project conversation when the default state was taken, so `known` names it.
-  test("a conversation promoted to this canvas is followed, even one the default state's list named", () => {
-    expect(followNewConversation(KNOWN, [old, summary({ conversationId: "p", startedBy: "promotion" })], billing)).toBe("p");
-    expect(followNewConversation(new Set(["old", "p"]), [old, summary({ conversationId: "p", startedBy: "promotion" })], billing)).toBe("p");
-    expect(followNewConversation(null, [summary({ conversationId: "p", startedBy: "promotion" })], billing)).toBeNull();
-    expect(followNewConversation(new Set(["p"]), [summary({ conversationId: "p", startedBy: "promotion", canvas: { path: ".doan/canvases/home.html", id: "home" } })], billing)).toBeNull();
-    expect(followNewConversation(new Set(["p"]), [summary({ conversationId: "p", startedBy: "promotion" })], billing, id => id === "p")).toBeNull();
-    expect(followNewConversation(new Set(["p"]), [summary({ conversationId: "p", startedBy: "promotion", readError: true, lastActivityAt: "" })], billing)).toBeNull();
+  // Nothing is promoted any more; an earlier build's promoted conversation was listed when the default state was taken.
+  test("an earlier build's promoted conversation the default state's list named is not followed", () => {
+    expect(followNewConversation(new Set(["old", "p"]), [old, summary({ conversationId: "p", startedBy: "promotion" })], billing)).toBeNull();
   });
 
   test("two new at once: the most recent", () => {
@@ -45,7 +56,7 @@ describe("followNewConversation", () => {
     expect(followNewConversation(KNOWN, [summary({ conversationId: "x", canvas: { path: ".doan/canvases/home.html", id: "home" } })], billing)).toBeNull();
     const { canvas: _c, ...project } = summary({ conversationId: "proj" });
     expect(followNewConversation(KNOWN, [project], billing)).toBeNull();
-    expect(followNewConversation(KNOWN, [summary({ conversationId: "gone" })], billing, id => id === "gone")).toBeNull();
+    expect(followNewConversation(KNOWN, [summary({ conversationId: "gone" })], billing, { deleting: id => id === "gone" })).toBeNull();
   });
 
   test("a conversation whose history could not be read is not followed: who started it is unknown", () => {

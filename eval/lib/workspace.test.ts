@@ -67,6 +67,18 @@ test("work context and retained evidence read the fake app's v3 exchanges", asyn
   } finally { await ws.dispose(); }
 });
 
+test("a handoff scenario with no canvas (R12) still gets the conversation key and a fake app that accepts a handoff", async () => {
+  const ws = await prepareWorkspace({ scenario: loadScenario(join(import.meta.dirname, "../scenarios"), "R12"), agent: "fixture", cli, stub: "stub\n" });
+  try {
+    assert.match(ws.env.DOAN_HANDOFF ?? "", /^[0-9a-f]{64}$/);
+    const ctx = createContext({ repo: ws.repo, agent: "fixture", transcript: "", cli, env: ws.env, seedCommit: ws.seedCommit, handoffLog: ws.handoffLog });
+    writeFileSync(join(ws.repo, ".doan/canvases/next.html"), "<p>next</p>\n");
+    const asked = sh(cli, ["handoff", ".doan/canvases/next.html", "--message", "Continue on next.", "--repo", ws.repo, "--json"], ws.repo, ws.env);
+    assert.equal(asked.code, 0, asked.stderr + asked.stdout);
+    assert.equal(ctx.handoff().length, 1);
+  } finally { await ws.dispose(); }
+});
+
 test("a handoff scenario gives the agent the conversation key the fake app accepts, and no other scenario gets one", async () => {
   const saved = process.env.DOAN_HANDOFF;
   try {

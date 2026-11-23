@@ -80,7 +80,7 @@ export function canvasConversationRows(list: readonly ConversationSummary[], can
   });
 }
 
-// "No longer in" matches the thread's promotion marker; an unreadable canvas keeps the sidebar's sentence.
+// "No longer in" matches the thread's "Moved to" marker (an earlier build's promotion); an unreadable canvas keeps the sidebar's sentence.
 export function canvasRowProblemText(problem: CanvasRowProblem, project: string): string {
   switch (problem.kind) {
     case "gone": return `No longer in ${project}`;

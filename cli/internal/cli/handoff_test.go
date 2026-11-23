@@ -203,7 +203,7 @@ func TestHandoffWithoutAKeyAsksNothing(t *testing.T) {
 	for _, key := range []string{"", strings.ToUpper(testHandoffKey), testHandoffKey[:10]} {
 		t.Setenv("DOAN_HANDOFF", key)
 		failure := handoffCode(t, root, "", "not_app_conversation", ".doan/canvases/new.html", "--message", "x")
-		if !strings.Contains(strings.Join(stringsOf(failure["nextSteps"]), "\n"), "canvas conversation") {
+		if !strings.Contains(strings.Join(stringsOf(failure["nextSteps"]), "\n"), "works only in a conversation in the Doan app") {
 			t.Error(failure)
 		}
 	}

@@ -17,9 +17,9 @@ export interface Scenario {
   worktree: { branch: string } | null;
   // The fake app's scripted app-socket v2 onboarding state.
   onboarding: "onboarding.json" | null;
-  // Stands for a Doan canvas conversation on `canvas`: the agent's environment carries DOAN_HANDOFF and the fake app
-  // answers app-socket v5 for it.
-  handoff: { canvas: string } | null;
+  // Stands for a Doan conversation: the agent's environment carries DOAN_HANDOFF and the fake app answers app-socket v5
+  // for it. `canvas` is the canvas it works on, or null for a project conversation (Home or Overview), which has none.
+  handoff: { canvas: string | null } | null;
   // The `others` the fake app puts on app-socket v3 start and update answers: the other sessions on the canvas.
   workOthers: Record<string, unknown>[] | null;
 }
@@ -80,7 +80,7 @@ export function parseScenarioJson(value: unknown, dirName: string): Scenario {
   if (handoff !== null) {
     const keys = typeof handoff === "object" && !Array.isArray(handoff) ? Object.keys(handoff) : [];
     const canvas = (handoff as { canvas?: unknown }).canvas;
-    if (keys.length !== 1 || keys[0] !== "canvas" || typeof canvas !== "string" || !HANDOFF_CANVAS.test(canvas)) fail(dirName, "handoff must be null or { canvas: \".doan/canvases/<name>.html\" }");
+    if (keys.length !== 1 || keys[0] !== "canvas" || (canvas !== null && (typeof canvas !== "string" || !HANDOFF_CANVAS.test(canvas)))) fail(dirName, "handoff must be null or { canvas: \".doan/canvases/<name>.html\" | null }");
   }
   const workOthers = v.workOthers ?? null;
   if (workOthers !== null && !validWorkResponse({ v: 3, ok: true, others: workOthers })) fail(dirName, "workOthers must be null or an others array that matches the app-socket v3 response");

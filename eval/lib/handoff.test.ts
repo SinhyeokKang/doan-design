@@ -107,6 +107,27 @@ test("the fake app answers v5 in the app's order, accepts each different path on
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
+test("a handoff conversation with no canvas (a Home conversation) never answers same_canvas", async () => {
+  const dir = mkdtempSync("/tmp/doan-handoff-test-");
+  const root = join(dir, "repo");
+  mkdirSync(join(root, ".doan/canvases"), { recursive: true });
+  const account = ".doan/canvases/account.html";
+  writeFileSync(join(root, account), "<p>account</p>\n");
+  const app = await startFakeApp({ dir, root, selection: null, handoff: { key, canvas: null } });
+  try {
+    const runtime = JSON.parse(readFileSync(app.runtimePath, "utf8"));
+    const ask = (args: Record<string, unknown>) => new Promise<any>((resolve, reject) => {
+      const socket = connect(runtime.socket);
+      let reply = "";
+      socket.on("error", reject).on("data", bytes => { reply += bytes; }).on("end", () => resolve(JSON.parse(reply)));
+      socket.end(JSON.stringify({ v: 5, token: runtime.token, root, handoff: key, path: account, text: "Continue on account.", ...args }) + "\n");
+    });
+    assert.equal((await ask({ handoff: "cd".repeat(32) })).error.code, "not_app_conversation");
+    assert.deepEqual(await ask({}), { v: 5, ok: true, requested: true });
+    assert.equal((await ask({})).error.code, "already_requested");
+  } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
 test("without a handoff conversation the fake app is an older app that does not know v5", async () => {
   const dir = mkdtempSync("/tmp/doan-handoff-test-");
   const root = join(dir, "repo");

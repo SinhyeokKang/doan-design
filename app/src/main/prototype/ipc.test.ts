@@ -38,19 +38,13 @@ describe("prototype channels", () => {
       entryChanged: "prototype:entryChanged",
       revealRequest: "prototype:revealRequest",
       lastUsed: "prototype:lastUsed",
-      target: "prototype:target",
-      readTarget: "prototype:readTarget",
-      setDrawing: "prototype:setDrawing",
-      drawing: "prototype:drawing",
-      drawingChanged: "prototype:drawingChanged",
-      promoted: "prototype:promoted",
-      promotedChanged: "prototype:promotedChanged",
+      conversationListed: "prototype:conversationListed",
       playing: "prototype:playing",
     });
     expect(PROTOTYPE_WINDOW_REQUESTS).toEqual(["prototype:read", "prototype:result", "prototype:frames", "prototype:goto", "prototype:reload", "prototype:back", "prototype:forward", "prototype:choose", "prototype:close", "prototype:mode",
       "prototype:export", "prototype:revealExport", "prototype:visible", "prototype:panel", "prototype:showing", "prototype:reveal",
-      "prototype:auth", "prototype:work", "prototype:composer", "prototype:remember", "prototype:entry", "prototype:drawing", "prototype:promoted",
-      "prototype:rememberedConversation"]);
+      "prototype:auth", "prototype:work", "prototype:composer", "prototype:remember", "prototype:entry",
+      "prototype:rememberedConversation", "prototype:conversationListed"]);
   });
 
   test("a run that does not answer in 10 s is an init failure", () => {

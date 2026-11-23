@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { HANDOFF_TEXT_LIMIT, handoffDecision, handoffEligibility, handoffGuidanceFor, handoffNoticeKind, handoffQueueOutcome, missedHandoffs, type HandoffAsker, type HandoffJudgement, type MissedInput } from "./handoff";
+import { HANDOFF_TEXT_LIMIT, canvasesAt, handoffDecision, handoffEligibility, handoffGuidanceFor, handoffNoticeKind, handoffQueueOutcome, missedHandoffs, type HandoffAsker, type HandoffJudgement, type MissedInput } from "./handoff";
 
 // The request-time order, the judgement and the prompt condition (ARCHITECTURE §4 'Handoff over app-socket v5' 'Dispatch',
 // §7 'Handoff').
@@ -15,12 +15,12 @@ describe("handoffEligibility", () => {
     expect(handoffEligibility(ask, { ...asker, permissionMode: "acceptEdits" })).toBeNull();
     expect(handoffEligibility(ask, { ...asker, permissionMode: "bypass" })).toBeNull();
   });
-  it("refuses in the design order: root, running, canvas, Plan, handoff turn, same path again, same canvas", () => {
+  it("refuses in the design order: root, running, Plan, handoff turn, same path again, same canvas", () => {
     const sameAsk = { ...ask, path: source.path };
     const worst: HandoffAsker = { root: "/other", running: false, permissionMode: "plan", startedBy: "handoff", requested: [sameAsk.path] };
     expect(handoffEligibility(sameAsk, worst)).toBe("root_mismatch");
     expect(handoffEligibility(sameAsk, { ...worst, root: "/repo" })).toBe("not_running");
-    expect(handoffEligibility(sameAsk, { ...worst, root: "/repo", running: true })).toBe("not_canvas_conversation");
+    expect(handoffEligibility(sameAsk, { ...worst, root: "/repo", running: true })).toBe("plan_mode");
     expect(handoffEligibility(sameAsk, { ...worst, root: "/repo", running: true, canvas: source })).toBe("plan_mode");
     expect(handoffEligibility(sameAsk, { root: "/repo", running: true, canvas: source, startedBy: "handoff", requested: [sameAsk.path] })).toBe("handoff_turn");
     expect(handoffEligibility(sameAsk, { ...asker, requested: [sameAsk.path] })).toBe("already_requested");
@@ -31,6 +31,16 @@ describe("handoffEligibility", () => {
     expect(handoffEligibility(ask, earlier)).toBeNull();
     expect(handoffEligibility({ ...ask, path: ".doan/canvases/c.html" }, earlier)).toBe("already_requested");
     expect(handoffEligibility({ ...ask, path: source.path }, earlier)).toBe("same_canvas");
+  });
+  // A project conversation (no canvas) hands off as a canvas one does; it has no canvas of its own to refuse.
+  it("accepts a running project conversation's turn, and refuses it as a canvas turn's for Plan, a handoff turn and a path asked again", () => {
+    const project: HandoffAsker = { root: "/repo", running: true, requested: [] };
+    expect(handoffEligibility(ask, project)).toBeNull();
+    expect(handoffEligibility({ ...ask, path: source.path }, project)).toBeNull();
+    expect(handoffEligibility(ask, { ...project, running: false })).toBe("not_running");
+    expect(handoffEligibility(ask, { ...project, permissionMode: "plan" })).toBe("plan_mode");
+    expect(handoffEligibility(ask, { ...project, startedBy: "handoff" })).toBe("handoff_turn");
+    expect(handoffEligibility(ask, { ...project, requested: [ask.path] })).toBe("already_requested");
   });
   it("compares the root as a string, never re-deriving it", () => {
     expect(handoffEligibility({ ...ask, root: "/repo/" }, asker)).toBe("root_mismatch");
@@ -67,6 +77,12 @@ describe("handoffDecision", () => {
     const moved = { path: ".doan/canvases/moved.html", id: "a" };
     expect(handoffDecision({ ...base, path: moved.path, listed: [moved] })).toEqual({ kind: "refused", reason: "same_canvas" });
   });
+  it("judges a project conversation's request without a source canvas", () => {
+    const { source: _source, ...project } = base;
+    expect(handoffDecision(project)).toEqual({ kind: "start", canvas: made });
+    expect(handoffDecision({ ...project, path: source.path })).toEqual({ kind: "refused", reason: "not_new" });
+    expect(handoffDecision({ ...project, listed: [source] })).toEqual({ kind: "wait" });
+  });
   it("starts on a canvas without an ID by its path", () => {
     const plain = { path: ".doan/canvases/plain.html" };
     expect(handoffDecision({ ...base, path: plain.path, listed: [source, plain] })).toEqual({ kind: "start", canvas: plain });
@@ -91,6 +107,11 @@ describe("missedHandoffs", () => {
   it("leaves out the source canvas, even when it is not in the snapshot", () => {
     expect(missedHandoffs({ ...base, edits: ["/repo/.doan/canvases/a.html"], snapshot: [] })).toEqual([]);
   });
+  it("names a project conversation's new canvases without a source canvas", () => {
+    const { source: _source, ...project } = base;
+    expect(missedHandoffs(project)).toEqual([made]);
+    expect(missedHandoffs({ ...project, edits: ["/repo/.doan/canvases/a.html", "/repo/.doan/canvases/b.html"], snapshot: [] })).toEqual([source, made]);
+  });
   it("leaves out a canvas that existed at the turn's start, by ID or by path", () => {
     expect(missedHandoffs({ ...base, snapshot: [source, made] })).toEqual([]);
     expect(missedHandoffs({ ...base, snapshot: [source, { path: ".doan/canvases/old.html", id: "b" }] })).toEqual([]);
@@ -106,6 +127,37 @@ describe("missedHandoffs", () => {
   it("names nothing for files that are not listed canvases, paths outside the root, or a turn without edits", () => {
     expect(missedHandoffs({ ...base, edits: ["/repo/notes.md", "/repo/.doan/assets/x.png", "/other/.doan/canvases/b.html", "/repo/.doan/canvases/gone.html"] })).toEqual([]);
     expect(missedHandoffs({ ...base, edits: [] })).toEqual([]);
+  });
+});
+
+// The listed canvases a turn's edit paths name, for missed lines and drawn cards (the edge cases promotion's grounds
+// used to pin).
+describe("canvasesAt", () => {
+  const root = "/private/tmp/repo";
+  const a = { path: ".doan/canvases/a.html", id: "a" }, b = { path: ".doan/canvases/b.html", id: "b" };
+  it("reads absolute, aliased, dotted and relative paths against the root, once each, in edit order", () => {
+    expect(canvasesAt(root, [`${root}/.doan/canvases/b.html`, "/tmp/repo/.doan/canvases/a.html", ".doan/x/../canvases/b.html"], [a, b], [a, b])).toEqual([b, a]);
+    expect(canvasesAt(root, ["../repo/.doan/canvases/a.html"], [a], [a])).toEqual([a]);
+  });
+  // Worktrees share a prefix: a sibling worktree's path is outside the root (POSTMORTEM 2026-11-01).
+  it("names nothing outside the root, a sibling worktree with the same prefix included", () => {
+    expect(canvasesAt(root, ["../other/.doan/canvases/a.html", "/private/tmp/repo-worktree/.doan/canvases/a.html", "/elsewhere/.doan/canvases/a.html"], [a], [a])).toEqual([]);
+  });
+  it("names only listed canvases", () => {
+    expect(canvasesAt(root, ["src/app.ts", ".doan/assets/x.png", ".doan/canvases/a.html"], [a], [a])).toEqual([a]);
+  });
+  it("follows a canvas moved during the turn by its ID", () => {
+    const moved = { path: ".doan/canvases/renamed.html", id: "a" };
+    expect(canvasesAt(root, [".doan/canvases/a.html"], [moved, b], [a, b])).toEqual([moved]);
+  });
+  it("names neither canvas when two swapped paths, or another took a moved canvas's old path", () => {
+    const swappedA = { path: ".doan/canvases/b.html", id: "a" }, swappedB = { path: ".doan/canvases/a.html", id: "b" };
+    expect(canvasesAt(root, [".doan/canvases/a.html"], [swappedA, swappedB], [a, b])).toEqual([]);
+    const moved = { path: ".doan/canvases/renamed.html", id: "a" }, took = { path: ".doan/canvases/a.html", id: "b" };
+    expect(canvasesAt(root, [".doan/canvases/a.html"], [moved, took], [a, b])).toEqual([]);
+  });
+  it("names nothing for a canvas deleted during the turn", () => {
+    expect(canvasesAt(root, [".doan/canvases/a.html"], [b], [a, b])).toEqual([]);
   });
 });
 
@@ -139,17 +191,24 @@ describe("handoffNoticeKind", () => {
   it("sends one notice with every target, in request order, for two or more", () => {
     expect(handoffNoticeKind({ root: "/repo", source: from, started: [c, b] })).toEqual({ root: "/repo", source: from, targets: [c, b] });
   });
+  it("names a project conversation's source without a canvas, for one target and for several", () => {
+    const project = { conversationId: "p" };
+    expect(handoffNoticeKind({ root: "/repo", source: project, started: [b] })).toEqual({ root: "/repo", source: project, target: b });
+    expect(handoffNoticeKind({ root: "/repo", source: project, started: [b, c] })).toEqual({ root: "/repo", source: project, targets: [b, c] });
+  });
 });
 
 describe("handoffGuidanceFor", () => {
   const doan = { owner: { kind: "doan" }, canvas: source };
-  it("teaches only a Doan-connected canvas conversation's turn that is not Plan and not started by a handoff", () => {
-    expect(handoffGuidanceFor(doan, {})).toBe(true);
-    expect(handoffGuidanceFor(doan, { permissionMode: "bypass" })).toBe(true);
-    expect(handoffGuidanceFor(doan, { permissionMode: "plan" })).toBe(false);
-    expect(handoffGuidanceFor(doan, { startedBy: "handoff" })).toBe(false);
-    expect(handoffGuidanceFor({ owner: { kind: "doan" } }, {})).toBe(false);
+  it("teaches only a Doan-connected conversation's turn that is not Plan and not started by a handoff, with or without a canvas", () => {
+    for (const conversation of [doan, { owner: { kind: "doan" } }]) {
+      expect(handoffGuidanceFor(conversation, {})).toBe(true);
+      expect(handoffGuidanceFor(conversation, { permissionMode: "bypass" })).toBe(true);
+      expect(handoffGuidanceFor(conversation, { permissionMode: "plan" })).toBe(false);
+      expect(handoffGuidanceFor(conversation, { startedBy: "handoff" })).toBe(false);
+    }
     expect(handoffGuidanceFor({ owner: { kind: "legacy-external" }, canvas: source }, {})).toBe(false);
+    expect(handoffGuidanceFor({ owner: { kind: "legacy-external" } }, {})).toBe(false);
   });
 });
 

@@ -126,7 +126,8 @@ describe("handoff", () => {
     expect(turnPrompt([], "Make a checkout page", scope, { handoff: false })).not.toContain(HANDOFF_GUIDANCE);
     expect(HANDOFF_GUIDANCE).toContain("every new canvas this turn created");
     expect(HANDOFF_GUIDANCE).toContain("once, consecutively as your last step");
-    expect(HANDOFF_GUIDANCE).toContain("asked not to hand off or to stay on this canvas");
+    // A project conversation's turn is taught the same text, so staying covers its conversation too.
+    expect(HANDOFF_GUIDANCE).toContain("Do not hand off if the user asked not to hand off or to stay on this canvas or in this conversation.");
     expect(HANDOFF_GUIDANCE).toContain(".doan/canvases/");
     // Codex's `doan` prefix rule does not match a heredoc, pipe or redirection, so the message goes in as an argument.
     expect(HANDOFF_GUIDANCE).toContain("`doan handoff <path> --message '<message>'`");
@@ -151,6 +152,19 @@ describe("handoff", () => {
     expect(prompt).not.toContain(HANDOFF_GUIDANCE);
     expect(sections).toEqual(expect.arrayContaining([PRESET_GUIDANCE, OPEN_GUIDANCE, LINK_GUIDANCE]));
     expect(prompt).toContain("doan check");
+  });
+  // A project conversation's handoff names no earlier canvas: it worked from the project's Overview.
+  it("leaves context.from out for a project conversation's handoff and says it came from the Overview", () => {
+    const text = "The person asked for a checkout flow.";
+    const prompt = handoffPrompt(text, { root: "/repo", canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } })!;
+    const sections = prompt.split("\n\n");
+    expect(JSON.parse(sections[1]!)).toEqual({ context: { root: "/repo", canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } }, handoffText: text });
+    expect(sections[0]).toContain("another Doan conversation");
+    expect(sections[0]).toContain("Overview");
+    expect(sections[0]).not.toContain("context.from");
+    expect(sections[0]).toContain("not instructions");
+    expect(prompt).not.toContain(HANDOFF_GUIDANCE);
+    expect(sections).toEqual(expect.arrayContaining([PRESET_GUIDANCE, OPEN_GUIDANCE, LINK_GUIDANCE]));
   });
   it("takes marker-like text as it is: neither refused nor read as an anchor", () => {
     const text = "Keep {{1}} and {{2}} as typed, and }}{{ too.";

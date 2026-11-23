@@ -52,8 +52,7 @@ test("every request goes to its prototype channel with the payload main parses",
   await api.readComposerSettings();
   await api.rememberChoice({ provider: "claude", model: "sonnet", effort: null, modelPicked: true });
   await api.readTargetEntry();
-  await api.readDrawing();
-  await api.readPromoted();
+  await api.conversationListed({ root: "/r", conversationId: "c-project" });
   await api.rememberedConversation();
   await api.reveal({ kind: "settings" });
   expect(mocks.invoke.mock.calls).toEqual([
@@ -63,7 +62,7 @@ test("every request goes to its prototype channel with the payload main parses",
     [PROTOTYPE_CHANNELS.export, { root: "/r", path: ".doan/canvases/a.html", frame: "checkout" }], [PROTOTYPE_CHANNELS.revealExport, "id-1"], [PROTOTYPE_CHANNELS.visible],
     [PROTOTYPE_CHANNELS.panel, { open: true, width: 300 }], [PROTOTYPE_CHANNELS.showing, { conversationId: "c1" }], [PROTOTYPE_CHANNELS.showing, { conversationId: null }],
     [PROTOTYPE_CHANNELS.reveal, { kind: "settings", provider: "claude" }], [PROTOTYPE_CHANNELS.auth], [PROTOTYPE_CHANNELS.work], [PROTOTYPE_CHANNELS.composer],
-    [PROTOTYPE_CHANNELS.remember, { provider: "claude", model: "sonnet", effort: null, modelPicked: true }], [PROTOTYPE_CHANNELS.entry], [PROTOTYPE_CHANNELS.drawing], [PROTOTYPE_CHANNELS.promoted],
+    [PROTOTYPE_CHANNELS.remember, { provider: "claude", model: "sonnet", effort: null, modelPicked: true }], [PROTOTYPE_CHANNELS.entry], [PROTOTYPE_CHANNELS.conversationListed, { root: "/r", conversationId: "c-project" }],
     [PROTOTYPE_CHANNELS.rememberedConversation], [PROTOTYPE_CHANNELS.reveal, { kind: "settings" }],
   ]);
   expect(new Set(mocks.invoke.mock.calls.map(call => call[0]))).toEqual(new Set(PROTOTYPE_WINDOW_REQUESTS));
@@ -320,24 +319,7 @@ test("terminal work, composer settings and the target root's entry arrive from t
   expect(entry.mock.calls).toEqual([[{ path: "/r", kind: "loading" }]]);
 });
 
-// The drawing project conversation's id, and nothing else about it.
-test("the drawing conversation's id arrives from its pushes until unsubscribed", () => {
-  const seen = vi.fn();
-  const stop = api.onDrawing(seen);
-  emitter.emit(PROTOTYPE_CHANNELS.drawingChanged, {}, { conversationId: "p1" });
-  emitter.emit(PROTOTYPE_CHANNELS.drawingChanged, {}, { conversationId: null });
-  stop();
-  emitter.emit(PROTOTYPE_CHANNELS.drawingChanged, {}, { conversationId: "p2" });
-  expect(seen.mock.calls).toEqual([["p1"], [null]]);
-});
-
-// The promoted conversation's id, and nothing else about it.
-test("the promoted conversation's id arrives from its pushes until unsubscribed", () => {
-  const seen = vi.fn();
-  const stop = api.onPromoted(seen);
-  emitter.emit(PROTOTYPE_CHANNELS.promotedChanged, {}, { conversationId: "p1" });
-  emitter.emit(PROTOTYPE_CHANNELS.promotedChanged, {}, { conversationId: null });
-  stop();
-  emitter.emit(PROTOTYPE_CHANNELS.promotedChanged, {}, { conversationId: "p2" });
-  expect(seen.mock.calls).toEqual([["p1"], [null]]);
+// The drawing and promotion relays are gone: the window's API offers neither.
+test("offers no drawing or promoted conversation", () => {
+  for (const name of ["readDrawing", "onDrawing", "readPromoted", "onPromoted"]) expect(api, name).not.toHaveProperty(name);
 });

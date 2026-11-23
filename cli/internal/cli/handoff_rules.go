@@ -84,7 +84,7 @@ func handoffFailure(code, message string) *Error {
 		"app_protocol_mismatch":   {"Ask the user to update Doan and the doan CLI to matching versions"},
 		"project_not_open":        notOpenSteps(""),
 		"canvas_not_found":        {"Write the canvas first, then run `doan handoff` with its path; check the path with `doan ls`"},
-		"not_app_conversation":    {"`doan handoff` works only in a canvas conversation in the Doan app; tell the user to open the new canvas in Doan and start a conversation there"},
+		"not_app_conversation":    {"`doan handoff` works only in a conversation in the Doan app; tell the user to open the new canvas in Doan and start a conversation there"},
 		"root_mismatch":           {"Run `doan handoff` from the conversation's working directory without --repo"},
 		"not_running":             {"Run `doan handoff` only during the turn that made the canvas; " + ready},
 		"not_canvas_conversation": {"Only a canvas conversation hands off; " + ready},

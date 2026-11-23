@@ -33,10 +33,8 @@ const summary = (conversationId: string, extra: Partial<ConversationSummary> = {
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
 let resume: unknown;
-let drawing: string | null;
 beforeEach(() => {
   resume = { available: false, reason: "no_record" };
-  drawing = null;
   vi.stubGlobal("window", { doan: {
     conversationResumeTarget: vi.fn(async () => resume), readConversation: vi.fn(async () => ({ error: "not_found" })),
     takeConversationDraft: vi.fn(async () => null), attachmentsFromPaths: vi.fn(async () => []),
@@ -48,7 +46,7 @@ const PICK = { pressed: false, enabled: true, reason: null, onToggle: () => {} }
 async function panel(list: ListView, setup: (run: CanvasRun) => void = () => {}, patch: Partial<CanvasConversationProps> = {}) {
   const lists = new Map<string, ListView>([[ROOT, list]]);
   const store = new ConversationStore({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
-  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, readsProjectThreads: true, drawing: () => drawing, changed: vi.fn() }, store, window.doan);
+  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   setup(run);
@@ -56,7 +54,7 @@ async function panel(list: ListView, setup: (run: CanvasRun) => void = () => {},
   const props: CanvasConversationProps = {
     calls: window.doan, run, support: new DockedSupport(() => {}, window.doan), target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY,
     list, seen: new Set(), prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
-    onLocate: vi.fn(async () => "shown" as const), pick: PICK, composerLink: { current: null }, onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [], ...patch,
+    onLocate: vi.fn(async () => "shown" as const), pick: PICK, composerLink: { current: null }, onSettings: vi.fn(), onNotice: vi.fn(), work: [], ...patch,
   };
   return renderToStaticMarkup(<TooltipProvider>{<CanvasConversation {...props} /> as ReactElement}</TooltipProvider>);
 }
@@ -80,14 +78,15 @@ test("the thread notice's Retry runs while the list is read again, and a repeate
   expect(again).toContain("<span>Try again. You can still start a new conversation.\u00a0</span>");
 });
 
-test("the drawing preview locks the composer and leaves the thread outside the lock", async () => {
-  drawing = "proj";
-  const { canvas: _canvas, ...project } = summary("proj");
+// No drawing preview: a project conversation's turn drawing this canvas leaves the new conversation state as it is,
+// as a canvas conversation's handoff target does (PRODUCT §5 item 2 'Handoff').
+test("a project conversation drawing this canvas leaves the new conversation state open for input", async () => {
+  const { canvas: _canvas, ...project } = summary("proj", { phase: "running", working: true });
   const out = await panel([project]);
-  expect(out).not.toContain('aria-label="Open the project conversation"');
-  expect(out).toMatch(/class="cp-foot"[^>]*inert/);
-  expect(out).toContain('contentEditable="false"');
-  expect(out).toContain('class="cp-scroll"');
+  expect(out).not.toContain("A project conversation is drawing this canvas");
+  expect(out).not.toMatch(/class="cp-foot"[^>]*(inert|disabled)/);
+  expect(out).toContain('contentEditable="true"');
+  expect(out).toContain('aria-placeholder="Ask, / for presets"');
 });
 
 test("a canvas with a terminal session offers it first, with the time doan check linked it", async () => {
@@ -210,7 +209,7 @@ test("a queued message and the title before the list names the conversation show
   const doan = (window as unknown as { doan: Record<string, ReturnType<typeof vi.fn>> }).doan;
   doan.readConversation!.mockResolvedValue({ events: [{ v: 1, conversationId: "s1", seq: 1, turnId: "t", at: "2026-11-01T00:00:00Z", type: "user.message", text: "Make {{1}} quieter", anchors: [{ frame: { id: "cart", title: "Cart" } }] }], lastSeq: 1, turn: "idle" });
   const store = new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
-  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
+  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.started({ root: ROOT, canvas: CANVAS }, "s1", "claude", run.revision());
   await flush();
@@ -224,7 +223,7 @@ test("the title before the list names it: empty while the history is read, Conve
   let answer!: (reply: unknown) => void;
   doan.readConversation!.mockImplementation(() => new Promise(resolve => { answer = resolve; }));
   const store = new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
-  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
+  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.started({ root: ROOT, canvas: CANVAS }, "s2", "claude", run.revision());
   await flush();
@@ -248,7 +247,7 @@ test("New while the list loads sends once the session answers, and again beside 
   resume = { available: false, reason: "no_record" };
   const lists = new Map<string, ListView>([[ROOT, "loading"]]);
   const store = new ConversationStore({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
-  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, remembered: () => null, changed: vi.fn() }, store, window.doan);
+  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, remembered: () => null, changed: vi.fn() }, store, window.doan);
   const support = new DockedSupport(() => {}, window.doan);
   support.setAuth({ revision: 1, providers: [connected("claude")] });
   run.show({ root: ROOT, canvas: CANVAS });
@@ -257,7 +256,7 @@ test("New while the list loads sends once the session answers, and again beside 
   await flush();
   const draw = () => renderToStaticMarkup(<TooltipProvider>{<CanvasConversation calls={window.doan} run={run} support={support} target={{ root: ROOT, canvas: CANVAS }} canvasName="checkout" project="acme-web" entry={ENTRY}
     list={lists.get(ROOT)!} seen={new Set()} prefs={null} defaults={null} now={Date.parse("2026-11-01T15:00:00")} blocked={null} frames={[]} locateDisabled={false} arrival={null}
-    onArrived={vi.fn()} onLocate={vi.fn(async () => "shown" as const)} pick={PICK} composerLink={{ current: null }} onSettings={vi.fn()} onNotice={vi.fn()} onOpenProjectConversation={vi.fn()} work={[]} /> as ReactElement}</TooltipProvider>);
+    onArrived={vi.fn()} onLocate={vi.fn(async () => "shown" as const)} pick={PICK} composerLink={{ current: null }} onSettings={vi.fn()} onNotice={vi.fn()} work={[]} /> as ReactElement}</TooltipProvider>);
   expect(run.view()).toMatchObject({ kind: "new" });
   expect(draw()).not.toMatch(/aria-label="Send"[^>]*disabled=""/);
   lists.set(ROOT, [summary("now", { phase: "running", working: true })]);
@@ -270,35 +269,9 @@ test("New while the list loads sends once the session answers, and again beside 
   expect(out).not.toContain("You can send once Doan reads the conversations.");
 });
 
-// BV2 6p: main reads the list again right after a bind; the notice and what shows stay.
-test("a promotion over the New conversation the person chose keeps it with the notice and Open over later reads", async () => {
-  const project = (extra: Partial<ConversationSummary> = {}) => { const { canvas: _canvas, ...rest } = summary("proj", extra); return rest as ConversationSummary; };
-  let list: ListView = [project()];
-  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
-  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
-  run.show({ root: ROOT, canvas: CANVAS });
-  run.sync();
-  run.select(null);
-  list = [summary("proj", { startedBy: "promotion" })];
-  run.sync();
-  list = [summary("proj", { startedBy: "promotion", lastActivityAt: "2026-11-01T00:01:00.000Z" })];
-  run.sync();
-  await flush();
-  const props: CanvasConversationProps = {
-    calls: window.doan, run, support: new DockedSupport(() => {}, window.doan), target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY,
-    list, seen: new Set(), prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
-    onLocate: vi.fn(async () => "shown" as const), pick: PICK, composerLink: { current: null }, onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
-  };
-  const out = renderToStaticMarkup(<TooltipProvider><CanvasConversation {...props} /></TooltipProvider>);
-  expect(canvasConversationTitle(run, list).title).toBe("New conversation");
-  expect(out).toContain("<span>A project conversation moved to this canvas.</span>");
-  expect(out).toContain('aria-label="Open the moved conversation"');
-  expect(out).not.toContain("current conversation");
-});
-
 // Dogfooding: New conversation as an icon button in the panel header, after the title menu (so left of Hide conversation).
 test("the panel header offers New conversation next to the title menu", () => {
-  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan), window.doan);
+  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan), window.doan);
   const html = renderToStaticMarkup(<TooltipProvider><CanvasConversationTitle run={run} list={[]} canvasName="checkout" now={0} seen={new Set()} title="Payment copy" current="c1" onPicked={() => {}} /></TooltipProvider>);
   const title = html.indexOf("doan-conv-title"), button = html.indexOf('aria-label="New conversation"');
   expect(title).toBeGreaterThanOrEqual(0);

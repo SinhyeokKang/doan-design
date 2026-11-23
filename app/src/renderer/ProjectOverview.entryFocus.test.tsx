@@ -94,7 +94,7 @@ test.each(["permission", "question"] as const)("a waiting %s entry scrolls to th
   const support = Object.assign(new DockedSupport(() => {}, window.doan), { readPresets: vi.fn(), readModels: vi.fn() });
   const overview = () => ProjectOverview({
     run, support, root: ROOT, project: "doan", entry, worktrees: [entry], homeDirectory: "/code",
-    notice: null, unavailable: null, list, seen: new Set(), holder: null, prefs: {}, defaults: null, now: Date.parse("2026-11-23T00:03:00.000Z"),
+    notice: null, unavailable: null, list, seen: new Set(), prefs: {}, defaults: null, now: Date.parse("2026-11-23T00:03:00.000Z"),
     onWorktree: () => {}, onOpenCanvas: () => {}, onRetryList: () => {}, onStart: async () => ({ ok: true }), onSettings: () => {},
     onSendConversation: async () => {}, onAction: () => {}, onProjectSettings: () => {},
   });

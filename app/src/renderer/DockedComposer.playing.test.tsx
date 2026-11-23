@@ -29,8 +29,8 @@ function props(patch: Partial<DockedComposerProps> = {}, draft: Partial<DockedDr
     onPickerOpen: () => {}, onPickModel: () => {}, onPickEffort: () => {}, onPickFast: () => {}, onSettings: () => {},
     presets: undefined, suggested: [], onPresetsOpen: () => {}, onPresetsRetry: async () => false,
     thumbnails: {}, onAttach: () => {}, onFiles: () => {}, onAttachmentRemoved: () => {},
-    turn: "idle", busy: null, canvasGone: false, queued: [],
-    onSend: ok, onQueue: ok, onStop: () => {}, onRemoveQueued: async () => true, onOpen: () => {}, playing: PLAYING, ...patch,
+    turn: "idle", canvasGone: false, queued: [],
+    onSend: ok, onQueue: ok, onStop: () => {}, onRemoveQueued: async () => true, playing: PLAYING, ...patch,
   };
 }
 const html = (patch: Partial<DockedComposerProps> = {}, draft: Partial<DockedDraft> = {}) => renderToStaticMarkup(<TooltipProvider><DockedComposer {...props(patch, draft)} /></TooltipProvider>);

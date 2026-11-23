@@ -248,14 +248,6 @@ describe("project rows", () => {
     }
   });
 
-  // POSTMORTEM 2026-11-23: the list read and the Overview's view arrive apart. A promoted conversation's row is a canvas
-  // row under the same key, whichever of the two came first.
-  test("a canvas row is never current, even under the shown conversation's key", () => {
-    const promoted = canvasConversationRows([summary({ conversationId: "p1", canvas: { path: billing.path, id: "billing" }, startedBy: "promotion" })], [billing], NOW);
-    expect(promoted[0]!.kind).toBe("canvas");
-    for (const current of ["p1", null]) expect(render(promoted, thumbnails, current)).not.toContain("aria-current");
-  });
-
   test("the current row keeps the pressed fill under the pointer and beside Delete's hover, and hides the hairlines beside it", () => {
     const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
     expect(css).toMatch(/\.cv-row\[aria-current="true"\][^{]*\{[^}]*background: var\(--affordance-backdrop-pressed\);/);

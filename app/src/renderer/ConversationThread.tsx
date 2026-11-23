@@ -47,7 +47,7 @@ export interface ConversationThreadProps {
   // Requests with a later seq arrived while the thread was open. Only those are announced as alerts; drawing history
   // announces nothing.
   liveAfter: number;
-  // Whether a promotion marker's canvas, a canvas card's canvas or handoff target, or a handoff card's source is still
+  // Whether an earlier build's promotion marker's canvas, a canvas card's canvas or handoff target, or a handoff card's source is still
   // listed (found by ID).
   canvasListed(canvas: Canvas): boolean;
   // Resolves to main's refusal, or rejects, when the answer did not reach the agent; the request then says so.
@@ -70,6 +70,11 @@ export interface ConversationThreadProps {
   // A canvas card's or handoff card's Open: that canvas with its panel on the given conversation, or the canvas alone
   // for a canvas card without a started handoff. Without it neither offers Open.
   onOpenHandoff?(canvas: Canvas, conversationId?: string): void;
+  // A handoff card from the Overview (a project conversation's handoff): Open shows its source conversation in the
+  // root's Overview. Without it that card offers no Open.
+  onOpenOverview?(conversationId: string): void;
+  // Whether the source conversation of a handoff card from the Overview still exists; absent, it counts as there.
+  conversationListed?(conversationId: string): boolean;
   // Only https links reach this; main checks again.
   onOpenLink(url: string): void;
   onCopy(text: string): Promise<boolean>;
@@ -611,13 +616,17 @@ function CardName({ name }: { name: string }) {
     {shown === name ? label : <Tooltip><TooltipTrigger asChild>{label}</TooltipTrigger><TooltipContent>{name}</TooltipContent></Tooltip>}</span>;
 }
 // The receiving conversation's first message (draft frame handoff-card): the earlier agent's text as its Markdown, apart
-// from the person's bubble. The card takes focus after a move, so it is a labelled group.
-export function HandoffCard({ entry, headId, project, canvasListed, onOpen }: { entry: Extract<ThreadItem, { kind: "handoffCard" }>; headId: string; project: string;
-  canvasListed(canvas: Canvas): boolean; onOpen?: ((canvas: Canvas, conversationId: string) => void) | undefined }) {
-  const source = entry.origin.canvas, listed = canvasListed(source);
+// from the person's bubble. The card takes focus after a move, so it is a labelled group. Its source is a canvas, or
+// for a project conversation's handoff the root's Overview, whose Open shows the source conversation there.
+export function HandoffCard({ entry, headId, project, canvasListed, conversationListed, onOpen, onOpenOverview }: { entry: Extract<ThreadItem, { kind: "handoffCard" }>; headId: string; project: string;
+  canvasListed(canvas: Canvas): boolean; conversationListed?: ((conversationId: string) => boolean) | undefined;
+  onOpen?: ((canvas: Canvas, conversationId: string) => void) | undefined; onOpenOverview?: ((conversationId: string) => void) | undefined }) {
+  const source = entry.origin.canvas, conversationId = entry.origin.conversationId;
+  const listed = source ? canvasListed(source) : conversationListed?.(conversationId) ?? true;
+  const open = !listed ? null : source ? onOpen && (() => onOpen(source, conversationId)) : onOpenOverview && (() => onOpenOverview(conversationId));
   return <div className="handoff-card" role="group" aria-labelledby={headId} tabIndex={-1}>
-    <div className="handoff-head"><Forward aria-hidden="true" /><span id={headId}>{handoffCardHead(source, project, listed)}</span>
-      {listed && onOpen && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="trigger" onClick={() => onOpen(source, entry.origin.conversationId)}>Open</button>}</div>
+    <div className="handoff-head"><Forward aria-hidden="true" /><span id={headId}>{handoffCardHead(entry.origin, project, listed)}</span>
+      {open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="trigger" onClick={open}>Open</button>}</div>
     <AgentMessage text={entry.text} streaming={false} className="md selectable" />
   </div>;
 }
@@ -901,6 +910,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const locate: ConversationThreadProps["onLocate"] = anchor => latest.current.onLocate!(anchor);
   const listed = (canvas: Canvas) => latest.current.canvasListed(canvas);
   const openHandoff = (canvas: Canvas, conversationId?: string) => latest.current.onOpenHandoff?.(canvas, conversationId);
+  const openOverview = (conversationId: string) => latest.current.onOpenOverview?.(conversationId);
+  const conversationListed = (conversationId: string) => latest.current.conversationListed?.(conversationId) ?? true;
   const depsOf = (entry: ThreadItem): readonly unknown[] => {
     switch (entry.kind) {
       case "user": return [props.frames, !!props.locateDisabled, !!props.onLocate, props.homeDirectory ?? null];
@@ -912,7 +923,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         const canvas = entry.handoff?.outcome === "started" ? entry.handoff.target.canvas : withRowId(entry.canvas, props.canvasRows ?? []);
         return [provider, props.project, canvas, props.canvasListed(canvas), !!props.onOpenHandoff];
       }
-      case "handoffCard": return [props.project, props.canvasListed(entry.origin.canvas), !!props.onOpenHandoff];
+      case "handoffCard": {
+        const source = entry.origin.canvas;
+        return source ? [props.project, props.canvasListed(source), !!props.onOpenHandoff] : [props.conversationListed?.(entry.origin.conversationId) ?? true, !!props.onOpenOverview];
+      }
       case "marker": return [props.project, props.canvasListed(entry.canvas), openCanvasId, props.openCanvasPath];
       default: return [];
     }
@@ -970,7 +984,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         </div>;
       }
       case "canvasCard": return <CanvasCard entry={entry} rows={latest.current.canvasRows ?? []} project={props.project} provider={provider} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
-      case "handoffCard": return <HandoffCard entry={entry} headId={`${base}-${entry.key}-head`} project={props.project} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
+      case "handoffCard": return <HandoffCard entry={entry} headId={`${base}-${entry.key}-head`} project={props.project} canvasListed={listed} conversationListed={conversationListed}
+        onOpen={props.onOpenHandoff && openHandoff} onOpenOverview={props.onOpenOverview && openOverview} />;
       case "boundary": return <div className="context-boundary" role="separator" aria-label={entry.label}><span>{entry.label}</span></div>;
       case "marker": {
         const canvas = entry.canvas, listed = props.canvasListed(canvas), name = canvasStem(canvas.path);
