@@ -781,11 +781,7 @@ export class ChipField {
   private revealCaret(): void {
     const selection = document.getSelection();
     if (document.activeElement !== this.el || !selection?.focusNode) return;
-    const range = document.createRange();
-    range.setStart(selection.focusNode, selection.focusOffset);
-    // A caret on an empty last line has no rect of its own; the <br> drawn there holds its row.
-    const last = this.el.lastChild;
-    const rect = range.getClientRects()[0] ?? (last instanceof HTMLElement && this.breaks.has(last) ? last.getBoundingClientRect() : null);
+    const rect = caretRect(selection.focusNode, selection.focusOffset, this.breaks);
     if (!rect) return;
     const box = this.el.getBoundingClientRect();
     if (rect.bottom > box.bottom) this.el.scrollTop += rect.bottom - box.bottom;
@@ -886,6 +882,17 @@ function drawsRun(node: HTMLElement, run: FieldRun): boolean {
 function opensBody(segments: readonly FieldSegment[], unit: number): boolean {
   const next = sliceUnits(segments, unit, unit + 1)[0];
   return next === undefined || next.kind === "chip" || next.text === "\n";
+}
+// A collapsed caret on an empty line has no rect of its own: the line break after it stands on its row, and on the
+// empty last line the <br> the field drew there.
+function caretRect(node: Node, offset: number, breaks: WeakSet<Node>): DOMRect | null {
+  const range = document.createRange();
+  range.setStart(node, offset);
+  const rect = range.getClientRects()[0];
+  if (rect || !(node instanceof Text)) return rect ?? null;
+  if (node.data[offset] === "\n") { range.setEnd(node, offset + 1); return range.getClientRects()[0] ?? null; }
+  const next = offset === node.length ? node.nextSibling : null;
+  return next instanceof HTMLElement && breaks.has(next) ? next.getBoundingClientRect() : null;
 }
 function ordered({ anchor, focus }: Selection): [number, number] { return anchor <= focus ? [anchor, focus] : [focus, anchor]; }
 function indexIn(node: Node): number { return Array.prototype.indexOf.call(node.parentNode!.childNodes, node); }

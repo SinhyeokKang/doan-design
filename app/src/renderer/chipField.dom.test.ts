@@ -72,11 +72,14 @@ const probe = window.probe = {
   spans: () => Array.from(el.querySelectorAll(".list-mark,.list-depth,.skill-word")).map(n => n.className + (n.dataset.kind ? ":" + n.dataset.kind : "") + (n.dataset.depth ? ":" + n.dataset.depth : "") + " " + JSON.stringify(n.textContent)),
   box(selector, i = 0) { const n = el.querySelectorAll(selector)[i].getBoundingClientRect(), b = el.getBoundingClientRect(); return { x: Math.round(n.left - b.left), y: Math.round(n.top - b.top), w: Math.round(n.width), h: Math.round(n.height) }; },
   caret() { const r = document.getSelection().getRangeAt(0).getClientRects()[0], b = el.getBoundingClientRect(); return r ? { x: Math.round(r.left - b.left), y: Math.round(r.top - b.top) } : null; },
-  // The caret's row inside the field's visible box. A caret on an empty last line has no rect of its own; the trailing
-  // <br> the field draws there stands in for it.
+  // The caret's row inside the field's visible box. A caret on an empty line has no rect of its own: the line break
+  // after it, or on the last line the trailing <br> the field draws, stands on its row.
   caretInView() {
-    const range = document.getSelection().getRangeAt(0), b = el.getBoundingClientRect();
-    const r = range.getClientRects()[0] ?? (el.lastChild?.nodeName === "BR" ? el.lastChild.getBoundingClientRect() : null);
+    const s = document.getSelection(), b = el.getBoundingClientRect(), node = s.focusNode, at = s.focusOffset, range = document.createRange();
+    range.setStart(node, at);
+    let r = range.getClientRects()[0];
+    if (!r && node.nodeType === 3 && node.data[at] === "\\n") { range.setEnd(node, at + 1); r = range.getClientRects()[0]; }
+    if (!r && node.nodeType === 3 && at === node.length && node.nextSibling?.nodeName === "BR" && node.nextSibling === el.lastChild) r = el.lastChild.getBoundingClientRect();
     return r ? { top: Math.round(r.top - b.top), bottom: Math.round(r.bottom - b.top), height: Math.round(b.height), scrolled: el.scrollTop > 0 } : null;
   },
   host: () => document.getSelection().anchorNode?.parentElement?.className ?? "",
@@ -288,6 +291,19 @@ test("Shift+Enter at the field's maximum height scrolls the new line into view, 
       expect(caret!.top).toBeGreaterThanOrEqual(0);
       expect(caret!.bottom).toBeLessThanOrEqual(caret!.height);
     }
+  }
+  // At the end of the last visible row, with lines below: the new line is empty, and it comes into view, not the end.
+  for (const start of ["1\n2\n3\n4\n5\n6\n7\n8", "1\n2\n3\n4\n5\n6\n7\n8\n"]) {
+    await open(start);
+    await frame.evaluate(() => { const el = document.getElementById("f")!; el.style.maxHeight = "96px"; el.scrollTop = 0; });
+    await call("place", 7);
+    await press("Shift+Enter");
+    expect(await text()).toBe(start.replace("4\n", "4\n\n"));
+    const caret = await call<{ top: number; bottom: number; height: number; scrolled: boolean } | null>("caretInView");
+    expect(caret).not.toBeNull();
+    expect(caret!.scrolled).toBe(true);
+    expect(caret!.top).toBeGreaterThanOrEqual(0);
+    expect(caret!.bottom).toBeLessThanOrEqual(caret!.height);
   }
 });
 
