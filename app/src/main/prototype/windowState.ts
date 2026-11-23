@@ -8,11 +8,12 @@ import { canvasKeyString, sameCanvas, sameTarget, type CanvasRef, type Prototype
 
 export interface HistoryEntry {
   target: PrototypeTarget;
-  // The size the entry was last shown at, so Back/Forward can fit before the run answers.
+  // The size the entry was last shown at: Back/Forward's mark until its run answers.
   size: PrototypeSize;
 }
 
-// `create` opens, shows and focuses the window at the fitted size; `fit` refits an open one (fitPrototypeWindow);
+// `create` opens, shows and focuses the window at the fitted size; `fit` refits it once when the opening run's ready
+// size differs from the mark it opened at (fitPrototypeWindow);
 // `load` starts run `gen` (inject for it, then the host makes a new iframe); `kill` ends the canvas renderer process
 // of a run that may be hung, since the next iframe would reuse it; `destroy` closes the window; `reread` asks for the
 // root's canvas list again (Retry of a row `doan ls` could not read).
@@ -69,7 +70,8 @@ export interface OpenState {
   // The last listed frame IDs per canvas seen in this window: `doan ls` has no marks, so Back/Forward know a canvas's
   // marked frames only from its runs. A canvas never reported is played and judged by its run.
   readonly reports: Readonly<Record<string, readonly string[]>>;
-  // Set by a play that fits before its run answers; the run's ready size refits once if it differs.
+  // Set by the play that opens the window, which fits before its run answers; that run's ready size refits once if it
+  // differs. A later frame keeps the window as it is, so it never sets one.
   readonly fitHint: PrototypeSize | null;
 }
 
@@ -110,11 +112,14 @@ function latestTitle(frames: readonly { id: string; title?: string }[], state: O
   return listed === undefined ? state.title : listed;
 }
 
-// A new run of `target`. `fit` is set for a play that changes the target (or opens the window); a reload, Retry or
-// restore keeps the window's size and does not activate it. `quiet` fits without activating (a link move).
+// A new run of `target`. `fit` is set for a play that changes the target (or opens the window), and gives the run its
+// mark. Only opening the window fits it: once open, another frame keeps the window's size and position, and Fit or
+// Responsive fits the frame to the content panel (PRODUCT §5 item 2 'Prototype window'). A play of another frame
+// activates; a link move (`quiet`), a reload, Retry or restore does not.
 function start(state: PrototypeState, target: PrototypeTarget, resolved: Present, fit: { size: PrototypeSize; create: boolean; quiet?: true } | null, history: History<HistoryEntry>): Step {
   const effects: Effect[] = [];
-  if (fit !== null) effects.push(fit.create ? { kind: "create", size: fit.size } : { kind: "fit", size: fit.size }, ...(fit.create || fit.quiet ? [] : [{ kind: "activate" } as const]));
+  if (fit?.create === true) effects.push({ kind: "create", size: fit.size });
+  else if (fit !== null && fit.quiet !== true) effects.push({ kind: "activate" });
   const killed = leaving(state);
   effects.push(...killed);
   const gen = state.gen + 1;
@@ -129,7 +134,7 @@ function start(state: PrototypeState, target: PrototypeTarget, resolved: Present
     open: true as const, gen, history, mode: state.mode, panel: state.panel, target, source: resolved.source, url: resolved.url, label: resolved.label, path: resolved.path,
     title: listedTitle !== undefined ? listedTitle : sameFrame ? state.title : null,
     previousStopped: killed.length > 0 || (state.open && state.previousStopped),
-    frames: keepFrames ? state.frames : [], gotos: keepFrames ? state.gotos : [], reports: state.open ? state.reports : {}, fitHint: fit?.size ?? null,
+    frames: keepFrames ? state.frames : [], gotos: keepFrames ? state.gotos : [], reports: state.open ? state.reports : {}, fitHint: fit?.create === true ? fit.size : null,
   };
   if (resolved.error) {
     return { state: { ...base, phase: "read-failed", listed: "error", run: state.open ? state.run : null }, effects };
