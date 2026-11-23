@@ -483,6 +483,19 @@ describe("handoff events in event v1", () => {
       expect(() => new ConversationStore(f.root).read("c"), JSON.stringify(body)).toThrow("Invalid conversation event");
     }
   });
+  // A project conversation's handoff names no canvas: the new conversation came from the root's Overview. Its text is the
+  // agent's, so a leading command name or a marker never makes it a command turn or an anchored message (POSTMORTEM
+  // 2026-11 'A handoff's first message that starts with a command name was drawn as a command turn').
+  it("round-trips a project conversation's handoff, whose origin names no canvas", () => {
+    const f = seed(); const store = new ConversationStore(f.root);
+    const project = { kind: "handoff", conversationId: "p" } as const;
+    const saved = [store.append("c", "t", { type: "user.message", text: "/review the checkout {{1}}", anchors: [], origin: project })];
+    expect(new ConversationStore(f.root).read("c")).toEqual(saved);
+    for (const bad of [{ ...project, canvas: null }, { ...project, canvas: { path: "" } }, { ...project, canvas: { path: "a.html" } }]) {
+      const g = seed({ "c.jsonl": line({ type: "user.message", text: "x", anchors: [], origin: bad }) });
+      expect(() => new ConversationStore(g.root).read("c"), JSON.stringify(bad)).toThrow("Invalid conversation event");
+    }
+  });
   it("still reads a resolution written before resolutions named their canvas", () => {
     const old = line({ type: "handoff.resolved", outcome: "started", target: { conversationId: "b", canvas: { path: ".doan/canvases/b.html" } } });
     const f = seed({ "c.jsonl": old });

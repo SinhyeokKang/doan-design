@@ -91,7 +91,7 @@ function reset() {
   doan = {
     onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationStage: on("stage"), onConversationBoundary: on("boundary"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })), readConversation: vi.fn(async () => ({ error: "not_found" })), onOpenAddProjects: on("openAddProjects"),
     onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
-    onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"), onPrototypeTarget: on("prototypeTarget"), readPrototypeTarget: vi.fn(async () => null), setPrototypeDrawing: vi.fn(async () => true),
+    onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })), readBuddyIntro: vi.fn(async () => false),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => prefs), savePreferences: vi.fn(async () => null),
@@ -300,23 +300,3 @@ describe("Last used from the prototype composer", () => {
   });
 });
 
-// The project conversation drawing the prototype window's canvas reaches that window by id (user decision): this window
-// subscribes to the playing target first, then reads it, and reports the drawing for every target and each change.
-describe("the drawing relay", () => {
-  const target = { root: "/w/a", canvas: { path: C, id: "checkout" }, generation: 3 };
-  test("subscribe first, then read the target, then report what draws it (nothing here)", async () => {
-    doan.readPrototypeTarget!.mockImplementation(async () => target);
-    await overview();
-    expect(doan.onPrototypeTarget!.mock.invocationCallOrder[0]).toBeLessThan(doan.readPrototypeTarget!.mock.invocationCallOrder[0]!);
-    expect(doan.setPrototypeDrawing).toHaveBeenLastCalledWith({ ...target, conversationId: null });
-  });
-
-  test("every new target is reported again, even the same canvas coming back", async () => {
-    await overview();
-    doan.setPrototypeDrawing!.mockClear();
-    listeners.prototypeTarget!(target as never); await flushAll();
-    listeners.prototypeTarget!(null as never); await flushAll();
-    listeners.prototypeTarget!(target as never); await flushAll();
-    expect(doan.setPrototypeDrawing!.mock.calls.map(([report]) => report)).toEqual([{ ...target, conversationId: null }, { ...target, conversationId: null }]);
-  });
-});

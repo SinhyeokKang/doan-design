@@ -67,7 +67,7 @@ export function mountRecovery(root: Root, host: "overview" | "sidebar", kind: "c
   const support = new DockedSupport(noop, window.doan);
   support.presets = { v: 1, ok: true, result: { version: "1", presets: [] } };
   root.render(<TooltipProvider><ProjectOverview run={run} support={support} root={main} project="demo" entry={entry}
-    worktrees={rows} homeDirectory="/code" notice={null} unavailable={null} list={[]} seen={new Set()} holder={null} prefs={{}}
+    worktrees={rows} homeDirectory="/code" notice={null} unavailable={null} list={[]} seen={new Set()} prefs={{}}
     defaults={null} now={0} onWorktree={noop} onOpenCanvas={noop} onRetryList={noop} onStart={async () => ({ ok: true })}
     onSettings={noop} onSendConversation={async () => {}} onAction={action} onProjectSettings={noop} /></TooltipProvider>);
 }

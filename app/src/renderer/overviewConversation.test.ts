@@ -72,7 +72,7 @@ describe("pickOverviewConversation", () => {
     expect(pickOverviewConversation(list, "old", null)).toEqual({ kind: "conversation", conversationId: "old" });
   });
 
-  test("a remembered conversation that was promoted gives the new conversation state and forgets it", () => {
+  test("a remembered conversation an earlier build moved to a canvas gives the new conversation state and forgets it", () => {
     const promoted = summary({ conversationId: "old", canvas });
     expect(pickOverviewConversation([promoted, newer], "old", null)).toEqual({ kind: "new", forget: true });
   });
@@ -103,10 +103,53 @@ describe("pickOverviewConversation", () => {
     expect(pickOverviewConversation([], undefined, null)).toEqual({ kind: "new", forget: false });
     expect(pickOverviewConversation([summary({ canvas })], undefined, null)).toEqual({ kind: "new", forget: false });
   });
+
+  // The root's first automatic pick in this run: a candidate with nothing left for the person gives a fresh start.
+  describe("on the first pick of the run", () => {
+    const none: ReadonlySet<string> = new Set();
+    const FRESH = { kind: "new", forget: false, fresh: true };
+
+    test("a remembered conversation that ended and was seen gives the new conversation state, the memory kept", () => {
+      expect(pickOverviewConversation(list, "old", null, none)).toEqual(FRESH);
+    });
+
+    test("so does the latest one when nothing is remembered", () => {
+      expect(pickOverviewConversation(list, undefined, null, none)).toEqual(FRESH);
+    });
+
+    test.each<[string, Partial<ConversationSummary>]>([
+      ["a running or starting turn", { phase: "running" }],
+      ["main still working on it", { working: true }],
+      ["a pending permission request or question", { phase: "waiting" }],
+      ["a queued message", { queued: 1 }],
+      ["messages waiting out a usage limit", { queued: 1, scheduledAt: ago(-HOUR) }],
+      ["an ending not seen yet", { unseen: true }],
+      ["a returned draft waiting in it", { returnedDraft: true }],
+    ])("%s still reopens it", (_, patch) => {
+      const candidate = summary({ conversationId: "old", ...patch });
+      expect(pickOverviewConversation([candidate, newer], "old", null, none)).toEqual({ kind: "conversation", conversationId: "old" });
+    });
+
+    test("an ending this run already marked seen counts as seen before the list shows it", () => {
+      const candidate = summary({ conversationId: "old", unseen: true });
+      expect(pickOverviewConversation([candidate, newer], "old", null, new Set(["old"]))).toEqual(FRESH);
+    });
+
+    test("an unreadable remembered conversation still opens, since nothing says it was seen", () => {
+      const broken = summary({ conversationId: "broken", readError: true, lastActivityAt: "" });
+      expect(pickOverviewConversation([broken, newer], "broken", null, none)).toEqual({ kind: "conversation", conversationId: "broken" });
+    });
+
+    test("a remembered conversation an earlier build moved to a canvas is still forgotten, and a request still opens what it asks for", () => {
+      const promoted = summary({ conversationId: "old", canvas });
+      expect(pickOverviewConversation([promoted, newer], "old", null, none)).toEqual({ kind: "new", forget: true });
+      expect(pickOverviewConversation(list, "new", "old", none)).toEqual({ kind: "conversation", conversationId: "old" });
+    });
+  });
 });
 
 describe("projectConversationMenu", () => {
-  test("project conversations only, the most recent activity first; promoted ones are left out", () => {
+  test("project conversations only, the most recent activity first; canvas ones are left out", () => {
     const menu = projectConversationMenu([
       summary({ conversationId: "old", title: "Old", lastActivityAt: ago(2 * DAY) }),
       summary({ conversationId: "promoted", canvas, lastActivityAt: ago(0) }),
@@ -183,26 +226,16 @@ describe("overviewAfterListChange", () => {
   const root = "/r/doan";
   const current = { root, conversationId: "c1", listed: true };
 
-  test("a promoted conversation resets to a new conversation, moves its draft and leaves a notice", () => {
-    const list = [summary({ conversationId: "c1", title: "Billing tweaks", canvas })];
-    expect(overviewAfterListChange(current, { root, list })).toEqual({
-      kind: "promoted", conversationId: "c1", title: "Billing tweaks", canvas,
-      draft: { from: "conversation:c1", to: `root:${root}` },
-    });
-  });
-
-  test("a promotion carries no seen seq, unseen or not: the host decides from its own thread", () => {
-    const list = [summary({ conversationId: "c1", canvas, unseen: true })];
-    expect(overviewAfterListChange(current, { root, list })).toEqual(overviewAfterListChange(current, { root, list: [{ ...list[0]!, unseen: false }] }));
-  });
-
   test("another root's notice changes nothing", () => {
     const list = [summary({ conversationId: "c1", canvas })];
     expect(overviewAfterListChange(current, { root: "/r/other", list })).toEqual({ kind: "keep" });
   });
 
-  test("an unchanged project conversation, or the new conversation state, is kept", () => {
+  // Nothing is promoted any more: a listed conversation stays the main conversation, a canvas an earlier build gave it
+  // or not.
+  test("an unchanged project conversation, one an earlier build bound to a canvas, or the new conversation state, is kept", () => {
     expect(overviewAfterListChange(current, { root, list: [summary({ conversationId: "c1" })] })).toEqual({ kind: "keep" });
+    expect(overviewAfterListChange(current, { root, list: [summary({ conversationId: "c1", canvas })] })).toEqual({ kind: "keep" });
     expect(overviewAfterListChange({ ...current, conversationId: null }, { root, list: [summary({ canvas })] })).toEqual({ kind: "keep" });
   });
 

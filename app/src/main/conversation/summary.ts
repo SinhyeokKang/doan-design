@@ -16,18 +16,18 @@ export interface ConversationSummary {
   // ISO: while waiting, when the earliest request still unanswered was made. Output during the wait and an answer to
   // another request move lastActivityAt, not this, so the conversation that waited longest stays first.
   waitingSince?: string;
-  // main is still working on it, whatever the history says: preparing, running or waiting for an answer, a project turn
-  // waiting for its judgement, a queue about to go out, or a send waiting for the previous process. A project
-  // conversation that works holds its root (project_busy).
+  // main is still working on it, whatever the history says: preparing, running or waiting for an answer, a turn whose
+  // handoffs wait for their judgement or start, a queue about to go out, or a send waiting for the previous process.
+  // Delete reads the same signal.
   working: boolean;
-  // The live generation to which a project removal Stop must be addressed.
+  // A project conversation's turn that works or that a project removal is stopping: the live generation to which that
+  // removal's Stop must be addressed.
   projectTurnId?: string;
   // The history could not be read (corrupt, over the size limit, or a line from a newer build); only this row fails.
   readError?: true;
   // What started this canvas conversation when the person did not: a handoff (its first message names the earlier
-  // conversation) or a promotion (a project conversation moved to the canvas). The renderer lets a conversation the
-  // person started or a promoted one take over an empty panel, never a handoff's. A handoff's start is in the history
-  // alone, so an unreadable one reads as the person's.
+  // conversation) or a promotion (an earlier build moved a project conversation to the canvas; none is made now). A
+  // handoff's start is in the history alone, so an unreadable one reads as the person's.
   startedBy?: "handoff" | "promotion";
   // Queued messages came back as a draft (conversation:takeDraft) after a failed or stopped turn, a refused queued
   // send or a restart.
@@ -65,7 +65,8 @@ export function conversationSummary(m: ConversationMetadata, read: { ok: true; e
     ...(live.background ? { background: live.background } : {}), ...(live.stopping ? { stopping: true as const } : {}),
     ...(live.limitResetsAt ? { limitResetsAt: live.limitResetsAt } : {}), ...(live.scheduledAt ? { scheduledAt: live.scheduledAt } : {}),
   };
-  // A canvas conversation whose session began as a project one (newDesign) got its canvas by a promotion.
+  // A canvas conversation whose session began as a project one (newDesign) got its canvas by an earlier build's
+  // promotion: a newDesign start has no canvas, and this build never gives it one.
   const promoted = m.canvas !== undefined && m.session.origin === "newDesign" ? { startedBy: "promotion" as const } : {};
   if (!read.ok) return { ...base, ...promoted, phase: "ended", unseen: false, lastActivityAt: "", preview: "", readError: true };
   const first = read.events.find(e => e.type === "user.message");

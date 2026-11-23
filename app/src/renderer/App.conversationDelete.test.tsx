@@ -101,7 +101,7 @@ function reset() {
   doan = {
     onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationStage: on("stage"), onConversationBoundary: on("boundary"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })), readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), onOpenAddProjects: on("openAddProjects"),
     onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
-    onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"), onPrototypeTarget: on("prototypeTarget"), readPrototypeTarget: vi.fn(async () => null), setPrototypeDrawing: vi.fn(async () => true), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: on("quitting"), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}),
+    onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: on("quitting"), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })), readBuddyIntro: vi.fn(async () => false),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
@@ -160,8 +160,9 @@ function trigger() {
 function deferred<T>() { let resolve!: (value: T) => void, reject!: (error: unknown) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 const target = (conversationId: string, from: "overview" | "canvas" = "overview"): Target => ({ conversationId, root: "/w/a", title: `Title ${conversationId}`, provider: "claude", from });
 
-// The Overview of /w/a showing c1, with c2 also listed.
-async function openOverview(list: unknown[] = [summary("c1"), summary("c2")]) {
+// The Overview of /w/a showing c1, with c2 also listed. c1's ending is unseen, so the first entry of the run reopens it
+// rather than starting fresh (PRODUCT §5 item 3 'Which conversation shows').
+async function openOverview(list: unknown[] = [summary("c1", { unseen: true }), summary("c2")]) {
   doan.listConversations!.mockResolvedValue(list);
   render();
   readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, conversationByRoot: { "/w/a": "c1" } }); await flushAll();
@@ -198,7 +199,7 @@ test("Delete asks first: the alert names the conversation and its provider, and 
 });
 
 test("the alert says an unsent draft or a returned queue is discarded too", async () => {
-  await openOverview([summary("c1"), summary("c2", { returnedDraft: true }), summary("c3")]);
+  await openOverview([summary("c1", { unseen: true }), summary("c2", { returnedDraft: true }), summary("c3")]);
   ask(target("c2"));
   expect(dialog()!.view.body).toMatch(/ Its unsent message is discarded too\.$/);
   dialog()!.cancel(); render();
@@ -414,7 +415,7 @@ test.each([["a refusal", true], ["Cancel", false]])("canvas panel, %s: focus ret
   expect(harness.toast.show).toHaveBeenCalledTimes(confirm ? 1 : 0);
 });
 
-// a Canvas conversations row's Delete takes the title menu's confirmation and deletion;
+// a Conversations list row's Delete takes the title menu's confirmation and deletion;
 // focus goes to the target the list computed before the alert opened, and Cancel or Escape returns it to that Delete.
 type ListFocus = { kind: "row"; key: string } | { kind: "title" };
 type ListProps = { list: unknown; onDelete(item: { key: string; conversationId: string; title: string; provider: string }, button: unknown, after: ListFocus): void };
@@ -432,10 +433,10 @@ const fromList = (conversationId: string, after: ListFocus, button = trigger()) 
   return button;
 };
 
-test("a Canvas conversations row's Delete asks first, deletes through main, and sends focus to the target the list gave", async () => {
+test("a Conversations list row's Delete asks first, deletes through main, and sends focus to the target the list gave", async () => {
   const { row, head } = listTargets();
   try {
-    await openOverview([summary("c1"), onCanvas("c2"), summary("c3", { canvas: { path: ".doan/canvases/b.html" }, fromHome: false })]);
+    await openOverview([summary("c1", { unseen: true }), onCanvas("c2"), summary("c3", { canvas: { path: ".doan/canvases/b.html" }, fromHome: false })]);
     doan.deleteConversation = vi.fn(async () => undefined);
     const button = fromList("c2", { kind: "row", key: "c3" });
     expect(dialog()!.view.title).toBe("Delete “Title c2”?");
@@ -454,10 +455,10 @@ test("a Canvas conversations row's Delete asks first, deletes through main, and 
   } finally { delete FIELDS['.ov-right .cv-row[data-key="c3"]']; delete FIELDS[".ov-right .rp-head"]; }
 });
 
-test("the last Canvas conversations row's deletion sends focus to the panel title", async () => {
+test("the last Conversations list row's deletion sends focus to the panel title", async () => {
   const { head } = listTargets();
   try {
-    await openOverview([summary("c1"), onCanvas("c2")]);
+    await openOverview([summary("c1", { unseen: true }), onCanvas("c2")]);
     doan.deleteConversation = vi.fn(async () => undefined);
     fromList("c2", { kind: "title" });
     dialog()!.confirm(); await flushAll();
@@ -465,10 +466,10 @@ test("the last Canvas conversations row's deletion sends focus to the panel titl
   } finally { delete FIELDS['.ov-right .cv-row[data-key="c3"]']; delete FIELDS[".ov-right .rp-head"]; }
 });
 
-test.each([["a refusal", true], ["Cancel", false]])("Canvas conversations, %s: the row stays and focus returns to its Delete", async (_name, confirm) => {
+test.each([["a refusal", true], ["Cancel", false]])("Conversations list, %s: the row stays and focus returns to its Delete", async (_name, confirm) => {
   const { row, head } = listTargets();
   try {
-    await openOverview([summary("c1"), onCanvas("c2")]);
+    await openOverview([summary("c1", { unseen: true }), onCanvas("c2")]);
     doan.deleteConversation = vi.fn(async () => ({ error: "busy" }));
     const button = fromList("c2", { kind: "title" });
     if (confirm) { dialog()!.confirm(); await flushAll(); } else { dialog()!.cancel(); render(); }
@@ -484,11 +485,11 @@ test.each([["a refusal", true], ["Cancel", false]])("Canvas conversations, %s: t
 
 // the row the list chose left too before focus moved (another deletion, a re-read): focus goes to the
 // panel title, not to the deleted row's Delete, which leaves with its row and would drop focus to the page.
-test("a Canvas conversations deletion whose next row also left sends focus to the panel title", async () => {
+test("a Conversations list deletion whose next row also left sends focus to the panel title", async () => {
   const { row, head } = listTargets();
   delete FIELDS['.ov-right .cv-row[data-key="c3"]'];
   try {
-    await openOverview([summary("c1"), onCanvas("c2")]);
+    await openOverview([summary("c1", { unseen: true }), onCanvas("c2")]);
     doan.deleteConversation = vi.fn(async () => undefined);
     const button = fromList("c2", { kind: "row", key: "c3" });
     dialog()!.confirm(); await flushAll();
@@ -496,6 +497,40 @@ test("a Canvas conversations deletion whose next row also left sends focus to th
     expect(button.focus).not.toHaveBeenCalled();
     expect(head.focus).toHaveBeenCalledOnce();
   } finally { delete FIELDS[".ov-right .rp-head"]; }
+});
+
+// The Overview's Conversations list holds project rows too. Deleting the shown conversation's row resets the main
+// column to the new conversation state, and focus stays in the list it was pressed in, as in the sidebar.
+test("the shown project conversation's row: the new conversation state, focus to the next row, not the composer", async () => {
+  const { head } = listTargets();
+  const next = { isConnected: true, focus: vi.fn() };
+  FIELDS['.ov-right .cv-row[data-key="c2"]'] = next as never;
+  try {
+    await openOverview([summary("c1", { unseen: true }), summary("c2")]);
+    expect((canvasList()!.list as { key: string; kind: string }[]).map(row => [row.key, row.kind])).toEqual([["c1", "project"], ["c2", "project"]]);
+    doan.deleteConversation = vi.fn(async () => undefined);
+    fromList("c1", { kind: "row", key: "c2" });
+    dialog()!.confirm(); await flushAll();
+    expect(doan.deleteConversation).toHaveBeenCalledWith({ conversationId: "c1" });
+    expect(overview()!.run.view("/w/a").kind).toBe("new");
+    expect(next.focus).toHaveBeenCalledOnce();
+    expect(head.focus).not.toHaveBeenCalled();
+    expect(focused.calls).toEqual([]);
+    expect(harness.toast.show).not.toHaveBeenCalled();
+  } finally { delete FIELDS['.ov-right .cv-row[data-key="c2"]']; delete FIELDS['.ov-right .cv-row[data-key="c3"]']; delete FIELDS[".ov-right .rp-head"]; }
+});
+
+test("the shown project conversation's row, the list's only one: the new conversation state, focus to the panel title", async () => {
+  const { head } = listTargets();
+  try {
+    await openOverview([summary("c1", { unseen: true })]);
+    doan.deleteConversation = vi.fn(async () => undefined);
+    fromList("c1", { kind: "title" });
+    dialog()!.confirm(); await flushAll();
+    expect(overview()!.run.view("/w/a").kind).toBe("new");
+    expect(head.focus).toHaveBeenCalledOnce();
+    expect(focused.calls).toEqual([]);
+  } finally { delete FIELDS['.ov-right .cv-row[data-key="c3"]']; delete FIELDS[".ov-right .rp-head"]; }
 });
 
 // sidebar-canvas-conversations: the viewed canvas's conversation rows in the sidebar.

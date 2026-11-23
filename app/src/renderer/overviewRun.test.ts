@@ -16,9 +16,11 @@ import { join } from "node:path";
 const ROOT = "/code/doan", OTHER = "/code/doan-wt";
 const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "aaaaaaaa-0000-4000-8000-000000000002", C = "aaaaaaaa-0000-4000-8000-000000000003";
 const CANVAS: Canvas = { path: ".doan/canvases/checkout.html", id: "checkout" };
+// An unseen ending by default, so a root's first pick of the run opens it; one already seen gives a fresh start
+// (PRODUCT §5 item 3 'Which conversation shows').
 const summary = (conversationId: string, extra: Partial<ConversationSummary> = {}): ConversationSummary => ({
   conversationId, title: `Title ${conversationId.slice(-1)}`, owner: "doan", provider: "claude", fromHome: true,
-  phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-10-30T00:00:00.000Z", preview: "p", ...extra,
+  phase: "ended", unseen: true, queued: 0, working: false, lastActivityAt: "2026-10-30T00:00:00.000Z", preview: "p", ...extra,
 });
 let seq = 0;
 const event = (conversationId: string, payload: EventPayload, turnId = "t1"): ConversationEvent => ({ v: 1, conversationId, seq: ++seq, turnId, at: "2026-10-30T00:00:00Z", ...payload } as ConversationEvent);
@@ -47,7 +49,7 @@ afterEach(() => vi.unstubAllGlobals());
 function harness() {
   const lists = new Map<string, ListView>();
   const started = new Map<string, number>(), applied = new Map<string, number>();
-  const state = { remembered: {} as Record<string, string> | null, focused: true };
+  const state = { remembered: {} as Record<string, string> | null, focused: true, seen: new Set<string>() };
   const host: OverviewRunHost = {
     list: root => lists.get(root) ?? "loading",
     readsStarted: root => started.get(root) ?? 0,
@@ -61,6 +63,7 @@ function harness() {
       state.remembered = next;
     }),
     markSeen: vi.fn(),
+    seen: () => state.seen,
     focused: () => state.focused,
     openCanvas: vi.fn(),
     toast: vi.fn(),
@@ -99,15 +102,16 @@ test("without a memory the latest project conversation shows; with none at all, 
   expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: B });
   h.run.show(OTHER);
   h.answer(OTHER, [summary(C, { canvas: CANVAS })]);
-  expect(h.run.view(OTHER)).toEqual({ kind: "new", moved: null });
+  expect(h.run.view(OTHER)).toEqual({ kind: "new" });
 });
 
-test("a remembered conversation that was promoted meanwhile opens a new conversation and is forgotten", () => {
+// Nothing is promoted any more; ui-state may still remember one an earlier build moved to a canvas.
+test("a remembered conversation an earlier build moved to a canvas opens a new conversation and is forgotten", () => {
   const h = harness();
   h.state.remembered = { [ROOT]: A };
   h.run.show(ROOT);
   h.answer(ROOT, [summary(A, { canvas: CANVAS })]);
-  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
+  expect(h.run.view(ROOT)).toEqual({ kind: "new" });
   expect(h.state.remembered).toEqual({});
 });
 
@@ -123,7 +127,7 @@ test("a list read that lands after the person picked never replaces the pick (PO
   h.run.show(OTHER);
   h.run.select(OTHER, null);
   h.answer(OTHER, [summary(C)]);
-  expect(h.run.view(OTHER)).toEqual({ kind: "new", moved: null });
+  expect(h.run.view(OTHER)).toEqual({ kind: "new" });
 });
 
 test("a requested conversation not listed yet is held while the list is read again, then shown", () => {
@@ -173,7 +177,7 @@ test("reopening an Overview picks again, and each root keeps its new-conversatio
   expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
   expect(textOf(h.run.drafts.get(`root:${ROOT}`))).toBe("Ask about checkout");
   h.run.select(ROOT, null);
-  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
+  expect(h.run.view(ROOT)).toEqual({ kind: "new" });
   expect(textOf(h.run.drafts.get(`root:${ROOT}`))).toBe("Ask about checkout");
   // A root that was new on its first visit opens the conversation that appeared since.
   h.answer(OTHER, [summary(C)]);
@@ -183,7 +187,61 @@ test("reopening an Overview picks again, and each root keeps its new-conversatio
   // A plain list refresh on the same screen does not pick again.
   h.run.select(OTHER, null);
   h.answer(OTHER, [summary(C, { lastActivityAt: "2026-11-01T00:00:00.000Z" })]);
-  expect(h.run.view(OTHER)).toEqual({ kind: "new", moved: null });
+  expect(h.run.view(OTHER)).toEqual({ kind: "new" });
+});
+
+// PRODUCT §5 item 3 'Which conversation shows': coming back to the app later starts fresh, while hopping between a
+// canvas and the Overview within one run keeps what the person was in.
+test("the first entry of the run opens the new conversation state when the conversation it would reopen ended and was seen", () => {
+  const h = harness();
+  h.state.remembered = { [ROOT]: A };
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { unseen: false }), summary(B, { unseen: false, lastActivityAt: "2026-11-01T00:00:00.000Z" })]);
+  expect(h.run.view(ROOT)).toEqual({ kind: "new" });
+  expect(h.state.remembered).toEqual({ [ROOT]: A });
+  // Back from a canvas with nothing chosen meanwhile: still the new conversation state.
+  h.run.show(null);
+  h.answer(ROOT, [summary(A, { unseen: false }), summary(B, { unseen: false, lastActivityAt: "2026-11-01T00:00:00.000Z" })]);
+  h.run.show(ROOT);
+  expect(h.run.view(ROOT)).toEqual({ kind: "new" });
+  // After the person's choice, a later entry reopens what was chosen, as before.
+  h.run.select(ROOT, B);
+  h.run.show(null);
+  h.run.show(ROOT);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: B });
+});
+
+test("the first entry still reopens a conversation with something left for the person, and later entries keep it after it ends", () => {
+  const h = harness();
+  h.state.remembered = { [ROOT]: A };
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { unseen: true })]);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
+  // Seen while it showed; hopping to a canvas and back keeps it.
+  h.answer(ROOT, [summary(A, { unseen: false })]);
+  h.run.show(null);
+  h.run.show(ROOT);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
+});
+
+test("an ending this run marked seen elsewhere counts on the first entry", () => {
+  const h = harness();
+  h.state.remembered = { [ROOT]: A };
+  h.state.seen = new Set([A]);
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { unseen: true })]);
+  expect(h.run.view(ROOT)).toEqual({ kind: "new" });
+});
+
+test("a request on the first entry opens what it asks for, and later entries reopen it", () => {
+  const h = harness();
+  h.run.request(ROOT, A, null);
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { unseen: false })]);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
+  h.run.show(null);
+  h.run.show(ROOT);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
 });
 
 test("an entry request made while the root was hidden is what its reopened Overview shows", () => {
@@ -389,7 +447,7 @@ test("Edit and resend over a draft with pasted and chosen files gives each of th
 });
 
 // Attachment results follow their chip, wherever the draft went.
-test("an attachment checked during a promotion lands in the moved draft, and a removed chip's file is released", async () => {
+test("an attachment checked while its conversation goes lands in the moved draft, and a removed chip's file is released", async () => {
   const h = harness();
   doan.removeAttachment = vi.fn(async () => true);
   histories.set(A, ended(A));
@@ -398,7 +456,7 @@ test("an attachment checked during a promotion lands in the moved draft, and a r
   await flush();
   const chip = (key: string) => ({ key, name: `${key}.png`, kind: "image" as const, pasted: false, status: "checking" as const, size: 1 });
   h.run.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, { ...draft("see"), attachments: [chip("k1"), chip("k2")] }));
-  h.answer(ROOT, [summary(A, { canvas: CANVAS })]);
+  h.answer(ROOT, []);
   h.run.setDrafts(drafts => {
     const moved = drafts.get(`root:${ROOT}`)!;
     return new Map(drafts).set(`root:${ROOT}`, { ...moved, attachments: moved.attachments.filter(a => a.key !== "k2") });
@@ -560,8 +618,8 @@ test("the main conversation is seen only while it shows with the window focused,
   expect(h.host.markSeen).toHaveBeenCalledTimes(2);
 });
 
-// Promotion resets the main column and the host owns the seen rule.
-function promotedSetup(focused: boolean) {
+// The Overview showing A, whose turn ended.
+function shownSetup(focused: boolean) {
   const h = harness();
   histories.set(A, ended(A));
   h.state.focused = focused;
@@ -570,64 +628,17 @@ function promotedSetup(focused: boolean) {
   return h;
 }
 
-test("a promotion moves the draft into the new conversation, shows the notice and forgets the memory", async () => {
-  const h = promotedSetup(true);
+// An earlier build's promotion left conversation.bound in the thread; nothing promotes any more, so it moves neither
+// the main column nor the seen mark.
+test("an earlier build's conversation.bound changes nothing on the Overview", async () => {
+  const h = shownSetup(true);
   await flush();
-  h.run.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, draft("한글 조합")));
-  h.answer(ROOT, [summary(A, { canvas: CANVAS, title: "Checkout copy" })]);
-  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: { conversationId: A, title: "Checkout copy", canvas: CANVAS } });
-  expect(textOf(h.run.drafts.get(`root:${ROOT}`))).toBe("한글 조합");
-  expect(h.run.drafts.has(`conversation:${A}`)).toBe(false);
-  expect(h.state.remembered).toEqual({});
-  // Choosing anything clears the notice.
-  h.run.select(ROOT, null);
-  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
-});
-
-// PRODUCT §5 item 3 'Promotion': the line stays until the next send or choice, not until the Overview is left.
-test("the moved line stays when the Overview is left and reopened, also after a promotion made while it was hidden", async () => {
-  const shown = promotedSetup(true);
-  await flush();
-  shown.answer(ROOT, [summary(A, { canvas: CANVAS, title: "Checkout copy" })]);
-  shown.run.show(null);
-  shown.run.show(ROOT);
-  expect(shown.run.view(ROOT)).toEqual({ kind: "new", moved: { conversationId: A, title: "Checkout copy", canvas: CANVAS } });
-
-  const hidden = promotedSetup(true);
-  await flush();
-  hidden.run.show(null);
-  hidden.answer(ROOT, [summary(A, { canvas: CANVAS, title: "Checkout copy" })]);
-  hidden.run.show(ROOT);
-  expect(hidden.run.view(ROOT)).toEqual({ kind: "new", moved: { conversationId: A, title: "Checkout copy", canvas: CANVAS } });
-});
-
-test("a seen turn end is marked through the promotion marker when the list notice comes first", async () => {
-  const h = promotedSetup(true);
-  await flush();
-  expect(h.host.markSeen).toHaveBeenCalledWith(A, 4);
-  h.answer(ROOT, [summary(A, { canvas: CANVAS })]);
-  expect(h.host.markSeen).toHaveBeenCalledTimes(1);
-  const bound = event(A, { type: "conversation.bound", canvas: CANVAS });
-  h.run.event(bound);
-  expect(h.host.markSeen).toHaveBeenLastCalledWith(A, bound.seq);
-});
-
-test("a seen turn end is marked through the promotion marker when the marker event comes first", async () => {
-  const h = promotedSetup(true);
-  await flush();
-  const bound = event(A, { type: "conversation.bound", canvas: CANVAS });
-  h.run.event(bound);
-  expect(h.host.markSeen).toHaveBeenCalledTimes(1);
-  h.answer(ROOT, [summary(A, { canvas: CANVAS })]);
-  expect(h.host.markSeen).toHaveBeenLastCalledWith(A, bound.seq);
-});
-
-test("an unseen turn end (window unfocused) is not marked at promotion", async () => {
-  const h = promotedSetup(false);
-  await flush();
+  expect(h.host.markSeen).toHaveBeenCalledExactlyOnceWith(A, 4);
   h.run.event(event(A, { type: "conversation.bound", canvas: CANVAS }));
-  h.answer(ROOT, [summary(A, { canvas: CANVAS, unseen: true })]);
-  expect(h.host.markSeen).not.toHaveBeenCalled();
+  h.answer(ROOT, [summary(A)]);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
+  expect(h.host.markSeen).toHaveBeenCalledTimes(1);
+  expect(h.state.remembered).toEqual({ [ROOT]: A });
 });
 
 test("a returned draft's chips join the current draft's as chips, so neither side's markers are renumbered", async () => {
@@ -646,10 +657,10 @@ test("a returned draft's chips join the current draft's as chips, so neither sid
 });
 
 test("a shown conversation that is gone resets without a notice", async () => {
-  const h = promotedSetup(true);
+  const h = shownSetup(true);
   h.run.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, draft("kept")));
   h.answer(ROOT, []);
-  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
+  expect(h.run.view(ROOT)).toEqual({ kind: "new" });
   expect(textOf(h.run.drafts.get(`root:${ROOT}`))).toBe("kept");
 });
 
@@ -860,7 +871,7 @@ test("deleting the shown conversation shows the new conversation state, keeps th
   const revision = h.run.revision(ROOT);
   h.run.store.startDelete(A);
   confirmDelete(h, A);
-  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
+  expect(h.run.view(ROOT)).toEqual({ kind: "new" });
   expect(h.run.revision(ROOT)).toBeGreaterThan(revision);
   expect(h.state.remembered).toEqual({});
   // The deleted conversation's draft goes; the new conversation's stays as it was.
@@ -870,7 +881,7 @@ test("deleting the shown conversation shows the new conversation state, keeps th
   expect(h.run.store.deleting(A)).toBe(false);
   // The list without it changes nothing more.
   h.answer(ROOT, [summary(B)]);
-  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
+  expect(h.run.view(ROOT)).toEqual({ kind: "new" });
   expect(textOf(h.run.drafts.get(`root:${ROOT}`))).toBe("separate new words");
 });
 
@@ -886,7 +897,7 @@ test("a list that drops the conversation before the delete reply moves no draft,
     }
     confirmDelete(h, A);
     if (!listFirst) h.answer(ROOT, [summary(B)]);
-    expect(h.run.view(ROOT), `list first: ${listFirst}`).toEqual({ kind: "new", moved: null });
+    expect(h.run.view(ROOT), `list first: ${listFirst}`).toEqual({ kind: "new" });
     expect(textOf(h.run.drafts.get(`root:${ROOT}`)), `list first: ${listFirst}`).toBe("separate new words");
     expect(h.run.drafts.has(`conversation:${A}`), `list first: ${listFirst}`).toBe(false);
   }
@@ -909,7 +920,7 @@ test("a start or send reply sent before the delete does not replace the new conv
   h.run.sent(ROOT, A, revision);
   expect(h.state.remembered).toEqual({});
   h.run.started(ROOT, C, "claude", revision);
-  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
+  expect(h.run.view(ROOT)).toEqual({ kind: "new" });
 });
 
 test("a deleted conversation an entry asked for is dropped, so the list is not read again for it", () => {
@@ -943,24 +954,13 @@ test("the memory of a root not on screen is forgotten too, and other roots keep 
   expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: B });
 });
 
-test("the moved line of a deleted promoted conversation goes", async () => {
-  const h = promotedSetup(true);
-  await flush();
-  h.answer(ROOT, [summary(A, { canvas: CANVAS, title: "Checkout copy" })]);
-  expect(h.run.view(ROOT)).toMatchObject({ kind: "new", moved: { conversationId: A } });
-  confirmDelete(h, A);
-  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
-  h.answer(ROOT, []);
-  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
-});
-
 test("deleting the last conversation leaves the new conversation state", () => {
   const h = harness();
   h.run.show(ROOT);
   h.answer(ROOT, [summary(A)]);
   confirmDelete(h, A);
   h.answer(ROOT, []);
-  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
+  expect(h.run.view(ROOT)).toEqual({ kind: "new" });
 });
 
 test("the store drops the deleted conversation's thread, queue and late events, and ignores its events afterwards", async () => {

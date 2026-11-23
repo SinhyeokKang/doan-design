@@ -72,7 +72,7 @@ function elements(node: ReactNode): Record<string, unknown>[] {
 function setup(memory: Partial<ComposerMemory> = {}, props: Partial<HeroComposerProps> = {}) {
   const box = { current: { ...emptyComposer(), auth: AUTH, presets: LISTED, ...memory } };
   const start = vi.fn(async (_request: unknown, _last: unknown) => ({ ok: true } as const));
-  const all: HeroComposerProps = { entries: [ENTRY], homeDirectory: null, shellProjects: {}, loaded: null, select: null, prefs: {}, memory: box, running: new Map(), restore: null, greeting: "Where should we start?", start, openConversation: vi.fn(), addProjects: vi.fn(), openSettings: vi.fn(), ...props };
+  const all: HeroComposerProps = { entries: [ENTRY], homeDirectory: null, shellProjects: {}, loaded: null, select: null, prefs: {}, memory: box, working: new Set(), restore: null, greeting: "Where should we start?", start, addProjects: vi.fn(), openSettings: vi.fn(), ...props };
   const render = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; hooks.deps = []; return elements(HeroComposer(all)); };
   return { box, start, render, props: all };
 }

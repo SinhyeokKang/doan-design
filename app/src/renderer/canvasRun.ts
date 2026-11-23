@@ -2,7 +2,7 @@ import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas, Runtime } from "../main/conversation/types";
 import type { DoanApi } from "../preload";
-import { canvasNotice, newConversationMode, pickShownConversation, shouldMarkSeen, type CanvasNotice, type NewConversationView, type NoticeContext, type ResumeTarget } from "./canvasConversation";
+import { newConversationMode, pickShownConversation, shouldMarkSeen, type NewConversationView, type ResumeTarget } from "./canvasConversation";
 import type { ConversationStore, ListView } from "./conversationStore";
 import { carryDraft, draftKey, hasDraft, type DockedMode } from "./dockedRules";
 import { LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
@@ -11,7 +11,7 @@ import { endSeq, type ScrollTo } from "./overviewRun";
 
 // The canvas page's conversation panel, in the main window and in the prototype window alike: which
 // of the open canvas's conversations shows, the new conversation's start mode with its terminal session, entry
-// requests, promotions, seen marks and the revision late replies are checked against. Threads, drafts and queues are
+// requests, seen marks and the revision late replies are checked against. Threads, drafts and queues are
 // the ConversationStore's, shared with the Overview. Like OverviewRun it decides without a DOM; the list reads, seen
 // marks and navigation are the host's (HomeRun and App).
 
@@ -24,13 +24,6 @@ export interface CanvasRunHost {
   listRetry?(root: string): ListRetry;
   markSeen(conversationId: string, seq: number): void;
   focused(): boolean;
-  // A project conversation whose turn drew this canvas and whose promotion is not judged yet (HomeRun's).
-  drawing(root: string, canvas: Canvas): string | null;
-  // Only the main window shares the Overview store and can read unbound conversations.
-  readsProjectThreads?: true;
-  // A project conversation main says moved to this canvas (the prototype window, which cannot see the project's rows a
-  // promotion is judged from). The main window judges promotions from its own lists and has none.
-  promoted?(root: string, canvas: Canvas): string | null;
   // The conversation last seen on this canvas on this device (ui-state's conversationByCanvas): undefined until
   // ui-state was read, so the first pick never runs ahead of it; null for none. A host without it remembers nothing.
   remembered?(root: string, canvas: Canvas): string | null | undefined;
@@ -49,8 +42,8 @@ export type ResumeReply = ResumeTarget & { lastCheckAt?: string };
 
 export type CanvasView =
   | { kind: "wait" }
-  | { kind: "new"; listError: boolean; notice: CanvasNotice | null; start: NewConversationView; resume: ResumeReply | undefined; mode: DockedMode }
-  | { kind: "conversation"; conversationId: string; preview?: true; notice: CanvasNotice | null };
+  | { kind: "new"; listError: boolean; start: NewConversationView; resume: ResumeReply | undefined; mode: DockedMode }
+  | { kind: "conversation"; conversationId: string };
 
 interface CanvasState {
   target: CanvasTarget;
@@ -60,10 +53,6 @@ interface CanvasState {
   revision: number;
   // asked: the list was read again for it once; after: reads started before the request.
   request: { conversationId: string; after: number; asked: boolean; scroll: ScrollTo | null } | null;
-  notice: CanvasNotice | null;
-  // The list read before the last one, for a promotion while the panel is open.
-  previous: readonly ConversationSummary[] | null;
-  last: readonly ConversationSummary[] | null;
   // The terminal session: asked once while the canvas shows. `ask` is the ask in flight or answered (0: not asked), so
   // a reply that lands after the person left the canvas is dropped.
   resume?: ResumeReply;
@@ -71,16 +60,14 @@ interface CanvasState {
   // The conversation ids the list named when the session was last asked (undefined: no list then). One session is one
   // conversation, so a start or a deletion can change whether main offers it: a change of these asks again.
   askedIds?: string;
-  // A relayed promotion whose notice the person ended (a send under it, a choice in the menu, a start, leaving the
-  // canvas): main keeps relaying the id, and it must not announce it again.
-  spent?: string;
   choice?: "resume" | "new";
   // A conversation a start reply showed before any list named it: kept until a list read names it, so a read that
   // was older or already in flight cannot replace it (the Overview's `listed` rule).
   unconfirmed: string | null;
   // The new conversation state shows only because the canvas had no conversation (not the person's New), with the
-  // conversations the list named then: one the person starts after (here or in the other window) then shows
-  // (followNewConversation). Kept apart from `previous`, which a canvas opened after its root's list was read has none of.
+  // conversations the list named then: one started after (by the person here or in the other window, or by a handoff)
+  // then shows (followNewConversation). Taken from the list itself, since a canvas opened after its root's list was read
+  // has no earlier read of its own.
   defaultNew?: ReadonlySet<string>;
 }
 
@@ -118,8 +105,7 @@ export class CanvasRun {
     if (key !== this.visible) {
       // The terminal session is asked again on the next visit: a reply for the canvas left behind is dropped.
       const left = this.visible ? this.canvases.get(this.visible) : undefined;
-      // Leaving also ends a promotion notice: the list it was read from is spent, so a return does not announce it again.
-      if (left) { delete left.resume; left.ask = 0; delete left.askedIds; delete left.choice; this.spend(left); left.notice = null; left.previous = left.last; }
+      if (left) { delete left.resume; left.ask = 0; delete left.askedIds; delete left.choice; }
       this.visible = key;
     }
     if (target) { const s = this.state(target); s.target = target; this.resolve(s); }
@@ -143,25 +129,15 @@ export class CanvasRun {
     const s = this.shownState();
     if (!s) return null;
     if (s.shown === undefined) return this.host.list(s.target.root) === "error" ? this.newView(s, true) : { kind: "wait" };
-    const preview = this.drawingPreview();
-    if (preview) return { kind: "conversation", conversationId: preview, preview: true, notice: null };
     if (s.shown === null) return this.newView(s, this.host.list(s.target.root) === "error");
-    return { kind: "conversation", conversationId: s.shown, notice: s.notice };
-  }
-  // Keep the automatic New selection until the list confirms binding. A failed refresh may let the
-  // binding window expire between list reads, so ask the host whether the turn is still drawing.
-  drawingPreview(): string | null {
-    const s = this.shownState();
-    return this.host.readsProjectThreads && s?.shown === null && s.defaultNew
-      ? this.host.drawing(s.target.root, s.target.canvas) : null;
+    return { kind: "conversation", conversationId: s.shown };
   }
   revision(): number { return this.shownState()?.revision ?? 0; }
   // The draft key of the composer the panel shows: its conversation's, else the canvas's new conversation's.
   composerKey(): string | null {
     const s = this.shownState();
     if (!s) return null;
-    const id = s.shown ?? this.drawingPreview();
-    return id ? `conversation:${id}` : canvasKey(s.target);
+    return s.shown ? `conversation:${s.shown}` : canvasKey(s.target);
   }
   retryList(): void { const s = this.shownState(); if (s) this.host.reread(s.target.root); }
   listRetry(): ListRetry { const s = this.shownState(); return (s && this.host.listRetry?.(s.target.root)) ?? LIST_RETRY_IDLE; }
@@ -180,14 +156,12 @@ export class CanvasRun {
     if (!s) return;
     delete s.defaultNew;
     s.request = null;
-    this.spend(s);
-    s.notice = null;
     s.unconfirmed = null;
     s.revision++;
     this.setShown(s, conversationId);
     this.host.changed();
   }
-  // An entry point asks for one of a canvas's conversations (an Overview row, a notification, a promotion's Open, the
+  // An entry point asks for one of a canvas's conversations (an Overview row, a notification, a thread card's Open, the
   // capsule). Asked before the canvas opens, it waits in that canvas's state until the panel shows it.
   request(target: CanvasTarget, conversationId: string, scroll: ScrollTo | null): void {
     const s = this.state(target);
@@ -236,8 +210,6 @@ export class CanvasRun {
     const s = this.canvases.get(canvasKey(target));
     if (!s || s.revision !== revision) return;
     s.request = null;
-    this.spend(s);
-    s.notice = null;
     delete s.choice;
     const list = this.host.list(target.root);
     s.unconfirmed = Array.isArray(list) && list.some(c => c.conversationId === conversationId) ? null : conversationId;
@@ -253,25 +225,12 @@ export class CanvasRun {
     const now = this.showing();
     return now !== null && now.key === shown.key && now.conversationId === shown.conversationId && now.revision === shown.revision;
   }
-  // A send from the panel ends the notice it was sent under, on the canvas it was sent from, unless the person chose
-  // something else there while it was sent. Revisions count per canvas, so the key and the notice bind the reply too:
-  // another canvas, or a notice that showed after the send, is left alone. Nothing else changes what shows.
-  sent(target: CanvasTarget, revision: number, notice: CanvasNotice | null): void {
-    const s = this.canvases.get(canvasKey(target));
-    if (s && notice && s.revision === revision && s.notice?.kind === notice.kind && s.notice.open === notice.open) { this.spend(s); s.notice = null; }
-    this.host.changed();
-  }
-
   // main deleted it, on whichever canvas. Every canvas state that shows it picks again by the shared rule (the next
   // conversation, else the new conversation state) with a newer revision, so a start or send reply sent before cannot
-  // replace that. A request still waiting for it is dropped, and the list kept for the promotion comparison leaves it
-  // out, so neither brings it back.
+  // replace that. A request still waiting for it is dropped, so it does not bring it back.
   deleted(conversationId: string): void {
     this.gone.add(conversationId);
     for (const [key, s] of this.canvases) {
-      // `last` keeps its identity: sync compares it with the host's list to tell a new read.
-      s.previous = s.previous && s.previous.filter(c => c.conversationId !== conversationId);
-      if (s.notice?.open === conversationId) s.notice = null;
       if (s.request?.conversationId === conversationId) s.request = null;
       if (s.shown !== conversationId) continue;
       s.unconfirmed = null;
@@ -286,11 +245,11 @@ export class CanvasRun {
     this.host.changed();
   }
 
-  // After every list read HomeRun applied: requests waiting for the list, promotions and returned drafts.
+  // After every list read HomeRun applied: requests waiting for the list, newly started conversations and returned
+  // drafts.
   sync(): void {
     for (const s of this.canvases.values()) {
       const list = this.host.list(s.target.root);
-      if (Array.isArray(list) && list !== s.last) { s.previous = s.last; s.last = list; }
       if (canvasKey(s.target) !== this.visible) continue;
       this.resolve(s);
       // A conversation started or deleted (here or in the other window) can take or free the terminal session; a start
@@ -310,7 +269,7 @@ export class CanvasRun {
   private state(target: CanvasTarget): CanvasState {
     const key = canvasKey(target);
     let s = this.canvases.get(key);
-    if (!s) { s = { target, revision: 0, request: null, notice: null, previous: null, last: null, ask: 0, unconfirmed: null }; this.canvases.set(key, s); }
+    if (!s) { s = { target, revision: 0, request: null, ask: 0, unconfirmed: null }; this.canvases.set(key, s); }
     return s;
   }
   private listedIds(root: string): ReadonlySet<string> { return new Set(this.listed(root).map(c => c.conversationId)); }
@@ -334,11 +293,6 @@ export class CanvasRun {
     const { root, canvas } = s.target;
     const listed = this.host.list(root);
     const list = Array.isArray(listed) ? this.store.withoutDeleted(listed).filter(c => !this.gone.has(c.conversationId)) : listed;
-    // The prototype window never lists a project conversation, so main's relayed id stands for the promotion there; the
-    // main window keeps the one it announced from its own lists.
-    const relayed = this.host.promoted ? this.host.promoted(root, canvas) : undefined;
-    const promoted = relayed === undefined ? (s.notice?.kind === "promoted" ? s.notice.open : null) : relayed !== s.spent ? relayed : null;
-    const context: NoticeContext = { previous: s.previous, promoted, drawing: this.host.drawing(root, canvas) };
     const remembered = this.host.remembered ? this.host.remembered(root, canvas) : null;
     if (s.request) {
       // A request waits for the list rather than being taken by a read in flight; a failed read drops it.
@@ -356,7 +310,6 @@ export class CanvasRun {
       } else {
         s.request = null;
         if (Array.isArray(list) && pick?.kind === "conversation" && pick.conversationId === request.conversationId) {
-          s.notice = canvasNotice(list, canvas, pick.conversationId, context);
           this.setShown(s, pick.conversationId);
           if (request.scroll) this.scroll = { conversationId: pick.conversationId, to: request.scroll, seq: ++this.scrolls };
           return;
@@ -374,25 +327,23 @@ export class CanvasRun {
     if (pick.kind === "new" && pick.listError) { if (s.shown === undefined && s.resume === undefined && s.ask === 0) this.askResume(s); return; }
     if (pick.kind !== "conversation" && pick.kind !== "new") return;
     const shown = pick.kind === "conversation" ? pick.conversationId : null;
-    if (Array.isArray(list)) s.notice = canvasNotice(list, canvas, shown, context);
     // The person's New (select(null) leaves shown null without defaultNew) stays theirs across reads; only the default
     // new state takes the list's ids again.
     if (shown === null && (s.shown !== null || s.defaultNew)) s.defaultNew = this.listedIds(root);
     this.setShown(s, shown);
-    const preview = this.drawingPreview();
-    if (preview) this.store.track(preview);
   }
-  // A conversation the person newly started on a canvas showing only the default new state shows, with the new state's
-  // draft when it has none, unless this panel's own start from that draft is in flight (POSTMORTEM 2026-11-14: a draft
-  // whose send can be in flight never moves; the composer empties only the key it sent from).
+  // A conversation newly started on a canvas showing only the default new state shows (followNewConversation), with the
+  // new state's draft when it has none, unless this panel's own start from that draft is in flight (POSTMORTEM
+  // 2026-11-14: a draft whose send can be in flight never moves; the composer empties only the key it sent from). A
+  // handoff's conversation takes it only while that draft is empty and no start of this panel's is in flight: the
+  // person's own start, whose reply can land after a list that names the handoff's, comes first.
   private followNew(s: CanvasState, known: ReadonlySet<string>, list: readonly ConversationSummary[]): boolean {
-    const preview = this.host.readsProjectThreads && s.notice?.kind === "drawing" ? s.notice.open : undefined;
-    const id = followNewConversation(known, list, s.target.canvas, conversationId => this.store.deleting(conversationId), preview);
-    if (id === null) return false;
     const key = canvasKey(s.target);
+    const held = this.starting.has(key) || hasDraft(this.store.drafts.get(key));
+    const id = followNewConversation(known, list, s.target.canvas, { deleting: conversationId => this.store.deleting(conversationId), draft: held });
+    if (id === null) return false;
     if (!this.starting.has(key)) this.store.setDrafts(drafts => (hasDraft(drafts.get(key)) ? carryDraft(drafts, key, `conversation:${id}`) : drafts));
     delete s.defaultNew;
-    s.notice = null;
     this.setShown(s, id);
     return true;
   }
@@ -402,8 +353,7 @@ export class CanvasRun {
     const docked: DockedMode = start.mode === "resume" && start.offer
       ? { kind: "resume", root: s.target.root, canvas: s.target.canvas, provider: start.offer as Runtime }
       : { kind: "new", root: s.target.root, canvas: s.target.canvas };
-    const notice = this.host.readsProjectThreads && s.defaultNew && s.notice?.kind === "drawing" ? null : s.notice;
-    return { kind: "new", listError, notice, start, resume, mode: docked };
+    return { kind: "new", listError, start, resume, mode: docked };
   }
   // Called when the new conversation state shows on a canvas and when the conversations that could hold the session
   // change; the answer is reused until then. Send waits for the answer so a choice that appears late never changes the
@@ -421,9 +371,6 @@ export class CanvasRun {
       s.resume = "error" in reply ? { error: reply.error } : reply.available ? { available: true, runtime: reply.runtime, lastCheckAt: reply.lastCheckAt, ...(reply.session ? { session: reply.session } : {}) } : { available: false, reason: reply.reason, ...(reply.runtime && reply.session ? { runtime: reply.runtime, session: reply.session } : reply.runtime && reply.reason === "session_unverified" ? { runtime: reply.runtime } : {}) };
       this.host.changed();
     });
-  }
-  private spend(s: CanvasState): void {
-    if (this.host.promoted && s.notice?.kind === "promoted") s.spent = s.notice.open;
   }
   // Seen only while the panel is open, the window has focus and the conversation shows. Then it is also the canvas's
   // last seen conversation on this device, once a list names it there.

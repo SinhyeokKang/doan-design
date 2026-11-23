@@ -97,7 +97,7 @@ function fakeCalls() {
 async function headless(calls: ReturnType<typeof fakeCalls>) {
   const { authStatus } = await import("../main/agentAuth/state");
   const store = new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, calls);
-  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, calls);
+  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, calls);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   await flush();
@@ -108,7 +108,7 @@ async function headless(calls: ReturnType<typeof fakeCalls>) {
   const panel = () => CanvasConversation({
     calls, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list: [], seen: new Set(),
     prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
-    onLocate: vi.fn(async () => "shown" as const), onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
+    onLocate: vi.fn(async () => "shown" as const), onSettings: vi.fn(), onNotice: vi.fn(), work: [],
   });
   return { run, store, support, panel };
 }
@@ -155,46 +155,12 @@ test("the store reads a thread and takes a returned draft through the call objec
   expect(calls.takeConversationDraft).toHaveBeenCalledWith({ conversationId: "c1" });
 });
 
-// The prototype window routes main-window-only buttons to its host; the promotion notice's Open is one of them.
-test("the promotion notice's Open goes to the host's callback when it gives one", async () => {
-  const calls = fakeCalls();
-  const summary = (canvas?: Canvas) => ({ conversationId: "p1", ...(canvas ? { canvas, startedBy: "promotion" as const } : {}), title: "Ideas", owner: "doan", provider: "claude", fromHome: false,
-    phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" }) as const;
-  let list: ListView = [summary()];
-  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, calls);
-  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, calls);
-  run.show({ root: ROOT, canvas: CANVAS });
-  run.sync();
-  // The person's New: a promotion over it is announced rather than shown.
-  run.select(null);
-  list = [summary(CANVAS)];
-  run.sync();
-  await flush();
-  const onOpenPromoted = vi.fn();
-  const tree = render(() => CanvasConversation({
-    calls, run, support: new DockedSupport(() => {}, calls), target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
-    prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
-    onLocate: vi.fn(async () => "shown" as const), onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [], onOpenPromoted,
-  }));
-  const open = (node: ReactNode): { onClick(): void } | null => {
-    if (Array.isArray(node)) { for (const child of node) { const found = open(child); if (found) return found; } return null; }
-    if (!node || typeof node !== "object" || !("props" in node)) return null;
-    const element = node as { props: { children?: ReactNode; "aria-label"?: string; onClick?(): void } };
-    if (element.props["aria-label"] === "Open the moved conversation") return element.props as { onClick(): void };
-    return open(element.props.children);
-  };
-  open(tree)!.onClick();
-  expect(onOpenPromoted).toHaveBeenCalledWith("p1");
-  // The panel did not switch to it itself.
-  expect(run.view()?.kind).toBe("new");
-});
-
 // An existing conversation's composer: its send, queue and attachment paths, still without window.doan.
 async function existing(calls: ReturnType<typeof fakeCalls>) {
   const list: ListView = [{ conversationId: "c1", canvas: CANVAS, title: "Ideas", owner: "doan", provider: "claude", fromHome: false,
     phase: "running", unseen: false, queued: 0, working: true, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" }];
   const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, calls);
-  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, calls);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, calls);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   await flush();
@@ -202,7 +168,7 @@ async function existing(calls: ReturnType<typeof fakeCalls>) {
   const tree = render(() => CanvasConversation({
     calls, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
     prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
-    onLocate: vi.fn(async () => "shown" as const), onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
+    onLocate: vi.fn(async () => "shown" as const), onSettings: vi.fn(), onNotice: vi.fn(), work: [],
   }));
   expect(run.view()).toMatchObject({ kind: "conversation", conversationId: "c1" });
   const composer = dockedProps(tree)! as {
@@ -253,7 +219,7 @@ test("an ACP conversation's commands, unconfirmed names and card reach the compo
   const list: ListView = [{ conversationId: "c1", canvas: CANVAS, title: "Ideas", owner: "doan", provider: "copilot", fromHome: false,
     phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" }];
   const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, calls);
-  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, calls);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, calls);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   await flush();
@@ -261,7 +227,7 @@ test("an ACP conversation's commands, unconfirmed names and card reach the compo
   const panel = () => CanvasConversation({
     calls, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
     prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
-    onLocate: vi.fn(async () => "shown" as const), onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
+    onLocate: vi.fn(async () => "shown" as const), onSettings: vi.fn(), onNotice: vi.fn(), work: [],
   });
   render(panel);
   await flush();
@@ -286,7 +252,7 @@ test.each(["reply first", "push first"] as const)("a command's leftover follows 
   let list: ListView = [];
   const host = { list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() };
   const store = new ConversationStore(host, calls);
-  const run = new CanvasRun({ ...host, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null }, store, calls);
+  const run = new CanvasRun({ ...host, reread: vi.fn(), markSeen: vi.fn(), focused: () => true }, store, calls);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   await flush();
@@ -296,7 +262,7 @@ test.each(["reply first", "push first"] as const)("a command's leftover follows 
   const panel = () => CanvasConversation({
     calls, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
     prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
-    onLocate: vi.fn(async () => "shown" as const), onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
+    onLocate: vi.fn(async () => "shown" as const), onSettings: vi.fn(), onNotice: vi.fn(), work: [],
   });
   const newKey = draftKey({ kind: "new", root: ROOT, canvas: CANVAS });
   const file = { key: "k", id: "f", name: "notes.md", kind: "file" as const, pasted: false, status: "ready" as const, size: 5, path: "/u/notes.md" };
@@ -334,14 +300,14 @@ test("a streamed delta redraws the panel's thread without the host's changed", a
     phase: "running", unseen: false, queued: 0, working: true, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" }];
   const changed = vi.fn();
   const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed }, calls);
-  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, calls);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, calls);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   await flush();
   const panel = () => CanvasConversation({
     calls, run, support: new DockedSupport(() => {}, calls), target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
     prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
-    onLocate: vi.fn(async () => "shown" as const), onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
+    onLocate: vi.fn(async () => "shown" as const), onSettings: vi.fn(), onNotice: vi.fn(), work: [],
   });
   render(panel);
   await flush();

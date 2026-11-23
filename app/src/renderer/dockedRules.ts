@@ -9,7 +9,6 @@ import { asksPerson, stripState } from "./conversationStrip";
 import {
   agentProblem, composeRequest, draftProblem, presetPlaceholder, startErrorView, type AttachmentDraft, type ModelPickerView, type PresetSummary,
 } from "./homeComposer";
-import { anotherConversation } from "./homeConversations";
 
 // Rules of the docked composer: the composer under a conversation in Overview and in
 // the canvas panel. Its host owns the conversation, the lists and every call to main; these functions only decide.
@@ -39,10 +38,8 @@ export function draftKey(mode: DockedMode): string {
   return `canvas:${JSON.stringify([mode.root, canvas.id === undefined ? "path" : "id", canvas.id ?? canvas.path])}`;
 }
 
-// Another project conversation holds the root (project_busy). `open` is that conversation when the host knows it.
-export type DockedBusy = { kind: "project"; open: string | null };
 // alert: a moved or deleted file, shown as an error notice as on Home; the other reasons are a quiet line.
-export interface DockedReason { text: string; open?: string; action?: SettingsAction; alert?: true; noAgent?: true }
+export interface DockedReason { text: string; action?: SettingsAction; alert?: true; noAgent?: true }
 
 export interface DockedInput {
   mode: DockedMode; project: string; auth: AuthSnapshot | null | undefined;
@@ -52,15 +49,12 @@ export interface DockedInput {
   skills: readonly string[];
   // This conversation's turn, as the host reads it (composerTurn).
   turn: ComposerTurn;
-  busy: DockedBusy | null;
   sending: boolean;
   // The host's project turned into a problem while it was open: Send waits with
   // Home's reason, whatever the draft holds.
   unavailable?: string | null;
   // The conversation runs on a terminal's own sign-in (a legacy external one), so Doan's accounts do not decide.
   external?: boolean;
-  // At the usage limit the message waits for the reset (composerRules composerAction).
-  limited?: boolean;
 }
 
 // Main's turn as the composer reads it, the same in both hosts: the merged events first (the list lags them), then the
@@ -76,8 +70,8 @@ export function composerTurn(events: readonly ConversationEvent[] | null, summar
 }
 
 // Send's state and the reason line under the card. Home's reasons (agent, length, {{ }}, checking, a moved file) are
-// shared; the docked ones are a fixed provider that cannot run, the project limit, and the permission
-// wait, which explains the line without disabling Queue.
+// shared; the docked ones are a fixed provider that cannot run and the permission wait, which explains the line
+// without disabling Queue.
 export function dockedAvailability(input: DockedInput): { enabled: boolean; reason: DockedReason | null } {
   const { draft, mode } = input;
   const off = (reason: DockedReason | null) => ({ enabled: false, reason });
@@ -88,16 +82,8 @@ export function dockedAvailability(input: DockedInput): { enabled: boolean; reas
   if (agent) return off({ text: agent.text, ...("kind" in agent && agent.kind === "noAgent" ? { noAgent: true as const } : {}), ...("action" in agent ? { action: agent.action } : {}) });
   const waiting = input.turn === "waiting" ? { text: "Answer or stop the request above." } : null;
   if (!hasContent(draft.segments) && !draft.preset && draft.attachments.length === 0) return off(waiting);
-  // A running or holding turn takes the message into its queue, and at the usage limit it waits for the reset, so the
-  // limits on starting a turn do not apply yet: main waits for the root when the reset comes.
-  if (input.busy && input.turn === "idle" && !input.limited) return off(busyReason(input.busy, input.project));
   const problem = draftProblem(draft.segments, draft.preset, draft.attachments, input.skills);
   return problem ? off({ text: problem.text, ...(problem.kind === "attachmentMissing" ? { alert: true as const } : {}) }) : { enabled: true, reason: waiting };
-}
-
-function busyReason(busy: DockedBusy, project: string): DockedReason {
-  const open = busy.open ? { open: busy.open } : {};
-  return { text: anotherConversation(project), ...open };
 }
 
 // The conversation's provider is fixed, so a provider that cannot run offers its own fix in Settings rather than
@@ -121,13 +107,11 @@ export function dockedMessage(draft: DockedDraft, skills: readonly string[] = []
   return { text: composeRequest(message.text, draft.preset, skills, draft.attachments.length), anchors: message.anchors };
 }
 
-// A send or start main refused. The limits become the busy line until the host reports the busy conversation and it
-// clears, or the person edits the draft; a canvas that is
-// gone replaces the composer; the rest is a notice under the card. A conversation another sign-in owns offers
-// "Start a new conversation".
+// A send or start main refused. A canvas that is gone replaces the composer; the rest is a notice under the card. A
+// conversation another sign-in owns offers "Start a new conversation".
 // A canvas panel's refusals add two: blocked keeps the draft in a field that takes no input, with
 // the reason line; a notice may offer Retry or, for a terminal session, "Start a new conversation".
-export type DockedRefusal = { kind: "busy"; busy: DockedBusy } | { kind: "gone" } | { kind: "notice"; text: string; retry?: boolean; startNew?: boolean }
+export type DockedRefusal = { kind: "gone" } | { kind: "notice"; text: string; retry?: boolean; startNew?: boolean }
   | { kind: "blocked"; text: string; action?: SettingsAction };
 // A draft with anything in it: text, a preset or an attachment.
 export function hasDraft(draft: DockedDraft | undefined): draft is DockedDraft {
@@ -152,7 +136,6 @@ export function carryDraft(drafts: ReadonlyMap<string, DockedDraft>, from: strin
 }
 // resets: a usage-limit refusal's reset time as limitReset.ts words it; only a start names it.
 export function dockedRefusal(code: string, mode: DockedMode, provider: Provider, project: string, resets: string | null = null): DockedRefusal {
-  if (code === "project_busy") return { kind: "busy", busy: { kind: "project", open: null } };
   if (code === "canvas_not_found") return { kind: "gone" };
   if (mode.kind === "new") {
     const view = startErrorView(code, provider, project, resets);

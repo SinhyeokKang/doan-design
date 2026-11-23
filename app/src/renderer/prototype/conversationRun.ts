@@ -21,7 +21,7 @@ import { conversationButton, playingFrameChip, prototypeHeadTitle, prototypeShow
 // Everything the panel calls: `window.doanPrototype`'s members of the same names as `window.doan`'s, and its own.
 export type PrototypeConversationCalls = ConversationCalls & StoreCalls & DockedSupportCalls & ResumeCalls & VisibleCalls
   & Pick<DoanApi, "deleteConversation" | "markConversationSeen" | "onConversationEvent" | "onConversationStage" | "onConversationBoundary" | "onConversationListChanged" | "getWork" | "onWorkChanged">
-  & Pick<PrototypeWindowApi, "listConversations" | "setShowing" | "reveal" | "rememberChoice" | "readComposerSettings" | "onComposerSettings" | "readTargetEntry" | "onTargetEntry" | "readDrawing" | "onDrawing" | "readPromoted" | "onPromoted" | "rememberedConversation">;
+  & Pick<PrototypeWindowApi, "listConversations" | "setShowing" | "reveal" | "rememberChoice" | "readComposerSettings" | "onComposerSettings" | "readTargetEntry" | "onTargetEntry" | "rememberedConversation" | "conversationListed">;
 
 export interface PrototypeRunHost {
   changed(): void;
@@ -70,20 +70,21 @@ export class PrototypeConversationRun {
   private showing: { id: string | null; key: string | null; gen: number | null } | undefined = undefined;
   // Only a list read started after a successful write can supersede that mark, including with a newer unread ending.
   private seenMarks = new Map<string, SeenMark>();
-  // The project conversation drawing the playing canvas, by id only: main relays it from the main window, which reads
-  // project conversations this window cannot.
-  private drawingId: string | null = null;
-  // Moves with every push and every read: a read answered after a newer push or read is dropped.
-  private drawingTurn = 0;
-  // The project conversation main saw become the playing canvas's current one, by id, likewise relayed.
-  private promotedId: string | null = null;
-  private promotedTurn = 0;
   // The conversation last seen on the playing canvas on this device, as main reads it from ui-state (the main window
   // is its only writer, so this window never writes it): undefined until the read for this canvas settles, which holds
   // the first pick; null for none, or a failed read. Moves with every switch of canvas, so a late answer for the canvas
   // left behind is dropped.
   private rememberedId: string | null | undefined = undefined;
   private rememberedTurn = 0;
+  // Whether the source of a handoff card from the Overview is still indexed under the playing root, by conversation id,
+  // as main answered. This window lists only the canvas's conversations, so it asks main; a list change of the playing
+  // root asks again, and a switch of root forgets every answer. An unknown answer (null: main played another root
+  // meanwhile, or could not read its index) is not kept, so the next render asks again. sourceAsks: the asks in flight
+  // with the turn they were asked in, one per id and turn. The turn drops an answer asked before a list change or a
+  // switch of root.
+  private sourceListed = new Map<string, boolean>();
+  private sourceAsks = new Map<string, number>();
+  private sourceTurn = 0;
 
   constructor(private readonly calls: PrototypeConversationCalls, private readonly host: PrototypeRunHost) {
     const list = (root: string): ListView => (this.view?.root === root ? this.listView : "loading");
@@ -95,8 +96,6 @@ export class PrototypeConversationRun {
       listRetry: root => (this.view?.root === root ? this.listRetry() : LIST_RETRY_IDLE),
       markSeen: (conversationId, seq) => { void this.markSeen(conversationId, seq); },
       focused: () => host.focused(),
-      drawing: root => (this.view?.root === root ? this.drawingId : null),
-      promoted: root => (this.view?.root === root ? this.promotedId : null),
       remembered: (root, canvas) => (this.key !== null && canvasKey({ root, canvas }) === this.key ? this.rememberedId : undefined),
       changed: () => this.changed(),
     }, this.store, calls);
@@ -120,14 +119,15 @@ export class PrototypeConversationRun {
       this.calls.onConversationEvent(event => this.store.event(event)),
       this.calls.onConversationStage(signal => this.store.stage(signal)),
       this.calls.onConversationBoundary(signal => this.store.boundary(signal)),
-      this.calls.onConversationListChanged(({ root }) => { if (this.view?.root === root && this.view.canvasRow === "present") this.read(); }),
+      this.calls.onConversationListChanged(({ root }) => {
+        if (this.view?.root !== root) return;
+        if (this.view.canvasRow === "present") this.read();
+        this.askSourcesAgain(root);
+      }),
       this.calls.onWorkChanged(items => { this.workItems = items; this.host.changed(); }),
       this.calls.onTargetEntry(entry => { if (entry === null || entry.path === this.view?.root) { this.entryValue = entry; this.host.changed(); } }),
       this.calls.onComposerSettings(settings => { this.settingsValue = settings; this.host.changed(); }),
-      this.calls.onDrawing(conversationId => { this.drawingTurn++; this.setDrawing(conversationId); }),
-      this.calls.onPromoted(conversationId => { this.promotedTurn++; this.setPromoted(conversationId); }),
     ];
-    this.readRelayed();
     void this.calls.getWork().then(items => { this.workItems = items; this.host.changed(); }, console.error);
     void this.calls.readComposerSettings().then(settings => { if (settings && !this.settingsValue) { this.settingsValue = settings; this.host.changed(); } }, console.error);
     return () => { for (const off of offs) off(); };
@@ -139,11 +139,10 @@ export class PrototypeConversationRun {
     this.views++;
     if (view === null) { this.run.show(null); this.changed(); return; }
     // The push covers only folder list changes: another root is read here.
-    if (before?.root !== view.root) this.readEntry();
+    if (before?.root !== view.root) { this.readEntry(); this.sourceTurn++; this.sourceListed.clear(); this.sourceAsks.clear(); }
     const target = this.target()!;
     const key = canvasKey(target);
     if (key !== this.key) {
-      const switched = this.key !== null;
       this.key = key;
       this.epoch++;
       this.missed = false;
@@ -151,11 +150,6 @@ export class PrototypeConversationRun {
       this.retrying = false;
       this.listFailures = 0;
       this.last = null;
-      // The relayed drawing and promotion belong to a target. Main nulls them for every new target and may push the new
-      // one's before this view arrives (views wait behind the still capture), so the old values go and main is asked
-      // again: its answer is for the target playing now.
-      // (The first target's were read at connect.)
-      if (switched) { this.drawingId = null; this.promotedId = null; this.readRelayed(); }
       this.readRemembered();
     }
     this.last = playingFrameChip(view, this.last);
@@ -310,11 +304,31 @@ export class PrototypeConversationRun {
     this.changed();
   }
 
-  // Subscribed before (connect): a push that lands after the read began wins over the read's answer.
-  private readRelayed(): void {
-    const drawing = ++this.drawingTurn, promoted = ++this.promotedTurn;
-    void this.calls.readDrawing().then(conversationId => { if (drawing === this.drawingTurn) this.setDrawing(conversationId); }, console.error);
-    void this.calls.readPromoted().then(conversationId => { if (promoted === this.promotedTurn) this.setPromoted(conversationId); }, console.error);
+  // Whether a handoff card's Overview source still exists: false only once main said so for the playing root; unknown
+  // reads as there, as the main window's loading list does (PRODUCT §5 item 2 'Handoff').
+  conversationListed(conversationId: string): boolean {
+    const root = this.view?.root;
+    if (root === undefined) return true;
+    // Called while the card renders: the ask starts at most once per id and turn, and an answer that changes what the
+    // card shows draws it again. An unknown answer changes nothing, so asking again on the next render cannot loop.
+    if (!this.sourceListed.has(conversationId) && this.sourceAsks.get(conversationId) !== this.sourceTurn) this.askSource(root, conversationId);
+    return this.sourceListed.get(conversationId) !== false;
+  }
+  private askSource(root: string, conversationId: string): void {
+    const turn = this.sourceTurn;
+    this.sourceAsks.set(conversationId, turn);
+    void this.calls.conversationListed({ root, conversationId }).catch((error: unknown) => { console.error(error); return null; }).then(answer => {
+      if (this.sourceAsks.get(conversationId) === turn) this.sourceAsks.delete(conversationId);
+      if (turn !== this.sourceTurn || this.view?.root !== root) return;
+      const had = this.sourceListed.get(conversationId);
+      if (answer === null) this.sourceListed.delete(conversationId); else this.sourceListed.set(conversationId, answer);
+      if (had !== (answer ?? undefined)) this.host.changed();
+    });
+  }
+  // An earlier answer stays until the new one lands, so the card does not flicker.
+  private askSourcesAgain(root: string): void {
+    this.sourceTurn++;
+    for (const conversationId of new Set([...this.sourceListed.keys(), ...this.sourceAsks.keys()])) this.askSource(root, conversationId);
   }
 
   // Main answers for the canvas it plays; the answer applies only while this window still holds the canvas it asked for.
@@ -326,19 +340,6 @@ export class PrototypeConversationRun {
       this.rememberedId = conversationId;
       this.sync();
     });
-  }
-
-  // The canvas run decides the notice from it with the list, so it picks again.
-  private setPromoted(conversationId: string | null): void {
-    if (conversationId === this.promotedId) return;
-    this.promotedId = conversationId;
-    this.sync();
-  }
-
-  private setDrawing(conversationId: string | null): void {
-    if (conversationId === this.drawingId) return;
-    this.drawingId = conversationId;
-    this.sync();
   }
 
   private readEntry(): void {

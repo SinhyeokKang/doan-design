@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import { DropdownMenu } from "radix-ui";
-import { ArrowUpRight, ChevronDown, SquarePen } from "lucide-react";
+import { ChevronDown, SquarePen } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
 import { sendNowShown } from "../main/conversation/steerSupport";
@@ -17,7 +17,6 @@ import { AlertIcon } from "./AlertIcon";
 import { plainText, textSegments } from "./anchorField";
 import { queuedText, startNewConversation, steerPhaseOf } from "./CanvasConversationPanel";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
-import { canvasLabel } from "./canvasTree";
 import { focusFieldEnd } from "./chipField";
 import { SuggestionButton } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
@@ -31,8 +30,8 @@ import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
 import { useRingUsage } from "./ContextRing";
-import { DockedComposer, type DockedOutcome, type DockedRequest } from "./DockedComposer";
-import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedBusy, type DockedMode } from "./dockedRules";
+import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedRequest } from "./DockedComposer";
+import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedMode } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import type { RowAction } from "./homeCards";
 import {
@@ -76,16 +75,17 @@ export interface ProjectOverviewProps {
   list: ListView;
   // HomeRun's pending seen marks, so a status never flashes back between a mark and the next read.
   seen: ReadonlySet<string>;
-  // The project conversation that holds this root (HomeRun's running map).
-  holder: { conversationId: string } | null;
   prefs: HomeMemory | null;
   defaults: NewConversationDefault | null | undefined;
   // A model or effort pick is remembered as Last used before any send (dogfooding #6).
   onRemember?(choice: ComposerChoice): void;
   now: number;
   onWorktree(root: string): void;
-  // A promoted conversation's canvas, opened with that conversation in its panel.
+  // A canvas card's or handoff card's canvas, opened with that conversation in its panel, or the canvas alone.
   onOpenCanvas(canvas: Canvas, conversationId?: string): void;
+  // The host's way into the composer: a handoff from the conversation shown keeps the screen while an IME composition
+  // is under way.
+  composerLink?: MutableRefObject<DockedFieldLink | null>;
   // A chip in an agent's reply: the host opens its canvas and moves to its target.
   onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
   onRetryList(): void;
@@ -221,9 +221,9 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     run.takeScroll(conversationId);
     if (target.kind !== "item") return;
     handle.current?.scrollToItem(target.key);
-    // A question's entry also focuses its first option or answer input; a permission
-    // request's entry only scrolls here.
-    if (items.some(item => item.key === target.key && item.kind === "question")) handle.current?.focusItem(target.key);
+    // The entry also focuses the request's first choice: a permission request's first choice, a question's first
+    // option or answer input.
+    handle.current?.focusItem(target.key);
   }, [conversationId, scroll?.seq, Array.isArray(items) ? items.length : -1, asking]);
   const canvasListed = (canvas: Canvas) => props.entry.kind === "list" && props.entry.canvases.some(row => sameCanvas(canvas, row));
   const resend = (id: string) => { void run.editAndResend(root, id).then(focus => { if (focus) focusField(); }); };
@@ -329,9 +329,6 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     run.queued(root, mode.conversationId, { id: reply.itemId, text: queuedText(request), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });
     return { ok: true, itemId: reply.itemId };
   };
-  const busy: DockedBusy | null = props.holder && props.holder.conversationId !== conversationId
-    ? { kind: "project", open: props.holder.conversationId || null } : null;
-  const openOther = (id: string) => { run.request(root, id, null); };
 
   // The header
   const menuItems = listed ? projectConversationMenu(listed, props.now, props.seen) : [];
@@ -359,8 +356,6 @@ export function ProjectOverview(props: ProjectOverviewProps) {
 
   // The column shows the new conversation state; a failed first read is one too.
   const showsNew = conversationId === null && !waiting;
-  const moved = view.kind === "new" ? view.moved : null;
-  const movedCanvas = moved && canvasLabel({ path: moved.canvas.path, url: "" });
   // A preset's line and the suggestion stand in for it inside the composer (dockedRules composerPlaceholder).
   const placeholder = mode.kind === "new" ? NEW_PLACEHOLDER : REPLY_PLACEHOLDER;
 
@@ -427,9 +422,6 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onCopy={text => Promise.resolve(copyText(text))}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
         : waiting || conversationId ? <ConversationLoading /> : <div className="ov-col ov-new">
-          {moved && <div className="doan-notice moved" role="status"><ArrowUpRight className="doan-alert-icon" aria-hidden="true" /><NameTip text={`${moved.title} moved to ${movedCanvas}.`}><span className="grow-text moved-text selectable">
-            <span className="moved-title">{moved.title}</span><span className="moved-rest">{` moved to ${movedCanvas}.`}</span></span></NameTip>
-            <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onOpenCanvas(moved.canvas, moved.conversationId)}>Open</button></div>}
           {list === "error" && listFailedNotice(listRetry, props.onRetryList)}
           {card && <CommandCardNotice card={card} onAction={cardAction} onDismiss={dismissCard} />}
           {prompts.length > 0 && !started && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
@@ -437,7 +429,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         </div>}
     </div>
     <div className="ov-foot"><div className="ov-col">
-      <DockedComposer skills={projectSkills.skills} passthrough={projectSkills.passthrough} onSkillsWanted={projectSkills.read} onCard={next => run.store.showCard(key, next)} card={card} mode={mode} project={project} homeDirectory={props.homeDirectory} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined}
+      <DockedComposer {...(props.composerLink ? { link: props.composerLink } : {})} skills={projectSkills.skills} passthrough={projectSkills.passthrough} onSkillsWanted={projectSkills.read} onCard={next => run.store.showCard(key, next)} card={card} mode={mode} project={project} homeDirectory={props.homeDirectory} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined}
         drafts={run.drafts} onDrafts={update => run.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}
@@ -451,8 +443,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.retryPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => dropAttachment(window.doan, attachment)}
-        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}
-        stepAside={{ waiting: asking, notice: !conversationId && !waiting && !!moved }}
+        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}
+        stepAside={{ waiting: asking, notice: false }}
         queued={conversationId ? run.queue(conversationId) : []}
         // Rows waiting for the usage limit's reset have no Send now: nothing runs to take them.
         limitResetsAt={summary?.limitResetsAt ?? null} scheduledFor={summary?.scheduledAt ?? null}
@@ -469,7 +461,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
           run.unqueued(conversationId, itemId);
           return true;
         }}
-        onOpen={openOther} />
+      />
     </div></div>
     {replacing && <ReplaceDraftDialog confirm={replacing.confirm} onKeep={() => { setReplacing(null); focusField(); }}
       onReplace={() => { setReplacing(null); resend(replacing.conversationId); }} />}

@@ -1,5 +1,4 @@
-import { listedOnce } from "./handoff";
-import { canvasesAt } from "./project";
+import { canvasesAt, listedOnce } from "./handoff";
 import { sameCanvas } from "./sessions";
 import type { Canvas } from "./types";
 

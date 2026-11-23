@@ -20,9 +20,11 @@ const ROOT = "/code/doan";
 const A = "aaaaaaaa-0000-4000-8000-000000000001";
 const row = (path: string): CanvasRow => ({ path, id: path.split("/").at(-1)!.replace(/\.html$/, ""), url: "u" });
 const entry = (path: string, canvases: string[], branch = "main"): FolderEntry => ({ kind: "list", path, servedRev: 0, canvases: canvases.map(row), git: { branch, common: "/code/doan/.git" } } as FolderEntry);
+// An unseen ending by default, so the first entry of the run reopens the conversation rather than starting fresh
+// (PRODUCT §5 item 3 'Which conversation shows').
 const summary = (patch: Partial<ConversationSummary> = {}): ConversationSummary => ({
   conversationId: A, title: "What should the checkout empty state say when a cart has expired?", owner: "doan", provider: "claude",
-  fromHome: true, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-10-30T00:00:00.000Z", preview: "p", ...patch,
+  fromHome: true, phase: "ended", unseen: true, queued: 0, working: false, lastActivityAt: "2026-10-30T00:00:00.000Z", preview: "p", ...patch,
 });
 const PRESETS: PresetSummary[] = ([["context", "Gather design context", "start"], ["shape", "Shape a first screen", "start"], ["document", "Document the design system", "start"], ["critique", "Critique the design", "review"], ["polish", "Polish the details", "refine"]] as const)
   .map(([id, title, group]) => ({ id, title, description: "", scope: "", group }));
@@ -49,7 +51,7 @@ function render(list: ListView, patch: Partial<ProjectOverviewProps> = {}, setup
   picks?.(support);
   const props: ProjectOverviewProps = {
     run, support, root: ROOT, project: "doan", entry: entry(ROOT, [".doan/canvases/checkout.html"]), worktrees: [entry(ROOT, [])], homeDirectory: "/code",
-    notice: null, unavailable: null, list, seen: new Set(), holder: null, prefs: {}, defaults: null, now: Date.parse("2026-10-30T00:03:00.000Z"),
+    notice: null, unavailable: null, list, seen: new Set(), prefs: {}, defaults: null, now: Date.parse("2026-10-30T00:03:00.000Z"),
     onWorktree: () => {}, onOpenCanvas: () => {}, onRetryList: () => {}, onStart: async () => ({ ok: true }), onSettings: () => {},
     onSendConversation: async () => {}, onAction: () => {}, onProjectSettings: () => {}, ...patch,
   };

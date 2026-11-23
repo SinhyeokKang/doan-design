@@ -42,7 +42,6 @@ import type { ThumbnailReply, ThumbnailTarget } from "../main/thumbnails";
 import type { UiState } from "../restore/uiState";
 import type { AddPageResponse, AddPageState } from "../main/addPage";
 import type { PlayRequest, PrototypePlaying, PrototypeReveal } from "../main/prototype/ipc";
-import type { DrawingReport, PrototypeTargetRef } from "../main/prototype/drawing";
 import type { ComposerChoice } from "../renderer/rememberChoice";
 
 export type { AddPageResponse, AddPageState, WorkItem, OpenLinkResult, TrashPlanReply, TrashReply, ExportReply };
@@ -126,7 +125,7 @@ const api = {
   // the conversation's provider; permissionMode, one of the common ids, whenever the picker names one, judged apart from
   // the model ("default" clears the stored mode); fast only when this run's list says that model has Fast; attachments
   // by ids as for a start. A legacy external conversation takes none of them,
-  // and no request names a provider. project_busy: another conversation of this project without a canvas is working.
+  // and no request names a provider.
   // canvas_not_found: the conversation's canvas is gone or its ID is listed twice.
   // While the conversation's usage limit holds, or it is scheduled (list row limitResetsAt or scheduledAt), main keeps
   // the message as a queued item and answers { scheduled }; such a send takes no model, effort, fast or permissionMode
@@ -567,14 +566,6 @@ const api = {
     ipcRenderer.on("prototype:revealRequest", receive);
     return () => ipcRenderer.removeListener("prototype:revealRequest", receive);
   },
-  // The canvas the prototype window plays (null while it is closed), then each change: the main window says which
-  // project conversation draws it. Subscribe first, then read.
-  onPrototypeTarget(listener: (target: PrototypeTargetRef | null) => void): () => void {
-    const receive = (_event: Electron.IpcRendererEvent, target: PrototypeTargetRef | null) => listener(target);
-    ipcRenderer.on("prototype:target", receive);
-    return () => ipcRenderer.removeListener("prototype:target", receive);
-  },
-  readPrototypeTarget: (): Promise<PrototypeTargetRef | null> => ipcRenderer.invoke("prototype:readTarget"),
   // The frame the prototype window plays (null while it is closed), then each change, for the toolbar's frame drawer.
   // Subscribe first, then read.
   onPrototypePlaying(listener: (playing: PrototypePlaying | null) => void): () => void {
@@ -583,9 +574,6 @@ const api = {
     return () => ipcRenderer.removeListener("prototype:playing", receive);
   },
   readPrototypePlaying: (): Promise<PrototypePlaying | null> => ipcRenderer.invoke("prototype:playing"),
-  // The project conversation drawing that target, or null. Main takes it only for the target playing now and only a
-  // project conversation of its root, and relays the id alone to the prototype window.
-  setPrototypeDrawing: (report: DrawingReport): Promise<boolean> => ipcRenderer.invoke("prototype:setDrawing", report),
   // A pick in the prototype window's composer, to remember as Last used exactly as this window's own composer picks.
   onPrototypeLastUsed(listener: (choice: ComposerChoice) => void): () => void {
     const receive = (_event: Electron.IpcRendererEvent, choice: ComposerChoice) => listener(choice);

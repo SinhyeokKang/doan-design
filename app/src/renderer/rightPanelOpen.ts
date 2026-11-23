@@ -11,8 +11,9 @@ import type { Slot } from "./homeConversations";
 
 // notification: a system notification or a toast; permission when it is about a permission request.
 // agent: the agent's own turn start, permission request or turn end, which never open the panel.
+// card: a thread card's Open (a canvas card's, a handoff card's) or another conversation's link to its canvas.
 export type PanelTrigger =
-  | { kind: "overviewRow" } | { kind: "notification"; permission: boolean } | { kind: "promotion" } | { kind: "capsule" }
+  | { kind: "overviewRow" } | { kind: "notification"; permission: boolean } | { kind: "card" } | { kind: "capsule" }
   | { kind: "sidebarRow" } | { kind: "picker" } | { kind: "newConversation" } | { kind: "agent" }
   // A started handoff's move: focus goes to the receiving thread's handoff card.
   | { kind: "handoff" };

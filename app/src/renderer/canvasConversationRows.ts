@@ -5,20 +5,28 @@ import { canvasLabel, rowProblem } from "./canvasTree";
 import { deleteAvailability, type DeleteAvailability } from "./conversationDelete";
 import { conversationLine, type ConversationLine } from "./overviewConversation";
 
-// The Overview's right panel: one row per canvas conversation.
+// The Overview's right panel (Conversations): one row per conversation of the root, project and canvas conversations in
+// one list.
 
 export type CanvasRowProblem = { kind: "gone" } | { kind: "duplicate"; count: number } | { kind: "unreadable"; sentence: string };
 
-export interface CanvasConversationRow extends ConversationLine {
-  key: string; name: string; canvas: Canvas;
-  // The listed row to open and capture; null when the canvas is gone or its id is shared.
-  row: CanvasRow | null;
-  problem: CanvasRowProblem | null; openable: boolean;
+interface ConversationRowBase extends ConversationLine {
+  key: string;
   // The row's Delete: the conversation's title names it, as in the title menu.
   title: string; deletable: DeleteAvailability;
   // The row's head: the title on one line, "Conversation" when it has none.
   heading: string;
 }
+// A canvas conversation: opens its canvas, with the canvas's thumbnail.
+export interface CanvasConversationItem extends ConversationRowBase {
+  kind: "canvas"; name: string; canvas: Canvas;
+  // The listed row to open and capture; null when the canvas is gone or its id is shared.
+  row: CanvasRow | null;
+  problem: CanvasRowProblem | null; openable: boolean;
+}
+// A project conversation (bound to no canvas): opens in the Overview's main column; no thumbnail.
+export interface ProjectConversationItem extends ConversationRowBase { kind: "project" }
+export type CanvasConversationRow = CanvasConversationItem | ProjectConversationItem;
 
 // main's rule (`main/conversation/sessions.ts`), restated because the renderer must not import main's modules
 // (POSTMORTEM 2026-10-30): an id on either side matches by id only, else the path matches.
@@ -38,37 +46,41 @@ export function conversationCanvasMatch(canvas: Canvas, canvasRows: readonly Can
   return matches.length === 1 ? { kind: "one", row: matches[0]! } : matches.length > 1 ? { kind: "many", rows: matches } : { kind: "none" };
 }
 
-// Ordered by the conversation's latest activity, then canvas path. A gone canvas stays only while its
-// conversation has work left (running, waiting, an unseen ending), the same rule as its status.
+// Ordered by the conversation's latest activity; an unreadable history's empty time sorts last. Ties: project
+// conversations by id (the Conversation menu's byActivity), before canvas conversations, which go by canvas path. A
+// gone canvas stays only while its conversation has work left (running, waiting, an unseen ending), the same rule as
+// its status.
 export function canvasConversationRows(list: readonly ConversationSummary[], canvasRows: readonly CanvasRow[], now: number, seen: ReadonlySet<string> = new Set()): CanvasConversationRow[] {
   const rows: CanvasConversationRow[] = [];
   for (const c of list) {
-    if (!c.canvas) continue;
     const line = conversationLine(c, now, seen);
+    const base = { ...line, key: c.conversationId, title: c.title, deletable: deleteAvailability(c), heading: c.title.replace(/\s+/g, " ").trim() || "Conversation" };
+    if (!c.canvas) { rows.push({ kind: "project", ...base }); continue; }
     const match = conversationCanvasMatch(c.canvas, canvasRows);
-    const base = { ...line, key: c.conversationId, canvas: c.canvas, title: c.title, deletable: deleteAvailability(c), heading: c.title.replace(/\s+/g, " ").trim() || "Conversation" };
     if (match.kind === "one") {
       const row = match.row;
       // Only the canvas file's own read error makes the row unreadable.
       const problem = row.error ? { kind: "unreadable" as const, sentence: rowProblem(row)!.sentence } : null;
-      rows.push({ ...base, name: canvasLabel(row), row, problem, openable: true });
+      rows.push({ kind: "canvas", ...base, canvas: c.canvas, name: canvasLabel(row), row, problem, openable: true });
     } else if (match.kind === "many") {
       const own = match.rows.find(row => row.path === c.canvas!.path) ?? match.rows[0]!;
-      rows.push({ ...base, name: canvasLabel(own), row: null, problem: { kind: "duplicate", count: match.rows.length }, openable: false });
+      rows.push({ kind: "canvas", ...base, canvas: c.canvas, name: canvasLabel(own), row: null, problem: { kind: "duplicate", count: match.rows.length }, openable: false });
     } else if (line.status) {
-      rows.push({ ...base, name: label(c.canvas.path), row: null, problem: { kind: "gone" }, openable: false });
+      rows.push({ kind: "canvas", ...base, canvas: c.canvas, name: label(c.canvas.path), row: null, problem: { kind: "gone" }, openable: false });
     }
   }
   const at = new Map(list.map(c => [c.conversationId, c.lastActivityAt]));
-  const path = (r: CanvasConversationRow) => r.row?.path ?? r.canvas.path;
+  const path = (r: CanvasConversationItem) => r.row?.path ?? r.canvas.path;
+  const order = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
   return rows.sort((a, b) => {
     const ta = at.get(a.key)!, tb = at.get(b.key)!;
     if (ta !== tb) return ta < tb ? 1 : -1;
-    return path(a) < path(b) ? -1 : path(a) > path(b) ? 1 : 0;
+    if (a.kind === "project") return b.kind === "project" ? order(a.key, b.key) : -1;
+    return b.kind === "project" ? 1 : order(path(a), path(b));
   });
 }
 
-// "No longer in" matches the thread's promotion marker; an unreadable canvas keeps the sidebar's sentence.
+// "No longer in" matches the thread's "Moved to" marker (an earlier build's promotion); an unreadable canvas keeps the sidebar's sentence.
 export function canvasRowProblemText(problem: CanvasRowProblem, project: string): string {
   switch (problem.kind) {
     case "gone": return `No longer in ${project}`;

@@ -1,0 +1,4 @@
+{
+  "text": "In this project, start a mobile version of the `account` canvas as a new canvas, `account-mobile`: 390 px wide, with its Profile and Billing screens stacked in one column for a narrow screen. Leave `account` as it is. The mobile version is the one we keep working on from here: next I want to tune its tap targets.",
+  "anchors": []
+}

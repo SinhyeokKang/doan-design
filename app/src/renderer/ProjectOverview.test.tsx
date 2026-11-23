@@ -20,9 +20,11 @@ const ROOT = "/code/doan", WT = "/code/doan-checkout";
 const A = "aaaaaaaa-0000-4000-8000-000000000001";
 const row = (path: string): CanvasRow => ({ path, id: path.split("/").at(-1)!.replace(/\.html$/, ""), url: "u" });
 const entry = (path: string, canvases: string[], branch = "main"): FolderEntry => ({ kind: "list", path, servedRev: 0, canvases: canvases.map(row), git: { branch, common: "/code/doan/.git" } } as FolderEntry);
+// An unseen ending by default, so the first entry of the run reopens the conversation rather than starting fresh
+// (PRODUCT §5 item 3 'Which conversation shows').
 const summary = (patch: Partial<ConversationSummary> = {}): ConversationSummary => ({
   conversationId: A, title: "What should the checkout empty state say when a cart has expired?", owner: "doan", provider: "claude",
-  fromHome: true, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-10-30T00:00:00.000Z", preview: "p", ...patch,
+  fromHome: true, phase: "ended", unseen: true, queued: 0, working: false, lastActivityAt: "2026-10-30T00:00:00.000Z", preview: "p", ...patch,
 });
 const PRESETS: PresetSummary[] = ([["context", "Gather design context", "start"], ["shape", "Shape a first screen", "start"], ["document", "Document the design system", "start"], ["critique", "Critique the design", "review"], ["polish", "Polish the details", "refine"]] as const)
   .map(([id, title, group]) => ({ id, title, description: "", scope: "", group }));
@@ -48,7 +50,7 @@ function render(list: ListView, patch: Partial<ProjectOverviewProps> = {}, setup
   support.presets = { v: 1, ok: true, result: { version: "1", presets: PRESETS } };
   const props: ProjectOverviewProps = {
     run, support, root: ROOT, project: "doan", entry: entry(ROOT, [".doan/canvases/checkout.html"]), worktrees: [entry(ROOT, [])], homeDirectory: "/code",
-    notice: null, unavailable: null, list, seen: new Set(), holder: null, prefs: {}, defaults: null, now: Date.parse("2026-10-30T00:03:00.000Z"),
+    notice: null, unavailable: null, list, seen: new Set(), prefs: {}, defaults: null, now: Date.parse("2026-10-30T00:03:00.000Z"),
     onWorktree: () => {}, onOpenCanvas: () => {}, onRetryList: () => {}, onStart: async () => ({ ok: true }), onSettings: () => {},
     onSendConversation: async () => {}, onAction: () => {}, onProjectSettings: () => {}, ...patch,
   };
@@ -98,16 +100,6 @@ test("the Overview's suggested prompts are the shared suggestion button", () => 
   const prompts = suggestedPrompts(entry(ROOT, [".doan/canvases/checkout.html"]), "doan", PRESETS);
   expect(prompts.length).toBeGreaterThan(0);
   expect(suggestionButtons(render([]))).toEqual(sharedSuggestions(prompts));
-});
-
-test("a promotion leaves the moved line with Open above the suggestions", () => {
-  const html = render([summary()], {}, run => {
-    run.sync();
-    (run as unknown as { roots: Map<string, { current: unknown; moved: unknown }> }).roots.get(ROOT)!.current = { conversationId: null, listed: false };
-    (run as unknown as { roots: Map<string, { moved: unknown }> }).roots.get(ROOT)!.moved = { conversationId: A, title: "Checkout copy", canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } };
-  });
-  // One line; only the title gives way, and the whole sentence stays in the text (and the tooltip).
-  expect(html).toMatch(/<div class="doan-notice moved" role="status">.*<span class="grow-text moved-text selectable" data-state="closed" data-slot="tooltip-trigger"><span class="moved-title">Checkout copy<\/span><span class="moved-rest"> moved to checkout\.<\/span><\/span><button[^>]*>Open<\/button><\/div><div class="ov-suggestions"/);
 });
 
 test("selectable: the notice text, not the notice's moved line", () => {
@@ -204,16 +196,12 @@ test("a problem worktree in the chip menu shows its repair actions instead of op
 
 // design-sync (doan-project.html, doan-conversation.html), measured in the built app: the app body's tabular figures
 // widened the short times ("12m" by 2.5px), button.doan-chip's open fill replaced the open worktree chip's pressed
-// fill, and two bare lucide glyphs (the moved line's, the Stopped notice's) rendered at 24px instead of 16.
+// fill, and the Stopped notice's bare lucide glyph rendered at 24px instead of 16.
 test("the Overview's surfaces take plain numerals, the open chip its pressed fill, and notice glyphs the icon size", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(".ov-main, .right.ov-right, .conv-menu, .wt-menu, .doan-insp-menu, .doan-insp-tip { font-variant-numeric: normal; }");
   expect(css).toContain('button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }');
-  expect(css).toContain(".doan-notice.moved > svg { width: var(--size-icon); height: var(--size-icon); }");
-  expect(css).toContain(".moved-text { display: flex; min-width: 0; white-space: nowrap; }");
-  expect(css).toContain(".moved-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }");
-  expect(css).toContain(".moved-rest { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }");
   // The canvas panel's notices above its composer read the same.
   expect(css).toContain(".conversation-thread .thread-notice > svg, :is(.cp-scroll, .ov-new) > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }");
   expect(css).toMatch(/\.conversation-thread \.thread-notice \.strip-text span, :is\(\.cp-scroll, \.ov-new\) > \.thread-notice \.strip-text span \{[^}]*overflow: visible; text-overflow: clip; \}/);
@@ -275,14 +263,6 @@ test("the composer tells the docked buddy when the conversation waits for an ans
   expect(slot(fresh)).toBe('<div class="docked-buddy-slot" aria-hidden="true">');
   expect(slot(render([summary()]))).toBe('<div class="docked-buddy-slot" aria-hidden="true">');
   expect(slot(render([summary({ phase: "waiting" })]))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-waiting="">');
-  // The moved line with its Open button sits where the suggestions do: a reason of its own.
-  const moved = render([summary()], {}, run => {
-    run.sync();
-    (run as unknown as { roots: Map<string, { current: unknown; moved: unknown }> }).roots.get(ROOT)!.current = { conversationId: null, listed: false };
-    (run as unknown as { roots: Map<string, { moved: unknown }> }).roots.get(ROOT)!.moved = { conversationId: A, title: "Checkout copy", canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } };
-  });
-  expect(moved).toContain('class="doan-notice moved"');
-  expect(slot(moved)).toContain(' data-notice=""');
   expect(slot(render([]))).not.toContain("data-notice");
 });
 

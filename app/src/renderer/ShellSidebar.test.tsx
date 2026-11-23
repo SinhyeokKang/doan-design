@@ -4,7 +4,7 @@ import { renderToStaticMarkup as serverMarkup } from "react-dom/server";
 const renderToStaticMarkup = (node: ReactNode) => serverMarkup(<TooltipProvider>{node}</TooltipProvider>);
 import { describe, expect, it, test, vi } from "vitest";
 import { TooltipProvider } from "./components/ui/tooltip";
-import { projectSlot, recoveryKey, ShellSidebar, staleMenu } from "./ShellSidebar";
+import { groupSlot, projectSlot, recoveryKey, ShellSidebar, staleMenu } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
 import type { SidebarSlot as Slot } from "./canvasNotice";
 import type { CanvasMenu } from "./ShellSidebar";
@@ -129,10 +129,11 @@ test("a project row carries a bound canvas's slot only while that canvas row is 
   expect(projectSlot(new Map([["/a\n.doan/canvases/x.html", { kind: "permission" as const, label: "p" }]]), ["/a"], ["/a\n.doan/canvases/x.html"])).toBeUndefined();
 });
 
-// Two groups under an expanded, listed project.
-function groups(canvases: string[], closed?: { ds?: false; canvases?: false }, extra: { slots?: Map<string, Slot>; entry?: FolderEntry } = {}) {
+// Two groups under an expanded, listed project. `others`: more worktrees of the project, after the selected `/a`.
+function groups(canvases: string[], closed?: { ds?: false; canvases?: false }, extra: { slots?: Map<string, Slot>; entry?: FolderEntry; others?: FolderEntry[]; expanded?: boolean; locked?: boolean } = {}) {
   const listed: FolderEntry = extra.entry ?? { path: "/a", kind: "list", servedRev: 0, canvases: canvases.map(name => ({ path: `.doan/${name}.html`, url: name })) };
-  return renderToStaticMarkup(<TooltipProvider><ShellSidebar cards={[{ key: "common", name: "demo", rows: [listed] }]} projects={{ common: { roots: ["/a"], expanded: true, ...(closed ? { groups: closed } : {}) } }} loaded={null} canvas={undefined} homeDirectory={null} {...(extra.slots ? { slots: extra.slots } : {})}
+  const rows = [listed, ...(extra.others ?? [])];
+  return renderToStaticMarkup(<TooltipProvider><ShellSidebar cards={[{ key: "common", name: "demo", rows }]} projects={{ common: { roots: rows.map(row => row.path), selectedRoot: "/a", expanded: extra.expanded ?? true, ...(closed ? { groups: closed } : {}) } }} loaded={null} canvas={undefined} homeDirectory={null} {...(extra.slots ? { slots: extra.slots } : {})} {...(extra.locked ? { locked: true } : {})}
     search={vi.fn()} toggle={vi.fn()} disclose={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} canvasMenu={NO_CANVAS_MENU} /></TooltipProvider>);
 }
 const heads = (html: string) => [...html.matchAll(/<div class="shell-group-head row"[^>]*>.*?<\/div>/g)].map(match => match[0]);
@@ -250,15 +251,96 @@ describe("what wins the slot of a project in a problem state", () => {
   });
 });
 
-test("a slot in a closed group shows on the project row; open, it stays on its own row", () => {
+// PRODUCT §5 item 1: a canvas row's slot shows once, on the nearest rendered row: its own, else its closed group's head,
+// else (project collapsed) the project row.
+test("a slot in a closed group shows on its group head, not the project row; open, it stays on its own row", () => {
   const slots = new Map([["/a\n.doan/ds/button.html", { kind: "permission" as const, label: "Codex needs your answer" }]]);
   const closed = groups(["ds/button", "canvases/checkout"], { ds: false }, { slots });
-  expect(closed).toMatch(/<span class="shell-project-name" data-state="closed" data-slot="tooltip-trigger">demo<\/span><span class="row-slot permission"/);
+  expect(projectRow(closed)).not.toContain("row-slot");
+  expect(heads(closed)[0]).toContain('<span class="row-slot permission" role="img" aria-label="Codex needs your answer"><svg');
+  expect(heads(closed)[1]).not.toContain("row-slot");
   const open = groups(["ds/button", "canvases/checkout"], undefined, { slots });
-  expect(open).not.toMatch(/<span class="shell-project-name" data-state="closed" data-slot="tooltip-trigger">demo<\/span><span class="row-slot/);
+  expect(projectRow(open)).not.toContain("row-slot");
   expect(open).toMatch(/<span data-state="closed" data-slot="tooltip-trigger">button<\/span><span class="row-slot permission"/);
-  // A group head never carries a slot.
-  for (const head of heads(closed)) expect(head).not.toContain("row-slot");
+  for (const head of heads(open)) expect(head).not.toContain("row-slot");
+  expect(closed.match(/row-slot permission/g)).toHaveLength(1);
+});
+
+test("a closed head's slot sits last, after the count badge, inside the head's tree item", () => {
+  const slots = new Map([["/a\n.doan/canvases/checkout.html", { kind: "working" as const, label: "Codex is working" }]]);
+  const head = heads(groups(["ds/button", "canvases/checkout"], { canvases: false }, { slots }))[1]!;
+  expect(head).toMatch(/^<div class="shell-group-head row" role="treeitem"/);
+  expect(head).toMatch(/<span class="doan-chip shell-group-count" data-ui-variant="translucent" aria-hidden="true">1<\/span><span class="row-slot working" role="img" aria-label="Codex is working"><span class="doan-spinner" aria-hidden="true"><\/span><\/span><span id="[^"]+" class="sr-only">1 canvas<\/span><\/div>$/);
+});
+
+test.each([
+  [{ kind: "permission", label: "Codex needs your answer" }, /<span class="row-slot permission" role="img" aria-label="Codex needs your answer"><svg[^>]*lucide-hand/],
+  [{ kind: "working", label: "Claude Code is working" }, /<span class="row-slot working" role="img" aria-label="Claude Code is working"><span class="doan-spinner"/],
+  [{ kind: "working", label: "Codex is working in a terminal", source: "terminal" }, /<span class="row-slot working" role="img" aria-label="Codex is working in a terminal"><span class="doan-spinner"/],
+  [{ kind: "scheduled", label: "Queued — sending" }, /<span class="row-slot scheduled" role="img" aria-label="Queued — sending"><svg[^>]*lucide-clock/],
+  [{ kind: "unseen", label: "Conversation finished — unread" }, /<span class="row-slot ended" role="img" aria-label="Conversation finished — unread"><svg[^>]*lucide-message-circle/],
+  [{ kind: "canvas", label: "button changed since you last opened it" }, /<span class="row-slot unseen" role="img" aria-label="button changed since you last opened it"><i><\/i><\/span>/],
+] as [Slot, RegExp][])("a closed head shows each kind of canvas slot as the canvas row would (%j)", (slot, mark) => {
+  const html = groups(["ds/button"], { ds: false }, { slots: new Map([["/a\n.doan/ds/button.html", slot]]) });
+  expect(heads(html)[0]).toMatch(mark);
+  expect(projectRow(html)).not.toContain("row-slot");
+});
+
+test("with both groups closed each head shows its own canvases' slot and the project row only its own", () => {
+  const slots = new Map<string, Slot>([
+    ["/a", { kind: "scheduled", label: "Queued — sending" }],
+    ["/a\n.doan/ds/button.html", { kind: "permission", label: "Codex needs your answer" }],
+    ["/a\n.doan/canvases/checkout.html", { kind: "unseen", label: "Conversation finished — unread" }],
+  ]);
+  const html = groups(["ds/button", "canvases/checkout"], { ds: false, canvases: false }, { slots });
+  expect(heads(html)[0]).toContain('aria-label="Codex needs your answer"');
+  expect(heads(html)[0]).not.toContain("row-slot ended");
+  expect(heads(html)[1]).toContain('<span class="row-slot ended" role="img" aria-label="Conversation finished — unread">');
+  expect(heads(html)[1]).not.toContain("row-slot permission");
+  expect(projectRow(html)).toContain('<span class="row-slot scheduled" role="img" aria-label="Queued — sending">');
+});
+
+test("the project row keeps other worktrees' canvases and canvases not in the list while a group is closed", () => {
+  const other: FolderEntry = { path: "/b", kind: "list", servedRev: 0, canvases: [{ path: ".doan/ds/button.html", url: "b" }] };
+  const elsewhere = groups(["ds/button"], { ds: false }, { others: [other], slots: new Map([["/b\n.doan/ds/button.html", { kind: "permission", label: "Codex needs your answer" }]]) });
+  expect(projectRow(elsewhere)).toContain('aria-label="Codex needs your answer"');
+  for (const head of heads(elsewhere)) expect(head).not.toContain("row-slot");
+  const unlisted = groups(["ds/button"], { ds: false }, { slots: new Map([["/a\n.doan/ds/gone.html", { kind: "working", label: "Codex is working" }]]) });
+  expect(projectRow(unlisted)).toContain('aria-label="Codex is working"');
+  for (const head of heads(unlisted)) expect(head).not.toContain("row-slot");
+});
+
+test("an empty closed group's head shows no slot", () => {
+  const html = groups(["canvases/checkout"], { ds: false }, { slots: new Map([["/a\n.doan/canvases/checkout.html", { kind: "working", label: "Codex is working" }], ["/a", { kind: "unseen", label: "Conversation finished — unread" }]]) });
+  expect(heads(html)[0]).not.toContain("row-slot");
+  expect(html).toContain('aria-label="checkout"');
+});
+
+test("a collapsed project's row still shows its canvases' strongest slot, whatever its groups' state", () => {
+  const slots = new Map<string, Slot>([["/a\n.doan/canvases/checkout.html", { kind: "working", label: "Codex is working" }], ["/a\n.doan/ds/button.html", { kind: "permission", label: "Codex needs your answer" }]]);
+  for (const closed of [undefined, { ds: false as const }, { ds: false as const, canvases: false as const }]) {
+    const html = groups(["ds/button", "canvases/checkout"], closed, { slots, expanded: false });
+    expect(heads(html)).toEqual([]);
+    expect(projectRow(html)).toContain('<span class="row-slot permission" role="img" aria-label="Codex needs your answer">');
+  }
+});
+
+test("a locked page's closed head keeps its slot and its own colour class; the head stays the tree item that toggles", () => {
+  const html = groups(["ds/button"], { ds: false }, { locked: true, slots: new Map([["/a\n.doan/ds/button.html", { kind: "permission", label: "Codex needs your answer" }]]) });
+  expect(heads(html)[0]).toMatch(/aria-disabled="true"/);
+  expect(heads(html)[0]).toContain('<span class="row-slot permission" role="img" aria-label="Codex needs your answer">');
+});
+
+// The head's chevron rules once matched every svg in the head: a slot's hand, clock or bubble would turn −90° with a
+// closed group and take the metadata or disabled ink instead of its own colour.
+it("CSS: the group head's chevron rules reach only the chevron, never the slot's icon", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).not.toMatch(/\.shell-group-head(\[[^\]]*\])? svg \{[^}]*\b(transform|color):/);
+  expect(css).not.toMatch(/\.shell-group-head\[aria-disabled="true"\] :is\([^)]*\bsvg\b/);
+  expect(css).toMatch(/\.shell-group-head\[aria-expanded="false"\] > svg \{ transform: rotate\(-90deg\); \}/);
+  // Nothing hides a head's slot on hover or focus (a head has no menu to take its place).
+  expect(css).not.toMatch(/\.shell-group-head[^{]*\.row-slot[^{]*\{[^}]*(clip-path|display: none|visibility: hidden)/);
 });
 
 // Dogfooding #2: a Home row above the projects, current on Home.
@@ -282,14 +364,53 @@ it("scrolls the project list and the Settings categories with the shared thin sc
 });
 
 // A canvas notice is the same violet dot, under every conversation state.
-test("a canvas notice is the unseen dot on its row, and on the project row while that row is off screen", () => {
+test("a canvas notice is the unseen dot on its row, and on its group head while that group is closed", () => {
   const notice = { kind: "canvas" as const, label: "button changed since you last opened it" };
   const slots = new Map([["/a\n.doan/ds/button.html", notice]]);
   const open = groups(["ds/button", "canvases/checkout"], undefined, { slots });
   expect(open).toContain('<span data-state="closed" data-slot="tooltip-trigger">button</span><span class="row-slot unseen" role="img" aria-label="button changed since you last opened it"><i></i></span>');
   expect(open).not.toMatch(/<span class="shell-project-name" data-state="closed" data-slot="tooltip-trigger">demo<\/span><span class="row-slot/);
   const closed = groups(["ds/button", "canvases/checkout"], { ds: false }, { slots });
-  expect(closed).toMatch(/<span class="shell-project-name" data-state="closed" data-slot="tooltip-trigger">demo<\/span><span class="row-slot unseen" role="img" aria-label="button changed since you last opened it"><i><\/i><\/span>/);
+  expect(heads(closed)[0]).toContain('<span class="row-slot unseen" role="img" aria-label="button changed since you last opened it"><i></i></span>');
+  expect(projectRow(closed)).not.toContain("row-slot");
+  const collapsed = groups(["ds/button", "canvases/checkout"], { ds: false }, { slots, expanded: false });
+  expect(collapsed).toMatch(/<span class="shell-project-name" data-state="closed" data-slot="tooltip-trigger">demo<\/span><span class="row-slot unseen" role="img" aria-label="button changed since you last opened it"><i><\/i><\/span>/);
+});
+
+// A closed group's head ranks its canvases' slots as the project row does, and a canvas notice standing for several names
+// the first in `slots`, the most recently changed (canvasNotice.ts).
+describe("groupSlot", () => {
+  const group = (id: "ds" | "canvases", paths: string[], open = false) => ({ id, label: id, empty: "", open, rows: paths.map(path => ({ path, url: path })) });
+  const DS = [".doan/ds/button.html", ".doan/ds/color.html"];
+  test("an open group's head carries nothing", () => {
+    expect(groupSlot(new Map([["/a\n.doan/ds/button.html", { kind: "permission", label: "p" }]]), "/a", group("ds", DS, true))).toBeUndefined();
+  });
+  test("a closed group's head carries its strongest canvas slot: permission, working, a usage-limit wait, unseen, then a canvas notice", () => {
+    const kinds: Slot[] = [{ kind: "canvas", label: "c" }, { kind: "unseen", label: "u" }, { kind: "scheduled", label: "s" }, { kind: "working", label: "w" }, { kind: "permission", label: "p" }];
+    // The weaker slot comes first in the map, so a win is the rank, not the order.
+    for (let i = 1; i < kinds.length; i++)
+      expect(groupSlot(new Map([["/a\n.doan/ds/button.html", kinds[i - 1]!], ["/a\n.doan/ds/color.html", kinds[i]!]]), "/a", group("ds", DS))).toBe(kinds[i]);
+    const slots = new Map<string, Slot>([["/a\n.doan/ds/button.html", { kind: "unseen", label: "u" }], ["/a\n.doan/ds/color.html", { kind: "permission", label: "p" }]]);
+    expect(groupSlot(slots, "/a", group("ds", DS))).toEqual({ kind: "permission", label: "p" });
+    const working = new Map<string, Slot>([["/a\n.doan/ds/button.html", { kind: "scheduled", label: "s" }], ["/a\n.doan/ds/color.html", { kind: "working", label: "w", source: "terminal" }]]);
+    expect(groupSlot(working, "/a", group("ds", DS))).toEqual({ kind: "working", label: "w", source: "terminal" });
+  });
+  test("among equals the first in the slots wins, so several notices name the most recently changed canvas", () => {
+    const first: Slot = { kind: "canvas", label: "color changed" }, second: Slot = { kind: "canvas", label: "button changed" };
+    expect(groupSlot(new Map([["/a\n.doan/ds/color.html", first], ["/a\n.doan/ds/button.html", second]]), "/a", group("ds", DS))).toBe(first);
+  });
+  test("only the group's own canvases in this root count: not the project's own slot, another worktree, the other group or an unlisted canvas", () => {
+    const slots = new Map<string, Slot>([
+      ["/a", { kind: "permission", label: "project" }],
+      ["/b\n.doan/ds/button.html", { kind: "permission", label: "other worktree" }],
+      ["/a\n.doan/canvases/checkout.html", { kind: "permission", label: "other group" }],
+      ["/a\n.doan/ds/gone.html", { kind: "permission", label: "unlisted" }],
+    ]);
+    expect(groupSlot(slots, "/a", group("ds", DS))).toBeUndefined();
+  });
+  test("an empty closed group carries nothing", () => {
+    expect(groupSlot(new Map([["/a\n.doan/ds/button.html", { kind: "permission", label: "p" }]]), "/a", group("ds", []))).toBeUndefined();
+  });
 });
 
 test("on the project row a conversation slot beats a canvas notice; among notices the first listed wins", () => {
@@ -451,9 +572,9 @@ describe("the viewed canvas's conversation list", () => {
   const NOW = Date.parse("2026-11-14T12:00:00.000Z");
   const conversation = (conversationId: string, patch: Record<string, unknown> = {}) => ({ conversationId, canvas: { path: A.path, id: "checkout" }, title: `Title ${conversationId}`, owner: "doan" as const, provider: "claude" as const,
     fromHome: false, phase: "ended" as const, unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-14T11:00:00.000Z", preview: "", ...patch });
-  type Options = { list?: unknown; shown?: string | null; folded?: boolean; canvas?: string; home?: boolean; locked?: boolean; slots?: Map<string, Slot>; bare?: Map<string, Slot> };
-  function markup({ list = [conversation("c1", { lastActivityAt: "2026-11-14T11:59:00.000Z" }), conversation("c2", { phase: "running", working: true })], shown = "c1", folded = false, canvas = A.path, home = false, locked = false, slots, bare = new Map() }: Options = {}) {
-    return renderToStaticMarkup(<TooltipProvider><ShellSidebar cards={[{ key: "w", name: "demo", rows: [listedEntry] }]} projects={{ w: { roots: ["/w"], selectedRoot: "/w", expanded: true } }} loaded="/w" canvas={canvas} home={home} locked={locked}
+  type Options = { list?: unknown; shown?: string | null; folded?: boolean; canvas?: string; home?: boolean; locked?: boolean; slots?: Map<string, Slot>; bare?: Map<string, Slot>; closed?: { ds?: false; canvases?: false } };
+  function markup({ list = [conversation("c1", { lastActivityAt: "2026-11-14T11:59:00.000Z" }), conversation("c2", { phase: "running", working: true })], shown = "c1", folded = false, canvas = A.path, home = false, locked = false, slots, bare = new Map(), closed }: Options = {}) {
+    return renderToStaticMarkup(<TooltipProvider><ShellSidebar cards={[{ key: "w", name: "demo", rows: [listedEntry] }]} projects={{ w: { roots: ["/w"], selectedRoot: "/w", expanded: true, ...(closed ? { groups: closed } : {}) } }} loaded="/w" canvas={canvas} home={home} locked={locked}
       homeDirectory={null} search={vi.fn()} toggle={vi.fn()} disclose={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} canvasMenu={NO_CANVAS_MENU}
       {...(slots ? { slots } : {})}
       conversations={{ list: () => list as never, shown, seen: new Set(), now: NOW, folded, bare, fold: vi.fn(), open: vi.fn(), remove: vi.fn() }} /></TooltipProvider>);
@@ -530,6 +651,19 @@ describe("the viewed canvas's conversation list", () => {
     const terminal = new Map<string, Slot>([[key, { kind: "working", label: "Codex is working in a terminal", source: "terminal" }]]);
     expect(canvasRow(markup({ slots, bare: terminal }))).toContain('aria-label="Codex is working in a terminal"');
     expect(canvasRow(markup({ slots, folded: true }))).toContain('aria-label="Claude Code needs your answer"');
+  });
+
+  // The viewed canvas stays shown while its group is closed: its row and list hide, so the head carries the canvas's full
+  // slot, the conversation signal the list's rows would carry included.
+  test("closing the viewed canvas's group hides its row and list, and its head carries the full slot", () => {
+    const key = `/w\n${A.path}`;
+    const slots = new Map<string, Slot>([[key, { kind: "permission", label: "Claude Code needs your answer" }]]);
+    const html = markup({ slots, closed: { canvases: false } });
+    expect(html).not.toContain("shell-conv-list");
+    expect(html).not.toContain('aria-label="checkout"');
+    const head = html.match(/<div class="shell-group-head row"[^>]*aria-label="Canvases"[^>]*>.*?<\/div>/)![0];
+    expect(head).toContain('<span class="row-slot permission" role="img" aria-label="Claude Code needs your answer">');
+    expect(html.match(/row-slot permission/g)).toHaveLength(1);
   });
 
   test("the panel's new conversation state marks no row current", () => {

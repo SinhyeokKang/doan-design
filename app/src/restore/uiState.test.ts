@@ -455,7 +455,7 @@ test("a parsed rightPanel survives a second parse unchanged", () => {
   expect(parse(first)).toEqual(first);
 });
 
-// the Overview's canvas conversations panel keeps its own width, checked like the
+// the Overview's Conversations panel keeps its own width, checked like the
 // canvas panel's.
 test("reads the Overview panel's width apart from the canvas panel's; a malformed one is dropped", () => {
   expect(parse({ screen: "home", overviewPanel: { width: 420 }, rightPanel: { open: true, width: 300 } })).toMatchObject({ overviewPanel: { width: 420 }, rightPanel: { open: true, width: 300 } });

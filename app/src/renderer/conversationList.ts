@@ -19,7 +19,7 @@ export function conversationWork(c: ConversationSummary, seen: ReadonlySet<strin
   if (c.readError) return null;
   const p = PROVIDER_NAMES[c.provider];
   if (c.phase === "waiting") return { kind: "permission", label: `${p} needs your answer` };
-  // main's working also covers a turn waiting for its promotion judgment and a queue about to go out, the state Delete
+  // main's working also covers a turn whose handoffs are still to settle and a queue about to go out, the state Delete
   // reads (deleteAvailability), so a row never reads finished while its Delete says the agent is working.
   if (c.phase === "running" || c.working) return { kind: "working", label: `${p} is working` };
   if (scheduled) return scheduled;

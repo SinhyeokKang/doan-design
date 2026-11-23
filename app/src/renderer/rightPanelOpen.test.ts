@@ -12,7 +12,7 @@ describe("panelOpenFor", () => {
     [{ kind: "overviewRow" }, "composer"],
     [{ kind: "notification", permission: false }, "composer"],
     [{ kind: "notification", permission: true }, "permission"],
-    [{ kind: "promotion" }, "composer"],
+    [{ kind: "card" }, "composer"],
     [{ kind: "capsule" }, "permission"],
     [{ kind: "picker" }, "composer"],
     [{ kind: "newConversation" }, "composer"],

@@ -49,8 +49,10 @@ export function PrototypeConversationPanel({ run, calls, now, onNotice = () => {
     // Sign in names its provider; "Sign in to an agent" and "Manage agents" open Settings > Agents at its top.
     onSettings={settingsTarget => reveal({ kind: "settings", ...(settingsTarget.provider ? { provider: settingsTarget.provider } : {}) })}
     onNotice={onNotice}
-    onOpenProjectConversation={conversationId => reveal({ kind: "conversation", conversationId })}
-    onOpenPromoted={conversationId => reveal({ kind: "conversation", conversationId })}
+    // A handoff card from the Overview: the main window shows its source conversation there. This window lists only the
+    // canvas's conversations, so whether the source still exists is main's answer (the run's).
+    onOpenOverview={conversationId => reveal({ kind: "conversation", conversationId })}
+    conversationListed={conversationId => run.conversationListed(conversationId)}
     onOpenHandoff={(canvas, conversationId) => reveal({ kind: "handoff", canvas, ...(conversationId ? { conversationId } : {}) })}
     work={run.work()} playing={run.playing()} />;
 }

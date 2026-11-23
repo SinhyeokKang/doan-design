@@ -150,7 +150,7 @@ window.addEventListener("click", (event) => {
   if (sameDocument(href)) location.hash = href;
 });
 
-// The same list and sheet as prototypeScript.ts's isolate (exportViewer.test.ts compares them).
+// The same list, sheet and own-background judgment as prototypeScript.ts's isolate (exportViewer.test.ts compares them).
 const KEEP = new Set(["HEAD", "SCRIPT", "STYLE", "LINK", "META", "TEMPLATE", "TITLE", "NOSCRIPT"]);
 function isolate(el) {
   for (let node = el; node.parentElement !== null; node = node.parentElement) {
@@ -170,6 +170,8 @@ function isolate(el) {
         height: auto !important; min-height: 0 !important; max-height: none !important;
         transform: none !important; translate: none !important; scale: none !important; rotate: none !important; zoom: 1 !important;
         filter: none !important; contain: none !important; overflow: visible !important; columns: auto !important; }
+      [data-doan-proto-clear][data-doan-proto-path], [data-doan-proto-clear] [data-doan-proto-path] {
+        background: none !important; box-shadow: none !important; outline: none !important; }
       [data-doan-proto-frame] { position: relative !important; inset: auto !important; float: none !important; margin: 0 !important;
         transform: none !important; translate: none !important; scale: none !important; rotate: none !important; zoom: 1 !important;
         width: 100% !important; min-width: 0 !important; max-width: none !important; min-height: 100vh !important; box-sizing: border-box !important; }
@@ -177,6 +179,25 @@ function isolate(el) {
       @supports (height: 100dvh) { :root { --doan-viewport-height: 100dvh !important; } }
     `);
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  judge(el);
+  // A linked stylesheet with no script after it may still be loading at DOMContentLoaded.
+  if (document.readyState !== "complete") afterLoad(() => judge(el));
+}
+
+// A frame with its own opaque background colour hides its ancestors' paint, as prototypeScript.ts judges it. Only ever
+// added, so the player's run script judging the same document after this one cannot take it back.
+function judge(el) {
+  if (el === document.documentElement || el === document.body) return;
+  if (ownBackground(getComputedStyle(el).backgroundColor)) document.documentElement.setAttribute("data-doan-proto-clear", "");
+}
+function ownBackground(color) {
+  if (color === "" || color === "transparent") return false;
+  const slash = color.lastIndexOf("/");
+  let alpha = "1";
+  if (slash >= 0) alpha = color.slice(slash + 1).replace(")", "").trim();
+  else if (/^(rgba|hsla)\(/.test(color)) alpha = (color.slice(color.indexOf("(") + 1, -1).split(",")[3] ?? "1").trim();
+  const value = alpha === "none" ? 0 : alpha.endsWith("%") ? parseFloat(alpha) / 100 : parseFloat(alpha);
+  return value === 1;
 }
 
 // At DOMContentLoaded, or after the `load` handlers when the frame is not there yet, as the app's
