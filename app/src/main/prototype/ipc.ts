@@ -69,9 +69,6 @@ export const PROTOTYPE_CHANNELS = {
   // To the main window: a checked reveal (PrototypeReveal) and a Last used pick (ComposerChoice).
   revealRequest: "prototype:revealRequest",
   lastUsed: "prototype:lastUsed",
-  // To the main window: the playing target (targetRelay.ts PrototypeTargetRef | null) whenever it changes, and its read.
-  target: "prototype:target",
-  readTarget: "prototype:readTarget",
   // To the main window: the frame the window plays (PrototypePlaying | null) whenever it changes, and the main window's
   // read of it. The toolbar's frame drawer marks that row while it is a frame of the canvas the main window shows.
   playing: "prototype:playing",

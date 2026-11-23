@@ -403,10 +403,9 @@ let indexedConversations: () => ScopedConversation[] = () => [];
 // The conversation the prototype window's open panel shows, for notifications (showing.ts).
 const prototypeShowing = createPrototypeShowing({ playing: () => prototype.controller.playing(), generation: () => prototype.controller.canvasGeneration(), conversations: () => indexedConversations(), entries: () => shell?.entries() ?? [] });
 
-// The target and playing-frame pushes to the main window (targetRelay.ts).
+// The playing-frame push to the main window (targetRelay.ts).
 const prototypeRelay = createTargetRelay({
-  playing: () => prototype.controller.playing(), frame: () => prototype.controller.playingFrame(), generation: () => prototype.controller.canvasGeneration(),
-  sendTarget: target => send(PROTOTYPE_CHANNELS.target, target),
+  playing: () => prototype.controller.playing(), frame: () => prototype.controller.playingFrame(),
   sendPlaying: playing => send(PROTOTYPE_CHANNELS.playing, playing),
 });
 
@@ -1568,8 +1567,7 @@ async function start(): Promise<void> {
   // The prototype window's conversation panel (hostRequests above). Each request was allowed for the prototype role
   // only; the parsers check the role again.
   handle(PROTOTYPE_CHANNELS.showing, undefined, (_event, value: unknown, kind) => { prototypeShowing.set(kind, value); });
-  // The playing target and frame: the main window's reads (mainOnly).
-  handle(PROTOTYPE_CHANNELS.readTarget, null, (_event, value: unknown) => value === undefined ? prototypeRelay.target() : null);
+  // The playing frame: the main window's read (mainOnly).
   handle(PROTOTYPE_CHANNELS.playing, null, (_event, value: unknown) => value === undefined ? prototypeRelay.playingTarget() : null);
   // A chip or a main-window-only button: the main window comes forward as for a notification's click, then decides
   // what it can show (a dialog, a page lock or first run keeps everything as it is).
