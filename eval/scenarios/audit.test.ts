@@ -29,10 +29,12 @@ for (const [id, checks] of [["R2", r2]] as const) {
   test(`${id} and judge recognize global flag grammar without counting flag values`, () => {
     const ctx = fixture(id);
     for (const [command, expected] of [
-      ["doan --repo /tmp/r active --json", true], ["doan --repo=/tmp/r --json active", true], ['doan --repo="/tmp/my repo" active', true],
-      ["/tmp/doan -repo /tmp/r -json=true active", true], ["doan --json=false active -repo=/tmp/r", true],
-      ["doan -- active", true], ["doan --repo active check", false], ["doan open a.html --frame active", false],
-      ["echo 'doan active'", false], ["doan --unknown active", false],
+      ["doan active --repo /tmp/r --json", true], ["doan active --repo=/tmp/r --json", true], ['doan active --repo="/tmp/my repo"', true],
+      ["/tmp/doan active -repo /tmp/r -json=true", true], ["doan active --json=false -repo=/tmp/r", true],
+      ["doan check --repo active", false], ["doan open a.html --frame active", false],
+      ["echo 'doan active'", false], ["doan active --unknown", false],
+      // The CLI refuses a flag or -- before the command.
+      ["doan --repo /tmp/r active --json", false], ["doan --json active", false], ["doan -- active", false],
     ] as const) {
       const calls = shell(command);
       assert.equal(checks({ ...ctx, calls }).find(c => c.id === "asked_doan_active")?.pass, expected, command);
