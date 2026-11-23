@@ -221,9 +221,9 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     run.takeScroll(conversationId);
     if (target.kind !== "item") return;
     handle.current?.scrollToItem(target.key);
-    // A question's entry also focuses its first option or answer input; a permission
-    // request's entry only scrolls here.
-    if (items.some(item => item.key === target.key && item.kind === "question")) handle.current?.focusItem(target.key);
+    // The entry also focuses the request's first choice: a permission request's first choice, a question's first
+    // option or answer input.
+    handle.current?.focusItem(target.key);
   }, [conversationId, scroll?.seq, Array.isArray(items) ? items.length : -1, asking]);
   const canvasListed = (canvas: Canvas) => props.entry.kind === "list" && props.entry.canvases.some(row => sameCanvas(canvas, row));
   const resend = (id: string) => { void run.editAndResend(root, id).then(focus => { if (focus) focusField(); }); };
