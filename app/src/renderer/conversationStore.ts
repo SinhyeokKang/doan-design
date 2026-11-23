@@ -76,6 +76,9 @@ export class ConversationStore {
   // Each screen's run hears a thread change for its own seen and promotion rules: "read" once its history was read,
   // "event" for each live event merged into it.
   private listeners = new Set<(conversationId: string, change: "read" | "event") => void>();
+  // The hosts drawing a conversation (the Overview, the canvas panels) hear each live event merged into its thread:
+  // a streamed delta reaches them only this way, since it leaves the store's host alone.
+  private threadListeners = new Map<string, Set<() => void>>();
   // Between conversation:delete and its reply: the reply and main's list notice come in either order (POSTMORTEM
   // 2026-10-26), so a list without the conversation is not read as it having gone.
   private deletingIds = new Set<string>();
@@ -104,6 +107,11 @@ export class ConversationStore {
   subscribe(listener: (conversationId: string, change: "read" | "event") => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+  subscribeThread(conversationId: string, listener: () => void): () => void {
+    const held = this.threadListeners.get(conversationId) ?? new Set();
+    this.threadListeners.set(conversationId, held.add(listener));
+    return () => { held.delete(listener); if (!held.size && this.threadListeners.get(conversationId) === held) this.threadListeners.delete(conversationId); };
   }
   thread(conversationId: string): Thread | null { return this.threads.get(conversationId) ?? null; }
   providerOf(conversationId: string): Provider | null { return this.providers.get(conversationId) ?? null; }
@@ -368,7 +376,10 @@ export class ConversationStore {
     // ends the flushing hold, so other events (streamed deltas) skip the sync.
     if (event.type === "turn.started") this.syncQueues();
     this.tell(event.conversationId, "event");
-    this.host.changed();
+    for (const listener of [...this.threadListeners.get(event.conversationId) ?? []]) listener();
+    // A streamed delta arrives every few tens of milliseconds and changes only the reply's text, which only the
+    // conversation's own hosts draw; redrawing the store's host (all of App) for each was the streaming cost.
+    if (event.type !== "message.delta") this.host.changed();
   }
   // conversation:stage, and the stage a conversation:read reply carries once its events are merged: either may come
   // first (POSTMORTEM 2026-10-26), so newerStage orders them by rev against the history's current turn.

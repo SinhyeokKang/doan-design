@@ -128,6 +128,16 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const waiting = view.kind === "wait" && list !== "error";
   const summary = conversationId ? listed?.find(c => c.conversationId === conversationId) : undefined;
   const thread = conversationId ? run.thread(conversationId) : null;
+  // A streamed delta does not redraw App (ConversationStore.event), so the thread is redrawn from its own subscription;
+  // an event merged between this render and the subscription is drawn as it starts.
+  const [, redrawThread] = useState(0);
+  const drawnThread = useRef(thread); drawnThread.current = thread;
+  useEffect(() => {
+    if (!conversationId) return;
+    const stop = run.store.subscribeThread(conversationId, () => redrawThread(n => n + 1));
+    if (run.thread(conversationId) !== drawnThread.current) redrawThread(n => n + 1);
+    return stop;
+  }, [run, conversationId]);
   const provider: Provider | null = conversationId ? summary?.provider ?? run.providerOf(conversationId) : null;
   const mode: DockedMode = conversationId && provider ? { kind: "existing", conversationId, provider } : { kind: "new", root };
   const key = draftKey(mode);
