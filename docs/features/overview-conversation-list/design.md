@@ -21,7 +21,7 @@
 - **순서 고정**: 사이드바의 'Viewed canvas's conversations' 규칙(PRODUCT §5 item 1)과 같다. 포인터나 키보드 포커스가 목록 안에 있는 동안 순서를 고정하고, 새 행은 끝에 붙인다. 둘 다 목록을 떠나면 한 번 다시 정렬한다. 상태 표시는 그동안에도 바뀐다.
 - **프로젝트 대화 행 모양**:
   - 높이와 정렬은 캔버스 행과 같다.
-  - 썸네일 자리(72×48)에는 inset 채움 위에 대화 아이콘을 두고(시안: lucide `message-square`, `--text-metadata`) `aria-hidden`으로 숨긴다. `Thumb`의 "Preview unavailable" 문구를 쓰지 않는다.
+  - 썸네일 자리(72×48)는 inset 채움 컨테이너로 두고, 가운데 아이콘 자리에 프로젝트 썸네일(사이드바와 같은 `projectHue` 색과 `projectInitial` 글자)을 24×24(`--size-control-xs`)로 둔다(사람이 시안에서 정했다). `aria-hidden`으로 숨기고 `Thumb`의 "Preview unavailable" 문구를 쓰지 않는다.
   - 첫 줄은 캔버스 행과 같다(provider 로고, 제목, 상태 표시, 시간·Delete).
   - 캡션 줄에는 캔버스 이름 대신 "Overview"를 쓴다. 스크린리더도 이 캡션으로 두 종류를 구분한다.
   - 그 아래 미리보기 두 줄이 온다.
