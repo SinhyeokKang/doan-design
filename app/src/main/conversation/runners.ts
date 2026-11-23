@@ -18,7 +18,7 @@ import { connectorLabels } from "../mcpConnectors/presets";
 import { backgroundTasks, claudeSessionLost, CLAUDE_QUESTION_TOOL, claudePermissionRequest, claudeQuestion, claudeQuestionResult, claudeModeReport, claudeUnansweredSupport, endPromptWait, endSteerWait, endTransport, initialTransport, normalizeClaude, promptTransport, steerTransport, storedAnswers, transportError, type ClaudeQuestion } from "./transport";
 import { questionAnswer } from "./questionAnswer";
 import { promptSuggestionText } from "./promptSuggestion";
-import { claudePermission, codexDefaults, codexServerNames, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
+import { claudePermission, codexDefaults, codexPluginNames, codexServerNames, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
 import { codexMechanism, codexProfileArgs, codexTurnPermission, fenceArgs, fencedCommand, sandboxRefused } from "../agentAuth/fence";
 import type { OpenRunner, Prepared, ReadListing, ReadModels, Runner } from "./service";
 import type { EventPayload, FailureCode, SkillSummary } from "./types";
@@ -201,10 +201,12 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     // and states nothing, so an override its thread carries from the terminal stays.
     if (input.owner) {
       const config = await dispatcher.request("config/read", { cwd: input.cwd }).catch((error: unknown) => { if (error instanceof RpcError) return null; throw error; });
-      // The probe turns off every configured MCP server so it starts none; the approval and sandbox it reports are
-      // unchanged (PoC, 0.171.0). Without config/read it names none and the probe starts them as before.
-      const names = codexServerNames(config);
-      const probe = await dispatcher.request("thread/start", { cwd: input.cwd, ephemeral: true, ...(names.length ? { config: { mcp_servers: Object.fromEntries(names.map(name => [name, { enabled: false }])) } } : {}) }).catch((error: unknown) => { if (error instanceof RpcError) throw new Error("session_unavailable"); throw error; });
+      // The probe turns off every configured MCP server and every plugin, whose MCP servers config/read does not
+      // list, so it starts none; the approval and sandbox it reports are unchanged (PoC, 0.171.0). Without
+      // config/read it names none and the probe starts them as before.
+      const off = (names: string[]) => names.length ? Object.fromEntries(names.map(name => [name, { enabled: false }])) : undefined;
+      const servers = off(codexServerNames(config)), plugins = off(codexPluginNames(config));
+      const probe = await dispatcher.request("thread/start", { cwd: input.cwd, ephemeral: true, ...(servers || plugins ? { config: { ...(servers ? { mcp_servers: servers } : {}), ...(plugins ? { plugins } : {}) } } : {}) }).catch((error: unknown) => { if (error instanceof RpcError) throw new Error("session_unavailable"); throw error; });
       const read = codexDefaults(probe); if (!read) throw new Error("session_unavailable");
       defaults = read;
       // Accept edits carries the configured network access and roots; without config/read it sends the narrower bare policy.
