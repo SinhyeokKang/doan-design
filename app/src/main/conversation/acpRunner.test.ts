@@ -1,9 +1,9 @@
-import { afterAll, afterEach, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, readFileSync, realpathSync, rmSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { acpPermission, acpPromptDone, initialAcp, normalizeAcp, AcpConnection } from "./acp";
-import { openAcp } from "./acpRunner";
+import { openAcp, stderrTail } from "./acpRunner";
 import { listModels } from "./runners";
 import { ConversationService } from "./service";
 import { ConversationStore } from "./store";
@@ -268,6 +268,59 @@ it("never records an ACP resume, a server exit at initialize, or an Antigravity 
   expect((antigravity.opened as Error).message).toBe("runtime_unsupported"); expect(antigravity.order).toEqual(["refused"]);
 });
 
+// A server that exits before initialize answers leaves only process_exited; its stderr names the cause (cursor-agent
+// refused a mkdir by the fence: EPERM), so main logs a bounded, redacted tail of it.
+const EPERM = "Error: EPERM: operation not permitted, mkdir '/u/agent-auth/profiles/cursor/.cursor/projects/p-988fa62'";
+it("logs a redacted stderr tail when an ACP server exits before it is ready, and nothing for another refusal", async () => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    const env = { PATH: process.env.PATH ?? "", FAKE_ACP: "exit-init", FAKE_ACP_STDERR: `starting\nAuthorization: Bearer abc.def-ghi\n${EPERM}\n` };
+    await expect(openAcp(input("cursor", { env }), () => {}, () => {}, () => {})).rejects.toThrow(/^process_exited$/);
+    expect(log).toHaveBeenCalledOnce();
+    const line = String(log.mock.calls[0]![0]);
+    expect(line).toContain("doan: cursor ACP server exited before it was ready");
+    expect(line).toContain(EPERM);
+    expect(line).not.toContain("abc.def-ghi");
+    log.mockClear();
+    await expect(openAcp(input("cursor", {}, "protocol:2"), () => {}, () => {}, () => {})).rejects.toThrow(/^runtime_unsupported$/);
+    expect(log).not.toHaveBeenCalled();
+  } finally { log.mockRestore(); }
+});
+describe("stderrTail", () => {
+  it("keeps a short stderr as it is, without its trailing newline", () => {
+    expect(stderrTail(`${EPERM}\n`)).toBe(EPERM);
+    const app = "Error: EPERM: operation not permitted, mkdir '/Users/ada/Library/Application Support/doan/agent-auth/profiles/cursor/.cursor/p-2497593'";
+    expect(stderrTail(app)).toBe(app);
+    expect(stderrTail("")).toBe("");
+    expect(stderrTail("\n \n")).toBe("");
+  });
+  it("keeps only the last lines, each and all of them bounded", () => {
+    const tail = stderrTail(Array.from({ length: 40 }, (_, i) => `line ${i} ${"x".repeat(500)}`).join("\n"));
+    const lines = tail.split("\n");
+    expect(lines.length).toBeLessThanOrEqual(6);
+    expect(lines.at(-1)!.startsWith("line 39 ")).toBe(true);
+    expect(lines.every(l => l.length <= 300)).toBe(true);
+    expect(tail.length).toBeLessThanOrEqual(1000);
+  });
+  it("redacts tokens, credentials and URL queries, and drops control characters", () => {
+    const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZGEifQ.c2lnbmF0dXJl";
+    const tail = stderrTail([
+      `{"accessToken": "${jwt}", "refreshToken": "r-secret-1"}`,
+      "Authorization: Bearer abc.def-ghi",
+      "GET https://api2.cursor.sh/auth/poll?uuid=1234&verifier=v-secret-2#frag failed",
+      "api_key=k-secret-3 password: p-secret-4",
+      "{'access_token': 'ya29.short-secret-5', 'expires_in': 3599}",
+      `opaque ${"Ab9_".repeat(12)} end`,
+      "\u001b[31mred\u001b[0m\u0007",
+    ].join("\n"));
+    for (const secret of [jwt, "r-secret-1", "abc.def-ghi", "uuid=1234", "v-secret-2", "k-secret-3", "p-secret-4", "short-secret-5", "Ab9_Ab9_Ab9_"]) expect(tail).not.toContain(secret);
+    expect(tail).toContain("https://api2.cursor.sh/auth/poll");
+    expect(tail).toContain("[redacted]");
+    expect(tail).toContain("red");
+    expect(/[\u0000-\u0008\u000b-\u001f\u007f]/.test(tail)).toBe(false);
+  });
+});
+
 // ACP model lists from session/new, the chosen model after every open, and Antigravity's image blocks.
 const MODELS = { currentModelId: "gemini-3.8-flash-high", availableModels: [{ modelId: "gemini-3.8-flash-high", name: "Gemini 3.8 Flash (High)" }, { modelId: "gemini-3.8-flash-low", name: "Gemini 3.8 Flash (Low)" }] };
 function logged(log: string): { method?: string; params?: Record<string, unknown> }[] {
@@ -315,6 +368,25 @@ it("sets the chosen model after session/new and again after session/load, before
   const plain = logFile();
   await (await openAcp(input("cursor", { env: { ...env, FAKE_ACP_LOG: plain } }), () => {}, () => {}, () => {})).send("hi", "turn");
   expect(logged(plain).some(r => r.method === "session/set_config_option")).toBe(false);
+});
+// Cursor keeps a session/set_config_option model choice in cli-config.json, which the fence keeps closed (its permission
+// allow list), so the request fails in a fenced run. Its ACP server opens session/new and session/load on
+// acp-config.json's selectedModelVariantId (2026.10.22 and 2026.11.22, probe), which Doan writes before the start.
+it("gives Cursor the chosen model through acp-config.json before the start and sends no model request", async () => {
+  const home = temp("doan-acp-home-"), config = join(home, ".cursor", "acp-config.json"), log = logFile();
+  const env = { PATH: process.env.PATH ?? "", HOME: home, FAKE_ACP: "stop:end_turn", FAKE_ACP_LOG: log, FAKE_ACP_CONFIG: "1" };
+  for (const [model, over] of [["gemini-3.8-flash-low", {}], ["composer-2.5[fast=true]", { sessionId: SESSION }]] as const) {
+    const runner = await openAcp(input("cursor", { env, model, ...over }), () => {}, () => {}, () => {});
+    expect(JSON.parse(readFileSync(config, "utf8"))).toEqual({ selectedModelVariantId: model });
+    await runner.send("hi", "turn");
+  }
+  expect(logged(log).some(r => r.method === "session/set_config_option")).toBe(false);
+  // Another provider leaves the file alone; a Cursor run without a choice removes the last one, so the account's default
+  // model stands rather than an earlier conversation's.
+  await (await openAcp(input("copilot", { env: { ...env, FAKE_ACP_CONFIG: "" }, model: "gpt-5" }), () => {}, () => {}, () => {})).send("hi", "turn");
+  expect(JSON.parse(readFileSync(config, "utf8"))).toEqual({ selectedModelVariantId: "composer-2.5[fast=true]" });
+  await (await openAcp(input("cursor", { env }), () => {}, () => {}, () => {})).send("hi", "turn");
+  expect(() => readFileSync(config)).toThrow();
 });
 it("adds verified images up to 50 MB as ACP image blocks for Antigravity only", async () => {
   const dir = temp("doan-acp-images-");

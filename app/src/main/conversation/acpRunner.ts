@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { constants } from "node:fs";
+import { constants, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { open } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
@@ -25,6 +26,7 @@ const EARLY_SESSIONS = 4;
 // One server per turn: it is opened for a prompt, resumes the session with session/load and is stopped when the turn
 // ends, so the account lease (and the plaintext working credential) never outlives a running turn.
 export async function openAcp(input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void): Promise<Runner> {
+  if (input.runtime === "cursor" && input.env.HOME) chooseCursorModel(input.env.HOME, input.model);
   // Every mode of a Doan-connection run is fenced: no ACP server sandboxes its own commands.
   const launch = fencedCommand(input.command, input.args ?? [], input.fence ? fenceArgs(input.runtime, input.fence.paths) : undefined, input.fence?.exec);
   const child = spawn(launch.command, launch.args, { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
@@ -84,9 +86,12 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
   const decoder = new StringDecoder("utf8");
   child.stdout.on("data", (bytes: Buffer) => acp.receive(decoder.write(bytes)));
   // Antigravity asks for a browser sign-in when its stored token no longer works; a run never signs in.
-  const errors = new StringDecoder("utf8"); let stderr = "";
+  // recent: the stream's last bytes, for the log line of a server that exits before it is ready.
+  const errors = new StringDecoder("utf8"); let stderr = "", recent = "";
   child.stderr.on("data", (bytes: Buffer) => {
-    stderr = (stderr + errors.write(bytes)).slice(-65536);
+    const text = errors.write(bytes);
+    recent = (recent + text).slice(-RECENT_STDERR);
+    stderr = (stderr + text).slice(-65536);
     let end: number;
     while ((end = stderr.indexOf("\n")) >= 0) {
       const line = stderr.slice(0, end); stderr = stderr.slice(end + 1);
@@ -147,6 +152,13 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     const detail = failure || (error instanceof Error ? error.message : "");
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the exit and failure callbacks set these while the session opens
     const code = (dead || detail === "process_exited") && !failure ? "process_exited" : ["runtime_unsupported", "session_unavailable"].includes(detail) ? detail : transportCode(detail);
+    // An exit the server chose (a stop closes the connection first, so dead is not yet set) leaves only process_exited;
+    // its stderr names the cause, such as a store the fence keeps closed. dead is set once stderr has drained.
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the exit callback sets this while the session opens
+    if (code === "process_exited" && dead) {
+      const tail = stderrTail(recent.length === RECENT_STDERR ? recent.slice(recent.indexOf("\n") + 1) : recent);
+      console.error(`doan: ${input.runtime} ACP server exited before it was ready (exit ${child.exitCode ?? child.signalCode ?? "unknown"})${tail ? `; stderr tail:\n  ${tail.split("\n").join("\n  ")}` : "; no stderr"}`);
+    }
     // Cursor answers a first turn that met the plan limit as a completed reply and saves no session, so the next load
     // finds none; the protocol marks nothing, and the account's usage tells that apart from a session that is gone.
     // The run's lease (and its credential copy) is released once the group stopped above is gone, so the read must take
@@ -203,6 +215,43 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     stop: () => stopTurn("user"),
     close: () => stopTurn("appQuit"),
   };
+}
+// Cursor keeps a session/set_config_option model choice in cli-config.json, which the fence keeps closed because it
+// holds the permission allow list a later conversation runs under, so in a fenced run the request fails and the start
+// with it; `acp --model` writes the same file. Its ACP server opens session/new and session/load on acp-config.json's
+// selectedModelVariantId, the file's only member (2026.10.22 and 2026.11.22, probe), so Doan writes the choice there
+// from outside the fence; the server then reports it as current and no model request is sent. Two Cursor starts with
+// different choices at the same moment (a model list read has none) can read each other's: that run's request is sent
+// and refuses the start, as it does when the file cannot be written. Without a choice the file goes, so the account's
+// default model stands rather than an earlier conversation's.
+function chooseCursorModel(home: string, model: string | undefined): void {
+  const dir = join(home, ".cursor"), file = join(dir, "acp-config.json"), temp = `${file}.${randomUUID()}.tmp`;
+  if (!model) { try { rmSync(file, { force: true }); } catch { /* the server then opens on the earlier choice */ } return; }
+  try {
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    writeFileSync(temp, JSON.stringify({ selectedModelVariantId: model }, null, 2), { mode: 0o600, flag: "wx" });
+    renameSync(temp, file);
+  } catch { try { rmSync(temp, { force: true }); } catch { /* the write already failed */ } }
+}
+const RECENT_STDERR = 16384, TAIL_LINES = 6, TAIL_LINE = 300, TAIL_TEXT = 1000;
+// Credential shapes a CLI may print when it fails: a JWT (Cursor's tokens), an Authorization scheme's value, a URL's
+// query and fragment, a value named like a secret, and any long opaque run. Order matters: the scheme before the name.
+const REDACTIONS: [RegExp, string][] = [
+  [/\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]*)?/g, "[redacted]"],
+  [/\b(bearer|basic|token)\s+[^\s"',;]+/gi, "$1 [redacted]"],
+  [/\b(https?:\/\/[^\s?#"'<>]+)[?#][^\s"'<>]*/gi, "$1?[redacted]"],
+  [/(["']?[A-Za-z_-]*(?:token|secret|passw(?:or)?d|authorization|api[_-]?key|cookie|credential)[A-Za-z_-]*["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;}]+)/gi, '$1"[redacted]"'],
+  // No slash: a path's folders would join into one run.
+  [/[A-Za-z0-9+_=-]{40,}/g, "[redacted]"],
+];
+// The last few stderr lines, each and all bounded, with terminal escapes and control characters dropped and anything
+// shaped like a credential replaced: the line goes to main's log, and a failing CLI may print a request or a token.
+export function stderrTail(text: string): string {
+  const lines = text.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "").split(/\r?\n|\r/)
+    .map(line => REDACTIONS.reduce((out, [pattern, to]) => out.replace(pattern, to), line.replace(/[\x00-\x1f\x7f]/g, " ")).trim().slice(0, TAIL_LINE))
+    .filter(Boolean).slice(-TAIL_LINES);
+  while (lines.length > 1 && lines.join("\n").length > TAIL_TEXT) lines.shift();
+  return lines.join("\n");
 }
 // Only a file that still carries an image signature and is within the paste cap; anything else goes by path alone.
 // Read asynchronously: up to ten 50 MB images would otherwise hold main.

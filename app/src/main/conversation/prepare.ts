@@ -8,7 +8,7 @@ import { canonicalDirectory, claudeOccupancy, codexOccupancy, codexSessionExists
 import { PROVIDER_AUTH } from "../agentAuth/providers";
 import { insideRoot, parseCliVersion, pickSession, versionStatus } from "./sessions";
 import { judgeConnection } from "../agentAuth/connection";
-import { fenceDenied, fencedEverywhere, fenceListingDirs, profileFencedCommand, resolveFencePaths, sandboxRefused, type FenceEntry, type FencePaths } from "../agentAuth/fence";
+import { cursorWorkerDir, fenceDenied, fencedEverywhere, fenceListingDirs, profileFencedCommand, resolveFencePaths, sandboxRefused, type FenceEntry, type FencePaths } from "../agentAuth/fence";
 import type { Lease, Started } from "../agentAuth/manager";
 import type { AuthState, ConnectionJudgment, Provider } from "../agentAuth/types";
 import type { McpRun, Prepare, Prepared, StartRequest } from "./service";
@@ -258,6 +258,12 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
       // (Copilot, Cursor; probe), which the provider's own fenced turn can write. Codex reads neither: its profile's
       // settings are closed to its turns and an untrusted project's .codex/ is not loaded.
       const fenced = fence && !reusing && (use === "run" || provider !== "codex") ? runFence(fence, provider, configDir, request.attachments ?? []) : undefined;
+      // The fence keeps a Cursor process from making its worker socket folder inside .cursor (cursorWorkerDir), so Doan
+      // makes it, empty, first. One Doan cannot make fails the start as before, with the CLI's own mkdir error logged.
+      if (fenced && provider === "cursor") {
+        const home = lease.env.HOME ?? lease.profileDir, dir = cursorWorkerDir({ home, cwd, tmpdir: lease.env.TMPDIR });
+        if (dir.startsWith(`${join(home, ".cursor")}/`)) try { mkdirSync(dir, { recursive: true, mode: 0o700 }); } catch { /* reported by the CLI */ }
+      }
       const connection = recheck(), ran = installed;
       const mcp: McpRun | undefined = (MCP_PROVIDERS as readonly Provider[]).includes(provider) ? { generation: () => connectors.generation(provider as McpProvider), labels: () => connectors.labels() } : undefined;
       const runArgs = provider === "claude" || provider === "codex" ? RUN_ARGS[provider] : adapter.acp!.args;
