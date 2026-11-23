@@ -78,7 +78,8 @@ const AGENT_WRITES: Record<Provider, AgentWrites> = {
   // Cursor 2026.10.22 (dedicated HOME: version, status and an ACP session) and a signed-in profile's entries,
   // rechecked on 2026.11.22. Its cli-config.json stays closed: it holds the permission allow list a later conversation
   // runs under, which Cursor's own sandbox protects as well. Cursor's refreshes of it fail and the run goes on (probe);
-  // only a model request fails with it, so Doan sets the model in acp-config.json from outside instead (acpRunner.ts). projects/ stays closed too (cursorWorkerDir).
+  // only a model request fails with it, so Doan sets the model in acp-config.json from outside instead (acpRunner.ts).
+  // projects/ stays closed too (cursorWorkerDir).
   cursor: { folder: ".cursor", dirs: ["acp-sessions", "ai-tracking"], files: ["statsig-cache.json", "agent-cli-state.json", "auth.json"] },
   // The Antigravity ACP server 1.3.0, from a signed-in profile's entries and their times (no isolated probe: the server
   // runs only signed in). Its config/ holds per-conversation databases named by a UUID beside the memory, skills,

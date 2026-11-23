@@ -381,10 +381,11 @@ it("gives Cursor the chosen model through acp-config.json before the start and s
     await runner.send("hi", "turn");
   }
   expect(logged(log).some(r => r.method === "session/set_config_option")).toBe(false);
-  // Without a choice, and for another provider, nothing is written.
-  rmSync(config);
-  await (await openAcp(input("cursor", { env }), () => {}, () => {}, () => {})).send("hi", "turn");
+  // Another provider leaves the file alone; a Cursor run without a choice removes the last one, so the account's default
+  // model stands rather than an earlier conversation's.
   await (await openAcp(input("copilot", { env: { ...env, FAKE_ACP_CONFIG: "" }, model: "gpt-5" }), () => {}, () => {}, () => {})).send("hi", "turn");
+  expect(JSON.parse(readFileSync(config, "utf8"))).toEqual({ selectedModelVariantId: "composer-2.5[fast=true]" });
+  await (await openAcp(input("cursor", { env }), () => {}, () => {}, () => {})).send("hi", "turn");
   expect(() => readFileSync(config)).toThrow();
 });
 it("adds verified images up to 50 MB as ACP image blocks for Antigravity only", async () => {

@@ -26,7 +26,7 @@ const EARLY_SESSIONS = 4;
 // One server per turn: it is opened for a prompt, resumes the session with session/load and is stopped when the turn
 // ends, so the account lease (and the plaintext working credential) never outlives a running turn.
 export async function openAcp(input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void): Promise<Runner> {
-  if (input.runtime === "cursor" && input.model && input.env.HOME) chooseCursorModel(input.env.HOME, input.model);
+  if (input.runtime === "cursor" && input.env.HOME) chooseCursorModel(input.env.HOME, input.model);
   // Every mode of a Doan-connection run is fenced: no ACP server sandboxes its own commands.
   const launch = fencedCommand(input.command, input.args ?? [], input.fence ? fenceArgs(input.runtime, input.fence.paths) : undefined, input.fence?.exec);
   const child = spawn(launch.command, launch.args, { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
@@ -221,10 +221,12 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
 // with it; `acp --model` writes the same file. Its ACP server opens session/new and session/load on acp-config.json's
 // selectedModelVariantId, the file's only member (2026.10.22 and 2026.11.22, probe), so Doan writes the choice there
 // from outside the fence; the server then reports it as current and no model request is sent. Two Cursor starts with
-// different models at the same moment can read each other's choice: that run's request is sent and refuses the start.
-// A file that cannot be written leaves the same request.
-function chooseCursorModel(home: string, model: string): void {
+// different choices at the same moment (a model list read has none) can read each other's: that run's request is sent
+// and refuses the start, as it does when the file cannot be written. Without a choice the file goes, so the account's
+// default model stands rather than an earlier conversation's.
+function chooseCursorModel(home: string, model: string | undefined): void {
   const dir = join(home, ".cursor"), file = join(dir, "acp-config.json"), temp = `${file}.${randomUUID()}.tmp`;
+  if (!model) { try { rmSync(file, { force: true }); } catch { /* the server then opens on the earlier choice */ } return; }
   try {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     writeFileSync(temp, JSON.stringify({ selectedModelVariantId: model }, null, 2), { mode: 0o600, flag: "wx" });
