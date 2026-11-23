@@ -160,8 +160,9 @@ function trigger() {
 function deferred<T>() { let resolve!: (value: T) => void, reject!: (error: unknown) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 const target = (conversationId: string, from: "overview" | "canvas" = "overview"): Target => ({ conversationId, root: "/w/a", title: `Title ${conversationId}`, provider: "claude", from });
 
-// The Overview of /w/a showing c1, with c2 also listed.
-async function openOverview(list: unknown[] = [summary("c1"), summary("c2")]) {
+// The Overview of /w/a showing c1, with c2 also listed. c1's ending is unseen, so the first entry of the run reopens it
+// rather than starting fresh (PRODUCT §5 item 3 'Which conversation shows').
+async function openOverview(list: unknown[] = [summary("c1", { unseen: true }), summary("c2")]) {
   doan.listConversations!.mockResolvedValue(list);
   render();
   readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, conversationByRoot: { "/w/a": "c1" } }); await flushAll();
@@ -198,7 +199,7 @@ test("Delete asks first: the alert names the conversation and its provider, and 
 });
 
 test("the alert says an unsent draft or a returned queue is discarded too", async () => {
-  await openOverview([summary("c1"), summary("c2", { returnedDraft: true }), summary("c3")]);
+  await openOverview([summary("c1", { unseen: true }), summary("c2", { returnedDraft: true }), summary("c3")]);
   ask(target("c2"));
   expect(dialog()!.view.body).toMatch(/ Its unsent message is discarded too\.$/);
   dialog()!.cancel(); render();
@@ -435,7 +436,7 @@ const fromList = (conversationId: string, after: ListFocus, button = trigger()) 
 test("a Canvas conversations row's Delete asks first, deletes through main, and sends focus to the target the list gave", async () => {
   const { row, head } = listTargets();
   try {
-    await openOverview([summary("c1"), onCanvas("c2"), summary("c3", { canvas: { path: ".doan/canvases/b.html" }, fromHome: false })]);
+    await openOverview([summary("c1", { unseen: true }), onCanvas("c2"), summary("c3", { canvas: { path: ".doan/canvases/b.html" }, fromHome: false })]);
     doan.deleteConversation = vi.fn(async () => undefined);
     const button = fromList("c2", { kind: "row", key: "c3" });
     expect(dialog()!.view.title).toBe("Delete “Title c2”?");
@@ -457,7 +458,7 @@ test("a Canvas conversations row's Delete asks first, deletes through main, and 
 test("the last Canvas conversations row's deletion sends focus to the panel title", async () => {
   const { head } = listTargets();
   try {
-    await openOverview([summary("c1"), onCanvas("c2")]);
+    await openOverview([summary("c1", { unseen: true }), onCanvas("c2")]);
     doan.deleteConversation = vi.fn(async () => undefined);
     fromList("c2", { kind: "title" });
     dialog()!.confirm(); await flushAll();
@@ -468,7 +469,7 @@ test("the last Canvas conversations row's deletion sends focus to the panel titl
 test.each([["a refusal", true], ["Cancel", false]])("Canvas conversations, %s: the row stays and focus returns to its Delete", async (_name, confirm) => {
   const { row, head } = listTargets();
   try {
-    await openOverview([summary("c1"), onCanvas("c2")]);
+    await openOverview([summary("c1", { unseen: true }), onCanvas("c2")]);
     doan.deleteConversation = vi.fn(async () => ({ error: "busy" }));
     const button = fromList("c2", { kind: "title" });
     if (confirm) { dialog()!.confirm(); await flushAll(); } else { dialog()!.cancel(); render(); }
@@ -488,7 +489,7 @@ test("a Canvas conversations deletion whose next row also left sends focus to th
   const { row, head } = listTargets();
   delete FIELDS['.ov-right .cv-row[data-key="c3"]'];
   try {
-    await openOverview([summary("c1"), onCanvas("c2")]);
+    await openOverview([summary("c1", { unseen: true }), onCanvas("c2")]);
     doan.deleteConversation = vi.fn(async () => undefined);
     const button = fromList("c2", { kind: "row", key: "c3" });
     dialog()!.confirm(); await flushAll();

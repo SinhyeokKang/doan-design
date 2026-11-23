@@ -495,6 +495,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       conversationByRoot.current = next; setMemoryTick(tick => tick + 1);
     },
     markSeen: (id, seq) => homeRun.current.markSeenThrough(id, seq),
+    seen: () => homeRun.current.seenPending(),
     focused: () => document.hasFocus(),
     openCanvas: (root, canvas, conversationId, scroll) => live.current.openConversationCanvas(root, canvas, conversationId, { kind: "notification", permission: scroll === "permission" }),
     toast: (message, label, run) => live.current.toast.show(message, label, run),
