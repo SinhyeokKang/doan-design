@@ -47,7 +47,7 @@ afterEach(() => vi.unstubAllGlobals());
 function harness() {
   const lists = new Map<string, ListView>();
   const started = new Map<string, number>(), applied = new Map<string, number>();
-  const state = { remembered: {} as Record<string, string> | null, focused: true };
+  const state = { remembered: {} as Record<string, string> | null, focused: true, seen: new Set<string>() };
   const host: OverviewRunHost = {
     list: root => lists.get(root) ?? "loading",
     readsStarted: root => started.get(root) ?? 0,
@@ -61,6 +61,7 @@ function harness() {
       state.remembered = next;
     }),
     markSeen: vi.fn(),
+    seen: () => state.seen,
     focused: () => state.focused,
     openCanvas: vi.fn(),
     toast: vi.fn(),
@@ -184,6 +185,60 @@ test("reopening an Overview picks again, and each root keeps its new-conversatio
   h.run.select(OTHER, null);
   h.answer(OTHER, [summary(C, { lastActivityAt: "2026-11-01T00:00:00.000Z" })]);
   expect(h.run.view(OTHER)).toEqual({ kind: "new", moved: null });
+});
+
+// PRODUCT §5 item 3 'Which conversation shows': coming back to the app later starts fresh, while hopping between a
+// canvas and the Overview within one run keeps what the person was in.
+test("the first entry of the run opens the new conversation state when the conversation it would reopen ended and was seen", () => {
+  const h = harness();
+  h.state.remembered = { [ROOT]: A };
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A), summary(B, { lastActivityAt: "2026-11-01T00:00:00.000Z" })]);
+  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
+  expect(h.state.remembered).toEqual({ [ROOT]: A });
+  // Back from a canvas with nothing chosen meanwhile: still the new conversation state.
+  h.run.show(null);
+  h.answer(ROOT, [summary(A), summary(B, { lastActivityAt: "2026-11-01T00:00:00.000Z" })]);
+  h.run.show(ROOT);
+  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
+  // After the person's choice, a later entry reopens what was chosen, as before.
+  h.run.select(ROOT, B);
+  h.run.show(null);
+  h.run.show(ROOT);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: B });
+});
+
+test("the first entry still reopens a conversation with something left for the person, and later entries keep it after it ends", () => {
+  const h = harness();
+  h.state.remembered = { [ROOT]: A };
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { unseen: true })]);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
+  // Seen while it showed; hopping to a canvas and back keeps it.
+  h.answer(ROOT, [summary(A)]);
+  h.run.show(null);
+  h.run.show(ROOT);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
+});
+
+test("an ending this run marked seen elsewhere counts on the first entry", () => {
+  const h = harness();
+  h.state.remembered = { [ROOT]: A };
+  h.state.seen = new Set([A]);
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { unseen: true })]);
+  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
+});
+
+test("a request on the first entry opens what it asks for, and later entries reopen it", () => {
+  const h = harness();
+  h.run.request(ROOT, A, null);
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A)]);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
+  h.run.show(null);
+  h.run.show(ROOT);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
 });
 
 test("an entry request made while the root was hidden is what its reopened Overview shows", () => {

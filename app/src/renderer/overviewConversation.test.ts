@@ -103,6 +103,48 @@ describe("pickOverviewConversation", () => {
     expect(pickOverviewConversation([], undefined, null)).toEqual({ kind: "new", forget: false });
     expect(pickOverviewConversation([summary({ canvas })], undefined, null)).toEqual({ kind: "new", forget: false });
   });
+
+  // The root's first automatic pick in this run: a candidate with nothing left for the person gives a fresh start.
+  describe("on the first pick of the run", () => {
+    const none: ReadonlySet<string> = new Set();
+    const FRESH = { kind: "new", forget: false, fresh: true };
+
+    test("a remembered conversation that ended and was seen gives the new conversation state, the memory kept", () => {
+      expect(pickOverviewConversation(list, "old", null, none)).toEqual(FRESH);
+    });
+
+    test("so does the latest one when nothing is remembered", () => {
+      expect(pickOverviewConversation(list, undefined, null, none)).toEqual(FRESH);
+    });
+
+    test.each<[string, Partial<ConversationSummary>]>([
+      ["a running or starting turn", { phase: "running" }],
+      ["main still working on it", { working: true }],
+      ["a pending permission request or question", { phase: "waiting" }],
+      ["a queued message", { queued: 1 }],
+      ["messages waiting out a usage limit", { queued: 1, scheduledAt: ago(-HOUR) }],
+      ["an ending not seen yet", { unseen: true }],
+    ])("%s still reopens it", (_, patch) => {
+      const candidate = summary({ conversationId: "old", ...patch });
+      expect(pickOverviewConversation([candidate, newer], "old", null, none)).toEqual({ kind: "conversation", conversationId: "old" });
+    });
+
+    test("an ending this run already marked seen counts as seen before the list shows it", () => {
+      const candidate = summary({ conversationId: "old", unseen: true });
+      expect(pickOverviewConversation([candidate, newer], "old", null, new Set(["old"]))).toEqual(FRESH);
+    });
+
+    test("an unreadable remembered conversation still opens, since nothing says it was seen", () => {
+      const broken = summary({ conversationId: "broken", readError: true, lastActivityAt: "" });
+      expect(pickOverviewConversation([broken, newer], "broken", null, none)).toEqual({ kind: "conversation", conversationId: "broken" });
+    });
+
+    test("a promoted remembered conversation is still forgotten, and a request still opens what it asks for", () => {
+      const promoted = summary({ conversationId: "old", canvas });
+      expect(pickOverviewConversation([promoted, newer], "old", null, none)).toEqual({ kind: "new", forget: true });
+      expect(pickOverviewConversation(list, "new", "old", none)).toEqual({ kind: "conversation", conversationId: "old" });
+    });
+  });
 });
 
 describe("projectConversationMenu", () => {
