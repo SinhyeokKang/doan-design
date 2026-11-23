@@ -62,7 +62,7 @@
 | 링크 | 세션·워크트리 | 시작 | PR·머지 | 상태 |
 |---|---|---|---|---|
 | 1 composer-list-hanging-indent | Claude conductor · `/Users/sinhyeok/orca/workspaces/doan-design/composer-list-hanging-indent-orch` (`feat/composer-list-hanging-indent`) | 2026-11-23 21:14 (`4c4a75c0c`) | | 진행 중 |
-| 2 project-conversation-handoff | Claude conductor · `/Users/sinhyeok/orca/workspaces/doan-design/project-conversation-handoff-orch` (`feat/project-conversation-handoff`) | 2026-11-23 21:14 (`4c4a75c0c`) | | 진행 중 |
+| 2 project-conversation-handoff | Claude conductor · `/Users/sinhyeok/orca/workspaces/doan-design/project-conversation-handoff-orch` (`feat/project-conversation-handoff`) | 2026-11-23 21:14 (`4c4a75c0c`) | [#381](https://github.com/SinhyeokKang/doan-design/pull/381) · 링크 1 머지 뒤 | PR 리뷰 중 |
 
 ## 인계 기록
 
@@ -71,3 +71,4 @@
 - 2026-11-23 (리드 세션): 사용자가 시작 점검 1·2에 답했다. 로그인 프로필은 체인이 끝난 뒤에도 남긴다. 한글 IME 확인(링크 1 tasks 5)은 링크에서 하지 않고, 병합을 마친 뒤 리드가 사용자와 진행한다. 체인 시작 지시는 아직 없다.
 - 2026-11-23 (리드 세션): 다른 머신의 머지 뒤 확인(#377, #378)이 BACKLOG에 결함 두 건을 남겼다(`76843b352`). 사용자가 composer 커서 결함은 링크 1 범위에 넣고, 대기 행 포커스 결함은 체인 밖 `/ship`으로 지금 고치라고 했다('순서').
 - 2026-11-23 21:14 (리드 세션, 체인 시작): 사용자가 체인 시작을 지시했다. 시작 점검은 위 답으로 끝났다. 두 링크를 병렬 그룹으로 함께 시작했다. 체인 밖 `/ship` conductor(`fix/overview-waiting-row-focus`, `/Users/sinhyeok/orca/workspaces/doan-design/overview-waiting-row-focus`)가 함께 돈다.
+- 2026-11-23 (리드 세션): 체인 밖 `/ship` 두 건을 머지했다. #379 대기 행 포커스(`f7c95a365`), #380 닫힌 그룹의 표시를 그룹 머리로(`7ce4867bb`, 사용자 결정). 링크 2가 #379를, 링크 1이 #380을 병합하게 했다. Cursor가 fence EPERM으로 시작하지 못하는 develop 결함은 사용자 지시로 체인 밖 `/ship`(`fix/cursor-fence-projects`)이 고친다. 링크 2의 PR #381이 열렸다(runtime-test 4/4, agent-eval 10/10, 실제 상태 검사의 exit 1은 링크 1 워크트리의 셸 `doan check` 때문). 링크 1 머지 뒤에 머지한다.
