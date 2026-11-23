@@ -92,7 +92,7 @@ export function openPanelResize(window: Rect, workArea: Rect, remembered: number
   return { bounds: { ...window, x: place(window.x, width, workArea.x, workArea.width), width }, panel: PROTOTYPE_PANEL_MIN_WIDTH, minimum };
 }
 
-// The play that opens the window with the panel open (and its refit): the shown width + 24 (8 on each side and 8 before the panel) + the panel, at least
+// An opening play with the panel open: the shown width + 24 (8 on each side and 8 before the panel) + the panel, at least
 // 640, so the content panel is the shown width. When that is wider than the work area the panel gives way first, down
 // to 280, then the content panel. The panel never exceeds the fitted window's maximum, so a frame narrower than the
 // panel's share leaves the rest to the content panel. The name's row comes from the area left of the fitted panel.
