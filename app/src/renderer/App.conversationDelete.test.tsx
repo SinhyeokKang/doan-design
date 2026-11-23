@@ -499,6 +499,40 @@ test("a Canvas conversations deletion whose next row also left sends focus to th
   } finally { delete FIELDS[".ov-right .rp-head"]; }
 });
 
+// The Overview's Conversations list holds project rows too. Deleting the shown conversation's row resets the main
+// column to the new conversation state, and focus stays in the list it was pressed in, as in the sidebar.
+test("the shown project conversation's row: the new conversation state, focus to the next row, not the composer", async () => {
+  const { head } = listTargets();
+  const next = { isConnected: true, focus: vi.fn() };
+  FIELDS['.ov-right .cv-row[data-key="c2"]'] = next as never;
+  try {
+    await openOverview([summary("c1", { unseen: true }), summary("c2")]);
+    expect((canvasList()!.list as { key: string; kind: string }[]).map(row => [row.key, row.kind])).toEqual([["c1", "project"], ["c2", "project"]]);
+    doan.deleteConversation = vi.fn(async () => undefined);
+    fromList("c1", { kind: "row", key: "c2" });
+    dialog()!.confirm(); await flushAll();
+    expect(doan.deleteConversation).toHaveBeenCalledWith({ conversationId: "c1" });
+    expect(overview()!.run.view("/w/a").kind).toBe("new");
+    expect(next.focus).toHaveBeenCalledOnce();
+    expect(head.focus).not.toHaveBeenCalled();
+    expect(focused.calls).toEqual([]);
+    expect(harness.toast.show).not.toHaveBeenCalled();
+  } finally { delete FIELDS['.ov-right .cv-row[data-key="c2"]']; delete FIELDS['.ov-right .cv-row[data-key="c3"]']; delete FIELDS[".ov-right .rp-head"]; }
+});
+
+test("the shown project conversation's row, the list's only one: the new conversation state, focus to the panel title", async () => {
+  const { head } = listTargets();
+  try {
+    await openOverview([summary("c1", { unseen: true })]);
+    doan.deleteConversation = vi.fn(async () => undefined);
+    fromList("c1", { kind: "title" });
+    dialog()!.confirm(); await flushAll();
+    expect(overview()!.run.view("/w/a").kind).toBe("new");
+    expect(head.focus).toHaveBeenCalledOnce();
+    expect(focused.calls).toEqual([]);
+  } finally { delete FIELDS['.ov-right .cv-row[data-key="c3"]']; delete FIELDS[".ov-right .rp-head"]; }
+});
+
 // sidebar-canvas-conversations: the viewed canvas's conversation rows in the sidebar.
 type SidebarTarget = { conversationId: string; root: string; title: string; provider: string; from: "sidebar"; after: string; canvasRow: string };
 type SidebarConversations = { shown: string | null; folded: boolean; fold(folded: boolean): void; open(root: string, row: CanvasRow, conversationId: string): void; remove(target: SidebarTarget, trash: unknown): void };
