@@ -877,8 +877,9 @@ playButton.addEventListener("click", () => {
 // ── The size bubble and the Option measurement ────────────────────────────────
 // Drawn in the board's scrolled content over the scaled stage, in screen px as the app draws them, so
 // lines stay 1px and the bubble keeps its size at any zoom. The bubble is outside the aria-hidden
-// marks so its buttons take focus. Its place, its items and its size are the app's (sizeBubble.ts,
-// bubbleItems.ts without Add to message, selection.ts sizeLabel); the lines are measure.ts's.
+// marks so its buttons take focus. It always hangs below the selection, as the app's (styles.css
+// .dims); its items and its size are the app's (bubbleItems.ts without Add to message, selection.ts
+// sizeLabel); the lines are measure.ts's.
 
 const bubblePlay = document.createElement("button");
 bubblePlay.type = "button";
@@ -949,14 +950,7 @@ function drawSelection() {
     }
     if (children.some((child, index) => sizeBubble.children[index] !== child) || sizeBubble.children.length !== children.length) sizeBubble.replaceChildren(...children);
     sizeLabel.textContent = viewerApp.sizeLabel(rect);
-    // The bubble's room is the board's visible band above the floating tools, in its own coordinates.
-    const area = board.getBoundingClientRect();
-    const toolsTop = tools.getBoundingClientRect().top - area.top - board.clientTop;
-    const room = viewerApp.canvasBubbleRoom({ height: board.clientHeight }, null, { top: toolsTop });
-    const view = { y: screen.y - board.scrollTop, height: screen.height };
-    const place = viewerApp.sizeBubblePlace(view, viewerApp.SIZE_BUBBLE, room);
-    sizeBubble.className = "dims" + (play ? " playable" : "") + (place.kind === "above" ? " above" : "");
-    sizeBubble.style.top = place.kind === "inside" ? place.top - view.y + "px" : "";
+    sizeBubble.className = play ? "dims playable" : "dims";
   }
   // Focus never falls to the page when a bubble button goes: Play hands it to the toolbar's Play
   // prototype, the visible control for the same action; Show inspector to the header's, else the board.
