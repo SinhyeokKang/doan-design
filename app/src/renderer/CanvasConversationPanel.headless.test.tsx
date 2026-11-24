@@ -353,14 +353,14 @@ test("canvas pasted text reserves room synchronously, settles into its original 
   await second;
   run.select("another");
   render(panel);
-  save({ ok: true, attachment: { id: "text", name: "pasted-text-now.txt", kind: "file", path: "/u/pasted-text-now.txt", size: 1000, pasted: true, lines: 1, excerpt: "x" } });
+  save({ ok: true, attachment: { id: "text", name: "pasted-text-2026-11-24T08-20-00-000Z.txt", kind: "file", path: "/u/pasted-text-2026-11-24T08-20-00-000Z.txt", size: 1000, pasted: true, lines: 1, excerpt: "x" } });
   await saving;
   expect(store.drafts.get(at)?.attachments.at(-1)).toMatchObject({ id: "text", status: "ready", lines: 1, excerpt: "x" });
   expect(store.drafts.get("conversation:another")?.attachments ?? []).toEqual([]);
   store.setDrafts(() => new Map());
   const late = composer.onPastedText("x".repeat(1000), { lines: 1, excerpt: "x" }, report);
   store.setDrafts(() => new Map());
-  save({ ok: true, attachment: { id: "late-text", name: "pasted-text-now.txt", kind: "file", path: "/u/pasted-text-now.txt", size: 1000, pasted: true } });
+  save({ ok: true, attachment: { id: "late-text", name: "pasted-text-2026-11-24T08-20-00-000Z.txt", kind: "file", path: "/u/pasted-text-2026-11-24T08-20-00-000Z.txt", size: 1000, pasted: true } });
   await late;
   expect(calls.removeAttachment).toHaveBeenCalledWith("late-text");
 });
@@ -382,7 +382,7 @@ test("canvas text save failures remove Checking and report text-specific copy", 
 test("a recorded pasted text reaches the mounted sent bubble with its lines, tooltip and accessible description", async () => {
   const { ConversationThread, ThreadEntry } = await import("./ConversationThread");
   const { threadItems } = await import("./threadItems");
-  const record = { name: "pasted-text-now.txt", kind: "file" as const, size: 1000, path: "/u/pasted-text-now.txt", lines: 24, excerpt: "Checkout spec" };
+  const record = { name: "pasted-text-2026-11-24T08-20-00-000Z.txt", kind: "file" as const, size: 1000, path: "/u/pasted-text-2026-11-24T08-20-00-000Z.txt", lines: 24, excerpt: "Checkout spec" };
   const items = threadItems([{ v: 1, conversationId: "c", seq: 1, turnId: "t", at: "2026-11-24T00:00:00Z", type: "user.message", text: "Go", anchors: [], attachments: [record] }], ROOT, false);
   const props: import("./ConversationThread").ConversationThreadProps = {
     conversationId: "c", items, provider: "claude", project: "acme", visibility: fakeCalls(), liveAfter: 1,

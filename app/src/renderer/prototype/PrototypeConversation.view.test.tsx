@@ -423,7 +423,7 @@ test("the prototype window pastes text through its own calls and keeps the origi
   expect(run.bodyCalls.addPastedText).toBe(add);
   expect(add).toHaveBeenCalledWith("x".repeat(1000), { lines: 1, excerpt: "Spec" });
   run.run.select("other"); render(true);
-  save({ ok: true, attachment: { id: "t", name: "pasted-text-now.txt", path: "/u/pasted-text-now.txt", kind: "file", pasted: true, size: 1000, lines: 1, excerpt: "Spec" } });
+  save({ ok: true, attachment: { id: "t", name: "pasted-text-2026-11-24T08-20-00-000Z.txt", path: "/u/pasted-text-2026-11-24T08-20-00-000Z.txt", kind: "file", pasted: true, size: 1000, lines: 1, excerpt: "Spec" } });
   await saving;
   expect(run.store.drafts.get("conversation:c1")?.attachments).toEqual([expect.objectContaining({ id: "t", lines: 1, excerpt: "Spec", status: "ready" })]);
   expect(run.store.drafts.get("conversation:other")?.attachments ?? []).toEqual([]);

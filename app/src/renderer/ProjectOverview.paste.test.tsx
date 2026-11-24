@@ -96,14 +96,14 @@ test("Overview pastes reserve the last slot, settle in the original draft, and c
   expect(addPastedText).toHaveBeenCalledOnce();
   expect(report).toHaveBeenCalledWith("Only 10 attachments can be added, so the pasted text wasn’t added. Remove one and paste again.");
   run.select(ROOT, null); render(overview);
-  save({ ok: true, attachment: { id: "t", name: "pasted-text-now.txt", path: "/u/pasted-text-now.txt", kind: "file", pasted: true, size: 1000, lines: 1, excerpt: "x" } });
+  save({ ok: true, attachment: { id: "t", name: "pasted-text-2026-11-24T08-20-00-000Z.txt", path: "/u/pasted-text-2026-11-24T08-20-00-000Z.txt", kind: "file", pasted: true, size: 1000, lines: 1, excerpt: "x" } });
   await saving;
   expect(run.drafts.get(at)?.attachments.at(-1)).toMatchObject({ id: "t", lines: 1, excerpt: "x", status: "ready" });
   expect(run.drafts.get(`new:${ROOT}`)?.attachments ?? []).toEqual([]);
   run.setDrafts(() => new Map());
   const late = composer.onPastedText("x".repeat(1000), { lines: 1, excerpt: "x" }, report);
   run.setDrafts(() => new Map());
-  save({ ok: true, attachment: { id: "late", name: "pasted-text-now.txt", path: "/u/pasted-text-now.txt", kind: "file", pasted: true, size: 1000 } });
+  save({ ok: true, attachment: { id: "late", name: "pasted-text-2026-11-24T08-20-00-000Z.txt", path: "/u/pasted-text-2026-11-24T08-20-00-000Z.txt", kind: "file", pasted: true, size: 1000 } });
   await late;
   expect(removeAttachment).toHaveBeenCalledWith("late");
   addPastedText.mockRejectedValueOnce(new Error("disk full"));

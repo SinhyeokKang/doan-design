@@ -47,7 +47,7 @@ beforeEach(() => {
     onAgentAuth: vi.fn(() => () => {}), listConversationModels: vi.fn(async () => ({ models: [] })), designSkills: { list: vi.fn(async () => LISTED) } as never,
     addAttachmentFiles: vi.fn(async (files: File[]) => files.map(file => ({ ok: true, attachment: { id: `id-${file.name}`, name: file.name, size: file.size, kind: "file", path: `/Users/ada/${file.name}`, pasted: false } }))),
     addPastedImage: vi.fn(async () => ({ ok: true, attachment: { id: "pasted", name: "pasted.png", size: 10, kind: "image", path: "/u/pasted.png", pasted: true } })),
-    addPastedText: vi.fn(async (_text: string, meta: { lines: number; excerpt: string }) => ({ ok: true, attachment: { id: "text-id", name: "pasted-text-now.txt", kind: "file", path: "/u/pasted-text-now.txt", size: 1000, pasted: true, ...meta } })),
+    addPastedText: vi.fn(async (_text: string, meta: { lines: number; excerpt: string }) => ({ ok: true, attachment: { id: "text-id", name: "pasted-text-2026-11-24T08-20-00-000Z.txt", kind: "file", path: "/u/pasted-text-2026-11-24T08-20-00-000Z.txt", size: 1000, pasted: true, ...meta } })),
     removeAttachment: vi.fn(async () => true), chooseAttachments: vi.fn(async () => []), addDroppedFiles: vi.fn(async () => {}), addProjects: vi.fn(),
     // Pasted test files are page-made (no disk path) unless a test says otherwise.
     droppedPath: vi.fn(() => null),
@@ -1155,7 +1155,7 @@ test("long pasted text keeps the selected field text, checks a file chip, blocks
   call(field(render()), "onKeyDown", key("Enter"));
   expect(start).not.toHaveBeenCalled();
   expect(doan.addPastedText).toHaveBeenCalledWith("Checkout spec\n" + "x".repeat(1000), { lines: 2, excerpt: "Checkout spec" });
-  saved({ ok: true, attachment: { id: "text-id", name: "pasted-text-now.txt", kind: "file", path: "/u/pasted-text-now.txt", size: 1000, pasted: true, lines: 2, excerpt: "Checkout spec" } });
+  saved({ ok: true, attachment: { id: "text-id", name: "pasted-text-2026-11-24T08-20-00-000Z.txt", kind: "file", path: "/u/pasted-text-2026-11-24T08-20-00-000Z.txt", size: 1000, pasted: true, lines: 2, excerpt: "Checkout spec" } });
   await vi.waitFor(() => expect(box.current.attachments[0]?.status).toBe("ready"));
   expect(render().some(props => props.role === "status" && props.children === "Pasted text attached, 2 lines")).toBe(true);
   expect(render().some(props => props["aria-label"] === "Remove pasted text")).toBe(true);
@@ -1183,7 +1183,7 @@ test("removing a Checking pasted text chip deletes the file when the save eventu
   const { box, render } = pasteHome();
   call(field(render()), "onPaste", pastedTextEvent());
   call(find(render(), props => props["aria-label"] === "Remove pasted text"), "onClick", {});
-  saved({ ok: true, attachment: { id: "late-text", name: "pasted-text-now.txt", kind: "file", pasted: true, path: "/u/pasted-text-now.txt", size: 1000 } });
+  saved({ ok: true, attachment: { id: "late-text", name: "pasted-text-2026-11-24T08-20-00-000Z.txt", kind: "file", pasted: true, path: "/u/pasted-text-2026-11-24T08-20-00-000Z.txt", size: 1000 } });
   await vi.waitFor(() => expect(doan.removeAttachment).toHaveBeenCalledWith("late-text"));
   expect(box.current.attachments).toEqual([]);
 });

@@ -1062,7 +1062,7 @@ test("a refusal keeps main's usage-limit reset time", () => {
 
 
 test("pasted text uses its label, line count and excerpt in restored chips, sent bubbles and queue summaries", () => {
-  const record = { name: "pasted-text-now.txt", kind: "file" as const, size: 1000, path: "/u/attachments/t/pasted-text-now.txt", lines: 24, excerpt: "Checkout spec" };
+  const record = { name: "pasted-text-2026-11-24T08-20-00-000Z.txt", kind: "file" as const, size: 1000, path: "/u/attachments/t/pasted-text-2026-11-24T08-20-00-000Z.txt", lines: 24, excerpt: "Checkout spec" };
   for (const chip of [readyAttachment("t", { ...record, id: "t", pasted: true }), recordedAttachment("t", record)]) {
     expect(attachmentChipView(chip, null)).toMatchObject({ label: "Pasted text", meta: chip.status === "missing" ? "Moved or deleted" : "24 lines", tooltip: "Checkout spec", removeLabel: "Remove pasted text", thumbnail: false });
   }
@@ -1071,10 +1071,29 @@ test("pasted text uses its label, line count and excerpt in restored chips, sent
   expect(entry).toMatchObject({ kind: "user", attachments: [record] });
   if (entry?.kind !== "user") throw new Error("Expected a user message");
   expect(sentFileView(entry.attachments[0]!, null)).toEqual({ label: "Pasted text", meta: "24 lines", tooltip: "Checkout spec", folder: false });
-  expect(queueAttachmentSummary([record], null)).toMatchObject({ name: "Pasted text · 24 lines", items: [{ name: "Pasted text · 24 lines", path: "Checkout spec" }], label: "Attachments: Pasted text · 24 lines — Checkout spec" });
+  expect(queueAttachmentSummary([record], null)).toMatchObject({ name: "Pasted text", items: [{ name: "Pasted text, 24 lines", path: "Checkout spec" }], label: "Attachments: Pasted text, 24 lines — Checkout spec" });
   expect(attachmentChipView(readyAttachment("t", { ...record, id: "t", pasted: true, lines: 1, excerpt: "" }), null)).toMatchObject({ meta: "1 line", tooltip: "" });
-  expect(sentFileView({ name: record.name, kind: "file", size: 1000, path: record.path }, null)).toMatchObject({ label: "Pasted text", meta: "", tooltip: null });
-  expect(attachRefusal("too_large", "Pasted text")).toBe("This text is over 50 MB, so it wasn’t attached.");
-  expect(attachRefusal("unreadable", "Pasted text")).toBe("Couldn’t save the pasted text. Paste it again.");
-  expect(attachRefusal("limit", "Pasted text")).toBe("Only 10 attachments can be added, so the pasted text wasn’t added. Remove one and paste again.");
+  expect(sentFileView({ name: record.name, kind: "file", size: 1000, path: record.path, excerpt: "" }, null)).toMatchObject({ label: "Pasted text", meta: "", tooltip: "" });
+  expect(attachRefusal("too_large", "Pasted text", "pastedText")).toBe("This text is over 50 MB, so it wasn’t attached.");
+  expect(attachRefusal("unreadable", "Pasted text", "pastedText")).toBe("Couldn’t save the pasted text. Paste it again.");
+  expect(attachRefusal("limit", "Pasted text", "pastedText")).toBe("Only 10 attachments can be added, so the pasted text wasn’t added. Remove one and paste again.");
+});
+
+
+test.each(["pasted-text-notes.txt", "Pasted text", "pasted-text-2026-11-24T08-20-00-000Z.txt"])("a user's own %s keeps file presentation and refusal copy", name => {
+  const record = { name, kind: "file" as const, size: 1000, path: `/Users/ada/${name}` };
+  const ready = readyAttachment("user", { ...record, id: "user", pasted: false });
+  const missing = recordedAttachment("user", record);
+  expect(attachmentChipView(ready, null)).toMatchObject({ label: name, meta: name.endsWith(".txt") ? "TXT · 1000 B" : "1000 B", tooltip: record.path, removeLabel: `Remove ${name}` });
+  expect(attachmentChipView(missing, null).notice).toBe(`${name} was moved or deleted. Remove it, or attach it again.`);
+  expect(sentFileView(record, null)).toEqual({ label: name, meta: "1000 B", tooltip: null, folder: false });
+  expect(queueAttachmentSummary([record], null)).toBeNull();
+  expect(attachRefusal("unreadable", name)).toBe(`${name} couldn’t be read, so it wasn’t attached.`);
+});
+
+test("a queue shows Pasted text only and keeps its line count in the tooltip and accessible name", () => {
+  const record = { name: "pasted-text-2026-11-24T08-20-00-000Z.txt", kind: "file" as const, size: 1000, path: "/u/pasted-text-2026-11-24T08-20-00-000Z.txt", lines: 12, excerpt: "Checkout spec" };
+  expect(queueAttachmentSummary([record], null)).toEqual({ name: "Pasted text", more: null, pastedText: true, items: [{ name: "Pasted text, 12 lines", path: "Checkout spec" }], label: "Attachments: Pasted text, 12 lines — Checkout spec" });
+  const { lines: _lines, ...noLines } = record;
+  expect(queueAttachmentSummary([noLines], null)).toMatchObject({ name: "Pasted text", items: [{ name: "Pasted text", path: "Checkout spec" }], label: "Attachments: Pasted text — Checkout spec" });
 });

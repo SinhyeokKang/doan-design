@@ -1355,7 +1355,7 @@ test("docked UTF-8 oversize text is refused before calling the host", () => {
 });
 
 test("a queued or sent pasted text carries its lines and excerpt and renders a queue summary", async () => {
-  const attachment = { key: "t", id: "t", name: "pasted-text-now.txt", kind: "file" as const, pasted: true, status: "ready" as const, size: 1000, path: "/u/attachments/t/pasted-text-now.txt", lines: 24, excerpt: "Checkout spec" };
+  const attachment = { key: "t", id: "t", name: "pasted-text-2026-11-24T08-20-00-000Z.txt", kind: "file" as const, pasted: true, status: "ready" as const, size: 1000, path: "/u/attachments/t/pasted-text-2026-11-24T08-20-00-000Z.txt", lines: 24, excerpt: "Checkout spec" };
   const { render, send, props } = mountedPaste({}, [["conversation:a", { ...draft("Go"), attachments: [attachment] }]]);
   (field(render()).onKeyDown as (event: unknown) => void)(enter());
   await vi.waitFor(() => expect(send).toHaveBeenCalledOnce());
@@ -1363,5 +1363,5 @@ test("a queued or sent pasted text carries its lines and excerpt and renders a q
   props.queued = [{ id: "q", text: "Go", message: { attachments: [attachment] } }];
   hooks.states = []; hooks.refs = [];
   const tree = render(true);
-  expect(tree.some(p => p["aria-label"] === "Attachments: Pasted text · 24 lines — Checkout spec")).toBe(true);
+  expect(tree.some(p => p["aria-label"] === "Attachments: Pasted text, 24 lines — Checkout spec")).toBe(true);
 });
