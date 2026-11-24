@@ -25,7 +25,6 @@ const entries = [
     "main/prototype/fit": "*",
     "renderer/frameDrawerList": "groupDrawer, drawerOrder, drawerKey, focusedRowAfter",
     "renderer/prototypePlay": "canvasPlayability, playTooltip, sizeBubblePlay, playRequest, playDrawer, drawerPlayRequest, closedFocusTarget",
-    "renderer/sizeBubble": "SIZE_BUBBLE, sizeBubblePlace, canvasBubbleRoom",
     "renderer/bubbleItems": "bubbleItems",
     "renderer/measure": "measureLines",
     "renderer/selection": "sizeLabel, canvasPx",
