@@ -23,10 +23,10 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| A 구현 | 작업 1, 2 | renderer 순수 함수(`homeComposer.ts` 등)와 테스트, `main/attachments.ts`, `attachmentHandlers.ts`, `senderAllowed.ts`, `main/index.ts`, preload 두 곳, `conversation/acpRunner.ts`, 드래프트 저장소 읽기, fence 주석, 각 테스트 | 없음 | Codex sol high — IPC 발신자 목록·`O_NOFOLLOW`·시작 시 삭제가 걸려 단계가 많다 | `npm --prefix app test`·`typecheck` | 대기 |
-| RA 리뷰 | A의 `/code-review` | 읽기만 | A | Claude Sonnet high — 다른 계열의 독립 리뷰, 보안 경계 판단 | 보고서 | 대기 |
-| A 수정 | RA의 🔴/🟡 | A와 같음 | RA | A 워커 그대로 | A와 같음 | 대기 |
-| B 구현 | 작업 3 | `HomeComposerView.tsx`, `DockedComposer.tsx`, `ProjectOverview`, `CanvasConversationPanel.tsx`, 프로토타입 창 대화, `homeComposer.ts` 문구·칩 표기, `ConversationThread.tsx`, 큐 행, 각 테스트 | A 통합 | Codex sol high — 호스트 넷과 상태가 많아 단계가 많다 | `npm --prefix app test`·`lint`·`typecheck` | 대기 |
+| A 구현 | 작업 1, 2 | renderer 순수 함수(`homeComposer.ts` 등)와 테스트, `main/attachments.ts`, `attachmentHandlers.ts`, `senderAllowed.ts`, `main/index.ts`, preload 두 곳, `conversation/acpRunner.ts`, 드래프트 저장소 읽기, fence 주석, 각 테스트 | 없음 | Codex sol high — IPC 발신자 목록·`O_NOFOLLOW`·시작 시 삭제가 걸려 단계가 많다 | `npm --prefix app test`·`typecheck` | 통합 `02ca24bb4` |
+| RA 리뷰 | A의 `/code-review` | 읽기만 | A | Claude Sonnet high — 다른 계열의 독립 리뷰, 보안 경계 판단 | 보고서 | 🔴1 🟡2 ⚪5 |
+| A 수정 | RA의 🔴/🟡 | A와 같음 | RA | A 워커 그대로 | A와 같음 | 1차로 끝남 |
+| B 구현 | 작업 3 | `HomeComposerView.tsx`, `DockedComposer.tsx`, `ProjectOverview`, `CanvasConversationPanel.tsx`, 프로토타입 창 대화, `homeComposer.ts` 문구·칩 표기, `ConversationThread.tsx`, 큐 행, 각 테스트 | A 통합 | Codex sol high — 호스트 넷과 상태가 많아 단계가 많다 | `npm --prefix app test`·`lint`·`typecheck` | 진행 중 |
 | RB 리뷰 | B의 `/code-review` | 읽기만 | B | Claude Sonnet high — 다른 계열의 독립 리뷰 | 보고서 | 대기 |
 | B 수정 | RB의 🔴/🟡 | B와 같음 | RB | B 워커 그대로 | B와 같음 | 대기 |
 | B design-sync | 칩 `/design-sync` | B + 해당 `docs/design/*.md` | B 수정 | B 워커 그대로 — 구현 맥락이 필요 | `/design-sync` 차이 0 또는 문서화 | 대기 |
@@ -43,3 +43,6 @@
 - run `run_cf06617624ea`.
 - A 1차: 워커 `ctx_1d27c7a77400`(Codex sol high), 커밋 `c045207e4`..`1e7031a6c`. 워커 보고로는 전체 테스트 15,383개, `typecheck`, `lint`가 통과했다.
 - RA: 리뷰어 `ctx_859ac71c9bb1`(Sonnet high)가 🔴1 🟡2 ⚪5를 냈다. 🔴1: 저장소 루트를 정규화하지 않아 링크 userData에서 GIF 시그니처 글을 재검사하면 `not_found`가 된다. 🟡1: `fromPaths`가 다른 항목의 폴더를 다시 맡는다. 🟡2: `kept`·폴더 다시 맡기가 실제로 하는 일이 없다. 확인한 것: IPC 허용 목록, 50 MB 상한, Antigravity 블록에는 문제가 없다. 수정 지시: 🔴1, 🟡1·2(결정에 따라 코드 제거), ⚪1(손상된 메타데이터는 버리고 재발급), ⚪4(주석). ⚪2·3·5는 넘긴다(design 결정 또는 기존 이미지와 같은 패턴).
+- A 수정 1차: 커밋 `a32277e7d`·`3d374021a`. 수정 전 회귀 테스트 6개가 실패했고, 수정 뒤 전체 테스트 15,387개와 `typecheck`·`lint`가 통과했다(워커 보고). conductor가 수정 diff를 직접 읽고 확인했다. 시작 시 정리는 develop 동작으로 돌아갔고, 폴더를 다시 맡는 코드는 빠졌으며, 저장소 루트를 생성자에서 정규화한다.
+- A 통합: `c520bba8e`..`02ca24bb4`(cherry-pick, app 트리가 워커 HEAD와 같다). 통합 `/verify`는 B 통합 뒤 A+B에 한 번 돌린다. A는 Go 코드를 건드리지 않았고, 워커가 같은 app 트리로 전체 테스트를 돌렸다.
+- B: 워커 `ctx_ec69aaa013e3`(Codex sol high), 워크트리 `paste-chip-B`.
