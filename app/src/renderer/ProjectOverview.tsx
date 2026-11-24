@@ -35,7 +35,7 @@ import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedMode } from
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import type { RowAction } from "./homeCards";
 import {
-  attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, MAX_PASTED_BYTES, modelOption, modelPickerView,
+  attachRefusal, MAX_ATTACHMENTS, attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, MAX_PASTED_BYTES, modelOption, modelPickerView,
   selectableProvider, sendRefusal, suggestedPresets, suggestedPrompts, type AttachmentDraft, type ModelsState, type NewConversationDefault,
 } from "./homeComposer";
 import type { LastRequest } from "./homeConversations";
@@ -267,6 +267,16 @@ export function ProjectOverview(props: ProjectOverviewProps) {
       settle(keys, final, report);
     });
   };
+  const addPastedText = async (text: string, meta: { lines: number; excerpt: string }, report: (text: string) => void): Promise<boolean> => {
+    const at = key;
+    // The store reserves the place immediately; a second paste can arrive before the next render.
+    if ((run.drafts.get(at) ?? EMPTY_DRAFT).attachments.length >= MAX_ATTACHMENTS) { report(attachRefusal("limit", "Pasted text")); return false; }
+    const chip = crypto.randomUUID();
+    addChips(at, [{ key: chip, name: "Pasted text", kind: "file", pasted: true, status: "checking", ...meta }]);
+    const result = await window.doan.addPastedText(text, meta).catch(() => null);
+    settle([chip], [result], report);
+    return !!result?.ok && [...run.drafts.values()].some(draft => draft.attachments.some(a => a.key === chip && a.status === "ready"));
+  };
   const chooseFiles = (report: (text: string) => void) => {
     const at = key;
     void window.doan.chooseAttachments().catch(() => []).then(results => {
@@ -441,7 +451,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onSettings={props.onSettings}
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.retryPresets()}
-        thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
+        thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles} onPastedText={addPastedText}
         onAttachmentRemoved={attachment => dropAttachment(window.doan, attachment)}
         turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}
         stepAside={{ waiting: asking, notice: false }}

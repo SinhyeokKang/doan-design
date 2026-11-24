@@ -687,9 +687,9 @@ const REFUSALS: Record<string, (name: string) => string> = {
   not_found: name => `${name} wasn’t found, so it wasn’t attached.`,
   not_file: name => `${name} isn’t a file or folder, so it wasn’t attached.`,
   not_image: name => `${name} isn’t a readable image, so it wasn’t attached.`,
-  unreadable: name => `${name} couldn’t be read, so it wasn’t attached.`,
-  too_large: () => "This image is over 50 MB, so it wasn’t attached.",
-  limit: () => LIMIT_TEXT,
+  unreadable: name => name === "Pasted text" ? "Couldn’t save the pasted text. Paste it again." : `${name} couldn’t be read, so it wasn’t attached.`,
+  too_large: name => name === "Pasted text" ? "This text is over 50 MB, so it wasn’t attached." : "This image is over 50 MB, so it wasn’t attached.",
+  limit: name => name === "Pasted text" ? `Only ${MAX_ATTACHMENTS} attachments can be added, so the pasted text wasn’t added. Remove one and paste again.` : LIMIT_TEXT,
   // An empty canvas capture or one main could not save: the file name means nothing.
   capture_failed: () => "Couldn’t capture the canvas. Try again.",
 };
@@ -726,9 +726,11 @@ export function markRefused(attachments: readonly AttachmentDraft[], missing: re
 // main writes a canvas capture as a paste named canvas-capture-<time>.png (attachments.ts capturedName); AttachmentInfo has no
 // field for it, so a draft chip is known by this name. A path attachment with the same name has pasted false.
 function isCanvasCapture(a: AttachmentDraft): boolean { return a.pasted && a.name.startsWith("canvas-capture-"); }
-function pastedLabel(a: AttachmentDraft): string { return isCanvasCapture(a) ? "Canvas capture" : "Pasted image"; }
+function isPastedText(a: { name: string; kind: string }): boolean { return a.kind === "file" && (a.name === "Pasted text" || a.name.startsWith("pasted-text-")); }
+function pastedLabel(a: AttachmentDraft): string { return isPastedText(a) ? "Pasted text" : isCanvasCapture(a) ? "Canvas capture" : "Pasted image"; }
 
 function problemNotice(a: AttachmentDraft): string {
+  if (isPastedText(a)) return "Pasted text was moved or deleted. Remove it, or paste the text again.";
   if (a.status === "replaced") return `${a.name} now points to a different folder. Remove it, or attach it again.`;
   return `${a.pasted ? pastedLabel(a) : a.name} was moved or deleted. Remove it, or attach it again.`;
 }
@@ -742,17 +744,18 @@ export function formatSize(bytes: number): string {
 export interface AttachmentChipView { label: string; meta: string; tooltip: string | null; removeLabel: string; thumbnail: boolean; folder: boolean; notice: string | null; problem: boolean }
 
 export function attachmentChipView(a: AttachmentDraft, home: string | null): AttachmentChipView {
-  const label = a.pasted ? pastedLabel(a) : a.name;
+  const text = isPastedText(a);
+  const label = text ? "Pasted text" : a.pasted ? pastedLabel(a) : a.name;
   const folder = a.kind === "directory";
   const dot = a.name.lastIndexOf(".");
   // Pasted images are always re-encoded to PNG by main. A folder's name says nothing about a type, even shots.png.
   const type = folder ? "Folder" : a.pasted ? "PNG" : dot > 0 ? a.name.slice(dot + 1).toUpperCase() : null;
   const problem = a.status === "missing" || a.status === "replaced";
   const meta = a.status === "checking" ? "Checking" : a.status === "missing" ? "Moved or deleted" : a.status === "replaced" ? "Replaced"
-    : [type, a.size === undefined ? null : formatSize(a.size)].filter(Boolean).join(" · ");
+    : text ? a.lines === undefined ? "" : pastedTextLabel(a.lines) : [type, a.size === undefined ? null : formatSize(a.size)].filter(Boolean).join(" · ");
   return {
-    label, meta, tooltip: a.path === undefined ? null : displayPath(a.path, home),
-    removeLabel: a.pasted ? `Remove ${pastedLabel(a).toLowerCase()}` : `Remove ${a.name}`,
+    label, meta, tooltip: text ? a.excerpt ?? null : a.path === undefined ? null : displayPath(a.path, home),
+    removeLabel: text ? "Remove pasted text" : a.pasted ? `Remove ${pastedLabel(a).toLowerCase()}` : `Remove ${a.name}`,
     thumbnail: a.kind === "image" && a.status === "ready", folder,
     notice: problem ? problemNotice(a) : null, problem,
   };
@@ -760,17 +763,19 @@ export function attachmentChipView(a: AttachmentDraft, home: string | null): Att
 
 // A sent message's chip: a file shows its size, a folder Folder and its path.
 export function sentFileView(file: AttachmentRecord, home: string | null): { label: string; meta: string; tooltip: string | null; folder: boolean } {
+  if (isPastedText(file)) return { label: "Pasted text", meta: file.lines === undefined ? "" : pastedTextLabel(file.lines), tooltip: file.excerpt ?? null, folder: false };
   return file.kind === "directory" ? { label: file.name, meta: "Folder", tooltip: displayPath(file.path, home), folder: true }
     : { label: file.name, meta: formatSize(file.size), tooltip: null, folder: false };
 }
 
-// A queued message's inline summary: its first folder's name and the count of its other attachments, with every
-// attachment's name and path for the tooltip and the accessible name. null without a folder: the row stays as it was.
-export function queueAttachmentSummary(files: readonly AttachmentRecord[], home: string | null): { name: string; more: string | null; items: { name: string; path: string }[]; label: string } | null {
-  const first = files.find(file => file.kind === "directory");
+// A queued message names its first folder or pasted text and counts the other attachments.
+// The tooltip and accessible name use paths for files and folders, and the first line for pasted text.
+export function queueAttachmentSummary(files: readonly AttachmentRecord[], home: string | null): { name: string; more: string | null; items: { name: string; path: string }[]; label: string; pastedText?: true } | null {
+  const first = files.find(file => file.kind === "directory" || isPastedText(file));
   if (!first) return null;
-  const items = files.map(file => ({ name: file.name, path: displayPath(file.path, home) }));
-  return { name: first.name, more: files.length > 1 ? `+${files.length - 1}` : null, items, label: `Attachments: ${items.map(item => `${item.name} — ${item.path}`).join("; ")}` };
+  const name = (file: AttachmentRecord) => isPastedText(file) ? ["Pasted text", file.lines === undefined ? null : pastedTextLabel(file.lines)].filter(Boolean).join(" · ") : file.name;
+  const items = files.map(file => ({ name: name(file), path: isPastedText(file) ? file.excerpt ?? "" : displayPath(file.path, home) }));
+  return { name: name(first), ...(isPastedText(first) ? { pastedText: true as const } : {}), more: files.length > 1 ? `+${files.length - 1}` : null, items, label: `Attachments: ${items.map(item => `${item.name} — ${item.path}`).join("; ")}` };
 }
 
 // Chips in DOM order (attachments, then the preset). Backspace takes the preset first, then the last attachment;

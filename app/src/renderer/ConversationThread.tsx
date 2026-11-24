@@ -533,7 +533,7 @@ function UserMessage({ entry, frames, disabled, onLocate, home }: { entry: Extra
         : inline(entry.parts)}</div>
     {entry.attachments.length > 0 && <div className="msg-files">{entry.attachments.map((file, i) => {
       const view = sentFileView(file, home);
-      const chip = <span className="attach-chip">
+      const chip = <span className="attach-chip" aria-description={file.excerpt}>
         <span className="file-icon" aria-hidden="true">{view.folder ? <Folder /> : <FileText />}</span><span className="attach-text"><b>{view.label}</b><small>{view.meta}</small></span></span>;
       return <Fragment key={i}>{view.tooltip ? <Tooltip><TooltipTrigger asChild>{chip}</TooltipTrigger><TooltipContent>{view.tooltip}</TooltipContent></Tooltip> : chip}</Fragment>;
     })}</div>}

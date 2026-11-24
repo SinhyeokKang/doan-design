@@ -40,7 +40,7 @@ import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPi
 import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedMode, type DockedRefusal } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import {
-  attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, MAX_PASTED_BYTES, modelOption, modelPickerView,
+  attachRefusal, MAX_ATTACHMENTS, attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, MAX_PASTED_BYTES, modelOption, modelPickerView,
   selectableProvider, sendRefusal, suggestedPresets, suggestedPrompts, type AttachmentDraft, type NewConversationDefault, type ModelsState,
 } from "./homeComposer";
 import { PROVIDER_NAMES } from "./agentAuthView";
@@ -63,7 +63,7 @@ import { NameTip } from "./NameTip";
 // prototype window, which has no `window.doan`.
 export type ConversationCalls = SkillsCalls & Pick<DoanApi, "onAgentAuth" | "startConversation" | "sendConversation" | "queueConversation" |
   "removeQueuedMessage" | "interruptConversation" | "answerConversationPermission" | "answerConversationQuestion" | "openLink" |
-  "chooseAttachments" | "addAttachmentFiles" | "addPastedImage" | "droppedPath" | "removeAttachment" | "releaseAttachments" |
+  "chooseAttachments" | "addAttachmentFiles" | "addPastedImage" | "addPastedText" | "droppedPath" | "removeAttachment" | "releaseAttachments" |
   "readAgentUsage" | "onAgentUsage" | "onWindowVisible">;
 
 export interface CanvasConversationProps {
@@ -423,6 +423,17 @@ export function CanvasConversation(props: CanvasConversationProps) {
       settle(keys, final, report);
     });
   };
+  const addPastedText = async (text: string, meta: { lines: number; excerpt: string }, report: (text: string) => void): Promise<boolean> => {
+    if (fixed) return false;
+    const at = key;
+    // The store reserves the place immediately; a second paste can arrive before the next render.
+    if ((store.drafts.get(at) ?? EMPTY_DRAFT).attachments.length >= MAX_ATTACHMENTS) { report(attachRefusal("limit", "Pasted text")); return false; }
+    const chip = crypto.randomUUID();
+    addChips(at, [{ key: chip, name: "Pasted text", kind: "file", pasted: true, status: "checking", ...meta }]);
+    const result = await calls.addPastedText(text, meta).catch(() => null);
+    settle([chip], [result], report);
+    return !!result?.ok && [...store.drafts.values()].some(draft => draft.attachments.some(a => a.key === chip && a.status === "ready"));
+  };
   const chooseFiles = (report: (text: string) => void) => {
     if (fixed) return;
     const at = key;
@@ -559,7 +570,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onSettings={props.onSettings}
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.retryPresets()}
-        thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
+        thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles} onPastedText={addPastedText}
         onAttachmentRemoved={attachment => dropAttachment(calls, attachment)}
         turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} canvasGone={false} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}
         unavailable={unavailable} locked={unavailable !== null} playing={props.playing ?? null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
