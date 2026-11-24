@@ -183,6 +183,8 @@ export interface PickStartedMessage { type: "pick-started"; href: string; docume
 // so a range from a replaced document or sent before a clear is dropped. `rects` are the line boxes of the range's Text
 // nodes in the iframe's viewport, as hover and selected rects are; empty is no range. `text` comes once the drag ends.
 export interface TextRangeMessage { type: "text-range"; document: string; epoch: number; dragging: boolean; rects: CanvasRect[]; text?: string }
+// The answer to the app's text-at or text-press (Hand): whether a Select press at that point would start a text drag.
+export interface TextHitMessage { type: "text-hit"; document: string; probe: number; hit: boolean }
 
 // The canvas's answer to the inspector's `element-tree` request: the innermost frame around the selection and the
 // nodes below it, in document order with their depth below that frame (the frame is depth 0). `seq` is the request's,
@@ -202,7 +204,7 @@ export interface PressMessage { type: "press" }
 // The person moved the pointer in the canvas frame (at most once a second).
 export interface ActivityMessage { type: "activity" }
 
-export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage | PickedMessage | PickStartedMessage | PressMessage | ActivityMessage | TextRangeMessage | ElementTreeMessage;
+export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage | PickedMessage | PickStartedMessage | PressMessage | ActivityMessage | TextRangeMessage | TextHitMessage | ElementTreeMessage;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -261,6 +263,11 @@ export function parseCanvasMessage(data: unknown): CanvasMessage | null {
   if (data.type === "press") return { type: "press" };
   if (data.type === "activity") return { type: "activity" };
   if (data.type === "text-range") return parseTextRange(data);
+  if (data.type === "text-hit") {
+    const { document, probe, hit } = data;
+    if (!within(document, MAX_STRING) || !document || !seqValue(probe) || typeof hit !== "boolean") return null;
+    return { type: "text-hit", document, probe, hit };
+  }
   if (data.type === "element-tree") return parseElementTree(data);
   if (data.type === "hover" || data.type === "select" || data.type === "clear" || data.type === "key") return parseSelectionMessage(data);
   return null;

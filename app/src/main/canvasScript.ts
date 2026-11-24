@@ -1016,7 +1016,7 @@ export function canvasScript(lib: CanvasLib): void {
     if (typeof data !== "object" || data === null) return;
     const type = (data as { type?: unknown }).type;
     if (type === "measure") send();
-    else if (type === "clear-text" || type === "text-point") textCommand(data as Record<string, unknown>);
+    else if (type === "clear-text" || type === "text-point" || type === "text-at" || type === "text-press" || type === "text-move" || type === "text-release") textCommand(data as Record<string, unknown>);
     else if (type === "element-tree") treeCommand(data as Record<string, unknown>);
     else command(data as Record<string, unknown>);
   });
@@ -1250,7 +1250,9 @@ export function canvasScript(lib: CanvasLib): void {
   // the pressed caret to the pointer and posts the line rects of its Text nodes, which the app paints on its overlay, and
   // the text once at the end, which the app's copy event uses. The canvas's own Selection is touched only inside one
   // task to read the text, so nothing is painted and the canvas's styles stay as they are.
-  type TextDrag = { pointerId: number; node: Text; offset: number; screen: { x: number; y: number }; boundary: Element; state: TextDragState };
+  // `remote`: Hand's drag, which the app drives with commands from its drag layer (the canvas sees no pointer then);
+  // its `pointerId` is -1, so none of the canvas's own pointer events is its.
+  type TextDrag = { pointerId: number; node: Text; offset: number; screen: { x: number; y: number }; boundary: Element; state: TextDragState; remote: boolean };
   let textDrag: TextDrag | null = null;
   let textRange: Range | null = null;
   let textCopy: string | null = null;
@@ -1277,20 +1279,25 @@ export function canvasScript(lib: CanvasLib): void {
   // Where a text drag may start: a caret in a Text node whose glyph on either side of the caret is under the press, or
   // whose own element was pressed (its padding). A field, editable text, a nested iframe or a Shadow DOM host has no
   // Text caret here; a frame's background or the root, no boundary.
-  const textStart = (event: PointerEvent): Omit<TextDrag, "state"> | null => {
+  // `target`: the element under the point, the press's own target.
+  const textAt = (x: number, y: number, target: unknown): { node: Text; offset: number; boundary: Element } | null => {
     if (typeof document.caretPositionFromPoint !== "function") return null;
-    const caret = document.caretPositionFromPoint(event.clientX, event.clientY);
+    const caret = document.caretPositionFromPoint(x, y);
     const text = caret?.offsetNode;
     if (!caret || !isText(text)) return null;
     const parent = text.parentElement;
     if (parent === null || insideField(parent)) return null;
-    if (!glyphHolds(text, caret.offset - 1, event.clientX, event.clientY) && !glyphHolds(text, caret.offset, event.clientX, event.clientY) && event.target !== parent) return null;
+    if (!glyphHolds(text, caret.offset - 1, x, y) && !glyphHolds(text, caret.offset, x, y) && target !== parent) return null;
     const chain: Element[] = [];
     for (let el: Element | null = parent; el !== null && !isRoot(el); el = el.parentElement) chain.push(el);
     const at = lib.textBoundary(chain.map(isFrame), parent.querySelector("[data-doan-frame]") !== null);
     const boundary = at === null ? undefined : chain[at];
     if (boundary === undefined) return null;
-    return { pointerId: event.pointerId, node: text, offset: caret.offset, screen: { x: event.screenX, y: event.screenY }, boundary };
+    return { node: text, offset: caret.offset, boundary };
+  };
+  const textStart = (event: PointerEvent): Omit<TextDrag, "state" | "remote"> | null => {
+    const start = textAt(event.clientX, event.clientY, event.target);
+    return start === null ? null : { ...start, pointerId: event.pointerId, screen: { x: event.screenX, y: event.screenY } };
   };
 
   // Only the Text nodes' own boxes: a range also returns the border box of each element it holds whole, and those
@@ -1422,8 +1429,20 @@ export function canvasScript(lib: CanvasLib): void {
     postText(textDrag?.state === "drag");
   };
 
+  const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+  // Hand's text drag: the app's drag layer takes every press, so the app asks here, at a point in document
+  // coordinates, whether a Select press there would start a text drag (`text-at` for the cursor, `text-press` for a
+  // press, which also starts it), and then drives it: `text-move` carries the point and the app's own px, in which the
+  // 4 px are measured, and `text-release` ends it as a pointerup would.
+  const handText = (x: number, y: number) => textAt(x - scrollX, y - scrollY, document.elementFromPoint(x - scrollX, y - scrollY));
+
   const textCommand = (data: Record<string, unknown>) => {
-    const { type, epoch } = data;
+    const { type, epoch, x, y, probe } = data;
+    if (type === "text-at") {
+      if (typeof probe !== "number" || !Number.isSafeInteger(probe) || !finite(x) || !finite(y)) return;
+      post({ type: "text-hit", document: documentToken, probe, hit: handText(x, y) !== null });
+      return;
+    }
     if (typeof epoch !== "number" || !Number.isSafeInteger(epoch)) return;
     if (type === "clear-text") {
       if (epoch <= textEpoch) return;
@@ -1431,10 +1450,39 @@ export function canvasScript(lib: CanvasLib): void {
       dropText();
       return;
     }
+    if (type === "text-press") {
+      const { sx, sy } = data;
+      if (typeof probe !== "number" || !Number.isSafeInteger(probe) || !finite(x) || !finite(y) || !finite(sx) || !finite(sy)) return;
+      // A press the app sent before its last clear-text is not the person's current one.
+      const start = epoch === textEpoch && picking === null ? handText(x, y) : null;
+      if (start !== null) {
+        dropText();
+        dragClick = false;
+        textDrag = { ...start, pointerId: -1, screen: { x: sx, y: sy }, state: "press", remote: true };
+      }
+      post({ type: "text-hit", document: documentToken, probe, hit: start !== null });
+      return;
+    }
+    if (epoch !== textEpoch) return;
+    if (type === "text-release") {
+      if (textDrag?.remote === true) endTextDrag(true, finite(x) && finite(y) ? { x: x - scrollX, y: y - scrollY } : null);
+      return;
+    }
+    if (!finite(x) || !finite(y)) return;
+    if (type === "text-move") {
+      const drag = textDrag;
+      const { sx, sy } = data;
+      if (drag === null || !drag.remote || !finite(sx) || !finite(sy)) return;
+      const was = drag.state;
+      drag.state = lib.textDragState(was, drag.screen, { x: sx, y: sy }, TEXT_DRAG_PX);
+      if (drag.state !== "drag") return;
+      if (was !== "drag") postHover();
+      extendText(x - scrollX, y - scrollY);
+      return;
+    }
     // The board moved under a resting pointer (a wheel pan or pinch): the app sends where the pointer is now, in the
     // canvas's document coordinates, as the wheel message gives them.
-    const { x, y } = data;
-    if (epoch !== textEpoch || textDrag?.state !== "drag" || typeof x !== "number" || typeof y !== "number" || !Number.isFinite(x) || !Number.isFinite(y)) return;
+    if (textDrag?.state !== "drag") return;
     extendText(x - scrollX, y - scrollY);
   };
 
@@ -1450,7 +1498,7 @@ export function canvasScript(lib: CanvasLib): void {
       }
       if (event.metaKey || event.altKey || event.shiftKey || picking !== null || spaceHeld) return;
       const start = textStart(event);
-      if (start !== null) textDrag = { ...start, state: "press" };
+      if (start !== null) textDrag = { ...start, state: "press", remote: false };
     },
     { capture: true },
   );
@@ -1458,7 +1506,7 @@ export function canvasScript(lib: CanvasLib): void {
     "pointermove",
     (event: PointerEvent) => {
       const drag = textDrag;
-      if (!event.isTrusted || drag === null || event.pointerId !== drag.pointerId) return;
+      if (!event.isTrusted || drag === null || drag.remote || event.pointerId !== drag.pointerId) return;
       // A release outside the frame before the capture was taken never comes back as a pointerup: a move with the
       // button up ends the press there instead of starting a drag.
       if (drag.state === "press" && (event.buttons & 1) === 0) {

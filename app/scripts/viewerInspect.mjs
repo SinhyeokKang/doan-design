@@ -44,7 +44,7 @@ async function canvasReaders() {
   const source = await readFile(path, "utf8");
   const { program } = parseSync(path, source);
   const canvas = program.body.find(node => node.declaration?.id?.name === "canvasScript").declaration;
-  const names = ["MAX_COPY_TEXT", "MAX_TEXT_RECTS", "isRoot", "isText", "isEditable", "isFrame", "framesOf", "insideField", "glyphHolds", "textStart", "textRects", "readText", "rectOf"];
+  const names = ["MAX_COPY_TEXT", "MAX_TEXT_RECTS", "isRoot", "isText", "isEditable", "isFrame", "framesOf", "insideField", "glyphHolds", "textAt", "textStart", "textRects", "readText", "rectOf"];
   const declarations = canvas.body.body.filter(node => node.type === "VariableDeclaration").flatMap(node => node.declarations);
   const body = names.map(name => {
     const declaration = declarations.find(node => node.id.name === name);
@@ -61,7 +61,7 @@ async function canvasReaders() {
   const checked = transformSync(path, imports + body).code;
   const dependencies = parseSync(path, checked).module.staticImports.flatMap(group => group.entries.map(entry => entry.localName.value));
   if (dependencies.length) throw new Error("Unextracted canvas reader dependency: " + dependencies.join(", "));
-  return `import * as lib from ${JSON.stringify(path)};\n${body}\nexport { framesOf, textStart, textRects, readText, rectOf };`;
+  return `import * as lib from ${JSON.stringify(path)};\n${body}\nexport { framesOf, textAt, textStart, textRects, readText, rectOf };`;
 }
 
 for (const [file, name, sources] of entries) {

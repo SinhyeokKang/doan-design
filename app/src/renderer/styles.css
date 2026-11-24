@@ -59,6 +59,8 @@ code, kbd { font-family: var(--type-family); }
    wheel still pans the board. */
 .drag-layer { position: absolute; inset: 0; z-index: 0; cursor: grab; }
 .drag-layer[data-grabbing] { cursor: grabbing; }
+/* Hand over canvas text and through its text drag (the canvas answers text-at). */
+.drag-layer[data-text] { cursor: text; }
 /* Capture mode: the drag layer's place, so Stop, Open, Reload and the tools stay over it and
    clickable. The controller shows it and its marquee with `hidden`, so neither sets display. The marquee is drawn in
    the area's screen px, with no size readout. */
