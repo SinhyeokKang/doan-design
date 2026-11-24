@@ -787,7 +787,7 @@ describe("viewer files", () => {
     const body = shellHtml.replace(/<!--[\s\S]*?-->/, "");
     const counts = new Map<string, number>();
     for (const m of body.matchAll(/\{\{([A-Za-z_]+)\}\}/g)) counts.set(m[1]!, (counts.get(m[1]!) ?? 0) + 1);
-    expect(Object.fromEntries(counts)).toEqual({ PROJECT: 3, INITIAL: 1, HUE: 1, NAME: 3, WIDTH: 1, META: 1, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
+    expect(Object.fromEntries(counts)).toEqual({ PROJECT: 3, INITIAL: 1, HUE: 1, NAME: 3, WIDTH: 1, META: 1, FONT: 1, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
     // The comment documents the placeholders by name: a brace form in it would be replaced too.
     expect(shellHtml.match(/<!--[\s\S]*?-->/)?.[0]).not.toContain("{{");
     for (const name of ["lib.js", "measure.js", "shell.js", "shell.css"]) expect(files[name], name).not.toContain("{{");
@@ -795,6 +795,8 @@ describe("viewer files", () => {
 
   test("the placeholders sit where their escaping rule applies", () => {
     expect(shellHtml).toContain("<title>{{NAME}}</title>");
+    // The player reads this element's text back as the prototype file's font style.
+    expect(shellHtml).toContain('<style id="doan-font">{{FONT}}</style>');
     expect(shellHtml).toContain("<span>{{NAME}}</span></span>");
     expect(shellHtml).toContain('style="width:{{WIDTH}}px" srcdoc="{{SRCDOC}}"');
     expect(shellHtml).toContain('<script type="application/json" id="doan-meta">{{META}}</script>');
@@ -1341,9 +1343,11 @@ const viewerPage = (body: string, { width = 800, reports = true, scripted = true
   const values: Record<string, string> = {
     PROJECT: "northwind-customer-portal", INITIAL: "N", HUE: "indigo",
     NAME: "checkout", WIDTH: String(width), META: JSON.stringify({ name: "checkout", width }).replace(/</g, "\\u003c"), STYLE: shellCss,
+    // No face: these pages are measured in the fallback font and need not decode the 93 KB face each time.
+    FONT: "",
     SCRIPT: scripted ? `(function () {\n${beforeShell ? `(${beforeShell})();` : ""}\n${lib}\n${viewerAppJs}\n${playerJs}\n${playerJs ? "if (!startPlayer()) " : ""}(function () {\n${boardInspectScripts}\n${shellJs}\n})();\n})();` : "", SRCDOC: canvas.replace(/&/g, "&amp;").replace(/"/g, "&quot;"),
   };
-  return shellHtml.replace(/\{\{(PROJECT|INITIAL|HUE|NAME|WIDTH|META|STYLE|SCRIPT|SRCDOC)\}\}/g, (_, key: string) => values[key]!);
+  return shellHtml.replace(/\{\{(PROJECT|INITIAL|HUE|NAME|WIDTH|META|FONT|STYLE|SCRIPT|SRCDOC)\}\}/g, (_, key: string) => values[key]!);
 };
 const twoFrames = '<section data-doan-frame="cart" data-doan-title="Cart" style="height:600px">Cart</section><section data-doan-frame="pay" data-doan-title="Payment" style="height:600px">Payment</section>';
 
@@ -4347,13 +4351,14 @@ describe("prototype viewer files", () => {
     const body = protoHtml.replace(/<!--[\s\S]*?-->/, "");
     const counts = new Map<string, number>();
     for (const m of body.matchAll(/\{\{([A-Za-z_]+)\}\}/g)) counts.set(m[1]!, (counts.get(m[1]!) ?? 0) + 1);
-    expect(Object.fromEntries(counts)).toEqual({ NAME: 1, META: 1, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
+    expect(Object.fromEntries(counts)).toEqual({ NAME: 1, META: 1, FONT: 1, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
     expect(protoHtml.match(/<!--[\s\S]*?-->/)?.[0]).not.toContain("{{");
     for (const name of ["prototype.css", "prototype.js", "isolate.js"]) expect(files[name], name).not.toContain("{{");
   });
 
   test("the placeholders sit where their escaping rule applies", () => {
     expect(protoHtml).toContain("<title>{{NAME}} — Prototype</title>");
+    expect(protoHtml).toContain('<style id="doan-font">{{FONT}}</style>');
     expect(protoHtml).toContain('<script type="application/json" id="doan-prototype">{{META}}</script>');
     expect(protoHtml).toContain('<div id="canvas" hidden data-srcdoc="{{SRCDOC}}"></div>');
   });
