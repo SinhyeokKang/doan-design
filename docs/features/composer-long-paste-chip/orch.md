@@ -21,6 +21,8 @@
 - 붙여넣기 가드(입력기 조합 중·읽기 전용·전송 중·잠김)는 Finder 파일과 이미지 붙여넣기에도 먼저 적용된다. 그래서 이때는 아무 일도 일어나지 않는다. 받아들인다(conductor 판단 — spec 완료 조건 2의 취지, RB ⚪4).
 - D의 Codex 워커는 gpt-6.1-sol로 시작했지만, Codex 5시간 한도가 8% 남자 GPT-6-Luna medium으로 바뀌었다. 그 뒤 두 번 내리 probe 없이 턴을 끝냈다. 이 워커를 멈추고, 같은 워크트리에서 Claude Sonnet high가 D를 맡는다(사용자 결정).
 - E의 Claude Code 실제 턴에는 설치본 Doan 프로필의 Keychain 항목 `Claude Code-credentials-9e813622`를 읽어 임시 Keychain 항목으로 복제해 쓴다. 실제 ~/.claude 기본 프로필은 로그아웃 상태이기 때문이다. 실제 항목은 바꾸지 않고, 끝나면 복제본을 지운다(사용자 결정). Copilot은 실제 HOME에 로그인이 없어 미확인으로 보고한다.
+- Codex 셸은 다른 대화의 붙여넣기 폴더도 읽을 수 있다. ARCHITECTURE §7 'Fence'에 적힌 대로 Codex 실행은 `attachments/` 디렉터리 전체를 열기 때문이다. 그래서 tasks 작업 5의 Codex fence 차단 확인은 해당 없음으로 처리하고, 차단 증거는 Claude Read로 남긴다(conductor 판단 — ARCHITECTURE §7).
+- Antigravity는 실제 agy Keychain 토큰을 ACP 서버가 쓸 수 없어 복제할 수 없다. 그래서 격리 앱에서 브라우저로 Google에 로그인해 확인한다. 이때 생기는 OAuth 인가는 보고서에 적어 사용자가 해제하게 한다(사용자 결정). Copilot은 격리 앱에서 GitHub 기기 로그인으로 확인했다("GitHub Copilot CLI" OAuth 인가가 생겼다, 사용자 지시). Cursor는 계정 요금제 한도 때문에 미확인이다.
 - design.md 'PoC 의존'의 세 가정이 작업 5에서 깨지면 그 공급자를 어떻게 할지 사용자에게 묻는다(design.md).
 
 ## 배치
