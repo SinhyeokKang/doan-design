@@ -19,12 +19,13 @@ import {
 } from "./ComposerParts";
 import type { BuddyId } from "./buddies";
 import { Buddy, type BuddyHandle } from "./Doany";
+import { CLIPBOARD_TYPE } from "./chipField";
 import { plainText, textSegments, typedText } from "./anchorField";
 import { dropAttachment, restoreStartDraft } from "./conversationStore";
 import { cardRow, chipClass, groupProjects } from "./homeCards";
 import { generationOf, modelsKey } from "./dockedSupport";
 import {
-  followDrawerHighlight, type PresetRow, attachmentChipView, attachmentLimit, MAX_PASTED_BYTES, attachRefusal, chosenAttachments, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider,
+  pasteAsAttachment, pastedTextMeta, pastedTextLabel, MAX_ATTACHMENTS, followDrawerHighlight, type PresetRow, attachmentChipView, attachmentLimit, MAX_PASTED_BYTES, attachRefusal, isPastedText, chosenAttachments, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider,
   fixedPreference, greetingText, lengthCounter, markRefused, modelOption, modelPickerView, presetListView, presetPlaceholder, readyAttachment,
   rootForProject, selectableProvider, sendAvailability, slashKey, slashQuery, startErrorView, suggestedPresets, suggestedPrompts, TEXT_LIMIT,
   type AttachmentDraft, type ModelsState, type NewConversationDefault, type PresetListReply, type PresetSummary,
@@ -380,8 +381,9 @@ export function HeroComposer(props: HeroComposerProps) {
         if (at === -1) { if (result?.ok) void window.doan.removeAttachment(result.attachment.id); return; }
         if (!result || !result.ok) {
           const name = result ? result.name : next[at]!.name;
+          const kind = isPastedText(next[at]!) ? "pastedText" : "file";
           next = next.filter(a => a.key !== key);
-          notices.push(attachRefusal(result?.ok === false ? result.error : "unreadable", name));
+          notices.push(attachRefusal(result?.ok === false ? result.error : "unreadable", name, kind));
           return;
         }
         const { attachment } = result;
@@ -456,13 +458,27 @@ export function HeroComposer(props: HeroComposerProps) {
 
   const drop = useComposerDrop({ blocked: () => sending, onFiles: files => addFiles(files, false), onNotice: text => setNotice(text === null ? null : { text, retry: false }) });
   const paste = (event: ClipboardEvent<HTMLDivElement>) => {
+    if (memory.current.sending || field.current?.composing() || field.current?.element()?.isContentEditable === false) return;
     const files = Array.from(event.clipboardData.files);
-    const action = pasteAction(event.clipboardData.getData("text/plain"), files);
-    if (action !== "files") return;
+    const text = event.clipboardData.getData("text/plain");
+    const action = pasteAction(text, files);
+    if (action === "files") { event.preventDefault(); addFiles(files, true); return; }
+    if (action !== "text" || event.clipboardData.types.includes(CLIPBOARD_TYPE)) return;
+    const decision = pasteAsAttachment(text, { acceptsAttachments: true, commandFirst: isCommand, attached: memory.current.attachments.length, limit: MAX_ATTACHMENTS });
+    if (decision === "field") return;
     event.preventDefault();
-    // The field is read-only while a start is pending, but a paste handler still runs.
-    if (memory.current.sending) return;
-    addFiles(files, true);
+    if (decision === "limit") { setNotice({ text: attachRefusal("limit", "Pasted text", "pastedText"), retry: false }); return; }
+    const normalized = text.replace(/\r\n?/g, "\n");
+    if (new TextEncoder().encode(normalized).byteLength > MAX_PASTED_BYTES) { setNotice({ text: attachRefusal("too_large", "Pasted text", "pastedText"), retry: false }); return; }
+    const key = crypto.randomUUID(), meta = pastedTextMeta(normalized);
+    update(current => ({ attachments: [...current.attachments, { key, name: "Pasted text", kind: "file", pasted: true, status: "checking", ...meta }] }));
+    void window.doan.addPastedText(normalized, meta).catch(() => null).then(result => {
+      settle([key], [result]);
+      if (result?.ok && memory.current.attachments.some(a => a.key === key)) {
+        const text = `Pasted text attached, ${pastedTextLabel(meta.lines)}`;
+        setAnnouncement(current => current === text ? `${text}\u00a0` : text);
+      }
+    });
   };
 
   // Send. The notice's Retry keeps its notice while the send it started is out (DESIGN 'Busy action'); the reply

@@ -31,7 +31,7 @@ export interface QuestionRequest { type: "question.request"; requestId: string; 
 export interface QuestionResolved { type: "question.resolved"; requestId: string; outcome: QuestionOutcome; answers?: Record<string, StoredAnswer> }
 // A file or folder the person attached by local path; doan sends the path, not the bytes. A folder has no size: main
 // never walks it to count one.
-export type AttachmentRecord = { name: string; size: number; kind: "image" | "file"; path: string } | { name: string; kind: "directory"; path: string };
+export type AttachmentRecord = ({ name: string; size: number; kind: "image" | "file"; path: string } | { name: string; kind: "directory"; path: string }) & { lines?: number; excerpt?: string };
 // The first message of a conversation a handoff started: the earlier conversation and its canvas, absent when that was
 // a project conversation (the root's Overview). Its text is that agent's handoff, kept as written and never read for
 // {{n}} markers (anchors stay empty). An earlier build reads only an origin with a canvas.

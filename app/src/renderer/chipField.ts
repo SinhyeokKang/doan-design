@@ -25,7 +25,7 @@ import { fieldRuns, fieldSkillRuns, insertSkillText, replaceSlashSkill, sameSkil
 
 // Chromium keeps custom DataTransfer types in its own pasteboard entry, so they travel between Doan fields (also across
 // windows) while every other app sees only text/plain.
-const CLIPBOARD_TYPE = "application/x-doan-field+json";
+export const CLIPBOARD_TYPE = "application/x-doan-field+json";
 const TYPING_MERGE_MS = 1000;
 
 export type ChipInsert = "inserted" | "pending" | "limit" | "refused";

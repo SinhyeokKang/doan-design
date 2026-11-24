@@ -1,5 +1,5 @@
 import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
-import { Clock, Crosshair, Folder, Frame, Gauge, Info, MessageSquareDashed, Plus, Shield, X } from "lucide-react";
+import { Clock, Crosshair, FileText, Folder, Frame, Gauge, Info, MessageSquareDashed, Plus, Shield, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { ClaudeRunMode, PermissionModeId } from "../main/conversation/permissionMode";
@@ -23,12 +23,12 @@ import {
   type DockedDraft, type DockedMode, type DockedRefusal,
 } from "./dockedRules";
 import { slashKey, pasteAction } from "./HomeComposerView";
-import type { ChipInsert } from "./chipField";
+import { CLIPBOARD_TYPE, type ChipInsert } from "./chipField";
 import type { SentFile } from "./threadItems";
 import { ANCHOR_LIMIT_TEXT } from "./canvasPicker";
 import { LOCATE_MISSING_TEXT, useLocateNote, type LocateOutcome } from "./ConversationThread";
 import {
-  composeRequest, followDrawerHighlight, type PresetRow, attachmentChipView, chipRemoval, markRefused, presetListView, queueAttachmentSummary, providerLogo, slashQuery, takesSuggestion, type AttachmentDraft, type ModelPickerView,
+  pasteAsAttachment, pastedTextMeta, pastedTextLabel, MAX_ATTACHMENTS, MAX_PASTED_BYTES, attachRefusal, composeRequest, followDrawerHighlight, type PresetRow, attachmentChipView, chipRemoval, markRefused, presetListView, queueAttachmentSummary, providerLogo, slashQuery, takesSuggestion, type AttachmentDraft, type ModelPickerView,
   type PresetListReply, type PresetSummary,
 } from "./homeComposer";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
@@ -105,6 +105,8 @@ export interface DockedComposerProps {
   // handed back so the host can tell main. `report` shows a refusal (the limit, a file main refused) as this composer's
   // notice on the draft the files were added to, which may no longer be the one shown when an answer lands.
   onAttach(report: (text: string) => void): void; onFiles(files: File[], pasted: boolean, report: (text: string) => void): void; onAttachmentRemoved(attachment: AttachmentDraft): void;
+  // Resolves true only while the saved chip still belongs to a draft, so only that success is announced.
+  onPastedText(text: string, meta: { lines: number; excerpt: string }, report: (text: string) => void): Promise<boolean>;
   // This conversation's turn.
   turn: ComposerTurn;
   // A conversation whose canvas left the project cannot continue.
@@ -366,10 +368,24 @@ export function DockedComposer(props: DockedComposerProps) {
     return next;
   }) });
   const paste = (event: ClipboardEvent<HTMLDivElement>) => {
+    if (isSending || locked || field.current?.composing() || field.current?.element()?.isContentEditable === false) return;
     const files = Array.from(event.clipboardData.files);
-    if (pasteAction(event.clipboardData.getData("text/plain"), files) !== "files") return;
+    const text = event.clipboardData.getData("text/plain"), action = pasteAction(text, files);
+    if (action === "files") { event.preventDefault(); props.onFiles(files, true, reportFor(key)); return; }
+    if (action !== "text" || event.clipboardData.types.includes(CLIPBOARD_TYPE)) return;
+    const decision = pasteAsAttachment(text, { acceptsAttachments: !props.fixed, commandFirst, attached: draft.attachments.length, limit: MAX_ATTACHMENTS });
+    if (decision === "field") return;
     event.preventDefault();
-    if (!isSending && !locked) props.onFiles(files, true, reportFor(key));
+    if (decision === "limit") { reportFor(key)(attachRefusal("limit", "Pasted text", "pastedText")); return; }
+    const normalized = text.replace(/\r\n?/g, "\n");
+    if (new TextEncoder().encode(normalized).byteLength > MAX_PASTED_BYTES) { reportFor(key)(attachRefusal("too_large", "Pasted text", "pastedText")); return; }
+    const meta = pastedTextMeta(normalized);
+    void props.onPastedText(normalized, meta, reportFor(key)).then(ready => {
+      if (ready && shownKey.current === key) {
+        const text = `Pasted text attached, ${pastedTextLabel(meta.lines)}`;
+        setAnnouncement(current => current === text ? `${text}\u00a0` : text);
+      }
+    });
   };
 
   const stop = () => { props.onStop(); focus({ kind: "stopped" }); };
@@ -416,7 +432,7 @@ export function DockedComposer(props: DockedComposerProps) {
     const command = plan !== null && plan.kind !== "message";
     const at = key, sent = draft, mine = ++generation.current;
     const files = draft.attachments.flatMap((a): SentFile[] => !a.id || a.path === undefined ? []
-      : a.kind === "directory" ? [{ name: a.name, kind: a.kind, path: a.path }] : [{ name: a.name, size: a.size ?? 0, kind: a.kind, path: a.path }]);
+      : a.kind === "directory" ? [{ name: a.name, kind: a.kind, path: a.path }] : [{ name: a.name, size: a.size ?? 0, kind: a.kind, path: a.path, ...(a.lines === undefined ? {} : { lines: a.lines }), ...(a.excerpt === undefined ? {} : { excerpt: a.excerpt }) }]);
     // A command goes out alone: no preset or skill line, chip or playing frame, and no attachments, which stay here.
     const request: DockedRequest = plan && plan.kind !== "message" && plan.kind !== "unsupported" ? { text: plan.text, anchors: [], attachments: [] }
       : { text: message.text, anchors: message.anchors, attachments: draft.attachments.flatMap(a => a.id ? [{ id: a.id }] : []), ...(files.length ? { files } : {}) };
@@ -732,7 +748,7 @@ export function QueueRows(props: QueueRowsProps) {
     return <div key={item.id} className="queue-entry" role="listitem">
       <div className="queue-item"><MessageSquareDashed aria-hidden="true" />
         {summary && <Tooltip><TooltipTrigger asChild>
-          <span className="queue-attachment" role="group" id={summaryId} aria-label={summary.label}><Folder aria-hidden="true" /><span className="name">{summary.name}</span>{summary.more && <span className="count">{summary.more}</span>}</span>
+          <span className="queue-attachment" role="group" id={summaryId} aria-label={summary.label}>{summary.pastedText ? <FileText aria-hidden="true" /> : <Folder aria-hidden="true" />}<span className="name">{summary.name}</span>{summary.more && <span className="count">{summary.more}</span>}</span>
         </TooltipTrigger><TooltipContent className="queue-full-list">{summary.items.map((entry, i) => <span key={i} className="queue-tip-item"><b>{entry.name}</b><span>{entry.path}</span></span>)}</TooltipContent></Tooltip>}
         <span className="queue-text" id={textId}>{item.text}</span>
         {props.sendNow && !item.command && <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>

@@ -209,7 +209,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         // The next turn's message comes before its turn.started: an unfinished turn before it was folded.
         if (turn !== null && event.turnId !== turn && !ended.has(turn)) foldCrashed(turn);
         if (event.origin) { push({ kind: "handoffCard", key: `u${event.seq}`, seq: event.seq, origin: event.origin, text: event.text }, event.turnId); continue; }
-        const attachments = (event.attachments ?? []).map((a): SentFile => a.kind === "directory" ? { name: a.name, kind: a.kind, path: a.path } : { name: a.name, size: a.size, kind: a.kind, path: a.path });
+        const attachments = (event.attachments ?? []).map((a): SentFile => a.kind === "directory" ? { name: a.name, kind: a.kind, path: a.path } : { name: a.name, size: a.size, kind: a.kind, path: a.path, ...(a.lines === undefined ? {} : { lines: a.lines }), ...(a.excerpt === undefined ? {} : { excerpt: a.excerpt }) });
         const { preset, skills, body } = splitRequest(event.text, attachments.length);
         const first = !opened.has(event.turnId);
         opened.add(event.turnId);

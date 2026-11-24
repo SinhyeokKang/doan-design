@@ -276,6 +276,7 @@ Each screen's measured values, documented differences and Not verified list are 
 | Older model disclosure | [design/conversation.md](design/conversation.md) |
 | Project skill drawer | [design/conversation.md](design/conversation.md) |
 | Folder attachments | [design/conversation.md](design/conversation.md) |
+| Pasted text attachments | [design/conversation.md](design/conversation.md) |
 | Conversation finished bubble | [design/conversation.md](design/conversation.md) |
 | Read-state failure dot and Retry toast | [design/conversation.md](design/conversation.md) |
 | Background work line and unread prompt | [design/conversation.md](design/conversation.md) |

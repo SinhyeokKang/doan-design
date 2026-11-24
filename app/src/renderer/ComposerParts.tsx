@@ -105,7 +105,7 @@ export function ComposerChips(props: {
     {props.lead}
     {attachments.map((a, index) => {
       const view = attachmentChipView(a, props.homeDirectory), url = props.thumbnails[a.key];
-      const chip = <span className={`attach-chip${view.thumbnail && url ? " image" : ""}${view.problem ? " problem" : ""}`}>
+      const chip = <span aria-description={a.excerpt} className={`attach-chip${view.thumbnail && url ? " image" : ""}${view.problem ? " problem" : ""}`}>
         {view.thumbnail && url ? <span className="thumb" aria-hidden="true"><img src={url} alt="" /></span>
           : <span className="file-icon" aria-hidden="true">{a.status === "checking" ? <span className="doan-spinner" /> : view.problem ? <TriangleAlert /> : view.folder ? <Folder /> : <FileText />}</span>}
         <span className="attach-text"><b>{view.label}</b><small>{view.meta}</small></span>

@@ -28,7 +28,7 @@ function props(patch: Partial<DockedComposerProps> = {}, draft: Partial<DockedDr
     auth: AUTH, picker: PICKER, provider: "claude", effort: null,
     onPickerOpen: () => {}, onPickModel: () => {}, onPickEffort: () => {}, onPickFast: () => {}, onSettings: () => {},
     presets: undefined, suggested: [], onPresetsOpen: () => {}, onPresetsRetry: async () => false,
-    thumbnails: {}, onAttach: () => {}, onFiles: () => {}, onAttachmentRemoved: () => {},
+    thumbnails: {}, onPastedText: async () => false, onAttach: () => {}, onFiles: () => {}, onAttachmentRemoved: () => {},
     turn: "idle", canvasGone: false, queued: [],
     onSend: ok, onQueue: ok, onStop: () => {}, onRemoveQueued: async () => true, playing: PLAYING, ...patch,
   };

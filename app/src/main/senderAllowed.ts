@@ -28,7 +28,7 @@ const mainOnly = new Set([
   // Preset reads for the home (the prototype window's composer has its own entry below).
   "design-skills:list", "design-skills:get",
   // Home attachments (the prototype window's composer has its own entry below).
-  "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:remove", "attachments:recheck", "attachments:release",
+  "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:add-pasted-text", "attachments:remove", "attachments:recheck", "attachments:release",
   // Edit on Home re-issues recorded attachment paths, and agent replies open https links.
   "attachments:fromPaths", "shell:openLink",
   // The canvas page captures an area of the board; the prototype window has no board.
@@ -72,7 +72,7 @@ const mainOnly = new Set([
 // is not widened for it.
 const prototypeComposer = [
   "design-skills:list", "design-skills:get",
-  "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:remove", "attachments:recheck", "attachments:release", "attachments:fromPaths",
+  "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:add-pasted-text", "attachments:remove", "attachments:recheck", "attachments:release", "attachments:fromPaths",
   "shell:openLink",
   "agent-usage:read",
 ];
