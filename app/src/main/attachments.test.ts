@@ -517,18 +517,36 @@ it("enforces the UTF-8 text cap at exactly fifty MiB and removes unsent text", (
   expect(f.store.addPastedText({ text: 1, lines: 1, excerpt: "" })).toEqual({ ok: false, name: "Pasted text", error: "unreadable" });
   f.store.remove({ id: pasted.id }); expect(existsSync(pasted.path)).toBe(false);
 });
-it("keeps sent text through removal and restart, but deletes a restored unsent text draft", () => {
-  const f = fixture(), request = { text: "notes", lines: 1, excerpt: "notes" };
-  const sent = ok(f.store.addPastedText(request)), unsent = ok(f.store.addPastedText(request));
+it("keeps sent text through restart and removing a reissued chip", () => {
+  const f = fixture(), sent = ok(f.store.addPastedText({ text: "notes", lines: 1, excerpt: "notes" }));
   f.store.markSent([{ id: sent.id }]); f.store.consume([{ id: sent.id }]);
   const restarted = new AttachmentStore(f.dir, { thumbnail: () => null, reencode: () => null });
-  restarted.cleanup([unsent.path]);
-  expect(existsSync(sent.path)).toBe(true); expect(existsSync(unsent.path)).toBe(true);
-  const restored = ok(restarted.fromPaths({ paths: [unsent.path], metadata: [{ lines: 1, excerpt: "notes" }] })![0]);
-  restarted.remove({ id: restored.id }); expect(existsSync(unsent.path)).toBe(false);
-  const restoredSent = ok(restarted.fromPaths({ paths: [sent.path] })![0]);
-  restarted.remove({ id: restoredSent.id }); expect(existsSync(sent.path)).toBe(true);
+  restarted.cleanup(); expect(existsSync(sent.path)).toBe(true);
+  const restored = ok(restarted.fromPaths({ paths: [sent.path], metadata: [{ lines: 1, excerpt: "notes" }] })![0]);
+  expect(restored).toMatchObject({ pasted: false, lines: 1, excerpt: "notes" });
+  restarted.remove({ id: restored.id }); expect(existsSync(sent.path)).toBe(true);
 });
+it("never adopts another entry's unsent paste directory when reissuing its path", () => {
+  const f = fixture(), original = ok(f.store.addPastedText({ text: "notes", lines: 1, excerpt: "notes" }));
+  const reissued = ok(f.store.fromPaths({ paths: [original.path] })![0]);
+  expect(reissued.pasted).toBe(false);
+  f.store.remove({ id: reissued.id });
+  expect(existsSync(original.path)).toBe(true);
+  expect(f.store.resolve([{ id: original.id }])).toMatchObject({ ok: true });
+  f.store.remove({ id: original.id }); expect(existsSync(original.path)).toBe(false);
+});
+it.each([false, true])("keeps GIF-prefixed pasted text a file through a symlinked userData path (store exists: %s)", exists => {
+  const f = fixture(), userData = join(f.base, "physical-userData"), alias = join(f.base, "linked-userData");
+  mkdirSync(userData); symlinkSync(userData, alias);
+  const root = join(alias, "nested", "attachments");
+  if (exists) mkdirSync(root, { recursive: true });
+  const store = new AttachmentStore(root, { thumbnail: () => null, reencode: () => null });
+  const pasted = ok(store.addPastedText({ text: "GIF89a\nnotes", lines: 2, excerpt: "GIF89a" }));
+  expect(store.resolve([{ id: pasted.id }])).toMatchObject({ ok: true, records: [{ kind: "file" }] });
+  expect(store.recheck({ ids: [pasted.id] })).toMatchObject([{ ok: true, attachment: { kind: "file", lines: 2, excerpt: "GIF89a" } }]);
+  expect(store.fromPaths({ paths: [pasted.path], metadata: [{ lines: 2, excerpt: "GIF89a" }] })).toMatchObject([{ ok: true, attachment: { kind: "file", lines: 2, excerpt: "GIF89a" } }]);
+});
+
 it("reports a failed text write and removes partial files", () => {
   const f = fixture(); fault.step = "write";
   expect(f.store.addPastedText({ text: "notes", lines: 1, excerpt: "notes" })).toEqual({ ok: false, name: "Pasted text", error: "unreadable" });

@@ -415,14 +415,3 @@ describe("DraftStore discarded starts", () => {
   });
 });
 
-it("lists attachment paths from persisted drafts, queued messages and interrupted starts without reading history", () => {
-  const dir = directory();
-  const message = (path: string) => ({ text: "notes", anchors: [], attachments: [{ name: "pasted-text-x.txt", kind: "file", size: 5, path, lines: 1, excerpt: "notes" }] });
-  writeFileSync(join(dir, "drafts.json"), JSON.stringify({ v: 1,
-    queued: { [A]: [{ itemId: "q", ...message("/queue.txt") }] }, returned: { [A]: { ...message("/draft.txt"), reason: "restarted" } },
-    sending: { [B]: { ...message("/sending.txt"), root: "/repo" } }, starts: { [A]: { ...message("/start.txt"), root: "/repo" } } }));
-  writeFileSync(join(dir, A + ".jsonl"), "unreadable history");
-  const store = new DraftStore(dir);
-  expect(new Set(store.attachmentPaths())).toEqual(new Set(["/queue.txt", "/draft.txt", "/sending.txt", "/start.txt"]));
-  expect(store.take(A)?.attachments[0]).toMatchObject({ lines: 1, excerpt: "notes" });
-});
