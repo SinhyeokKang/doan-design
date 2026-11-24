@@ -159,7 +159,7 @@ The failure's line and buttons differ on purpose: the app says "The frame was re
 
 ### Documented differences from the draft
 
-- **Viewer font.** The draft draws the recipient's system face; the page names Geist first and bundles none (canvas.md 'Canvas row menu and export viewer' 'Viewer font').
+- **Viewer font.** The draft draws the recipient's system face; the page draws the embedded Geist (canvas.md 'Canvas row menu and export viewer' 'Viewer font').
 - **Chevron ink.** The draft's chevron takes the name's subtle ink; the page keeps the app's metadata ink ('Frame name').
 - **Failure scene spacing.** The draft spaces its scene with a 12px gap and lets the line run 550 wide on one line; the page uses the app's problem scene (16 and 24 below the icon and heading, a 560 maximum), so the line wraps to two lines and the actions sit 16 lower.
 - **Fit ground.** As 'Frame prototype': the page's `.pw-stage` takes the inset grey in Fit and the panel stays white; the run box is white under its iframe where the draft draws mock content.
