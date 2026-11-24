@@ -13,7 +13,7 @@
   - `attachments.ts`: `save(bytes, file, name, failed, kind)`로 바꿔 kind를 받게 하고(지금은 `kind: "image"` 고정, 매개변수 이름 `png`), `addPastedText`가 `"file"`로 부른다. 저장 내용은 `\n`으로 맞춘 글(UTF-8)이고, 경로는 `<userData>/attachments/<id>/pasted-text-<ISO>.txt`다. 크기 상한은 기존 50 MB(`MAX_IMAGE_BYTES`).
   - 재검사(`check()`)는 파일 머리의 이미지 시그니처로 kind를 다시 정한다. `GIF89a` 등으로 시작하는 글이 이미지로 바뀌어 전송이 실패하지 않도록, 저장소 안의 `pasted-text-` 항목은 시그니처로 kind를 바꾸지 않는다.
   - 채널 `attachments:add-pasted-text`(기존 `attachments:add-pasted`처럼 kebab-case). `senderAllowed.ts`의 main 집합과 프로토타입 집합에 더하고(빠지면 `handle()`이 조용히 fallback을 돌려준다), `attachmentHandlers.ts`에 `addPastedText(owner, value)`를 더해 `issued(owner, [result])`로 등록한다(빠지면 프로토타입 창이 자기 칩을 지우거나 보내지 못한다). `main/index.ts`에 `handle(...)`을 등록하고, preload 두 곳과 그 테스트(채널 문자열 고정)를 고친다.
-  - 시작 시 정리(`cleanupTargets`)는 지금 `sent` 표시만 보고 대화 기록은 읽지 않는다. 앞으로는 저장된 드래프트와 큐(대화 기록이 아니라 드래프트 저장소)가 가리키는 붙여넣기 폴더도 남긴다. 붙여넣은 이미지에도 같이 적용된다. 드래프트에서 칩을 지우거나 드래프트를 버리면 지금처럼 지운다.
+  - 시작 시 정리(`cleanupTargets`)는 바꾸지 않는다. `sent` 표시만 보고 대화 기록도 드래프트 저장소도 읽지 않는다. 큐·예약·전송 중·돌려받은 메시지는 기록 전에 `sent` 표시를 받으므로 그대로 남는다.
 - **기록 형식**: 첨부 기록(`AttachmentRecord`, `AttachmentInfo`, renderer `AttachmentDraft`)에 붙여넣은 글만 쓰는 선택 필드 `lines`(줄 수)와 `excerpt`(첫 줄 앞 80자)를 더한다. 붙여넣는 순간 renderer가 세고 main이 저장 결과와 함께 돌려준다. 재시작 뒤 `attachments:fromPaths`로 다시 발급할 때도 기록의 `lines`·`excerpt`를 그대로 넘긴다.
 - **에이전트 전달**
   - 경로 descriptor와 fence는 그대로다. `runFence`는 `kind === "directory"`만 빼고, `resolveFencePaths`는 `<userData>/attachments/<id>/` 아래 파일을 모두 다시 연다. 그래서 붙여넣은 글 폴더도 이번 턴에 열린다. Codex는 저장소 전체를 연다.
@@ -34,7 +34,6 @@
 4. `pastedTextLabel(lines)`: "1 line" / "N lines".
 5. main의 `pasteTextRequest(value)`: IPC 입력 검증(문자열, UTF-8 바이트 상한, `lines`·`excerpt` 형태).
 6. `pastedTextAttachments(records, storeRoot)`: Antigravity 블록 대상 고르기. `kind: "file"`, 이름이 `pasted-text-`로 시작하는 `.txt`, 실제 경로가 `storeRoot` 안인 기록만 고른다. 저장소 밖의 같은 이름 파일은 고르지 않는다(첨부가 읽을 범위를 넓히지 않는다, PRODUCT §5 item 1).
-7. `cleanupTargets(entries, kept)`: `sent` 표시가 없고 드래프트·큐가 가리키지 않는 폴더만 고른다.
 
 파일을 읽는 부분(Antigravity 블록 내용)은 순수 함수가 아니다. `imageBlock`처럼 `O_NOFOLLOW`, 일반 파일만, 크기 상한으로 읽는 비동기 함수로 둔다.
 
@@ -47,7 +46,6 @@
 
 - ARCHITECTURE §1 'Conventions'·`doan check` 규칙 변경 없음.
 - PRODUCT §5 item 1 'Attachments'의 "only a pasted image without a path and a canvas capture are saved"와 "Doan passes local paths and copies nothing"이 바뀐다. 기준 이상의 붙여넣은 글도 저장하고, Antigravity에는 내용을 함께 보낸다. 구현 뒤 마지막 작업에서 고친다.
-- ARCHITECTURE §7 'Attachments'의 "At launch main removes only paste directories without that marker, never reading conversation history"가 바뀐다. 드래프트 저장소는 읽고, 대화 기록은 여전히 읽지 않는다.
 - fence(ARCHITECTURE §7 'Fence')는 경로 목록을 넓히지 않는다. `fence.ts`, `prepare.ts`, `attachments.ts`의 "pasted-image directories" 주석은 붙여넣은 글도 포함하도록 고친다.
 
 ## postmortem에서 가져온 함정

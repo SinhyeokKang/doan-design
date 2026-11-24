@@ -14,6 +14,9 @@
 - 작업 1·2는 한 배치(A)로 묶는다. 작업 1의 main 쪽 순수 함수(`pasteTextRequest`, `pastedTextAttachments`, `cleanupTargets`)가 작업 2의 파일에 있고, 배치를 나눠도 차례로 돌기 때문이다. 커밋은 tasks의 커밋 경계대로 나눈다(conductor 판단 — tasks.md).
 - `/design-sync`는 작업 3을 구현한 워커(B)가 리뷰 수정 뒤에 한다. 구현 맥락이 필요하다(conductor 판단 — 이전 orch 관행).
 - 작업 6(문서 승격)과 최종 게이트는 conductor가 통합 브랜치에서 한다(conductor 판단 — orchestrate §4·§5).
+- 재시작 수명: 큐 시점의 `sent` 표시 규칙을 그대로 둔다. 큐·예약·전송 중·돌려받은 메시지는 기록 전에 이미 `sent` 표시를 받으므로, 시작 시 정리는 드래프트 저장소를 읽지 않고 `fromPaths`도 폴더를 다시 맡지 않는다. 복원한 칩을 지워도 파일이 남는 점은 BACKLOG 참조 카운트 한계로 받아들인다. spec 완료 조건 8, design, tasks를 이에 맞게 고쳤다(사용자 결정, RA 🟡2).
+- 첫 줄이 빈 글의 툴팁은 spec대로 첫 줄(빈 문자열)을 쓴다(conductor 판단 — spec 완료 조건 4, RA D3).
+- 저장소 루트를 정규화한다. 기본 userData가 정규화돼 있어도 수정이 값싸고 격리 실행이 링크 경로를 쓴다(conductor 판단 — RA 🔴1·D2).
 - design.md 'PoC 의존'의 세 가정이 작업 5에서 깨지면 그 공급자를 어떻게 할지 사용자에게 묻는다(design.md).
 
 ## 배치
@@ -37,4 +40,6 @@
 
 ## 리뷰·검증 기록
 
-(진행하며 적는다)
+- run `run_cf06617624ea`.
+- A 1차: 워커 `ctx_1d27c7a77400`(Codex sol high), 커밋 `c045207e4`..`1e7031a6c`. 워커 보고로는 전체 테스트 15,383개, `typecheck`, `lint`가 통과했다.
+- RA: 리뷰어 `ctx_859ac71c9bb1`(Sonnet high)가 🔴1 🟡2 ⚪5를 냈다. 🔴1: 저장소 루트를 정규화하지 않아 링크 userData에서 GIF 시그니처 글을 재검사하면 `not_found`가 된다. 🟡1: `fromPaths`가 다른 항목의 폴더를 다시 맡는다. 🟡2: `kept`·폴더 다시 맡기가 실제로 하는 일이 없다. 확인한 것: IPC 허용 목록, 50 MB 상한, Antigravity 블록에는 문제가 없다. 수정 지시: 🔴1, 🟡1·2(결정에 따라 코드 제거), ⚪1(손상된 메타데이터는 버리고 재발급), ⚪4(주석). ⚪2·3·5는 넘긴다(design 결정 또는 기존 이미지와 같은 패턴).
