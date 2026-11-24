@@ -74,6 +74,7 @@
   - `paste-overview`: Overview의 보낸 말풍선, 큐 행, 복원한 드래프트 칩.
   - `paste-states`: 상태 타일. Checking, "1 line" / "N lines", 줄 수 없는 예전 기록, Moved or deleted, 한도·50 MB·저장 실패 문구.
 - 캔버스 패널과 프로토타입 창은 Overview와 같은 `DockedComposer`라 따로 그리지 않는다.
+- 사용자가 앱에서 초안을 확인하고 확정했다. 상태 타일의 리뷰 주석(라벨·설명)은 앱 UI 타일 밖에 둔다.
 
 ## 디자인 프리셋
 
