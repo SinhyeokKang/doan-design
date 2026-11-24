@@ -25,9 +25,9 @@
 4. 칩은 파일 아이콘, "Pasted text", 줄 수("1 line" / "N lines")를 보여 주고, 툴팁과 접근성 설명은 글의 첫 줄 앞 80자다. 컴포저, 재시작 뒤 복원한 드래프트, Edit로 다시 보내기, 큐 행, 보낸 말풍선에서 모두 같다. 저장하는 동안은 다른 첨부처럼 Checking 칩이 잠깐 보인다(깜빡임은 예상 동작).
 5. 보내지 않고 칩을 지우면 저장한 파일도 지운다. 지우기 버튼 이름은 "Remove pasted text"다.
 6. 거절과 실패는 다른 첨부처럼 그 컴포저 아래에 한 줄로 알린다.
-   - 첨부가 이미 10개: "Only 10 attachments can be added, so the pasted text wasn't added. Remove one and paste again."
-   - 50 MB 초과: "This text is over 50 MB, so it wasn't attached."
-   - 저장 실패: "Couldn't save the pasted text. Paste it again."
+   - 첨부가 이미 10개: "Only 10 attachments can be added, so the pasted text wasn’t added. Remove one and paste again."
+   - 50 MB 초과: "This text is over 50 MB, so it wasn’t attached."
+   - 저장 실패: "Couldn’t save the pasted text. Paste it again."
    - 저장한 파일이 사라짐: "Pasted text was moved or deleted. Remove it, or paste the text again."
 7. 보낸 메시지에서 에이전트는 붙여넣은 글의 경로를 받고, 이번 턴의 fence가 그 폴더 읽기를 연다. Antigravity는 경로와 함께 내용을 텍스트 블록으로도 받는다(256 KB까지, 넘으면 경로만). Claude Code, Codex, Cursor, Copilot, Antigravity의 실제 턴 응답이 붙여넣은 글의 고유 문자열을 인용한다. 로그인이 없는 공급자는 미확인으로 보고한다.
 8. 수명:
