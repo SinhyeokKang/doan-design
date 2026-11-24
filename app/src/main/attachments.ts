@@ -1,6 +1,6 @@
 import { closeSync, constants, fstatSync, mkdirSync, openSync, readdirSync, readSync, realpathSync, rmSync, writeFileSync, lstatSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { basename, extname, isAbsolute, join } from "node:path";
+import { basename, extname, isAbsolute, join, relative, sep } from "node:path";
 import type { AttachmentRecord } from "./conversation/types";
 
 // Attachments are local paths the agent reads with its own tools (Orca 1.4.243
@@ -61,10 +61,25 @@ function readChecked(path: string, expected: { kind: AttachmentRecord["kind"]; d
   } finally { closeSync(fd); }
 }
 // Directories of pasted images a start never took; a sent one stays with its conversation.
-export function cleanupTargets(entries: readonly { name: string; directory: boolean; sent: boolean }[]): string[] {
-  return entries.filter(e => e.directory && ID.test(e.name) && !e.sent).map(e => e.name);
+export function cleanupTargets(entries: readonly { name: string; directory: boolean; sent: boolean }[], kept: ReadonlySet<string> = new Set()): string[] {
+  return entries.filter(e => e.directory && ID.test(e.name) && !e.sent && !kept.has(e.name)).map(e => e.name);
 }
 export function pastedName(at: Date): string { return `pasted-${at.toISOString().replace(/[:.]/g, "-")}.png`; }
+export function pastedTextName(at: Date): string { return `pasted-text-${at.toISOString().replace(/[:.]/g, "-")}.txt`; }
+export interface PastedTextMeta { lines: number; excerpt: string }
+export function pasteTextRequest(value: unknown): ({ text: string } & PastedTextMeta) | null {
+  if (typeof value !== "object" || value === null || Object.keys(value).length !== 3 || !("text" in value) || !("lines" in value) || !("excerpt" in value)) return null;
+  if (typeof value.text !== "string" || !value.text.length || typeof value.lines !== "number" || !Number.isSafeInteger(value.lines) || value.lines < 1 || typeof value.excerpt !== "string" || /[\r\n]/.test(value.excerpt) || Array.from(value.excerpt).length > 80) return null;
+  const text = value.text.replace(/\r\n?/g, "\n");
+  return Buffer.byteLength(text, "utf8") <= MAX_IMAGE_BYTES ? { text, lines: value.lines, excerpt: value.excerpt } : null;
+}
+export function pastedTextAttachments(records: readonly AttachmentRecord[], storeRoot: string): AttachmentRecord[] {
+  return records.filter(record => {
+    const path = relative(storeRoot, record.path);
+    return record.kind === "file" && record.name.startsWith("pasted-text-") && record.name.endsWith(".txt") &&
+      path !== "" && path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
+  });
+}
 // The renderer knows a capture chip by this prefix (homeComposer.ts isCanvasCapture).
 export function capturedName(at: Date): string { return `canvas-capture-${at.toISOString().replace(/[:.]/g, "-")}.png`; }
 // Smallest side of a capture, in CSS px; the renderer clips its rectangle to the same minimum (canvasCapture.ts).

@@ -639,6 +639,19 @@ export function slashQuery(text: string, dismissed: boolean, names: ReadonlySet<
 
 // Attachments
 
+export function pastedTextMeta(text: string): { lines: number; excerpt: string } {
+  const normalized = text.replace(/\r\n?/g, "\n");
+  const lines = normalized.replace(/\n$/, "").split("\n").length;
+  return { lines, excerpt: Array.from(normalized.split("\n", 1)[0] ?? "").slice(0, 80).join("") };
+}
+export function pastedTextLabel(lines: number): string { return `${lines} ${lines === 1 ? "line" : "lines"}`; }
+export function pasteAsAttachment(text: string, state: { acceptsAttachments: boolean; commandFirst: boolean; attached: number; limit: number }): "field" | "attach" | "limit" {
+  if (!state.acceptsAttachments || state.commandFirst || !text.trim()) return "field";
+  const normalized = text.replace(/\r\n?/g, "\n");
+  if (Array.from(normalized).length < 1000 && pastedTextMeta(normalized).lines < 10) return "field";
+  return state.attached >= state.limit ? "limit" : "attach";
+}
+
 // Main enforces the same limits; this keeps the refusal beside the chips without a round trip.
 export function attachmentLimit(existing: number, items: readonly { pasted: boolean; size: number }[]): { accept: number[]; notices: string[] } {
   const accept: number[] = [];
