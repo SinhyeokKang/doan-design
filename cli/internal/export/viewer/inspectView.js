@@ -405,7 +405,11 @@ function mountViewerInspector(canvas, board, popupOpenNow, onSelection) {
         changed();
       } else if (message.type === "inspect-hand-hit") {
         const done = message.probe === pressProbe ? onPressHit : message.probe === atProbe ? onAtHit : null;
-        if (message.probe === pressProbe) onPressHit = null;
+        if (message.probe === pressProbe) {
+          onPressHit = null;
+          // A press off the text pans: the canvas's dragging range needs its focus again.
+          if (!message.hit) handDrag = false;
+        }
         done?.(message.hit);
       } else if (message.type === "inspect-press") {
         closeMenu(false);

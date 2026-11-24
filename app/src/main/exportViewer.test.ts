@@ -1619,6 +1619,40 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     expect(await copiedText(frame)).toBe("");
   });
 
+  // The page takes a dragging range without the canvas's focus only through a Hand press on text. A canvas is untrusted:
+  // after a pan its unprompted dragging range would paint and hold the tool keys.
+  test("after a Hand pan the page takes a dragging range only from a focused canvas", async () => {
+    const frame = await openCanvas(handText, 320);
+    const canvas = (await (await frame.locator("#canvas").elementHandle())!.contentFrame())!;
+    await canvas.evaluate(() => {
+      const view = window as Window & { probeEpoch?: number };
+      view.probeEpoch = -1;
+      addEventListener("message", event => { if (event.data?.type === "inspect-mode") view.probeEpoch = event.data.epoch; });
+    });
+    await showInspector(frame);
+    await frame.locator('[data-tool="hand"]').click();
+    const span = frame.frameLocator("#canvas").locator("span");
+    const box = (await span.boundingBox())!;
+    const mouse = frame.page().mouse;
+    const below = { x: box.x + 20, y: box.y + 300 };
+    const top = await frame.locator("#board").evaluate(el => el.scrollTop);
+    await mouse.move(below.x, below.y);
+    await mouse.down();
+    try {
+      await mouse.move(below.x, below.y - 120, { steps: 6 });
+    } finally { await mouse.up(); }
+    await expect.poll(() => frame.locator("#board").evaluate(el => el.scrollTop)).toBeGreaterThan(top + 60);
+    expect(await frame.evaluate(() => document.activeElement === document.getElementById("canvas"))).toBe(false);
+    await canvas.evaluate(() => {
+      const epoch = (window as Window & { probeEpoch?: number }).probeEpoch;
+      parent.postMessage({ type: "inspect-text", epoch, seq: 1e9, dragging: true, rects: [{ x: 0, y: 0, width: 80, height: 20 }], text: "" }, "*");
+      // A later message the page does take, so the check below runs after the range was judged.
+      parent.postMessage({ type: "inspect-marks", epoch, seq: 1e9 + 1, selected: { x: 0, y: 0, width: 40, height: 40 }, hover: null, alt: false }, "*");
+    });
+    await frame.locator("#selected-mark").waitFor();
+    expect(await frame.locator(".text-rect").count()).toBe(0);
+  });
+
   test("switching to Hand keeps a range made in Select", async () => {
     const frame = await openCanvas(handText, 320);
     const span = frame.frameLocator("#canvas").locator("span");
