@@ -2,8 +2,8 @@
    needs no other file (a canvas export is one file and makes no requests): tokens from
    app/src/renderer/tokens.css, buttons from ds/controls.css, menus and notices from
    ds/surfaces.css, the header, the panel and the tools row from styles.css (.ov-head,
-   .doan-canvas-*). The class names are the app's. Only the roles this page reads are copied, one light theme. Geist is not bundled, so the
-   type family falls back to the system stack the token already names. */
+   .doan-canvas-*). The class names are the app's. Only the roles this page reads are copied, one light theme. Geist comes from the
+   page's font style (shell.html FONT). */
 
 :root {
   color-scheme: light;

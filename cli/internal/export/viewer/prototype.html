@@ -13,6 +13,7 @@
             without JavaScript.
     META    the group as JSON, {"start": <id>, "frames": [{"id", "title"}]} with each frame's title,
             else its id: < > & written as escapes, so it cannot end its script element.
+    FONT    the app's Geist with its license notice, the same text as in shell.html.
     STYLE   prototype.css.
     SCRIPT  prototype.js, wrapped in a function so its names stay local. At the end of the body, so
             the holder and the line are there when it runs. It may not contain "</script" or an HTML
@@ -31,6 +32,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{NAME}} — Prototype</title>
+<style id="doan-font">{{FONT}}</style>
 <style>
 {{STYLE}}
 </style>

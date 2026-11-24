@@ -25,7 +25,7 @@ type PrototypeData struct {
 	Refused []struct{ ID, Reason string }
 	// Groups are the "frames" values of the prototype page's META, as JSON text, one per link group.
 	Groups []string
-	// Page is the prototype page with every placeholder but NAME, META and SRCDOC filled, cut at them.
+	// Page is the prototype page with every placeholder but NAME, FONT, META and SRCDOC filled, cut at them.
 	Page []string
 	// Isolate is the script that replaces the measure script in the canvas.
 	Isolate string
@@ -35,10 +35,12 @@ type PrototypeData struct {
 	External int
 }
 
-// GeneralPage is what a browser reads from a general Export page: the board iframe's srcdoc and the doan-meta
-// JSON, both decoded.
+// GeneralPage is what a browser reads from a general Export page: the board iframe's srcdoc, the font style's text
+// and the doan-meta JSON, all decoded.
 type GeneralPage struct {
 	Srcdoc string
+	// Font is the text of the page's <style id="doan-font">, which a prototype file carries as its own.
+	Font string
 	// MetaJSON is the doan-meta script's text, which the viewer's own code parses.
 	MetaJSON string
 	Meta     struct {
@@ -56,7 +58,7 @@ func ReadGeneral(page []byte) (GeneralPage, error) {
 	}
 	var g GeneralPage
 	var meta string
-	iframes, metas := 0, 0
+	iframes, metas, fonts := 0, 0, 0
 	var visit func(*html.Node)
 	visit = func(n *html.Node) {
 		if n.Type == html.ElementNode {
@@ -67,6 +69,9 @@ func ReadGeneral(page []byte) (GeneralPage, error) {
 			case n.Data == "script" && attr(n, "id") == "doan-meta" && n.FirstChild != nil:
 				metas++
 				meta = n.FirstChild.Data
+			case n.Data == "style" && attr(n, "id") == "doan-font" && n.FirstChild != nil:
+				fonts++
+				g.Font = n.FirstChild.Data
 			}
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
@@ -74,7 +79,7 @@ func ReadGeneral(page []byte) (GeneralPage, error) {
 		}
 	}
 	visit(doc)
-	if iframes != 1 || metas != 1 {
+	if iframes != 1 || metas != 1 || fonts != 1 {
 		return GeneralPage{}, errors.New("not a general Export page")
 	}
 	if err := json.Unmarshal([]byte(meta), &g.Meta); err != nil {
@@ -106,8 +111,8 @@ func StitchPrototype(page []byte, frame string) ([]byte, error) {
 	if p == nil {
 		return nil, errors.New("the page carries no prototype data")
 	}
-	if len(p.Page) != 5 {
-		return nil, errors.New("the prototype page is not cut in five")
+	if len(p.Page) != 6 {
+		return nil, errors.New("the prototype page is not cut in six")
 	}
 	for _, r := range p.Refused {
 		if r.ID == frame {
@@ -132,7 +137,7 @@ func StitchPrototype(page []byte, frame string) ([]byte, error) {
 		}
 		canvas := string(utf16.Decode(units[:at])) + p.Isolate + string(utf16.Decode(units[at+n:]))
 		escaped := strings.NewReplacer("&", "&amp;", `"`, "&quot;").Replace(canvas)
-		return []byte(p.Page[0] + f.Name + p.Page[1] + f.Start + p.Page[2] + p.Groups[f.Group] + p.Page[3] + escaped + p.Page[4]), nil
+		return []byte(p.Page[0] + f.Name + p.Page[1] + g.Font + p.Page[2] + f.Start + p.Page[3] + p.Groups[f.Group] + p.Page[4] + escaped + p.Page[5]), nil
 	}
 	return nil, errors.New("not in the canvas file")
 }
