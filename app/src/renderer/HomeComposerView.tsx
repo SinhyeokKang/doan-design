@@ -25,7 +25,7 @@ import { dropAttachment, restoreStartDraft } from "./conversationStore";
 import { cardRow, chipClass, groupProjects } from "./homeCards";
 import { generationOf, modelsKey } from "./dockedSupport";
 import {
-  pasteAsAttachment, pastedTextMeta, pastedTextLabel, MAX_ATTACHMENTS, followDrawerHighlight, type PresetRow, attachmentChipView, attachmentLimit, MAX_PASTED_BYTES, attachRefusal, chosenAttachments, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider,
+  pasteAsAttachment, pastedTextMeta, pastedTextLabel, MAX_ATTACHMENTS, followDrawerHighlight, type PresetRow, attachmentChipView, attachmentLimit, MAX_PASTED_BYTES, attachRefusal, isPastedText, chosenAttachments, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider,
   fixedPreference, greetingText, lengthCounter, markRefused, modelOption, modelPickerView, presetListView, presetPlaceholder, readyAttachment,
   rootForProject, selectableProvider, sendAvailability, slashKey, slashQuery, startErrorView, suggestedPresets, suggestedPrompts, TEXT_LIMIT,
   type AttachmentDraft, type ModelsState, type NewConversationDefault, type PresetListReply, type PresetSummary,
@@ -381,8 +381,9 @@ export function HeroComposer(props: HeroComposerProps) {
         if (at === -1) { if (result?.ok) void window.doan.removeAttachment(result.attachment.id); return; }
         if (!result || !result.ok) {
           const name = result ? result.name : next[at]!.name;
+          const kind = isPastedText(next[at]!) ? "pastedText" : "file";
           next = next.filter(a => a.key !== key);
-          notices.push(attachRefusal(result?.ok === false ? result.error : "unreadable", name));
+          notices.push(attachRefusal(result?.ok === false ? result.error : "unreadable", name, kind));
           return;
         }
         const { attachment } = result;
@@ -466,9 +467,9 @@ export function HeroComposer(props: HeroComposerProps) {
     const decision = pasteAsAttachment(text, { acceptsAttachments: true, commandFirst: isCommand, attached: memory.current.attachments.length, limit: MAX_ATTACHMENTS });
     if (decision === "field") return;
     event.preventDefault();
-    if (decision === "limit") { setNotice({ text: attachRefusal("limit", "Pasted text"), retry: false }); return; }
+    if (decision === "limit") { setNotice({ text: attachRefusal("limit", "Pasted text", "pastedText"), retry: false }); return; }
     const normalized = text.replace(/\r\n?/g, "\n");
-    if (new TextEncoder().encode(normalized).byteLength > MAX_PASTED_BYTES) { setNotice({ text: attachRefusal("too_large", "Pasted text"), retry: false }); return; }
+    if (new TextEncoder().encode(normalized).byteLength > MAX_PASTED_BYTES) { setNotice({ text: attachRefusal("too_large", "Pasted text", "pastedText"), retry: false }); return; }
     const key = crypto.randomUUID(), meta = pastedTextMeta(normalized);
     update(current => ({ attachments: [...current.attachments, { key, name: "Pasted text", kind: "file", pasted: true, status: "checking", ...meta }] }));
     void window.doan.addPastedText(normalized, meta).catch(() => null).then(result => {

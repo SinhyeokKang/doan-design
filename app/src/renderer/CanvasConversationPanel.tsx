@@ -427,7 +427,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
     if (fixed) return false;
     const at = key;
     // The store reserves the place immediately; a second paste can arrive before the next render.
-    if ((store.drafts.get(at) ?? EMPTY_DRAFT).attachments.length >= MAX_ATTACHMENTS) { report(attachRefusal("limit", "Pasted text")); return false; }
+    if ((store.drafts.get(at) ?? EMPTY_DRAFT).attachments.length >= MAX_ATTACHMENTS) { report(attachRefusal("limit", "Pasted text", "pastedText")); return false; }
     const chip = crypto.randomUUID();
     addChips(at, [{ key: chip, name: "Pasted text", kind: "file", pasted: true, status: "checking", ...meta }]);
     const result = await calls.addPastedText(text, meta).catch(() => null);

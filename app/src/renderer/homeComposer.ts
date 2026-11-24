@@ -683,18 +683,19 @@ export function chosenAttachments<R extends AttachmentResult>(existing: number, 
   };
 }
 const LIMIT_TEXT = `Only ${MAX_ATTACHMENTS} attachments can be added.`;
-const REFUSALS: Record<string, (name: string) => string> = {
+type AttachmentRefusalKind = "file" | "pastedText";
+const REFUSALS: Record<string, (name: string, kind: AttachmentRefusalKind) => string> = {
   not_found: name => `${name} wasn’t found, so it wasn’t attached.`,
   not_file: name => `${name} isn’t a file or folder, so it wasn’t attached.`,
   not_image: name => `${name} isn’t a readable image, so it wasn’t attached.`,
-  unreadable: name => name === "Pasted text" ? "Couldn’t save the pasted text. Paste it again." : `${name} couldn’t be read, so it wasn’t attached.`,
-  too_large: name => name === "Pasted text" ? "This text is over 50 MB, so it wasn’t attached." : "This image is over 50 MB, so it wasn’t attached.",
-  limit: name => name === "Pasted text" ? `Only ${MAX_ATTACHMENTS} attachments can be added, so the pasted text wasn’t added. Remove one and paste again.` : LIMIT_TEXT,
+  unreadable: (name, kind) => kind === "pastedText" ? "Couldn’t save the pasted text. Paste it again." : `${name} couldn’t be read, so it wasn’t attached.`,
+  too_large: (_name, kind) => kind === "pastedText" ? "This text is over 50 MB, so it wasn’t attached." : "This image is over 50 MB, so it wasn’t attached.",
+  limit: (_name, kind) => kind === "pastedText" ? `Only ${MAX_ATTACHMENTS} attachments can be added, so the pasted text wasn’t added. Remove one and paste again.` : LIMIT_TEXT,
   // An empty canvas capture or one main could not save: the file name means nothing.
   capture_failed: () => "Couldn’t capture the canvas. Try again.",
 };
 // Why main refused one item of an Attach, drop or paste; an unknown code reads as unreadable.
-export function attachRefusal(error: string, name: string): string { return (REFUSALS[error] ?? REFUSALS.unreadable!)(name); }
+export function attachRefusal(error: string, name: string, kind: AttachmentRefusalKind = "file"): string { return (REFUSALS[error] ?? REFUSALS.unreadable!)(name, kind); }
 
 // A chip for what main checked, or for a recorded path main could not issue again (a request read back into a draft).
 export function readyAttachment(key: string, info: AttachmentInfo): AttachmentDraft {
@@ -726,7 +727,13 @@ export function markRefused(attachments: readonly AttachmentDraft[], missing: re
 // main writes a canvas capture as a paste named canvas-capture-<time>.png (attachments.ts capturedName); AttachmentInfo has no
 // field for it, so a draft chip is known by this name. A path attachment with the same name has pasted false.
 function isCanvasCapture(a: AttachmentDraft): boolean { return a.pasted && a.name.startsWith("canvas-capture-"); }
-function isPastedText(a: { name: string; kind: string }): boolean { return a.kind === "file" && (a.name === "Pasted text" || a.name.startsWith("pasted-text-")); }
+export function isPastedText(a: { name: string; kind: string; pasted?: boolean; status?: string; lines?: number; excerpt?: string }): boolean {
+  if (a.kind !== "file") return false;
+  if (a.pasted && a.status === "checking" && a.name === "Pasted text") return true;
+  // Recorded pasted text always had metadata; ordinary path attachments have neither that signal nor pasted ownership.
+  return /^pasted-text-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.txt$/.test(a.name)
+    && (a.pasted === true || a.lines !== undefined || a.excerpt !== undefined);
+}
 function pastedLabel(a: AttachmentDraft): string { return isPastedText(a) ? "Pasted text" : isCanvasCapture(a) ? "Canvas capture" : "Pasted image"; }
 
 function problemNotice(a: AttachmentDraft): string {
@@ -773,9 +780,9 @@ export function sentFileView(file: AttachmentRecord, home: string | null): { lab
 export function queueAttachmentSummary(files: readonly AttachmentRecord[], home: string | null): { name: string; more: string | null; items: { name: string; path: string }[]; label: string; pastedText?: true } | null {
   const first = files.find(file => file.kind === "directory" || isPastedText(file));
   if (!first) return null;
-  const name = (file: AttachmentRecord) => isPastedText(file) ? ["Pasted text", file.lines === undefined ? null : pastedTextLabel(file.lines)].filter(Boolean).join(" · ") : file.name;
+  const name = (file: AttachmentRecord) => isPastedText(file) ? ["Pasted text", file.lines === undefined ? null : pastedTextLabel(file.lines)].filter(Boolean).join(", ") : file.name;
   const items = files.map(file => ({ name: name(file), path: isPastedText(file) ? file.excerpt ?? "" : displayPath(file.path, home) }));
-  return { name: name(first), ...(isPastedText(first) ? { pastedText: true as const } : {}), more: files.length > 1 ? `+${files.length - 1}` : null, items, label: `Attachments: ${items.map(item => `${item.name} — ${item.path}`).join("; ")}` };
+  return { name: isPastedText(first) ? "Pasted text" : first.name, ...(isPastedText(first) ? { pastedText: true as const } : {}), more: files.length > 1 ? `+${files.length - 1}` : null, items, label: `Attachments: ${items.map(item => `${item.name} — ${item.path}`).join("; ")}` };
 }
 
 // Chips in DOM order (attachments, then the preset). Backspace takes the preset first, then the last attachment;

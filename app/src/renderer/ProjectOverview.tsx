@@ -270,7 +270,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const addPastedText = async (text: string, meta: { lines: number; excerpt: string }, report: (text: string) => void): Promise<boolean> => {
     const at = key;
     // The store reserves the place immediately; a second paste can arrive before the next render.
-    if ((run.drafts.get(at) ?? EMPTY_DRAFT).attachments.length >= MAX_ATTACHMENTS) { report(attachRefusal("limit", "Pasted text")); return false; }
+    if ((run.drafts.get(at) ?? EMPTY_DRAFT).attachments.length >= MAX_ATTACHMENTS) { report(attachRefusal("limit", "Pasted text", "pastedText")); return false; }
     const chip = crypto.randomUUID();
     addChips(at, [{ key: chip, name: "Pasted text", kind: "file", pasted: true, status: "checking", ...meta }]);
     const result = await window.doan.addPastedText(text, meta).catch(() => null);

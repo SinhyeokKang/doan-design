@@ -10,7 +10,7 @@ import { asksPerson, stripState } from "./conversationStrip";
 import { mergeEvents } from "../main/conversation/state";
 import { draftKey, EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
 import { EMPTY_QUESTION_DRAFT, questionDraft, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
-import { attachRefusal, issuedAttachment, readyAttachment, recordedAttachment, splitRequest, type AttachmentDraft } from "./homeComposer";
+import { attachRefusal, isPastedText, issuedAttachment, readyAttachment, recordedAttachment, splitRequest, type AttachmentDraft } from "./homeComposer";
 import type { SendingMessage, SentFile } from "./threadItems";
 import { newerStage } from "./turnStatus";
 import { messageLine } from "../main/conversation/messageText";
@@ -313,7 +313,7 @@ export class ConversationStore {
       const chip = draft.attachments.find(a => a.key === key)!;
       if (!result || !result.ok) {
         drafts.set(at, { ...draft, attachments: draft.attachments.filter(a => a.key !== key) });
-        notices.push(attachRefusal(result ? result.error : "unreadable", result ? result.name : chip.name));
+        notices.push(attachRefusal(result ? result.error : "unreadable", result ? result.name : chip.name, isPastedText(chip) ? "pastedText" : "file"));
         return;
       }
       const { attachment } = result;

@@ -376,9 +376,9 @@ export function DockedComposer(props: DockedComposerProps) {
     const decision = pasteAsAttachment(text, { acceptsAttachments: !props.fixed, commandFirst, attached: draft.attachments.length, limit: MAX_ATTACHMENTS });
     if (decision === "field") return;
     event.preventDefault();
-    if (decision === "limit") { reportFor(key)(attachRefusal("limit", "Pasted text")); return; }
+    if (decision === "limit") { reportFor(key)(attachRefusal("limit", "Pasted text", "pastedText")); return; }
     const normalized = text.replace(/\r\n?/g, "\n");
-    if (new TextEncoder().encode(normalized).byteLength > MAX_PASTED_BYTES) { reportFor(key)(attachRefusal("too_large", "Pasted text")); return; }
+    if (new TextEncoder().encode(normalized).byteLength > MAX_PASTED_BYTES) { reportFor(key)(attachRefusal("too_large", "Pasted text", "pastedText")); return; }
     const meta = pastedTextMeta(normalized);
     void props.onPastedText(normalized, meta, reportFor(key)).then(ready => {
       if (ready && shownKey.current === key) {
