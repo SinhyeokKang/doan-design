@@ -47,6 +47,7 @@ beforeEach(() => {
     onAgentAuth: vi.fn(() => () => {}), listConversationModels: vi.fn(async () => ({ models: [] })), designSkills: { list: vi.fn(async () => LISTED) } as never,
     addAttachmentFiles: vi.fn(async (files: File[]) => files.map(file => ({ ok: true, attachment: { id: `id-${file.name}`, name: file.name, size: file.size, kind: "file", path: `/Users/ada/${file.name}`, pasted: false } }))),
     addPastedImage: vi.fn(async () => ({ ok: true, attachment: { id: "pasted", name: "pasted.png", size: 10, kind: "image", path: "/u/pasted.png", pasted: true } })),
+    addPastedText: vi.fn(async (_text: string, meta: { lines: number; excerpt: string }) => ({ ok: true, attachment: { id: "text-id", name: "pasted-text-now.txt", kind: "file", path: "/u/pasted-text-now.txt", size: 1000, pasted: true, ...meta } })),
     removeAttachment: vi.fn(async () => true), chooseAttachments: vi.fn(async () => []), addDroppedFiles: vi.fn(async () => {}), addProjects: vi.fn(),
     // Pasted test files are page-made (no disk path) unless a test says otherwise.
     droppedPath: vi.fn(() => null),
@@ -181,7 +182,7 @@ test("Cmd+V: text pastes as text, Finder files attach by path, an image alone at
   expect(pasteAction("brief.pdf", [{ name: "brief.pdf", type: "application/pdf" }])).toBe("files");
   expect(pasteAction("", [{ name: "image.png", type: "image/png" }])).toBe("files");
   const { box, render } = setup();
-  const text = { preventDefault: vi.fn(), clipboardData: { files: [], getData: () => "Hello" } };
+  const text = { preventDefault: vi.fn(), clipboardData: { files: [], types: ["text/plain"], getData: () => "Hello" } };
   call(field(render()), "onPaste", text);
   expect(text.preventDefault).not.toHaveBeenCalled();
   const finder = new File(["x"], "brief.pdf", { type: "application/pdf" });
@@ -1130,4 +1131,102 @@ test.each([
   expect(send.disabled).toBeUndefined();
   expect(find(tree, item => item.id === send["aria-describedby"]).children).toBe(reason);
   expect(sendTip(tree)).toBe(reason);
+});
+
+
+const pastedTextEvent = (text = "x".repeat(1000), types: string[] = ["text/plain"]) => ({
+  preventDefault: vi.fn(), clipboardData: { files: [], types, getData: (type: string) => type === "text/plain" ? text : "chip data" },
+});
+function pasteHome(memory: Partial<ComposerMemory> = {}) {
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  const setupResult = setup(memory);
+  return { ...setupResult, render: mount(setupResult.props, vi.fn()).tree };
+}
+
+test("long pasted text keeps the selected field text, checks a file chip, blocks Send, then announces its lines", async () => {
+  let saved!: (result: unknown) => void;
+  doan.addPastedText!.mockReturnValueOnce(new Promise(resolve => { saved = resolve; }));
+  const { box, render, start } = pasteHome({ text: "Keep this selected request" });
+  const event = pastedTextEvent("Checkout spec\r\n" + "x".repeat(1000));
+  call(field(render()), "onPaste", event);
+  expect(event.preventDefault).toHaveBeenCalledOnce();
+  expect(box.current.text).toBe("Keep this selected request");
+  expect(box.current.attachments).toEqual([expect.objectContaining({ name: "Pasted text", kind: "file", pasted: true, status: "checking", lines: 2, excerpt: "Checkout spec" })]);
+  call(field(render()), "onKeyDown", key("Enter"));
+  expect(start).not.toHaveBeenCalled();
+  expect(doan.addPastedText).toHaveBeenCalledWith("Checkout spec\n" + "x".repeat(1000), { lines: 2, excerpt: "Checkout spec" });
+  saved({ ok: true, attachment: { id: "text-id", name: "pasted-text-now.txt", kind: "file", path: "/u/pasted-text-now.txt", size: 1000, pasted: true, lines: 2, excerpt: "Checkout spec" } });
+  await vi.waitFor(() => expect(box.current.attachments[0]?.status).toBe("ready"));
+  expect(render().some(props => props.role === "status" && props.children === "Pasted text attached, 2 lines")).toBe(true);
+  expect(render().some(props => props["aria-label"] === "Remove pasted text")).toBe(true);
+  expect(render().some(props => props["aria-description"] === "Checkout spec")).toBe(true);
+  call(field(render()), "onPaste", pastedTextEvent("Checkout spec\n" + "x".repeat(1000)));
+  await vi.waitFor(() => expect(box.current.attachments.filter(a => a.status === "ready")).toHaveLength(2));
+  expect(render().some(props => props.role === "status" && props.children === "Pasted text attached, 2 lines\u00a0")).toBe(true);
+});
+
+test("two quick text pastes from nine attachments reserve the last place before IPC settles", () => {
+  doan.addPastedText!.mockReturnValue(new Promise(() => {}));
+  const attachments = Array.from({ length: 9 }, (_, i) => ({ key: `${i}`, name: `${i}.pdf`, kind: "file" as const, pasted: false, status: "ready" as const }));
+  const { box, render } = pasteHome({ attachments });
+  const handler = field(render());
+  call(handler, "onPaste", pastedTextEvent());
+  call(handler, "onPaste", pastedTextEvent());
+  expect(doan.addPastedText).toHaveBeenCalledOnce();
+  expect(box.current.attachments).toHaveLength(10);
+  expect(box.current.notice?.text).toBe("Only 10 attachments can be added, so the pasted text wasn’t added. Remove one and paste again.");
+});
+
+test("removing a Checking pasted text chip deletes the file when the save eventually finishes", async () => {
+  let saved!: (result: unknown) => void;
+  doan.addPastedText!.mockReturnValueOnce(new Promise(resolve => { saved = resolve; }));
+  const { box, render } = pasteHome();
+  call(field(render()), "onPaste", pastedTextEvent());
+  call(find(render(), props => props["aria-label"] === "Remove pasted text"), "onClick", {});
+  saved({ ok: true, attachment: { id: "late-text", name: "pasted-text-now.txt", kind: "file", pasted: true, path: "/u/pasted-text-now.txt", size: 1000 } });
+  await vi.waitFor(() => expect(doan.removeAttachment).toHaveBeenCalledWith("late-text"));
+  expect(box.current.attachments).toEqual([]);
+});
+
+test.each(["command", "chip", "composing", "readOnly", "sending"])("long text in %s leaves the host paste alone and creates no IPC", async mode => {
+  if (mode === "command") doan.listConversationSkills!.mockResolvedValue({ skills: [{ kind: "command", name: "compact", description: "Compact" }] });
+  const { box, render } = pasteHome({ text: mode === "command" ? "/compact " : "Keep" });
+  if (mode === "command") await Promise.resolve();
+  if (mode === "sending") box.current.sending = { generation: 1, text: "Keep", preset: null, keys: [] };
+  if (mode === "composing" || mode === "readOnly") hooks.refs[0]!.current = { composing: () => mode === "composing", element: () => ({ isContentEditable: mode !== "readOnly" }) };
+  const event = pastedTextEvent(undefined, mode === "chip" ? ["text/plain", "application/x-doan-field+json"] : undefined);
+  call(field(render()), "onPaste", event);
+  expect(event.preventDefault).not.toHaveBeenCalled();
+  expect(doan.addPastedText).not.toHaveBeenCalled();
+  expect(box.current.attachments).toEqual([]);
+});
+
+test("ten Finder names take the files branch before long-text conversion", async () => {
+  const { render } = pasteHome();
+  const files = Array.from({ length: 10 }, (_, i) => new File(["x"], `${i}.txt`));
+  const event = { preventDefault: vi.fn(), clipboardData: { files, types: ["Files", "text/plain"], getData: () => files.map(f => f.name).join("\n") } };
+  call(field(render()), "onPaste", event);
+  expect(doan.addAttachmentFiles).toHaveBeenCalledWith(files);
+  expect(doan.addPastedText).not.toHaveBeenCalled();
+  await vi.waitFor(() => expect(doan.addAttachmentFiles).toHaveBeenCalledOnce());
+});
+
+test.each(["rejected", "null", "refused"])("a %s text save settles Checking with the text-specific failure", async failure => {
+  if (failure === "rejected") doan.addPastedText!.mockRejectedValueOnce(new Error("disk"));
+  else doan.addPastedText!.mockResolvedValueOnce(failure === "null" ? null : { ok: false, name: "Pasted text", error: "unreadable" });
+  const { box, render } = pasteHome();
+  call(field(render()), "onPaste", pastedTextEvent());
+  await vi.waitFor(() => expect(box.current.notice?.text).toBe("Couldn’t save the pasted text. Paste it again."));
+  expect(box.current.attachments).toEqual([]);
+});
+
+test("pasted text checks the normalized UTF-8 50 MB boundary before saving", async () => {
+  doan.addPastedText!.mockReturnValue(new Promise(() => {}));
+  const { box, render } = pasteHome();
+  const cap = 50 * 1024 * 1024;
+  call(field(render()), "onPaste", pastedTextEvent("é".repeat(cap / 2 - 1) + "\r\nX"));
+  expect(doan.addPastedText).toHaveBeenCalledOnce();
+  call(field(render()), "onPaste", pastedTextEvent("é".repeat(cap / 2) + "x"));
+  expect(doan.addPastedText).toHaveBeenCalledOnce();
+  expect(box.current.notice?.text).toBe("This text is over 50 MB, so it wasn’t attached.");
 });

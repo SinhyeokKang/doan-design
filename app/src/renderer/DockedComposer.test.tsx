@@ -35,7 +35,7 @@ function render(patch: Partial<DockedComposerProps> = {}, { text, ...draft }: Pa
     auth: AUTH, picker: PICKER, provider: "claude", effort: "high",
     onPickerOpen: () => {}, onPickModel: () => {}, onPickEffort: () => {}, onPickFast: () => {}, onSettings: () => {},
     presets: undefined, suggested: [], onPresetsOpen: () => {}, onPresetsRetry: async () => false,
-    thumbnails: {}, onAttach: () => {}, onFiles: () => {}, onAttachmentRemoved: () => {},
+    thumbnails: {}, onPastedText: async () => false, onAttach: () => {}, onFiles: () => {}, onAttachmentRemoved: () => {},
     turn: "idle", canvasGone: false, queued: [],
     onSend: ok, onQueue: ok, onStop: () => {}, onRemoveQueued: async () => true,
     ...patch,

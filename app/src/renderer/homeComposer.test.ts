@@ -4,6 +4,7 @@ import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { MAX_ATTACHMENTS as MAIN_MAX_ATTACHMENTS, MAX_IMAGE_BYTES } from "../main/attachments";
+import { threadItems } from "./threadItems";
 import { LIMITS } from "../main/conversation/messageText";
 import {
   attachmentChipView, attachmentLimit, chosenAttachments, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProject, defaultProvider, fixedPreference,
@@ -1057,4 +1058,23 @@ test("a usage-limit start refusal names the reset time when it is known", () => 
 test("a refusal keeps main's usage-limit reset time", () => {
   expect(sendRefusal({ error: "rate_limited", resetsAt: "2026-11-13T06:00:00.000Z" })).toEqual({ error: "rate_limited", resetsAt: "2026-11-13T06:00:00.000Z" });
   expect(sendRefusal({ error: "rate_limited", resetsAt: 5 })).toEqual({ error: "rate_limited" });
+});
+
+
+test("pasted text uses its label, line count and excerpt in restored chips, sent bubbles and queue summaries", () => {
+  const record = { name: "pasted-text-now.txt", kind: "file" as const, size: 1000, path: "/u/attachments/t/pasted-text-now.txt", lines: 24, excerpt: "Checkout spec" };
+  for (const chip of [readyAttachment("t", { ...record, id: "t", pasted: true }), recordedAttachment("t", record)]) {
+    expect(attachmentChipView(chip, null)).toMatchObject({ label: "Pasted text", meta: chip.status === "missing" ? "Moved or deleted" : "24 lines", tooltip: "Checkout spec", removeLabel: "Remove pasted text", thumbnail: false });
+  }
+  expect(attachmentChipView(recordedAttachment("t", record), null).notice).toBe("Pasted text was moved or deleted. Remove it, or paste the text again.");
+  const entry = threadItems([{ v: 1, conversationId: "c", seq: 1, turnId: "t", at: "2026-11-24T00:00:00Z", type: "user.message", text: "Go", anchors: [], attachments: [record] }], "/u", false)[0];
+  expect(entry).toMatchObject({ kind: "user", attachments: [record] });
+  if (entry?.kind !== "user") throw new Error("Expected a user message");
+  expect(sentFileView(entry.attachments[0]!, null)).toEqual({ label: "Pasted text", meta: "24 lines", tooltip: "Checkout spec", folder: false });
+  expect(queueAttachmentSummary([record], null)).toMatchObject({ name: "Pasted text · 24 lines", items: [{ name: "Pasted text · 24 lines", path: "Checkout spec" }], label: "Attachments: Pasted text · 24 lines — Checkout spec" });
+  expect(attachmentChipView(readyAttachment("t", { ...record, id: "t", pasted: true, lines: 1, excerpt: "" }), null)).toMatchObject({ meta: "1 line", tooltip: "" });
+  expect(sentFileView({ name: record.name, kind: "file", size: 1000, path: record.path }, null)).toMatchObject({ label: "Pasted text", meta: "", tooltip: null });
+  expect(attachRefusal("too_large", "Pasted text")).toBe("This text is over 50 MB, so it wasn’t attached.");
+  expect(attachRefusal("unreadable", "Pasted text")).toBe("Couldn’t save the pasted text. Paste it again.");
+  expect(attachRefusal("limit", "Pasted text")).toBe("Only 10 attachments can be added, so the pasted text wasn’t added. Remove one and paste again.");
 });

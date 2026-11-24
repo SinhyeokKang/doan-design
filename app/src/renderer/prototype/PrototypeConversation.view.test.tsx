@@ -85,7 +85,7 @@ beforeEach(() => {
     designSkills: { list: vi.fn(async () => ({ v: 1, ok: true, result: { version: "1", presets: [] } })), get: vi.fn() },
     setConversationPermissionMode: vi.fn(async () => undefined), scheduledMessages: vi.fn(async () => []),
     startConversation: vi.fn(), sendConversation: vi.fn(), queueConversation: vi.fn(), removeQueuedMessage: vi.fn(), sendQueuedNow: vi.fn(), interruptConversation: vi.fn(),
-    answerConversationPermission: vi.fn(), answerConversationQuestion: vi.fn(), openLink: vi.fn(), chooseAttachments: vi.fn(), addAttachmentFiles: vi.fn(), addPastedImage: vi.fn(),
+    answerConversationPermission: vi.fn(), answerConversationQuestion: vi.fn(), openLink: vi.fn(), chooseAttachments: vi.fn(), addAttachmentFiles: vi.fn(), addPastedImage: vi.fn(), addPastedText: vi.fn(),
     droppedPath: vi.fn(() => null), removeAttachment: vi.fn(async () => true), releaseAttachments: vi.fn(async () => true), recheckAttachments: vi.fn(), attachmentsFromPaths: vi.fn(),
   };
   run = new PrototypeConversationRun(calls as never, { changed: () => { hooks.dirty = true; }, notice: () => {}, focused: () => true });
@@ -408,4 +408,23 @@ describe("the head's conversation menu", () => {
     expect(onDelete).toHaveBeenCalledOnce();
     expect(onDelete.mock.calls[0]![0]).toEqual({ conversationId: "a", root: ROOT, title: "A", provider: "codex", from: "canvas" });
   });
+});
+
+
+test("the prototype window pastes text through its own calls and keeps the original draft across a conversation switch", async () => {
+  let save!: (result: unknown) => void;
+  const add = vi.fn(() => new Promise(resolve => { save = resolve; }));
+  calls.addPastedText = add;
+  run = new PrototypeConversationRun(calls as never, { changed: () => { hooks.dirty = true; }, notice: () => {}, focused: () => true });
+  await playing();
+  const body = render(true) as El & { inner: ReactNode };
+  const composer = all(body.inner).find(named("DockedComposer"))!.props as unknown as import("../DockedComposer").DockedComposerProps;
+  const saving = composer.onPastedText("x".repeat(1000), { lines: 1, excerpt: "Spec" }, vi.fn());
+  expect(run.bodyCalls.addPastedText).toBe(add);
+  expect(add).toHaveBeenCalledWith("x".repeat(1000), { lines: 1, excerpt: "Spec" });
+  run.run.select("other"); render(true);
+  save({ ok: true, attachment: { id: "t", name: "pasted-text-now.txt", path: "/u/pasted-text-now.txt", kind: "file", pasted: true, size: 1000, lines: 1, excerpt: "Spec" } });
+  await saving;
+  expect(run.store.drafts.get("conversation:c1")?.attachments).toEqual([expect.objectContaining({ id: "t", lines: 1, excerpt: "Spec", status: "ready" })]);
+  expect(run.store.drafts.get("conversation:other")?.attachments ?? []).toEqual([]);
 });
