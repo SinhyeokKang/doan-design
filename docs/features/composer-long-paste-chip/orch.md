@@ -28,11 +28,11 @@
 | A 구현 | 작업 1, 2 | renderer 순수 함수(`homeComposer.ts` 등)와 테스트, `main/attachments.ts`, `attachmentHandlers.ts`, `senderAllowed.ts`, `main/index.ts`, preload 두 곳, `conversation/acpRunner.ts`, 드래프트 저장소 읽기, fence 주석, 각 테스트 | 없음 | Codex sol high — IPC 발신자 목록·`O_NOFOLLOW`·시작 시 삭제가 걸려 단계가 많다 | `npm --prefix app test`·`typecheck` | 통합 `02ca24bb4` |
 | RA 리뷰 | A의 `/code-review` | 읽기만 | A | Claude Sonnet high — 다른 계열의 독립 리뷰, 보안 경계 판단 | 보고서 | 🔴1 🟡2 ⚪5 |
 | A 수정 | RA의 🔴/🟡 | A와 같음 | RA | A 워커 그대로 | A와 같음 | 1차로 끝남 |
-| B 구현 | 작업 3 | `HomeComposerView.tsx`, `DockedComposer.tsx`, `ProjectOverview`, `CanvasConversationPanel.tsx`, 프로토타입 창 대화, `homeComposer.ts` 문구·칩 표기, `ConversationThread.tsx`, 큐 행, 각 테스트 | A 통합 | Codex sol high — 호스트 넷과 상태가 많아 단계가 많다 | `npm --prefix app test`·`lint`·`typecheck` | 진행 중 |
-| RB 리뷰 | B의 `/code-review` | 읽기만 | B | Claude Sonnet high — 다른 계열의 독립 리뷰 | 보고서 | 대기 |
-| B 수정 | RB의 🔴/🟡 | B와 같음 | RB | B 워커 그대로 | B와 같음 | 대기 |
-| B design-sync | 칩 `/design-sync` | B + 해당 `docs/design/*.md` | B 수정 | B 워커 그대로 — 구현 맥락이 필요 | `/design-sync` 차이 0 또는 문서화 | 대기 |
-| D 실제 앱 | 작업 4 | 읽기만(결함은 B 워커로) | B design-sync 통합 | Codex sol medium — 정해진 probe 목록을 따른다 | `/runtime-test` 보고서, 항목별 통과 | 대기 |
+| B 구현 | 작업 3 | `HomeComposerView.tsx`, `DockedComposer.tsx`, `ProjectOverview`, `CanvasConversationPanel.tsx`, 프로토타입 창 대화, `homeComposer.ts` 문구·칩 표기, `ConversationThread.tsx`, 큐 행, 각 테스트 | A 통합 | Codex sol high — 호스트 넷과 상태가 많아 단계가 많다 | `npm --prefix app test`·`lint`·`typecheck` | 통합 `6795bdc62` |
+| RB 리뷰 | B의 `/code-review` | 읽기만 | B | Claude Sonnet high — 다른 계열의 독립 리뷰 | 보고서 | 🔴0 🟡2 ⚪4 |
+| B 수정 | RB의 🔴/🟡 | B와 같음 | RB | B 워커 그대로 | B와 같음 | 1차로 끝남 |
+| B design-sync | 칩 `/design-sync` | B + 해당 `docs/design/*.md` | B 수정 | B 워커 그대로 — 구현 맥락이 필요 | `/design-sync` 차이 0 또는 문서화 | 불일치 0, 문서화 27 |
+| D 실제 앱 | 작업 4 | 읽기만(결함은 B 워커로) | B design-sync 통합 | Codex sol high — 네이티브 메뉴·Finder·재시작·프로토타입 창까지 단계가 많다 | `/runtime-test` 보고서, 항목별 통과 | 대기 |
 | E 실제 턴 | 작업 5 | 읽기만(결함은 소유 워커로) | D | Codex sol high — 로그인 복제·정리와 공급자 다섯의 fence 확인 | 공급자별 인용·fence 두 방향·실제 로그인 확인 | 대기 |
 | C 문서 | 작업 6 | PRODUCT, ARCHITECTURE, BACKLOG, DESIGN, feature 디렉터리 삭제 | E | conductor | tasks 6 grep 검증 | 대기 |
 | C 게이트 | 최종 | — | C 문서 | conductor | `node .agents/skills/verify/scripts/verify.mjs` PASS | 대기 |
@@ -49,3 +49,6 @@
 - A 통합: `c520bba8e`..`02ca24bb4`(cherry-pick, app 트리가 워커 HEAD와 같다). 통합 `/verify`는 B 통합 뒤 A+B에 한 번 돌린다. A는 Go 코드를 건드리지 않았고, 워커가 같은 app 트리로 전체 테스트를 돌렸다.
 - B: 워커 `ctx_ec69aaa013e3`(Codex sol high), 워크트리 `paste-chip-B`. 커밋 `6d81554f3`·`8d0f1ab21`. 워커 보고로는 전체 테스트 15,417개와 `typecheck`·`lint`가 통과했다.
 - RB: 리뷰어 `ctx_9f30342ef23f`(Sonnet high)가 🔴0 🟡2 ⚪4를 냈다. 🟡1: 큐 행 문구가 초안과 다르다. 🟡2: 이름만 보고 붙여넣은 글로 판별해 같은 이름의 일반 파일을 잘못 표시한다. 수정 지시: 🟡1·2. ⚪2·3은 D의 실제 앱 확인에 넣는다(프로토타입 창의 붙여넣기→지우기→보내기, 실제 캐럿·선택 영역).
+- B 수정 1차와 design-sync: 커밋 `6b7e71460`·`e9b039581`(붙여넣은 글은 이름과 메타데이터를 함께 보고 판별, 큐 행 문구), `f21298710`·`ae9bd876c`(`docs/design/conversation.md` 'Pasted text attachments'와 DESIGN.md 인덱스). 측정 3,220행 중 불일치 0, 문서화한 차이 27행이다. 처음 두 측정은 실제 상태 검사에 실패했다. 설치본 Doan이 실제 userData를 쓰고 있었기 때문이다. 사용자가 Doan을 끈 뒤 다시 측정해 통과했다.
+- RDS: design-sync 리뷰어 `ctx_40dae0c99c8c`(Codex sol medium)가 🔴0 🟡1 ⚪2를 냈다. 🟡: 큐 툴팁을 설명한 문서 문장이 코드와 달랐다. B가 고쳤고, conductor가 그 문장이 코드와 맞는지 직접 확인했다.
+- B 통합: `c7599d403`..`6795bdc62`. 통합 HEAD `6795bdc62`에서 `node .agents/skills/verify/scripts/verify.mjs`가 PASS했다(A+B). 로그는 `.scratch/verify-AB.log`.
