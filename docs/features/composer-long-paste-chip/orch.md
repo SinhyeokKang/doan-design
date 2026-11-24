@@ -33,8 +33,8 @@
 | RB 리뷰 | B의 `/code-review` | 읽기만 | B | Claude Sonnet high — 다른 계열의 독립 리뷰 | 보고서 | 🔴0 🟡2 ⚪4 |
 | B 수정 | RB의 🔴/🟡 | B와 같음 | RB | B 워커 그대로 | B와 같음 | 1차로 끝남 |
 | B design-sync | 칩 `/design-sync` | B + 해당 `docs/design/*.md` | B 수정 | B 워커 그대로 — 구현 맥락이 필요 | `/design-sync` 차이 0 또는 문서화 | 불일치 0, 문서화 27 |
-| D 실제 앱 | 작업 4 | 읽기만(결함은 B 워커로) | B design-sync 통합 | Claude Sonnet high— 네이티브 메뉴·Finder·재시작·프로토타입 창까지 단계가 많다. Codex sol high로 시작했다가 한도 때문에 바꿨다 | `/runtime-test` 보고서, 항목별 통과 | 진행 중 |
-| E 실제 턴 | 작업 5 | 읽기만(결함은 소유 워커로) | D | Codex sol high — 로그인 복제·정리와 공급자 다섯의 fence 확인 | 공급자별 인용·fence 두 방향·실제 로그인 확인 | 대기 |
+| D 실제 앱 | 작업 4 | 읽기만(결함은 B 워커로) | B design-sync 통합 | Claude Sonnet high— 네이티브 메뉴·Finder·재시작·프로토타입 창까지 단계가 많다. Codex sol high로 시작했다가 한도 때문에 바꿨다 | `/runtime-test` 보고서, 항목별 통과 | 통과(실제 턴 항목은 E로) |
+| E 실제 턴 | 작업 5 + D에서 넘긴 항목 | 읽기만(결함은 소유 워커로) | D | Claude Sonnet high(사용자 결정, Codex 한도) — 로그인 복제·정리와 공급자 다섯의 fence 확인 | 공급자별 인용·fence 두 방향·실제 로그인 확인 | 대기 |
 | C 문서 | 작업 6 | PRODUCT, ARCHITECTURE, BACKLOG, DESIGN, feature 디렉터리 삭제 | E | conductor | tasks 6 grep 검증 | 대기 |
 | C 게이트 | 최종 | — | C 문서 | conductor | `node .agents/skills/verify/scripts/verify.mjs` PASS | 대기 |
 
@@ -52,4 +52,6 @@
 - RB: 리뷰어 `ctx_9f30342ef23f`(Sonnet high)가 🔴0 🟡2 ⚪4를 냈다. 🟡1: 큐 행 문구가 초안과 다르다. 🟡2: 이름만 보고 붙여넣은 글로 판별해 같은 이름의 일반 파일을 잘못 표시한다. 수정 지시: 🟡1·2. ⚪2·3은 D의 실제 앱 확인에 넣는다(프로토타입 창의 붙여넣기→지우기→보내기, 실제 캐럿·선택 영역).
 - B 수정 1차와 design-sync: 커밋 `6b7e71460`·`e9b039581`(붙여넣은 글은 이름과 메타데이터를 함께 보고 판별, 큐 행 문구), `f21298710`·`ae9bd876c`(`docs/design/conversation.md` 'Pasted text attachments'와 DESIGN.md 인덱스). 측정 3,220행 중 불일치 0, 문서화한 차이 27행이다. 처음 두 측정은 실제 상태 검사에 실패했다. 설치본 Doan이 실제 userData를 쓰고 있었기 때문이다. 사용자가 Doan을 끈 뒤 다시 측정해 통과했다.
 - RDS: design-sync 리뷰어 `ctx_40dae0c99c8c`(Codex sol medium)가 🔴0 🟡1 ⚪2를 냈다. 🟡: 큐 툴팁을 설명한 문서 문장이 코드와 달랐다. B가 고쳤고, conductor가 그 문장이 코드와 맞는지 직접 확인했다.
+- D: Claude Sonnet 워커 `ctx_1aba5da64c1b`가 실제 앱 확인을 마쳤다(`.scratch/handoff-D.md` in `paste-chip-D`). 결함은 없다. 네 컴포저 모두에서 기준값(999/1,000자, 9/10줄), 세 가지 붙여넣기, 저장 바이트, 칩을 지울 때 폴더 삭제, 선택 영역·캐럿 유지, 한도 문구를 확인했다. 실제 Finder 파일 10개, 프로토타입 창의 붙여넣기·지우기·보내기, 창을 닫을 때 삭제도 확인했다. 마지막 전체 실행 한 번에서 모두 통과했고 실제 상태 검사도 통과했다. 큐 시점 표시와 재시작, 큐 행, Send now, 대화 삭제 뒤 파일 유지는 실제 턴이 필요해 E로 넘겼다. 사고가 하나 있었다. 초기 탐색 스크립트가 사용자 클립보드를 덮어써 원래 내용을 잃었다. 앱을 닫은 뒤에 복원하려 했기 때문이다.
+- E: 사용자 결정으로 Claude Sonnet high 워커 `ctx_fa9c56eb7679`를 지금 돌린다. 실제 Codex 턴은 남은 Codex 5시간 한도(8%) 안에서 세 번 이하로 한다.
 - B 통합: `c7599d403`..`6795bdc62`. 통합 HEAD `6795bdc62`에서 `node .agents/skills/verify/scripts/verify.mjs`가 PASS했다(A+B). 로그는 `.scratch/verify-AB.log`.
