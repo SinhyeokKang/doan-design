@@ -722,7 +722,7 @@ export class HomeRun {
     if (message?.type !== "user.message") return null;
     const records = message.attachments ?? [];
     const { preset, body } = splitRequest(message.text, records.length);
-    const issued = records.length ? await window.doan.attachmentsFromPaths(records.map(record => record.path)).catch(() => null) : [];
+    const issued = records.length ? await window.doan.attachmentsFromPaths(records.map(record => record.path), records.map(({ lines, excerpt }) => ({ ...(lines === undefined ? {} : { lines }), ...(excerpt === undefined ? {} : { excerpt }) }))).catch(() => null) : [];
     const thumbnails: Record<string, Uint8Array> = {};
     const attachments = records.map((record, i): AttachmentDraft => {
       const result = issued?.[i];

@@ -547,7 +547,7 @@ export async function draftFrom(calls: StoreCalls, text: string, anchors: readon
   const heldIds = records.flatMap((_, i) => { const id = held[i]; return id ? [id] : []; }), fresh = records.filter((_, i) => !held[i]);
   const [rechecked, issued] = await Promise.all([
     heldIds.length ? calls.recheckAttachments(heldIds).catch(() => null) : [],
-    fresh.length ? calls.attachmentsFromPaths(fresh.map(record => record.path)).catch(() => null) : [],
+    fresh.length ? calls.attachmentsFromPaths(fresh.map(record => record.path), fresh.map(({ lines, excerpt }) => ({ ...(lines === undefined ? {} : { lines }), ...(excerpt === undefined ? {} : { excerpt }) }))).catch(() => null) : [],
   ]);
   let next = 0;
   const attachments = records.map((record, i): AttachmentDraft => {

@@ -1341,7 +1341,7 @@ async function start(): Promise<void> {
   // A command turn's boundary, as a stage: its own channel to the same windows as events, never written to the history.
   signal => broadcast({ channel: "conversation:boundary", value: signal }));
   conversations = conversationService;
-  attachments.cleanup();
+  attachments.cleanup(conversationDrafts.attachmentPaths());
   modelCatalog = new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.readListing(input, listModels));
   const skillCatalog = new SkillCatalog((root, provider) => conversationService.prepareListing(root, provider), input => conversationService.readListing(input, listSkills));
   const conversationRequest = conversationHandler(conversationService, prepareConversation, () => ready.entries(), { models: modelCatalog, skills: skillCatalog, attachments });
@@ -1401,6 +1401,7 @@ async function start(): Promise<void> {
   handle("attachments:choose", [], (event, _value, kind) => attachmentHandlers.choose(owner(event, kind)));
   handle("attachments:add-paths", null, (event, value: unknown, kind) => attachmentHandlers.addPaths(owner(event, kind), value));
   handle("attachments:add-pasted", null, (event, value: unknown, kind) => attachmentHandlers.addPasted(owner(event, kind), value));
+  handle("attachments:add-pasted-text", null, (event, value: unknown, kind) => attachmentHandlers.addPastedText(owner(event, kind), value));
   handle("attachments:remove", false, (event, value: unknown, kind) => attachmentHandlers.remove(owner(event, kind), value));
   handle("attachments:recheck", null, (event, value: unknown, kind) => attachmentHandlers.recheck(owner(event, kind), value));
   handle("attachments:release", false, (event, value: unknown, kind) => attachmentHandlers.release(owner(event, kind), value));

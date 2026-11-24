@@ -67,7 +67,7 @@ export interface AttachmentDraft {
   // replaced: a folder whose path now leads to another folder (main's recheck said so).
   status: "checking" | "ready" | "missing" | "replaced";
   // A folder never has a size.
-  size?: number; path?: string;
+  size?: number; path?: string; lines?: number; excerpt?: string;
   // held: the id a returned queue handed over (takeDraft). main keeps a queued id aside as sent, so removing it alone
   // would put it back aside; the draft holding the chip is its last owner and also releases it.
   held?: true;
@@ -698,10 +698,10 @@ export function attachRefusal(error: string, name: string): string { return (REF
 
 // A chip for what main checked, or for a recorded path main could not issue again (a request read back into a draft).
 export function readyAttachment(key: string, info: AttachmentInfo): AttachmentDraft {
-  return { key, id: info.id, name: info.name, kind: info.kind, pasted: info.pasted, status: "ready", ...("size" in info ? { size: info.size } : {}), path: info.path };
+  return { key, id: info.id, name: info.name, kind: info.kind, pasted: info.pasted, status: "ready", ...("size" in info ? { size: info.size } : {}), path: info.path, ...(info.lines === undefined ? {} : { lines: info.lines }), ...(info.excerpt === undefined ? {} : { excerpt: info.excerpt }) };
 }
 export function recordedAttachment(key: string, record: AttachmentRecord): AttachmentDraft {
-  return { key, name: record.name, kind: record.kind, pasted: false, status: "missing", ...("size" in record ? { size: record.size } : {}), path: record.path };
+  return { key, name: record.name, kind: record.kind, pasted: false, status: "missing", ...("size" in record ? { size: record.size } : {}), path: record.path, ...(record.lines === undefined ? {} : { lines: record.lines }), ...(record.excerpt === undefined ? {} : { excerpt: record.excerpt }) };
 }
 // A recorded path main issued again as a new attachment. Only the recorded kind counts as the same: a folder whose path
 // now names a file or an image (or the reverse) comes back as the recorded kind's moved chip, and release names the new

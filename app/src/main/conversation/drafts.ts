@@ -157,6 +157,11 @@ export class DraftStore {
     this.file.queued = {};
     this.save();
   }
+  // Startup attachment cleanup needs only drafts, queues and interrupted sends, never conversation history.
+  attachmentPaths(): string[] {
+    return [...Object.values(this.file.queued).flat(), ...Object.values(this.file.returned),
+      ...Object.values(this.file.sending), ...Object.values(this.file.starts)].flatMap(item => item.attachments.map(attachment => attachment.path));
+  }
   // The messages still waiting, without those whose send has started.
   queued(id: string): readonly QueuedItem[] { return (this.file.queued[id] ?? []).filter(item => !item.sending); }
   // Refused (queue_limit) before anything changes when the conversation's returned draft, queue and this item would not

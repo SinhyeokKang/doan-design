@@ -4,8 +4,8 @@ import { basename, extname, isAbsolute, join, relative, sep } from "node:path";
 import type { AttachmentRecord } from "./conversation/types";
 
 // Attachments are local paths the agent reads with its own tools (Orca 1.4.243
-// `out/shared/agent-session-attachments.js`: "agents receive only host paths"). Only a pasted image, which has no path,
-// is written by doan, under <userData>/attachments/<id>/. A canvas capture is the other image main writes.
+// `out/shared/agent-session-attachments.js`: "agents receive only host paths"). Path-less images, pasted text and canvas
+// captures are written by doan under <userData>/attachments/<id>/.
 export const MAX_ATTACHMENTS = 10;
 // The paste cap is Orca's; local files are not capped, but no image above it is decoded for a thumbnail.
 export const MAX_IMAGE_BYTES = 50 * 1024 * 1024;
@@ -60,13 +60,19 @@ function readChecked(path: string, expected: { kind: AttachmentRecord["kind"]; d
     return opened;
   } finally { closeSync(fd); }
 }
-// Directories of pasted images a start never took; a sent one stays with its conversation.
+// Unsent paste directories no draft or queue still holds; a sent one stays with its conversation.
 export function cleanupTargets(entries: readonly { name: string; directory: boolean; sent: boolean }[], kept: ReadonlySet<string> = new Set()): string[] {
   return entries.filter(e => e.directory && ID.test(e.name) && !e.sent && !kept.has(e.name)).map(e => e.name);
 }
 export function pastedName(at: Date): string { return `pasted-${at.toISOString().replace(/[:.]/g, "-")}.png`; }
 export function pastedTextName(at: Date): string { return `pasted-text-${at.toISOString().replace(/[:.]/g, "-")}.txt`; }
 export interface PastedTextMeta { lines: number; excerpt: string }
+export type AttachmentMeta = Partial<PastedTextMeta>;
+function validMetadata(value: unknown): value is AttachmentMeta {
+  return typeof value === "object" && value !== null && !Array.isArray(value) && Object.keys(value).every(key => key === "lines" || key === "excerpt") &&
+    (!("lines" in value) || value.lines === undefined || (typeof value.lines === "number" && Number.isSafeInteger(value.lines) && value.lines >= 1)) &&
+    (!("excerpt" in value) || value.excerpt === undefined || (typeof value.excerpt === "string" && !/[\r\n]/.test(value.excerpt) && Array.from(value.excerpt).length <= 80));
+}
 export function pasteTextRequest(value: unknown): ({ text: string } & PastedTextMeta) | null {
   if (typeof value !== "object" || value === null || Object.keys(value).length !== 3 || !("text" in value) || !("lines" in value) || !("excerpt" in value)) return null;
   if (typeof value.text !== "string" || !value.text.length || typeof value.lines !== "number" || !Number.isSafeInteger(value.lines) || value.lines < 1 || typeof value.excerpt !== "string" || /[\r\n]/.test(value.excerpt) || Array.from(value.excerpt).length > 80) return null;
@@ -79,6 +85,10 @@ export function pastedTextAttachments(records: readonly AttachmentRecord[], stor
     return record.kind === "file" && record.name.startsWith("pasted-text-") && record.name.endsWith(".txt") &&
       path !== "" && path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
   });
+}
+function pasteDirectory(path: string, storeRoot: string): string | null {
+  const [id, file, ...rest] = relative(storeRoot, path).split(sep);
+  return id !== undefined && ID.test(id) && file !== undefined && file !== "" && rest.length === 0 ? id : null;
 }
 // The renderer knows a capture chip by this prefix (homeComposer.ts isCanvasCapture).
 export function capturedName(at: Date): string { return `canvas-capture-${at.toISOString().replace(/[:.]/g, "-")}.png`; }
@@ -105,8 +115,8 @@ export class AttachmentStore {
   private entries = new Map<string, Entry>();
   private sent = new Map<string, Entry>();
   constructor(private dir: string, private codec: ImageCodec) {}
-  // At launch, before any paste: removes only unsent paste directories, never reading conversation history.
-  cleanup(): void {
+  // At launch, before any paste: only the draft store supplies kept paths; conversation history is never read.
+  cleanup(keptPaths: readonly string[] = []): void {
     let names: string[];
     try { names = readdirSync(this.dir); } catch { return; }
     const entries = names.map(name => {
@@ -115,7 +125,8 @@ export class AttachmentStore {
       try { directory = lstatSync(path).isDirectory(); sent = directory && lstatSync(join(path, SENT)).isFile(); } catch { /* not sent */ }
       return { name, directory, sent };
     });
-    for (const name of cleanupTargets(entries)) rmSync(join(this.dir, name), { recursive: true, force: true });
+    const kept = new Set(keptPaths.flatMap(path => { const id = pasteDirectory(path, this.dir); return id ? [id] : []; }));
+    for (const name of cleanupTargets(entries, kept)) rmSync(join(this.dir, name), { recursive: true, force: true });
   }
   addPaths(value: unknown): AttachmentResult[] | null {
     if (typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("paths" in value)) return null;
@@ -135,10 +146,37 @@ export class AttachmentStore {
     });
   }
   // Edit on Home after a reload or restart: the paths a conversation recorded get ids again, with the checks of a new
-  // file. A re-issued paste is an ordinary file here, so removing its chip never deletes the sent copy.
+  // file. A re-issued sent paste is an ordinary file here, so removing its chip never deletes the sent copy.
   fromPaths(value: unknown): AttachmentResult[] | null {
     if (typeof value !== "object" || value === null || !("paths" in value) || !Array.isArray(value.paths) || value.paths.length > MAX_ATTACHMENTS) return null;
-    return this.addPaths(value);
+    if (!Object.keys(value).every(key => key === "paths" || key === "metadata")) return null;
+    const metadata = "metadata" in value ? value.metadata : undefined;
+    if (metadata !== undefined && (!Array.isArray(metadata) || metadata.length !== value.paths.length || ![...metadata].every(validMetadata))) return null;
+    const results = this.addPaths({ paths: value.paths });
+    for (const [i, result] of (results ?? []).entries()) {
+      if (!result.ok) continue;
+      const entry = this.entries.get(result.attachment.id); if (!entry) continue;
+      if (Array.isArray(metadata) && validMetadata(metadata[i])) Object.assign(entry, metadata[i]);
+      const id = pasteDirectory(entry.path, this.dir);
+      // A restored unsent draft still owns its paste. Sent copies remain ordinary path entries forever.
+      if (id) {
+        const dir = join(this.dir, id);
+        let sent = false;
+        try { sent = lstatSync(join(dir, SENT)).isFile(); } catch { /* no sent marker */ }
+        if (!sent) { entry.dir = dir; entry.pasted = true; }
+      }
+      result.attachment = { ...result.attachment, ...record(entry, entry), pasted: entry.pasted };
+    }
+    return results;
+  }
+  addPastedText(value: unknown): AttachmentResult {
+    const name = "Pasted text", request = pasteTextRequest(value);
+    if (!request) {
+      const oversized = typeof value === "object" && value !== null && "text" in value && typeof value.text === "string" && Buffer.byteLength(value.text.replace(/\r\n?/g, "\n"), "utf8") > MAX_IMAGE_BYTES;
+      return { ok: false, name, error: oversized ? "too_large" : "unreadable" };
+    }
+    const { text, ...meta } = request;
+    return this.save(Buffer.from(text, "utf8"), pastedTextName(new Date()), name, "unreadable", "file", meta);
   }
   addPasted(value: unknown): AttachmentResult {
     const name = "Pasted image";
@@ -148,7 +186,7 @@ export class AttachmentStore {
     if (!imageType(bytes.subarray(0, 16))) return { ok: false, name, error: "not_image" };
     const png = this.codec.reencode(bytes); if (!png || png.length === 0) return { ok: false, name, error: "not_image" };
     if (png.length > MAX_IMAGE_BYTES) return { ok: false, name, error: "too_large" };
-    return this.save(png, pastedName(new Date()), name, "unreadable");
+    return this.save(png, pastedName(new Date()), name, "unreadable", "image");
   }
   // A PNG main took from the window itself (capturePage): trusted bytes, so no signature check or re-encode, only the
   // cap. Every failure to save is capture_failed, since unreadable would put the file name in the person's message.
@@ -156,21 +194,20 @@ export class AttachmentStore {
     const name = "Canvas capture";
     if (png.length === 0) return { ok: false, name, error: "capture_failed" };
     if (png.length > MAX_IMAGE_BYTES) return { ok: false, name, error: "too_large" };
-    return this.save(png, capturedName(new Date()), name, "capture_failed");
+    return this.save(png, capturedName(new Date()), name, "capture_failed", "image");
   }
-  // The paste directory both kinds of image share: a private directory per image, written once, removed whole if
-  // anything fails.
-  private save(png: Uint8Array, file: string, name: string, failed: AttachmentError): AttachmentResult {
+  // Each paste owns a private directory, written once and removed whole if anything fails.
+  private save(bytes: Uint8Array, file: string, name: string, failed: AttachmentError, kind: "file" | "image", meta: AttachmentMeta = {}): AttachmentResult {
     const id = randomUUID(), dir = join(this.dir, id);
     let entry: Entry;
     try {
       mkdirSync(this.dir, { recursive: true, mode: 0o700 }); mkdirSync(dir, { mode: 0o700 });
-      writeFileSync(join(dir, file), png, { mode: 0o600, flag: "wx" });
+      writeFileSync(join(dir, file), bytes, { mode: 0o600, flag: "wx" });
       const path = realpathSync.native(join(dir, file)), stat = lstatSync(path);
-      entry = { id, pasted: true, input: path, dir, name: file, size: png.length, kind: "image", path, dev: stat.dev, ino: stat.ino };
+      entry = { id, pasted: true, input: path, dir, name: file, size: bytes.length, kind, path, dev: stat.dev, ino: stat.ino, ...meta };
     } catch { rmSync(dir, { recursive: true, force: true }); return { ok: false, name, error: failed }; }
     this.entries.set(id, entry);
-    return { ok: true, attachment: this.info(entry, png) };
+    return { ok: true, attachment: this.info(entry, bytes) };
   }
   // A pasted image removed before sending is deleted, even one a refused start marked sent; a local file is only
   // forgotten. An accepted start consumed its entries, so its files never reach here.
@@ -277,7 +314,9 @@ export class AttachmentStore {
       if (expected && (opened.dev !== expected.dev || opened.ino !== expected.ino)) return { error: "replaced" };
       return { name: basename(real), kind: "directory", path: real, dev: opened.dev, ino: opened.ino };
     }
-    const image = imageType(opened.head) !== null;
+    // A text paste may start with an image signature (for example a log quoting GIF89a).
+    const textPaste = pasteDirectory(real, this.dir) !== null && pastedTextAttachments([{ name: basename(real), kind: "file", path: real, size: opened.size }], this.dir).length > 0;
+    const image = !textPaste && imageType(opened.head) !== null;
     // A file named as an image must be one; its name would otherwise mislead the agent and the chip.
     if (!image && IMAGE_EXTENSIONS.has(extname(real).toLowerCase())) return { error: "not_image" };
     // A recheck keeps the kind it was added with; an image that lost its signature is not that image any more.
@@ -292,7 +331,7 @@ export class AttachmentStore {
 // The record of an entry as it is now: its name, kind and path as added, a file's size as just checked.
 function record(entry: Entry, checked: Checked | Entry): AttachmentRecord {
   return entry.kind === "directory" ? { name: entry.name, kind: "directory", path: entry.path }
-    : { name: entry.name, size: "size" in checked ? checked.size : 0, kind: entry.kind, path: entry.path };
+    : { name: entry.name, size: "size" in checked ? checked.size : 0, kind: entry.kind, path: entry.path, ...(entry.lines === undefined ? {} : { lines: entry.lines }), ...(entry.excerpt === undefined ? {} : { excerpt: entry.excerpt }) };
 }
 function isSpecial(path: string): boolean {
   try { const stat = lstatSync(path); return !stat.isFile() && !stat.isDirectory() && !stat.isSymbolicLink(); } catch { return false; }

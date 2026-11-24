@@ -14,7 +14,7 @@ import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { QuestionAnswerInput } from "../main/conversation/question";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { ConversationHandoffNotice } from "../main/conversation/handoff";
-import type { AttachmentResult, RecheckResult } from "../main/attachments";
+import type { AttachmentMeta, PastedTextMeta, AttachmentResult, RecheckResult } from "../main/attachments";
 import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
 import type { Anchor, BoundarySignal, Canvas, ConversationEvent, Runtime, SkillSummary, StageSignal, UnavailableReason } from "../main/conversation/types";
 import type {
@@ -220,6 +220,7 @@ const api = {
     return paths.map((path, i): AttachmentResult => path === "" ? { ok: false, name: files[i]!.name, error: "not_found" } : checked[next++]!);
   },
   addPastedImage: (bytes: ArrayBuffer | Uint8Array): Promise<AttachmentResult | null> => ipcRenderer.invoke("attachments:add-pasted", { bytes: bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes) }),
+  addPastedText: (text: string, meta: PastedTextMeta): Promise<AttachmentResult | null> => ipcRenderer.invoke("attachments:add-pasted-text", { text, ...meta }),
   // A canvas capture: main reads the pixels of rect (main window content CSS px, whole window only) and saves them as a
   // paste. Resolves to the AttachmentResult (capture_failed for an empty image or a failed save), or null when main
   // refused the request.
@@ -230,7 +231,7 @@ const api = {
   recheckAttachments: (ids: readonly string[]): Promise<RecheckResult[] | null> => ipcRenderer.invoke("attachments:recheck", { ids: [...ids] }),
   // Edit on Home after a reload or restart: the paths a conversation recorded, checked as new files and answered in
   // order (a moved or deleted file as not_found); null for more than ten paths or a malformed request.
-  attachmentsFromPaths: (paths: readonly string[]): Promise<AttachmentResult[] | null> => ipcRenderer.invoke("attachments:fromPaths", { paths: [...paths] }),
+  attachmentsFromPaths: (paths: readonly string[], metadata?: readonly AttachmentMeta[]): Promise<AttachmentResult[] | null> => ipcRenderer.invoke("attachments:fromPaths", { paths: [...paths], ...(metadata ? { metadata: [...metadata] } : {}) }),
   // Sent ids no last request uses any more; main forgets them and leaves their files alone.
   releaseAttachments: (ids: readonly string[]): Promise<boolean> => ipcRenderer.invoke("attachments:release", { ids: [...ids] }),
   onConversationEvent(listener: (event: ConversationEvent) => void): () => void {

@@ -114,7 +114,7 @@ export function queueFiles(store: AttachmentStore): QueueFiles {
     // be the kind it was sent as (ARCHITECTURE §7 'Attachments'): a file that became a folder would send the folder.
     // Any refusal refuses the whole message and releases every id issued for it.
     reissue: records => {
-      const results = store.fromPaths({ paths: records.map(record => record.path) });
+      const results = store.fromPaths({ paths: records.map(record => record.path), metadata: records.map(({ lines, excerpt }) => ({ lines, excerpt })) });
       const ids = (results ?? []).flatMap(result => result.ok ? [result.attachment.id] : []);
       const same = !!results && results.length === records.length && results.every((result, i) => result.ok && result.attachment.kind === records[i]!.kind);
       if (!same) { for (const id of ids) store.remove({ id }); return null; }

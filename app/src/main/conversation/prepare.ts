@@ -253,7 +253,7 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         const judgment = judgeConnection(stored.owner, adapter.verifyByRun && !current.error ? { ...current, verified: true } : current, { exists, occupancy });
         if (judgment.decision !== "resume") throw new Error(judgmentCode(judgment, provider));
       }
-      // Every conversation run, Claude's per turn: this turn's pasted images may differ. Every list read but Codex's too:
+      // Every conversation run, Claude's per turn: this turn's pasted files may differ. Every list read but Codex's too:
       // Claude's starts the repository's hooks and MCP servers, and an ACP server's session/new those its profile names
       // (Copilot, Cursor; probe), which the provider's own fenced turn can write. Codex reads neither: its profile's
       // settings are closed to its turns and an untrusted project's .codex/ is not loaded.

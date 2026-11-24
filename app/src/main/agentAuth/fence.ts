@@ -17,7 +17,7 @@ export type FenceMechanism = "fence" | "codex-profile";
 
 // Real paths (realpath.native): Seatbelt compares the resolved path, so an unresolved /var/... or relative -D value
 // matches nothing and blocks nothing.
-// attachments: Claude and ACP runs get this turn's pasted-image directories, Codex its whole attachment directory,
+// attachments: Claude and ACP runs get this turn's paste directories, Codex its whole attachment directory,
 // because one Codex server serves many turns and a policy is fixed when the process starts.
 export interface FencePaths { userData: string; profile: string; attachments: readonly string[] }
 
@@ -189,7 +189,7 @@ export function resolveFencePaths(input: { provider: Provider; userData: string;
   if (!profile.startsWith(`${profiles}/`) || !name || name.includes("/")) return null;
   const store = `${userData}/attachments`;
   if (input.provider === "codex") return { userData, profile, attachments: [store] };
-  // A pasted image is <store>/<id>/<file> (attachments.ts); files the person chose elsewhere need no opening. Each path
+  // A pasted file is <store>/<id>/<file> (attachments.ts); files the person chose elsewhere need no opening. Each path
   // is resolved like userData, so one recorded through a link still matches; one that no longer resolves stays closed.
   const dirs: string[] = [];
   for (const recorded of input.attachments) {
