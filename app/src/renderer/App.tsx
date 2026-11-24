@@ -39,7 +39,6 @@ import { headerMove } from "./worktreeSwitchModel";
 import { CanvasHeader, type CanvasHeaderNavigation } from "./CanvasHeader";
 import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool, type PlayTool } from "./CanvasTools";
 import { canvasPlayability, drawerPlayRequest, playDrawer, playRequest, playTooltip } from "./prototypePlay";
-import { canvasBubbleRoom } from "./sizeBubble";
 import { prototypeMainCalls } from "./prototype/mainCalls";
 import { PrototypeClosedFocus } from "./PrototypeClosedFocus";
 import { PrototypePlaying } from "./PrototypePlaying";
@@ -634,14 +633,6 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     instance.onPicked(result => live.current.pickEnded(result));
     instance.onCapture(rect => live.current.captured(rect));
     instance.linkedCanvas = root => live.current.completeNavigation(root);
-    // The notice column covers the area's top and the floating tools its bottom: the size bubble stays clear of both
-    // (sizeBubble.ts).
-    instance.bubbleRoom = () => {
-      const area = viewport.current;
-      if (!area) return null;
-      const column = area.querySelector<HTMLElement>(".doan-canvas-top"), tools = area.querySelector<HTMLElement>(".doan-canvas-bottom");
-      return canvasBubbleRoom({ height: area.clientHeight }, column?.childElementCount ? { bottom: column.offsetTop + column.offsetHeight } : null, tools ? { top: tools.offsetTop } : null);
-    };
     instance.bubblePlay = {
       onPlay: () => sendPlay(playNext.current),
       // The bubble went while it had focus: the toolbar's Play is the visible control for the same action.
