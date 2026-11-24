@@ -319,25 +319,19 @@ describe("selection", () => {
       } finally { h.controller.dispose(); }
     });
 
-    it("flips above the selection when the tools leave no room below, and is held above them when neither fits", () => {
+    // The bubble always hangs below the selection, as drawn: no flip above it and no hold over the floating tools,
+    // even when that puts it under the tools or past the area's bottom.
+    it("keeps the bubble below the selection however little room is left under it", () => {
       const { h, dims } = setup();
-      // A sideways pan redraws the marks without moving them vertically.
-      const redraw = () => h.controller.wheel({ dx: 1, dy: 0, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
+      const tall = (height: number) => ({ ...frameTarget("intro"), rect: { x: 0, y: 0, width: 320, height } });
       try {
-        h.select(1, { target: frameTarget("intro") });
-        // The selection is drawn at y 80, 180 tall: its bubble below would span 265 to 289.
-        expect(h.markOf("selected")?.style).toMatchObject({ top: "80px", height: "180px" });
+        h.select(1, { target: tall(520) });
+        // Drawn at y 80, 520 tall: below it the bubble would span 606.5 to 630.5, past the 600px area.
+        expect(h.markOf("selected")?.style).toMatchObject({ top: "80px", height: "520px" });
         expect(dims().className).toBe("dims playable");
-        h.controller.bubbleRoom = () => ({ top: 0, bottom: 250 });
-        redraw();
-        expect(dims().className).toBe("dims playable above");
         expect(dims().style.top).toBe("");
-        h.controller.bubbleRoom = () => ({ top: 60, bottom: 250 });
-        redraw();
-        expect(dims().className).toBe("dims playable");
-        expect(dims().style.top).toBe("146px");
-        h.controller.bubbleRoom = () => ({ top: 0, bottom: 600 });
-        redraw();
+        // Taller than the area: no room above or below.
+        h.select(2, { target: tall(900) });
         expect(dims().className).toBe("dims playable");
         expect(dims().style.top).toBe("");
       } finally { h.controller.dispose(); }
@@ -381,11 +375,11 @@ describe("selection", () => {
     expect(rule(css, ".mark")).toContain("border: 1.5px solid var(--text-accent)");
     expect(rule(css, ".mark:not(.jump-point)")).toContain("margin: -1.5px");
     expect(rule(css, ".dims")).toContain("top: calc(100% + 1.5px + 5px)");
-    expect(rule(css, ".dims.above")).toContain("bottom: calc(100% + 1.5px + 5px)");
     expect(rule(low, ".mark")).toContain("border-width: 1px");
     expect(rule(low, ".mark:not(.jump-point)")).toContain("margin: -1px");
     expect(rule(low, ".dims")).toContain("top: calc(100% + 1px + 5px)");
-    expect(rule(low, ".dims.above")).toContain("bottom: calc(100% + 1px + 5px)");
+    // The bubble has no other place than below the line.
+    expect(css).not.toContain(".dims.above");
   });
 
   // Add to message ends the size bubble whenever there is a selection. The controller owns a fixed host at the bubble's
