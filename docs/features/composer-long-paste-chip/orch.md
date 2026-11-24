@@ -19,6 +19,7 @@
 - 저장소 루트를 정규화한다. 기본 userData가 정규화돼 있어도 수정이 값싸고 격리 실행이 링크 경로를 쓴다(conductor 판단 — RA 🔴1·D2).
 - 큐 행 문구는 확정 초안을 따른다. 보이는 이름은 "Pasted text"이고, 줄 수와 첫 줄은 접근성 이름(`Pasted text, N lines — <첫 줄>`)과 툴팁에 둔다. 이에 맞춰 tasks.md 작업 3의 확인 문구를 고쳤다. 거절 문구의 어포스트로피도 초안과 기존 문구처럼 `’`로 spec을 고쳤다(conductor 판단 — 사용자 결정 4, RB 🟡1·⚪1).
 - 붙여넣기 가드(입력기 조합 중·읽기 전용·전송 중·잠김)는 Finder 파일과 이미지 붙여넣기에도 먼저 적용된다. 그래서 이때는 아무 일도 일어나지 않는다. 받아들인다(conductor 판단 — spec 완료 조건 2의 취지, RB ⚪4).
+- D의 Codex 워커는 gpt-6.1-sol로 시작했지만, Codex 5시간 한도가 8% 남자 GPT-6-Luna medium으로 바뀌었다. 그 뒤 두 번 내리 probe 없이 턴을 끝냈다. 이 워커를 멈추고, 같은 워크트리에서 Claude Sonnet high가 D를 맡는다(사용자 결정).
 - design.md 'PoC 의존'의 세 가정이 작업 5에서 깨지면 그 공급자를 어떻게 할지 사용자에게 묻는다(design.md).
 
 ## 배치
@@ -32,7 +33,7 @@
 | RB 리뷰 | B의 `/code-review` | 읽기만 | B | Claude Sonnet high — 다른 계열의 독립 리뷰 | 보고서 | 🔴0 🟡2 ⚪4 |
 | B 수정 | RB의 🔴/🟡 | B와 같음 | RB | B 워커 그대로 | B와 같음 | 1차로 끝남 |
 | B design-sync | 칩 `/design-sync` | B + 해당 `docs/design/*.md` | B 수정 | B 워커 그대로 — 구현 맥락이 필요 | `/design-sync` 차이 0 또는 문서화 | 불일치 0, 문서화 27 |
-| D 실제 앱 | 작업 4 | 읽기만(결함은 B 워커로) | B design-sync 통합 | Codex sol high — 네이티브 메뉴·Finder·재시작·프로토타입 창까지 단계가 많다 | `/runtime-test` 보고서, 항목별 통과 | 대기 |
+| D 실제 앱 | 작업 4 | 읽기만(결함은 B 워커로) | B design-sync 통합 | Claude Sonnet high— 네이티브 메뉴·Finder·재시작·프로토타입 창까지 단계가 많다. Codex sol high로 시작했다가 한도 때문에 바꿨다 | `/runtime-test` 보고서, 항목별 통과 | 진행 중 |
 | E 실제 턴 | 작업 5 | 읽기만(결함은 소유 워커로) | D | Codex sol high — 로그인 복제·정리와 공급자 다섯의 fence 확인 | 공급자별 인용·fence 두 방향·실제 로그인 확인 | 대기 |
 | C 문서 | 작업 6 | PRODUCT, ARCHITECTURE, BACKLOG, DESIGN, feature 디렉터리 삭제 | E | conductor | tasks 6 grep 검증 | 대기 |
 | C 게이트 | 최종 | — | C 문서 | conductor | `node .agents/skills/verify/scripts/verify.mjs` PASS | 대기 |
