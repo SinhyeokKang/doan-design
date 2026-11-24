@@ -319,27 +319,21 @@ describe("selection", () => {
       } finally { h.controller.dispose(); }
     });
 
-    it("flips above the selection when the tools leave no room below, and is held above them when neither fits", () => {
+    // The bubble always hangs below the selection, as drawn: no flip above it and no hold over the floating tools,
+    // even when that puts it under the tools or past the area's bottom.
+    it("keeps the bubble below the selection however little room is left under it", () => {
       const { h, dims } = setup();
-      // A sideways pan redraws the marks without moving them vertically.
-      const redraw = () => h.controller.wheel({ dx: 1, dy: 0, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
+      const tall = (height: number) => ({ ...frameTarget("intro"), rect: { x: 0, y: 0, width: 320, height } });
       try {
-        h.select(1, { target: frameTarget("intro") });
-        // The selection is drawn at y 80, 180 tall: its bubble below would span 265 to 289.
-        expect(h.markOf("selected")?.style).toMatchObject({ top: "80px", height: "180px" });
+        h.select(1, { target: tall(520) });
+        // Drawn at y 80, 520 tall: below it the bubble would span 606.5 to 630.5, past the 600px area.
+        expect(h.markOf("selected")?.style).toMatchObject({ top: "80px", height: "520px" });
         expect(dims().className).toBe("dims playable");
-        h.controller.bubbleRoom = () => ({ top: 0, bottom: 250 });
-        redraw();
-        expect(dims().className).toBe("dims playable above");
-        expect(dims().style.top).toBe("");
-        h.controller.bubbleRoom = () => ({ top: 60, bottom: 250 });
-        redraw();
+        expect(dims().style.top ?? "").toBe("");
+        // Taller than the area: no room above or below.
+        h.select(2, { target: tall(900) });
         expect(dims().className).toBe("dims playable");
-        expect(dims().style.top).toBe("146px");
-        h.controller.bubbleRoom = () => ({ top: 0, bottom: 600 });
-        redraw();
-        expect(dims().className).toBe("dims playable");
-        expect(dims().style.top).toBe("");
+        expect(dims().style.top ?? "").toBe("");
       } finally { h.controller.dispose(); }
     });
 
@@ -381,11 +375,11 @@ describe("selection", () => {
     expect(rule(css, ".mark")).toContain("border: 1.5px solid var(--text-accent)");
     expect(rule(css, ".mark:not(.jump-point)")).toContain("margin: -1.5px");
     expect(rule(css, ".dims")).toContain("top: calc(100% + 1.5px + 5px)");
-    expect(rule(css, ".dims.above")).toContain("bottom: calc(100% + 1.5px + 5px)");
     expect(rule(low, ".mark")).toContain("border-width: 1px");
     expect(rule(low, ".mark:not(.jump-point)")).toContain("margin: -1px");
     expect(rule(low, ".dims")).toContain("top: calc(100% + 1px + 5px)");
-    expect(rule(low, ".dims.above")).toContain("bottom: calc(100% + 1px + 5px)");
+    // The bubble has no other place than below the line.
+    expect(css).not.toContain(".dims.above");
   });
 
   // Add to message ends the size bubble whenever there is a selection. The controller owns a fixed host at the bubble's
@@ -3529,6 +3523,8 @@ describe("hand tool", () => {
   const shown = (h: H) => !h.layer.hidden;
   const grabbing = (h: H) => "grabbing" in h.layer.dataset;
   const posted = (h: H) => h.current().contentWindow.postMessage.mock.calls.map(call => call[0] as Record<string, unknown>);
+  // A Hand press asks the canvas whether it is on text and pans once the answer says it is not.
+  const offText = (h: H) => h.receive({ type: "text-hit", document: "doc", probe: posted(h).filter(m => m.type === "text-press").at(-1)!.probe, hit: false });
   const translate = (h: H) => /translate\((-?[\d.]+)px, (-?[\d.]+)px\)/.exec(h.board.style.transform)!.slice(1).map(Number);
   const canvasKey = (h: H, key: string, over: Record<string, unknown> = {}) => h.receive({ type: "key", key, seq: 0, ...over });
   const harness = () => { const h = selectionHarness(); h.layout({ document: "doc" }); return h; };
@@ -3914,6 +3910,7 @@ describe("hand tool", () => {
       const down = pointer(h, "pointerdown", { clientX: 100, clientY: 100 });
       expect(down.defaultPrevented).toBe(true);
       expect(h.layer.captured.has(1)).toBe(true);
+      offText(h);
       expect(grabbing(h)).toBe(true);
       pointer(h, "pointermove", { clientX: 130, clientY: 90 });
       expect(translate(h)).toEqual([x0! + 30, y0! - 10]);
@@ -3948,6 +3945,7 @@ describe("hand tool", () => {
     try {
       press(h, "KeyH");
       pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+      offText(h);
       expect(grabbing(h)).toBe(true);
       pointer(h, type);
       expect(grabbing(h)).toBe(false);
@@ -4175,6 +4173,7 @@ describe("hand tool", () => {
       release(h, "Space");
       press(h, "KeyH");
       pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+      h.receive({ type: "text-hit", document: "doc2", probe: posted(h).filter(m => m.type === "text-press").at(-1)!.probe, hit: false });
       expect(grabbing(h)).toBe(true);
       h.layout({ document: "doc3" });
       expect(grabbing(h)).toBe(false);
@@ -6127,8 +6126,6 @@ describe("canvas text", () => {
   describe("clears it, tells the canvas and copies nothing after", () => {
     const cases: [string, (h: H) => void][] = [
       ["a click on the board's margin", h => { h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 })); }],
-      ["Hand", h => { h.controller.setTool("hand"); }],
-      ["H", h => { press(h, "KeyH"); }],
       ["the picker", h => { h.controller.pick(); }],
       ["Capture area", h => { h.controller.startCapture(); }],
       ["leaving the canvas page", h => { h.controller.setCanvasPage(false); }],
@@ -6233,7 +6230,8 @@ describe("canvas text", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("drops a range older than the last clear, from another document, or sent during Hand, a pick or capture mode", async () => {
+  // Hand's own rule is in "hand text drag": a range there comes only from the drag the app drives.
+  it("drops a range older than the last clear, from another document, or sent during a pick or capture mode", async () => {
     const h = harness();
     try {
       await range(h);
@@ -6243,7 +6241,7 @@ describe("canvas text", () => {
       expect(painted(h)).toEqual([]);
       await range(h, { epoch: 1 });
       expect(painted(h)).toHaveLength(1);
-      for (const [enter, leave] of [[() => h.controller.setTool("hand"), () => h.controller.setTool("select")], [() => h.controller.pick(), () => h.controller.cancelPick()], [() => h.controller.startCapture(), () => h.controller.cancelCapture()]] as const) {
+      for (const [enter, leave] of [[() => h.controller.pick(), () => h.controller.cancelPick()], [() => h.controller.startCapture(), () => h.controller.cancelCapture()]] as const) {
         enter();
         const epoch = clears(h).at(-1)!.epoch;
         await range(h, { epoch });
@@ -6668,6 +6666,274 @@ describe("the inspector's element tree", () => {
       h.select(1, { answer: "select-anchor" });
       expect(h.state()?.selection).toMatchObject({ element: { doanId: "cta" } });
       expect(h.viewport.focus).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+});
+
+// Hand's text drag: the drag layer takes every press, asks the canvas whether it is on text (text-press, answered by
+// text-hit) and pans only when it is not. On text the app drives the canvas's drag with text-move and text-release.
+describe("hand text drag", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+  type H = ReturnType<typeof selectionHarness>;
+  const RECT = { x: 10, y: 20, width: 50, height: 18 };
+  const harness = () => { const h = selectionHarness(); h.layout({ document: "doc" }); return h; };
+  const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
+  const posted = (h: H) => h.current().contentWindow.postMessage.mock.calls.map(call => call[0] as Record<string, unknown>);
+  const ofType = (h: H, type: string) => posted(h).filter(m => m.type === type);
+  const translate = (h: H) => /translate\((-?[\d.]+)px, (-?[\d.]+)px\)/.exec(h.board.style.transform)!.slice(1).map(Number);
+  const pointer = (h: H, type: string, over: Record<string, unknown> = {}) => {
+    const event = Object.assign(new Event(type, { cancelable: true }), { button: 0, buttons: 1, pointerId: 1, clientX: 0, clientY: 0, ...over });
+    h.layer.dispatchEvent(event);
+    return event;
+  };
+  const key = (h: H, type: "keydown" | "keyup", code: string) => {
+    const keyName = code === "Space" ? " " : code === "Escape" ? "Escape" : code.slice(3).toLowerCase();
+    const event = Object.assign(new Event(type, { cancelable: true }), { code, key: keyName });
+    h.host.dispatchEvent(event);
+    return event;
+  };
+  const hand = (h: H) => { h.controller.setTool("hand"); };
+  const lastProbe = (h: H, type: string) => ofType(h, type).at(-1)?.probe as number;
+  const hit = (h: H, probe: number, value: boolean, document = "doc") => h.receive({ type: "text-hit", document, probe, hit: value });
+  const range = async (h: H, over: Record<string, unknown> = {}) => { h.receive({ type: "text-range", document: "doc", epoch: 0, dragging: false, rects: [RECT], text: "Copy me", ...over }); await flush(); };
+  const painted = (h: H) => {
+    const layer = h.markOf("text-range");
+    return layer === undefined || layer.hidden ? [] : layer.children.filter(child => !child.hidden);
+  };
+  const copied = (h: H) => {
+    const setData = vi.fn();
+    h.host.dispatchEvent(Object.assign(new Event("copy", { bubbles: true, cancelable: true }), { clipboardData: { setData } }));
+    return setData.mock.calls.at(-1)?.[1] ?? null;
+  };
+  const boardPoint = (h: H, x: number, y: number) => screenToBoard(h.controller.currentView(), { x, y });
+
+  it("a plain press asks the canvas at the board point and pans only once it answers off text, with the travel so far", () => {
+    const h = harness();
+    try {
+      hand(h);
+      const [x0, y0] = translate(h);
+      pointer(h, "pointerdown", { clientX: 100, clientY: 100 });
+      const at = boardPoint(h, 100, 100);
+      expect(ofType(h, "text-press")).toEqual([{ type: "text-press", epoch: expect.any(Number), x: at.x, y: at.y, sx: 100, sy: 100, probe: expect.any(Number) }]);
+      expect(h.layer.captured.has(1)).toBe(true);
+      pointer(h, "pointermove", { clientX: 130, clientY: 90 });
+      expect(translate(h)).toEqual([x0, y0]);
+      hit(h, lastProbe(h, "text-press"), false);
+      expect(translate(h)).toEqual([x0! + 30, y0! - 10]);
+      expect("grabbing" in h.layer.dataset).toBe(true);
+      pointer(h, "pointermove", { clientX: 135, clientY: 95 });
+      expect(translate(h)).toEqual([x0! + 35, y0! - 5]);
+      pointer(h, "pointerup", { clientX: 135, clientY: 95 });
+      expect(ofType(h, "text-move")).toEqual([]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a press on text drives the canvas's drag: moves become text-move, the release text-release, and the board stays", () => {
+    const h = harness();
+    try {
+      hand(h);
+      const before = translate(h);
+      pointer(h, "pointerdown", { clientX: 100, clientY: 100 });
+      pointer(h, "pointermove", { clientX: 102, clientY: 100 });
+      const epoch = ofType(h, "text-press")[0]!.epoch;
+      hit(h, lastProbe(h, "text-press"), true);
+      // The travel before the answer goes to the canvas, whose own 4 px decide when the press becomes a drag.
+      expect(ofType(h, "text-move").at(-1)).toEqual({ type: "text-move", epoch, ...boardPoint(h, 102, 100), sx: 102, sy: 100 });
+      pointer(h, "pointermove", { clientX: 160, clientY: 100 });
+      expect(ofType(h, "text-move").at(-1)).toEqual({ type: "text-move", epoch, ...boardPoint(h, 160, 100), sx: 160, sy: 100 });
+      expect("grabbing" in h.layer.dataset).toBe(false);
+      expect("text" in h.layer.dataset).toBe(true);
+      pointer(h, "pointerup", { clientX: 160, clientY: 100 });
+      expect(ofType(h, "text-release").at(-1)).toEqual({ type: "text-release", epoch, ...boardPoint(h, 160, 100) });
+      expect(translate(h)).toEqual(before);
+      expect(h.layer.captured.has(1)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a cancelled or lost pointer releases the canvas's drag with no point", () => {
+    for (const end of ["pointercancel", "lostpointercapture"]) {
+      const h = harness();
+      try {
+        hand(h);
+        pointer(h, "pointerdown", { clientX: 100, clientY: 100 });
+        hit(h, lastProbe(h, "text-press"), true);
+        pointer(h, end, { clientX: 160, clientY: 100 });
+        expect([end, ofType(h, "text-release").at(-1)]).toEqual([end, { type: "text-release", epoch: expect.any(Number) }]);
+      } finally { h.controller.dispose(); }
+    }
+  });
+
+  it("a release before the answer still releases the canvas's press; a late answer then does nothing", () => {
+    const h = harness();
+    try {
+      hand(h);
+      const before = translate(h);
+      pointer(h, "pointerdown", { clientX: 100, clientY: 100 });
+      pointer(h, "pointerup", { clientX: 100, clientY: 100 });
+      expect(ofType(h, "text-release")).toHaveLength(1);
+      hit(h, lastProbe(h, "text-press"), false);
+      hit(h, lastProbe(h, "text-press"), true);
+      pointer(h, "pointermove", { clientX: 160, clientY: 100 });
+      expect(translate(h)).toEqual(before);
+      expect(ofType(h, "text-move")).toEqual([]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("an answer for another probe or another document is not the press's", () => {
+    const h = harness();
+    try {
+      hand(h);
+      const before = translate(h);
+      pointer(h, "pointerdown", { clientX: 100, clientY: 100 });
+      pointer(h, "pointermove", { clientX: 130, clientY: 100 });
+      const probe = lastProbe(h, "text-press");
+      hit(h, probe + 1, false);
+      hit(h, probe, false, "other");
+      expect(translate(h)).toEqual(before);
+      hit(h, probe, false);
+      expect(translate(h)[0]).toBe(before[0]! + 30);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a press with ⌘, ⌥, ⇧ or Ctrl, or with Space held, pans at once without asking", () => {
+    for (const over of [{ metaKey: true }, { altKey: true }, { shiftKey: true }, { ctrlKey: true }]) {
+      const h = harness();
+      try {
+        hand(h);
+        const [x0] = translate(h);
+        pointer(h, "pointerdown", { clientX: 100, clientY: 100, ...over });
+        pointer(h, "pointermove", { clientX: 130, clientY: 100, ...over });
+        expect([over, ofType(h, "text-press"), translate(h)[0]]).toEqual([over, [], x0! + 30]);
+      } finally { h.controller.dispose(); }
+    }
+    const h = harness();
+    try {
+      key(h, "keydown", "Space");
+      const [x0] = translate(h);
+      pointer(h, "pointerdown", { clientX: 100, clientY: 100 });
+      pointer(h, "pointermove", { clientX: 130, clientY: 100 });
+      expect([ofType(h, "text-press"), translate(h)[0]]).toEqual([[], x0! + 30]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a range made in Hand is painted and copied", async () => {
+    const h = harness();
+    try {
+      hand(h);
+      pointer(h, "pointerdown", { clientX: 100, clientY: 100 });
+      hit(h, lastProbe(h, "text-press"), true);
+      pointer(h, "pointermove", { clientX: 160, clientY: 100 });
+      await range(h, { dragging: true, text: undefined });
+      expect(painted(h)).toHaveLength(1);
+      pointer(h, "pointerup", { clientX: 160, clientY: 100 });
+      await range(h);
+      expect(painted(h)).toHaveLength(1);
+      expect(copied(h)).toBe("Copy me");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a range the canvas posts in Hand with no Hand press of its own is not taken", async () => {
+    const h = harness();
+    try {
+      hand(h);
+      await range(h);
+      expect(painted(h)).toEqual([]);
+      expect(copied(h)).toBeNull();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("choosing Hand keeps the range and Select keeps it after; Hand's primary press clears it, a Space or Ctrl press keeps it", async () => {
+    const h = harness();
+    try {
+      await range(h);
+      hand(h);
+      expect(painted(h)).toHaveLength(1);
+      expect(copied(h)).toBe("Copy me");
+      expect(ofType(h, "clear-text")).toEqual([]);
+      h.controller.setTool("select");
+      key(h, "keydown", "KeyH");
+      expect(copied(h)).toBe("Copy me");
+      key(h, "keydown", "Space");
+      pointer(h, "pointerdown", { clientX: 100, clientY: 100 });
+      pointer(h, "pointerup", { clientX: 100, clientY: 100 });
+      key(h, "keyup", "Space");
+      pointer(h, "pointerdown", { clientX: 100, clientY: 100, ctrlKey: true });
+      pointer(h, "pointerup", { clientX: 100, clientY: 100, ctrlKey: true });
+      expect(copied(h)).toBe("Copy me");
+      pointer(h, "pointerdown", { clientX: 100, clientY: 100 });
+      expect(painted(h)).toEqual([]);
+      expect(copied(h)).toBeNull();
+      const clear = ofType(h, "clear-text");
+      expect(clear).toEqual([{ type: "clear-text", epoch: 1 }]);
+      // The press asks under the epoch it just cleared, so the canvas takes it.
+      expect(ofType(h, "text-press").at(-1)).toMatchObject({ epoch: 1 });
+    } finally { h.controller.dispose(); }
+  });
+
+  it("Esc during a Hand text drag ends it and clears the range, and keeps Hand", async () => {
+    const h = harness();
+    try {
+      hand(h);
+      pointer(h, "pointerdown", { clientX: 100, clientY: 100 });
+      hit(h, lastProbe(h, "text-press"), true);
+      pointer(h, "pointermove", { clientX: 160, clientY: 100 });
+      await range(h, { dragging: true, text: undefined });
+      key(h, "keydown", "Escape");
+      expect(h.state().tool).toBe("hand");
+      expect(painted(h)).toEqual([]);
+      expect(ofType(h, "clear-text")).toHaveLength(1);
+      const before = translate(h);
+      const moves = ofType(h, "text-move").length;
+      pointer(h, "pointermove", { clientX: 200, clientY: 120 });
+      expect(translate(h)).toEqual(before);
+      expect(ofType(h, "text-move")).toHaveLength(moves);
+      pointer(h, "pointerup", { clientX: 200, clientY: 120 });
+      key(h, "keydown", "Escape");
+      expect(h.state().tool).toBe("select");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("over text the layer shows the text cursor: a resting move asks the canvas once a frame and the newest answer counts", () => {
+    const h = harness();
+    try {
+      hand(h);
+      pointer(h, "pointermove", { clientX: 100, clientY: 100, buttons: 0 });
+      pointer(h, "pointermove", { clientX: 110, clientY: 100, buttons: 0 });
+      expect(ofType(h, "text-at")).toEqual([]);
+      h.nextFrame();
+      expect(ofType(h, "text-at")).toEqual([{ type: "text-at", ...boardPoint(h, 110, 100), probe: expect.any(Number) }]);
+      const first = lastProbe(h, "text-at");
+      hit(h, first, true);
+      expect("text" in h.layer.dataset).toBe(true);
+      pointer(h, "pointermove", { clientX: 300, clientY: 300, buttons: 0 });
+      h.nextFrame();
+      // The older answer arriving late does not bring the text cursor back over what the newer probe found.
+      hit(h, lastProbe(h, "text-at"), false);
+      hit(h, first, true);
+      expect("text" in h.layer.dataset).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("Space, a pan and Select take the text cursor away and send no probe", () => {
+    const h = harness();
+    try {
+      hand(h);
+      pointer(h, "pointermove", { clientX: 100, clientY: 100, buttons: 0 });
+      h.nextFrame();
+      hit(h, lastProbe(h, "text-at"), true);
+      key(h, "keydown", "Space");
+      expect("text" in h.layer.dataset).toBe(false);
+      const probes = ofType(h, "text-at").length;
+      pointer(h, "pointermove", { clientX: 110, clientY: 100, buttons: 0 });
+      h.nextFrame();
+      expect(ofType(h, "text-at")).toHaveLength(probes);
+      key(h, "keyup", "Space");
+      h.controller.setTool("select");
+      key(h, "keydown", "Space");
+      pointer(h, "pointermove", { clientX: 120, clientY: 100, buttons: 0 });
+      h.nextFrame();
+      expect(ofType(h, "text-at")).toHaveLength(probes);
+      expect("text" in h.layer.dataset).toBe(false);
     } finally { h.controller.dispose(); }
   });
 });

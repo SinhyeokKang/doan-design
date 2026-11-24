@@ -5,6 +5,7 @@ import { ModelCatalog, parseCodexModels, type ModelOption } from "./models";
 import { SkillCatalog } from "./skills";
 import { AttachmentStore } from "../attachments";
 import { ConversationStore } from "./store";
+import { DraftStore } from "./drafts";
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -1013,6 +1014,33 @@ describe("re-issuing a stopped turn's attachments", () => {
       expect(h.store.recheck({ ids })?.every(result => result.ok)).toBe(true);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
+  it.each([{ lines: 0, excerpt: "first" }, { lines: "two", excerpt: "first" }, { lines: 2, excerpt: "first\nsecond" }])(
+    "drops invalid draft metadata for its entry while reissuing all paths: %j", bad => {
+      const dir = realpathSync(mkdtempSync(join(tmpdir(), "doan-ipc-")));
+      try {
+        const conversations = join(dir, "conversations"); mkdirSync(conversations);
+        const badPath = join(dir, "bad.txt"), goodPath = join(dir, "good.txt"), oldPath = join(dir, "old.txt");
+        for (const path of [badPath, goodPath, oldPath]) writeFileSync(path, "notes");
+        const id = "11111111-1111-4111-8111-111111111111";
+        writeFileSync(join(conversations, "drafts.json"), JSON.stringify({ v: 1, queued: {}, returned: { [id]: {
+          text: "notes", anchors: [], reason: "restarted", attachments: [
+            { name: "bad.txt", size: 5, kind: "file", path: badPath, ...bad },
+            { name: "good.txt", size: 5, kind: "file", path: goodPath, lines: 2, excerpt: "first" },
+            { name: "old.txt", size: 5, kind: "file", path: oldPath },
+          ],
+        } } }));
+        const records = new DraftStore(conversations).take(id)?.attachments;
+        if (!records) throw new Error("draft was not read");
+        const h = files(dir), ids = h.reissue(records);
+        expect(ids).toHaveLength(3);
+        const checked = h.store.recheck({ ids });
+        expect(checked).toMatchObject([{ ok: true }, { ok: true, attachment: { lines: 2, excerpt: "first" } }, { ok: true }]);
+        for (const index of [0, 2]) {
+          const result = checked?.[index]; if (!result?.ok) throw new Error("path was not reissued");
+          expect(result.attachment).not.toHaveProperty("lines"); expect(result.attachment).not.toHaveProperty("excerpt");
+        }
+      } finally { rmSync(dir, { recursive: true, force: true }); }
+    });
   it("refuses the whole set when a recorded file is a folder now, and releases what it issued", () => {
     const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
     try {

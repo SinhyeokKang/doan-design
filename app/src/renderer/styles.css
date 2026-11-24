@@ -59,6 +59,8 @@ code, kbd { font-family: var(--type-family); }
    wheel still pans the board. */
 .drag-layer { position: absolute; inset: 0; z-index: 0; cursor: grab; }
 .drag-layer[data-grabbing] { cursor: grabbing; }
+/* Hand over canvas text and through its text drag (the canvas answers text-at). */
+.drag-layer[data-text] { cursor: text; }
 /* Capture mode: the drag layer's place, so Stop, Open, Reload and the tools stay over it and
    clickable. The controller shows it and its marquee with `hidden`, so neither sets display. The marquee is drawn in
    the area's screen px, with no size readout. */
@@ -105,11 +107,9 @@ code, kbd { font-family: var(--type-family); }
 .text-range { position: absolute; left: 0; top: 0; transform-origin: 0 0; z-index: -1; }
 .text-range > .text-rect { position: absolute; background: color-mix(in srgb, var(--affordance-accent) 30%, transparent); }
 /* The size bubble, an accent capsule (the accent button's pairing): Play (for a playable frame), the size, then Add to
-   message, 24px tall with the xs buttons. 5px from the line's outer edge: 100% is the mark's padding box, so the 1.5px
-   line is added (sizeBubble.ts SIZE_BUBBLE places it by the same distance). */
+   message, 24px tall with the xs buttons. Always 5px below the line's outer edge, centred, even under the floating
+   tools or past the area's bottom: 100% is the mark's padding box, so the 1.5px line is added. */
 .dims { position: absolute; top: calc(100% + 1.5px + 5px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-1) 0 var(--space-2); background: var(--affordance-accent); color: var(--text-on-accent); box-shadow: var(--shadow-sm); font: var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); border-radius: calc((var(--type-caption-line-height) + 2 * var(--space-1)) / 2); white-space: nowrap; }
-/* No room below the selection (a tall frame, the floating tools): the bubble hangs above it instead. */
-.dims.above { top: auto; bottom: calc(100% + 1.5px + 5px); }
 /* After the rules it overrides. On a 1x macOS display Chromium draws the 1.5px line 1 device pixel wide but keeps the
    -1.5px margin, which left a pixel gap on one side and the line over the element's last pixel on the other (checked
    in the app at 1x): the box grows by the 1px drawn, and the bubble's distance from the line follows. */
@@ -117,7 +117,6 @@ code, kbd { font-family: var(--type-family); }
   .mark { border-width: 1px; }
   .mark:not(.jump-point) { margin: -1px; }
   .dims { top: calc(100% + 1px + 5px); }
-  .dims.above { bottom: calc(100% + 1px + 5px); }
 }
 /* With Play the bubble starts with a button too, so both ends take the 4px button inset. */
 .dims.playable { padding-left: var(--space-1); }

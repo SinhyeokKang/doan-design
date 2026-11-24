@@ -1,4 +1,4 @@
-import type { AnchorsMessage, PinGeometry, TargetCandidates, CanvasFrameRect, PickedMessage, PickStartedMessage, TextRangeMessage, ElementTreeAnchor, ElementTreeMessage } from "./canvasMessage";
+import type { AnchorsMessage, PinGeometry, TargetCandidates, CanvasFrameRect, PickedMessage, PickStartedMessage, TextRangeMessage, TextHitMessage, ElementTreeAnchor, ElementTreeMessage } from "./canvasMessage";
 import type { Anchor } from "../main/conversation/types";
 import type { Selection } from "../formats/types";
 import type { ViewCommand } from "../main/index";
@@ -8,7 +8,6 @@ import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGH
 import { switchTarget } from "./switchTarget";
 import { bubbleAction, type BubbleAction } from "./bubbleItems";
 import { sizeBubblePlay } from "./prototypePlay";
-import { SIZE_BUBBLE, sizeBubblePlace, type BubbleRoom } from "./sizeBubble";
 import { acceptSelectionMessage, anchorRequest, canvasPx, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, screenToBoard, elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { scaleFactor } from "./zoomControl";
@@ -239,7 +238,15 @@ export class CanvasController {
   private toolChosen = false;
   private pendingTool: CanvasTool | null = null;
   private spaceHeld = false;
-  private drag: { pointerId: number; x: number; y: number } | null = null;
+  // `mode`: a pan, or Hand's plain press waiting for the canvas to say whether it is on text (`asking`, its travel held
+  // in `held`), then the canvas's text drag (`text`), or one Esc ended (`ended`), whose moves do nothing.
+  private drag: { pointerId: number; x: number; y: number; mode: "pan" | "asking" | "text" | "ended"; probe: number; held: Point } | null = null;
+  // Hand's text cursor: the canvas's answer to the newest text-at, the probe it answers, and the resting point a
+  // frame's text-at asks about. Probes count for text-at and text-press together.
+  private textProbe = 0;
+  private hoverProbe = 0;
+  private textHover = false;
+  private hoverPoint: Point | null = null;
   private layerShown = false;
   // Capture mode. The layer and its marquee are made on the first start, right after the
   // drag layer, and only the controller shows them. A drag that capture mode leaves early (Esc, a cancel) stays as
@@ -460,8 +467,7 @@ export class CanvasController {
     this.state.tool = this.tool;
     this.state.hasFrame = this.frame !== null;
     // Play's judgement reads the tool, a pick, capture mode and the layout, which change without a selection change.
-    // Before drawWork, so the bubble's room is read before this publish writes styles.
-    if (this.marks !== null) { const selected = this.markHidden ? null : this.selectedRect; this.placeSize(this.marks.size, selected, selected === null ? null : this.sizeBubbleRoom()); }
+    if (this.marks !== null) this.placeSize(this.marks.size, this.markHidden ? null : this.selectedRect);
     this.drawWork();
     this.syncMain();
     this.changed({ ...this.state });
@@ -592,9 +598,6 @@ export class CanvasController {
   // `onFocusLost` as Play's.
   bubbleAdd: { host(element: HTMLElement): void; onAdd(): void; button(): HTMLElement | null; onFocusLost(): void } | null = null;
   bubbleInspect: { onInspect(): void; button(): HTMLElement | null; onFocusLost(): void; restoreFocus(): void } | null = null;
-  // The band the size bubble may sit in, in the canvas area's coordinates: from its top to the floating tools' top.
-  // Without it the whole area counts.
-  bubbleRoom: (() => BubbleRoom | null) | null = null;
   // The portal host stays after the label as Play comes and goes, so its focused button stays mounted.
   private bubble: { play: HTMLButtonElement | null; label: HTMLElement; host: HTMLElement; playShown: boolean } | null = null;
   // A reload hid the bubble while one of its buttons had focus, and App's onFocusLost put focus on `holder`: once the
@@ -678,7 +681,8 @@ export class CanvasController {
   private enterTool(tool: CanvasTool): void {
     const toHand = this.tool === "select" && tool === "hand";
     this.tool = tool;
-    if (toHand) { this.dropSelection(); this.clearText(true); }
+    // The range stays: Hand drags and copies canvas text too.
+    if (toHand) this.dropSelection();
   }
 
   // Esc's clear without its publish. The clear command raises the selection seq, so a select the canvas sent before
@@ -958,6 +962,7 @@ export class CanvasController {
     if (message.type === "press") { this.pressed(); return; }
     if (message.type === "activity") { this.personActive(false); return; }
     if (message.type === "text-range") { this.onTextRange(message); return; }
+    if (message.type === "text-hit") { this.onTextHit(message); return; }
     if (message.type === "element-tree") { this.receiveElementTree(message); return; }
     this.onSelectionMessage(message);
   };
@@ -1419,6 +1424,13 @@ export class CanvasController {
   // Esc's next step; `editable`: it came from a text field. Returns the step. A held Esc's auto-repeat (`repeat`) takes
   // no Select step, so one press steps back one level (PRODUCT §5 item 4) instead of walking the selection all the way out.
   private escape(editable: boolean, repeat = false): ReturnType<typeof escapeStep> {
+    // Esc during Hand's text drag ends it and clears the range, as in Select, before it turns Hand off.
+    if (this.drag?.mode === "text" && !editable && !this.state.picking && !this.state.capturing) {
+      this.drag.mode = "ended";
+      this.clearText(true);
+      this.syncLayer();
+      return "clearText";
+    }
     const step = escapeStep({ picking: this.state.picking, capturing: this.state.capturing, hand: this.canvasPage && (this.pendingTool ?? this.tool) === "hand", editable, canvasText: this.hasText() });
     if (step === "cancelPick") this.cancelPick();
     else if (step === "cancelCapture") this.cancelCapture();
@@ -1609,8 +1621,11 @@ export class CanvasController {
     this.layer.hidden = !show;
     this.captureShown = capture;
     if (this.captureLayer !== null) this.captureLayer.hidden = !capture;
-    if (this.drag !== null) this.layer.dataset.grabbing = "";
+    if (!show || this.tool !== "hand" || this.spaceHeld) this.textHover = false;
+    if (this.drag?.mode === "pan") this.layer.dataset.grabbing = "";
     else delete this.layer.dataset.grabbing;
+    if (this.drag === null ? this.textHover : this.drag.mode === "text" || (this.drag.mode === "asking" && this.textHover)) this.layer.dataset.text = "";
+    else delete this.layer.dataset.text;
     this.drawMarks();
   }
 
@@ -1638,25 +1653,84 @@ export class CanvasController {
     if (!this.spaceHeld) this.viewport.focus(CLICK_FOCUS);
     // Keeps the drag when the pointer leaves the window.
     this.layer.setPointerCapture(event.pointerId);
-    this.drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+    // Hand's press is the canvas's next primary press, so it ends the range as one in Select does; a held Space and a
+    // Ctrl press keep it.
+    const handPress = !this.spaceHeld && this.tool === "hand" && !event.ctrlKey;
+    if (handPress) this.clearText();
+    // A plain press on canvas text drags a range as Select's does (PRODUCT §5 item 4). Only the canvas can tell, so the
+    // pan waits for its answer (onTextHit); a press with a modifier pans at once.
+    const asks = handPress && !event.metaKey && !event.altKey && !event.shiftKey && this.frame !== null && !this.loading && this.pickDocument !== null;
+    this.drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, mode: asks ? "asking" : "pan", probe: asks ? ++this.textProbe : 0, held: { x: 0, y: 0 } };
+    if (asks) this.post({ type: "text-press", epoch: this.textEpoch, ...this.boardPointAt(event.clientX, event.clientY), sx: event.clientX, sy: event.clientY, probe: this.textProbe });
     this.syncLayer();
   };
+
+  // A point in the app's client px, on the board in the canvas's document coordinates.
+  private boardPointAt(x: number, y: number): Point {
+    const area = this.viewport.getBoundingClientRect();
+    return screenToBoard(this.view, { x: x - area.left, y: y - area.top });
+  }
+
+  private onTextHit(message: TextHitMessage): void {
+    if (message.document !== this.pickDocument) return;
+    const drag = this.drag;
+    if (drag !== null && drag.mode === "asking" && message.probe === drag.probe) {
+      const { x: dx, y: dy } = drag.held;
+      drag.mode = message.hit ? "text" : "pan";
+      if (message.hit) {
+        if (dx !== 0 || dy !== 0) this.post({ type: "text-move", epoch: this.textEpoch, ...this.boardPointAt(drag.x, drag.y), sx: drag.x, sy: drag.y });
+      } else if (dx !== 0 || dy !== 0) {
+        this.view = panBy(this.view, dx, dy);
+        this.applyView();
+      }
+      this.syncLayer();
+      return;
+    }
+    if (message.probe !== this.hoverProbe) return;
+    this.textHover = message.hit;
+    this.syncLayer();
+  }
+
+  // Hand's text cursor follows a resting pointer: one text-at a frame, for the newest point.
+  private askTextHover(point: Point): void {
+    const queued = this.hoverPoint !== null;
+    this.hoverPoint = point;
+    if (queued) return;
+    requestAnimationFrame(() => {
+      const at = this.hoverPoint;
+      this.hoverPoint = null;
+      if (at === null || this.drag !== null || !this.layerShown || this.tool !== "hand" || this.spaceHeld || this.loading || this.pickDocument === null) return;
+      this.hoverProbe = ++this.textProbe;
+      this.post({ type: "text-at", ...this.boardPointAt(at.x, at.y), probe: this.hoverProbe });
+    });
+  }
 
   // Each move's own travel, not the start plus the total: a zoom during the drag stays. The board's transform holds
   // the scale, so screen px move it 1:1.
   private layerMove = (event: PointerEvent): void => {
     const drag = this.drag;
-    if (drag === null || event.pointerId !== drag.pointerId) return;
+    if (drag === null) {
+      if (this.tool === "hand" && !this.spaceHeld) this.askTextHover({ x: event.clientX, y: event.clientY });
+      return;
+    }
+    if (event.pointerId !== drag.pointerId) return;
     const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
     drag.x = event.clientX;
     drag.y = event.clientY;
-    if (dx === 0 && dy === 0) return;
+    if (dx === 0 && dy === 0 || drag.mode === "ended") return;
+    if (drag.mode === "asking") { drag.held = { x: drag.held.x + dx, y: drag.held.y + dy }; return; }
+    if (drag.mode === "text") { this.post({ type: "text-move", epoch: this.textEpoch, ...this.boardPointAt(drag.x, drag.y), sx: drag.x, sy: drag.y }); return; }
     this.view = panBy(this.view, dx, dy);
     this.applyView();
   };
 
   private layerUp = (event: PointerEvent): void => {
-    if (this.drag === null || event.pointerId !== this.drag.pointerId) return;
+    const drag = this.drag;
+    if (drag === null || event.pointerId !== drag.pointerId) return;
+    // The canvas's press or drag ends as a pointerup there would; a cancel or a lost capture ends it where it was.
+    if (drag.mode === "asking" || drag.mode === "text") {
+      this.post(event.type === "pointerup" ? { type: "text-release", epoch: this.textEpoch, ...this.boardPointAt(event.clientX, event.clientY) } : { type: "text-release", epoch: this.textEpoch });
+    }
     this.finishDrag();
   };
 
@@ -2044,11 +2118,13 @@ export class CanvasController {
   // A range waiting for its cursor reading counts: Esc and the other clears must drop it before the reply paints it.
   private hasText(): boolean { return this.textRects.length > 0 || this.textDragging || this.textCheck !== null; }
 
-  // Ranges come only from the current document after the last clear-text, and only in Select: Hand, a pick and capture
-  // mode cleared it and leave the canvas no clicks of its own.
+  // Ranges come only from the current document after the last clear-text, and not in a pick or capture mode, which
+  // cleared it and leave the canvas no clicks of its own. In Hand the canvas sees no press: a range comes only from the
+  // text drag the app drives (onTextHit), or is one already shown or waiting for its cursor reading.
   private onTextRange(message: TextRangeMessage): void {
     if (message.document !== this.pickDocument || message.epoch < this.textEpoch) return;
-    if (this.tool === "hand" || this.state.picking || this.state.capturing) return;
+    if (this.state.picking || this.state.capturing) return;
+    if (this.tool === "hand" && this.drag?.mode !== "text" && this.textTrust === "none" && this.textCheck === null) return;
     this.personActive(false);
     if (this.textTrust === "dragging") { this.applyText(message); return; }
     // The canvas cleared it (its next press, or a drag back to its start).
@@ -2186,8 +2262,6 @@ export class CanvasController {
     const measured = this.measured();
     const hover = measured === null && (this.markHidden || this.altHeld || this.layerShown || this.captureShown || this.textDragging) ? null : this.treeHover ?? this.hoverRect;
     const selected = this.markHidden ? null : this.selectedRect;
-    // Read before this draw writes any style, so it costs no forced layout.
-    const room = selected === null ? null : this.sizeBubbleRoom();
     if (this.marks === null) {
       if (hover === null && selected === null) return;
       const node = (className: string) => {
@@ -2215,7 +2289,7 @@ export class CanvasController {
     place(this.marks.selected, selected);
     this.marks.hover.className = measured === null ? "mark hover" : "mark hover measuring";
     this.marks.selected.className = measured === null ? "mark selected" : "mark selected measuring";
-    this.placeSize(this.marks.size, selected, room, active);
+    this.placeSize(this.marks.size, selected, active);
     this.drawMeasure(measured);
   }
 
@@ -2267,11 +2341,7 @@ export class CanvasController {
     for (const element of lines.slice(drawn.length)) element.line.hidden = true;
   }
 
-  private sizeBubbleRoom(): BubbleRoom {
-    return this.bubbleRoom?.() ?? { top: 0, bottom: this.viewportSize().height };
-  }
-
-  private placeSize(size: HTMLElement, selected: CanvasRect | null, room: BubbleRoom | null, active = document.activeElement): void {
+  private placeSize(size: HTMLElement, selected: CanvasRect | null, active = document.activeElement): void {
     const bubble = this.bubble;
     if (bubble === null) return;
     const onPlay = bubble.playShown && active === bubble.play;
@@ -2285,10 +2355,7 @@ export class CanvasController {
     }
     if (selected !== null) {
       bubble.label.textContent = sizeLabel(selected);
-      const screen = boardRectToScreen(this.view, selected);
-      const place = sizeBubblePlace(screen, SIZE_BUBBLE, room ?? this.sizeBubbleRoom());
-      size.className = `dims${play ? " playable" : ""}${place.kind === "above" ? " above" : ""}`;
-      size.style.top = place.kind === "inside" ? `${place.top - screen.y}px` : "";
+      size.className = play ? "dims playable" : "dims";
     }
     this.moveBubbleFocus(selected !== null, onPlay ? "play" : onAdd ? "add" : onInspect ? "inspect" : null);
   }

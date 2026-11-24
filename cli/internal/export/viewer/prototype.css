@@ -1,7 +1,7 @@
 /* The page around an exported prototype. It is one file and makes no requests, so the values it
    needs are copied from the app, as shell.css does: tokens from app/src/renderer/tokens.css, the
    notice and panel from ds/surfaces.css. Only the line's look is the app's; the page has no other
-   chrome. Geist is not bundled; the system stack the token names applies. */
+   chrome. Geist comes from the page's font style (prototype.html FONT). */
 
 :root {
   color-scheme: light;

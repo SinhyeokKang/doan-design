@@ -786,3 +786,10 @@ test("a prototype reveal of Settings without a provider reaches its listener", (
   stop();
   expect(reveals.mock.calls).toEqual([[{ kind: "settings" }]]);
 });
+
+test("pasted text and restored metadata use the shared attachment channels", async () => {
+  await api.addPastedText("first\nsecond", { lines: 2, excerpt: "first" });
+  expect(mocks.invoke).toHaveBeenLastCalledWith("attachments:add-pasted-text", { text: "first\nsecond", lines: 2, excerpt: "first" });
+  await api.attachmentsFromPaths(["/tmp/pasted-text-x.txt"], [{ lines: 2, excerpt: "first" }]);
+  expect(mocks.invoke).toHaveBeenLastCalledWith("attachments:fromPaths", { paths: ["/tmp/pasted-text-x.txt"], metadata: [{ lines: 2, excerpt: "first" }] });
+});

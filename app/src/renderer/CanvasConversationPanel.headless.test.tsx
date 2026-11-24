@@ -32,6 +32,7 @@ vi.mock("react", async original => {
     },
     useRef: (value: unknown) => { const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
     useEffect: effect, useLayoutEffect: effect,
+    useId: () => "thread-id", useMemo: (create: () => unknown) => create(), useImperativeHandle: () => {},
   };
 });
 
@@ -88,7 +89,7 @@ function fakeCalls() {
     scheduledMessages: vi.fn(async () => []),
     sendQueuedNow: vi.fn(async () => undefined), removeQueuedMessage: vi.fn(async () => undefined), interruptConversation: vi.fn(async () => undefined),
     answerConversationPermission: vi.fn(async () => undefined), answerConversationQuestion: vi.fn(async () => undefined), setConversationPermissionMode: vi.fn(async () => undefined),
-    chooseAttachments: vi.fn(async () => []), addAttachmentFiles: vi.fn(async (_files: readonly File[]): Promise<AttachmentResult[] | null> => []), addPastedImage: vi.fn(async () => null), droppedPath: vi.fn(() => null),
+    chooseAttachments: vi.fn(async () => []), addAttachmentFiles: vi.fn(async (_files: readonly File[]): Promise<AttachmentResult[] | null> => []), addPastedImage: vi.fn(async () => null), addPastedText: vi.fn(async (_text: string, _meta: { lines: number; excerpt: string }): Promise<AttachmentResult | null> => null), droppedPath: vi.fn(() => null),
     removeAttachment: vi.fn(async () => true), releaseAttachments: vi.fn(async () => true), recheckAttachments: vi.fn(async () => []), attachmentsFromPaths: vi.fn(async () => []),
     openLink: vi.fn(async () => true),
   };
@@ -333,3 +334,77 @@ function agentTexts(node: ReactNode): string[] | null {
   }
   return agentTexts(props.children);
 }
+
+
+test("canvas pasted text reserves room synchronously, settles into its original draft after switching, and deletes a removed Checking file", async () => {
+  const calls = fakeCalls();
+  let save!: (result: AttachmentResult) => void;
+  calls.addPastedText.mockImplementation(() => new Promise(resolve => { save = resolve; }));
+  const { panel, store, run } = await headless(calls);
+  const composer = dockedProps(render(panel))! as unknown as import("./DockedComposer").DockedComposerProps;
+  const at = draftKey(composer.mode);
+  store.setDrafts(drafts => new Map(drafts).set(at, { ...importedEmpty(), attachments: Array.from({ length: 9 }, (_, i) => ({ key: `${i}`, name: `${i}`, kind: "file", pasted: false, status: "ready" })) }));
+  const report = vi.fn();
+  const saving = composer.onPastedText("x".repeat(1000), { lines: 1, excerpt: "x" }, report);
+  const second = composer.onPastedText("x".repeat(1000), { lines: 1, excerpt: "x" }, report);
+  expect(calls.addPastedText).toHaveBeenCalledOnce();
+  expect(store.drafts.get(at)?.attachments).toHaveLength(10);
+  expect(report).toHaveBeenCalledWith("Only 10 attachments can be added, so the pasted text wasn’t added. Remove one and paste again.");
+  await second;
+  run.select("another");
+  render(panel);
+  save({ ok: true, attachment: { id: "text", name: "pasted-text-2026-11-24T08-20-00-000Z.txt", kind: "file", path: "/u/pasted-text-2026-11-24T08-20-00-000Z.txt", size: 1000, pasted: true, lines: 1, excerpt: "x" } });
+  await saving;
+  expect(store.drafts.get(at)?.attachments.at(-1)).toMatchObject({ id: "text", status: "ready", lines: 1, excerpt: "x" });
+  expect(store.drafts.get("conversation:another")?.attachments ?? []).toEqual([]);
+  store.setDrafts(() => new Map());
+  const late = composer.onPastedText("x".repeat(1000), { lines: 1, excerpt: "x" }, report);
+  store.setDrafts(() => new Map());
+  save({ ok: true, attachment: { id: "late-text", name: "pasted-text-2026-11-24T08-20-00-000Z.txt", kind: "file", path: "/u/pasted-text-2026-11-24T08-20-00-000Z.txt", size: 1000, pasted: true } });
+  await late;
+  expect(calls.removeAttachment).toHaveBeenCalledWith("late-text");
+});
+
+function importedEmpty(): import("./dockedRules").DockedDraft { return { segments: [], attachments: [], preset: null, shape: "capsule" }; }
+
+test("canvas text save failures remove Checking and report text-specific copy", async () => {
+  const calls = fakeCalls();
+  calls.addPastedText.mockRejectedValueOnce(new Error("disk full"));
+  const { panel, store } = await headless(calls);
+  const composer = dockedProps(render(panel))! as unknown as import("./DockedComposer").DockedComposerProps;
+  const report = vi.fn();
+  await composer.onPastedText("x".repeat(1000), { lines: 1, excerpt: "x" }, report);
+  expect(store.drafts.get(draftKey(composer.mode))?.attachments).toEqual([]);
+  expect(report).toHaveBeenCalledWith("Couldn’t save the pasted text. Paste it again.");
+});
+
+
+test("a recorded pasted text reaches the mounted sent bubble with its lines, tooltip and accessible description", async () => {
+  const { ConversationThread, ThreadEntry } = await import("./ConversationThread");
+  const { threadItems } = await import("./threadItems");
+  const record = { name: "pasted-text-2026-11-24T08-20-00-000Z.txt", kind: "file" as const, size: 1000, path: "/u/pasted-text-2026-11-24T08-20-00-000Z.txt", lines: 24, excerpt: "Checkout spec" };
+  const items = threadItems([{ v: 1, conversationId: "c", seq: 1, turnId: "t", at: "2026-11-24T00:00:00Z", type: "user.message", text: "Go", anchors: [], attachments: [record] }], ROOT, false);
+  const props: import("./ConversationThread").ConversationThreadProps = {
+    conversationId: "c", items, provider: "claude", project: "acme", visibility: fakeCalls(), liveAfter: 1,
+    canvasListed: () => true, onAnswer: vi.fn(), onStop: vi.fn(), onEditAndResend: vi.fn(), onSignIn: vi.fn(), onRetry: vi.fn(), onOpenCanvas: vi.fn(), onOpenLink: vi.fn(), onCopy: vi.fn(async () => true),
+  };
+  type Element = { type: unknown; props: Record<string, unknown> & { children?: ReactNode } };
+  const all = (node: ReactNode): Element[] => {
+    if (Array.isArray(node)) return node.flatMap(all);
+    if (!node || typeof node !== "object" || !("props" in node)) return [];
+    const element = node as Element;
+    return [element, ...all(element.props.children)];
+  };
+  const tree = render(() => {
+    const body = (ConversationThread as unknown as { render(props: unknown, ref: null): Element }).render(props, null);
+    const thread = (body.type as (props: unknown) => ReactNode)(body.props);
+    const entry = all(thread).find(element => element.type === ThreadEntry)!;
+    const user = (entry.props.draw as (item: unknown) => Element)(entry.props.entry);
+    return (user.type as (props: unknown) => ReactNode)(user.props);
+  });
+  const drawn = all(tree);
+  expect(drawn.some(element => element.props.children === "Pasted text")).toBe(true);
+  expect(drawn.some(element => element.props.children === "24 lines")).toBe(true);
+  expect(drawn.some(element => element.props.children === "Checkout spec")).toBe(true);
+  expect(drawn.some(element => element.props["aria-description"] === "Checkout spec")).toBe(true);
+});

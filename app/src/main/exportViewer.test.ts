@@ -27,7 +27,6 @@ import { MAX_PROTOTYPE_MARK as APP_MAX_PROTOTYPE_MARK } from "./prototype/mark";
 import { canStep as appCanStep, EMPTY_HISTORY, recordEntry as appRecordEntry, stepHistory as appStepHistory } from "./prototype/history";
 import { prototypeHeaderRows as appPrototypeHeaderRows, prototypeViewportBox as appPrototypeViewportBox } from "./prototype/fit";
 import { drawerKey as appDrawerKey, groupDrawer as appGroupDrawer } from "../renderer/frameDrawerList";
-import { canvasBubbleRoom as appCanvasBubbleRoom, SIZE_BUBBLE, sizeBubblePlace as appSizeBubblePlace } from "../renderer/sizeBubble";
 import { bubbleItems as appBubbleItems } from "../renderer/bubbleItems";
 import { measureLines as appMeasureLines } from "../renderer/measure";
 import { drawerPlayRequest as appDrawerPlayRequest, playDrawer as appPlayDrawer, playRequest as appPlayRequest, playTooltip as appPlayTooltip, sizeBubblePlay as appSizeBubblePlay, type PlayState } from "../renderer/prototypePlay";
@@ -787,7 +786,7 @@ describe("viewer files", () => {
     const body = shellHtml.replace(/<!--[\s\S]*?-->/, "");
     const counts = new Map<string, number>();
     for (const m of body.matchAll(/\{\{([A-Za-z_]+)\}\}/g)) counts.set(m[1]!, (counts.get(m[1]!) ?? 0) + 1);
-    expect(Object.fromEntries(counts)).toEqual({ PROJECT: 3, INITIAL: 1, HUE: 1, NAME: 3, WIDTH: 1, META: 1, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
+    expect(Object.fromEntries(counts)).toEqual({ PROJECT: 3, INITIAL: 1, HUE: 1, NAME: 3, WIDTH: 1, META: 1, FONT: 1, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
     // The comment documents the placeholders by name: a brace form in it would be replaced too.
     expect(shellHtml.match(/<!--[\s\S]*?-->/)?.[0]).not.toContain("{{");
     for (const name of ["lib.js", "measure.js", "shell.js", "shell.css"]) expect(files[name], name).not.toContain("{{");
@@ -795,6 +794,8 @@ describe("viewer files", () => {
 
   test("the placeholders sit where their escaping rule applies", () => {
     expect(shellHtml).toContain("<title>{{NAME}}</title>");
+    // The player reads this element's text back as the prototype file's font style.
+    expect(shellHtml).toContain('<style id="doan-font">{{FONT}}</style>');
     expect(shellHtml).toContain("<span>{{NAME}}</span></span>");
     expect(shellHtml).toContain('style="width:{{WIDTH}}px" srcdoc="{{SRCDOC}}"');
     expect(shellHtml).toContain('<script type="application/json" id="doan-meta">{{META}}</script>');
@@ -1156,6 +1157,11 @@ describe("the toolbar", () => {
     expect(shellCss).not.toMatch(/cursor:\s*url/);
   });
 
+  test("over canvas text Hand's surface takes the text cursor, in the app and the viewer", () => {
+    expect(declarations(stylesCss, ".drag-layer[data-text]")).toEqual(["cursor: text"]);
+    expect(declarations(shellCss, ".board[data-pan][data-text]")).toEqual(["cursor: text"]);
+  });
+
   // CanvasTools.tsx: only Select and Hand and the toolbar's name are held; the app's row has more tools.
   const appTools = [...readFileSync(new URL("../renderer/CanvasTools.tsx", import.meta.url), "utf8").matchAll(/\{ tool: "(\w+)", label: "(\w+)", key: "(\w)", Icon: (\w+) \}/g)].map(m => ({ tool: m[1], label: m[2], key: m[3], icon: m[4] }));
   const toolbar = /<div class="doan-floating doan-canvas-tools"[^>]*>([\s\S]*?)<\/div>/.exec(shellHtml);
@@ -1341,9 +1347,11 @@ const viewerPage = (body: string, { width = 800, reports = true, scripted = true
   const values: Record<string, string> = {
     PROJECT: "northwind-customer-portal", INITIAL: "N", HUE: "indigo",
     NAME: "checkout", WIDTH: String(width), META: JSON.stringify({ name: "checkout", width }).replace(/</g, "\\u003c"), STYLE: shellCss,
+    // No face: these pages are measured in the fallback font and need not decode the 93 KB face each time.
+    FONT: "",
     SCRIPT: scripted ? `(function () {\n${beforeShell ? `(${beforeShell})();` : ""}\n${lib}\n${viewerAppJs}\n${playerJs}\n${playerJs ? "if (!startPlayer()) " : ""}(function () {\n${boardInspectScripts}\n${shellJs}\n})();\n})();` : "", SRCDOC: canvas.replace(/&/g, "&amp;").replace(/"/g, "&quot;"),
   };
-  return shellHtml.replace(/\{\{(PROJECT|INITIAL|HUE|NAME|WIDTH|META|STYLE|SCRIPT|SRCDOC)\}\}/g, (_, key: string) => values[key]!);
+  return shellHtml.replace(/\{\{(PROJECT|INITIAL|HUE|NAME|WIDTH|META|FONT|STYLE|SCRIPT|SRCDOC)\}\}/g, (_, key: string) => values[key]!);
 };
 const twoFrames = '<section data-doan-frame="cart" data-doan-title="Cart" style="height:600px">Cart</section><section data-doan-frame="pay" data-doan-title="Payment" style="height:600px">Payment</section>';
 
@@ -1557,6 +1565,115 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     const rect = (await frame.locator(".text-rect").first().boundingBox())!;
     expect(Math.abs(rect.x - box.x)).toBeLessThan(0.5);
     expect(Math.abs(rect.y - box.y)).toBeLessThan(0.5);
+  });
+
+  // Hand: a press on canvas text drags a range as Select's does; a press anywhere else pans the board.
+  const handText = '<section data-doan-frame="f" style="height:1400px;padding:12px"><span style="font:32px/40px sans-serif">Drag these words</span></section>';
+  const copiedText = (frame: Frame) => frame.evaluate(() => {
+    const data = new DataTransfer();
+    document.dispatchEvent(new ClipboardEvent("copy", { clipboardData: data, bubbles: true, cancelable: true }));
+    return data.getData("text/plain");
+  });
+
+  test("in Hand a drag over canvas text makes a range ⌘C copies and leaves the board where it was", async () => {
+    const frame = await openCanvas(handText, 320);
+    await frame.locator('[data-tool="hand"]').click();
+    const span = frame.frameLocator("#canvas").locator("span");
+    const box = (await span.boundingBox())!;
+    const board = frame.locator("#board");
+    const mouse = frame.page().mouse;
+    await mouse.move(box.x + 4, box.y + box.height / 2);
+    await expect.poll(() => board.getAttribute("data-text")).toBe("");
+    const scroll = await board.evaluate(el => [el.scrollLeft, el.scrollTop]);
+    await mouse.down();
+    try {
+      await mouse.move(box.x + box.width - 2, box.y + box.height / 2, { steps: 6 });
+      await frame.locator(".text-rect").first().waitFor();
+    } finally { await mouse.up(); }
+    await expect.poll(() => copiedText(frame)).toBe("Drag these words");
+    expect(await board.evaluate(el => [el.scrollLeft, el.scrollTop])).toEqual(scroll);
+    const rect = (await frame.locator(".text-rect").first().boundingBox())!;
+    expect(Math.abs(rect.x - box.x)).toBeLessThan(0.5);
+  });
+
+  test("in Hand a drag off the text pans the board and clears the range", async () => {
+    const frame = await openCanvas(handText, 320);
+    await frame.locator('[data-tool="hand"]').click();
+    const span = frame.frameLocator("#canvas").locator("span");
+    const box = (await span.boundingBox())!;
+    const board = frame.locator("#board");
+    const mouse = frame.page().mouse;
+    await mouse.move(box.x + 4, box.y + box.height / 2);
+    await mouse.down();
+    try {
+      await mouse.move(box.x + box.width - 2, box.y + box.height / 2, { steps: 6 });
+      await frame.locator(".text-rect").first().waitFor();
+    } finally { await mouse.up(); }
+    // The section's own background, well below its text.
+    const below = { x: box.x + 20, y: box.y + 300 };
+    await mouse.move(below.x, below.y);
+    await expect.poll(() => board.getAttribute("data-text")).toBeNull();
+    const top = await board.evaluate(el => el.scrollTop);
+    await mouse.down();
+    try {
+      await mouse.move(below.x, below.y - 120, { steps: 6 });
+    } finally { await mouse.up(); }
+    await expect.poll(() => board.evaluate(el => el.scrollTop)).toBeGreaterThan(top + 60);
+    await frame.locator(".text-rect").first().waitFor({ state: "detached" });
+    expect(await copiedText(frame)).toBe("");
+  });
+
+  // The page takes a dragging range without the canvas's focus only through a Hand press on text. A canvas is untrusted:
+  // after a pan its unprompted dragging range would paint and hold the tool keys.
+  test("after a Hand pan the page takes a dragging range only from a focused canvas", async () => {
+    const frame = await openCanvas(handText, 320);
+    const canvas = (await (await frame.locator("#canvas").elementHandle())!.contentFrame())!;
+    await canvas.evaluate(() => {
+      const view = window as Window & { probeEpoch?: number };
+      view.probeEpoch = -1;
+      addEventListener("message", event => { if (event.data?.type === "inspect-mode") view.probeEpoch = event.data.epoch; });
+    });
+    await showInspector(frame);
+    await frame.locator('[data-tool="hand"]').click();
+    const span = frame.frameLocator("#canvas").locator("span");
+    const box = (await span.boundingBox())!;
+    const mouse = frame.page().mouse;
+    const below = { x: box.x + 20, y: box.y + 300 };
+    const top = await frame.locator("#board").evaluate(el => el.scrollTop);
+    await mouse.move(below.x, below.y);
+    await mouse.down();
+    try {
+      await mouse.move(below.x, below.y - 120, { steps: 6 });
+    } finally { await mouse.up(); }
+    await expect.poll(() => frame.locator("#board").evaluate(el => el.scrollTop)).toBeGreaterThan(top + 60);
+    expect(await frame.evaluate(() => document.activeElement === document.getElementById("canvas"))).toBe(false);
+    await canvas.evaluate(() => {
+      const epoch = (window as Window & { probeEpoch?: number }).probeEpoch;
+      parent.postMessage({ type: "inspect-text", epoch, seq: 1e9, dragging: true, rects: [{ x: 0, y: 0, width: 80, height: 20 }], text: "" }, "*");
+      // A later message the page does take, so the check below runs after the range was judged.
+      parent.postMessage({ type: "inspect-marks", epoch, seq: 1e9 + 1, selected: { x: 0, y: 0, width: 40, height: 40 }, hover: null, alt: false }, "*");
+    });
+    await frame.locator("#selected-mark").waitFor();
+    expect(await frame.locator(".text-rect").count()).toBe(0);
+  });
+
+  test("switching to Hand keeps a range made in Select", async () => {
+    const frame = await openCanvas(handText, 320);
+    const span = frame.frameLocator("#canvas").locator("span");
+    const box = (await span.boundingBox())!;
+    const mouse = frame.page().mouse;
+    await pointAt(span, { x: 2, y: box.height / 2 });
+    await mouse.down();
+    try {
+      await frame.waitForFunction(() => document.activeElement === document.getElementById("canvas"));
+      await mouse.move(box.x + box.width - 2, box.y + box.height / 2, { steps: 6 });
+      await frame.locator(".text-rect").first().waitFor();
+    } finally { await mouse.up(); }
+    await expect.poll(() => copiedText(frame)).toBe("Drag these words");
+    await frame.locator('[data-tool="hand"]').click();
+    await expect.poll(() => frame.locator('[data-tool="hand"]').getAttribute("aria-pressed")).toBe("true");
+    expect(await frame.locator(".text-rect").count()).toBeGreaterThan(0);
+    expect(await copiedText(frame)).toBe("Drag these words");
   });
 
   test("switching to Hand while the inspector yields clears the retained frame", async () => {
@@ -2473,16 +2590,24 @@ describe("viewerApp.js: the app's judgments, generated", () => {
     expect(viewerAppJs.startsWith("// Generated by app/scripts/viewerInspect.mjs.\n")).toBe(true);
     const app = generated();
     for (const name of ["PLAY_REASONS", "playability", "playableFrames", "linkGroups", "recordEntry", "stepHistory", "canStep", "EMPTY_HISTORY",
-      "prototypeViewportBox", "prototypeHeaderRows", "groupDrawer", "drawerOrder", "drawerKey", "focusedRowAfter", "sizeBubblePlace", "canvasBubbleRoom",
-      "SIZE_BUBBLE", "bubbleItems", "measureLines", "canvasPlayability", "playTooltip", "sizeBubblePlay", "playDrawer", "drawerPlayRequest", "playRequest", "sizeLabel",
+      "prototypeViewportBox", "prototypeHeaderRows", "groupDrawer", "drawerOrder", "drawerKey", "focusedRowAfter", "bubbleItems", "measureLines", "canvasPlayability", "playTooltip", "sizeBubblePlay", "playDrawer", "drawerPlayRequest", "playRequest", "sizeLabel",
       "closedFocusTarget", "prototypeScriptSource", "parseRunReport", "parseFramesReport", "parsePrototypeMark", "PROTOTYPE_LOAD_TIMEOUT_MS", "LOADING_LABEL", "RETRY", "CLOSE",
       "windowTitle", "modeTooltip", "drawerGroups", "drawerLabel", "exportAvailability", "linkMove", "TOAST_MS", "initialToastState", "toastState"]) {
       expect(app[name], name).toBeDefined();
     }
   });
 
+  // The size bubble always hangs below the selection, as on the canvas page: nothing places it above the selection or
+  // over the floating tools.
+  test("places the size bubble below the selection only", () => {
+    const app = generated();
+    for (const name of ["sizeBubblePlace", "canvasBubbleRoom", "SIZE_BUBBLE"]) expect(app[name], name).toBeUndefined();
+    expect(shellCss).not.toContain(".dims.above");
+    expect(shellJs).not.toMatch(/sizeBubble\.style\.top|" above"/);
+  });
+
   test("the page code copies none of them by hand", () => {
-    for (const name of ["playability", "playableFrames", "linkGroups", "groupDrawer", "drawerKey", "sizeBubblePlace", "bubbleItems", "measureLines", "playTooltip", "sizeBubblePlay", "playDrawer",
+    for (const name of ["playability", "playableFrames", "linkGroups", "groupDrawer", "drawerKey", "bubbleItems", "measureLines", "playTooltip", "sizeBubblePlay", "playDrawer",
       "recordEntry", "stepHistory", "canStep", "prototypeViewportBox", "parseRunReport", "parseFramesReport", "parsePrototypeMark", "drawerGroups", "linkMove", "toastState", "closedFocusTarget", "prototypeScript"]) {
       expect(shellJs + playerJs + lib + shellInspectScripts.replace(viewerAppJs, ""), name).not.toMatch(new RegExp(`function ${name}\\b|const ${name} =`));
     }
@@ -2552,14 +2677,8 @@ describe("viewerApp.js: the app's judgments, generated", () => {
     }
   });
 
-  test("the size bubble's place, items and label answer as the app's", () => {
+  test("the size bubble's items and label answer as the app's", () => {
     const app = generated();
-    expect(app.SIZE_BUBBLE).toEqual(SIZE_BUBBLE);
-    const room = { top: 0, bottom: 400 };
-    for (const selection of [{ y: 10, height: 100 }, { y: 300, height: 90 }, { y: -50, height: 600 }, { y: 500, height: 10 }, { y: 0, height: 380 }]) {
-      for (const band of [room, { top: 40, bottom: 60 }, { top: 0, bottom: 10 }]) expect(app.sizeBubblePlace(selection, SIZE_BUBBLE, band)).toEqual(appSizeBubblePlace(selection, SIZE_BUBBLE, band));
-    }
-    expect(app.canvasBubbleRoom({ height: 500 }, null, { top: 440 })).toEqual(appCanvasBubbleRoom({ height: 500 }, null, { top: 440 }));
     for (const play of [true, false]) for (const inspectorOpen of [true, false]) for (const inspectorFits of [true, false]) {
       expect(app.bubbleItems({ play, inspectorOpen, inspectorFits })).toEqual(appBubbleItems({ play, inspectorOpen, inspectorFits }));
     }
@@ -2879,27 +2998,28 @@ describe("the player's Export prototype", () => {
       frames: [{ id: "__proto__", name: "Home &amp; co", start: "\"__proto__\"", group: 0, mark: "390x844" }, { id: "b", name: "b", start: "\"b\"", group: 0, mark: "1x1" }, { id: "c", name: "c", start: "\"c\"", group: 1, mark: "1x1" }],
       refused: [{ id: "constructor", reason: "unmarked" }, { id: "dup", reason: "shared" }],
       groups: ['[{"id":"__proto__","title":"Home & co"},{"id":"b","title":"b"}]', '[{"id":"c","title":"c"}]'],
-      page: ["P0<title>", "</title>P1{\"start\":", ",\"frames\":", "}P3 data-srcdoc=\"", "\">P4"],
+      page: ["P0<title>", "</title><style id=\"doan-font\">", "</style>P1{\"start\":", ",\"frames\":", "}P3 data-srcdoc=\"", "\">P4"],
       isolate: "<script>ISO \"&\"</script>",
       measure: { offset: head.length, length: measure.length },
       external: 0,
     });
+    const font = "/* notice */@font-face{}";
     const file = (plan: Lib) => plan.head + [...px.srcdocSlices(plan.canvas, 1 << 20)].join("") + plan.tail;
 
     test("a frame of the file: the fragments joined around the canvas with isolate.js in the measure script's place", () => {
-      const plan = px.prototypeExport(data(), srcdoc, "__proto__");
+      const plan = px.prototypeExport(data(), srcdoc, "__proto__", font);
       expect(plan.kind).toBe("file");
       expect(plan.linked).toBe(1);
-      expect(file(plan)).toBe("P0<title>Home &amp; co</title>P1{\"start\":\"__proto__\",\"frames\":" + data().groups[0] + "}P3 data-srcdoc=\""
+      expect(file(plan)).toBe("P0<title>Home &amp; co</title><style id=\"doan-font\">" + font + "</style>P1{\"start\":\"__proto__\",\"frames\":" + data().groups[0] + "}P3 data-srcdoc=\""
         + px.srcdocAttribute(head + "<script>ISO \"&\"</script><title>t</title></head><body>a \"&\" b</body></html>") + "\">P4");
-      expect(px.prototypeExport(data(), srcdoc, "c")).toMatchObject({ kind: "file", linked: 0 });
+      expect(px.prototypeExport(data(), srcdoc, "c", font)).toMatchObject({ kind: "file", linked: 0 });
     });
 
     test("a frame it does not have, or has twice, is not in the canvas file; an unmarked one is not marked", () => {
-      for (const id of ["script-made", "dup", "toString", "hasOwnProperty", "valueOf", ""]) expect(px.prototypeExport(data(), srcdoc, id), id).toEqual({ kind: "refused", reason: "missing" });
-      expect(px.prototypeExport(data(), srcdoc, "constructor")).toEqual({ kind: "refused", reason: "unmarked" });
+      for (const id of ["script-made", "dup", "toString", "hasOwnProperty", "valueOf", ""]) expect(px.prototypeExport(data(), srcdoc, id, font), id).toEqual({ kind: "refused", reason: "missing" });
+      expect(px.prototypeExport(data(), srcdoc, "constructor", font)).toEqual({ kind: "refused", reason: "unmarked" });
       // A reason the player does not know is read as the file not having the frame.
-      expect(px.prototypeExport({ ...data(), refused: [{ id: "x", reason: "later" }] }, srcdoc, "x")).toEqual({ kind: "refused", reason: "missing" });
+      expect(px.prototypeExport({ ...data(), refused: [{ id: "x", reason: "later" }] }, srcdoc, "x", font)).toEqual({ kind: "refused", reason: "missing" });
     });
 
     test("data that does not hold together is refused, never joined into a broken file", () => {
@@ -2912,8 +3032,8 @@ describe("the player's Export prototype", () => {
         [{ ...data(), measure: { offset: head.length + 0.5, length: measure.length } }, srcdoc],
         [{ ...data(), measure: null }, srcdoc],
         [data(), "<!-- -->" + srcdoc],
-        [{ ...data(), page: data().page.slice(0, 4) }, srcdoc],
-        [{ ...data(), page: [...data().page.slice(0, 4), 5] }, srcdoc],
+        [{ ...data(), page: data().page.slice(0, 5) }, srcdoc],
+        [{ ...data(), page: [...data().page.slice(0, 5), 5] }, srcdoc],
         [{ ...data(), groups: ['[{"id":"c","title":"c"}]'] }, srcdoc],
         [{ ...data(), groups: ["not json", "[]"] }, srcdoc],
         [{ ...data(), groups: ['{"id":"b"}', "[]"] }, srcdoc],
@@ -2924,13 +3044,15 @@ describe("the player's Export prototype", () => {
         [null, srcdoc],
         [data(), 1],
       ] as const;
-      for (const [proto, source] of broken) expect(px.prototypeExport(proto, source, "__proto__"), JSON.stringify(proto)?.slice(0, 200)).toEqual({ kind: "refused", reason: "broken" });
+      for (const [proto, source] of broken) expect(px.prototypeExport(proto, source, "__proto__", font), JSON.stringify(proto)?.slice(0, 200)).toEqual({ kind: "refused", reason: "broken" });
+      // A page without its font style has nothing to join in.
+      for (const missing of [undefined, null, 1]) expect(px.prototypeExport(data(), srcdoc, "__proto__", missing)).toEqual({ kind: "refused", reason: "broken" });
     });
   });
 
   test("Export takes the frame at the click, holds itself while it runs and downloads through a[download] with a Blob", () => {
     const run = extractFunction(playerJs, "exportPrototype");
-    expect(run).toContain("prototypeExport(proto, source, frameId)");
+    expect(run).toContain("prototypeExport(proto, source, frameId, font)");
     expect(run).toMatch(/\.download = exportFileName\(meta\.name, frameId\)/);
     expect(run).toContain("new Blob(");
     expect(run).toContain(".click()");
@@ -4344,13 +4466,14 @@ describe("prototype viewer files", () => {
     const body = protoHtml.replace(/<!--[\s\S]*?-->/, "");
     const counts = new Map<string, number>();
     for (const m of body.matchAll(/\{\{([A-Za-z_]+)\}\}/g)) counts.set(m[1]!, (counts.get(m[1]!) ?? 0) + 1);
-    expect(Object.fromEntries(counts)).toEqual({ NAME: 1, META: 1, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
+    expect(Object.fromEntries(counts)).toEqual({ NAME: 1, META: 1, FONT: 1, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
     expect(protoHtml.match(/<!--[\s\S]*?-->/)?.[0]).not.toContain("{{");
     for (const name of ["prototype.css", "prototype.js", "isolate.js"]) expect(files[name], name).not.toContain("{{");
   });
 
   test("the placeholders sit where their escaping rule applies", () => {
     expect(protoHtml).toContain("<title>{{NAME}} — Prototype</title>");
+    expect(protoHtml).toContain('<style id="doan-font">{{FONT}}</style>');
     expect(protoHtml).toContain('<script type="application/json" id="doan-prototype">{{META}}</script>');
     expect(protoHtml).toContain('<div id="canvas" hidden data-srcdoc="{{SRCDOC}}"></div>');
   });

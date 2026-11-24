@@ -181,3 +181,21 @@ describe("attachments in a conversation request", () => {
     expect(handlers.recheck(PROTO, { ids: [id] })).toBeNull();
   });
 });
+
+test("issues pasted text to its prototype owner for remove, send and close cleanup", async () => {
+  const { handlers, kill } = setup();
+  const add = () => {
+    const result = handlers.addPastedText(PROTO, { text: "notes", lines: 1, excerpt: "notes" });
+    if (!result.ok) throw new Error("paste refused"); return result.attachment;
+  };
+  const removed = add();
+  expect(handlers.remove(MAIN, { id: removed.id })).toBe(false);
+  expect(handlers.remove(PROTO, { id: removed.id })).toBe(true);
+  const sent = add();
+  expect(await handlers.conversation(PROTO, { attachments: [{ id: sent.id }] }, async () => {
+    expect(store.resolve([{ id: sent.id }])).toMatchObject({ ok: true }); queue(sent.id); return {};
+  })).toEqual({});
+  const draft = add(); kill(PROTO);
+  expect(store.recheck({ ids: [draft.id] })).toMatchObject([{ ok: false }]);
+  expect(store.recheck({ ids: [sent.id] })).toMatchObject([{ ok: true }]);
+});

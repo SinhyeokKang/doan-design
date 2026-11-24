@@ -164,6 +164,11 @@ function canvasInspection(post) {
     else range.setEnd(node, offset);
     sendText(true);
   }
+  // Hand's text drag: the board takes every press, so the page asks whether a Select press at a point
+  // (canvas client px) would start a text drag, and then drives it with the page's own px for the 4 px.
+  // `pointerId` -1: none of this document's pointer events is its.
+  const handStart = (x, y) => inspectCanvas.textAt(x, y, document.elementFromPoint(x, y));
+  const finite = (...values) => values.every(value => typeof value === "number" && Number.isFinite(value));
   function listen() {
     const on = (type, handler) => addEventListener(type, event => {
       if (type === "pointerdown" && event.isTrusted) {
@@ -296,7 +301,7 @@ function canvasInspection(post) {
       } else if (data.type === "inspect-escape") {
         if (range || press?.state === "drag") clearText();
         else if (selected) inspect(inspectCanvas.escapeTarget(inspectCanvas.framesOf(selected), selected.hasAttribute("data-doan-frame")));
-      } else if (data.type === "inspect-clear") { clearText(); inspect(null); }
+      } else if (data.type === "inspect-clear") inspect(null);
       else if (data.type === "inspect-node" && data.selection === selectionSeq) {
         const el = tree[data.index];
         if (data.selector !== menuNodes[data.index]?.selector) return;
@@ -306,6 +311,21 @@ function canvasInspection(post) {
       else if (data.type === "inspect-modifiers") { meta = data.meta; alt = data.alt; marks(); }
       else if (data.type === "inspect-clear-text") clearText();
       else if (data.type === "inspect-extend") extend(data.x, data.y);
+      else if (data.type === "inspect-hand-at" && finite(data.x, data.y) && Number.isSafeInteger(data.probe)) {
+        emit("inspect-hand-hit", { probe: data.probe, hit: handStart(data.x, data.y) !== null });
+      } else if (data.type === "inspect-hand-press" && finite(data.x, data.y, data.sx, data.sy) && Number.isSafeInteger(data.probe)) {
+        const start = handStart(data.x, data.y);
+        if (start) {
+          clearText();
+          dragged = false;
+          press = { ...start, pointerId: -1, screen: { x: data.sx, y: data.sy }, state: "press", remote: true };
+        }
+        emit("inspect-hand-hit", { probe: data.probe, hit: start !== null });
+      } else if (data.type === "inspect-hand-move" && press?.remote && finite(data.x, data.y, data.sx, data.sy)) {
+        if (inspectCanvas.textDragState(press.state, press.screen, { x: data.sx, y: data.sy }, 4) !== "drag") return;
+        if (press.state === "press") { press.state = "drag"; marks(); }
+        extend(data.x, data.y);
+      } else if (data.type === "inspect-hand-release" && press?.remote) finishDrag();
     },
     pan(on) {
       pan = on;

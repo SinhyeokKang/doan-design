@@ -739,22 +739,22 @@ test("Edit on Home after a restart refuses a recorded folder whose path now name
 test("Edit on Home after a reload rebuilds the request from the record and the index; a moved file comes back missing", async () => {
   lists({ [ROOT]: [summary({ unseen: true, provider: "codex", model: "gpt-5.5", effort: "high" })] });
   doan.readConversation!.mockResolvedValue({ events: [
-    event("c1", { type: "user.message", text: "Use the Doan design preset `polish` (Polish the details).\n\nTighten the header.", anchors: [], attachments: [{ name: "a.md", size: 4, kind: "file", path: "/Users/ada/a.md" }, { name: "gone.png", size: 9, kind: "image", path: "/Users/ada/gone.png" }] }),
+    event("c1", { type: "user.message", text: "Use the Doan design preset `polish` (Polish the details).\n\nTighten the header.", anchors: [], attachments: [{ name: "a.md", size: 4, kind: "file", path: "/Users/ada/a.md", lines: 2, excerpt: "first" }, { name: "gone.png", size: 9, kind: "image", path: "/Users/ada/gone.png" }] }),
     event("c1", { type: "turn.started" }), event("c1", { type: "turn.failed", code: "process_exited" }),
   ], lastSeq: 3, turn: "failed" });
   doan.attachmentsFromPaths!.mockResolvedValue([
-    { ok: true, attachment: { id: "new-a", name: "a.md", size: 4, kind: "file", path: "/Users/ada/a.md", pasted: false } },
+    { ok: true, attachment: { id: "new-a", name: "a.md", size: 4, kind: "file", path: "/Users/ada/a.md", lines: 2, excerpt: "first", pasted: false } },
     { ok: false, name: "gone.png", error: "not_found" },
   ]);
   const h = harness();
   h.run.entriesChanged();
   await flush(); await flush();
   await h.run.editOnHome("c1");
-  expect(doan.attachmentsFromPaths).toHaveBeenCalledWith(["/Users/ada/a.md", "/Users/ada/gone.png"]);
+  expect(doan.attachmentsFromPaths).toHaveBeenCalledWith(["/Users/ada/a.md", "/Users/ada/gone.png"], [{ lines: 2, excerpt: "first" }, {}]);
   expect(h.host.goHome).toHaveBeenCalled();
   expect(h.run.restore?.request).toMatchObject({
     root: ROOT, text: "Tighten the header.", preset: { id: "polish", title: "Polish the details" }, provider: "codex", model: "gpt-5.5", effort: "high",
-    attachments: [{ id: "new-a", name: "a.md", status: "ready" }, { name: "gone.png", status: "missing" }],
+    attachments: [{ id: "new-a", name: "a.md", status: "ready", lines: 2, excerpt: "first" }, { name: "gone.png", status: "missing" }],
   });
   expect(h.run.restore?.request.attachments[1]).not.toHaveProperty("id");
 });

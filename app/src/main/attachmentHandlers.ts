@@ -56,6 +56,7 @@ export function createAttachmentHandlers(store: AttachmentStore, deps: Attachmen
     },
     addPaths(owner: AttachmentOwner, value: unknown): AttachmentResult[] | null { const results = store.addPaths(value); issued(owner, results); return results; },
     addPasted(owner: AttachmentOwner, value: unknown): AttachmentResult { const result = store.addPasted(value); issued(owner, [result]); return result; },
+    addPastedText(owner: AttachmentOwner, value: unknown): AttachmentResult { const result = store.addPastedText(value); issued(owner, [result]); return result; },
     fromPaths(owner: AttachmentOwner, value: unknown): AttachmentResult[] | null { const results = store.fromPaths(value); issued(owner, results); return results; },
     remove(owner: AttachmentOwner, value: unknown): boolean {
       // The owner stays: a removed sent id goes back aside for its own window's recheck, not another window's.

@@ -74,7 +74,7 @@ function setup(patch: Partial<DockedComposerProps> = {}, drafts: [string, Docked
     auth: AUTH, picker: PICKER, provider: "claude", effort: null,
     onPickerOpen: vi.fn(), onPickModel: vi.fn(), onPickEffort: vi.fn(), onPickFast: vi.fn(), onSettings: vi.fn(),
     presets: undefined, suggested: [], onPresetsOpen: vi.fn(), onPresetsRetry: vi.fn(),
-    thumbnails: {}, onAttach: vi.fn(), onFiles: vi.fn(), onAttachmentRemoved: vi.fn(),
+    thumbnails: {}, onPastedText: async () => false, onAttach: vi.fn(), onFiles: vi.fn(), onAttachmentRemoved: vi.fn(),
     turn: "idle", canvasGone: false, queued: [],
     onSend: send, onQueue: queue, onStop: vi.fn(), onRemoveQueued: vi.fn(async () => true),
     ...patch,

@@ -2,8 +2,8 @@
    needs no other file (a canvas export is one file and makes no requests): tokens from
    app/src/renderer/tokens.css, buttons from ds/controls.css, menus and notices from
    ds/surfaces.css, the header, the panel and the tools row from styles.css (.ov-head,
-   .doan-canvas-*). The class names are the app's. Only the roles this page reads are copied, one light theme. Geist is not bundled, so the
-   type family falls back to the system stack the token already names. */
+   .doan-canvas-*). The class names are the app's. Only the roles this page reads are copied, one light theme. Geist comes from the
+   page's font style (shell.html FONT). */
 
 :root {
   color-scheme: light;
@@ -452,6 +452,8 @@ html:not(.js) .doan-canvas-bottom { display: none; }
    cursors. */
 .board[data-pan] { cursor: grab; }
 .board[data-pan][data-grabbing] { cursor: grabbing; }
+/* Hand over canvas text and through its text drag. */
+.board[data-pan][data-text] { cursor: text; }
 .board[data-pan] .canvas { pointer-events: none; }
 /* The canvas as the CSS alone shows it: its doan:width wide, one screen high. */
 .canvas { height: 100vh; }
@@ -561,10 +563,8 @@ html:not(.js) .doan-canvas-bottom { display: none; }
    only the bubble's buttons do, so the canvas under the selection stays clickable. */
 .vw-selection { position: absolute; pointer-events: none; }
 .dims { position: absolute; top: calc(100% + 1.5px + 5px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-1) 0 var(--space-2); background: var(--affordance-accent); color: var(--text-on-accent); box-shadow: var(--shadow-sm); font: var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); border-radius: calc((var(--type-caption-line-height) + 2 * var(--space-1)) / 2); white-space: nowrap; }
-.dims.above { top: auto; bottom: calc(100% + 1.5px + 5px); }
 @media (resolution < 2dppx) {
   .dims { top: calc(100% + 1px + 5px); }
-  .dims.above { bottom: calc(100% + 1px + 5px); }
 }
 .dims.playable { padding-left: var(--space-1); }
 .bubble-button { pointer-events: auto; color: var(--text-on-accent); }

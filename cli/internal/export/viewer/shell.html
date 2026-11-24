@@ -17,6 +17,10 @@
             prototype file, the file `doan export --frame <id> --prototype` writes (assemble.go
             frameExports). Write every "<" as \u003c so the value can neither end the script nor open
             an HTML comment.
+    FONT    the app's Geist (cli/internal/export/viewer/Geist.woff2, a copy of the app window's) as a
+            data: URL in one @font-face, after its license notice in a CSS comment. The player reads
+            this element's text back into the prototype file it writes, so the face is in this file
+            once.
     STYLE   shell.css.
     SCRIPT  lib.js, the app's generated judgments (viewerApp.js) and the player (player.js), then
             the inspector display helpers and shell.js in a function of their own that runs only
@@ -40,6 +44,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{NAME}}</title>
+<style id="doan-font">{{FONT}}</style>
 <style>
 {{STYLE}}
 </style>

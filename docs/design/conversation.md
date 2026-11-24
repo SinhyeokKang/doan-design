@@ -267,6 +267,39 @@ Measured against `.doan/canvases/folder-attachments.html`, frames `folder-home`,
 
 `homeComposer.test.ts` (the ten-item cap), `attachments.test.ts` (special files), `HomeComposerView.interaction.test.tsx` (a pasted folder main no longer finds). The icon's `flex: none` has no unit test; the probe measured 3.5 × 14 without it.
 
+## Pasted text attachments
+
+Reference: `.doan/canvases/composer-long-paste-chip.html`, frames `paste-home`, `paste-overview` and `paste-states`. Measured in the real app at 1238 × 780, DPR 2, against a second hidden window's iframe in the same Electron 45.3.4 / Chromium 156.0.8078.100 build. Home and Overview use the real pasted-text save IPC and real attachment chips. Main's auth/model snapshot, conversation list/history, returned draft and queue reply are fixtures; Checking delays the save handler, count-less presentation removes `lines` from its reply, and Missing / save failure inject main refusals. No provider turn ran. The final isolated probe preserved every real-state fingerprint, closed its owned app and removed its temporary fixtures. The canvas panel and prototype window share DockedComposer and have no separate draft frames.
+
+### Measured contracts
+
+| Surface | Measured values |
+|---|---|
+| Composer / restored chip | Shared attachment chip: 40 high, 4 padding, 8 gap, radius 12, max width 256, inset rgb(245,245,246). Icon tile 32 × 32, white, radius 8; FileText 16 × 16 in rgb(82,82,82). Name “Pasted text”: Geist 12/16, weight 500; metadata “1 line” / “N lines”: 12/16, weight 400, rgb(95,95,95). Both use the existing caption tracking 0.1596 px. × is the shared 24 × 24 button named “Remove pasted text”. |
+| Tooltip and description | First line excerpt, up to 80 code points. Home's actual Radix tooltip was measured against `home-pasted-tooltip`; source chips carry the same excerpt as `aria-description`. |
+| Sent chip | Same file icon, name and line count, without ×. Both the recorded message conversion and the restored composer preserve metadata. |
+| Queue summary | Visible “Pasted text” only, FileText 14 × 14, gap 4, caption 12/16 and 0.1596 px tracking, rgb(82,82,82), max width 180 at the measured Overview width. The accessible group name is “Attachments: Pasted text, N lines — <first line>”. The tooltip shows each attachment on two lines: a medium-weight “Pasted text, N lines” name above its first-line excerpt, without the “Attachments:” prefix or the em dash. A record without a line count omits the comma and count in both places. The queue's existing narrow cap remains as documented under Folder attachments. |
+| Checking | Same chip, “Checking” and 16 × 16 spinner; Send disabled. |
+| Missing / refused | Problem icon and metadata rgb(100,23,35). Docked notice: inset rgb(245,245,246), 12 / 16 padding, 6 gap, radius 16, Geist 14/20, −0.035 px tracking, rgb(100,23,35). Missing, save-failed, 50 MB and ten-item limit copy match the state tiles. |
+| × interaction | Hover uses the existing icon-button hover fill; keyboard focus uses the shared 2 px black outline with 2 px offset. Both states were reached before measurement. |
+
+### Documented differences and context
+
+- **Shared caption tracking.** The draft omits the name's tracking (`normal`); the existing attachment primitive uses the caption role's 0.1596 px. Keep the primitive across existing attachments. The “Pasted text” name measures 66.4766 instead of 64.7188 px, and its flex-column metadata stretches to that width. A removable chip is 146.477 px wide instead of the draft's 144.719; its height, padding, gap, radius and icon sizes match. Tracking on text-less icons and buttons is inherited context; FileText's `flex-shrink` is also irrelevant inside its grid tile (both rendered glyphs are 16 × 16).
+- **Home notice surface.** State tiles draw DockedComposer. Home keeps the existing `doan-panel` notice surface (Home, Reason and notices): white with the panel shadow, rather than Docked's inset fill and no shadow. The words, padding, typography, danger ink and icon match; Docked notices were measured separately and match the tiles.
+- **Disabled Send text.** The real disabled Send contains the existing screen-reader-only “Checking attachments” reason. The draft button has no text; neither paints a visible label.
+- **Fixture excerpts and layout.** The one-line fixture's first line differs from the draft's sample. Notice widths follow the containing composer, and a narrow sample can wrap where the measured Overview does not. No equality claim is made for those intrinsic widths, wrapping, portal placement or inherited type on text-less containers.
+- **Count-less records.** The count-less specimen retains pasted ownership or an excerpt signal. Pasted-text saving and metadata were introduced together, so a stored record with only an ordinary file name is not treated as pasted text. This also preserves ordinary user files named “Pasted text” or `pasted-text-notes.txt`.
+
+### Not verified
+
+- Real Finder / AppKit paste, actual selection and caret, real provider reads, restart lifetime, and the prototype window's preload-to-main send path belong to the separate runtime / provider checks.
+- No new canvas-panel or prototype-window geometry comparison was made; their shared composer uses the Overview measurement.
+
+### Regression pointers
+
+`homeComposer.test.ts` pins file identity, queue visible / accessible copy, count-less metadata and same-named ordinary files. Home/Docked interaction tests and Overview/Canvas/prototype effect mounts pin their paste branches and asynchronous chip lifetime; CanvasConversationPanel.headless also mounts the recorded sent bubble. Geometry and native state remain isolated probes under `.scratch/design-sync/pasted-text/`.
+
 ## Conversation finished bubble
 
 Reference: `.doan/canvases/canvas-activity-notices.html` (`activity-sidebar`, `activity-collapsed`). Measured at 1238 × 780, draft read in the app's canvas iframe. The unread finished state came from a stored conversation record (v2 index plus a four-event history) in an isolated app, with no provider login.

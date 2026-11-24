@@ -7,7 +7,7 @@ import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { UsageEntry } from "../main/agentAuth/usageTypes";
-import type { AttachmentResult, RecheckResult } from "../main/attachments";
+import type { AttachmentMeta, PastedTextMeta, AttachmentResult, RecheckResult } from "../main/attachments";
 import type { ExportReply } from "../main/canvasExport";
 import type { ConversationHandoffNotice } from "../main/conversation/handoff";
 import type { ConversationError, ScheduledSend } from "../main/conversation/ipc";
@@ -34,7 +34,7 @@ export type SharedWithMain =
   | "setConversationPermissionMode" | "removeQueuedMessage" | "sendQueuedNow" | "takeConversationDraft" | "markConversationSeen"
   | "onConversationListChanged" | "onConversationHandoff" | "openLink" | "interruptConversation" | "answerConversationPermission"
   | "answerConversationQuestion" | "readConversation" | "listConversationModels" | "listConversationSkills"
-  | "chooseAttachments" | "addAttachmentFiles" | "addPastedImage" | "removeAttachment" | "recheckAttachments" | "attachmentsFromPaths" | "releaseAttachments"
+  | "chooseAttachments" | "addAttachmentFiles" | "addPastedImage" | "addPastedText" | "removeAttachment" | "recheckAttachments" | "attachmentsFromPaths" | "releaseAttachments"
   | "onConversationEvent" | "onConversationStage" | "onConversationBoundary" | "onAgentAuth" | "getWork" | "onWorkChanged" | "designSkills" | "onWindowVisible" | "droppedPath"
   | "deleteConversation" | "readAgentUsage" | "onAgentUsage" | "clockHour12";
 
@@ -181,9 +181,10 @@ const api = {
     return paths.map((path, i): AttachmentResult => path === "" ? { ok: false, name: files[i]!.name, error: "not_found" } : checked[next++]!);
   },
   addPastedImage: (bytes: ArrayBuffer | Uint8Array): Promise<AttachmentResult | null> => ipcRenderer.invoke("attachments:add-pasted", { bytes: bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes) }),
+  addPastedText: (text: string, meta: PastedTextMeta): Promise<AttachmentResult | null> => ipcRenderer.invoke("attachments:add-pasted-text", { text, ...meta }),
   removeAttachment: (id: string): Promise<boolean> => ipcRenderer.invoke("attachments:remove", { id }),
   recheckAttachments: (ids: readonly string[]): Promise<RecheckResult[] | null> => ipcRenderer.invoke("attachments:recheck", { ids: [...ids] }),
-  attachmentsFromPaths: (paths: readonly string[]): Promise<AttachmentResult[] | null> => ipcRenderer.invoke("attachments:fromPaths", { paths: [...paths] }),
+  attachmentsFromPaths: (paths: readonly string[], metadata?: readonly AttachmentMeta[]): Promise<AttachmentResult[] | null> => ipcRenderer.invoke("attachments:fromPaths", { paths: [...paths], ...(metadata ? { metadata: [...metadata] } : {}) }),
   releaseAttachments: (ids: readonly string[]): Promise<boolean> => ipcRenderer.invoke("attachments:release", { ids: [...ids] }),
   onConversationEvent: (listener: (event: ConversationEvent) => void): (() => void) => listen("conversation:event", listener),
   onConversationStage: (listener: (signal: StageSignal) => void): (() => void) => listen("conversation:stage", listener),

@@ -78,7 +78,7 @@ function setup(patch: Partial<DockedComposerProps> = {}, drafts: [string, Docked
     auth: AUTH, picker: PICKER, provider: "claude", effort: null,
     onPickerOpen: vi.fn(), onPickModel: vi.fn(), onPickEffort: vi.fn(), onPickFast: vi.fn(), onSettings: vi.fn(),
     presets: undefined, suggested: [], onPresetsOpen: vi.fn(), onPresetsRetry: vi.fn(),
-    thumbnails: {}, onAttach: vi.fn(), onFiles: vi.fn(), onAttachmentRemoved: vi.fn(),
+    thumbnails: {}, onAttach: vi.fn(), onPastedText: vi.fn(async () => true), onFiles: vi.fn(), onAttachmentRemoved: vi.fn(),
     turn: "idle", canvasGone: false, queued: [],
     onSend: send, onQueue: queue, onStop: vi.fn(), onRemoveQueued: vi.fn(async () => true),
     ...patch,
@@ -414,7 +414,7 @@ test("locked, Presets, a dropped file and a pasted file add nothing to the kept 
   const paste = fileEvent();
   (input(render()).onPaste as (event: unknown) => void)(paste);
   expect(onFiles).not.toHaveBeenCalled();
-  expect(paste.preventDefault).toHaveBeenCalled();
+  expect(paste.preventDefault).not.toHaveBeenCalled();
   expect(shownText(render())).toBe("Tighten the totals");
   const withFile = setup({ unavailable: reason, locked: true }, [["conversation:a", { ...draft("Tighten the totals"), attachments: [{ key: "k", id: "f", name: "notes.md", kind: "file", pasted: false, status: "ready", size: 4096 }] }]]);
   expect(primitive(withFile.draw(), Parts.ComposerChips)?.disabled).toBe(true);
@@ -1283,4 +1283,85 @@ test("the same run mode text is announced again for another conversation", () =>
   settle();
   expect(said()).not.toBe(first);
   expect(String(said()).trim()).toBe("Claude Code settings run Auto mode");
+});
+
+
+const textPaste = (text = "Spec\r\n" + "x".repeat(1000), types = ["text/plain"]) => ({ preventDefault: vi.fn(), clipboardData: { files: [], types, getData: (type: string) => type === "text/plain" ? text : "chip" } });
+function mountedPaste(patch: Partial<DockedComposerProps> = {}, drafts: [string, DockedDraft][] = []) {
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  const result = setup(patch, drafts);
+  result.render();
+  for (const effect of hooks.effects) effect();
+  return result;
+}
+
+test("docked long text preserves selected segments and announces only after the file is ready", async () => {
+  let ready!: (value: boolean) => void;
+  const add = vi.fn(() => new Promise<boolean>(resolve => { ready = resolve; }));
+  const { render, store } = mountedPaste({ onPastedText: add }, [["conversation:a", draft("Keep the selected request")]]);
+  const event = textPaste();
+  (field(render()).onPaste as (event: unknown) => void)(event);
+  expect(event.preventDefault).toHaveBeenCalled();
+  expect(draftText(store.current.get("conversation:a"))).toBe("Keep the selected request");
+  expect(add).toHaveBeenCalledWith("Spec\n" + "x".repeat(1000), { lines: 2, excerpt: "Spec" }, expect.any(Function));
+  expect(hooks.states).not.toContain("Pasted text attached, 2 lines");
+  ready(true);
+  await vi.waitFor(() => expect(hooks.states).toContain("Pasted text attached, 2 lines"));
+  (field(render()).onPaste as (event: unknown) => void)(textPaste());
+  ready(true);
+  await vi.waitFor(() => expect(hooks.states).toContain("Pasted text attached, 2 lines\u00a0"));
+});
+
+test.each(["command", "chip", "composing", "readOnly", "locked", "fixed"])("docked %s text creates no attachment IPC", mode => {
+  const { render, props } = mountedPaste({ skills: mode === "command" ? [{ kind: "command", name: "compact", description: "Compact" }] : [], locked: mode === "locked", unavailable: mode === "locked" ? "Gone" : null, fixed: mode === "fixed" }, [["conversation:a", draft(mode === "command" ? "/compact " : "Keep")]]);
+  if (mode === "composing" || mode === "readOnly") hooks.refs[2]!.current = { composing: () => mode === "composing", element: () => ({ isContentEditable: mode !== "readOnly" }) };
+  const event = textPaste(undefined, mode === "chip" ? ["text/plain", "application/x-doan-field+json"] : undefined);
+  (field(render()).onPaste as (event: unknown) => void)(event);
+  expect(event.preventDefault).not.toHaveBeenCalled();
+  expect(props.onPastedText).not.toHaveBeenCalled();
+});
+
+test("docked pending send creates no pasted text, and Checking attachments block Send", async () => {
+  const { render, props, send } = mountedPaste({}, [["conversation:a", draft("Go")]]);
+  send.mockReturnValueOnce(new Promise(() => {}));
+  (field(render()).onKeyDown as (event: unknown) => void)(enter());
+  const event = textPaste();
+  (field(render()).onPaste as (event: unknown) => void)(event);
+  expect(props.onPastedText).not.toHaveBeenCalled();
+  expect(event.preventDefault).not.toHaveBeenCalled();
+  props.mode = B;
+  props.drafts = new Map([["conversation:b", { ...draft("Go"), attachments: [{ key: "t", name: "Pasted text", pasted: true, kind: "file", status: "checking" }] }]]);
+  (field(render()).onKeyDown as (event: unknown) => void)(enter());
+  expect(send).toHaveBeenCalledOnce();
+});
+
+test("docked Finder names win over ten lines and text refusals stay below the composer", () => {
+  const { render, props } = mountedPaste();
+  const files = Array.from({ length: 11 }, (_, i) => new File(["x"], `${i}.txt`));
+  const event = { preventDefault: vi.fn(), clipboardData: { files, getData: () => files.map(f => f.name).join("\n") } };
+  (field(render()).onPaste as (event: unknown) => void)(event);
+  expect(props.onFiles).toHaveBeenCalledWith(files, true, expect.any(Function));
+  expect(props.onPastedText).not.toHaveBeenCalled();
+  props.drafts = new Map([["conversation:a", { ...EMPTY_DRAFT, attachments: Array.from({ length: 10 }, (_, i) => ({ key: `${i}`, name: `${i}`, kind: "file", status: "checking", pasted: false })) }]]);
+  (field(render()).onPaste as (event: unknown) => void)(textPaste());
+  expect(hooks.states.some(state => state instanceof Map && state.get("conversation:a")?.refusal?.text === "Only 10 attachments can be added, so the pasted text wasn’t added. Remove one and paste again.")).toBe(true);
+});
+
+test("docked UTF-8 oversize text is refused before calling the host", () => {
+  const { render, props } = mountedPaste();
+  (field(render()).onPaste as (event: unknown) => void)(textPaste("é".repeat(25 * 1024 * 1024) + "x"));
+  expect(props.onPastedText).not.toHaveBeenCalled();
+  expect(hooks.states.some(state => state instanceof Map && state.get("conversation:a")?.refusal?.text === "This text is over 50 MB, so it wasn’t attached.")).toBe(true);
+});
+
+test("a queued or sent pasted text carries its lines and excerpt and renders a queue summary", async () => {
+  const attachment = { key: "t", id: "t", name: "pasted-text-2026-11-24T08-20-00-000Z.txt", kind: "file" as const, pasted: true, status: "ready" as const, size: 1000, path: "/u/attachments/t/pasted-text-2026-11-24T08-20-00-000Z.txt", lines: 24, excerpt: "Checkout spec" };
+  const { render, send, props } = mountedPaste({}, [["conversation:a", { ...draft("Go"), attachments: [attachment] }]]);
+  (field(render()).onKeyDown as (event: unknown) => void)(enter());
+  await vi.waitFor(() => expect(send).toHaveBeenCalledOnce());
+  expect(send.mock.calls[0]![0]).toMatchObject({ files: [expect.objectContaining({ lines: 24, excerpt: "Checkout spec" })] });
+  props.queued = [{ id: "q", text: "Go", message: { attachments: [attachment] } }];
+  hooks.states = []; hooks.refs = [];
+  const tree = render(true);
+  expect(tree.some(p => p["aria-label"] === "Attachments: Pasted text, 24 lines — Checkout spec")).toBe(true);
 });

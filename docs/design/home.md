@@ -95,7 +95,7 @@ The live Agents page keeps its centred Settings column, header description and N
 
 - Strip, sidebar slots and Edit on Home come from main's conversation list. After a reload or restart the strip shows only conversations with work left (running, waiting, an unseen end, a crash-folded turn as stopped); a failed or stopped conversation already seen through a visit is not shown again, so Edit on Home is not reachable for it (PRODUCT §5 item 1). Reload, restart, crash folding and Edit on Home with a missing attachment were reached with real Claude Code runs.
 - A start can wait for its runner (Antigravity's first download included) and has no cancel while pending.
-- A pasted image stays under `<userData>/attachments/` until the next start when it was not sent.
+- A pasted image or text stays under `<userData>/attachments/` until the next start when it was not sent.
 - After a permission answer focus goes to Stop. When a turn ends while Stop holds focus (a Copilot Deny was seen to end it in about 300 ms; a stop or a send's arrival focus can do the same), Stop goes away and focus moves to Dismiss instead of falling to the page. Focus the person moved elsewhere stays there; the strip is keyed by its conversation, so another project's strip starts fresh.
 - Not verified: preset list loading, CLI timeout and refused; the older-CLI tile (unit tests only); the agent board row for an unverified provider; attachment checking, pasted image, more than 10 files, over 50 MB and folder-drop notices (they share the measured notice); strip starting, done and not_logged_in tiles; a slot on a bound canvas row; reasons 'project unhealthy', 'agent can't run' and 'checking'.
 

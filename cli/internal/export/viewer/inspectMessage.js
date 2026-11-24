@@ -57,6 +57,10 @@ const inspectorMessages = (() => {
         return { ...message, rects: Array.from(data.rects, copyRect), text: data.text, dragging: data.dragging };
       case "inspect-press":
         return canvasFocused ? message : null;
+      // The answer to the page's own inspect-hand-at or inspect-hand-press (Hand's text drag).
+      case "inspect-hand-hit":
+        if (!Number.isSafeInteger(data.probe) || typeof data.hit !== "boolean") return null;
+        return { ...message, probe: data.probe, hit: data.hit };
       default:
         return null;
     }
