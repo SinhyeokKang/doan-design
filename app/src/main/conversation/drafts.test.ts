@@ -414,4 +414,3 @@ describe("DraftStore discarded starts", () => {
     expect(() => store.discardRootStarts(["/repo"])).not.toThrow();
   });
 });
-

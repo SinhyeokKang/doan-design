@@ -172,7 +172,7 @@ function appSocket(setup: FenceSetup): { socket?: string } {
 function runFence(setup: FenceSetup, provider: Provider, profileDir: string, attachments: readonly { path: string; kind: string }[]): NonNullable<Prepared["fence"]> {
   // Codex's profile names the attachment directory, which exists only after a first paste.
   if (provider === "codex") try { mkdirSync(join(setup.userData, "attachments"), { recursive: true, mode: 0o700 }); } catch { /* resolve refuses below */ }
-  // Only a pasted image's own directory is ever reopened; a folder the person attached widens nothing, wherever it is.
+  // Only a pasted file's own directory is ever reopened; a folder the person attached widens nothing, wherever it is.
   const files = attachments.filter(a => a.kind !== "directory").map(a => a.path);
   const paths = resolveFencePaths({ provider, userData: setup.userData, profileDir, attachments: files }, path => realpathSync.native(path));
   if (!paths) throw new Error("unknown");

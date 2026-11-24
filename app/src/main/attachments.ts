@@ -1,6 +1,6 @@
 import { closeSync, constants, fstatSync, mkdirSync, openSync, readdirSync, readSync, realpathSync, rmSync, writeFileSync, lstatSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { basename, extname, isAbsolute, join, relative, sep } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, sep } from "node:path";
 import type { AttachmentRecord } from "./conversation/types";
 
 // Attachments are local paths the agent reads with its own tools (Orca 1.4.243
@@ -60,15 +60,15 @@ function readChecked(path: string, expected: { kind: AttachmentRecord["kind"]; d
     return opened;
   } finally { closeSync(fd); }
 }
-// Unsent paste directories no draft or queue still holds; a sent one stays with its conversation.
-export function cleanupTargets(entries: readonly { name: string; directory: boolean; sent: boolean }[], kept: ReadonlySet<string> = new Set()): string[] {
-  return entries.filter(e => e.directory && ID.test(e.name) && !e.sent && !kept.has(e.name)).map(e => e.name);
+// Paste directories a start or queue never took; a sent one stays with its conversation.
+export function cleanupTargets(entries: readonly { name: string; directory: boolean; sent: boolean }[]): string[] {
+  return entries.filter(e => e.directory && ID.test(e.name) && !e.sent).map(e => e.name);
 }
 export function pastedName(at: Date): string { return `pasted-${at.toISOString().replace(/[:.]/g, "-")}.png`; }
 export function pastedTextName(at: Date): string { return `pasted-text-${at.toISOString().replace(/[:.]/g, "-")}.txt`; }
 export interface PastedTextMeta { lines: number; excerpt: string }
 export type AttachmentMeta = Partial<PastedTextMeta>;
-function validMetadata(value: unknown): value is AttachmentMeta {
+export function validMetadata(value: unknown): value is AttachmentMeta {
   return typeof value === "object" && value !== null && !Array.isArray(value) && Object.keys(value).every(key => key === "lines" || key === "excerpt") &&
     (!("lines" in value) || value.lines === undefined || (typeof value.lines === "number" && Number.isSafeInteger(value.lines) && value.lines >= 1)) &&
     (!("excerpt" in value) || value.excerpt === undefined || (typeof value.excerpt === "string" && !/[\r\n]/.test(value.excerpt) && Array.from(value.excerpt).length <= 80));
@@ -114,9 +114,21 @@ export function captureRequest(value: unknown, contentSize: readonly [number, nu
 export class AttachmentStore {
   private entries = new Map<string, Entry>();
   private sent = new Map<string, Entry>();
-  constructor(private dir: string, private codec: ImageCodec) {}
-  // At launch, before any paste: only the draft store supplies kept paths; conversation history is never read.
-  cleanup(keptPaths: readonly string[] = []): void {
+  constructor(private dir: string, private codec: ImageCodec) {
+    // Resolve an existing ancestor so ordinary path attachments still do not create paste storage.
+    const missing: string[] = [];
+    let ancestor = dir;
+    for (;;) {
+      try { this.dir = join(realpathSync.native(ancestor), ...missing); break; }
+      catch (error) {
+        if (typeof error !== "object" || error === null || !("code" in error) || (error.code !== "ENOENT" && error.code !== "ENOTDIR")) throw error;
+        const parent = dirname(ancestor); if (parent === ancestor) throw error;
+        missing.unshift(basename(ancestor)); ancestor = parent;
+      }
+    }
+  }
+  // At launch, before any paste: removes only unsent paste directories, never reading conversation history.
+  cleanup(): void {
     let names: string[];
     try { names = readdirSync(this.dir); } catch { return; }
     const entries = names.map(name => {
@@ -125,8 +137,7 @@ export class AttachmentStore {
       try { directory = lstatSync(path).isDirectory(); sent = directory && lstatSync(join(path, SENT)).isFile(); } catch { /* not sent */ }
       return { name, directory, sent };
     });
-    const kept = new Set(keptPaths.flatMap(path => { const id = pasteDirectory(path, this.dir); return id ? [id] : []; }));
-    for (const name of cleanupTargets(entries, kept)) rmSync(join(this.dir, name), { recursive: true, force: true });
+    for (const name of cleanupTargets(entries)) rmSync(join(this.dir, name), { recursive: true, force: true });
   }
   addPaths(value: unknown): AttachmentResult[] | null {
     if (typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("paths" in value)) return null;
@@ -157,14 +168,6 @@ export class AttachmentStore {
       if (!result.ok) continue;
       const entry = this.entries.get(result.attachment.id); if (!entry) continue;
       if (Array.isArray(metadata) && validMetadata(metadata[i])) Object.assign(entry, metadata[i]);
-      const id = pasteDirectory(entry.path, this.dir);
-      // A restored unsent draft still owns its paste. Sent copies remain ordinary path entries forever.
-      if (id) {
-        const dir = join(this.dir, id);
-        let sent = false;
-        try { sent = lstatSync(join(dir, SENT)).isFile(); } catch { /* no sent marker */ }
-        if (!sent) { entry.dir = dir; entry.pasted = true; }
-      }
       result.attachment = { ...result.attachment, ...record(entry, entry), pasted: entry.pasted };
     }
     return results;
@@ -209,7 +212,7 @@ export class AttachmentStore {
     this.entries.set(id, entry);
     return { ok: true, attachment: this.info(entry, bytes) };
   }
-  // A pasted image removed before sending is deleted, even one a refused start marked sent; a local file is only
+  // A pasted file removed before sending is deleted, even one a refused start marked sent; a local file is only
   // forgotten. An accepted start consumed its entries, so its files never reach here.
   remove(value: unknown): boolean {
     const id = typeof value === "object" && value !== null && Object.keys(value).length === 1 && "id" in value && typeof value.id === "string" ? value.id : null;
@@ -268,7 +271,7 @@ export class AttachmentStore {
     for (const id of ids as string[]) this.sent.delete(id);
     return true;
   }
-  // A queued message removed before it went out: no conversation holds its files, so main's own copy of a pasted image
+  // A queued message removed before it went out: no conversation holds its files, so main's own copy of a pasted file
   // goes with it; a local file is only forgotten.
   discard(ids: readonly string[]): void {
     for (const id of ids) {

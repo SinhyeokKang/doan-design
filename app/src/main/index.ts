@@ -1341,7 +1341,7 @@ async function start(): Promise<void> {
   // A command turn's boundary, as a stage: its own channel to the same windows as events, never written to the history.
   signal => broadcast({ channel: "conversation:boundary", value: signal }));
   conversations = conversationService;
-  attachments.cleanup(conversationDrafts.attachmentPaths());
+  attachments.cleanup();
   modelCatalog = new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.readListing(input, listModels));
   const skillCatalog = new SkillCatalog((root, provider) => conversationService.prepareListing(root, provider), input => conversationService.readListing(input, listSkills));
   const conversationRequest = conversationHandler(conversationService, prepareConversation, () => ready.entries(), { models: modelCatalog, skills: skillCatalog, attachments });

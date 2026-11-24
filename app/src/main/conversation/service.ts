@@ -659,7 +659,7 @@ export class ConversationService {
   }
   private async openRunner(id: string, live: Live, input: Prepared): Promise<Runner> {
     let spawned = false;
-    // A fenced Claude turn opened only the pasted images it started with (Codex opens the whole store, ACP has no steer).
+    // A fenced Claude turn opened only the pasted files it started with (Codex opens the whole store, ACP has no steer).
     if (input.runtime === "claude" && input.fence) live.pastedStore = `${input.fence.paths.userData}/attachments/`; else delete live.pastedStore;
     const key = input.owner ? randomBytes(32).toString("hex") : undefined;
     if (key) { this.handoffKeys.set(key, id); live.handoffKey = key; } else delete live.handoffKey;
