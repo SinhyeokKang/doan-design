@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Anchor, ConversationEvent } from "../main/conversation/types";
-import { ConversationStore, type ListView } from "./conversationStore";
+import { ConversationStore, draftFrom, type ListView } from "./conversationStore";
 import { threadItems, withSending } from "./threadItems";
 
 // Send now takes the row out of the queue at once and shows the message at the thread's end
@@ -759,4 +759,13 @@ describe("a streamed delta", () => {
     h.store.event(event({ type: "message.delta", messageId: "m1", text: "lo" }));
     expect(onA).toHaveBeenCalledOnce();
   });
+});
+
+test("draft restoration passes recorded pasted text metadata through reissue", async () => {
+  const record = { name: "pasted-text-x.txt", kind: "file" as const, size: 5, path: "/paste.txt", lines: 2, excerpt: "first" };
+  const calls = { ...window.doan, attachmentsFromPaths: vi.fn(async () => [{ ok: true as const, attachment: { ...record, id: "fresh", pasted: true } }]),
+    recheckAttachments: vi.fn(async () => []), removeAttachment: vi.fn(async () => true), releaseAttachments: vi.fn(async () => true) };
+  const draft = await draftFrom(calls, "notes", [], [record]);
+  expect(calls.attachmentsFromPaths).toHaveBeenCalledWith([record.path], [{ lines: 2, excerpt: "first" }]);
+  expect(draft.attachments).toMatchObject([{ lines: 2, excerpt: "first" }]);
 });

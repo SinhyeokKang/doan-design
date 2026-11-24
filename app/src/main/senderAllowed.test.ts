@@ -206,3 +206,9 @@ test("folders:removed is an event main sends, never a request", () => {
   for (const kind of ["main", "prototype", "settings", undefined]) expect(senderAllowed("folders:removed", kind)).toBe(false);
   expect(senderAllowed("folders:remove", "main")).toBe(true);
 });
+
+test("allows pasted text only from composer windows", () => {
+  expect(senderAllowed("attachments:add-pasted-text", "main")).toBe(true);
+  expect(senderAllowed("attachments:add-pasted-text", "prototype")).toBe(true);
+  for (const kind of ["settings", "canvas", null, undefined]) expect(senderAllowed("attachments:add-pasted-text", kind)).toBe(false);
+});

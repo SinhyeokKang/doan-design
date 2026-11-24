@@ -495,3 +495,48 @@ it("refuses broken folder paths one by one and still takes the folder beside the
   expect(results.map(r => r.ok ? r.attachment.kind : r.error)).toEqual(["not_found", "unreadable", "not_found", "unreadable", "directory"]);
   expect(f.store.addPaths({ paths: [`${f.folder}\0`] })).toBeNull();
 });
+
+it("saves normalized pasted text with metadata and keeps it a file even with a GIF header", () => {
+  const f = fixture();
+  const pasted = ok(f.store.addPastedText({ text: "GIF89a\r\nsecond\r", lines: 2, excerpt: "GIF89a" }));
+  expect(pasted).toMatchObject({ kind: "file", pasted: true, size: 14, lines: 2, excerpt: "GIF89a" });
+  expect(pasted.name).toMatch(/^pasted-text-.*\.txt$/);
+  expect(readFileSync(pasted.path, "utf8")).toBe("GIF89a\nsecond\n");
+  expect(statSync(pasted.path).mode & 0o777).toBe(0o600);
+  expect(f.reencode).not.toHaveBeenCalled(); expect(f.thumbnail).not.toHaveBeenCalled();
+  expect(f.store.resolve([{ id: pasted.id }])).toMatchObject({ ok: true, records: [{ kind: "file", lines: 2, excerpt: "GIF89a" }] });
+  expect(f.store.recheck({ ids: [pasted.id] })).toMatchObject([{ ok: true, attachment: { kind: "file", lines: 2, excerpt: "GIF89a" } }]);
+  const restored = ok(f.store.fromPaths({ paths: [pasted.path], metadata: [{ lines: 2, excerpt: "GIF89a" }] })![0]);
+  expect(restored).toMatchObject({ kind: "file", lines: 2, excerpt: "GIF89a" });
+});
+it("enforces the UTF-8 text cap at exactly fifty MiB and removes unsent text", () => {
+  const f = fixture(), text = "한".repeat(Math.floor(MAX_IMAGE_BYTES / 3)) + "a".repeat(MAX_IMAGE_BYTES % 3);
+  const pasted = ok(f.store.addPastedText({ text, lines: 1, excerpt: "한" }));
+  expect(statSync(pasted.path).size).toBe(MAX_IMAGE_BYTES);
+  expect(f.store.addPastedText({ text: text + "a", lines: 1, excerpt: "한" })).toEqual({ ok: false, name: "Pasted text", error: "too_large" });
+  expect(f.store.addPastedText({ text: 1, lines: 1, excerpt: "" })).toEqual({ ok: false, name: "Pasted text", error: "unreadable" });
+  f.store.remove({ id: pasted.id }); expect(existsSync(pasted.path)).toBe(false);
+});
+it("keeps sent text through removal and restart, but deletes a restored unsent text draft", () => {
+  const f = fixture(), request = { text: "notes", lines: 1, excerpt: "notes" };
+  const sent = ok(f.store.addPastedText(request)), unsent = ok(f.store.addPastedText(request));
+  f.store.markSent([{ id: sent.id }]); f.store.consume([{ id: sent.id }]);
+  const restarted = new AttachmentStore(f.dir, { thumbnail: () => null, reencode: () => null });
+  restarted.cleanup([unsent.path]);
+  expect(existsSync(sent.path)).toBe(true); expect(existsSync(unsent.path)).toBe(true);
+  const restored = ok(restarted.fromPaths({ paths: [unsent.path], metadata: [{ lines: 1, excerpt: "notes" }] })![0]);
+  restarted.remove({ id: restored.id }); expect(existsSync(unsent.path)).toBe(false);
+  const restoredSent = ok(restarted.fromPaths({ paths: [sent.path] })![0]);
+  restarted.remove({ id: restoredSent.id }); expect(existsSync(sent.path)).toBe(true);
+});
+it("reports a failed text write and removes partial files", () => {
+  const f = fixture(); fault.step = "write";
+  expect(f.store.addPastedText({ text: "notes", lines: 1, excerpt: "notes" })).toEqual({ ok: false, name: "Pasted text", error: "unreadable" });
+  expect(readdirSync(f.dir)).toEqual([]);
+});
+it("refuses malformed reissue metadata without issuing any paths", () => {
+  const f = fixture(), local = join(f.files, "a.txt"); writeFileSync(local, "a");
+  for (const metadata of [[{ lines: 0, excerpt: "a" }], [], [{ lines: 1, excerpt: "a\nb" }], [{ lines: 1, excerpt: "a", extra: 1 }]]) {
+    expect(f.store.fromPaths({ paths: [local], metadata })).toBeNull();
+  }
+});

@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { pasteAsAttachment, pastedTextMeta, pastedTextLabel } from "./homeComposer";
+import { pasteAsAttachment, pastedTextMeta, pastedTextLabel, readyAttachment, recordedAttachment } from "./homeComposer";
 
 const state = { acceptsAttachments: true, commandFirst: false, attached: 0, limit: 10 };
 it("uses code points and logical lines at the paste thresholds", () => {
@@ -30,4 +30,10 @@ it("counts lines without one terminal newline and takes eighty first-line code p
   expect(pastedTextMeta("a\n\n")).toEqual({ lines: 2, excerpt: "a" });
   expect(pastedTextLabel(1)).toBe("1 line");
   expect(pastedTextLabel(10)).toBe("10 lines");
+});
+
+it("keeps pasted text metadata in ready and missing attachment drafts", () => {
+  const record = { name: "pasted-text-x.txt", kind: "file" as const, size: 5, path: "/paste.txt", lines: 2, excerpt: "first" };
+  expect(readyAttachment("k", { ...record, id: "id", pasted: true })).toMatchObject({ lines: 2, excerpt: "first" });
+  expect(recordedAttachment("k", record)).toMatchObject({ lines: 2, excerpt: "first" });
 });
