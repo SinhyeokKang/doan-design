@@ -8,7 +8,6 @@ import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGH
 import { switchTarget } from "./switchTarget";
 import { bubbleAction, type BubbleAction } from "./bubbleItems";
 import { sizeBubblePlay } from "./prototypePlay";
-import { SIZE_BUBBLE, sizeBubblePlace, type BubbleRoom } from "./sizeBubble";
 import { acceptSelectionMessage, anchorRequest, canvasPx, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, screenToBoard, elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { scaleFactor } from "./zoomControl";
@@ -460,8 +459,7 @@ export class CanvasController {
     this.state.tool = this.tool;
     this.state.hasFrame = this.frame !== null;
     // Play's judgement reads the tool, a pick, capture mode and the layout, which change without a selection change.
-    // Before drawWork, so the bubble's room is read before this publish writes styles.
-    if (this.marks !== null) { const selected = this.markHidden ? null : this.selectedRect; this.placeSize(this.marks.size, selected, selected === null ? null : this.sizeBubbleRoom()); }
+    if (this.marks !== null) this.placeSize(this.marks.size, this.markHidden ? null : this.selectedRect);
     this.drawWork();
     this.syncMain();
     this.changed({ ...this.state });
@@ -592,9 +590,6 @@ export class CanvasController {
   // `onFocusLost` as Play's.
   bubbleAdd: { host(element: HTMLElement): void; onAdd(): void; button(): HTMLElement | null; onFocusLost(): void } | null = null;
   bubbleInspect: { onInspect(): void; button(): HTMLElement | null; onFocusLost(): void; restoreFocus(): void } | null = null;
-  // The band the size bubble may sit in, in the canvas area's coordinates: from its top to the floating tools' top.
-  // Without it the whole area counts.
-  bubbleRoom: (() => BubbleRoom | null) | null = null;
   // The portal host stays after the label as Play comes and goes, so its focused button stays mounted.
   private bubble: { play: HTMLButtonElement | null; label: HTMLElement; host: HTMLElement; playShown: boolean } | null = null;
   // A reload hid the bubble while one of its buttons had focus, and App's onFocusLost put focus on `holder`: once the
@@ -2186,8 +2181,6 @@ export class CanvasController {
     const measured = this.measured();
     const hover = measured === null && (this.markHidden || this.altHeld || this.layerShown || this.captureShown || this.textDragging) ? null : this.treeHover ?? this.hoverRect;
     const selected = this.markHidden ? null : this.selectedRect;
-    // Read before this draw writes any style, so it costs no forced layout.
-    const room = selected === null ? null : this.sizeBubbleRoom();
     if (this.marks === null) {
       if (hover === null && selected === null) return;
       const node = (className: string) => {
@@ -2215,7 +2208,7 @@ export class CanvasController {
     place(this.marks.selected, selected);
     this.marks.hover.className = measured === null ? "mark hover" : "mark hover measuring";
     this.marks.selected.className = measured === null ? "mark selected" : "mark selected measuring";
-    this.placeSize(this.marks.size, selected, room, active);
+    this.placeSize(this.marks.size, selected, active);
     this.drawMeasure(measured);
   }
 
@@ -2267,11 +2260,7 @@ export class CanvasController {
     for (const element of lines.slice(drawn.length)) element.line.hidden = true;
   }
 
-  private sizeBubbleRoom(): BubbleRoom {
-    return this.bubbleRoom?.() ?? { top: 0, bottom: this.viewportSize().height };
-  }
-
-  private placeSize(size: HTMLElement, selected: CanvasRect | null, room: BubbleRoom | null, active = document.activeElement): void {
+  private placeSize(size: HTMLElement, selected: CanvasRect | null, active = document.activeElement): void {
     const bubble = this.bubble;
     if (bubble === null) return;
     const onPlay = bubble.playShown && active === bubble.play;
@@ -2285,10 +2274,7 @@ export class CanvasController {
     }
     if (selected !== null) {
       bubble.label.textContent = sizeLabel(selected);
-      const screen = boardRectToScreen(this.view, selected);
-      const place = sizeBubblePlace(screen, SIZE_BUBBLE, room ?? this.sizeBubbleRoom());
-      size.className = `dims${play ? " playable" : ""}${place.kind === "above" ? " above" : ""}`;
-      size.style.top = place.kind === "inside" ? `${place.top - screen.y}px` : "";
+      size.className = play ? "dims playable" : "dims";
     }
     this.moveBubbleFocus(selected !== null, onPlay ? "play" : onAdd ? "add" : onInspect ? "inspect" : null);
   }

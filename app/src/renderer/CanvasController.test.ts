@@ -329,11 +329,11 @@ describe("selection", () => {
         // Drawn at y 80, 520 tall: below it the bubble would span 606.5 to 630.5, past the 600px area.
         expect(h.markOf("selected")?.style).toMatchObject({ top: "80px", height: "520px" });
         expect(dims().className).toBe("dims playable");
-        expect(dims().style.top).toBe("");
+        expect(dims().style.top ?? "").toBe("");
         // Taller than the area: no room above or below.
         h.select(2, { target: tall(900) });
         expect(dims().className).toBe("dims playable");
-        expect(dims().style.top).toBe("");
+        expect(dims().style.top ?? "").toBe("");
       } finally { h.controller.dispose(); }
     });
 
