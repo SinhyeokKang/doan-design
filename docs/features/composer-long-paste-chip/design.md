@@ -66,6 +66,15 @@
 
 실패하면 그 공급자만 Antigravity처럼 텍스트 블록을 함께 보낼지, 그 공급자에서는 칩으로 바꾸지 않을지를 사용자에게 묻는다.
 
+## 초안 요청
+
+- 캔버스 `.doan/canvases/composer-long-paste-chip.html`, id `composer-long-paste-chip`. 짜임은 `.doan/canvases/folder-attachments.html`을 따른다.
+- 프레임:
+  - `paste-home`: Home 컴포저에 붙여넣은 글 칩과 첫 줄 툴팁.
+  - `paste-overview`: Overview의 보낸 말풍선, 큐 행, 복원한 드래프트 칩.
+  - `paste-states`: 상태 타일. Checking, "1 line" / "N lines", 줄 수 없는 예전 기록, Moved or deleted, 한도·50 MB·저장 실패 문구.
+- 캔버스 패널과 프로토타입 창은 Overview와 같은 `DockedComposer`라 따로 그리지 않는다.
+
 ## 디자인 프리셋
 
 - `shape` 프리셋을 읽었다. 기존 첨부 칩 표면을 확장하는 일이라 새 시각 방향은 없고, 칩의 이름·줄 수·툴팁 표기와 상태만 정한다.
