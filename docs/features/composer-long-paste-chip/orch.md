@@ -20,6 +20,7 @@
 - 큐 행 문구는 확정 초안을 따른다. 보이는 이름은 "Pasted text"이고, 줄 수와 첫 줄은 접근성 이름(`Pasted text, N lines — <첫 줄>`)과 툴팁에 둔다. 이에 맞춰 tasks.md 작업 3의 확인 문구를 고쳤다. 거절 문구의 어포스트로피도 초안과 기존 문구처럼 `’`로 spec을 고쳤다(conductor 판단 — 사용자 결정 4, RB 🟡1·⚪1).
 - 붙여넣기 가드(입력기 조합 중·읽기 전용·전송 중·잠김)는 Finder 파일과 이미지 붙여넣기에도 먼저 적용된다. 그래서 이때는 아무 일도 일어나지 않는다. 받아들인다(conductor 판단 — spec 완료 조건 2의 취지, RB ⚪4).
 - D의 Codex 워커는 gpt-6.1-sol로 시작했지만, Codex 5시간 한도가 8% 남자 GPT-6-Luna medium으로 바뀌었다. 그 뒤 두 번 내리 probe 없이 턴을 끝냈다. 이 워커를 멈추고, 같은 워크트리에서 Claude Sonnet high가 D를 맡는다(사용자 결정).
+- E의 Claude Code 실제 턴에는 설치본 Doan 프로필의 Keychain 항목 `Claude Code-credentials-9e813622`를 읽어 임시 Keychain 항목으로 복제해 쓴다. 실제 ~/.claude 기본 프로필은 로그아웃 상태이기 때문이다. 실제 항목은 바꾸지 않고, 끝나면 복제본을 지운다(사용자 결정). Copilot은 실제 HOME에 로그인이 없어 미확인으로 보고한다.
 - design.md 'PoC 의존'의 세 가정이 작업 5에서 깨지면 그 공급자를 어떻게 할지 사용자에게 묻는다(design.md).
 
 ## 배치
