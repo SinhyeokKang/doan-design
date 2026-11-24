@@ -2879,27 +2879,28 @@ describe("the player's Export prototype", () => {
       frames: [{ id: "__proto__", name: "Home &amp; co", start: "\"__proto__\"", group: 0, mark: "390x844" }, { id: "b", name: "b", start: "\"b\"", group: 0, mark: "1x1" }, { id: "c", name: "c", start: "\"c\"", group: 1, mark: "1x1" }],
       refused: [{ id: "constructor", reason: "unmarked" }, { id: "dup", reason: "shared" }],
       groups: ['[{"id":"__proto__","title":"Home & co"},{"id":"b","title":"b"}]', '[{"id":"c","title":"c"}]'],
-      page: ["P0<title>", "</title>P1{\"start\":", ",\"frames\":", "}P3 data-srcdoc=\"", "\">P4"],
+      page: ["P0<title>", "</title><style id=\"doan-font\">", "</style>P1{\"start\":", ",\"frames\":", "}P3 data-srcdoc=\"", "\">P4"],
       isolate: "<script>ISO \"&\"</script>",
       measure: { offset: head.length, length: measure.length },
       external: 0,
     });
+    const font = "/* notice */@font-face{}";
     const file = (plan: Lib) => plan.head + [...px.srcdocSlices(plan.canvas, 1 << 20)].join("") + plan.tail;
 
     test("a frame of the file: the fragments joined around the canvas with isolate.js in the measure script's place", () => {
-      const plan = px.prototypeExport(data(), srcdoc, "__proto__");
+      const plan = px.prototypeExport(data(), srcdoc, "__proto__", font);
       expect(plan.kind).toBe("file");
       expect(plan.linked).toBe(1);
-      expect(file(plan)).toBe("P0<title>Home &amp; co</title>P1{\"start\":\"__proto__\",\"frames\":" + data().groups[0] + "}P3 data-srcdoc=\""
+      expect(file(plan)).toBe("P0<title>Home &amp; co</title><style id=\"doan-font\">" + font + "</style>P1{\"start\":\"__proto__\",\"frames\":" + data().groups[0] + "}P3 data-srcdoc=\""
         + px.srcdocAttribute(head + "<script>ISO \"&\"</script><title>t</title></head><body>a \"&\" b</body></html>") + "\">P4");
-      expect(px.prototypeExport(data(), srcdoc, "c")).toMatchObject({ kind: "file", linked: 0 });
+      expect(px.prototypeExport(data(), srcdoc, "c", font)).toMatchObject({ kind: "file", linked: 0 });
     });
 
     test("a frame it does not have, or has twice, is not in the canvas file; an unmarked one is not marked", () => {
-      for (const id of ["script-made", "dup", "toString", "hasOwnProperty", "valueOf", ""]) expect(px.prototypeExport(data(), srcdoc, id), id).toEqual({ kind: "refused", reason: "missing" });
-      expect(px.prototypeExport(data(), srcdoc, "constructor")).toEqual({ kind: "refused", reason: "unmarked" });
+      for (const id of ["script-made", "dup", "toString", "hasOwnProperty", "valueOf", ""]) expect(px.prototypeExport(data(), srcdoc, id, font), id).toEqual({ kind: "refused", reason: "missing" });
+      expect(px.prototypeExport(data(), srcdoc, "constructor", font)).toEqual({ kind: "refused", reason: "unmarked" });
       // A reason the player does not know is read as the file not having the frame.
-      expect(px.prototypeExport({ ...data(), refused: [{ id: "x", reason: "later" }] }, srcdoc, "x")).toEqual({ kind: "refused", reason: "missing" });
+      expect(px.prototypeExport({ ...data(), refused: [{ id: "x", reason: "later" }] }, srcdoc, "x", font)).toEqual({ kind: "refused", reason: "missing" });
     });
 
     test("data that does not hold together is refused, never joined into a broken file", () => {
@@ -2912,8 +2913,8 @@ describe("the player's Export prototype", () => {
         [{ ...data(), measure: { offset: head.length + 0.5, length: measure.length } }, srcdoc],
         [{ ...data(), measure: null }, srcdoc],
         [data(), "<!-- -->" + srcdoc],
-        [{ ...data(), page: data().page.slice(0, 4) }, srcdoc],
-        [{ ...data(), page: [...data().page.slice(0, 4), 5] }, srcdoc],
+        [{ ...data(), page: data().page.slice(0, 5) }, srcdoc],
+        [{ ...data(), page: [...data().page.slice(0, 5), 5] }, srcdoc],
         [{ ...data(), groups: ['[{"id":"c","title":"c"}]'] }, srcdoc],
         [{ ...data(), groups: ["not json", "[]"] }, srcdoc],
         [{ ...data(), groups: ['{"id":"b"}', "[]"] }, srcdoc],
@@ -2924,13 +2925,15 @@ describe("the player's Export prototype", () => {
         [null, srcdoc],
         [data(), 1],
       ] as const;
-      for (const [proto, source] of broken) expect(px.prototypeExport(proto, source, "__proto__"), JSON.stringify(proto)?.slice(0, 200)).toEqual({ kind: "refused", reason: "broken" });
+      for (const [proto, source] of broken) expect(px.prototypeExport(proto, source, "__proto__", font), JSON.stringify(proto)?.slice(0, 200)).toEqual({ kind: "refused", reason: "broken" });
+      // A page without its font style has nothing to join in.
+      for (const missing of [undefined, null, 1]) expect(px.prototypeExport(data(), srcdoc, "__proto__", missing)).toEqual({ kind: "refused", reason: "broken" });
     });
   });
 
   test("Export takes the frame at the click, holds itself while it runs and downloads through a[download] with a Blob", () => {
     const run = extractFunction(playerJs, "exportPrototype");
-    expect(run).toContain("prototypeExport(proto, source, frameId)");
+    expect(run).toContain("prototypeExport(proto, source, frameId, font)");
     expect(run).toMatch(/\.download = exportFileName\(meta\.name, frameId\)/);
     expect(run).toContain("new Blob(");
     expect(run).toContain(".click()");
