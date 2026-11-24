@@ -234,20 +234,22 @@ function* srcdocSlices(pieces, size) {
 const MEASURE_HEAD = "<script>(function () {\n";
 const MEASURE_TAIL = "\n})();<" + "/script>";
 
-// The prototype file of frame `id` from META's "prototype" data and the board iframe's srcdoc as the parser left it:
+// The prototype file of frame `id` from META's "prototype" data, the board iframe's srcdoc as the parser left it and
+// the text of this page's font style, which the file carries as its own (META leaves it out so the face is in this
+// file once):
 // { kind: "file", head, canvas, tail, linked }, the file being head + the canvas pieces escaped + tail, or
 // { kind: "refused", reason } (EXPORT_REFUSED). Data that does not hold together is refused, never joined into a
 // file that would not play. Ids are looked up in Maps: as keys of an object, "__proto__" or "constructor" would
 // find Object.prototype's members.
-function prototypeExport(proto, srcdoc, id) {
+function prototypeExport(proto, srcdoc, id, font) {
   const broken = { kind: "refused", reason: "broken" };
   const record = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
   const text = (value) => typeof value === "string";
   const count = (value) => Number.isInteger(value) && value >= 0;
-  if (!record(proto) || !text(srcdoc)) return broken;
+  if (!record(proto) || !text(srcdoc) || !text(font)) return broken;
   const { frames, refused, groups, page, isolate, measure } = proto;
   if (!Array.isArray(frames) || !Array.isArray(refused) || !Array.isArray(groups) || !text(isolate) || !record(measure)) return broken;
-  if (!Array.isArray(page) || page.length !== 5 || !page.every(text)) return broken;
+  if (!Array.isArray(page) || page.length !== 6 || !page.every(text)) return broken;
   const exportable = new Map();
   for (const frame of frames) {
     if (!record(frame) || !text(frame.id) || !text(frame.name) || !text(frame.start) || !Number.isInteger(frame.group)) return broken;
@@ -277,9 +279,9 @@ function prototypeExport(proto, srcdoc, id) {
   if (!script.startsWith(MEASURE_HEAD) || !script.endsWith(MEASURE_TAIL)) return broken;
   return {
     kind: "file",
-    head: page[0] + frame.name + page[1] + frame.start + page[2] + group + page[3],
+    head: page[0] + frame.name + page[1] + font + page[2] + frame.start + page[3] + group + page[4],
     canvas: [srcdoc.slice(0, offset), isolate, srcdoc.slice(offset + length)],
-    tail: page[4],
+    tail: page[5],
     linked: members.length - 1,
   };
 }
@@ -301,6 +303,7 @@ function startPlayer() {
   const $ = (id) => document.getElementById(id);
   const meta = JSON.parse($("doan-meta").textContent);
   const proto = meta.prototype;
+  const font = $("doan-font")?.textContent;
   const eye = $("eye-icon");
   document.querySelector(".doan-canvas-panel")?.remove();
   document.body.prepend($("player").content.cloneNode(true));
@@ -657,7 +660,7 @@ function startPlayer() {
   async function exportPrototype(frameId) {
     if (exporting) return;
     const frame = nameOf(frameId);
-    const plan = prototypeExport(proto, source, frameId);
+    const plan = prototypeExport(proto, source, frameId, font);
     if (plan.kind === "refused") {
       showExportToast(exportRefusedText(frame, plan.reason));
       return;

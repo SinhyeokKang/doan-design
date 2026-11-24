@@ -262,7 +262,12 @@ func TestAssembleHoldsThePrototypePageOnceAsData(t *testing.T) {
 	if !strings.HasPrefix(p.Page[0], "<!doctype html>") || !strings.Contains(p.Page[0], "<title>") || !strings.HasPrefix(p.Page[1], " — Prototype</title>") {
 		t.Fatalf("the template is not cut at its title: %.120q | %.120q", p.Page[0], p.Page[1])
 	}
-	if !strings.HasSuffix(p.Page[1], `<script type="application/json" id="doan-prototype">{"start":`) || p.Page[2] != `,"frames":` || !strings.HasPrefix(p.Page[3], "}</script>") || !strings.HasSuffix(p.Page[3], `data-srcdoc="`) || !strings.HasPrefix(p.Page[4], `"></div>`) {
+	// The font style is cut out too: the viewer file carries the face once, in its own font style, which the player
+	// joins back in.
+	if len(p.Page) != 6 || !strings.HasSuffix(p.Page[1], `<style id="doan-font">`) || !strings.HasPrefix(p.Page[2], "</style>") {
+		t.Fatalf("the template is not cut at its font style")
+	}
+	if !strings.HasSuffix(p.Page[2], `<script type="application/json" id="doan-prototype">{"start":`) || p.Page[3] != `,"frames":` || !strings.HasPrefix(p.Page[4], "}</script>") || !strings.HasSuffix(p.Page[4], `data-srcdoc="`) || !strings.HasPrefix(p.Page[5], `"></div>`) {
 		t.Fatalf("the template is not cut at its group and canvas")
 	}
 	if strings.Contains(joined, "{{") || !strings.Contains(joined, viewerFile(t, "prototype.js")) || !strings.Contains(joined, viewerFile(t, "prototype.css")) {

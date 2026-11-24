@@ -3,6 +3,7 @@ package export
 import (
 	"bytes"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"html"
@@ -54,6 +55,10 @@ func Assemble(m Meta, c canvas.Canvas, canvasHTML []byte) ([]byte, error) {
 		files[name] = string(b)
 	}
 	shell, style, lib, shellJS, measure := files["shell.html"], files["shell.css"], files["lib.js"], files["shell.js"], files["measure.js"]
+	font, err := geistStyle()
+	if err != nil {
+		return nil, err
+	}
 	// Both scripts are wrapped in a function: lib.js and the other files declare
 	// top-level names that must not become globals of the canvas. In a player
 	// window (this file opened again by the board's Play, lib.js PLAY_HASH)
@@ -93,10 +98,28 @@ func Assemble(m Meta, c canvas.Canvas, canvasHTML []byte) ([]byte, error) {
 		// json.Marshal writes every "<" as <, so the value can neither end the
 		// script element nor open an HTML comment.
 		"{{META}}":   string(meta),
+		"{{FONT}}":   font,
 		"{{STYLE}}":  style,
 		"{{SCRIPT}}": shellScript,
 	}
 	return fillPage(shell, values, srcdoc), nil
+}
+
+// geistStyle is the FONT value of both pages: the app window's Geist (viewer/Geist.woff2 is a copy of
+// app/src/renderer/public/fonts/geist/Geist.woff2, which go:embed cannot reach) as a data: URL with the app's
+// @font-face values, after the font's license notice, which the OFL asks to travel with it. The viewer file holds
+// it once: the player copies this element's text into the prototype file it writes rather than META carrying it.
+func geistStyle() (string, error) {
+	woff2, err := viewerFS.ReadFile("viewer/Geist.woff2")
+	if err != nil {
+		return "", err
+	}
+	license, err := viewerFS.ReadFile("viewer/Geist-LICENSE.txt")
+	if err != nil {
+		return "", err
+	}
+	return "/*\n" + string(license) + "*/\n@font-face {\n  font-family: \"Geist\";\n  src: url(data:font/woff2;base64," +
+		base64.StdEncoding.EncodeToString(woff2) + ") format(\"woff2\");\n  font-style: normal;\n  font-weight: 100 900;\n  font-display: swap;\n}\n", nil
 }
 
 // ProtoFrame is one frame of an exported prototype's group.
@@ -185,7 +208,12 @@ func prototypeFiles() (shell string, values map[string]string, isolateScript str
 		}
 		files[name] = string(b)
 	}
+	font, err := geistStyle()
+	if err != nil {
+		return "", nil, "", err
+	}
 	values = map[string]string{
+		"{{FONT}}":   font,
 		"{{STYLE}}":  files["prototype.css"],
 		"{{SCRIPT}}": "(function () {\n" + files["prototype.js"] + "\n})();",
 	}
@@ -222,9 +250,9 @@ func groupFrames(c canvas.Canvas, ids []string) []ProtoFrame {
 // prototype file of a frame (the file `doan export --frame <id> --prototype` writes) by joining strings, so the
 // browser never re-implements this file's escaping or judgment. For a frame f of Frames the file is
 //
-//	Page[0] + f.Name + Page[1] + f.Start + Page[2] + Groups[f.Group] + Page[3] + escape(canvas) + Page[4]
+//	Page[0] + f.Name + Page[1] + font + Page[2] + f.Start + Page[3] + Groups[f.Group] + Page[4] + escape(canvas) + Page[5]
 //
-// where canvas is the board iframe's srcdoc as the browser reads it, with the Measure range replaced by Isolate,
+// where font is the text of the viewer page's own <style id="doan-font"> (geistStyle), canvas is the board iframe's srcdoc as the browser reads it, with the Measure range replaced by Isolate,
 // and escape writes & as &amp; and " as &quot;. The result is byte-identical for an LF-only, valid UTF-8, NUL-free
 // canvas; otherwise the parser has normalized the srcdoc (CR LF, invalid UTF-8, NUL) and the file parses the same.
 type frameExports struct {
@@ -236,7 +264,7 @@ type frameExports struct {
 	Refused []exportRefusal `json:"refused"`
 	// Groups holds each link group's "frames" JSON, in canvas.LinkGroups order.
 	Groups []string `json:"groups"`
-	// Page is prototype.html with STYLE and SCRIPT filled, cut at NAME, at the META values and at SRCDOC.
+	// Page is prototype.html with STYLE and SCRIPT filled, cut at NAME, FONT, the META values and SRCDOC.
 	Page []string `json:"page"`
 	// Isolate is the script prototype files carry first in the canvas's head.
 	Isolate string `json:"isolate"`
@@ -279,7 +307,7 @@ func prototypeExports(c canvas.Canvas, before []byte, measureScript string) (fra
 	var piece strings.Builder
 	fillShell(shell, func(s string) { piece.WriteString(s) }, func(key string) {
 		switch key {
-		case "{{NAME}}", "{{META}}", srcdocKey:
+		case "{{NAME}}", "{{FONT}}", "{{META}}", srcdocKey:
 			pieces, cuts = append(pieces, piece.String()), append(cuts, key)
 			piece.Reset()
 		default:
@@ -287,15 +315,15 @@ func prototypeExports(c canvas.Canvas, before []byte, measureScript string) (fra
 		}
 	})
 	pieces = append(pieces, piece.String())
-	if !slices.Equal(cuts, []string{"{{NAME}}", "{{META}}", srcdocKey}) {
-		return frameExports{}, errors.New("prototype.html must hold NAME, META and SRCDOC once each, in that order")
+	if !slices.Equal(cuts, []string{"{{NAME}}", "{{FONT}}", "{{META}}", srcdocKey}) {
+		return frameExports{}, errors.New("prototype.html must hold NAME, FONT, META and SRCDOC once each, in that order")
 	}
 	out := frameExports{
 		Frames:  []exportFrame{},
 		Refused: []exportRefusal{},
 		Groups:  []string{},
 		// META is the struct AssemblePrototype marshals, whose JSON is always {"start":<start>,"frames":<frames>}.
-		Page:    []string{pieces[0], pieces[1] + `{"start":`, `,"frames":`, `}` + pieces[2], pieces[3]},
+		Page:    []string{pieces[0], pieces[1], pieces[2] + `{"start":`, `,"frames":`, `}` + pieces[3], pieces[4]},
 		Isolate: isolateScript,
 		// The browser reads the srcdoc as UTF-16 after decoding and newline normalization, which a CR LF or a broken
 		// byte before the head would shift from a byte count.
@@ -422,7 +450,7 @@ func fillPage(shell string, values map[string]string, srcdoc [][]byte) []byte {
 
 const srcdocKey = "{{SRCDOC}}"
 
-var placeholders = []string{"{{PROJECT}}", "{{INITIAL}}", "{{HUE}}", "{{NAME}}", "{{WIDTH}}", "{{META}}", "{{STYLE}}", "{{SCRIPT}}", srcdocKey}
+var placeholders = []string{"{{PROJECT}}", "{{INITIAL}}", "{{HUE}}", "{{NAME}}", "{{WIDTH}}", "{{META}}", "{{FONT}}", "{{STYLE}}", "{{SCRIPT}}", srcdocKey}
 
 // fillShell walks shell once, passing the text between placeholders to text
 // and each placeholder to value. Like a strings.Replacer, it never looks at

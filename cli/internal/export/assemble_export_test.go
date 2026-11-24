@@ -82,8 +82,8 @@ func playerJoin(t *testing.T, requests []map[string]any) []struct {
 	const script = `const { readFileSync } = require("node:fs");
 const { runInNewContext } = require("node:vm");
 const p = runInNewContext(readFileSync(process.argv[1], "utf8") + "\n({ prototypeExport, srcdocSlices })", {});
-const out = JSON.parse(readFileSync(0, "utf8")).map(({ proto, srcdoc, id, size }) => {
-  const plan = p.prototypeExport(proto, srcdoc, id);
+const out = JSON.parse(readFileSync(0, "utf8")).map(({ proto, srcdoc, font, id, size }) => {
+  const plan = p.prototypeExport(proto, srcdoc, id, font);
   if (plan.kind !== "file") return plan;
   return { kind: plan.kind, linked: plan.linked, file: plan.head + [...p.srcdocSlices(plan.canvas, size)].join("") + plan.tail };
 });
@@ -109,7 +109,7 @@ process.stdout.write(JSON.stringify(out));`
 	return answers
 }
 
-func pageProto(t *testing.T, page []byte) (srcdoc string, proto map[string]any) {
+func pageProto(t *testing.T, page []byte) (srcdoc, font string, proto map[string]any) {
 	t.Helper()
 	g, err := exporttest.ReadGeneral(page)
 	if err != nil {
@@ -119,7 +119,7 @@ func pageProto(t *testing.T, page []byte) (srcdoc string, proto map[string]any) 
 	if err := json.Unmarshal([]byte(g.MetaJSON), &meta); err != nil || meta.Prototype == nil {
 		t.Fatalf("no prototype data: %v", err)
 	}
-	return g.Srcdoc, meta.Prototype
+	return g.Srcdoc, g.Font, meta.Prototype
 }
 
 // The file the player downloads is the file `doan export --frame <id> --prototype` writes: byte for byte for these
@@ -133,7 +133,7 @@ func TestPlayerJoinsTheCLIsPrototypeFile(t *testing.T) {
 	var linked []int
 	for _, src := range stitchCanvases {
 		page, model := general(t, src)
-		srcdoc, proto := pageProto(t, page)
+		srcdoc, font, proto := pageProto(t, page)
 		for _, f := range model.Frames {
 			if !canvas.Playable(model, f.ID) {
 				continue
@@ -144,7 +144,7 @@ func TestPlayerJoinsTheCLIsPrototypeFile(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, size := range []int{7, 1 << 20} {
-				requests = append(requests, map[string]any{"proto": proto, "srcdoc": srcdoc, "id": f.ID, "size": size})
+				requests = append(requests, map[string]any{"proto": proto, "srcdoc": srcdoc, "font": font, "id": f.ID, "size": size})
 				wants = append(wants, string(want))
 				linked = append(linked, len(group.Frames)-1)
 			}
@@ -173,7 +173,7 @@ func TestPlayerRefusesWhatTheCLIRefuses(t *testing.T) {
 		`<div data-doan-frame="__proto__" data-doan-title="Proto" data-doan-prototype="1x1"><a data-doan-goto="ok">ok</a></div>` +
 		`<div data-doan-frame="ok" data-doan-prototype="1x1"></div><div data-doan-frame="constructor"></div>`)
 	page, _ := general(t, src)
-	srcdoc, proto := pageProto(t, page)
+	srcdoc, font, proto := pageProto(t, page)
 	with := func(change func(p map[string]any)) map[string]any {
 		b, err := json.Marshal(proto)
 		if err != nil {
@@ -210,7 +210,7 @@ func TestPlayerRefusesWhatTheCLIRefuses(t *testing.T) {
 		{"an offset that is no integer", "ok", with(setMeasure(offset+0.5, length)), srcdoc, "broken"},
 		{"an offset that is text", "ok", with(setMeasure("0", length)), srcdoc, "broken"},
 		{"a srcdoc that changed before the measure script", "ok", proto, "<!-- -->" + srcdoc, "broken"},
-		{"no page cut in five", "ok", with(func(p map[string]any) { p["page"] = p["page"].([]any)[:4] }), srcdoc, "broken"},
+		{"no page cut in six", "ok", with(func(p map[string]any) { p["page"] = p["page"].([]any)[:5] }), srcdoc, "broken"},
 		{"a group out of range", "ok", with(func(p map[string]any) {
 			for _, f := range p["frames"].([]any) {
 				f.(map[string]any)["group"] = float64(99)
@@ -220,15 +220,20 @@ func TestPlayerRefusesWhatTheCLIRefuses(t *testing.T) {
 	}
 	requests := []map[string]any{}
 	for _, c := range cases {
-		requests = append(requests, map[string]any{"proto": c.proto, "srcdoc": c.srcdoc, "id": c.id, "size": 1 << 20})
+		requests = append(requests, map[string]any{"proto": c.proto, "srcdoc": c.srcdoc, "font": font, "id": c.id, "size": 1 << 20})
 	}
+	// A page with no font style to join in: the player reads none (not text).
+	requests = append(requests, map[string]any{"proto": proto, "srcdoc": srcdoc, "font": nil, "id": "ok", "size": 1 << 20})
 	// The same data, untouched, exports both frames of the __proto__ group.
-	requests = append(requests, map[string]any{"proto": proto, "srcdoc": srcdoc, "id": "__proto__", "size": 1 << 20})
+	requests = append(requests, map[string]any{"proto": proto, "srcdoc": srcdoc, "font": font, "id": "__proto__", "size": 1 << 20})
 	answers := playerJoin(t, requests)
 	for i, c := range cases {
 		if answers[i].Kind != "refused" || answers[i].Reason != c.want {
 			t.Errorf("%s: %s %q, want refused %q", c.name, answers[i].Kind, answers[i].Reason, c.want)
 		}
+	}
+	if a := answers[len(cases)]; a.Kind != "refused" || a.Reason != "broken" {
+		t.Errorf("no font style: %s %q, want refused \"broken\"", a.Kind, a.Reason)
 	}
 	last := answers[len(answers)-1]
 	if last.Kind != "file" || last.Linked != 1 || !strings.Contains(last.File, "<title>Proto — Prototype</title>") {
