@@ -414,7 +414,9 @@ function syncSurface() {
   // A Space held before the canvas was drawn does not pan the canvas that comes later.
   if (!boardDrawn()) spaceHeld = false;
   const pan = board.toggleAttribute("data-pan", layerShown(tool, spaceHeld, drag !== null, boardDrawn()));
-  board.toggleAttribute("data-grabbing", drag !== null);
+  if (!pan || tool !== "hand" || spaceHeld) textHover = false;
+  board.toggleAttribute("data-grabbing", drag?.mode === "pan");
+  board.toggleAttribute("data-text", drag === null ? textHover : drag.mode === "text" || (drag.mode === "asking" && textHover));
   if (pan !== panTold && canvas.contentWindow) {
     panTold = pan;
     canvas.contentWindow.postMessage({ type: "pan", pan }, "*");
@@ -472,6 +474,13 @@ function escapeKey(editable, handled, repeat) {
 // the canvas. A held Esc's repeats take no selection step, so one press steps back one level.
 function escapeTool(editable, handled, repeat) {
   if (editable || handled) return false;
+  // Esc during Hand's text drag ends it and clears the range, as in Select, before it turns Hand off.
+  if (drag?.mode === "text") {
+    drag.mode = "ended";
+    inspector.clearText();
+    syncSurface();
+    return true;
+  }
   if (!escapeSelects({ hand: (pendingTool ?? tool) === "hand", editable, defaultPrevented: handled })) return !repeat && inspector.escape();
   chooseTool("select");
   return true;
@@ -512,30 +521,82 @@ board.addEventListener("pointerdown", (event) => {
   if (!spaceHeld) board.focus({ preventScroll: true });
   // Keeps the drag when the pointer leaves the window.
   board.setPointerCapture(event.pointerId);
-  drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, restX: 0, restY: 0 };
+  // Hand's press is the canvas's next primary press, so it ends the range as one in Select does; a held
+  // Space and a Ctrl press keep it.
+  const handPress = !spaceHeld && tool === "hand" && !event.ctrlKey;
+  if (handPress) inspector.clearText();
+  // A plain press on canvas text drags a range as Select's does (PRODUCT §5 item 3 'Export and viewer').
+  // Only the canvas can tell, so the pan waits for its answer, holding the travel; a modifier pans at once.
+  const asks = handPress && !event.metaKey && !event.altKey && !event.shiftKey;
+  const own = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, restX: 0, restY: 0, mode: asks ? "asking" : "pan", heldX: 0, heldY: 0 };
+  drag = own;
+  if (asks) inspector.handPress(event.clientX, event.clientY, (hit) => handHit(own, hit));
   syncSurface();
 });
 
-// Each move's own travel, so a zoom during the drag stays. Safari keeps scroll offsets in whole
-// pixels: what a move could not apply goes into the next one, so the canvas stays under the cursor.
+function handHit(own, hit) {
+  if (drag !== own || own.mode !== "asking") return;
+  own.mode = hit ? "text" : "pan";
+  if (own.heldX !== 0 || own.heldY !== 0) {
+    if (hit) inspector.handMove(own.x, own.y);
+    else panBoard(own, own.heldX, own.heldY);
+  }
+  syncSurface();
+}
+
+// Safari keeps scroll offsets in whole pixels: what a move could not apply goes into the next one, so
+// the canvas stays under the cursor.
+function panBoard(own, dx, dy) {
+  const next = panScroll({ left: board.scrollLeft + own.restX, top: board.scrollTop + own.restY }, maxScroll(), dx, dy);
+  board.scrollLeft = next.left;
+  board.scrollTop = next.top;
+  own.restX = next.left - board.scrollLeft;
+  own.restY = next.top - board.scrollTop;
+}
+
+// Hand's text cursor follows a resting pointer: one question to the canvas a frame, for the newest point.
+let textHover = false;
+let hoverAt = null;
+function askTextHover(x, y) {
+  const queued = hoverAt !== null;
+  hoverAt = { x, y };
+  if (queued) return;
+  requestAnimationFrame(() => {
+    const at = hoverAt;
+    hoverAt = null;
+    if (at === null || drag !== null || tool !== "hand" || spaceHeld || !boardDrawn()) return;
+    inspector.handAt(at.x, at.y, (hit) => {
+      textHover = hit;
+      syncSurface();
+    });
+  });
+}
+
+// Each move's own travel, so a zoom during the drag stays.
 board.addEventListener("pointermove", (event) => {
-  if (drag === null || event.pointerId !== drag.pointerId) return;
+  if (drag === null) {
+    if (tool === "hand" && !spaceHeld) askTextHover(event.clientX, event.clientY);
+    return;
+  }
+  if (event.pointerId !== drag.pointerId) return;
   const dx = event.clientX - drag.x;
   const dy = event.clientY - drag.y;
   drag.x = event.clientX;
   drag.y = event.clientY;
-  if (dx === 0 && dy === 0) return;
-  const next = panScroll({ left: board.scrollLeft + drag.restX, top: board.scrollTop + drag.restY }, maxScroll(), dx, dy);
-  board.scrollLeft = next.left;
-  board.scrollTop = next.top;
-  drag.restX = next.left - board.scrollLeft;
-  drag.restY = next.top - board.scrollTop;
+  if ((dx === 0 && dy === 0) || drag.mode === "ended") return;
+  if (drag.mode === "asking") {
+    drag.heldX += dx;
+    drag.heldY += dy;
+  } else if (drag.mode === "text") inspector.handMove(drag.x, drag.y);
+  else panBoard(drag, dx, dy);
 });
 
-// A tool chosen during the drag comes in at its end.
+// A tool chosen during the drag comes in at its end. The canvas's press or text drag ends with it.
 function finishDrag() {
   const ending = drag;
   drag = null;
+  // Also after Esc ended it: the page stops taking the canvas's dragging range without its focus.
+  if (ending !== null && ending.mode !== "pan") inspector.handRelease();
   if (ending !== null && board.hasPointerCapture(ending.pointerId)) board.releasePointerCapture(ending.pointerId);
   if (pendingTool !== null) chooseTool(pendingTool);
   else syncSurface();

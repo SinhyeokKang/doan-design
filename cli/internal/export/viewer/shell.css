@@ -452,6 +452,8 @@ html:not(.js) .doan-canvas-bottom { display: none; }
    cursors. */
 .board[data-pan] { cursor: grab; }
 .board[data-pan][data-grabbing] { cursor: grabbing; }
+/* Hand over canvas text and through its text drag. */
+.board[data-pan][data-text] { cursor: text; }
 .board[data-pan] .canvas { pointer-events: none; }
 /* The canvas as the CSS alone shows it: its doan:width wide, one screen high. */
 .canvas { height: 100vh; }

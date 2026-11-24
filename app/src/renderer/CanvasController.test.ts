@@ -3523,6 +3523,8 @@ describe("hand tool", () => {
   const shown = (h: H) => !h.layer.hidden;
   const grabbing = (h: H) => "grabbing" in h.layer.dataset;
   const posted = (h: H) => h.current().contentWindow.postMessage.mock.calls.map(call => call[0] as Record<string, unknown>);
+  // A Hand press asks the canvas whether it is on text and pans once the answer says it is not.
+  const offText = (h: H) => h.receive({ type: "text-hit", document: "doc", probe: posted(h).filter(m => m.type === "text-press").at(-1)!.probe, hit: false });
   const translate = (h: H) => /translate\((-?[\d.]+)px, (-?[\d.]+)px\)/.exec(h.board.style.transform)!.slice(1).map(Number);
   const canvasKey = (h: H, key: string, over: Record<string, unknown> = {}) => h.receive({ type: "key", key, seq: 0, ...over });
   const harness = () => { const h = selectionHarness(); h.layout({ document: "doc" }); return h; };
@@ -3908,6 +3910,7 @@ describe("hand tool", () => {
       const down = pointer(h, "pointerdown", { clientX: 100, clientY: 100 });
       expect(down.defaultPrevented).toBe(true);
       expect(h.layer.captured.has(1)).toBe(true);
+      offText(h);
       expect(grabbing(h)).toBe(true);
       pointer(h, "pointermove", { clientX: 130, clientY: 90 });
       expect(translate(h)).toEqual([x0! + 30, y0! - 10]);
@@ -3942,6 +3945,7 @@ describe("hand tool", () => {
     try {
       press(h, "KeyH");
       pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+      offText(h);
       expect(grabbing(h)).toBe(true);
       pointer(h, type);
       expect(grabbing(h)).toBe(false);
@@ -4169,6 +4173,7 @@ describe("hand tool", () => {
       release(h, "Space");
       press(h, "KeyH");
       pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+      h.receive({ type: "text-hit", document: "doc2", probe: posted(h).filter(m => m.type === "text-press").at(-1)!.probe, hit: false });
       expect(grabbing(h)).toBe(true);
       h.layout({ document: "doc3" });
       expect(grabbing(h)).toBe(false);
@@ -6225,7 +6230,8 @@ describe("canvas text", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("drops a range older than the last clear, from another document, or sent during Hand, a pick or capture mode", async () => {
+  // Hand's own rule is in "hand text drag": a range there comes only from the drag the app drives.
+  it("drops a range older than the last clear, from another document, or sent during a pick or capture mode", async () => {
     const h = harness();
     try {
       await range(h);
@@ -6235,7 +6241,7 @@ describe("canvas text", () => {
       expect(painted(h)).toEqual([]);
       await range(h, { epoch: 1 });
       expect(painted(h)).toHaveLength(1);
-      for (const [enter, leave] of [[() => h.controller.setTool("hand"), () => h.controller.setTool("select")], [() => h.controller.pick(), () => h.controller.cancelPick()], [() => h.controller.startCapture(), () => h.controller.cancelCapture()]] as const) {
+      for (const [enter, leave] of [[() => h.controller.pick(), () => h.controller.cancelPick()], [() => h.controller.startCapture(), () => h.controller.cancelCapture()]] as const) {
         enter();
         const epoch = clears(h).at(-1)!.epoch;
         await range(h, { epoch });

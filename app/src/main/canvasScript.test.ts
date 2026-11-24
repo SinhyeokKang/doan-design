@@ -3236,6 +3236,7 @@ describe("canvasScript Hand text drag", () => {
     const t = textCanvas();
     press(t, 60, 5);
     moveTo(t, 110, 5);
+    t.canvas.runFrame();
     t.canvas.fireWindow("pointerup", input({ target: t.canvas.html, clientX: 20, clientY: 5, screenX: 1020, screenY: 1005, pointerId: 1 }));
     t.canvas.fireWindow("pointercancel", input({ target: t.canvas.html, clientX: 20, clientY: 5, screenX: 1020, screenY: 1005, pointerId: 1 }));
     expect(t.ranges().at(-1)).toMatchObject({ dragging: true });

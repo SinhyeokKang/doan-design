@@ -77,6 +77,13 @@ function mountViewerInspector(canvas, board, popupOpenNow, onSelection) {
   let nearest = null, marks = { selected: null, hover: null, alt: false };
   const changed = () => onSelection({ target: nearest, ...marks });
   let text = "", dragging = false, copyAttempt = 0, rowTimer = 0, point = null;
+  // Hand's text drag and cursor (shell.js): probes count for both; `handDrag` while the page drives a press, whose
+  // dragging range is the person's although the canvas has no focus.
+  let handProbe = 0, pressProbe = 0, atProbe = 0, handDrag = false, onPressHit = null, onAtHit = null;
+  const framePoint = (x, y) => {
+    const box = canvas.getBoundingClientRect();
+    return { x: (x - box.left) / scale, y: (y - box.top) / scale };
+  };
   const command = (type, fields = {}) => canvas.contentWindow?.postMessage({ type, epoch, ...fields }, "*");
   const element = (tag, className, value) => {
     const el = document.createElement(tag);
@@ -384,7 +391,7 @@ function mountViewerInspector(canvas, board, popupOpenNow, onSelection) {
   }
   return {
     accept(event) {
-      const message = inspectorMessages.parseMessage(event, canvas.contentWindow, epoch, seq, document.activeElement === canvas);
+      const message = inspectorMessages.parseMessage(event, canvas.contentWindow, epoch, seq, document.activeElement === canvas || handDrag);
       if (!message) return;
       seq = message.seq;
       if (message.type === "inspection") {
@@ -396,6 +403,10 @@ function mountViewerInspector(canvas, board, popupOpenNow, onSelection) {
         marks = { selected: message.selected, hover: message.hover, alt: message.alt };
         paintMarks();
         changed();
+      } else if (message.type === "inspect-hand-hit") {
+        const done = message.probe === pressProbe ? onPressHit : message.probe === atProbe ? onAtHit : null;
+        if (message.probe === pressProbe) onPressHit = null;
+        done?.(message.hit);
       } else if (message.type === "inspect-press") {
         closeMenu(false);
         if (drawerPopup.isOpen()) drawerPopup.hide("none");
@@ -419,7 +430,26 @@ function mountViewerInspector(canvas, board, popupOpenNow, onSelection) {
       syncInputWindow(on);
       if (inputMarker) command("inspect-input", { input: inputMarker.name });
     },
+    // Switching to Hand: the text range stays, since Hand drags and copies canvas text too.
     clearSelection() { command("inspect-clear"); },
+    clearText() { command("inspect-clear-text"); },
+    handPress(x, y, done) {
+      pressProbe = ++handProbe;
+      handDrag = true;
+      onPressHit = done;
+      command("inspect-hand-press", { ...framePoint(x, y), sx: x, sy: y, probe: pressProbe });
+    },
+    handMove(x, y) { command("inspect-hand-move", { ...framePoint(x, y), sx: x, sy: y }); },
+    handRelease() {
+      handDrag = false;
+      onPressHit = null;
+      command("inspect-hand-release");
+    },
+    handAt(x, y, done) {
+      atProbe = ++handProbe;
+      onAtHit = done;
+      command("inspect-hand-at", { ...framePoint(x, y), probe: atProbe });
+    },
     syncOverlay() { command("inspect-overlay", { open: !menu.hidden || popupOpenNow() }); },
     // The size bubble's Show inspector does what the header's does.
     reveal() { if (bounds) { wanted = true; mode(true); } },
