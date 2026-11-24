@@ -1156,6 +1156,11 @@ describe("the toolbar", () => {
     expect(shellCss).not.toMatch(/cursor:\s*url/);
   });
 
+  test("over canvas text Hand's surface takes the text cursor, in the app and the viewer", () => {
+    expect(declarations(stylesCss, ".drag-layer[data-text]")).toEqual(["cursor: text"]);
+    expect(declarations(shellCss, ".board[data-pan][data-text]")).toEqual(["cursor: text"]);
+  });
+
   // CanvasTools.tsx: only Select and Hand and the toolbar's name are held; the app's row has more tools.
   const appTools = [...readFileSync(new URL("../renderer/CanvasTools.tsx", import.meta.url), "utf8").matchAll(/\{ tool: "(\w+)", label: "(\w+)", key: "(\w)", Icon: (\w+) \}/g)].map(m => ({ tool: m[1], label: m[2], key: m[3], icon: m[4] }));
   const toolbar = /<div class="doan-floating doan-canvas-tools"[^>]*>([\s\S]*?)<\/div>/.exec(shellHtml);
@@ -1557,6 +1562,81 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     const rect = (await frame.locator(".text-rect").first().boundingBox())!;
     expect(Math.abs(rect.x - box.x)).toBeLessThan(0.5);
     expect(Math.abs(rect.y - box.y)).toBeLessThan(0.5);
+  });
+
+  // Hand: a press on canvas text drags a range as Select's does; a press anywhere else pans the board.
+  const handText = '<section data-doan-frame="f" style="height:1400px;padding:12px"><span style="font:32px/40px sans-serif">Drag these words</span></section>';
+  const copiedText = (frame: Frame) => frame.evaluate(() => {
+    const data = new DataTransfer();
+    document.dispatchEvent(new ClipboardEvent("copy", { clipboardData: data, bubbles: true, cancelable: true }));
+    return data.getData("text/plain");
+  });
+
+  test("in Hand a drag over canvas text makes a range ⌘C copies and leaves the board where it was", async () => {
+    const frame = await openCanvas(handText, 320);
+    await frame.locator('[data-tool="hand"]').click();
+    const span = frame.frameLocator("#canvas").locator("span");
+    const box = (await span.boundingBox())!;
+    const board = frame.locator("#board");
+    const mouse = frame.page().mouse;
+    await mouse.move(box.x + 4, box.y + box.height / 2);
+    await expect.poll(() => board.getAttribute("data-text")).toBe("");
+    const scroll = await board.evaluate(el => [el.scrollLeft, el.scrollTop]);
+    await mouse.down();
+    try {
+      await mouse.move(box.x + box.width - 2, box.y + box.height / 2, { steps: 6 });
+      await frame.locator(".text-rect").first().waitFor();
+    } finally { await mouse.up(); }
+    await expect.poll(() => copiedText(frame)).toBe("Drag these words");
+    expect(await board.evaluate(el => [el.scrollLeft, el.scrollTop])).toEqual(scroll);
+    const rect = (await frame.locator(".text-rect").first().boundingBox())!;
+    expect(Math.abs(rect.x - box.x)).toBeLessThan(0.5);
+  });
+
+  test("in Hand a drag off the text pans the board and clears the range", async () => {
+    const frame = await openCanvas(handText, 320);
+    await frame.locator('[data-tool="hand"]').click();
+    const span = frame.frameLocator("#canvas").locator("span");
+    const box = (await span.boundingBox())!;
+    const board = frame.locator("#board");
+    const mouse = frame.page().mouse;
+    await mouse.move(box.x + 4, box.y + box.height / 2);
+    await mouse.down();
+    try {
+      await mouse.move(box.x + box.width - 2, box.y + box.height / 2, { steps: 6 });
+      await frame.locator(".text-rect").first().waitFor();
+    } finally { await mouse.up(); }
+    // The section's own background, well below its text.
+    const below = { x: box.x + 20, y: box.y + 300 };
+    await mouse.move(below.x, below.y);
+    await expect.poll(() => board.getAttribute("data-text")).toBeNull();
+    const top = await board.evaluate(el => el.scrollTop);
+    await mouse.down();
+    try {
+      await mouse.move(below.x, below.y - 120, { steps: 6 });
+    } finally { await mouse.up(); }
+    await expect.poll(() => board.evaluate(el => el.scrollTop)).toBeGreaterThan(top + 60);
+    await frame.locator(".text-rect").first().waitFor({ state: "detached" });
+    expect(await copiedText(frame)).toBe("");
+  });
+
+  test("switching to Hand keeps a range made in Select", async () => {
+    const frame = await openCanvas(handText, 320);
+    const span = frame.frameLocator("#canvas").locator("span");
+    const box = (await span.boundingBox())!;
+    const mouse = frame.page().mouse;
+    await pointAt(span, { x: 2, y: box.height / 2 });
+    await mouse.down();
+    try {
+      await frame.waitForFunction(() => document.activeElement === document.getElementById("canvas"));
+      await mouse.move(box.x + box.width - 2, box.y + box.height / 2, { steps: 6 });
+      await frame.locator(".text-rect").first().waitFor();
+    } finally { await mouse.up(); }
+    await expect.poll(() => copiedText(frame)).toBe("Drag these words");
+    await frame.locator('[data-tool="hand"]').click();
+    await expect.poll(() => frame.locator('[data-tool="hand"]').getAttribute("aria-pressed")).toBe("true");
+    expect(await frame.locator(".text-rect").count()).toBeGreaterThan(0);
+    expect(await copiedText(frame)).toBe("Drag these words");
   });
 
   test("switching to Hand while the inspector yields clears the retained frame", async () => {

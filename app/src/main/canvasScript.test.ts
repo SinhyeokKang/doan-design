@@ -3115,6 +3115,135 @@ describe("canvasScript text drag", () => {
   });
 });
 
+// Hand's text drag: the app's drag layer takes the press, so the app asks the canvas whether the press is on text and
+// then drives the drag with commands. Points are canvas document coordinates (scrollY is 40); `sx`/`sy` are the app's
+// own px, in which the 4 px are measured.
+describe("canvasScript Hand text drag", () => {
+  type T = ReturnType<typeof textCanvas>;
+  const hits = (t: T) => ofType(t.canvas, "text-hit");
+  const textAt = (t: T, x: number, y: number, probe = 1) => t.canvas.fromParent({ type: "text-at", x, y: y + 40, probe });
+  const press = (t: T, x: number, y: number, over: Record<string, unknown> = {}) => t.canvas.fromParent({ type: "text-press", epoch: 0, x, y: y + 40, sx: x + 500, sy: y + 500, probe: 1, ...over });
+  const moveTo = (t: T, x: number, y: number, over: Record<string, unknown> = {}) => t.canvas.fromParent({ type: "text-move", epoch: 0, x, y: y + 40, sx: x + 500, sy: y + 500, ...over });
+  const releaseAt = (t: T, x: number, y: number, over: Record<string, unknown> = {}) => t.canvas.fromParent({ type: "text-release", epoch: 0, x, y: y + 40, ...over });
+  const copyText = (t: T) => {
+    const data = new Map<string, string>();
+    const event = Object.assign(input({ target: null }), { clipboardData: { setData: (type: string, value: string) => data.set(type, value) }, stopImmediatePropagation() {} });
+    t.canvas.fireWindow("copy", event);
+    return data.get("text/plain") ?? null;
+  };
+
+  test("text-at answers, by its probe, whether a Select press there would start a text drag", () => {
+    const t = textCanvas();
+    textAt(t, 60, 5, 1);
+    // The paragraph's own padding below its line.
+    t.carets.set("60,25", { offsetNode: t.t1, offset: 6 });
+    textAt(t, 60, 25, 2);
+    // The frame's background: the nearest caret is the paragraph's text, but neither its glyph nor its element is there.
+    t.pointAt.el = t.hero;
+    textAt(t, 60, 25, 3);
+    t.pointAt.el = t.field;
+    t.carets.set("5,300", { offsetNode: t.field, offset: 2 });
+    textAt(t, 5, 300, 4);
+    t.pointAt.el = t.canvas.body;
+    t.carets.set("5,400", null);
+    textAt(t, 5, 400, 5);
+    expect(hits(t).map(m => [m.probe, m.hit])).toEqual([[1, true], [2, true], [3, false], [4, false], [5, false]]);
+    expect(hits(t).every(m => typeof m.document === "string" && m.document !== "")).toBe(true);
+    expect(t.ranges()).toEqual([]);
+  });
+
+  test("a text-press on text that moves 4 app px posts the range while dragging and its text on release", () => {
+    const t = textCanvas();
+    press(t, 60, 5);
+    expect(hits(t)).toEqual([expect.objectContaining({ probe: 1, hit: true })]);
+    moveTo(t, 63, 5);
+    t.canvas.runFrame();
+    expect(t.ranges()).toEqual([]);
+    moveTo(t, 110, 5);
+    t.canvas.runFrame();
+    expect(t.ranges().at(-1)).toMatchObject({ dragging: true, epoch: 0, rects: [{ x: 60, y: 0, width: 50, height: 18 }] });
+    releaseAt(t, 110, 5);
+    expect(t.ranges().at(-1)).toMatchObject({ dragging: false, rects: [{ x: 60, y: 0, width: 50, height: 18 }], text: "world" });
+    expect(copyText(t)).toBe("world");
+    // The app's layer holds the pointer and the cursor: the canvas takes no capture and adopts no cursor sheet.
+    expect(t.captured.size).toBe(0);
+    expect(t.ours()).toEqual([]);
+    expect(ofType(t.canvas, "select")).toEqual([]);
+  });
+
+  test("a text-press that moves less than 4 app px is released with no range and selects nothing", () => {
+    const t = textCanvas();
+    press(t, 60, 5);
+    moveTo(t, 62, 6);
+    releaseAt(t, 62, 6);
+    t.canvas.runFrame();
+    expect(t.ranges()).toEqual([]);
+    expect(ofType(t.canvas, "select")).toEqual([]);
+  });
+
+  test("a text-press off the text answers no hit and its moves make no range", () => {
+    const t = textCanvas();
+    t.pointAt.el = t.hero;
+    t.carets.set("60,25", { offsetNode: t.t1, offset: 6 });
+    press(t, 60, 25);
+    expect(hits(t)).toEqual([expect.objectContaining({ probe: 1, hit: false })]);
+    moveTo(t, 110, 5);
+    t.canvas.runFrame();
+    releaseAt(t, 110, 5);
+    expect(t.ranges()).toEqual([]);
+  });
+
+  test("a text-press or text-move with an epoch other than the last clear-text starts and extends nothing", () => {
+    const t = textCanvas();
+    t.canvas.fromParent({ type: "clear-text", epoch: 2 });
+    press(t, 60, 5, { epoch: 1 });
+    expect(hits(t)).toEqual([expect.objectContaining({ probe: 1, hit: false })]);
+    moveTo(t, 110, 5, { epoch: 2 });
+    t.canvas.runFrame();
+    expect(t.ranges()).toEqual([]);
+    press(t, 60, 5, { epoch: 2, probe: 2 });
+    moveTo(t, 110, 5, { epoch: 1 });
+    t.canvas.runFrame();
+    expect(t.ranges()).toEqual([]);
+    moveTo(t, 110, 5, { epoch: 2 });
+    releaseAt(t, 110, 5, { epoch: 2 });
+    expect(t.ranges().at(-1)).toMatchObject({ epoch: 2, text: "world" });
+  });
+
+  test("text-point carries a Hand drag's end when the board moves under the pointer", () => {
+    const t = textCanvas();
+    press(t, 60, 5);
+    moveTo(t, 80, 5);
+    t.canvas.fromParent({ type: "text-point", epoch: 0, x: 40, y: 75 });
+    releaseAt(t, 40, 35);
+    expect(t.ranges().at(-1)).toMatchObject({ text: "Hello world\nSecond line".slice(6, 16) });
+  });
+
+  test("clear-text ends a Hand drag; a later text-move or text-release makes no range", () => {
+    const t = textCanvas();
+    press(t, 60, 5);
+    moveTo(t, 110, 5);
+    t.canvas.fromParent({ type: "clear-text", epoch: 1 });
+    const count = t.ranges().length;
+    moveTo(t, 20, 5, { epoch: 1 });
+    releaseAt(t, 20, 5, { epoch: 1 });
+    t.canvas.runFrame();
+    expect(t.ranges()).toHaveLength(count);
+    expect(copyText(t)).toBeNull();
+  });
+
+  test("the canvas's own pointer events leave a Hand drag alone", () => {
+    const t = textCanvas();
+    press(t, 60, 5);
+    moveTo(t, 110, 5);
+    t.canvas.fireWindow("pointerup", input({ target: t.canvas.html, clientX: 20, clientY: 5, screenX: 1020, screenY: 1005, pointerId: 1 }));
+    t.canvas.fireWindow("pointercancel", input({ target: t.canvas.html, clientX: 20, clientY: 5, screenX: 1020, screenY: 1005, pointerId: 1 }));
+    expect(t.ranges().at(-1)).toMatchObject({ dragging: true });
+    releaseAt(t, 110, 5);
+    expect(t.ranges().at(-1)).toMatchObject({ dragging: false, text: "world" });
+  });
+});
+
 interface LinkPlacement {
   name: string;
   html: string;

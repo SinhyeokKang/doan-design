@@ -327,6 +327,19 @@ describe("parseCanvasMessage: wheel", () => {
 
 // The canvas's text range: the rects the app paints and, once released, the text ⌘C copies. Over a cap the whole
 // message is dropped: the script clips before sending, so only a forged message is over.
+describe("parseCanvasMessage: text-hit", () => {
+  const textHit = (over: Record<string, unknown> = {}) => ({ type: "text-hit", document: "doc-1", probe: 3, hit: true, ...over });
+  test("keeps the document, the probe and whether the point is on text", () => {
+    expect(parseCanvasMessage(textHit({ extra: 1 }))).toEqual({ type: "text-hit", document: "doc-1", probe: 3, hit: true });
+    expect(parseCanvasMessage(textHit({ hit: false }))).toEqual({ type: "text-hit", document: "doc-1", probe: 3, hit: false });
+  });
+  test("drops a malformed one", () => {
+    for (const over of [{ document: "" }, { document: 1 }, { probe: -1 }, { probe: 1.5 }, { probe: "3" }, { hit: "yes" }, { hit: undefined }]) {
+      expect([over, parseCanvasMessage(textHit(over))]).toEqual([over, null]);
+    }
+  });
+});
+
 describe("parseCanvasMessage: text-range", () => {
   const rect = { x: 10, y: 20, width: 30, height: 18 };
   const textRange = (over: Record<string, unknown> = {}) => ({ type: "text-range", document: "doc-1", epoch: 0, dragging: false, rects: [rect], text: "Copy me", ...over });
