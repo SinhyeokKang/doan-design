@@ -10,6 +10,7 @@
 - 의심 발견(M6, L-G2-2, W2-conv-transport-2)은 실패 테스트나 짧은 격리 probe로 먼저 재현한다. 재현되지 않으면 버리고 PR 본문에 적는다.
 - C-G2-1은 문서 한 줄 수정이라 컨덕터가 직접 커밋했다(`9ad17a6b0`). 컨덕터 판단 — 배치 코드가 아니고, 현재 writer는 `service.ts` start·send 수락과 `refreshCanvas`뿐이다.
 - 배치 분할은 파일 소유로 나눈다. 컨덕터 판단 — `transport.ts`(M7·transport-2·transport-3·M-G2-8), `store.ts`(core-2·M-G2-7), `service.ts`(M4·L-G2-2)가 겹치지 않게 묶었다.
+- 리드가 범위를 바꿨다: M-G2-13의 `store.ts`·`replyAnchor.ts` canvas id 정규식 사본을 이 run에 더했다. `skills.ts`·`skills.commands.test.ts`는 main-audit 소유라 건드리지 않는다.
 - 렌더러 변경은 `threadItems.ts`·`ConversationThread.tsx`에만 둔다(renderer-audit 컨덕터와 충돌 방지, 리드 브리프).
 
 ## 배치
@@ -18,7 +19,7 @@
 |---|---|---|---|---|---|---|
 | A | M4, L-G2-2 | `service.ts`, `service*.test.ts` | 없음 | Opus high — 예약·서버 종료 수명주기, 동시성 | `npm --prefix app test`(대화 테스트), typecheck, lint | 대기 |
 | B | M7, W2-conv-transport-2, W2-conv-transport-3, M-G2-8 | `transport.ts`, `acpRunner.ts`, `summary.ts`, `models.ts`, 렌더러 `threadItems.ts`·`ConversationThread.tsx`와 각 테스트 | 없음 | Opus high — 기존 기록 호환과 main·렌더러에 걸친 키 변경 | 같음 | 대기 |
-| C | M6, W2-conv-core-2, M-G2-7 | `prepare.ts`, `io.ts`, `store.ts`, `types.ts`, `drafts.ts`, `prompt.ts`와 각 테스트 | 없음 | Opus medium — 검증기 공유는 기계적이지만 M6은 링크 거부를 지켜야 한다 | 같음 | 대기 |
+| C | M6, W2-conv-core-2, M-G2-7, M-G2-13(대화 부분) | `prepare.ts`, `io.ts`, `store.ts`, `types.ts`, `drafts.ts`, `prompt.ts`, `replyAnchor.ts`와 각 테스트 | 없음 | Opus medium — 검증기 공유는 기계적이지만 M6은 링크 거부를 지켜야 한다 | 같음 | 대기 |
 | 컨덕터 | C-G2-1 | `docs/ARCHITECTURE.md` | 없음 | — | 문서 대조 | 완료 `9ad17a6b0` |
 
 ## 겹침과 순서
