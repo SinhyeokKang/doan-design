@@ -22,7 +22,7 @@
 | B2 | T3 `handoffCardView`, `canvasCardMeta` | `renderer/handoffView.ts`, `renderer/canvasCardText.ts`, 각 테스트 | 없음 | Sonnet medium — 경우가 정해진 순수 함수와 테스트 | `npm --prefix app test`, typecheck, lint | 구현 완료 `ce925785d`·`5b1469d45`·`d68385905`, 리뷰 중 (`ctx_0721ad824019`, worktree `hce-b2`) |
 | B3 | T4 UI + T5 `/design-sync`·`/runtime-test` + T6 README 캔버스·이미지 | `ConversationThread.tsx`, `styles.css`, `CanvasConversationPanel.tsx`, `ProjectOverview.tsx`, `prototype/PrototypeConversation.tsx`, `App.tsx`(prop 전달), 테스트, `docs/design/conversation.md`, `.doan/canvases/readme-features.html`, `docs/assets/readme/` | B1, B2 통합 | Opus high — 세 화면의 prop, memo deps, 공유 CSS, 실제 앱 측정까지 판단이 많다 | `npm --prefix app test`, typecheck, lint, `/design-sync`, `/runtime-test` | 대기 |
 | R1 | B1 리뷰 | 보고만 | B1 | Opus medium — IPC 경계 리뷰 | `/code-review` 보고서 | 대기 |
-| R2 | B2 리뷰 | 보고만 | B2 | Sonnet medium — 작은 순수 함수 diff | `/code-review` 보고서 | 진행 중 (`ctx_a4b2e4684505`) |
+| R2 | B2 리뷰 | 보고만 | B2 | Sonnet medium — 작은 순수 함수 diff | `/code-review` 보고서 | 완료: 🔴 0, 🟡 1, ⚪ 5 |
 | R3 | B3 리뷰 | 보고만 | B3 | Opus medium — UI와 CSS 공유 구조 | `/code-review` 보고서 | 대기 |
 
 conductor 몫(T6): PRODUCT §5 item 2·3·'Overview', ARCHITECTURE §3·§7, BACKLOG 미검증 항목, `styles.css` 한쪽 규칙 확인, 기능 디렉터리 삭제, 최종 `/verify`.
@@ -36,3 +36,4 @@ conductor 몫(T6): PRODUCT §5 item 2·3·'Overview', ARCHITECTURE §3·§7, BAC
 ## 리뷰·검증 기록
 
 - B2 인계: `handoffCardView`에 `openLabel`, `canvasCardMeta`에 다섯째 인자 `{drawing, handedOffAt}`와 `handedOff`를 더했다. 핸드오프 카드에는 Edited가 없다(드래프트). B3는 `threadItems.ts`의 `handoffCard` 항목에 `at`을 싣고, `drawing`에는 `view.icon === "spinner"`를 넘기고, `handoffCardHead` 임시 wrapper를 지운다. gate: test 15653 통과, typecheck, lint 통과.
+- R2(B2 리뷰): 🔴 0, 🟡 1(읽을 수 없는 캔버스가 `frames: []`와 함께 와서 "No frames"가 보인다), ⚪ 5. 🟡와 들여쓰기 ⚪를 B2에 1차 수정으로 보냈다(`ctx_cd305a638630`). B3에 넘길 것: `drawing`에는 `card.drawing`이 아니라 상태가 그리는 중인지(`view.icon === "spinner"`)를 넘긴다. `canvasCardMeta`에 넘길 row는 `canvasListed`와 같은 `sameCanvas`(`CanvasConversationPanel.tsx:530`)로 찾는다. `handoffCardHead` wrapper, `CARD_STATUS` 슬라이스를 지운다. T6 PRODUCT에는 "핸드오프 카드는 수정 시각 대신 핸드오프 시각"으로 쓰고, 폴더 예시 `design/checkout`은 옮기지 않는다(나올 수 있는 폴더는 `.doan/ds`뿐).
