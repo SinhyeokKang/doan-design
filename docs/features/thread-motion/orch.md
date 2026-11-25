@@ -27,10 +27,10 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| B1 | T2 PoC(성능) | `.scratch/thread-motion/`, `docs/features/thread-motion/design.md` 'PoC' 절만. 임시 루프는 워커 worktree에서만 쓰고 커밋하지 않는다 | 없음 | Opus medium — 격리된 앱에 가짜 스트림을 넣고 프레임 시간을 재는 harness다. 판단은 중간, 틀리면 B3 구조 선택이 흔들린다 | p95 ≤ 16ms, 최댓값 ≤ 50ms 측정값이 design.md에 있음 | 대기 |
-| B2 | T3 순수 함수 | `renderer/threadMotion.ts`(새), `renderer/threadMotion.test.ts`(새), `renderer/threadItems.test.ts`(케이스 추가만) | 없음 | Opus medium — `revealBoundary`의 Markdown 경계와 따라가기 상태 전이는 경우가 많고, 틀리면 UI 전체가 어긋난다 | `npm --prefix app test`, typecheck, lint | 대기 |
-| B3 | T4 UI + T5 `/design-sync`·`/runtime-test` | `ConversationThread.tsx`, `conversationStore.ts`, `styles.css`, 보내기 경로의 composer 파일(`CanvasConversationPanel.tsx`, `ProjectOverview.tsx`, Home, 프로토타입 창), 각 테스트, `docs/design/conversation.md` | B1, B2 통합 | Opus high — rAF·ResizeObserver 따라가기, 매 프레임 렌더 성능, 세 화면과 실제 provider 턴까지 판단이 많다 | `npm --prefix app test`, typecheck, lint, `/design-sync`, `/runtime-test` | 대기 |
-| R2 | B2 리뷰 | 보고만 | B2 | Opus medium — 순수 함수지만 경계 규칙이 미묘하다 | `/code-review` 보고서 | 대기 |
+| B1 | T2 PoC(성능) | `.scratch/thread-motion/`, `docs/features/thread-motion/design.md` 'PoC' 절만. 임시 루프는 워커 worktree에서만 쓰고 커밋하지 않는다 | 없음 | Opus medium — 격리된 앱에 가짜 스트림을 넣고 프레임 시간을 재는 harness다. 판단은 중간, 틀리면 B3 구조 선택이 흔들린다 | p95 ≤ 16ms, 최댓값 ≤ 50ms 측정값이 design.md에 있음 | 통합 `5bf31d405`. worktree 정리, 브랜치 `SinhyeokKang/tm-b1` 유지 |
+| B2 | T3 순수 함수 | `renderer/threadMotion.ts`(새), `renderer/threadMotion.test.ts`(새), `renderer/threadItems.test.ts`(케이스 추가만) | 없음 | Opus medium — `revealBoundary`의 Markdown 경계와 따라가기 상태 전이는 경우가 많고, 틀리면 UI 전체가 어긋난다 | `npm --prefix app test`, typecheck, lint | 통합 `def4e1740`~`953f03a4c`(수정 2라운드). worktree 정리, 브랜치 `SinhyeokKang/tm-b2` 유지 |
+| B3 | T4 UI + T5 `/design-sync`·`/runtime-test` | `ConversationThread.tsx`, `conversationStore.ts`, `styles.css`, 보내기 경로의 composer 파일(`CanvasConversationPanel.tsx`, `ProjectOverview.tsx`, Home, 프로토타입 창), 각 테스트, `docs/design/conversation.md` | B1, B2 통합 | Opus high — rAF·ResizeObserver 따라가기, 매 프레임 렌더 성능, 세 화면과 실제 provider 턴까지 판단이 많다 | `npm --prefix app test`, typecheck, lint, `/design-sync`, `/runtime-test` | 진행 중(worktree `tm-b3`) |
+| R2 | B2 리뷰 | 보고만 | B2 | Opus medium — 순수 함수지만 경계 규칙이 미묘하다 | `/code-review` 보고서 | 완료: 1차 🔴2·🟡4·🟢4, 재확인 🔴0·🟡2·🟢2. B2 2라운드 수정 뒤 conductor가 두 테스트 파일(126)과 typecheck를 확인했다 |
 | R3 | B3 리뷰 | 보고만 | B3 | Opus high — 스크롤 상태 기계와 렌더 성능, 사람 입력 판정 | `/code-review` 보고서 | 대기 |
 
 B1은 코드를 커밋하지 않으므로 리뷰 워커 대신 conductor가 측정 스크립트와 값을 직접 확인한다.
@@ -45,4 +45,6 @@ conductor 몫(T6): PRODUCT §5 item 2·3, ARCHITECTURE(블록 단위 memo로 나
 
 ## 리뷰·검증 기록
 
-(진행하며 적는다)
+- B1: 저부하 run의 숫자는 로그 전사본(`.scratch/thread-motion/results-quiet-1005.txt`)으로만 남았다. 부하가 높은 run은 기준을 넘었다. 최종 판정은 B3의 실제 구현 측정으로 한다.
+- R2: 보고서 `.scratch/review-R2.md`(1차와 재확인). 남은 🟢: 이미지 링크(`[![a](b)](…`)와 라벨 안 코드의 `[`는 미완성인 채 보일 수 있다. 에이전트 답에서 드물어 그대로 둔다.
+- B2 전체 테스트: 워커가 2라운드 뒤 528 files, 15737 tests 통과를 보고했다. 1차의 `src/main/watch.test.ts` 실패는 부하 중 fs 타이밍이었고 단독 실행에서 통과했다.
