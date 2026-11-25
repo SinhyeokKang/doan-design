@@ -696,8 +696,7 @@ function CardThumbnails({ hub, root, banners, scroller, onImages }: { hub: Thumb
   if (held.current.key !== key) held.current = { key, rows };
   const { thumbnails, onVisible } = useThumbnails(hub, root, held.current.rows);
   useEffect(() => { onImages(thumbnails); }, [thumbnails, onImages]);
-  // By card, not by path: a later card of a canvas already shown has a banner of its own to watch.
-  const watched = banners.map(banner => banner.key).join("\n");
+  const watched = bannerWatchKey(banners);
   useEffect(() => {
     const field = scroller.current;
     if (!field || watched === "") return;
@@ -706,6 +705,11 @@ function CardThumbnails({ hub, root, banners, scroller, onImages }: { hub: Thumb
   return null;
 }
 export interface CardBanner { key: string; row: CanvasRow }
+// When the watcher starts over: by card, since a later card of a canvas already shown has its own banner, and by path,
+// since a renamed canvas keeps its card and the observer reports only changes of intersection.
+export function bannerWatchKey(banners: readonly CardBanner[]): string {
+  return banners.map(banner => `${banner.key}\t${banner.row.path}`).join("\n");
+}
 // The banners the thread's cards draw with a listed canvas's row, by card key.
 export function cardBanners(items: readonly ThreadItem[], rows: readonly CanvasRow[], listed: (canvas: Canvas) => boolean): CardBanner[] {
   return items.flatMap(item => {
