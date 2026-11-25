@@ -90,7 +90,7 @@ func TestReadResponse(t *testing.T) {
 		{"project_not_open", `{"v":1,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "project_not_open"},
 		{"unknown app error", `{"v":1,"ok":false,"error":{"code":"other","message":"m"}}`, "internal_error"},
 	} {
-		got, failure := readResponse([]byte(tt.line))
+		got, failure := readResponse([]byte(tt.line), "/r")
 		code := ""
 		if failure != nil {
 			code = failure.Code
@@ -124,7 +124,7 @@ func TestReadResponseInvalidFixtures(t *testing.T) {
 		if e := json.Compact(&compact, b); e != nil {
 			t.Fatal(e)
 		}
-		if _, failure := readResponse(compact.Bytes()); failure == nil {
+		if _, failure := readResponse(compact.Bytes(), "/r"); failure == nil {
 			t.Errorf("%s: accepted", p)
 		}
 	}
@@ -145,7 +145,7 @@ func TestReadResponseFixtures(t *testing.T) {
 		if e := json.Compact(&compact, b); e != nil {
 			t.Fatal(e)
 		}
-		got, failure := readResponse(compact.Bytes())
+		got, failure := readResponse(compact.Bytes(), "/r")
 		if strings.Contains(p, "error-") {
 			if failure == nil {
 				t.Errorf("%s: no failure", p)
@@ -244,7 +244,7 @@ func TestActiveAppErrors(t *testing.T) {
 		step    string
 	}{
 		{"bad_token", reply(`{"v":1,"ok":false,"error":{"code":"bad_token","message":"m"}}`), "app_not_running", "open Doan"},
-		{"project_not_open", reply(`{"v":1,"ok":false,"error":{"code":"project_not_open","message":"m"}}`), "project_not_open", "Ask the user to add this project in Doan (File > Add Projects…), or work in the worktree that is open in Doan"},
+		{"project_not_open", reply(`{"v":1,"ok":false,"error":{"code":"project_not_open","message":"m"}}`), "project_not_open", ""},
 		{"bad_request", reply(`{"v":1,"ok":false,"error":{"code":"bad_request","message":"m"}}`), "internal_error", ""},
 		{"response v 2", reply(`{"v":2}`), "app_protocol_mismatch", ""},
 		{"not json", reply(`<html>`), "internal_error", ""},
@@ -260,8 +260,11 @@ func TestActiveAppErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			app := &fakeApp{requests: make(chan map[string]any, 1), respond: tt.respond}
 			failure := activeCode(t, activeContext(t, root, app.dial(t)), root, tt.code)
-			if tt.code == "project_not_open" && !reflect.DeepEqual(failure.NextSteps, []string{tt.step}) {
-				t.Fatalf("nextSteps: %v, want %q", failure.NextSteps, tt.step)
+			// POSTMORTEM 2026-11-19: name the whole root and do not assert the folder was never added.
+			if tt.code == "project_not_open" {
+				if failure.Message != `Doan does not have the folder "`+realPath(t, root)+`" open` || !reflect.DeepEqual(failure.NextSteps, notOpenSteps(", then to ask again")) {
+					t.Fatalf("message %q, nextSteps %v", failure.Message, failure.NextSteps)
+				}
 			}
 			if tt.step != "" && !strings.Contains(strings.Join(failure.NextSteps, "\n"), tt.step) {
 				t.Fatal(failure.NextSteps)

@@ -176,9 +176,18 @@ function extractConst(source: string, name: string): string {
 describe("measure.js frame walk and wheel hand-off", () => {
   const app = canvasScript.toString();
   const appConst = (name: string) => normalize(extractConst(app, name).replace(/\blib\./g, ""));
-  test.each(["bodyClips", "ancestors", "scrollsFurther"])("%s is the same as in canvasScript.ts", (name) => {
+  // The compiled app writes every string in double quotes.
+  const doubleQuoted = (text: string) => text.replace(/'([^'\\]*)'/g, (_, body: string) => JSON.stringify(body));
+  test.each(["bodyClips", "ancestors", "scrollsFurther", "stylesheetPending"])("%s is the same as in canvasScript.ts", (name) => {
     expect(appConst(name).length).toBeGreaterThan(40);
-    expect(normalize(extractConst(measure, name))).toBe(appConst(name));
+    expect(doubleQuoted(normalize(extractConst(measure, name)))).toBe(appConst(name));
+  });
+
+  // The app keeps the first layout's time for its anchor retry; the viewer only needs whether it happened.
+  const settledApp = () => appConst("stylesheetSettled").replace("firstLayoutAt!==null", "laidOut");
+  test("stylesheetSettled is the same as in canvasScript.ts", () => {
+    expect(settledApp()).toContain("laidOut");
+    expect(normalize(extractConst(measure, "stylesheetSettled"))).toBe(settledApp());
   });
 
   test("the comparison fails when a copy drifts", () => {
@@ -188,6 +197,10 @@ describe("measure.js frame walk and wheel hand-off", () => {
     expect(normalize(extractConst(walk, "ancestors"))).not.toBe(appConst("ancestors"));
     const wheel = measure.replace("node !== document.body;", "node !== null;");
     expect(normalize(extractConst(wheel, "scrollsFurther"))).not.toBe(appConst("scrollsFurther"));
+    const media = measure.replace(" && (!link.media || matchMedia(link.media).matches)", "");
+    expect(doubleQuoted(normalize(extractConst(media, "stylesheetPending")))).not.toBe(appConst("stylesheetPending"));
+    const settled = measure.replace('if (event.type === "error") failedSheets.add(event.target);', "");
+    expect(normalize(extractConst(settled, "stylesheetSettled"))).not.toBe(settledApp());
   });
 });
 
@@ -1090,6 +1103,50 @@ describe("the board iframe's ancestors never clip with four equal radii", () => 
       expect(declared(shellCss, element, radius), JSON.stringify(element)).toEqual([]);
     }
   });
+
+  // The exported player's run iframe is as large as the app's, so its chain splits the clip the same way. The chain is
+  // read from the player template up from #pw-stage, plus the box and iframe player.js puts in the stage.
+  const playerChain = (): Element[] => {
+    const template = /<template id="player">([\s\S]*?)<\/template>/.exec(shellHtml.replace(/<!--[\s\S]*?-->/g, ""))?.[1] ?? "";
+    const open: Element[] = [];
+    for (const [tagText, close, name, attributes] of template.matchAll(/<(\/?)([a-z][\w-]*)([^>]*)>/gi)) {
+      const tag = name!.toLowerCase();
+      if (close) { open.splice(open.map(e => e.tag).lastIndexOf(tag)); continue; }
+      const element = { tag, id: /\sid="([^"]*)"/.exec(attributes!)?.[1], classes: /\sclass="([^"]*)"/.exec(attributes!)?.[1]?.split(/\s+/) ?? [] };
+      if (element.id === "pw-stage") {
+        const box = { tag: "div", classes: ["pw-box"] }, frame = { tag: "iframe", classes: ["pw-frame"] };
+        return [frame, box, element, ...open.reverse(), ...page];
+      }
+      if (!tagText.endsWith("/>") && !/^(meta|link|br|img|input|hr|source|wbr|path|circle|rect|line)$/.test(tag)) open.push(element);
+    }
+    return [];
+  };
+
+  test("export player: the panel paints its corners without clipping, the content rounds only its top corners and the stage only its bottom ones", () => {
+    // player.js puts the iframe in a .pw-box it appends to the stage, and prepends the template's content to body.
+    expect(playerJs).toContain('box.className = "pw-box";');
+    expect(playerJs).toContain('iframe.className = "pw-frame";');
+    expect(playerJs).toContain("box.append(iframe);");
+    expect(playerJs).toContain("stage.append(box);");
+    expect(playerJs).toContain('document.body.prepend($("player").content.cloneNode(true));');
+    const chain = playerChain();
+    expect(chain.map(e => e.tag + (e.id ? `#${e.id}` : "") + e.classes.map(c => `.${c}`).join(""))).toEqual(
+      ["iframe.pw-frame", "div.pw-box", "div#pw-stage.pw-stage", "div#pw-content.pw-content", "div#pw-panel.pw-panel", "div#pw.pw", "body", "html"]);
+    const [, , stage, content, panel] = chain;
+    expect(declared(shellCss, panel!, clipping)).toEqual([]);
+    expect(declared(shellCss, content!, bottomRadius)).toEqual([]);
+    expect(declared(shellCss, content!, clipping)).not.toEqual([]);
+    expect(declared(shellCss, stage!, topRadius)).toEqual([]);
+    expect(declared(shellCss, stage!, clipping)).not.toEqual([]);
+    expect(declarations(shellCss, ".pw-panel")).toContain("border-radius: var(--radius-container)");
+    expect(declarations(shellCss, ".pw-content")).toEqual(expect.arrayContaining(["border-top-left-radius: inherit", "border-top-right-radius: inherit"]));
+    expect(declarations(shellCss, ".pw-stage")).toEqual(expect.arrayContaining(["border-bottom-left-radius: var(--radius-container)", "border-bottom-right-radius: var(--radius-container)"]));
+    for (const element of chain.filter(e => e !== stage && e !== content && e !== panel)) {
+      expect(declared(shellCss, element, radius), JSON.stringify(element)).toEqual([]);
+    }
+    // A name-row player is the same element with one more class.
+    expect(declared(shellCss, { tag: "div", id: "pw", classes: ["pw", "name-row"] }, radius)).toEqual([]);
+  });
 });
 
 describe("the toolbar", () => {
@@ -1193,6 +1250,85 @@ describe("the toolbar", () => {
     expect(z(".vw-tool-tip")).toBeGreaterThan(z(".doan-canvas-bottom"));
     // An open Frames list or zoom menu reaches down to the tools in a short window.
     expect(z(".doan-canvas-panel > .doan-canvas-head")).toBeGreaterThan(z(".vw-tool-tip"));
+  });
+});
+
+// The first layout waits for the canvas's linked stylesheets, as the app's canvasScript.ts does (its "measures the
+// parsed canvas after its linked stylesheet has …" tests): a height measured unstyled sticks through nextHeight.
+describe("measure.js waits for linked stylesheets before its first layout", () => {
+  class FakeLink { sheet: object | null = null; media = ""; disabled = false; }
+  const canvas = (links: FakeLink[]) => {
+    const posted: { type: string; height?: number }[] = [];
+    const listeners: { type: string; fn: (event: unknown) => void }[] = [];
+    const documentListeners: { type: string; fn: (event: unknown) => void }[] = [];
+    const frames: (() => void)[] = [];
+    const html = { height: 364, scrollHeight: 364, getBoundingClientRect: () => ({ top: 0, height: html.height }) };
+    const parent = { postMessage: (message: { type: string; height?: number }) => posted.push(message) };
+    const document = {
+      readyState: "interactive", documentElement: html, body: null, adoptedStyleSheets: [],
+      addEventListener: (type: string, fn: (event: unknown) => void) => documentListeners.push({ type, fn }),
+      fonts: { addEventListener() {}, ready: new Promise(() => {}) },
+      querySelectorAll: (selector: string) => selector.startsWith("link[") ? links : [],
+    };
+    const context = {
+      document, parent, innerHeight: 150, scrollX: 0, scrollY: 0, location: { href: "about:srcdoc" },
+      HTMLLinkElement: FakeLink, history: { pushState() {}, replaceState() {} },
+      ResizeObserver: class { observe() {} }, MutationObserver: class { observe() {} },
+      requestAnimationFrame: (fn: () => void) => frames.push(fn),
+      getComputedStyle: () => ({ overflowX: "visible", overflowY: "visible", position: "static", display: "block" }),
+      matchMedia: (query: string) => ({ matches: query !== "print" }),
+      addEventListener: (type: string, fn: (event: unknown) => void) => listeners.push({ type, fn }),
+    };
+    runInNewContext(`(function () {\n${lib}\n${canvasInspectScripts}\n${measure}\n})();`, context);
+    const fire = (list: typeof listeners, type: string, event: unknown = {}) => { for (const l of list) if (l.type === type) l.fn(event); };
+    return {
+      html, document,
+      layouts: () => posted.filter(message => message.type === "layout"),
+      trigger: (type: string) => fire(listeners, type),
+      fromParent: (data: unknown) => fire(listeners, "message", { source: parent, data }),
+      settle: (type: "load" | "error", link: FakeLink) => fire(documentListeners, type, { type, target: link }),
+      runFrames: () => { for (const fn of frames.splice(0)) fn(); },
+    };
+  };
+
+  test.each(["loaded", "failed"])("measures the parsed canvas after its linked stylesheet has %s", outcome => {
+    const link = new FakeLink();
+    const c = canvas([link]);
+    c.fromParent({ type: "measure" });
+    c.runFrames();
+    expect(c.layouts()).toHaveLength(0);
+    if (outcome === "loaded") {
+      link.sheet = {};
+      c.html.height = 988;
+    }
+    c.document.readyState = "complete";
+    c.trigger("load");
+    expect(c.layouts().at(-1)?.height).toBe(c.html.height);
+  });
+
+  test.each(["load", "error"] as const)("a linked stylesheet's %s before the window's sends the first layout", type => {
+    const link = new FakeLink();
+    const c = canvas([link]);
+    expect(c.layouts()).toHaveLength(0);
+    if (type === "load") {
+      link.sheet = {};
+      c.html.height = 988;
+    }
+    c.settle(type, link);
+    expect(c.layouts().at(-1)?.height).toBe(c.html.height);
+  });
+
+  test.each(["disabled", "for another medium"])("a stylesheet %s does not hold the first layout", kind => {
+    const link = new FakeLink();
+    if (kind === "disabled") link.disabled = true;
+    else link.media = "print";
+    expect(canvas([link]).layouts()).toHaveLength(1);
+  });
+
+  test("a stylesheet for the current medium holds the first layout", () => {
+    const link = new FakeLink();
+    link.media = "screen";
+    expect(canvas([link]).layouts()).toHaveLength(0);
   });
 });
 

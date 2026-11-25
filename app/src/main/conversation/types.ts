@@ -18,7 +18,9 @@ export interface Anchor {
   point?: { frameId?: string; dx: number; dy: number };
 }
 // model_unavailable: the provider has no such model for this account, so the turn ended before it did any work.
-export type FailureCode = "runtime_unsupported" | "cli_missing" | "not_logged_in" | "session_unavailable" | "session_in_use" | "process_exited" | "rate_limited" | "model_unavailable" | "prompt_unread" | "unknown";
+// The store reads a turn end only with one of these values (store.ts payload).
+export const FAILURE_CODES = ["runtime_unsupported", "cli_missing", "not_logged_in", "session_unavailable", "session_in_use", "process_exited", "rate_limited", "model_unavailable", "prompt_unread", "unknown"] as const;
+export type FailureCode = (typeof FAILURE_CODES)[number];
 // detail: what a choice saves beyond this request (a rule, a setting), shown before the person picks it.
 export interface PermissionOption { id: string; label: string; kind: "allow" | "allowAlways" | "deny"; detail?: string }
 // summary: what the approval lets run (the command, the files, the permissions); reason: the agent's own words about it.
@@ -42,7 +44,9 @@ export type HandoffResolution = { outcome: "started"; target: { conversationId: 
 // Type-only here, since the renderer imports it; the parsers live in skills.ts.
 export interface SkillSummary { kind: "skill" | "command"; name: string; description: string }
 export interface EditLines { added: number; removed: number }
-export type FastUnusedReason = "plan" | "extra_usage" | "model" | "policy" | "cooldown";
+export const FAST_UNUSED_REASONS = ["plan", "extra_usage", "model", "policy", "cooldown"] as const;
+export type FastUnusedReason = (typeof FAST_UNUSED_REASONS)[number];
+export const INTERRUPT_REASONS = ["user", "appQuit", "crashed"] as const;
 export type EventPayload =
   | { type: "user.message"; text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; origin?: HandoffOrigin }
   | { type: "turn.started" }
@@ -62,7 +66,7 @@ export type EventPayload =
   // model: the model ID the provider's error named, kept so the thread reads the same cause once loaded again; only and
   // always with model_unavailable.
   | { type: "turn.failed"; code: FailureCode; detail?: string; model?: string }
-  | { type: "interrupted"; reason: "user" | "appQuit" | "crashed" }
+  | { type: "interrupted"; reason: (typeof INTERRUPT_REASONS)[number] }
   // archived and restored: written only by earlier builds, which archived a canvas's previous conversation and made an
   // archived one current again; still read, never written by this build.
   | { type: "conversation.archived" }

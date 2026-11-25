@@ -28,7 +28,7 @@ type brandCandidate struct {
 var (
 	brandWord = regexp.MustCompile(`\b(?:doan|Doan)\b`)
 	// `doan` followed by a subcommand, a flag, a placeholder or a noun naming the command.
-	brandCommandAfter = regexp.MustCompile(`^ (?:--?[a-z]|<|(?:active|check|config|design-skill|help|init|ls|onboarding|open|skill|version|work|CLI|command|server)(?:[^\w-]|$))`)
+	brandCommandAfter = regexp.MustCompile(`^ (?:--?[a-z]|<|(?:active|check|config|design-skill|export|handoff|help|init|ls|onboarding|open|remove|skill|version|work|CLI|command|server)(?:[^\w-]|$))`)
 	brandIdentBefore  = regexp.MustCompile(`(?:\w\.|[-@]|named )$`)
 	brandIdentAfter   = regexp.MustCompile(`^(?::|[-_]|\.\w)`)
 	brandAppAfter     = regexp.MustCompile(`^\.app\b`)
@@ -106,6 +106,16 @@ func TestBrandCandidatesMatchSharedFixtures(t *testing.T) {
 	for _, c := range fixture.Cases {
 		if got := brandCandidates(c.Text); !reflect.DeepEqual(got, c.Expected) {
 			t.Errorf("%s: got %+v, want %+v", c.Name, got, c.Expected)
+		}
+	}
+}
+
+// Every subcommand reads as the command; candidates.test.ts holds the same cases.
+func TestBrandCandidatesKnowEverySubcommand(t *testing.T) {
+	for _, sub := range []string{"active", "check", "config", "design-skill", "export", "handoff", "help", "init", "ls", "onboarding", "open", "remove", "skill", "version", "work"} {
+		text := "Run doan " + sub + " here."
+		if got := brandCandidates(text); !reflect.DeepEqual(got, []brandCandidate{{Index: 4, Form: "doan", Kind: "command"}}) {
+			t.Errorf("%s: %+v", sub, got)
 		}
 	}
 }

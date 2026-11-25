@@ -60,7 +60,7 @@ func resolveAsset(resolver *repo.Resolver, root string, scope []string, base, hr
 	case repo.Missing:
 		return resolved{State: assetMissing}, nil
 	}
-	if !served(real, scope) {
+	if !repo.Served(real, scope) {
 		return resolved{State: assetRefused, Reason: ReasonNotServed}, nil
 	}
 	info, err := os.Stat(filepath.Join(root, filepath.FromSlash(real)))
@@ -74,20 +74,6 @@ func resolveAsset(resolver *repo.Resolver, root string, scope []string, base, hr
 		return resolved{State: assetMissing}, nil
 	}
 	return resolved{State: assetInside, Real: real}, nil
-}
-
-// served is the comparison `doan check` uses for css_not_served: equal to or
-// under a scope entry, by path segment, and not held back (repo.Withheld).
-func served(p string, scope []string) bool {
-	if repo.Withheld(p) {
-		return false
-	}
-	for _, s := range scope {
-		if p == s || strings.HasPrefix(p, s+"/") {
-			return true
-		}
-	}
-	return false
 }
 
 var errNotRegular = errors.New("not a regular file")

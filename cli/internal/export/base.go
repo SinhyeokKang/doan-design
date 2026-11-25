@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 
+	"github.com/SinhyeokKang/doan-design/cli/internal/canvas"
 	"golang.org/x/net/html"
 )
 
@@ -62,7 +63,7 @@ func firstBaseHref(src []byte) (string, bool) {
 func baseMoves(href string) bool {
 	// The URL parser drops tab and newline anywhere in the value and reads
 	// %2E as a dot segment.
-	h := trimURL(strings.NewReplacer("\t", "", "\n", "", "\r", "").Replace(href))
+	h := canvas.TrimURL(strings.NewReplacer("\t", "", "\n", "", "\r", "").Replace(href))
 	h = strings.NewReplacer("%2e", ".", "%2E", ".").Replace(h)
 	if i := strings.IndexAny(h, "?#"); i >= 0 {
 		h = h[:i]

@@ -51,16 +51,18 @@ func trimASCII(s string) string {
 	}
 	return s[a:b]
 }
-func quoted(s string, i int) (string, int) {
+
+// quoted reads the string at i; bad reports one cut by a newline, which CSS makes a bad string.
+func quoted(s string, i int) (v string, end int, bad bool) {
 	q := s[i]
 	i++
 	var b strings.Builder
 	for i < len(s) {
 		if s[i] == q {
-			return b.String(), i + 1
+			return b.String(), i + 1, false
 		}
 		if s[i] == '\n' || s[i] == '\r' || s[i] == '\f' {
-			return b.String(), i
+			return b.String(), i, true
 		}
 		if s[i] == '\\' && i+1 < len(s) {
 			i++
@@ -72,7 +74,7 @@ func quoted(s string, i int) (string, int) {
 		b.WriteByte(s[i])
 		i++
 	}
-	return b.String(), i
+	return b.String(), i, false
 }
 
 // lexer yields one token at a time and scanners keep only the current statement's: a slice of every
@@ -80,6 +82,9 @@ func quoted(s string, i int) (string, int) {
 type lexer struct {
 	s string
 	i int
+	// A string directly inside image-set() is a <url>, so it is a 'u' token. imageSet is one past the index of
+	// the "(" that opens the call, paren the open parentheses, and setParen the call's depth or 0.
+	imageSet, paren, setParen int
 }
 
 func (l *lexer) next() (token, bool) {
@@ -101,8 +106,11 @@ func (l *lexer) next() (token, bool) {
 		}
 		start := i
 		if s[i] == '\'' || s[i] == '"' {
-			v, end := quoted(s, i)
+			v, end, bad := quoted(s, i)
 			l.i = end
+			if !bad && l.setParen > 0 && l.paren == l.setParen {
+				return token{'u', v, start, end}, true
+			}
 			return token{'s', v, start, end}, true
 		}
 		if ident(s[i]) {
@@ -118,7 +126,7 @@ func (l *lexer) next() (token, bool) {
 				}
 				var v string
 				if i < len(s) && (s[i] == '\'' || s[i] == '"') {
-					v, i = quoted(s, i)
+					v, i, _ = quoted(s, i)
 					for i < len(s) && s[i] != ')' {
 						i++
 					}
@@ -138,8 +146,27 @@ func (l *lexer) next() (token, bool) {
 				l.i = i
 				return token{'u', v, start, i}, true
 			}
+			if n := lower(name); n == "image-set" || n == "-webkit-image-set" {
+				l.imageSet = i + 1
+			}
 			l.i = i
 			return token{'i', name, start, i}, true
+		}
+		switch s[i] {
+		case '(':
+			l.paren++
+			if l.imageSet == i+1 {
+				l.setParen = l.paren
+			}
+		case ')':
+			if l.paren == l.setParen {
+				l.setParen = 0
+			}
+			if l.paren > 0 {
+				l.paren--
+			}
+		case '{', '}':
+			l.paren, l.setParen = 0, 0
 		}
 		l.i = i + 1
 		return token{s[i], s[i : i+1], i, i + 1}, true

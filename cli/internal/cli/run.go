@@ -11,7 +11,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -75,7 +74,6 @@ type Flags struct {
 }
 
 var Version = "dev"
-var kebabID = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 const usage = `Usage: doan <command> [--repo <path>] [--json]
   init [--token-css <path>] [--storage local|repo] [--git-init]

@@ -111,6 +111,7 @@ func belowRoot(root, abs string) (string, error) {
 	}
 }
 
+// workSession is the one session identity rule, for work signals and shell check session associations.
 func workSession(claude, thread, legacy string) (provider, id string) {
 	if (claude != "" && (thread != "" || legacy != "")) || (thread != "" && legacy != "" && thread != legacy) {
 		return "", ""

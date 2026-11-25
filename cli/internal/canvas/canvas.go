@@ -50,6 +50,9 @@ type Canvas struct {
 	Gotos []Goto
 }
 
+// IDPattern is the one canvas id rule (data-doan-id), shared by check and the cli package.
+var IDPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+
 var prototypePattern = regexp.MustCompile(`^[1-9][0-9]{0,4}x[1-9][0-9]{0,4}$`)
 
 // PrototypeSizeValid reports whether a data-doan-prototype value is
@@ -59,29 +62,23 @@ func PrototypeSizeValid(v string) bool { return prototypePattern.MatchString(v) 
 var widthPattern = regexp.MustCompile(`^[1-9][0-9]*$`)
 var schemePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*:`)
 
-func trimURL(s string) string {
-	a, b := 0, len(s)
-	for a < b && s[a] <= 32 {
-		a++
-	}
-	for b > a && s[b-1] <= 32 {
-		b--
-	}
-	return s[a:b]
+// TrimURL strips what the URL parser strips: leading and trailing C0 controls and spaces.
+func TrimURL(s string) string {
+	return strings.TrimFunc(s, func(r rune) bool { return r <= 32 })
 }
 func IsExternal(href string) bool {
-	s := lower(trimURL(href))
+	s := lower(TrimURL(href))
 	return strings.HasPrefix(s, "http:") || strings.HasPrefix(s, "https:") || strings.HasPrefix(s, "//")
 }
 
 // UseNotInline reports whether a <use> reference names something other than
 // a fragment of the same document.
 func UseNotInline(ref string) bool {
-	s := trimURL(ref)
+	s := TrimURL(ref)
 	return s != "" && s[0] != '#'
 }
 func LocalPath(href string) (string, bool) {
-	s := trimURL(href)
+	s := TrimURL(href)
 	if schemePattern.MatchString(s) || strings.HasPrefix(s, "//") {
 		return "", false
 	}
@@ -125,7 +122,7 @@ func Parse(path string, data []byte) (Canvas, error) {
 	external := map[string]bool{}
 	addURL := func(s string) {
 		if IsExternal(s) {
-			external[trimURL(s)] = true
+			external[TrimURL(s)] = true
 		}
 	}
 	titleSeen := false

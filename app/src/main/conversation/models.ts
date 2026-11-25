@@ -1,4 +1,5 @@
 import { object } from "./sessions";
+import { CLAUDE_FAST_REASONS } from "./transport";
 import type { Provider } from "../agentAuth/types";
 import type { Prepared } from "./service";
 import type { FastUnusedReason } from "./types";
@@ -78,9 +79,11 @@ export function parseCodexModels(result: unknown): ModelOption[] {
     return { id: String(r.id), label: text(r.displayName) ? r.displayName : String(r.id), default: r.isDefault === true, ...(efforts ? { efforts } : {}), ...(fallback ? { defaultEffort: fallback } : {}), ...(priority ? { fast: { ...(text(priority.description) ? { description: priority.description } : {}) } } : {}) };
   })));
 }
-// Model-specific and transient failures do not disable other Fast rows during a list read.
+// Model-specific and transient failures do not disable other Fast rows during a list read: model_not_allowed is about
+// the model the read ran on.
+const ACCOUNT_FAST_REASONS = Object.fromEntries(Object.entries(CLAUDE_FAST_REASONS).filter(([reason]) => reason !== "model_not_allowed"));
 export function applyClaudeFastUnavailable(disabledReason: unknown, models: ModelOption[]): ModelOption[] {
-  const unavailable: FastUnusedReason | undefined = disabledReason === "free" ? "plan" : disabledReason === "extra_usage_disabled" ? "extra_usage" : disabledReason === "preference" ? "policy" : undefined;
+  const unavailable = typeof disabledReason === "string" && Object.hasOwn(ACCOUNT_FAST_REASONS, disabledReason) ? ACCOUNT_FAST_REASONS[disabledReason] : undefined;
   return unavailable ? models.map(m => m.fast ? { ...m, fast: { ...m.fast, unavailable } } : m) : models;
 }
 // ACP session/new result: models {currentModelId, availableModels [{modelId, name}]}. Copilot lists `auto` twice.

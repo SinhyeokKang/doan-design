@@ -310,3 +310,26 @@ func TestConfigRejectsWithheldServeWithoutWriting(t *testing.T) {
 	}
 	result(t, root, 0, "config", "--add-serve", "web")
 }
+
+// POSTMORTEM 2026-11-18/19: an entry is withheld as written too, so a link named like .env is refused even when it
+// resolves to an allowed directory.
+func TestConfigRejectsWithheldServeNameThroughLink(t *testing.T) {
+	root := initialized(t)
+	putFile(t, root, "docs/page.css", "")
+	if err := os.Symlink("docs", filepath.Join(root, ".env-docs")); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{".env-docs", ".env-docs/page.css", filepath.Join(realPath(t, root), ".env-docs")} {
+		t.Run(path, func(t *testing.T) {
+			before := readFile(t, root, ".doan/config.json")
+			failure := runJSON(t, root, 2, "config", "--add-serve", path)["error"].(map[string]any)
+			if failure["code"] != "usage_error" || !strings.Contains(failure["message"].(string), ".env") {
+				t.Fatal(failure)
+			}
+			if readFile(t, root, ".doan/config.json") != before {
+				t.Fatal("rejected addition changed config")
+			}
+		})
+	}
+	result(t, root, 0, "config", "--add-serve", "docs")
+}

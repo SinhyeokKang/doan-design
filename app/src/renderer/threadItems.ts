@@ -157,12 +157,14 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
   const items: ThreadItem[] = [];
   const opened = new Set<string>();
   const agents = new Map<string, Extract<ThreadItem, { kind: "agent" }>>();
+  // By turn and request id: a new Codex app-server numbers its requests from 0 again, so ids repeat across turns.
   const permissions = new Map<string, Extract<ThreadItem, { kind: "permission" }>>();
   // Apart from permissions, as main's fold keeps them: a resolution settles only a request of its own kind.
   const questions = new Map<string, Extract<ThreadItem, { kind: "question" }>>();
   const ended = new Set<string>(), replied = new Set<string>();
   let turn: string | null = null, group: { item: Extract<ThreadItem, { kind: "activity" }>; turnId: string } | null = null;
   const groups: { item: Extract<ThreadItem, { kind: "activity" }>; turnId: string }[] = [];
+  // askTurn: each request card's turn, by the card's key.
   const turnOf = new Map<string, string>(), askTurn = new Map<string, string>();
   // Keyed by call and the activity's stored path, never the root-relative path a step shows.
   const edits = new Map<string, { step: ActivityStep; path: string | undefined }[]>();
@@ -181,7 +183,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
   const endTurn = (turnId: string) => {
     ended.add(turnId);
     for (const [key, message] of agents) if (message.streaming && turnOf.get(key) === turnId) message.streaming = false;
-    for (const ask of [...permissions.values(), ...questions.values()]) if (ask.status === "pending" && askTurn.get(`${ask.kind}:${ask.requestId}`) === turnId) ask.status = "expired";
+    for (const ask of [...permissions.values(), ...questions.values()]) if (ask.status === "pending" && askTurn.get(ask.key) === turnId) ask.status = "expired";
   };
   const push = (item: ThreadItem, turnId?: string) => { group = null; items.push(item); if (turnId !== undefined) lastOf.set(turnId, item); };
   const foldCrashed = (turnId: string) => {
@@ -277,13 +279,13 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         break;
       }
       case "permission.request": {
-        const item = { kind: "permission" as const, key: `p${event.requestId}`, seq: event.seq, requestId: event.requestId, summary: event.summary, ...(event.reason ? { reason: event.reason } : {}), options: event.options, status: "pending" as const, answer: null as PermissionOption | null };
-        permissions.set(event.requestId, item); askTurn.set(`permission:${event.requestId}`, event.turnId);
+        const item = { kind: "permission" as const, key: `p${event.turnId}:${event.requestId}`, seq: event.seq, requestId: event.requestId, summary: event.summary, ...(event.reason ? { reason: event.reason } : {}), options: event.options, status: "pending" as const, answer: null as PermissionOption | null };
+        permissions.set(`${event.turnId}\0${event.requestId}`, item); askTurn.set(item.key, event.turnId);
         push(item, event.turnId);
         break;
       }
       case "permission.resolved": {
-        const ask = permissions.get(event.requestId);
+        const ask = permissions.get(`${event.turnId}\0${event.requestId}`);
         // "expired" is main's record of a request that ended unanswered (a Stop, a turn's end), never a choice.
         if (ask && event.optionId === "expired") { ask.status = "expired"; ask.answer = null; }
         else if (ask) { ask.status = "answered"; ask.answer = ask.options.find(o => o.id === event.optionId) ?? null; }
@@ -291,7 +293,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
       }
       case "question.request": {
         const item = { kind: "question" as const, key: `Q${event.requestId}`, seq: event.seq, requestId: event.requestId, questions: event.questions, status: "pending" as Extract<ThreadItem, { kind: "question" }>["status"], answers: null as Record<string, StoredAnswer> | null };
-        questions.set(event.requestId, item); askTurn.set(`question:${event.requestId}`, event.turnId);
+        questions.set(event.requestId, item); askTurn.set(item.key, event.turnId);
         push(item, event.turnId);
         break;
       }
@@ -343,7 +345,7 @@ function placeCards(items: ThreadItem[], turnCards: ReadonlyMap<string, CanvasCa
   if (turnCards.size === 0) return items;
   const before = new Map<ThreadItem, CanvasCard[]>(), after = new Map<ThreadItem, CanvasCard[]>(), rest: CanvasCard[] = [];
   for (const [turnId, list] of turnCards) {
-    const ask = items.find(item => waitsForPerson(item) && askTurn.get(`${item.kind}:${item.requestId}`) === turnId);
+    const ask = items.find(item => waitsForPerson(item) && askTurn.get(item.key) === turnId);
     const last = lastOf.get(turnId);
     if (ask) before.set(ask, list);
     else if (last) after.set(last, list);

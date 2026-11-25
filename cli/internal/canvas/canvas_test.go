@@ -92,6 +92,17 @@ func TestURL(t *testing.T) {
 		}
 	}
 }
+
+// Only ASCII C0 and space are trimmed: invalid UTF-8 and NBSP at either end stay.
+func TestTrimURL(t *testing.T) {
+	for in, want := range map[string]string{
+		"\x00\t a.png \x1f\x20": "a.png", "\xc0 a \xe2": "\xc0 a \xe2", " \xe2\x20": "\xe2", "\u00a0a\u00a0": "\u00a0a\u00a0", "": "",
+	} {
+		if got := TrimURL(in); got != want {
+			t.Errorf("TrimURL(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
 func TestExternalURLs(t *testing.T) {
 	tags := []string{`script src`, `link href`, `img src`, `iframe src`, `video src`, `audio src`, `source src`, `embed src`, `track src`, `video poster`, `object data`, `svg><image xlink:href`}
 	for _, tag := range tags {
