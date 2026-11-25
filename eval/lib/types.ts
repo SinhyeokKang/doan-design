@@ -1,8 +1,7 @@
 import type { ToolCalls } from "./transcript.ts";
 
-// The contract scenario checks are written against.
-// Checks read and run only through the context, so the same checks score a
-// real agent run and a self-test fixture.
+// The contract of scenario checks: they read and run only through the context, so the same checks score a real
+// agent run and a self-test fixture.
 
 export type Check = { id: string; pass: boolean; detail: string };
 
@@ -67,9 +66,8 @@ export interface CheckContext {
   onboarding(): { request: any; response: any }[];
   // App-socket v3 exchanges and SHA-256 snapshots at arrival; null means unavailable.
   work(): WorkExchange[];
-  // Repo-relative names the OS reported under `.doan/canvases/` and `.doan/ds/` during the run, in order, repeats
-  // kept (null: an event without a name). Only `repo` is watched, not a worktree scenario's `cwd`. null when no watch
-  // ran or it failed.
+  // Names the OS reported under `repo`'s `.doan/canvases/` and `.doan/ds/`, in order with repeats (null: unnamed).
+  // A worktree `cwd` is not watched. Returns null when no watch ran or it failed.
   canvasNames(): (string | null)[] | null;
   // App-socket v4 exchanges (`doan open`) in order, token removed; empty when there were none.
   open(): OpenExchange[];
@@ -79,9 +77,8 @@ export interface CheckContext {
   prototype(): PrototypeExchange[];
   // Runs in the repo with the agent's environment and stdin from /dev/null.
   run(cmd: string, args: string[]): { code: number; stdout: string; stderr: string };
-  // Git in the repo (with the seed's separate Git directory when the scenario sets `git: false`) and the agent's
-  // environment, with configured hooks, fsmonitor and filters off. A check reads Git through this, never
-  // `run("git", …)`: the repository is the agent's, so its configuration is untrusted.
+  // Git in the repo (the separate Git dir if `git: false`) with hooks, fsmonitor and filters off: the agent's config
+  // is untrusted, so checks read Git through this, never `run("git", …)`.
   git(args: string[]): { code: number; stdout: string; stderr: string };
 }
 

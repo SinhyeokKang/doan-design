@@ -33,10 +33,8 @@ const TRUE = /^(?:1|t|T|true|TRUE|True)$/;
 // A frame id checkFrame accepts: not empty, at most 200 characters, no control character.
 const frameAccepted = (frame: string | undefined) => frame === undefined || (frame !== "" && [...frame].length <= 200 && !/[\u0000-\u001f\u007f]/.test(frame));
 
-// The argument shapes the commands the checks read refuse with a usage error before doing anything (openInput,
-// exportInput, checkFrame, DesignSkill with designskill.ValidID; tied to the CLI by transcript.test.ts). --frame
-// accumulates in the flag set, and these commands refuse a second one. An id of the right shape that is not in the
-// catalog is refused too; the preset checks compare ids with the catalog themselves.
+// Argument shapes these commands refuse with a usage error (a second --frame included), tied to the CLI by
+// transcript.test.ts. Unknown preset ids of the right shape are the preset checks' job.
 function shapeAccepted(positionals: string[], flags: DoanArgs["flags"]): boolean {
   const all = (name: string) => flags.filter(flag => flag.name === name);
   const frames = all("frame").length;
@@ -51,9 +49,8 @@ function shapeAccepted(positionals: string[], flags: DoanArgs["flags"]): boolean
   }
 }
 
-// doan's argv read as SplitArgs and Run read it: flags before, between and after the positionals, a value flag taking
-// the next word whatever it looks like. `ambiguous` marks an unknown flag before the command with a word after it: the
-// reader cannot tell whether that word is its value or the command, so it cannot tell which command this is.
+// Argv as SplitArgs and Run read it: flags anywhere, a value flag taking the next word. `ambiguous`: an unknown flag
+// before the command with a word after it, so which word is the command is unknown.
 function readDoanArgs(words: string[]): { args: DoanArgs; ambiguous: boolean } | undefined {
   if (!/^(?:.*\/)?doan$/.test(words[0] ?? "")) return undefined;
   const positionals: string[] = [];
@@ -88,10 +85,8 @@ function readDoanArgs(words: string[]): { args: DoanArgs; ambiguous: boolean } |
   return { args: { positionals, flags, refused }, ambiguous };
 }
 
-// `refused` marks what the CLI rejects before running anything (an unknown flag or one the command does not take, a
-// value flag with no value, a boolean that is not one, a flag before the command, an argument shape the command
-// refuses); such a command ran
-// nothing, but an attempt check may still want its words, so an unknown flag is kept as a flag that takes no value.
+// `refused` marks what the CLI rejects before running anything (a bad or misplaced flag, a refused argument shape).
+// An attempt check may still want the words, so an unknown flag is kept as a flag taking no value.
 export function doanArgs(words: string[]): DoanArgs | undefined {
   return readDoanArgs(words)?.args;
 }
@@ -116,13 +111,11 @@ export function doanCommand(words: string[]): string | undefined {
 // exec_command literal its script's recorded processes do not account for (pairedWithRecords).
 interface ExtractedCall { name: string; command?: string; patch?: string; patchCandidate?: string; commandCandidate?: string }
 
-// Stands in for an exec_command whose command is not a plain string (a template, a variable, an expression): it ran
-// something the reader cannot see, unless the run recorded it (recordedExecs). parseCommand reads it as incomplete, so
-// no absence check holds beside it, and it yields no words, so it is never evidence of a particular command either.
+// Stands in for a non-literal exec_command (template, variable): unless recorded (recordedExecs) it ran something
+// unseen, so parseCommand reads it as incomplete, with no words.
 const UNREADABLE_EXEC = "$exec_command_with_a_cmd_that_is_not_a_string_literal";
-// Stands in for an exec_command literal that no recorded process matches: it may sit in code that never ran, but Codex
-// also leaves some commands that did run unrecorded (seen in recorded runs: a `doan active --json` whose result is in
-// the script's output), so it is neither run nor ruled out, and no absence check holds beside it.
+// An exec literal no recorded process matches: it may never have run, but Codex also leaves some commands that ran
+// unrecorded, so it is neither run nor ruled out and no absence check holds beside it.
 const UNRECORDED_EXEC = "$exec_command_literal_with_no_recorded_run";
 
 function execCalls(source: string): ExtractedCall[] {
@@ -145,9 +138,8 @@ function execCalls(source: string): ExtractedCall[] {
     if (name === "apply_patch") {
       const patch = literal(tokens[i + 4]);
       if (patch !== undefined && tokens[i + 5] === ")") {
-        // A whole batch consisting of one literal call has no earlier statement
-        // that can skip it or throw, so it is a real call and not a candidate.
-        // Everything else stays lexical evidence only, which the judge sees labelled.
+        // Only a batch that is one literal call has no earlier statement to skip it or throw, so it is a real call;
+        // everything else stays lexical evidence, which the judge sees labelled.
         const argument = tokens[i + 4]!;
         const simpleLiteral = argument[0] === '"' || (!/\\(?![\\'"`nrtbfv0]|u[\da-fA-F]{4}|x[\da-fA-F]{2}|\r?\n)/.test(argument) &&
           !/\\0[0-9]/.test(argument) && (argument[0] === "`" || !/[\r\n]/.test(argument)));
@@ -188,12 +180,8 @@ function shellScript(argv: unknown): string | undefined {
   return /^(?:.*\/)?(?:sh|bash|zsh|dash)$/.test(argv[0]!) && /^-[a-z]*c$/.test(argv[1]!) ? argv[2] : undefined;
 }
 
-// Codex records each process an exec script starts as an item_completed CommandExecution event: the argv it ran, but
-// no call id, between the script's custom_tool_call and its output. Those records are what the script ran, keyed by
-// call id, but only when the window is usable: the script's output arrived (a later command could still be the
-// script's), no other tool call was open while a record arrived (the record could be that call's), every record reads
-// as a shell script, and there is at least one (a Codex version without records writes none). Otherwise the script's
-// literals are read as run, as the reader did before records were read.
+// Process records between a script's call and output (no call id) show what it ran, only if the output arrived, no
+// other call overlapped and all (at least one) are shell scripts. Otherwise the literals count as run.
 function recordedExecs(transcript: string): Map<string, string[]> {
   const open = new Map<string, { ran: (string | undefined)[]; shared: boolean; script: boolean }>();
   const recorded = new Map<string, string[]>();
@@ -222,9 +210,8 @@ function recordedExecs(transcript: string): Map<string, string[]> {
   return recorded;
 }
 
-// A script's calls read against what its window recorded: each literal command takes one matching record (so a command
-// named twice and run once is run once), a literal left without one is only a candidate, and the records no literal
-// took stand for the commands the reader cannot see, if the script has any.
+// Each literal takes one matching record; one left without is only a candidate, and records no literal took stand
+// for the script's unreadable commands, if it has any.
 function pairedWithRecords(calls: ExtractedCall[], records: readonly string[]): ExtractedCall[] {
   const left = [...records];
   const paired = calls.map(call => {
@@ -298,13 +285,8 @@ export function shellCommands(transcript: string): string[] {
   return commands;
 }
 
-// Codex prints a multi-line command (a heredoc script, say) over several stderr lines; the header ends on the line
-// with ` in <cwd>`, followed on the same line or the next by the status (` succeeded in 3ms:`, ` exited 1 in 3ms:`).
-// The index of that last header line, searched up to the next `exec`. Without that end in the log (a cut-off stderr,
-// or an older status-less format) it is the first line, as before: a multi-line command's first line leaves its quote
-// open, so the reader takes it as incomplete rather than as all that ran.
-// Any status of that shape ends the header (` declined in 0ms:` too), so a status this list does not name cannot let
-// the scan run on into the command's output.
+// A multi-line exec header ends at ` in <cwd>` plus a status of any shape, searched up to the next `exec`. Without
+// that end it is the first line, whose open quote makes the read incomplete.
 const EXEC_STATUS = /^ [a-z]+(?: -?\d+)? in \d+(?:\.\d+)?m?s:$/;
 const INLINE_EXEC_STATUS = / in \/.* [a-z]+(?: -?\d+)? in \d+(?:\.\d+)?m?s:$/;
 function execHeaderEnd(lines: string[], first: number): number {
@@ -315,17 +297,8 @@ function execHeaderEnd(lines: string[], first: number): number {
   return first;
 }
 
-// A heredoc body (the lines after `<<TAG`, `<<'TAG'`, `<<"TAG"` or `<<-TAG` up to the line that is the tag) is data for
-// the command, such as a handoff message that may well contain a line starting with `doan open`. Quoted text is kept
-// whole, so a `<<` inside a string starts nothing and `bash -c "…<<EOF…"` is read when its script is. A comment (a `#`
-// starting a word outside quotes) goes too: the shell drops it, and a quote inside it opens no string. `unread` is set
-// when an unquoted body holds a substitution, which the shell runs and this reader does not follow there. A body that
-// names doan and starts a process leaves NAMES_DOAN_BODY after its tag, since an interpreter that reads it as its
-// script may run doan; agents also feed interpreters long document-editing scripts whose text only mentions doan.
-// When pythonDoanCalls can read every doan in that body, the tag gets PYTHON_CALLS and the index in `calls` of what it
-// read instead, for runGroups to take when Python is the program reading the body. A body that names doan and holds a
-// backtick but starts no process otherwise gets BACKTICK_BODY: Perl and Ruby run a backtick string as a command, while
-// Python document-editing scripts quote "`doan check`" in Markdown, so only those two interpreters count it.
+// Drops comments and heredoc bodies (data, not commands), so a `doan` line in a message runs nothing.
+// A body naming doan leaves a marker after its tag for the interpreter check, since a script there may run doan.
 function withoutHeredocsAndComments(command: string, calls: string[][][]): { text: string; unread: boolean } {
   let out = "", quote: string | null = null, unread = false;
   const pending: { tag: string; indented: boolean; quoted: boolean; at: number }[] = [];
@@ -396,7 +369,7 @@ const STARTS_PROCESS = /\b(?:subprocess|child_process|execa|commands\.getoutput|
 const NAMES_DOAN_BODY = "\u0004";
 // Where it marked one whose doan calls pythonDoanCalls read, before their index; U+0005 never occurs in a shell command.
 const PYTHON_CALLS = "\u0005";
-// Where it marked one whose body names doan and holds a backtick; U+0006 never occurs in a shell command.
+// Marks a body naming doan, with a backtick but no process start (only Perl and Ruby run it); U+0006 never occurs.
 const BACKTICK_BODY = "\u0006";
 // A single-line Python string with nothing to decode and nothing the shell expands in an unquoted heredoc.
 const PY_STRING = String.raw`(?:'[^'\\\n$` + "`" + String.raw`]*'|"[^"\\\n$` + "`" + String.raw`]*")`;
@@ -404,11 +377,8 @@ const PY_STRING = String.raw`(?:'[^'\\\n$` + "`" + String.raw`]*'|"[^"\\\n$` + "
 // text before it on its line.
 const PY_ARGV_CALL = new RegExp(String.raw`^([^\n]*?)\bsubprocess\.(?:run|call|check_call|check_output|Popen)\(\s*\[\s*(${PY_STRING}(?:\s*,\s*${PY_STRING})*)\s*,?\s*\](?=\s*[,)])`, "gm");
 
-// The doan commands a Python script runs, when each doan it names is the program of a subprocess call whose argv is a
-// list of string literals; undefined when any doan is anything else (a list built at run time, a string command, a
-// wrapper such as env, a comment, a string). A call after a `#` or a quote on its line may sit in a comment or a
-// string, and a triple quote may hide one across lines, so neither is read; shell= and executable= change what runs.
-// A call that is read is taken as run, as a shell command is.
+// A Python script's doan commands, or undefined unless every doan is the program of a subprocess call with a literal
+// argv. Calls after `#` or a quote, triple quotes, shell= and executable= are not read.
 function pythonDoanCalls(body: string): string[][] | undefined {
   if (/'''|"""|\b(?:shell|executable)\s*=/.test(body)) return undefined;
   const calls: string[][] = [];
@@ -449,10 +419,8 @@ function closing(text: string, from: number, nesting = 0): number {
   return -1;
 }
 
-// Takes each outermost `$(…)` and backtick substitution out of a command: its body runs as a command of its own (in
-// runGroups, where the variables are known), and what it printed is unknown, so it stands as an unresolved word.
-// Single quotes and an escape keep a `$(` or backtick literal, and `$((…))` is arithmetic, not a command. `null` when a
-// substitution never closes (the shell would not run the command as written) or holds one this reader does not follow.
+// Takes out outermost `$(…)` and backtick substitutions, each body running as its own command with unknown output.
+// Quoted or escaped ones stay literal, `$((…))` is arithmetic. `null`: unclosed or not followed.
 function substitutions(command: string): { text: string; bodies: string[] } | null {
   const bodies: string[] = [];
   let text = "", quote: string | null = null;
@@ -491,9 +459,8 @@ function substitutions(command: string): { text: string; bodies: string[] } | nu
   return { text, bodies };
 }
 
-// Wrappers that run their operand as the command. The index where that command starts, null when the words are not
-// such a wrapper (or `command -v`, a lookup), and undefined when an option is one the reader does not know, so where
-// the command starts is unknown.
+// Wrappers run their operand: the index where it starts, null if not such a wrapper (or `command -v`), undefined
+// on an option the reader does not know.
 const WRAPPER = /^(?:.*\/)?(env|timeout|nohup|nice|time|sudo)$/;
 function wrappedAt(words: string[]): number | null | undefined {
   const name = ["command", "exec"].includes(words[0] ?? "") ? words[0] : WRAPPER.exec(words[0] ?? "")?.[1];
@@ -536,27 +503,23 @@ function wrappedAt(words: string[]): number | null | undefined {
     default: return null;
   }
 }
-// Reserved words and group openers that start a construct the reader does not follow (it follows plain commands,
-// `NAME=value`, `for … do … done`, `{ …; }` and a function whose body is one). A `do`/`done` that no parsed `for`
-// consumed belongs here too, and so does a `{` or `}` that no group or function consumed.
+// Words opening constructs the reader does not follow (it follows plain commands, assignments, closed `for`,
+// `{ …; }` and functions), plus any `do`, `done`, `{` or `}` nothing consumed.
 const UNSUPPORTED = /^(?:if|then|elif|else|fi|while|until|do|done|case|esac|select|function|for|\{|\}|!)$|^[()]|^[A-Za-z_]\w*\(\)?$/;
 // Loop iterations and function calls one command may expand in total, nested ones included, so a transcript cannot
 // make the reader work without bound (a function that calls itself runs out of it).
 const LOOP_BUDGET = 256;
 
-// `pythonCalls` holds what pythonDoanCalls read from each marked heredoc of the whole read, by PYTHON_CALLS index.
-// `seqUnknown`: the command defines an alias or touches IFS somewhere, either of which changes what `$(seq …)` gives
-// a loop (see seqList).
+// `pythonCalls`: pythonDoanCalls results by PYTHON_CALLS index. `seqUnknown`: an alias or IFS change somewhere,
+// which changes what `$(seq …)` gives a loop (see seqList).
 interface ReadState { left: number; incomplete: boolean; pythonCalls: string[][][]; seqUnknown: boolean }
 // A shell function: the token groups of its body and its closing `}` group, whose redirections apply at each call.
 interface ShellFunction { body: string[][]; close: string[] }
 // `homePath`: the path below the home directory (`/.zshrc`, or "" for the home itself) when the shell expands the word to
 // start there; `onlyHome`: what follows the home directory when the word is just that, for a variable assigned it.
 interface Expanded { words: string[]; unresolved: boolean; homePath: string | undefined; onlyHome: string | undefined }
-// A redirection the shell takes out of a command's words: the operator with its file descriptor, and the target as the
-// shell expands it (`unresolved` when it holds a variable or substitution this reader does not know). The text keeps
-// `~` and an unknown `$HOME` as written, quoted or not; `homePath` says whether the shell expands it into the home
-// directory, and so do a command's `homePaths`, one per word.
+// A redirection taken out of a command's words. `target` keeps `~` and an unknown `$HOME` as written; `homePath`
+// (like a command's `homePaths`) says whether the shell expands it into the home directory.
 export interface Redirect { op: string; target: string; unresolved: boolean; homePath: string | undefined }
 export interface ShellCommand { words: string[]; homePaths: (string | undefined)[]; redirects: Redirect[] }
 
@@ -566,12 +529,8 @@ const MARK = "\u0001";
 // The shell takes a redirection before it reads the program, wherever it stands in the command.
 const REDIRECT_OPERATOR = /^\d*(?:&>>?|<<<|<<-?|<>|<&|>&|>>|>\||<|>)$/;
 
-// One raw token (quotes still on) to the words the shell makes of it. Single quotes and a backslash keep the next
-// character literal. A variable that is not known here, or a command substitution, is left as written and marks the
-// token unresolved: what the shell would pass there is unknown. A bare `$name` holding whitespace is unresolved too:
-// bash and sh split it into words, dropping the whitespace, and zsh, which agents run, passes it whole as one word. The
-// home directory is an unquoted leading `~` (before `/` or the end), `$HOME` outside single quotes while the command
-// line has not assigned HOME, or a variable assigned just one of those.
+// Expands a raw token as the shell would. Unknown variables, substitutions and a bare `$name` holding whitespace
+// (zsh keeps it whole, bash splits) are unresolved. Home: unquoted `~`, unassigned `$HOME`, or a variable holding one.
 function expandToken(raw: string, env: ReadonlyMap<string, string>): Expanded {
   const whole = /^\$(?:(\w+)|\{(\w+)\})$/.exec(raw);
   const name = whole ? whole[1] ?? whole[2]! : undefined;
@@ -612,9 +571,8 @@ function expandToken(raw: string, env: ReadonlyMap<string, string>): Expanded {
 // A program that runs another command it is given: doan itself, a shell, or a wrapper that may run one.
 const RUNNER = /^(?:.*\/)?(?:doan|(?:ba|z|da)?sh|env|timeout|nohup|nice|time|command|exec|eval|xargs)$/;
 const INTERPRETER = /^(?:node|python[\d.]*|perl|ruby|osascript|deno|bun)$/;
-// The switches that give each interpreter its script inline, as a word this reader sees. Python's `-m` names a module
-// whose code the transcript does not show, so only a module that runs no program counts (json.tool, which agents pipe
-// doan's output through).
+// Each interpreter's inline-script switches. Python's `-m` runs unseen module code, so only json.tool counts
+// (agents pipe doan's output through it).
 const INLINE: [RegExp, RegExp][] = [
   [/^python/, /^-[A-Za-z]*c$/],
   [/^(?:node|bun|deno)$/, /^(?:-[ep]+|--eval|--print)(?:=|$)/],
@@ -627,10 +585,8 @@ const VALUED: [RegExp, RegExp][] = [
   [/^(?:node|bun)$/, /^(?:-r|--require|--import|--loader|--experimental-loader)$/],
 ];
 
-// Whether an interpreter may run doan where this reader cannot see it: an argument (an inline script among them) that
-// names doan, a script file, or a script read from its input, unless that is a heredoc or here-string the transcript
-// shows and that does not name doan. "heredoc" when Python runs a heredoc whose doan calls were read (`pythonCalls`),
-// which the caller then runs. A version or help query with no script runs nothing.
+// May an interpreter run doan unseen (argument naming it, script file, input not a shown doan-free heredoc/string)?
+// "heredoc": Python runs a heredoc whose calls were read. A version or help query runs nothing.
 function interpreterMayRunDoan(program: string, args: string[], redirects: Redirect[], heredocNamesDoan: boolean, pythonCalls: boolean): boolean | "heredoc" {
   if (args.some(word => NAMES_DOAN.test(word))) return true;
   const inline = INLINE.find(([name]) => name.test(program))?.[1];
@@ -649,13 +605,6 @@ function interpreterMayRunDoan(program: string, args: string[], redirects: Redir
   return true;
 }
 
-// Executes the words of raw token groups the way the shell would, for what a transcript can show: `NAME=value`
-// assignments on their own, and a closed `for NAME in words; do …; done` with its body run once per word. The
-// variables are one shell state: a loop variable and an assignment in a body stay set after the loop, as in POSIX
-// sh. Whatever cannot be followed (a `for` without its `done`, a loop past the budget, a list that holds an
-// unresolved word) sets `state.incomplete` and yields no words, and so does a simple command whose program or doan
-// operand is unresolved: the read is then not complete and must not be taken for the whole list of what ran.
-// Any other compound or reserved word (UNSUPPORTED) stops the read there, as incomplete.
 // The head of a function definition at the start of a token group (`f()`, `f ()`, `function f`, `function f()`,
 // `function f ()`): its name and where its body's `{` is due.
 function definitionHead(group: string[]): { name: string; at: number } | undefined {
@@ -691,10 +640,8 @@ function braceEnd(groups: string[][], from: number, depth: number): number {
   return -1;
 }
 
-// A loop list word that is only `$(seq [first [step]] last)` with whole numbers: bash and zsh split an unquoted
-// substitution into words, so agents bounding a polling loop this way (`for i in $(seq 1 15)`) are read like a
-// written-out list. Anything else, or more numbers than `left`, is undefined and stays unresolved, and so is counting
-// down without a step, where GNU seq prints nothing and macOS's BSD seq counts down.
+// A loop word that is only whole-number `$(seq …)` is read like a written list (bash and zsh split it). Counting
+// down without a step stays unresolved: GNU prints nothing, macOS's BSD seq counts down.
 function seqList(token: string, bodies: string[], state: ReadState, functions: ReadonlyMap<string, ShellFunction>): Expanded | undefined {
   if (state.seqUnknown || functions.has("seq")) return undefined;
   const index = /^\$\(\0(\d+)\)$/.exec(token)?.[1];
@@ -711,6 +658,8 @@ function seqList(token: string, bodies: string[], state: ReadState, functions: R
   return { words: values, unresolved: false, homePath: undefined, onlyHome: undefined };
 }
 
+// Runs token groups as the shell would, with one shell state for assignments, `for` loops, groups and functions.
+// Anything unfollowable or unresolved sets `state.incomplete` and yields no words.
 function runGroups(groups: string[][], vars: Map<string, string>, state: ReadState, bodies: string[], functions: Map<string, ShellFunction>): ShellCommand[] {
   const out: ShellCommand[] = [];
   const append = (commands: ShellCommand[]) => { for (const entry of commands) out.push(entry); };
@@ -833,11 +782,8 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
     // the like look the name up as a program).
     const called = !open[0] ? functions.get(words[0] ?? "") : undefined;
     if (called) {
-      // What would change the body's scope, arguments or flow in ways this reader does not track, anywhere in it
-      // (inside a loop, a group or a substitution too): $@, $*, $#, $10 (which is ${1}0), ${1:-x} and the like,
-      // local/declare/typeset/set/shift/trap, a return or exit (except a return that ends the body); also an
-      // assignment before the call, and the budget, which bounds a function that calls itself. A quoted mention of
-      // one of those words only costs a complete read.
+      // Incomplete if anywhere in the body: $@, $*, $#, $10, ${1:-x}, local/declare/typeset/set/shift/trap, early return
+      // or exit; also on a prefix assignment or a spent budget (self-recursion). A quoted mention counts too.
       const last = called.body.at(-1);
       const groups = last?.[0] === "return" && last.length <= 2 ? called.body.slice(0, -1) : called.body;
       const text = [...groups.flat(), ...called.close].join(" ").replace(SUBSTITUTED, (_, n: string) => ` ${bodies[Number(n)]} `);
@@ -950,9 +896,8 @@ function parse(command: string, state: ReadState, vars = new Map<string, string>
   return runGroups(groups.filter(g => g.length), vars, state, taken.bodies, functions);
 }
 
-// Each command a command line runs, with its words and its redirections, and whether the read is complete. An
-// incomplete read lacks the commands it could not follow (see runGroups): what it does give is real, but it is not
-// the whole list. A command that is only redirections (`> file`) has no words.
+// Commands with words and redirections (a redirect-only one has no words) and whether the read is complete.
+// An incomplete read's commands are real but not all that ran.
 export function readCommands(command: string): { commands: ShellCommand[]; incomplete: boolean } {
   const state: ReadState = { left: LOOP_BUDGET, incomplete: false, pythonCalls: [], seqUnknown: /\b(?:alias|IFS)\b/.test(command) };
   const commands = parse(command, state);

@@ -8,9 +8,8 @@ import { readRegularFileNoFollowSync } from "../../app/src/main/regularFile.ts";
 import { ATTRIBUTES_BYTES, CANVAS_BYTES, MANIFEST_BYTES, readArtifact, resolveOnDisk } from "./artifact.ts";
 import { contentHash } from "./work.ts";
 
-// A stand-in for the app's side of `doan active`: runtime.v1 on disk and
-// app-socket.v1 on a unix socket, mirroring app/src/main/runtime.ts. The
-// validators follow schema/*.schema.json and are tested against its fixtures.
+// Stand-in for the app side of `doan active` (runtime.v1 file, app-socket.v1 socket, as app/src/main/runtime.ts).
+// The validators follow schema/*.schema.json and are tested against its fixtures.
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -67,9 +66,8 @@ export function answer(line: string, token: string, root: string, selection: Obj
   return { v: 1, ok: true, result: selection !== null && selection.root === root ? { selection } : {} };
 }
 
-// app-socket v2 (onboarding). app/src/formats/validate.ts cannot be imported by
-// plain node (extensionless ajv path, JSON imports without attributes), so the
-// same ajv build compiles the same schema $defs those shared validators load.
+// app-socket v2: plain node cannot import app/src/formats/validate.ts (extensionless ajv path, bare JSON imports),
+// so the same ajv build compiles the same schema $defs.
 const ajvFromApp = createRequire(join(import.meta.dirname, "../../app/package.json"))("ajv/dist/2020");
 // Default options as in validate.ts; only ajv's strict-mode warnings are muted,
 // which do not change what validates.
@@ -106,9 +104,8 @@ const prototypeResponseSchema = ajv.getSchema(`${V6}#/$defs/response`);
 export const validPrototypeRequest = (v: unknown): boolean => prototypeRequestSchema(v);
 export const validPrototypeResponse = (v: unknown): boolean => prototypeResponseSchema(v);
 
-// A scenario's scripted app state. The fake is deterministic (session `s_eval`,
-// `op_<n>`, `insp_<n>`) so self-test fixtures can name ids ahead of time; real
-// agents still have to read them from replies.
+// The fake is deterministic (session `s_eval`, `op_<n>`, `insp_<n>`) so self-test fixtures can name ids ahead;
+// real agents still have to read them from replies.
 export interface OnboardingScript {
   // The auth state of each provider at start; only these can be signed in or
   // checked. The status DTO is derived from it (fakeAuthStatus).
@@ -159,9 +156,8 @@ interface Operation {
 const v2error = (code: string, message: string) => ({ v: 2, ok: false, error: { code, message } });
 const ACTIVE = ["pending", "running", "awaiting_user"];
 
-// Operations move one step per status read, so an agent that never polls never sees a result.
-// `initialize` runs once when a select asked to set up a folder that needs it
-// succeeds, with the planned changes; without it the fake only reports success.
+// Operations move one step per status read, so an agent that never polls sees no result. `initialize` runs once
+// when a select that asked for setup succeeds; without it the fake only reports success.
 export function onboardingApp(script: OnboardingScript, root: string, initialize?: (changes: string[]) => void) {
   const keys = ["providers", "changes", "readyAfterCheck", "completed"];
   if (!isObj(script) || !only(script, keys, keys.slice(0, 3)) || !Array.isArray(script.providers) || !Array.isArray(script.changes) || !Array.isArray(script.readyAfterCheck))
@@ -337,10 +333,8 @@ export function onboardingApp(script: OnboardingScript, root: string, initialize
 const ATTRIBUTE_LINES = [".doan/** linguist-documentation"];
 const INIT_CONFIG = JSON.stringify({ v: 1 }, null, 2) + "\n";
 
-// Sets `root` up as the real app would for the planned changes, so an agent
-// that trusts the app finds a project afterwards. Every file written is
-// recorded with its content in `manifest`, which changedFiles() reads to keep
-// the app's writes apart from the agent's.
+// Sets `root` up as the real app would. Files written are recorded in `manifest`, which changedFiles() reads to
+// keep the app's writes apart from the agent's.
 export function initializeRepo(root: string, changes: string[], manifest: string): void {
   const written: Record<string, string> = existsSync(manifest) ? JSON.parse(readArtifact(manifest, MANIFEST_BYTES).toString("utf8")) : {};
   if (changes.includes(".doan/canvases/")) mkdirSync(join(root, ".doan/canvases"), { recursive: true });
@@ -372,11 +366,8 @@ function hasFrame(canvas: Buffer, frame: string): boolean {
 }
 
 export interface FakeApp { runtimePath: string; onboardingLog: string; workLog: string; openLog: string; handoffLog: string; prototypeLog: string; close(): Promise<void> }
-// workOthers: the other sessions the fake reports on v3 start and update answers; without it the fake is an older app
-// whose answers carry no `others`.
-// handoff: the conversation the fake stands for. `key` is the DOAN_HANDOFF value its environment carries and `canvas` the
-// canvas it works on, null for a project conversation, which has none and so never meets same_canvas; without `handoff`
-// the fake is an older app that does not know v5.
+// Without workOthers the fake is an older app with no `others`; without handoff, one that does not know v5.
+// handoff.key is DOAN_HANDOFF; canvas null is a project conversation, which never meets same_canvas.
 interface FakeAppOptions { dir: string; root: string; selection: Obj | null; onboarding?: OnboardingScript | null; workOthers?: Obj[] | null; handoff?: { key: string; canvas: string | null } | null }
 
 // The manifest initializeRepo keeps beside the runtime file.

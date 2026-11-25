@@ -10,10 +10,8 @@ const DIR = import.meta.dirname;
 const CANVAS = ".doan/canvases/drafts.html";
 const turn = JSON.parse(readFileSync(join(DIR, "turn.json"), "utf8"));
 const point: { frameId: string; dx: number; dy: number } = turn.anchors[1].point;
-// The frame's padding (--space-4 in the seed). A badge placed from the frame's content
-// box instead of its border box lands this far off; the prompt does not say which
-// origin the offset uses, so that reading still counts as "at that spot". Content that
-// simply follows the existing elements lands more than 100px away.
+// The seed frame's padding (--space-4): a badge placed from the content box is off by this and still counts, since
+// the prompt names no origin. Content flowing after existing elements lands over 100px away.
 const TOLERANCE = 16;
 
 type Rect = { x: number; y: number; width: number; height: number };
@@ -73,10 +71,8 @@ const checks: Checks = ctx => {
     const found = find(now, was.key);
     return found.length !== 1 || !same(kept(found[0]!), kept(was));
   }).map(i => i.key);
-  // Per frame (and outside frames), the seed's elements must all remain in order with their tag, id and own text;
-  // the anchored button's text is left out (element_anchor_applied scores it). Added elements are allowed and
-  // listed: guide rule B asks for a note on the canvas about copy that is not in code, and the agent chooses where
-  // it goes, so whether an addition is that note or an unrequested change is the judge's call.
+  // Seed elements must stay in order per frame with tag, id and own text (anchored label excluded). Additions are
+  // listed for the judge: guide rule B asks for a note whose place the agent chooses.
   const masked = (l: Layout) => Object.fromEntries(Object.entries(l.structure).map(([frame, rows]) => [frame, rows
     .filter(([, key, , within]) => key !== null || within !== ANCHORED)
     .map(([tag, key, own]) => JSON.stringify([tag, key, key === ANCHORED ? "" : own]))]));

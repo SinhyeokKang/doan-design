@@ -1,7 +1,5 @@
-// Usage: node app/scripts/checkReleaseVersion.mjs <version>
-//        node app/scripts/checkReleaseVersion.mjs --tag v<version>
-// The --tag form (the release workflow) also requires app/package.json to carry that version.
-// Needs git and gh with access to the repository; drafts are listed only for tokens with write access.
+// Usage: checkReleaseVersion.mjs <version> | --tag v<version> (release workflow; app/package.json must match).
+// Needs git and gh with repository access; drafts are listed only for tokens with write access.
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

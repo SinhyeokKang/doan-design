@@ -72,7 +72,7 @@ test("R12 requires the 390 px width and both screens' copy on the new canvas, in
   assert.ok(failed(noBilling, [request(noBilling)]).includes("new_canvas_has_both_screens"));
   const noProfile = edit(text => text.replace("Sign-in email: ada@example.com", "Email"));
   assert.ok(failed(noProfile, [request(noProfile)]).includes("new_canvas_has_both_screens"));
-  // doan:width is the board; the screen is the frame. A board wider than a frame declared 390 px wide passes (U-043),
+  // doan:width is the board; the screen is the frame. A board wider than a frame declared 390 px wide passes,
   // a board narrower than that frame does not.
   const frame390 = (text: string, board: string) => text.replace('content="390"', `content="${board}"`).replace("width: 100%;", "width: 390px;");
   const padded = edit(text => frame390(text, "454"));

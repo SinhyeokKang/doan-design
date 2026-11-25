@@ -1,7 +1,5 @@
-// Keep evaluation behavior aligned with docs/ARCHITECTURE.md §14 (agent evaluation)
-// and the procedure in .agents/skills/agent-eval/SKILL.md so rounds stay comparable.
-//   node eval/run.ts [--scenarios W1,R2] [--agents claude,codex] [--repeat N] [--round <name>] [--no-judge]
-//   node eval/run.ts --self-test [--scenarios ...]
+// Keep aligned with docs/ARCHITECTURE.md §14 and .agents/skills/agent-eval/SKILL.md so rounds stay comparable.
+// node eval/run.ts [--scenarios W1,R2] [--agents claude,codex] [--repeat N] [--round <name>] [--no-judge] | --self-test
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
@@ -111,10 +109,8 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
   }
 }
 
-// The fake agent: lays a fixture over the seed, prints the fixture's transcript
-// file when there is one (`fixtures/<kind>.transcript.txt`), and runs the CLI
-// argument lists in `fixtures/<kind>.commands.json` against the fake app, with
-// `{{repo}}` replaced, so onboarding checks read a real request log.
+// Fake agent: overlays a fixture, prints its `<kind>.transcript.txt` and runs `<kind>.commands.json` ({{repo}}
+// replaced) against the fake app, so onboarding checks read a real request log.
 export async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, kind: "pass" | "fail"): Promise<{ record: RunRecord; problems: string[] }> {
   const name = `${scenario.id}-fixture-${kind}`;
   const dir = join(setup.out, name);

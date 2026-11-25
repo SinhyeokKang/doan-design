@@ -10,9 +10,8 @@ const checks: Checks = ctx => {
   // left in the assets (a render copy, say) does not.
   const edited = ctx.changedFiles().filter(path => path === canvas || (path.startsWith(".doan/assets/") && path.endsWith(".css")));
   const animated = edited.filter(path => MOTION.test(ctx.read(path) ?? ""));
-  // The app's own reading of the same names (shell.ts): a listed canvas other than the target is a second canvas while
-  // it exists. Other names (an in-place `sed -i` temp file, a dot-prefixed copy) only reload open canvases; the judge
-  // weighs a dot-prefixed copy against the guide.
+  // The app's own reading (shell.ts): another listed canvas is a second canvas while it exists. Other names only
+  // reload open canvases; the judge weighs a dot-prefixed copy against the guide.
   const names = ctx.canvasNames();
   const unique = names === null ? null : [...new Set(names)];
   const change = unique === null ? null : classifyDesignChange(unique.includes(null) ? null : (unique as string[]).sort());

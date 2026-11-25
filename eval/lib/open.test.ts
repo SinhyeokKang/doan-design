@@ -61,7 +61,7 @@ test("noOpen fails beside a command the reader could not follow, which may have 
   assert.equal(noOpen({ calls: toolCalls(computed), open: () => [], prototype: () => [] }).pass, false);
 });
 
-// W5 Codex: a template `doan work update` in a loop, read from the commands the run recorded, is no longer a gap.
+// A template `doan work update` loop is read from the commands the run recorded.
 test("noOpen reads a Codex template exec from the commands its run recorded", () => {
   const rollout = readFileSync(join(import.meta.dirname, "fixtures/codex-template-exec.jsonl"), "utf8");
   assert.equal(noOpen({ calls: toolCalls(rollout), open: () => [], prototype: () => [] }).pass, true);

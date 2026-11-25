@@ -175,8 +175,7 @@ test("a file without home memory has none", () => {
 });
 
 test("an older file's fields read the same beside home memory", () => {
-  // The same file without `home` must parse to the same rest, so an app that
-  // predates home memory reads a newer file and only loses that key.
+  // An app without home memory must read a newer file and lose only that key.
   const rest = { screen: "workspace", root: "/repo/a", canvas: "a.html", view, expanded: { "/repo/a": ["a"] }, lastByRoot: {} };
   const { home: _home, ...read } = parse({ ...rest, home }) ?? {};
   expect(read).toEqual(rest);
@@ -240,13 +239,12 @@ test("a prototype-polluting provider key is not a provider", () => {
   expect(Object.getPrototypeOf(state?.home?.models)).toBe(Object.prototype);
 });
 
-// the Settings category is a plain renderer field; the old main-composed tab is read once.
+// The Settings category is a plain renderer field; the older `settingsTab` is read once.
 test("keeps a saved Settings section", () => {
   for (const settingsSection of ["agents", "notifications", "about"])
     expect(parse({ screen: "home", settingsSection })).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, settingsSection });
 });
 
-// Settings > Connections was removed; a stored one opens About.
 test("a saved Connections section restores as About", () => {
   expect(parse({ screen: "home", settingsSection: "connections" })).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, settingsSection: "about" });
   expect(parse({ screen: "home", settingsSection: "connections", settingsTab: "projects" })?.settingsSection).toBe("about");
@@ -527,7 +525,7 @@ test("memory kept under an alias root moves to its real path; the real path's ow
     conversationByRoot: { [real]: "0aa9df81-cc51-48df-97ff-24e4debb82ec" },
     home: { lastRoot: real },
   });
-  // Without the mapping the alias is a removed project's memory, as before.
+  // Without the mapping the alias counts as a removed project's memory.
   expect(parseUiState(text, [real])).toMatchObject({ screen: "home", expanded: {}, lastByRoot: { [real]: { canvas: ".doan/canvases/b.html" } }, shellProjects: {} });
 });
 

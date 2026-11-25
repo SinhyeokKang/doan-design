@@ -1,6 +1,5 @@
-// The directory a canvas sits in is its type: `.doan/ds/` holds design-system
-// canvases, `.doan/canvases/` every other canvas. Main and renderer judge
-// repo-relative paths with these, so the two never disagree.
+// A canvas's directory is its type: `.doan/ds/` holds design-system canvases, `.doan/canvases/` the rest.
+// Main and renderer both judge repo-relative paths here, so they never disagree.
 export type CanvasKind = "ds" | "canvases";
 
 export const CANVAS_DIRS: Readonly<Record<CanvasKind, string>> = { ds: ".doan/ds", canvases: ".doan/canvases" };

@@ -2,9 +2,8 @@ import { resolve } from "node:path";
 import type { Checks } from "../../lib/types.ts";
 import { absolutePaths, describeAll, errorCode, noBlindRetry, noCancel, noCopilotCheck, noRequestConflict, noStopOrPaste, oneSession, repoUntouched, requests, started, type Exchange } from "./log.ts";
 
-// Claude is connected and ready, the repo needs setup and the prompt allows it:
-// the agent should inspect, select with --initialize and complete, starting
-// nothing else.
+// Claude is ready, setup is needed and allowed: the agent should inspect, select with --initialize and complete,
+// starting nothing else.
 const checks: Checks = ctx => {
   const log: Exchange[] = ctx.onboarding();
   const inspects = requests(log, "project_inspect");

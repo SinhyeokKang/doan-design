@@ -311,7 +311,7 @@ test("a Codex exec literal counts as run only when the script's window recorded 
   assert.equal(all.commandCandidates, undefined);
 });
 
-// Without records Codex wrote for this script alone, the literals are what is known to have run, as before.
+// Without records Codex wrote for this script alone, the literals are what is known to have run.
 test("a Codex exec script's literals count as run when its window gives no usable record", () => {
   const event = (payload: object) => JSON.stringify({ type: "response_item", payload });
   const call = (input: string, id = "call_s") => event({ type: "custom_tool_call", call_id: id, name: "exec", input });
@@ -416,8 +416,8 @@ test("a loop past the budget is incomplete and leaves no stale variable behind",
   assert.ok(nested.words.length <= 256, String(nested.words.length));
   assert.ok(nested.words.every(w => w[0] === "echo"));
 });
-// Claude bounds its onboarding status polls with `for i in $(seq 1 15)` (agent-eval O3b); bash and zsh both split an
-// unquoted command substitution into words, so seq with whole-number operands is a list the reader knows.
+// Claude bounds polls with `for i in $(seq 1 15)`; bash and zsh split an unquoted substitution into words, so
+// seq with whole-number operands is a list the reader knows.
 test("a loop over seq with whole-number operands runs once per number seq prints", () => {
   const poll = (list: string) => `for i in ${list}; do out=$(doan onboarding status --session s --json); echo "$out" | grep -q running || break; sleep 1; done; echo "$out"`;
   const status = ["doan", "onboarding", "status", "--session", "s", "--json"];
@@ -668,10 +668,8 @@ test("a wrapper option the shell may expand to nothing makes the read incomplete
   read('eval "doan design-skill $p"', [], true);
 });
 
-// The shell takes a redirection and its target out of the command's words before it runs the command, so the doan
-// argv never holds them; a quoted `>` is an ordinary word.
-// The shell drops a backslash-newline outside single quotes before it splits words, so a continued command is one
-// command; agents write long doan calls this way.
+// A redirection and its target are not among a command's words (a quoted `>` is a word), and a backslash-newline
+// outside single quotes continues one command, which agents use for long doan calls.
 test("a backslash-newline continues the command, outside single quotes", () => {
   const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
   read("doan design-skill audit \\\n  --json", [["doan", "design-skill", "audit", "--json"]]);
@@ -793,7 +791,7 @@ test("a script the reader cannot see into makes the read incomplete", () => {
     `node -e "require('child_process').execSync('doan active')"`, `python3 -c "import os; os.system('doan active')"`, `python -c 'import subprocess; subprocess.run(["doan", "active"])'`])
     read(command, [], true);
   read("echo 'doan active' | bash", [["echo", "doan active"]], true);
-  // An inline script that does not mention doan runs no doan, and a shell -c script is read as before.
+  // An inline script that does not mention doan runs no doan, and a shell -c script is read.
   read(`node -e "console.log(1)"`, [["node", "-e", "console.log(1)"]]);
   read("bash -c 'doan active'", [["doan", "active"]]);
 });
@@ -861,8 +859,8 @@ test("an interpreter running a script the reader cannot see, or find -exec into 
   read("find .agents -type f -exec sh -c 'echo \"== $1\"; cat \"$1\"' _ {} \\;", [["find", ".agents", "-type", "f", "-exec", "sh", "-c", 'echo "== $1"; cat "$1"', "_", "{}", ";"], ["echo", "== $1"], ["cat", "$1"]]);
 });
 
-// Codex reads presets from a Python heredoc (D10g, D10h): a subprocess call whose argv list is all string literals is
-// read as that doan command; a list built at run time, and a script file, may run any lookup.
+// Codex reads presets from a Python heredoc: a subprocess call whose argv list is all string literals is read as
+// that doan command; a list built at run time, or a script file, may run any lookup.
 test("a Python heredoc's literal doan argv lists are read, and anything dynamic stays incomplete", () => {
   const rollout = readFileSync(new URL("./fixtures/codex-python-heredoc.jsonl", import.meta.url), "utf8");
   const [literal, dynamic, file] = shellCommands(rollout);
@@ -895,8 +893,8 @@ test("a Python heredoc's literal doan argv lists are read, and anything dynamic 
   ]) read(command, [], true);
 });
 
-// A Python heredoc that writes canvases carries `doan:canvas` and `doan:width` markup (D10g, D10h). That markup runs
-// nothing, so it does not make the body name doan; a doan word beside it still does.
+// A Python heredoc writing canvases carries `doan:canvas` and `doan:width` markup. That markup runs nothing, so it
+// does not make the body name doan; a doan word beside it still does.
 test("doan: markup in a Python heredoc does not name doan, and a doan word beside it is still read", () => {
   const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
   const meta = `<meta name="doan:canvas" content="a"><meta name="doan:width" content="390">`;
@@ -907,7 +905,7 @@ test("doan: markup in a Python heredoc does not name doan, and a doan word besid
 });
 
 // Codex prints a multi-line command (a heredoc script, say) across several stderr lines; the header ends at the
-// line with the working directory, before the status line (pac-full R10-codex).
+// line with the working directory, before the status line.
 test("a multi-line Codex exec header is read up to its working directory, not cut at its first line", () => {
   const stderr = readFileSync(new URL("./fixtures/codex-multiline-exec.stderr.log", import.meta.url), "utf8");
   const commands = shellCommands(stderr);
@@ -934,7 +932,7 @@ test("a multi-line Codex exec header whose end is not in the log stays incomplet
   }
 });
 
-// pac-full H5-claude: a brace group that collects two outputs into one file.
+// A brace group that collects two outputs into one file.
 test("a brace group's commands are read, each with the redirections on its closing brace", () => {
   const read = readCommands("mkdir -p .doan/assets && { echo '/* source: brand/status.css */'; cat brand/status.css; } > .doan/assets/status.css && doan check --json");
   assert.equal(read.incomplete, false);
@@ -957,7 +955,7 @@ test("a brace group the reader cannot close, or with words after its closing bra
   assert.deepEqual(parseCommand("doan active; { doan open a.html"), { words: [["doan", "active"]], incomplete: true });
 });
 
-// pac-full R11-claude: a helper function writes one canvas per call through a heredoc.
+// A helper function writes one canvas per call through a heredoc.
 test("a shell function's body runs where it is called, with the call's arguments", () => {
   const command = "cd /tmp/r/.doan/canvases && mk() { cat > \"$1-mobile.html\" <<EOF\n<title>$2 (mobile)</title>\n$3\nEOF\n}\nmk profile Profile '  <section data-doan-frame=\"profile-form\">\n  </section>'\nmk billing Billing '  <section data-doan-frame=\"billing-form\">\n  </section>'\ncd ../.. && doan check --json; git status --short";
   const read = readCommands(command);
@@ -1020,7 +1018,6 @@ test("a function the reader cannot track past its call or definition makes the r
   assert.deepEqual(parseCommand("f() { doan active; return; }; f"), { words: [["doan", "active"], ["return"]], incomplete: false });
 });
 
-// Counterexamples from an independent review: each read as complete with the wrong commands, words or home paths.
 test("a function argument below the home directory keeps its home path in the body", () => {
   for (const command of ["w() { echo x > \"$1\"; }; w ~/.zshrc", "w() { echo x > $1; }; w ~/.zshrc"]) {
     const read = readCommands(command);

@@ -62,10 +62,8 @@ export type ConfigWrite =
   // gitInit: the person confirmed creating the Git repository Keep out of Git needs outside Git.
   | { root: string; op: "setStorage"; storage: "local"; gitInit: true };
 
-// Events with a current value: the value is asked for too, because the first
-// event can come before the listener. An event that arrives first wins.
-// Each preload keeps its own copy: a sandboxed preload cannot require a
-// chunk the two entries would otherwise share.
+// Also asks for the current value, since the first event can precede the listener (an earlier event wins). Each
+// preload keeps its own copy: a sandboxed preload cannot require a shared chunk.
 function subscribe<T>(event: string, initial: string, listener: (value: T) => void): () => void {
   let active = true, received = false;
   const receive = (_event: Electron.IpcRendererEvent, value: T) => { received = true; listener(value); };
@@ -117,56 +115,34 @@ const api = {
   },
   answerOpenRequest: (answer: OpenAnswer): Promise<void> => ipcRenderer.invoke("doan-open:answer", answer),
   conversationResumeTarget: (request: { root: string; canvas: Canvas }): Promise<{ available: true; runtime: Runtime; lastCheckAt: string; session?: string } | { available: false; reason: "no_record" | UnavailableReason; runtime?: Runtime; session?: string } | ConversationError> => ipcRenderer.invoke("conversation:resumeTarget", request),
-  // newDesign takes `text`. model and effort only from the list listConversationModels
-  // returned in this run for that root and runtime; permissionMode one of the common ids (resume takes none); attachments by the ids the attachment calls returned. A moved or
-  // deleted attachment refuses the start with attachment_missing and its ids in `missing`.
+  // model and effort only from this run's listConversationModels for that root and runtime; resume takes none of these.
+  // A moved or deleted attachment refuses the start: attachment_missing with its ids in `missing`.
   startConversation: (request: Omit<StartRequest, "anchors" | "attachments"> & { anchors?: Anchor[]; attachments?: { id: string }[] }): Promise<{ conversationId: string } | ConversationError> => ipcRenderer.invoke("conversation:start", request),
-  // model (with an optional effort of it) only when the person changed it, from listConversationModels of this run for
-  // the conversation's provider; permissionMode, one of the common ids, whenever the picker names one, judged apart from
-  // the model ("default" clears the stored mode); fast only when this run's list says that model has Fast; attachments
-  // by ids as for a start. A legacy external conversation takes none of them,
-  // and no request names a provider.
-  // canvas_not_found: the conversation's canvas is gone or its ID is listed twice.
-  // While the conversation's usage limit holds, or it is scheduled (list row limitResetsAt or scheduledAt), main keeps
-  // the message as a queued item and answers { scheduled }; such a send takes no model, effort, fast or permissionMode
-  // (bad_request), as a queue does. rate_limited carries resetsAt when main knows it.
+  // model/effort only when changed, no provider. Under a usage limit or schedule main queues it ({ scheduled }), refusing
+  // picker fields (ARCHITECTURE §7 'Usage-limit schedule'). canvas_not_found: canvas gone or its ID listed twice.
   sendConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; attachments?: { id: string }[] }): Promise<void | ScheduledSend | ConversationError> => ipcRenderer.invoke("conversation:send", request),
-  // A scheduled conversation's waiting messages, in order, also those main scheduled by itself after a turn the usage
-  // limit stopped; empty when it is not scheduled.
+  // A scheduled conversation's waiting messages in order, auto-scheduled ones included; empty when not scheduled.
   scheduledMessages: (request: { conversationId: string }): Promise<ScheduledItem[] | ConversationError> => ipcRenderer.invoke("conversation:scheduled", request),
-  // While the conversation works (not_running otherwise), a message waits in main and goes out with the others as one
-  // message after turn.done; text, anchors and attachments only (model, effort and permissionMode are bad_request; the
-  // queue goes out in the mode stored when it is flushed, setConversationPermissionMode). queue_limit: the
-  // queue and the conversation's returned draft together would pass one message (32,768 characters, 32 anchors, 10
-  // attachments) or the drafts file's size. Removing an item or taking a draft that cannot be saved answers an error
-  // and keeps it. main holds the
-  // attachments from here on. A failed or stopped turn, a refused queued send or a restart hands the queue back as a
-  // draft: the list row then has returnedDraft, and takeConversationDraft hands it over once (attachments as recorded
-  // paths, for attachmentsFromPaths). Each change is announced with onConversationListChanged.
+  // While working (else not_running) main holds the message and attachments; a failed or stopped turn or a restart
+  // hands the queue back as a draft (ARCHITECTURE §7 'Queue').
   queueConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; attachments?: { id: string }[] }): Promise<{ itemId: string } | ConversationError> => ipcRenderer.invoke("conversation:queue", request),
-  // The picker changed on an existing conversation without a send: main stores it ("default" as none) and announces
-  // onConversationListChanged. A running turn keeps its mode; a queue goes out in the mode stored when it is flushed.
-  // bad_request for an unknown id or a legacy external conversation.
+  // Stores a picker change made without a send ("default" as none); a running turn keeps its mode, a queue flushes
+  // in the stored one. bad_request: unknown id or legacy external conversation.
   setConversationPermissionMode: (request: { conversationId: string; permissionMode: PermissionModeId }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:setPermissionMode", request),
   // stale: the item already went out, came back or was removed.
   removeQueuedMessage: (request: { conversationId: string; itemId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:removeQueued", request),
-  // Send now: the queued message goes into the running turn without stopping it. It answers once the agent read it,
-  // when the message is in the turn's history and out of the queue. not_running: nothing runs that can take it, the
-  // provider refused it, or the turn ended first (the message stays queued and follows the queue's rules); stale: the
-  // item is gone or already on its way out; attachment_missing: one of its files went away (it stays queued).
+  // Answers once the agent read it, now in the turn and out of the queue. stale: item gone or already going out;
+  // not_running or attachment_missing leave it queued (ARCHITECTURE §7 'Queue').
   sendQueuedNow: (request: { conversationId: string; itemId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:sendQueuedNow", request),
   takeConversationDraft: (request: { conversationId: string }): Promise<TakenDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeDraft", request),
   // The first message of a new conversation in root (on canvas, or on none) that a quit stopped before main accepted it,
   // in an earlier run, handed over once (attachments as recorded paths); null when there is none.
   takeStartDraft: (request: { root: string; canvas?: Canvas }): Promise<TakenDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeStartDraft", request),
-  // Deletes Doan's record of the conversation on this device (index entry, history, queue and returned draft); the
-  // agent's own session files stay. busy while it works or the app quits; not_found when it is already gone; unknown
-  // when the index cannot be read, and then nothing is deleted. A success is announced with onConversationListChanged.
+  // Deletes only Doan's record on this device, not the agent's session files. busy while working or quitting;
+  // not_found when already gone; unknown, deleting nothing, when the index cannot be read.
   deleteConversation: (request: { conversationId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:delete", request),
-  // One summary per conversation main keeps for this project, several per canvas; a row whose history cannot be
-  // read carries readError. Read it again on onConversationListChanged, in whatever order the reply and change arrive.
-  // working: main still works on it (preparing, running, waiting for an answer, judging its turn, about to send its
-  // queue, waiting for its previous process); a project conversation that works holds its root. phase is the history's.
+  // Re-read on onConversationListChanged, in any arrival order; an unreadable row carries readError. `working` (main
+  // still busy with it) is wider than the history's `phase` (ARCHITECTURE §7 'List and seen').
   listConversations: (request: { root: string }): Promise<ConversationSummary[] | ConversationError> => ipcRenderer.invoke("conversation:list", request),
   // The person has seen this conversation up to seq; main cuts it to the last seq and never moves it back.
   markConversationSeen: (request: { conversationId: string; seq: number }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:markSeen", request),
@@ -197,18 +173,14 @@ const api = {
   answerConversationPermission: (request: { conversationId: string; requestId: string; optionId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:answerPermission", request),
   answerConversationQuestion: (request: { conversationId: string; requestId: string } & QuestionAnswerInput): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:answerQuestion", request),
   readConversation: (request: { conversationId: string }): Promise<ReturnType<ConversationService["read"]> | ConversationError> => ipcRenderer.invoke("conversation:read", request),
-  // The models a provider offers in this folder, read without a model request and kept by main until the connection
-  // or installed version changes. An error carries a conversation start code. modes: an ACP server's mode list from the
-  // same read, for permissionOptions (permissionMode.ts); none for Claude and Codex.
+  // Read without a model request, cached until the connection or installed version changes; errors are start codes.
+  // modes: an ACP server's mode list from the same read, for permissionOptions (none for Claude and Codex).
   listConversationModels: (request: { root: string; runtime: Provider }): Promise<ModelsReply> => ipcRenderer.invoke("conversation:models", request),
-  // The project skills the provider loads in this folder (Claude and Codex; an empty list for the others), read the
-  // same prompt-free way and kept by main for 30 seconds, then the built-in commands Doan runs (rows of kind "command"):
-  // Claude's and Codex's at the installed version, and an ACP conversation's own (conversationId) from the last list its
-  // session pushed, none before its first session. An error carries a conversation start code.
+  // Claude/Codex project skills (cached 30 s), then built-in command rows; ACP rows are the conversation's last
+  // pushed list, none before its first session. Errors are start codes.
   listConversationSkills: (request: { root: string; provider: Provider; conversationId?: string }): Promise<{ skills: SkillSummary[]; passthrough?: string[] } | ConversationError> => ipcRenderer.invoke("conversation:skills", request),
-  // Home attachments. Main checks each item (real path, a regular file or a folder, image signature) and answers per item
-  // in order; nothing is copied except a pasted image, which main re-encodes to PNG under userData, and a folder is never
-  // read. A thumbnail is PNG bytes.
+  // Main checks each item and answers in order; only a pasted image is copied (re-encoded PNG under userData) and a
+  // folder is never read. Thumbnails are PNG bytes.
   chooseAttachments: (): Promise<AttachmentResult[]> => ipcRenderer.invoke("attachments:choose"),
   // Dropped or pasted Finder files. A file the page made itself has no path and is refused here as not_found.
   async addAttachmentFiles(files: readonly File[]): Promise<AttachmentResult[] | null> {
@@ -221,9 +193,8 @@ const api = {
   },
   addPastedImage: (bytes: ArrayBuffer | Uint8Array): Promise<AttachmentResult | null> => ipcRenderer.invoke("attachments:add-pasted", { bytes: bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes) }),
   addPastedText: (text: string, meta: PastedTextMeta): Promise<AttachmentResult | null> => ipcRenderer.invoke("attachments:add-pasted-text", { text, ...meta }),
-  // A canvas capture: main reads the pixels of rect (main window content CSS px, whole window only) and saves them as a
-  // paste. Resolves to the AttachmentResult (capture_failed for an empty image or a failed save), or null when main
-  // refused the request.
+  // Main captures rect (window content CSS px, whole window only) as a paste; capture_failed for an empty image or
+  // failed save, null when main refused.
   captureCanvas: (rect: { x: number; y: number; width: number; height: number }): Promise<AttachmentResult | null> => ipcRenderer.invoke("attachments:capture", { rect }),
   // A pasted image removed before it was sent is deleted; a local file is only forgotten.
   removeAttachment: (id: string): Promise<boolean> => ipcRenderer.invoke("attachments:remove", { id }),
@@ -239,9 +210,8 @@ const api = {
     ipcRenderer.on("conversation:event", receive);
     return () => ipcRenderer.removeListener("conversation:event", receive);
   },
-  // A running turn's stage, never stored. seq is the conversation's last event seq when it was
-  // sent, rev orders stages within a turn: keep the highest rev per turnId, since neither this event nor a
-  // readConversation reply (whose stage is the turn's last one) is ordered against the other.
+  // Never stored. Keep the highest rev per turnId: this event and a readConversation reply's stage are unordered.
+  // seq is the conversation's last event seq when sent.
   onConversationStage(listener: (signal: StageSignal) => void): () => void {
     const receive = (_event: Electron.IpcRendererEvent, signal: StageSignal) => listener(signal);
     ipcRenderer.on("conversation:stage", receive);
@@ -254,11 +224,8 @@ const api = {
     ipcRenderer.on("conversation:boundary", receive);
     return () => ipcRenderer.removeListener("conversation:boundary", receive);
   },
-  // Agent accounts. Main checks provider and attempt IDs and binds sign-in, cancel, pasted addresses and link
-  // opening to this window. Snapshots carry one revision; onAgentAuth delivers only ones newer than the last it
-  // delivered, so an initial read that loses a race with a change never replaces the newer state. A conversation's
-  // not_logged_in is coarse: take recovery from the provider's readiness.action (a Codex re-sign-in mints a new
-  // connection that its earlier conversations cannot resume). readAgentAuth is null when account storage is unreadable.
+  // Main binds attempts and links to this window, and onAgentAuth delivers only newer revisions. A not_logged_in is
+  // coarse: recover from readiness.action. readAgentAuth is null when account storage is unreadable.
   readAgentAuth: (): Promise<AuthSnapshot | null> => ipcRenderer.invoke("agent-auth:read"),
   onAgentAuth(listener: (snapshot: AuthSnapshot) => void): () => void {
     let active = true, revision = -1;
@@ -272,9 +239,8 @@ const api = {
     ipcRenderer.invoke("agent-auth:read").then(deliver, () => {});
     return () => { active = false; ipcRenderer.removeListener("agent-auth:changed", receive); };
   },
-  // Agent account usage: one entry per connected provider that has usage, in provider order. Without a trigger main
-  // only answers what it holds; "open" (the popover opened) and "refresh" (Refresh usage, ignoring the interval) may
-  // start reads. Entries carry no revision, so the first read is delivered only if no change event came before it.
+  // Without a trigger main only answers what it holds; "open" and "refresh" (ignores the interval) may start reads.
+  // Entries carry no revision, so the first read is delivered only if no change event came first.
   readAgentUsage: (trigger?: "open" | "refresh"): Promise<UsageEntry[]> => ipcRenderer.invoke("agent-usage:read", trigger ? { trigger } : {}),
   onAgentUsage(listener: (entries: UsageEntry[]) => void): () => void {
     let active = true, changed = false;
@@ -300,9 +266,8 @@ const api = {
     ipcRenderer.on("agent-auth:prompt", receive);
     return () => ipcRenderer.removeListener("agent-auth:prompt", receive);
   },
-  // Settings > MCP Connectors. Snapshots carry one revision, delivered newest only as onAgentAuth.
-  // refresh re-reads the provider statuses (entering the page, Retry of a failed read); they are never polled. Links
-  // stay in main: a Claude sign-in's link opens in the browser by itself and openMcpLink opens it again.
+  // Newest revision only, as onAgentAuth; statuses are never polled (refresh re-reads them). Sign-in links stay in
+  // main: Claude's opens by itself and openMcpLink reopens it.
   readMcpConnectors: (options: { refresh?: boolean } = {}): Promise<McpSnapshot> => ipcRenderer.invoke("mcp-connectors:list", options.refresh ? { refresh: true } : undefined),
   onMcpConnectors(listener: (snapshot: McpSnapshot) => void): () => void {
     let active = true, revision = -1;
@@ -339,9 +304,8 @@ const api = {
     ipcRenderer.on("onboarding:changed", receive);
     return () => ipcRenderer.removeListener("onboarding:changed", receive);
   },
-  // Doan design presets from the bundled CLI (the prototype window's composer reads them too). A reply is the CLI's v1
-  // envelope: a CLI failure (usage_error included) comes back unchanged; an app failure has code request_refused, or cli_error with a reason.
-  // A list usage_error means this CLI has no presets; a get usage_error after a successful list is an unknown id.
+  // Replies are the CLI's v1 envelope, CLI failures unchanged; app failures: request_refused, or cli_error with reason.
+  // A list usage_error means no preset support; a get usage_error after a good list is an unknown id.
   designSkills: {
     list: (): Promise<DesignSkillReply<DesignSkillList>> => ipcRenderer.invoke("design-skills:list"),
     get: (id: string): Promise<DesignSkillReply<DesignSkillPreset>> => ipcRenderer.invoke("design-skills:get", { id }),
@@ -356,14 +320,12 @@ const api = {
   // The Project step's folder picker: a path only, null when cancelled. The session inspects and registers it.
   // The Add Projects page uses it too; it belongs to no session.
   chooseOnboardingFolder: (purpose: FolderPurpose): Promise<string | null> => ipcRenderer.invoke("onboarding:choose-folder", purpose),
-  // New folder on the Project step: parent is only where the save panel opens. Main makes the folder at the panel's
-  // path and answers what happened; the session inspects a created folder like a chosen one. token names the request,
-  // which the step cancels when it goes before the panel answers, so nothing is made then.
+  // parent only places the save panel; main makes the folder at the panel's path. token names the request, which a
+  // step that goes away cancels, so nothing is made then.
   newOnboardingFolder: (parent: string, token: string): Promise<NewFolderResult> => ipcRenderer.invoke("onboarding:new-folder", { parent, token }),
   cancelOnboardingFolder: (token: string): Promise<boolean> => ipcRenderer.invoke("onboarding:new-folder-cancel", { token }),
-  // The Add Projects page's project session: the onboarding session's project calls and DTOs on channels of its own,
-  // with no agents, completion or CLI. Without a request the read answers the current state and its sessionId;
-  // with one it is the session's status (session_stale for another session).
+  // The Add Projects page's own session: onboarding's project calls on separate channels, no agents, completion or
+  // CLI. No request reads current state and sessionId; with one it is status (session_stale for another).
   readAddPage: (request?: { sessionId: string; operationId?: string }): Promise<AddPageResponse> => ipcRenderer.invoke("add-projects:read", request ?? {}),
   inspectAddPageProject: (request: SessionRequest<OnboardingProjectInspectRequest>): Promise<AddPageResponse> => ipcRenderer.invoke("add-projects:inspect", request),
   // initialize: true is the user's consent to the inspection's planned changes.
@@ -446,7 +408,6 @@ const api = {
     ipcRenderer.on("thumbnails:changed", receive);
     return () => ipcRenderer.removeListener("thumbnails:changed", receive);
   },
-  // `ui-state.json` as main validated it against the saved roots; null starts at home.
   readShellActivity: (request: { roots: string[] }): Promise<ShellActivity[] | null> => ipcRenderer.invoke("shell:activity", request),
   // The canvas the canvas page is meant to show, null when it shows none. Main records the read state once its own
   // document bindings prove the canvas shown, and sends the list again.
@@ -466,6 +427,7 @@ const api = {
     ipcRenderer.on("read-state:problem", receive);
     return () => ipcRenderer.removeListener("read-state:problem", receive);
   },
+  // `ui-state.json` as main validated it against the saved roots; null starts at home.
   readUiState: (): Promise<UiState | null> => ipcRenderer.invoke("ui-state:get"),
   // Main validates again and writes the last value after 500 ms; false when refused.
   saveUiState: (state: UiState): Promise<boolean> => ipcRenderer.invoke("ui-state:save", state),
@@ -528,9 +490,8 @@ const api = {
     ipcRenderer.on("update:popover", receive);
     return () => ipcRenderer.removeListener("update:popover", receive);
   },
-  // Project Settings page: start a session when it mounts and end it when it unmounts; replies to calls of an ended
-  // session answer unavailable.
-  // root: the worktree the page opens; main reads its project group again.
+  // Start on mount, end on unmount; calls of an ended session answer unavailable. root: the opened worktree,
+  // whose project group main reads again.
   startConfigSession: (root: string): Promise<void> => ipcRenderer.invoke("config:session-start", { root }),
   endConfigSession: (): Promise<void> => ipcRenderer.invoke("config:session-end"),
   readConfig: (root: string): Promise<ConfigReply> => ipcRenderer.invoke("config:read", { root }),
@@ -550,9 +511,8 @@ const api = {
     ipcRenderer.on("app:quitting", receive);
     return () => ipcRenderer.removeListener("app:quitting", receive);
   },
-  // Play prototype: the selected frame of a listed canvas and its raw mark from the live layout. Main builds the URL
-  // from its own list and ignores a request it cannot match. Channel names stay literal: a shared value import would
-  // put a chunk between the two preloads, which a sandboxed preload cannot require.
+  // Main builds the URL from its own list and ignores an unmatched request. Channel names stay literal: a shared
+  // import would become a chunk, which a sandboxed preload cannot require.
   playPrototype(request: PlayRequest): void { void ipcRenderer.invoke("prototype:play", request); },
   // The prototype window closed, by any path; focus may go back to a live Play control.
   onPrototypeClosed(listener: () => void): () => void {

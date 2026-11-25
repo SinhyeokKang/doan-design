@@ -4,9 +4,8 @@ import { CANVAS_PATH, contentHash } from "../../lib/work.ts";
 
 const path = ".doan/canvases/landing.html";
 
-// An accepted start or update for this canvas whose answer carried a non-empty `others`: the app sent the agent
-// word of another session working there. A run whose sandbox kept it from the socket has no such answer, so it
-// cannot pass as having asked.
+// An accepted start or update whose answer carried non-empty `others`. A run its sandbox kept off the socket has
+// no such answer, so it cannot pass as having asked.
 const delivering = (entry: WorkExchange): boolean => entry.response.ok && (entry.request.action === "start" || entry.request.action === "update")
   && entry.request.path === path && (entry.response.others?.length ?? 0) > 0;
 

@@ -5,9 +5,8 @@ import { toolCalls } from "../../lib/transcript.ts";
 import type { Check, CheckContext, Checks } from "../../lib/types.ts";
 import type { Exchange } from "./log.ts";
 
-// Scores a scripted sequence against a scenario's checks in process: requests go
-// through the same fake app the runner starts, and commands become parsed tool
-// calls, so each test can add exactly one violation.
+// Scores a scripted sequence in process through the runner's fake app, with commands as parsed tool calls,
+// so each test can add exactly one violation.
 export const ROOT = "/tmp/doan-eval-O/repo";
 const TOKEN = "t".repeat(64);
 
