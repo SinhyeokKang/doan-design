@@ -98,6 +98,15 @@ export function checkSignedEntitlements(committedPlist, signed) {
   return xml === -1 ? [] : compareEntitlements(committedPlist, signed.output.slice(xml));
 }
 
+// The binaries beside the app and its CLI that carry entitlements. The verifier fails an empty group, which would
+// otherwise print no entitlement line at all.
+export function entitledHelpers(frameworkNames, binaries) {
+  return [
+    { name: "Helper apps", paths: frameworkNames.filter((name) => name.includes("Helper") && name.endsWith(".app")) },
+    { name: "spawn-helper", paths: binaries.filter((path) => path.endsWith("/spawn-helper")) },
+  ];
+}
+
 // electron-builder's `electronFuses` keys in fuse wire order (@electron/fuses FuseV1Options).
 const FUSES = [
   "runAsNode",

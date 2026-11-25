@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { closeSync, copyFileSync, existsSync, lstatSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { checkLatestMacYml, checkSignedEntitlements, compareFuses, parseCodesignDetails, parseSpctl } from "./releaseChecks.mjs";
+import { checkLatestMacYml, checkSignedEntitlements, compareFuses, entitledHelpers, parseCodesignDetails, parseSpctl } from "./releaseChecks.mjs";
 
 const committedEntitlements = readFileSync(new URL("../resources/entitlements.mac.plist", import.meta.url), "utf8");
 const committedFuses = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).build.electronFuses;
@@ -81,10 +81,12 @@ function checkApp(label, app) {
   // Non-main binaries fall back to electron-builder's template, which adds
   // disable-library-validation, when mac.entitlementsInherit is missing.
   const frameworks = join(app, "Contents", "Frameworks");
+  const [helpers, spawnHelpers] = entitledHelpers(readdirSync(frameworks), binaries);
+  for (const group of [helpers, spawnHelpers]) check(`${label} ${group.name} found`, group.paths.length > 0);
   const entitled = [
     app,
-    ...readdirSync(frameworks).filter((name) => name.includes("Helper") && name.endsWith(".app")).map((name) => join(frameworks, name)),
-    ...binaries.filter((path) => basename(path) === "spawn-helper"),
+    ...helpers.paths.map((name) => join(frameworks, name)),
+    ...spawnHelpers.paths,
     join(app, "Contents", "Resources", "bin", "doan"),
   ];
   for (const path of entitled) {
