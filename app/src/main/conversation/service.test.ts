@@ -142,7 +142,7 @@ describe("a runner refused before it spawned", () => {
     });
     const prepare = vi.fn<Prepare>(async () => ({ runtime: "codex" as const, configDir: "/profile", cwd: "/repo", sessionId: "same-session", command: "/fake", env: {} }));
     const service = new ConversationService(store, prepare, open, () => {}, undefined, 50);
-    return { service, store, open, runners, exits, refuseNext: () => { refuse = true; } };
+    return { service, store, open, prepare, runners, exits, refuseNext: () => { refuse = true; } };
   }
   it("frees the session for the next send", async () => {
     const h = refusing(); const id = (await h.service.start(request)).conversationId;
@@ -156,6 +156,22 @@ describe("a runner refused before it spawned", () => {
     await expect(h.service.start(request)).rejects.toThrow("not_logged_in");
     await h.service.start(request);
     expect(h.open).toHaveBeenCalledTimes(2); expect(h.store.list()).toHaveLength(1);
+  });
+  // A spawn failure reported through exited() already released the session; a later send may hold it by the time the
+  // open rejects.
+  it("leaves the session to a send made after the refused one reported its exit", async () => {
+    const h = refusing(); const id = (await h.service.start(request)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); h.exits[0]!();
+    let reject!: () => void;
+    h.open.mockImplementationOnce(async (_input, _emit, exited) => { exited(); await new Promise<void>(resolve => { reject = resolve; }); throw new Error("process_exited"); });
+    const refused = h.service.send(id, "refused", []);
+    await vi.waitFor(() => expect(reject).toBeDefined());
+    await h.service.send(id, "again", []);
+    reject(); await expect(refused).rejects.toThrow("process_exited");
+    // A new start whose generated session collides is refused only by the second send's reservation.
+    h.prepare.mockResolvedValueOnce({ runtime: "codex", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} });
+    h.open.mockImplementationOnce(async (_input, _emit, _exited, registerStop) => { registerStop(async () => {}); return { sessionId: "same-session", send: async () => {}, answer: () => false, stop: async () => {}, close: async () => {} }; });
+    await expect(h.service.start({ ...request, mode: "new", runtime: "codex" })).rejects.toThrow("session_in_use");
   });
 });
 // A closing Codex server would answer the next turn with process_exited; the send waits for it and opens another.
