@@ -2076,6 +2076,16 @@ describe("delete", () => {
     expect(() => h.service.delete(id)).toThrow("not_found");
     expect(existsSync(history(h, id))).toBe(false);
   });
+  it("never recreates the history of a deleted conversation for an edit result that arrives late", async () => {
+    const h = homeFixture();
+    const id = await idle(h);
+    const emit = h.open.mock.calls[0]![1];
+    h.service.delete(id);
+    const late = { type: "activity.result", callId: "toolu_1", path: "/repo/a.txt", lines: { added: 1, removed: 1 } } as const;
+    emit(late); h.service.receive(id, late);
+    expect(existsSync(history(h, id))).toBe(false);
+    expect(h.store.list()).toEqual([]);
+  });
   it("discards the conversation's returned draft with it", async () => {
     const h = homeFixture();
     const id = (await h.service.start(canvasStart)).conversationId;

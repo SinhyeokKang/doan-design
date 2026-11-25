@@ -200,3 +200,32 @@ began (the steer ran as a next turn with its own init); `subagent` is the first 
 frame only `type`, `subtype`, `status`, `permissionMode`, `parent_tool_use_id`, `user_message_uuids`, `uuid` and
 `session_id` are kept; every id is synthetic (equal recorded ids keep equal synthetic ids) and the session is
 `session-1`. Frame order and every `permissionMode` and `status` value are as recorded.
+
+`claude-edit-results.json`, `codex-file-changes.json`, `acp-copilot-edits.json` and `acp-antigravity-edits.json`
+(recorded 2026-11-25) are reduced from raw frames recorded by a probe that launched each provider the way
+Doan's runners do, outside the app: Claude Code through the Agent SDK `query` (`pathToClaudeCodeExecutable`,
+`includePartialMessages`, `settingSources` user, project and local; Haiku), `codex app-server` (initialize,
+`thread/start`, `turn/start` with `gpt-5.6-luna`, effort low), and `copilot --acp --stdio` and the Antigravity ACP server
+over stdio (initialize, authenticate where Doan does, `session/new`, the Default mode, `session/prompt`). Each case ran
+one short turn in a fresh git repo holding four synthetic files (`notes.txt`, `colors.txt`, `config.txt`, `old.txt`);
+each case's `numstat` is that repo's `git diff --cached --numstat HEAD` after the turn (all changes staged), the real
+change the edit results are compared with. Versions are the top-level keys: Claude Code 2.1.284 and 2.1.332, Codex
+0.158.0 and 0.171.0, Copilot 1.0.89 and 1.0.114, Antigravity 1.3.0. Cases: `edit`, `replaceall` (Claude, `replace_all`), `write` (new
+file), `overwrite`, `delete`, `deny` (the permission answered deny, Codex `decline`, ACP `reject_once`), `fail` (an
+edit whose old text is not in the file), `parallel` (Claude, two Edit calls in one message) and `multipath` (Codex and
+Copilot, one patch over two files). A case's frames are what the model chose to do: Claude and Copilot 1.0.89 deleted
+with a shell command, Copilot 1.0.89's `multipath` ran two shell commands, Claude 2.1.284 read files first, and no
+Codex `fail` turn produced a fileChange item. MultiEdit is not recorded: neither Claude Code version has the tool.
+Kept, in recorded order: Claude top-level `assistant`, `user` (with `tool_use_result` and, in 2.1.332,
+`tool_result_meta`) and `result`; Codex `turn/started`, `item/started`, `item/completed`, `item/agentMessage/delta`,
+`item/fileChange/requestApproval` and `turn/completed`, and the client's approval reply as `{ "reply": ... }`; ACP
+`tool_call`, `tool_call_update`, `agent_message_chunk`, `session/request_permission`, the client's reply as
+`{ "reply": ... }` and the `session/prompt` result. Dropped: Claude `stream_event`, `system/*`, `rate_limit_event` and
+control frames, the assistant message's usage fields and the result's usage and cost; Codex thread, token-usage, rate
+limit and status notifications; ACP thoughts, usage, command lists and session info. The probe repo's root is `/repo`
+(Copilot 1.0.89 titles keep their recorded left-shortened `.../repo/...` form and Copilot's patch headers their
+`a//repo/...` form). Session ids are `session-1`; every other id is synthetic, equal recorded ids keeping equal
+synthetic ids within a case. Prompts are `<prompt>` and Claude thinking text and signatures are placeholders; file
+contents, diffs, `structuredPatch`, `originalFile`, tool inputs, statuses, kinds, reply text and timestamps are as
+recorded. No Cursor turn could be recorded (every turn answered "Upgrade your plan to continue"), so `acp-cursor.json`
+is unchanged.

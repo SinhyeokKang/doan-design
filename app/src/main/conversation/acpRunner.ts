@@ -180,7 +180,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     models: async () => ({ models, ...(modes ? { modes } : {}) }),
     async send(prompt, turnId, attachments = []) {
       if (ending() || prompting || finished) throw new Error("process_exited");
-      state = initialAcp(turnId); prompting = true;
+      state = initialAcp(turnId, input.runtime === "copilot"); prompting = true;
       try {
         // Antigravity's view_file refuses paths outside the workspace, so it also gets saved text and images.
         const blocks = input.runtime === "antigravity" && images ? (await Promise.all(attachments.map(imageBlock))).flat() : [];

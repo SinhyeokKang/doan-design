@@ -445,3 +445,36 @@ test("stopBackground asks main to stop that turn's work and answers the toast's 
   interrupt.mockRejectedValueOnce(new Error("gone"));
   expect(await stopBackground({ conversationId: "c1", turnId: "t1" }, interrupt)).toBe(BACKGROUND_STOP_FAILED);
 });
+
+describe("edit line counts and the turn indicator", () => {
+  const result = (callId: string, path: string, added: number, removed: number) => ev("t1", { type: "activity.result", callId, path, lines: { added, removed } });
+
+  test("an activity.result leaves another tool's stage current: it is not the agent acting", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "activity", kind: "edit", path: "a.ts", summary: "a.ts", callId: "fc_1" })];
+    const reading = signal("t1", { kind: "tool", activity: "read", path: `${ROOT}/src/b.ts`, summary: "src/b.ts" }, seq);
+    events.push(result("fc_1", "a.ts", 1, 1));
+    expect(turnOf(events, true)?.lastSeq).toBe(3);
+    expect(statusOf(events, reading)).toEqual({ kind: "tool", activity: "read", text: "Reading src/b.ts" });
+  });
+
+  test("the last row that does not run keeps its total; a running row shows the indicator's words and no total", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "activity", kind: "edit", path: "a.ts", summary: "a.ts", callId: "c1" }), result("c1", "a.ts", 12, 3)];
+    const items = threadItems(events, ROOT, true);
+    const general = activityRun(items, { kind: "general" }, null).at(-1);
+    expect(general).toMatchObject({ running: false, head: "1 step", total: { added: 12, removed: 3 } });
+    const running = activityRun(items, { kind: "tool", activity: "read", text: "Reading b.ts" }, null).at(-1);
+    expect(running).toMatchObject({ running: true, head: "Reading b.ts" });
+    expect(running).not.toHaveProperty("total");
+    // Back from running, the total returns.
+    expect(activityRun([running!], { kind: "general" }, null).at(-1)).toMatchObject({ running: false, head: "1 step", total: { added: 12, removed: 3 } });
+  });
+
+  test("a row already as the status says, total included, is the same list", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "activity", kind: "edit", path: "a.ts", summary: "a.ts", callId: "c1" }), result("c1", "a.ts", 1, 0), ev("t1", { type: "turn.done" })];
+    const items = threadItems(events, ROOT, true);
+    expect(activityRun(items, { kind: "none" }, null)).toBe(items);
+  });
+});

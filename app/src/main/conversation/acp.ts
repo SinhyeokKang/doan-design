@@ -2,7 +2,8 @@ import { posix } from "node:path";
 import { canvasDir } from "../../formats/canvasPath";
 import { object } from "./sessions";
 import { QUESTION_LIMITS } from "./question";
-import { contextBefore, contextValue, displayPath, GENERAL_STAGE, GENERIC_SUMMARY, PERMISSION_SUMMARY_MAX, permissionReason, transportError } from "./transport";
+import { countTextChange } from "./editLines";
+import { callIdOf, contextBefore, contextValue, displayPath, editResult, GENERAL_STAGE, GENERIC_SUMMARY, PERMISSION_SUMMARY_MAX, permissionReason, transportError } from "./transport";
 import { clip, quoted } from "./cardText";
 import type { EventPayload, PermissionOption, TransportResult, TransportState, TurnStage } from "./types";
 
@@ -139,11 +140,21 @@ export function acpQuestion(params: Record<string, unknown>, requestId: string):
 }
 
 // thinking: thought chunks came and nothing that ends thinking since (normalizeAcp). running (TransportState) holds the
-// tool calls still pending or in progress.
-export interface AcpTransport extends TransportState { turn: string; segment: number; text: string; tools: Record<string, AcpTool>; thinking?: true }
-interface AcpTool { kind: string; path: string; title: string }
-export function initialAcp(turn: string): AcpTransport {
-  return { terminal: false, stop: null, messageId: `${turn}:0`, textBlock: null, completedMessages: [], activities: [], fileSummaries: {}, turn, segment: 0, text: "", tools: {} };
+// tool calls still pending or in progress. countsEdits: only Copilot's completed diff is the applied change
+// (ARCHITECTURE 'Edit line counts').
+export interface AcpTransport extends TransportState { turn: string; segment: number; text: string; tools: Record<string, AcpTool>; thinking?: true; countsEdits?: true }
+// diffs: the last diff content of a running call; it may come before a completion that carries none.
+interface AcpTool { kind: string; path: string; title: string; diffs?: AcpDiff[] }
+interface AcpDiff { path: string; oldText: string; newText: string }
+export function initialAcp(turn: string, countsEdits = false): AcpTransport {
+  return { terminal: false, stop: null, messageId: `${turn}:0`, textBlock: null, completedMessages: [], activities: [], fileSummaries: {}, turn, segment: 0, text: "", tools: {}, ...(countsEdits ? { countsEdits: true } : {}) };
+}
+// undefined when the content holds no diff, so the last diff received stays.
+function acpDiffs(content: unknown): AcpDiff[] | undefined {
+  if (!Array.isArray(content) || !content.some(item => object(item) && item.type === "diff")) return undefined;
+  const diffs: AcpDiff[] = [];
+  for (const item of content) if (object(item) && item.type === "diff" && typeof item.newText === "string") diffs.push({ path: str(item.path), oldText: str(item.oldText), newText: item.newText });
+  return diffs;
 }
 function flush(state: AcpTransport): TransportResult & { state: AcpTransport } {
   if (!state.text) return { state, events: [] };
@@ -214,10 +225,11 @@ export function normalizeAcp(state: AcpTransport, update: Record<string, unknown
     return { state: { ...rest, ...(running.length ? { running } : {}) }, events: [], stage: endedStage(running, woke.state.tools, root) };
   }
   const known = woke.state.tools[id] ?? { kind: "", path: "", title: "" };
-  const tool = { kind: str(update.kind) || known.kind, path: toolPath(update) || known.path, title: str(update.title) || known.title };
-  const flushed = flush(woke.state);
-  const tools = { ...woke.state.tools, [id]: tool };
   const runs = status === "pending" || status === "in_progress";
+  const diffs = woke.state.countsEdits ? acpDiffs(update.content) ?? known.diffs : undefined;
+  const tool: AcpTool = { kind: str(update.kind) || known.kind, path: toolPath(update) || known.path, title: str(update.title) || known.title };
+  const flushed = flush(woke.state);
+  const tools = { ...woke.state.tools, [id]: diffs && (runs || !status) ? { ...tool, diffs } : tool };
   const before = woke.state.running ?? [];
   const running = !status ? before : runs ? (before.includes(id) ? before : [...before, id]) : before.filter(other => other !== id);
   const { running: _, ...rest } = flushed.state;
@@ -230,10 +242,15 @@ export function normalizeAcp(state: AcpTransport, update: Record<string, unknown
   // One activity per tool call, once it completed: a rejected or failed call changed nothing.
   if (status !== "completed") return { state: next, events: flushed.events, ...(stage ? { stage } : {}) };
   const summary = acpToolSummary(activityKind, tool, root);
+  const callId = activityKind === "edit" ? callIdOf(id) : undefined;
+  const call = callId ? { callId } : {};
   const event: EventPayload = tool.path
-    ? { type: "activity", kind: activityKind, path: tool.path, insideDesign: canvasDir(posix.relative(root, posix.resolve(root, tool.path))) !== null, summary }
-    : { type: "activity", kind: activityKind, summary };
-  return { state: { ...next, activities: [...woke.state.activities, id] }, events: [...flushed.events, event], stage: ended };
+    ? { type: "activity", kind: activityKind, path: tool.path, insideDesign: canvasDir(posix.relative(root, posix.resolve(root, tool.path))) !== null, summary, ...call }
+    : { type: "activity", kind: activityKind, summary, ...call };
+  // A multi-file call is one step named by one path, so only that path's diff items count (all when it has none).
+  const counted = (diffs ?? []).filter(diff => !tool.path || diff.path === tool.path);
+  const results = callId ? counted.flatMap(diff => editResult(callId, tool.path, countTextChange(diff.oldText, diff.newText))) : [];
+  return { state: { ...next, activities: [...woke.state.activities, id] }, events: [...flushed.events, event, ...results], stage: ended };
 }
 function finishAcp(state: AcpTransport, event: EventPayload): TransportResult & { state: AcpTransport } {
   if (state.terminal) return { state, events: [] };

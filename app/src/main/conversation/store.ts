@@ -121,7 +121,9 @@ function payload(value: Record<string, unknown>): value is Record<string, unknow
       return value.outcome === "cancelled";
     case "handoff.missed": case "canvas.drawn": return validCanvas(value.canvas);
     case "message.delta": case "message.done": return str(value.messageId) && str(value.text);
-    case "activity": return ["edit", "read", "command", "other"].includes(String(value.kind)) && str(value.summary) && (value.path === undefined || str(value.path)) && (value.insideDesign === undefined || typeof value.insideDesign === "boolean");
+    case "activity": return ["edit", "read", "command", "other"].includes(String(value.kind)) && str(value.summary) && (value.path === undefined || str(value.path)) && (value.insideDesign === undefined || typeof value.insideDesign === "boolean") && (value.callId === undefined || bounded(value.callId, LIMITS.label));
+    // path takes an activity's own check: a narrower limit would end the turn on one long path.
+    case "activity.result": return bounded(value.callId, LIMITS.label) && (value.path === undefined || str(value.path)) && object(value.lines) && count(value.lines.added) && count(value.lines.removed);
     case "permission.request": return str(value.requestId) && str(value.tool) && str(value.summary) && (value.reason === undefined || str(value.reason)) && Array.isArray(value.options) && value.options.length > 0 &&
       [...value.options].every(o => object(o) && str(o.id) && str(o.label) && ["allow", "allowAlways", "deny"].includes(String(o.kind)) && (o.detail === undefined || str(o.detail)));
     case "permission.resolved": return str(value.requestId) && str(value.optionId);
@@ -139,6 +141,7 @@ function payload(value: Record<string, unknown>): value is Record<string, unknow
 }
 // The limits the runners read with: a line past them came from no build that reads it.
 function bounded(value: unknown, max: number, empty = false): value is string { return str(value) && value.length <= max && (empty || value.length > 0); }
+function count(value: unknown): boolean { return Number.isSafeInteger(value) && (value as number) >= 0; }
 function questions(list: unknown[]): boolean {
   const L = QUESTION_LIMITS;
   return list.length > 0 && list.length <= L.questions && list.every(q => object(q) && bounded(q.id, L.label) && bounded(q.header, L.label, true) && bounded(q.question, L.text) &&

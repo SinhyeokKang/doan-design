@@ -1,8 +1,9 @@
 import type { Question, QuestionOutcome, StoredAnswer } from "../main/conversation/question";
-import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, FailureCode, FastUnusedReason, HandoffOrigin, PermissionOption } from "../main/conversation/types";
+import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, EditLines, FailureCode, FastUnusedReason, HandoffOrigin, PermissionOption } from "../main/conversation/types";
 import { fastReason, splitRequest, type PresetRef } from "./homeComposer";
 import { boundaryLabel, type ThreadCommands } from "./commandView";
 import { PRESETS } from "../main/mcpConnectors/presets";
+import { stepCount } from "./editLinesLabel";
 
 // A conversation's merged events (main's state.ts mergeEvents) as the thread draws them.
 // Every item has a key that stays the same while later events arrive.
@@ -10,7 +11,8 @@ import { PRESETS } from "../main/mcpConnectors/presets";
 // The person's text in order, with each anchor token `{{n}}` kept where it was typed.
 export type MessagePart = { text: string } | { anchor: number };
 // sentence: a step whose text is a sentence and wraps instead of staying on one line (Codex's MCP startup lines).
-export interface ActivityStep { key: string; kind: "edit" | "read" | "command" | "other"; verb: string; path: string | null; sentence?: true }
+// lines: absent until the edit's activity.result arrives.
+export interface ActivityStep { key: string; kind: "edit" | "read" | "command" | "other"; verb: string; path: string | null; sentence?: true; lines?: EditLines }
 // model: the model a model_unavailable end named.
 // detail: a usage limit's provider wording, which may name when the limit resets.
 export type TurnEnd = { kind: "failed"; code: FailureCode; model?: string; detail?: string } | { kind: "interrupted"; reason: "user" | "appQuit" | "crashed" };
@@ -24,8 +26,8 @@ export type ThreadItem =
   // A Claude turn that asked for Fast and did not run it: one line in the turn, under the reply.
   | { kind: "fast"; key: string; seq: number; text: string; turnedOff: boolean }
   // A run of activities folds into one line: "N steps", or the running tool's words while it is the running turn's last
-  // item and the turn indicator names a tool (activityRun).
-  | { kind: "activity"; key: string; running: boolean; head: string; steps: ActivityStep[] }
+  // item and the turn indicator names a tool (activityRun). total: the known counts' sum, never on a running head.
+  | { kind: "activity"; key: string; running: boolean; head: string; total?: EditLines; steps: ActivityStep[] }
   | { kind: "permission"; key: string; seq: number; requestId: string; summary: string; reason?: string; options: PermissionOption[]; status: "pending" | "answered" | "expired"; answer: PermissionOption | null }
   // An agent's question. answers: what main kept of an answered one, by question id.
   | { kind: "question"; key: string; seq: number; requestId: string; questions: Question[]; status: "pending" | QuestionOutcome; answers: Record<string, StoredAnswer> | null }
@@ -144,7 +146,13 @@ export function runningHead(last: ActivityStep): string {
   if (last.kind === "command") return "Running a command";
   return (last.kind === "read" || last.kind === "edit") && last.path ? `${RUNNING_VERB[last.kind]} ${last.path}` : last.verb;
 }
-export const stepCount = (n: number) => n === 1 ? "1 step" : `${n} steps`;
+// Re-exported where turnStatus.ts reads it; it lives beside the head's accessible name.
+export { stepCount };
+export function countHead(steps: readonly ActivityStep[]): { head: string; total?: EditLines } {
+  const known = steps.flatMap(step => step.lines ? [step.lines] : []);
+  if (known.length === 0) return { head: stepCount(steps.length) };
+  return { head: stepCount(steps.length), total: { added: known.reduce((n, l) => n + l.added, 0), removed: known.reduce((n, l) => n + l.removed, 0) } };
+}
 
 // Whether two items hold the same data. threadItems builds new objects on every call, so the thread compares items by
 // value to skip drawing unchanged ones; items hold plain data only (no functions, dates or class instances).
@@ -173,6 +181,8 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
   let turn: string | null = null, group: { item: Extract<ThreadItem, { kind: "activity" }>; turnId: string } | null = null;
   const groups: { item: Extract<ThreadItem, { kind: "activity" }>; turnId: string }[] = [];
   const turnOf = new Map<string, string>(), askTurn = new Map<string, string>();
+  // Keyed by call and the activity's stored path, never the root-relative path a step shows.
+  const edits = new Map<string, { step: ActivityStep; path: string | undefined }[]>();
   // Each turn's cards in the order their paths first appeared, placed once every event is read: canvas.drawn and
   // handoff.missed come after the turn's end too, possibly after the next message, so a card goes by its turn, not by its
   // arrival, and it never closes the activity group still open.
@@ -264,6 +274,10 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
       }
       case "activity": {
         const next = step(event, root);
+        if (event.kind === "edit" && event.callId !== undefined) {
+          const id = `${event.turnId}\0${event.callId}`;
+          edits.set(id, [...(edits.get(id) ?? []), { step: next, path: event.path }]);
+        }
         const previous = group?.turnId === event.turnId ? group.item.steps.at(-1) : undefined;
         if (previous && endsWaiting(previous, next)) group!.item.steps[group!.item.steps.length - 1] = next;
         else if (group && group.turnId === event.turnId) group.item.steps.push(next);
@@ -273,6 +287,12 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
           group = { item, turnId: event.turnId };
           groups.push(group);
         }
+        break;
+      }
+      // Same-key results add up: an ACP call may report a path's removal and rewrite apart.
+      case "activity.result": {
+        const target = edits.get(`${event.turnId}\0${event.callId}`)?.find(edit => edit.path === event.path)?.step;
+        if (target) target.lines = { added: (target.lines?.added ?? 0) + event.lines.added, removed: (target.lines?.removed ?? 0) + event.lines.removed };
         break;
       }
       case "permission.request": {
@@ -332,7 +352,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
   }
   // Whether the thread's last row runs is the turn indicator's to say (turnStatus activityRun), not the events': an
   // activity marks a tool's start or end, never both.
-  for (const { item } of groups) item.head = stepCount(item.steps.length);
+  for (const { item } of groups) Object.assign(item, countHead(item.steps));
   return placeCards(items, turnCards, lastOf, askTurn);
 }
 

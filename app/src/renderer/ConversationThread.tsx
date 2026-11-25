@@ -3,7 +3,8 @@ import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ArrowDown, ArrowUpRight, Ban, Check, ChevronDown, CircleStop, Copy, Eye, FileText, Folder, Forward, Frame, MapPin, PanelsTopLeft, Pencil, PencilSparkles, SquareMousePointer, Terminal, Zap } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
-import type { Anchor, Canvas } from "../main/conversation/types";
+import type { Anchor, Canvas, EditLines } from "../main/conversation/types";
+import { editHeadName, editLinesLabel } from "./editLinesLabel";
 import { QUESTION_LIMITS, type Question, type QuestionAnswerInput } from "../main/conversation/question";
 import { chipLabel, type FrameName } from "../main/conversation/messageText";
 import { parseReplyAnchor, type ReplyAnchor } from "../main/conversation/replyAnchor";
@@ -542,11 +543,16 @@ function UserMessage({ entry, frames, disabled, onLocate, home }: { entry: Extra
   </div>;
 }
 
+// role="img" names the run without the name entering copied text, as an sr-only span would.
+function EditLinesRun({ lines }: { lines: EditLines }) {
+  const label = editLinesLabel(lines), [added, removed] = label.text.split(" ");
+  return <span className="lines" role="img" aria-label={label.name}><span className="add">{added}</span> <span className="del">{removed}</span></span>;
+}
 const STEP_ICONS = { read: Eye, edit: Pencil, command: Terminal, other: Terminal } as const;
-function Steps({ id, steps }: { id: string; steps: readonly ActivityStep[] }) {
+export function Steps({ id, steps }: { id: string; steps: readonly ActivityStep[] }) {
   return <ul className="activity-steps selectable" id={id}>{steps.map(step => {
     const Icon = STEP_ICONS[step.kind];
-    return <li key={step.key}><Icon aria-hidden="true" /><span className={step.sentence ? "verb mcp-step" : "verb"}>{step.verb}</span>{step.path && <span className="path">{step.path}</span>}</li>;
+    return <li key={step.key}><Icon aria-hidden="true" /><span className={step.sentence ? "verb mcp-step" : "verb"}>{step.verb}</span>{step.path && <span className="path">{step.path}</span>}{step.lines && <EditLinesRun lines={step.lines} />}</li>;
   })}</ul>;
 }
 
@@ -941,8 +947,9 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       case "activity": {
         const open = expanded.has(entry.key), id = `${base}-${entry.key}`;
         return <div className="activity">
-          <button type="button" className="activity-head" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => toggle(entry.key)}>
-            {entry.running && <span className="doan-spinner" aria-hidden="true" />}<span>{entry.head}</span><ChevronDown className="chev" aria-hidden="true" /></button>
+          <button type="button" className="activity-head" aria-expanded={open} aria-controls={open ? id : undefined} aria-label={entry.total && editHeadName(entry.steps.length, entry.total)} onClick={() => toggle(entry.key)}>
+            {entry.running && <span className="doan-spinner" aria-hidden="true" />}<span>{entry.head}</span>
+            {entry.total && <><span className="head-sep" aria-hidden="true">·</span><EditLinesRun lines={entry.total} /></>}<ChevronDown className="chev" aria-hidden="true" /></button>
           {open && <Steps id={id} steps={entry.steps} />}
         </div>;
       }

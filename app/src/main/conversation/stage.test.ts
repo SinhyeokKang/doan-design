@@ -564,7 +564,7 @@ describe("ACP tool summary", () => {
     const tool = (u: Record<string, unknown>) => update({ toolCallId: "t", kind: "edit", locations: [{ path: "/repo/a.txt" }], ...u });
     const { steps } = acpSteps([tool({ sessionUpdate: "tool_call", title: "Edit File", status: "pending" }), tool({ sessionUpdate: "tool_call_update", title: "Edit `/repo/a.txt`", status: "completed" })] as Record<string, any>[]);
     expect(steps[0]!.stage).toEqual({ kind: "tool", activity: "edit", path: "/repo/a.txt", summary: "Edit File" });
-    expect(steps[1]!.events).toEqual([{ type: "activity", kind: "edit", path: "/repo/a.txt", insideDesign: false, summary: "Edit `/repo/a.txt`" }]);
+    expect(steps[1]!.events).toEqual([{ type: "activity", kind: "edit", path: "/repo/a.txt", insideDesign: false, summary: "Edit `/repo/a.txt`", callId: "t" }]);
     // The same final record, still running, reads as the activity does.
     const running = acpSteps([tool({ sessionUpdate: "tool_call", title: "Edit File", status: "pending" }), tool({ sessionUpdate: "tool_call_update", title: "Edit `/repo/a.txt`", status: "in_progress" })] as Record<string, any>[]).steps[1]!.stage;
     expect(running).toEqual({ kind: "tool", activity: "edit", path: "/repo/a.txt", summary: "Edit `/repo/a.txt`" });
@@ -573,7 +573,7 @@ describe("ACP tool summary", () => {
     // The recorded turns are pinned whole in turnActivityFixtures.test.ts.
     const activities = (frames: readonly unknown[]) => eventsOf(acpSteps(frames as Record<string, any>[]).steps).filter(e => e.type === "activity");
     expect(activities(cursorFixture.turn)).toEqual([
-      { type: "activity", kind: "edit", path: "/repo/hello.txt", insideDesign: false, summary: "Edit `/repo/hello.txt`" },
+      { type: "activity", kind: "edit", path: "/repo/hello.txt", insideDesign: false, summary: "Edit `/repo/hello.txt`", callId: "call-564f938d-938d-4979-89e4-b78f6d606b62-1\nfc_16371e8d-cd73-9ea2-a824-02ba3c8d3b8b_1" },
       { type: "activity", kind: "command", summary: GENERIC_SUMMARY.command },
     ]);
     expect(activities(copilotFixture.turn)).toEqual([{ type: "activity", kind: "command", summary: GENERIC_SUMMARY.command }]);

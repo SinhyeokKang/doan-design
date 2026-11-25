@@ -1,5 +1,5 @@
 import type { ConversationEvent, StageSignal, TurnStage } from "../main/conversation/types";
-import { rootRelative, runningHead, stepCount, waitsForPerson, type ActivityStep, type ThreadItem } from "./threadItems";
+import { countHead, rootRelative, runningHead, sameItem, waitsForPerson, type ActivityStep, type ThreadItem } from "./threadItems";
 
 // The turn indicator's state: what the agent of the last turn does now, read from the
 // thread's items, the turn and main's latest stage signal. threadItems already folds streaming, waiting cards, ends and
@@ -28,9 +28,9 @@ export function turnOf(events: readonly ConversationEvent[], live: boolean): Tur
   let lastSeq = started.seq, ended = false;
   for (const event of events) {
     if (event.turnId !== started.turnId) continue;
-    // main writes canvas.drawn when a folder refresh lists the canvas, not when the agent acts: a stage sent before it
-    // still says what the agent does.
-    if (event.type !== "canvas.drawn") lastSeq = Math.max(lastSeq, event.seq);
+    // canvas.drawn and activity.result can land while another tool runs; neither is the agent acting, so neither ages
+    // a stage.
+    if (event.type !== "canvas.drawn" && event.type !== "activity.result") lastSeq = Math.max(lastSeq, event.seq);
     if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") ended = true;
   }
   return { turnId: started.turnId, at: started.at, lastSeq, live, ended };
@@ -89,14 +89,15 @@ export function activityRun(items: readonly ThreadItem[], status: TurnStatus, ac
   const row = items[at];
   if (row?.kind !== "activity") return items;
   const last = row.steps.at(-1);
-  let next: ActivityItem = { ...row, running: false, head: stepCount(row.steps.length) };
+  const { total: _total, ...base } = row;
+  let next: ActivityItem = { ...base, running: false, ...countHead(row.steps) };
   if (last?.sentence) {
-    if (status.kind !== "none") next = { ...row, running: true, head: runningHead(last) };
+    if (status.kind !== "none") next = { ...base, running: true, head: runningHead(last) };
   } else if (status.kind === "tool" && (acp === null || (fromStage(status) && fromStage(acp) && statusKey(status) === statusKey(acp)))) {
     const own = last !== undefined && last.kind === "command" && status.step === last.key;
-    next = { ...row, running: true, head: status.text, ...(own ? { steps: [...row.steps.slice(0, -1), { ...last, verb: "Running a command" }] } : {}) };
+    next = { ...base, running: true, head: status.text, ...(own ? { steps: [...row.steps.slice(0, -1), { ...last, verb: "Running a command" }] } : {}) };
   }
-  if (next.running === row.running && next.head === row.head && next.steps === row.steps) return items;
+  if (next.running === row.running && next.head === row.head && sameItem(next.total, row.total) && next.steps === row.steps) return items;
   return items.map((item, i) => i === at ? next : item);
 }
 

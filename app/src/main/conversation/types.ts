@@ -43,13 +43,17 @@ export type HandoffResolution = { outcome: "started"; target: { conversationId: 
 // the provider's built-in commands Doan runs (providerCommands.ts). Type-only here, since the renderer imports it: the
 // parsers live in skills.ts.
 export interface SkillSummary { kind: "skill" | "command"; name: string; description: string }
+export interface EditLines { added: number; removed: number }
 export type FastUnusedReason = "plan" | "extra_usage" | "model" | "policy" | "cooldown";
 export type EventPayload =
   | { type: "user.message"; text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; origin?: HandoffOrigin }
   | { type: "turn.started" }
   | { type: "message.delta"; messageId: string; text: string }
   | { type: "message.done"; messageId: string; text: string }
-  | { type: "activity"; kind: "edit" | "read" | "command" | "other"; path?: string; insideDesign?: boolean; summary: string }
+  // callId: edits only; the key of their activity.result (ARCHITECTURE 'Edit line counts').
+  | { type: "activity"; kind: "edit" | "read" | "command" | "other"; path?: string; insideDesign?: boolean; summary: string; callId?: string }
+  // An older Doan cannot read a history that holds one.
+  | { type: "activity.result"; callId: string; path?: string; lines: EditLines }
   | PermissionRequest
   | { type: "permission.resolved"; requestId: string; optionId: string }
   | QuestionRequest
@@ -107,6 +111,10 @@ export interface TransportState {
   fastUnused?: FastUnused;
   // Claude only: the failure code an assistant frame's `error` named (claudeFrame); a failed result takes it over its text.
   claudeFailure?: FailureCode;
+  // Claude only: pending edit tool_use ids → their activity's stored path ("" for none); `activities` holds every tool.
+  claudeEdits?: Record<string, string>;
+  // Codex only: pending fileChange item ids → their activities' stored paths ("" for none).
+  codexEdits?: Record<string, string[]>;
   // Claude only: the index of the thinking block now streaming, whose stop ends the thinking stage.
   thinkingBlock?: number;
   // Claude only: the turn compacted the context (a top-level compact_boundary), with the tokens it left when the CLI

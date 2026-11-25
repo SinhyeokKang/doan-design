@@ -188,6 +188,36 @@ Context, not deviations: the Overview column is 720 centred in a wider window (5
 
 `ConversationThread.turn.test.tsx` (markup, place, accessibility, reduced motion), `turnStatus.test.ts` (states, words, elapsed format), `App.turnStage.test.tsx` (stage wiring). Sizes, colours and the sweep are `.scratch/` probes only.
 
+## Edit line counts
+
+Reference: `.doan/canvases/thread-edit-lines.html` (frames `steps`, `heads`, `widths`; `copy` is the wording reference). The draft is copied into a fixture repo `acme-web` as its own canvas and read in the app's canvas iframe, at 1238 × 900 (panel 347, then the 280 minimum) and at 1440 × 900 for the Overview's 720 column. No provider signed in: the histories were seeded as files (v2 index plus `activity` + `activity.result` events). Every difference is listed below.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Step counts | `.activity-steps .lines` after the path: one inline run `+N −M` with a real space, `flex: none`, `nowrap`, tabular figures, sans (`--type-family`, Geist) in the path's caption size 12/16 (0.16 px); `.add` `--text-diff-added` rgb(33,131,88), `.del` `--text-diff-removed` rgb(206,44,49). The minus is U+2212, thousands are grouped (`+12,345 −2,048`), zero shows (`+0 −0`) | The path ellipsizes first, so a count arriving after its step leaves the step one line. |
+| Folded head | The step count, `.head-sep` "·" (`flex: none`, −4 px inline margins, `--text-metadata` rgb(95,95,95), `aria-hidden`), then `.lines` in the head's body-sm 14/20 (−0.035 px), tabular figures; the head's hover fill covers the total too. A head with no known counts and a running head are as before (no separator, no total) | The step count gives way before the total. |
+| One line | Every step 20 high and every head 32 high at 347, 280 and 720; at 280 a long path falls to 46 px (`src/c…`) while `+12,345 −2,048` keeps 87.8 px | Arriving counts must not change the thread's height. |
+| Accessibility (CDP) | The head button's name is the whole line: "5 steps, 20 lines added, 6 removed", "1 step, 1 line added, 1 removed", "4 steps" without counts. Each run is `image` named "8 lines added, 3 removed" | Signs read as symbols otherwise. |
+| Copy | Selecting a step gives `Edited⏎<path>⏎+8 −3` (the verb, path and run are flex items, each its own line), never the spoken name; a step without counts copies as before | `role="img"` with `aria-label` keeps the name out of the selection, where an `sr-only` span would enter it. |
+
+### Documented differences from the draft
+
+- **Panel width.** Steps are 12 px narrower than the tiles in the panel (303 against 315 at 347, 236 against 248 at 280): the probe window drew an 11 px classic scroll bar beside the seeded, overflowing thread (the draft slices do not scroll; with overlay scroll bars it takes no width), and the panel's 1 px start border ('Turn indicator'). Every step row, also those without counts, shows it, so paths ellipsize 12 px earlier there.
+- **Head widths in heads (1) and (6).** The seeded rows say "5 steps · +20 −6" and "1 step · +1 −1" where the tiles say "6 steps · +42 −10"; every style of those elements equals the draft.
+
+Context, not deviations: the draft page's board-only `:where(svg){flex:none}` on the activity chevron (the app's chevron computes `flex-shrink: 1`, as shipped); a 0.16 px text width difference of one path between the board and the app.
+
+### Not verified
+
+- A running head and a step whose result has not arrived (`steps` (5), `heads` (4)): they need a live turn; markup and the head rule are unit-tested only. Counts arriving while the thread is open and the scroll height then: the deferred `/runtime-test` with a real provider.
+- The prototype window's conversation panel (same component and rules as the canvas panel).
+
+### Regression pointers
+
+`threadItems.test.ts` (matching by call and exact stored path, adding up, other turns, totals), `turnStatus.test.ts` (results never age a stage; the last row keeps its total), `ConversationThread.test.tsx` (head and step markup, names), `ConversationThread.copy.test.tsx` (Electron selection of a step). Probe: `.scratch/design-sync/thread-edit-lines/measure.mjs`, `result.json`, `panel-347.png`, `panel-280.png`, `overview-720.png`.
+
 ## Older model disclosure
 
 Reference: `.doan/canvases/model-drawer-older.html`, frames `inline` and `settings`, read in the built app and its canvas iframe. The model lists use the repository's `models-older.json` fixture through its parsers, returned by a replaced `conversation:models` handler; no provider turn is sent.

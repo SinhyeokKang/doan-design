@@ -1,0 +1,866 @@
+{
+ "source": "thread-edit-lines T0 probe, 2026-11-25: Antigravity ACP server (see README)",
+ "1.3.0": {
+  "delete": {
+   "numstat": [],
+   "frames": [
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "content": {
+        "text": "No capacity available for model gemini-3.8-flash-high on the server",
+        "type": "text"
+       },
+       "sessionUpdate": "agent_message_chunk"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "id": 3,
+     "result": {
+      "stopReason": "end_turn"
+     }
+    }
+   ]
+  },
+  "deny": {
+   "numstat": [],
+   "frames": [
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "toolCallId": "00000000000000000000000000000001",
+       "title": "Run edit_file?",
+       "kind": "edit",
+       "status": "pending",
+       "content": [
+        {
+         "path": "/repo/notes.txt",
+         "oldText": "line 3: apple",
+         "newText": "line 3: banana",
+         "_meta": {
+          "kind": "modify"
+         },
+         "type": "diff"
+        }
+       ],
+       "locations": [
+        {
+         "path": "/repo/notes.txt",
+         "line": 3
+        }
+       ],
+       "rawInput": {
+        "AllowMultiple": false,
+        "Description": "Update line 3 from apple to banana",
+        "EndLine": 3,
+        "Instruction": "Change apple to banana on line 3",
+        "ReplacementContent": "line 3: banana",
+        "StartLine": 3,
+        "TargetContent": "line 3: apple",
+        "TargetFile": "/repo/notes.txt"
+       },
+       "sessionUpdate": "tool_call"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "id": 0,
+     "method": "session/request_permission",
+     "params": {
+      "sessionId": "session-1",
+      "toolCall": {
+       "toolCallId": "00000000000000000000000000000001",
+       "kind": "edit",
+       "status": "pending",
+       "title": "Run edit_file?",
+       "content": [
+        {
+         "path": "/repo/notes.txt",
+         "oldText": "line 3: apple",
+         "newText": "line 3: banana",
+         "_meta": {
+          "kind": "modify"
+         },
+         "type": "diff"
+        }
+       ],
+       "locations": [
+        {
+         "path": "/repo/notes.txt",
+         "line": 3
+        }
+       ],
+       "rawInput": {
+        "AllowMultiple": false,
+        "Description": "Update line 3 from apple to banana",
+        "EndLine": 3,
+        "Instruction": "Change apple to banana on line 3",
+        "ReplacementContent": "line 3: banana",
+        "StartLine": 3,
+        "TargetContent": "line 3: apple",
+        "TargetFile": "/repo/notes.txt"
+       }
+      },
+      "options": [
+       {
+        "optionId": "allow",
+        "name": "Allow",
+        "kind": "allow_once"
+       },
+       {
+        "optionId": "deny",
+        "name": "Deny",
+        "kind": "reject_once"
+       }
+      ]
+     }
+    },
+    {
+     "reply": {
+      "jsonrpc": "2.0",
+      "id": 0,
+      "result": {
+       "outcome": {
+        "outcome": "selected",
+        "optionId": "deny"
+       }
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "toolCallId": "00000000000000000000000000000001",
+       "status": "failed",
+       "rawOutput": "Rejected by user",
+       "sessionUpdate": "tool_call_update"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "content": {
+        "text": "DENIED",
+        "type": "text"
+       },
+       "sessionUpdate": "agent_message_chunk"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "id": 3,
+     "result": {
+      "stopReason": "end_turn"
+     }
+    }
+   ]
+  },
+  "edit": {
+   "numstat": [
+    {
+     "path": "notes.txt",
+     "added": 1,
+     "removed": 1
+    }
+   ],
+   "frames": [
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "toolCallId": "00000000000000000000000000000001",
+       "title": "Run edit_file?",
+       "kind": "edit",
+       "status": "pending",
+       "content": [
+        {
+         "path": "/repo/notes.txt",
+         "oldText": "line 3: apple",
+         "newText": "line 3: banana",
+         "_meta": {
+          "kind": "modify"
+         },
+         "type": "diff"
+        }
+       ],
+       "locations": [
+        {
+         "path": "/repo/notes.txt",
+         "line": 3
+        }
+       ],
+       "rawInput": {
+        "AllowMultiple": false,
+        "Description": "Change line 3: apple to line 3: banana",
+        "EndLine": 3,
+        "Instruction": "Change line 3: apple to line 3: banana",
+        "ReplacementContent": "line 3: banana",
+        "StartLine": 3,
+        "TargetContent": "line 3: apple",
+        "TargetFile": "/repo/notes.txt"
+       },
+       "sessionUpdate": "tool_call"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "id": 0,
+     "method": "session/request_permission",
+     "params": {
+      "sessionId": "session-1",
+      "toolCall": {
+       "toolCallId": "00000000000000000000000000000001",
+       "kind": "edit",
+       "status": "pending",
+       "title": "Run edit_file?",
+       "content": [
+        {
+         "path": "/repo/notes.txt",
+         "oldText": "line 3: apple",
+         "newText": "line 3: banana",
+         "_meta": {
+          "kind": "modify"
+         },
+         "type": "diff"
+        }
+       ],
+       "locations": [
+        {
+         "path": "/repo/notes.txt",
+         "line": 3
+        }
+       ],
+       "rawInput": {
+        "AllowMultiple": false,
+        "Description": "Change line 3: apple to line 3: banana",
+        "EndLine": 3,
+        "Instruction": "Change line 3: apple to line 3: banana",
+        "ReplacementContent": "line 3: banana",
+        "StartLine": 3,
+        "TargetContent": "line 3: apple",
+        "TargetFile": "/repo/notes.txt"
+       }
+      },
+      "options": [
+       {
+        "optionId": "allow",
+        "name": "Allow",
+        "kind": "allow_once"
+       },
+       {
+        "optionId": "deny",
+        "name": "Deny",
+        "kind": "reject_once"
+       }
+      ]
+     }
+    },
+    {
+     "reply": {
+      "jsonrpc": "2.0",
+      "id": 0,
+      "result": {
+       "outcome": {
+        "outcome": "selected",
+        "optionId": "allow"
+       }
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "toolCallId": "00000000000000000000000000000001",
+       "kind": "edit",
+       "status": "in_progress",
+       "title": "Running edit_file",
+       "locations": [
+        {
+         "path": "/repo/notes.txt"
+        }
+       ],
+       "rawInput": {
+        "file_path": "/repo/notes.txt"
+       },
+       "sessionUpdate": "tool_call_update"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "toolCallId": "00000000000000000000000000000001",
+       "status": "completed",
+       "rawOutput": "Edit notes.txt",
+       "sessionUpdate": "tool_call_update"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "content": {
+        "text": "DONE",
+        "type": "text"
+       },
+       "sessionUpdate": "agent_message_chunk"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "id": 3,
+     "result": {
+      "stopReason": "end_turn"
+     }
+    }
+   ]
+  },
+  "fail": {
+   "numstat": [],
+   "frames": [
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "toolCallId": "00000000000000000000000000000001",
+       "title": "Run edit_file?",
+       "kind": "edit",
+       "status": "pending",
+       "content": [
+        {
+         "path": "/repo/notes.txt",
+         "oldText": "line 3: mango",
+         "newText": "line 3: kiwi",
+         "_meta": {
+          "kind": "modify"
+         },
+         "type": "diff"
+        }
+       ],
+       "locations": [
+        {
+         "path": "/repo/notes.txt",
+         "line": 3
+        }
+       ],
+       "rawInput": {
+        "AllowMultiple": false,
+        "Description": "replace line 3: mango with line 3: kiwi",
+        "EndLine": 3,
+        "Instruction": "replace line 3: mango with line 3: kiwi",
+        "ReplacementContent": "line 3: kiwi",
+        "StartLine": 3,
+        "TargetContent": "line 3: mango",
+        "TargetFile": "/repo/notes.txt"
+       },
+       "sessionUpdate": "tool_call"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "id": 0,
+     "method": "session/request_permission",
+     "params": {
+      "sessionId": "session-1",
+      "toolCall": {
+       "toolCallId": "00000000000000000000000000000001",
+       "kind": "edit",
+       "status": "pending",
+       "title": "Run edit_file?",
+       "content": [
+        {
+         "path": "/repo/notes.txt",
+         "oldText": "line 3: mango",
+         "newText": "line 3: kiwi",
+         "_meta": {
+          "kind": "modify"
+         },
+         "type": "diff"
+        }
+       ],
+       "locations": [
+        {
+         "path": "/repo/notes.txt",
+         "line": 3
+        }
+       ],
+       "rawInput": {
+        "AllowMultiple": false,
+        "Description": "replace line 3: mango with line 3: kiwi",
+        "EndLine": 3,
+        "Instruction": "replace line 3: mango with line 3: kiwi",
+        "ReplacementContent": "line 3: kiwi",
+        "StartLine": 3,
+        "TargetContent": "line 3: mango",
+        "TargetFile": "/repo/notes.txt"
+       }
+      },
+      "options": [
+       {
+        "optionId": "allow",
+        "name": "Allow",
+        "kind": "allow_once"
+       },
+       {
+        "optionId": "deny",
+        "name": "Deny",
+        "kind": "reject_once"
+       }
+      ]
+     }
+    },
+    {
+     "reply": {
+      "jsonrpc": "2.0",
+      "id": 0,
+      "result": {
+       "outcome": {
+        "outcome": "selected",
+        "optionId": "allow"
+       }
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "toolCallId": "00000000000000000000000000000001",
+       "kind": "edit",
+       "status": "in_progress",
+       "title": "Running edit_file",
+       "locations": [
+        {
+         "path": "/repo/notes.txt"
+        }
+       ],
+       "rawInput": {
+        "file_path": "/repo/notes.txt"
+       },
+       "sessionUpdate": "tool_call_update"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "toolCallId": "00000000000000000000000000000001",
+       "status": "failed",
+       "rawOutput": "Tool execution failed",
+       "sessionUpdate": "tool_call_update"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "content": {
+        "text": "DONE",
+        "type": "text"
+       },
+       "sessionUpdate": "agent_message_chunk"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "id": 3,
+     "result": {
+      "stopReason": "end_turn"
+     }
+    }
+   ]
+  },
+  "overwrite": {
+   "numstat": [
+    {
+     "path": "config.txt",
+     "added": 2,
+     "removed": 4
+    }
+   ],
+   "frames": [
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "toolCallId": "00000000000000000000000000000001",
+       "title": "Run create_file?",
+       "kind": "edit",
+       "status": "pending",
+       "content": [
+        {
+         "path": "/repo/config.txt",
+         "oldText": "mode = draft\nlevel = 3\nowner = nobody\nretries = 2\n",
+         "newText": "mode = final\nlevel = 9\n",
+         "_meta": {
+          "kind": "modify"
+         },
+         "type": "diff"
+        }
+       ],
+       "locations": [
+        {
+         "path": "/repo/config.txt"
+        }
+       ],
+       "rawInput": {
+        "CodeContent": "mode = final\nlevel = 9\n",
+        "Description": "Overwrite config.txt with mode and level",
+        "Overwrite": true,
+        "TargetFile": "/repo/config.txt"
+       },
+       "sessionUpdate": "tool_call"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "id": 0,
+     "method": "session/request_permission",
+     "params": {
+      "sessionId": "session-1",
+      "toolCall": {
+       "toolCallId": "00000000000000000000000000000001",
+       "kind": "edit",
+       "status": "pending",
+       "title": "Run create_file?",
+       "content": [
+        {
+         "path": "/repo/config.txt",
+         "oldText": "mode = draft\nlevel = 3\nowner = nobody\nretries = 2\n",
+         "newText": "mode = final\nlevel = 9\n",
+         "_meta": {
+          "kind": "modify"
+         },
+         "type": "diff"
+        }
+       ],
+       "locations": [
+        {
+         "path": "/repo/config.txt"
+        }
+       ],
+       "rawInput": {
+        "CodeContent": "mode = final\nlevel = 9\n",
+        "Description": "Overwrite config.txt with mode and level",
+        "Overwrite": true,
+        "TargetFile": "/repo/config.txt"
+       }
+      },
+      "options": [
+       {
+        "optionId": "allow",
+        "name": "Allow",
+        "kind": "allow_once"
+       },
+       {
+        "optionId": "deny",
+        "name": "Deny",
+        "kind": "reject_once"
+       }
+      ]
+     }
+    },
+    {
+     "reply": {
+      "jsonrpc": "2.0",
+      "id": 0,
+      "result": {
+       "outcome": {
+        "outcome": "selected",
+        "optionId": "allow"
+       }
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "toolCallId": "00000000-0000-4000-8000-000000000001:1",
+       "title": "Running edit_file",
+       "kind": "edit",
+       "status": "in_progress",
+       "locations": [
+        {
+         "path": "/repo/config.txt"
+        }
+       ],
+       "rawInput": {
+        "file_path": "/repo/config.txt"
+       },
+       "sessionUpdate": "tool_call"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "toolCallId": "00000000-0000-4000-8000-000000000001:1",
+       "status": "completed",
+       "rawOutput": "Overwrite config.txt",
+       "sessionUpdate": "tool_call_update"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "content": {
+        "text": "DONE",
+        "type": "text"
+       },
+       "sessionUpdate": "agent_message_chunk"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "toolCallId": "00000000000000000000000000000001",
+       "status": "failed",
+       "rawOutput": "Tool call was approved but never executed.",
+       "sessionUpdate": "tool_call_update"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "id": 3,
+     "result": {
+      "stopReason": "end_turn"
+     }
+    }
+   ]
+  },
+  "write": {
+   "numstat": [
+    {
+     "path": "hello.txt",
+     "added": 3,
+     "removed": 0
+    }
+   ],
+   "frames": [
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "toolCallId": "00000000000000000000000000000001",
+       "title": "Run create_file?",
+       "kind": "edit",
+       "status": "pending",
+       "content": [
+        {
+         "path": "/repo/hello.txt",
+         "newText": "one\ntwo\nthree\n",
+         "_meta": {
+          "kind": "add"
+         },
+         "type": "diff"
+        }
+       ],
+       "locations": [
+        {
+         "path": "/repo/hello.txt"
+        }
+       ],
+       "rawInput": {
+        "CodeContent": "one\ntwo\nthree\n",
+        "Description": "Create hello.txt with three lines",
+        "Overwrite": true,
+        "TargetFile": "/repo/hello.txt"
+       },
+       "sessionUpdate": "tool_call"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "id": 0,
+     "method": "session/request_permission",
+     "params": {
+      "sessionId": "session-1",
+      "toolCall": {
+       "toolCallId": "00000000000000000000000000000001",
+       "kind": "edit",
+       "status": "pending",
+       "title": "Run create_file?",
+       "content": [
+        {
+         "path": "/repo/hello.txt",
+         "newText": "one\ntwo\nthree\n",
+         "_meta": {
+          "kind": "add"
+         },
+         "type": "diff"
+        }
+       ],
+       "locations": [
+        {
+         "path": "/repo/hello.txt"
+        }
+       ],
+       "rawInput": {
+        "CodeContent": "one\ntwo\nthree\n",
+        "Description": "Create hello.txt with three lines",
+        "Overwrite": true,
+        "TargetFile": "/repo/hello.txt"
+       }
+      },
+      "options": [
+       {
+        "optionId": "allow",
+        "name": "Allow",
+        "kind": "allow_once"
+       },
+       {
+        "optionId": "deny",
+        "name": "Deny",
+        "kind": "reject_once"
+       }
+      ]
+     }
+    },
+    {
+     "reply": {
+      "jsonrpc": "2.0",
+      "id": 0,
+      "result": {
+       "outcome": {
+        "outcome": "selected",
+        "optionId": "allow"
+       }
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "toolCallId": "00000000-0000-4000-8000-000000000001:1",
+       "title": "Running edit_file",
+       "kind": "edit",
+       "status": "in_progress",
+       "locations": [
+        {
+         "path": "/repo/hello.txt"
+        }
+       ],
+       "rawInput": {
+        "file_path": "/repo/hello.txt"
+       },
+       "sessionUpdate": "tool_call"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "toolCallId": "00000000-0000-4000-8000-000000000001:1",
+       "status": "completed",
+       "rawOutput": "Create hello.txt",
+       "sessionUpdate": "tool_call_update"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "content": {
+        "text": "DONE",
+        "type": "text"
+       },
+       "sessionUpdate": "agent_message_chunk"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "method": "session/update",
+     "params": {
+      "sessionId": "session-1",
+      "update": {
+       "toolCallId": "00000000000000000000000000000001",
+       "status": "failed",
+       "rawOutput": "Tool call was approved but never executed.",
+       "sessionUpdate": "tool_call_update"
+      }
+     }
+    },
+    {
+     "jsonrpc": "2.0",
+     "id": 3,
+     "result": {
+      "stopReason": "end_turn"
+     }
+    }
+   ]
+  }
+ }
+}

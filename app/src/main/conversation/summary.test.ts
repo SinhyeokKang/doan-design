@@ -227,3 +227,19 @@ it("carries stored Fast in summaries, including unreadable history, without addi
   expect(conversationSummary(fast, { ok: false }, live)).toMatchObject({ fast: true, readError: true });
   expect(conversationSummary(doan, { ok: true, events: [] }, live)).not.toHaveProperty("fast");
 });
+
+describe("activity.result in the summary", () => {
+  const edit: EventPayload = { type: "activity", kind: "edit", path: "a.ts", summary: "Editing a.ts", callId: "c1" };
+  const result: EventPayload = { type: "activity.result", callId: "c1", path: "a.ts", lines: { added: 2, removed: 1 } };
+  it("a running turn's preview stays its last activity", () => {
+    expect(conversationSummary(doan, { ok: true, events: history(...started, edit, result) }, live)).toMatchObject({ phase: "running", preview: "Editing a.ts" });
+  });
+  it("a waiting turn stays waiting with its request as the preview", () => {
+    expect(conversationSummary(doan, { ok: true, events: history(...started, edit, permission, result) }, live)).toMatchObject({ phase: "waiting", preview: "Needs your answer: Run npm test" });
+  });
+  it("a finished turn is unseen up to its end, and seen once its end is", () => {
+    const events = history(...started, edit, result, { type: "message.done", messageId: "m", text: "Done." }, { type: "turn.done" });
+    expect(conversationSummary({ ...doan, seenSeq: 5 }, { ok: true, events }, live)).toMatchObject({ phase: "ended", unseen: true, preview: "Done." });
+    expect(conversationSummary({ ...doan, seenSeq: 6 }, { ok: true, events }, live)).toMatchObject({ unseen: false });
+  });
+});
