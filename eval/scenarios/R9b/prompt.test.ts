@@ -4,9 +4,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { turnPrompt } from "../../lib/turn-prompt.ts";
 
-// prompt.md is what the app sends for turn.json: turnPrompt's output with `{{repo}}`
-// as the root, which the runner fills in (the same construction as R8d). It is a canvas conversation's
-// turn, so it carries the handoff line.
+// prompt.md is turnPrompt's output for turn.json (`{{repo}}` as root): a canvas conversation's turn, so it
+// carries the handoff line.
 test("R9b prompt.md is the app's turnPrompt output for turn.json", () => {
   const dir = import.meta.dirname;
   const turn = JSON.parse(readFileSync(join(dir, "turn.json"), "utf8"));

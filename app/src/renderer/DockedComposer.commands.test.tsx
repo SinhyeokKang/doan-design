@@ -11,9 +11,8 @@ import { DockedComposer, QueueRows, type DockedComposerProps, type DockedOutcome
 import { EMPTY_DRAFT, type DockedDraft, type DockedMode } from "./dockedRules";
 import type { AttachmentDraft, ModelPickerView, PresetSummary } from "./homeComposer";
 
-// The docked composer (Overview, canvas panel, prototype window) with provider commands: a command goes out alone, a
-// built-in Doan does not run shows its card, and a queued command row has no Send now. Hooks run as plain state
-// (DockedComposer.interaction).
+// The docked composer with provider commands: a command goes out alone, a built-in command Doan does not run shows its card,
+// and a queued command row has no Send now. Hooks run as plain state.
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0, effects: [] as (() => unknown)[] }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
@@ -236,8 +235,8 @@ const CHECKING: AttachmentDraft = { key: "c", name: "big.mov", kind: "file", pas
 const NEW_MODE: DockedMode = { kind: "new", root: "/w" };
 const NEW_KEY = "root:/w";
 
-// A command started from a new conversation leaves the preset and attachments it did not take; the composer then shows
-// the started conversation, so they go to its key. A draft the person already has there stays.
+// A command started from a new conversation leaves the preset and attachments it did not take in the started conversation's
+// key; a draft the person already has there stays.
 test("a command that starts a conversation leaves its preset and attachments in the started conversation's draft", async () => {
   const { store, render } = setup({ mode: NEW_MODE, onSend: async () => ({ ok: true, conversationId: "c9" }) }, [[NEW_KEY, draft("/compact", { preset: POLISH, attachments: [FILE], shape: "box" })]]);
   expect(store.current.has(NEW_KEY)).toBe(true);
@@ -270,8 +269,8 @@ test("Control+Enter on a command in the field queues it and does not send it now
   expect(onSendQueuedNow).not.toHaveBeenCalled();
 });
 
-// A card can come back without a send from this composer (a queued /review main returned): the composer says the
-// card it is given once, through its status region, whichever way it came.
+// A card can come back without a send from this composer (a queued /review main returned): it is said once, through the
+// status region.
 test("a card the host gives is said once through the composer's status", () => {
   const { props, render } = setup();
   props.card = { ...STALE_MODE_CARD };
@@ -293,7 +292,7 @@ test("a missing or checking attachment does not hold a command or its card", asy
   (field(card.render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();
   expect(card.onCard).toHaveBeenCalledWith(commandCard("claude", "model"));
-  // A message keeps the shipped check.
+  // A message keeps the attachment check.
   const message = setup({}, [[KEY, draft("Use this file", { attachments: [MISSING], shape: "box" })]]);
   (field(message.render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();

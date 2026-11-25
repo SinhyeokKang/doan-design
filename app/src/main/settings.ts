@@ -6,17 +6,15 @@ export type ExternalTarget = "claude" | "codex" | "cursor" | "copilot";
 export type SettingsSection = "agents" | "notifications" | "about";
 export interface SettingsPageTarget { section?: SettingsSection; provider?: Provider }
 
-// macOS's Notifications pane; Open System Settings opens this and nothing else (2026-10-30:
-// `openExternal` resolved and opened the pane).
+// macOS's Notifications pane; Open System Settings opens this and nothing else.
 export const NOTIFICATION_SETTINGS_URL = "x-apple.systempreferences:com.apple.Notifications-Settings.extension";
 
-// The only pages `setup:open-external` opens; the renderer names one by enum.
-// Checked 2026-10-25: the official install pages (the Codex CLI page is where
-// developers.openai.com/codex/cli redirects).
+// The only pages `setup:open-external` opens; the renderer names one by enum. The Codex CLI page is where
+// developers.openai.com/codex/cli redirects.
 export const INSTALL_URLS: Record<ExternalTarget, string> = {
   claude: "https://code.claude.com/docs/en/setup",
   codex: "https://learn.chatgpt.com/docs/codex/cli",
-  // The providers' install pages also explain updating, so Install and Update share them (2026-10-29 user).
+  // The providers' install pages also explain updating, so Install and Update share them.
   cursor: "https://cursor.com/docs/cli/installation",
   copilot: "https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli",
 };

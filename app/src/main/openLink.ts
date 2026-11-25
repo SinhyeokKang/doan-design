@@ -1,6 +1,5 @@
-// Links in agent replies open in the system browser through main, never in the window.
-// setWindowOpenHandler still refuses every window. Only https: an agent's output is untrusted data, and a file:,
-// data: or custom-scheme link could run something or reach local files.
+// Links in agent replies open in the system browser through main, never in the window. Only https: agent output is
+// untrusted, and a file:, data: or custom-scheme link could run something or reach local files.
 export const MAX_LINK_LENGTH = 2048;
 // The URL to open, normalized, or null when the request is malformed or the link is not https.
 export function linkTarget(value: unknown): string | null {

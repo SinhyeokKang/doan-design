@@ -428,7 +428,7 @@ it("a native start still pending after Stop cannot outlive project removal or st
     expect(runner.close).not.toHaveBeenCalled();
     let settled = false;
     const stop = h.service.interruptProjectTurn(id, turn).then(() => { settled = true; });
-    // Within the removal's wait for the group (the exit wait; no promotion judgement extends it any more).
+    // Within the removal's wait for the group (the exit wait).
     await vi.advanceTimersByTimeAsync(9_900);
     expect(settled).toBe(false);
     expect(h.service.projectRemovalBusy(["/repo"])).toBe(true);
@@ -514,7 +514,7 @@ it("runs a Home start with its chosen model and effort, records them, and applie
   const id = (await h.service.start({ ...homeRequest, model: "sonnet", effort: "low" })).conversationId;
   expect(h.open.mock.calls[0]![0]).toMatchObject({ model: "sonnet", effort: "low" });
   expect(h.store.list()[0]).toMatchObject({ model: "sonnet", effort: "low" });
-  // No promotion reads a turn's canvas list any more, so none is saved.
+  // No canvas list is saved with the turn.
   expect(h.store.list()[0]).not.toHaveProperty("canvasesAtStart");
   h.service.receive(id, { type: "turn.done" });
   // The Claude process of the first turn exits; the send opens a resume.
@@ -1429,7 +1429,7 @@ describe("permission mode", () => {
     expect(lastTurn(h)).toEqual({ permissionMode: "acceptEdits" });
     expect(h.store.list()[0]).toMatchObject({ permissionMode: "plan" });
   });
-  // The runner reports Claude's own ids (modeReported); a Plan turn's approval keeps today's common-id rule.
+  // The runner reports Claude's own ids (modeReported); a Plan turn's approval keeps the common-id rule.
   const statusOf = (mode: string) => ({ source: "status" as const, mode });
   it("stores the mode Claude reports after a plan approval and announces the list change", async () => {
     const h = homeFixture();
@@ -1686,7 +1686,7 @@ describe("send now", () => {
     expect(events.at(-1)).toMatchObject({ type: "user.message", text: "one", turnId: turnOf() });
     expect(events.at(-2)).toMatchObject({ type: "message.delta" });
     expect(h.service.list("/repo")[0]!.queued).toBe(1);
-    // The turn goes on; the rest of the queue follows it as before.
+    // The turn goes on; the rest of the queue follows it.
     h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
     await vi.waitFor(() => expect(userMessages(h, id)).toHaveLength(3));
     expect(userMessages(h, id).at(-1)).toMatchObject({ text: "two" });
@@ -2445,9 +2445,8 @@ describe("conversation work", () => {
     expect(second).toMatchObject({ root: "/repo", running: true });
     expect(second?.turnId).not.toBe(first?.turnId);
   });
-  // `doan work` answers name other sessions on a canvas by kind and provider: a legacy external conversation's provider
-  // is its session runtime, a doan-owned one's its owner's provider, and the bound canvas comes with the turn.
-  // Answered inside the CLI's 2 s deadline on main's loop, so this reads memory only, never the index.
+  // `doan work` names other sessions on a canvas by kind and provider (a legacy conversation's session runtime, a
+  // doan-owned one's owner provider). Answered inside the CLI's 2 s deadline, so this reads memory only, never the index.
   it("a turn carries its conversation's provider and bound canvas without reading the index", async () => {
     const legacy = fixture(); const external = (await legacy.service.start(request)).conversationId;
     expect(legacy.store.list()[0]).toMatchObject({ owner: { kind: "legacy-external" }, session: { runtime: "codex" } });

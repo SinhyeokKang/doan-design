@@ -5,10 +5,8 @@ import { dirname, isAbsolute, join, relative } from "node:path";
 import { gitdirFromLink } from "./onboarding/gitConfig";
 import { readRegularFileSync } from "./regularFile";
 
-// Rules for telling a canvas the app watched appear from one that arrived with a git operation (pull, merge, rebase,
-// branch switch): pure functions over the git files' text and stat, and the one reader that feeds them (readGitSignal),
-// which opens every git file through readRegularFileSync so a FIFO cannot stall main. Never runs git (PRODUCT §3 Out of
-// scope).
+// Tells a canvas the app watched appear from one that arrived with a git operation. Every git file is opened through
+// readRegularFileSync so a FIFO cannot stall main; never runs git (PRODUCT §3).
 
 // How long a new canvas id waits for a git signal change before it counts as new, and how far before its appearance a
 // change still explains it: git writes the working tree first and HEAD or a ref afterwards.
@@ -64,9 +62,8 @@ function fileValue(file: GitFileRead | null): string {
   return `${file.size}:${file.mtimeMs}:${createHash("sha256").update(file.text).digest("hex")}`;
 }
 
-// One comparable value for "the repository's checkout moved or was updated": HEAD's branch or detached commit, and
-// FETCH_HEAD and ORIG_HEAD by size, mtime and content hash (pull, merge and rebase write them). A repository that is
-// absent or unreadable gives the one constant value, so its canvases settle as new after the grace.
+// HEAD's branch or detached commit, and FETCH_HEAD and ORIG_HEAD by size, mtime and hash (pull, merge and rebase write
+// them). An absent or unreadable repository gives one constant value, so its canvases settle as new after the grace.
 export function parseGitSignal(files: GitFiles): string {
   return JSON.stringify([
     files.head === null ? "" : headValue(files.head),
@@ -75,16 +72,14 @@ export function parseGitSignal(files: GitFiles): string {
   ]);
 }
 
-// One observation of the git signal: the value the app saw at `at` (ms). The caller appends one on start and on every
-// change, in order, and keeps the entry that precedes the oldest pending id's window (it is the baseline a change in
-// the window is compared with).
+// The value the app saw at `at` (ms). The caller appends one on start and on every change, and keeps the entry that
+// precedes the oldest pending id's window as the baseline.
 export type GitSignalEntry = { at: number; signal: string };
 
 export type Pending = { appearedAt: number };
 
-// html: a git signal change falls from GRACE_MS before the id appeared to the end of its grace, so git brought it and it
-// is recorded as already seen. new: the grace ended with no such change. pending: neither yet. A change settles the id
-// at once, without waiting for the grace to end; a change after `now` is not known yet and is ignored.
+// html: a signal change between GRACE_MS before the id appeared and the end of its grace, so git brought it (seen).
+// new: the grace ended without one. A change after `now` is not known yet and is ignored.
 export function settlePending(pending: Pending, gitSignalHistory: readonly GitSignalEntry[], now: number): "html" | "new" | "pending" {
   const from = pending.appearedAt - GRACE_MS, to = pending.appearedAt + GRACE_MS;
   for (let i = 1; i < gitSignalHistory.length; i++) {
@@ -108,9 +103,8 @@ const atOrAboveHome = (dir: string, home: string): boolean => {
   return rel !== ".." && !rel.startsWith("../") && !isAbsolute(rel);
 };
 
-// The nearest `.git` at or above the root, as Go repo gitLocation finds it (a Doan root can be a subfolder of its
-// repository), as it is now. A link is followed as git follows it, only after the nearest one is chosen; anything but a
-// directory or a regular file (a FIFO, a socket) is no repository, and the file read itself never blocks.
+// The nearest `.git` at or above the root, as Go repo gitLocation finds it; a link is followed only after it is chosen.
+// Anything but a directory or regular file (a FIFO, a socket) is no repository, and the read never blocks.
 function dotGitOf(root: string, home: string): DotGit {
   let tree = root;
   for (;;) {

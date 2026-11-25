@@ -9,16 +9,15 @@ import { afterAll, beforeAll, expect, test } from "vitest";
 import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
 import type { FieldSegment } from "./anchorField";
 
-// The composer field in the app's own Chromium, driven by real keys: what the caret, deletion, wrapping and IME
-// handling do over list lines, chips and ProseMirror's paragraphs is decided by the engine's editing and layout code,
-// which no fake DOM reproduces.
+// Caret, deletion, wrapping and IME behaviour over lines, chips and ProseMirror paragraphs come from the
+// engine's editing and layout code, which no fake DOM reproduces, so this runs in the app's Chromium.
 
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 const styles = readFileSync(here("./styles.css"), "utf8");
 const tokens = readFileSync(here("./tokens.css"), "utf8");
 const geist = readFileSync(here("./public/fonts/geist/Geist.woff2")).toString("base64");
 const token = (name: string) => new RegExp(`${name}:\\s*([^;]+);`).exec(tokens)?.[1] ?? "";
-// The field's own rules from styles.css, over the tokens they read, in the app's font.
+// The field's rules from styles.css over their tokens, in the app's font.
 const css = [
   `@font-face { font-family: "Geist"; src: url(data:font/woff2;base64,${geist}) format("woff2"); font-weight: 100 900; }`,
   `:root { ${["--space-half", "--space-1", "--space-1h", "--space-3", "--space-5", "--type-label-size", "--type-label-line-height", "--type-label-letter-spacing", "--radius-word", "--size-icon-sm"].map(name => `${name}: ${token(name)};`).join(" ")} --type-family: "Geist", sans-serif; --text-standard: #1a1a1a; }`,
@@ -198,7 +197,6 @@ async function open(segments: FieldSegment[] | string, around = { before: '<butt
   await frame.evaluate(() => document.fonts.load('16px "Geist"').then(() => undefined));
   await call("set", typeof segments === "string" ? [{ kind: "text", text: segments }] : segments);
 }
-// The page's probe object, called by name.
 async function call<T = unknown>(name: string, ...args: unknown[]): Promise<T> {
   return frame.evaluate(([n, a]) => (window as unknown as { probe: Record<string, (...v: unknown[]) => unknown> }).probe[n as string]!(...(a as unknown[])), [name, args] as const) as Promise<T>;
 }
@@ -226,7 +224,6 @@ async function cdp() {
   const session = await page.context().newCDPSession(page);
   return { send: (method: string, params?: Record<string, unknown>) => session.send(method as never, params as never) as Promise<Record<string, unknown>> };
 }
-// The accessibility value of the field's textbox, as a screen reader receives it.
 async function textboxValue(): Promise<string> {
   const session = await cdp();
   const tree = await session.send("Page.getFrameTree") as { frameTree: { childFrames: { frame: { id: string } }[] } };
@@ -285,7 +282,6 @@ test("a marker's box is its line's row, so the bullet sits as in a plain line an
 });
 
 test("depth spaces take no width, and lines off a list wrap to the line start", { timeout: 60_000 }, async () => {
-  // A depth-0 item's typed leading spaces, and two or four typed spaces for the same depth, draw at the same place.
   await open("- a\n  - b\n- c\n    - d\n  - e");
   expect(await call("box", ".field-depth", 0)).toMatchObject({ w: 0 });
   const marks = await Promise.all([0, 1, 2, 3].map(i => call<{ x: number }>("box", ".field-mark", i)));
@@ -293,7 +289,6 @@ test("depth spaces take no width, and lines off a list wrap to the line start", 
   await open("  - a\n- b");
   expect(await call("box", ".field-depth", 0)).toMatchObject({ w: 0 });
   expect(await call("box", ".field-mark", 0)).toMatchObject({ x: 20 });
-  // A plain line, an indented plain line and a line that starts with a chip wrap at the field's left edge.
   await open([plain(`${LONG}\n   ${LONG}\n`), chip(), plain(` ${LONG}`)]);
   for (const line of [0, 1, 2]) expect(wrappedStarts(await rects(line))).toEqual(expect.arrayContaining([0]));
   // An item whose wrapped rows start with chips puts each such chip at the body start (its 2 px margin in).
@@ -301,7 +296,6 @@ test("depth spaces take no width, and lines off a list wrap to the line start", 
   const boxes = await rects(0);
   expect(rows(boxes).length).toBeGreaterThan(1);
   for (const start of wrappedStarts(boxes)) { expect(start).toBeGreaterThanOrEqual(32); expect(start).toBeLessThanOrEqual(34); }
-  // A long word breaks anywhere, its rows at the body start; a narrower field wraps at the body start too.
   await open(`- ${"Supercalifragilistic".repeat(4)}`);
   expect(wrappedStarts(await rects(0)).every(x => x === 32)).toBe(true);
   await call("setWidth", 180);
@@ -318,14 +312,12 @@ test("the line-start caret stands before the marker at every depth, the body-sta
     await call("place", unit);
     expect((await caret()).x).toBe(x);
   }
-  // An empty item's caret stands at the body start and typing fills the body, outside the marker.
   await open("a\n- ");
   expect(await caretOn(1)).toEqual({ x: 32, onLine: true });
   await press("x");
   expect(await text()).toBe("a\n- x");
   expect(await frame.evaluate(() => document.getSelection()!.focusNode!.parentElement!.className)).not.toMatch(/field-(mark|depth)/);
   expect(await consistent()).toBe(true);
-  // Typing at the line start, before the marker, makes the line plain text.
   await call("place", 2);
   await press("z");
   expect(await text()).toBe("a\nz- x");
@@ -348,7 +340,6 @@ test("← and → skip an item's prefix, stopping only at the line start and the
   // From the previous line's end the browser reaches the line start, then the body start.
   await call("place", 5); await press("ArrowRight"); await press("ArrowRight");
   expect(await sel()).toEqual({ anchor: 8, focus: 8 });
-  // ⌥← and ⌥→ move by words; ⌥→ at a line's end stops at the next line's first stop.
   await open("first line\n- next item\nplain words here");
   await call("place", 10);
   for (const unit of [13, 17, 22]) { await press("Alt+ArrowRight"); expect(await sel()).toEqual({ anchor: unit, focus: unit }); }
@@ -371,8 +362,6 @@ test("a chip keeps its own arrow steps after a marker and at a line start, where
   expect(await sel()).toEqual({ anchor: 4, focus: 4 });
   await press("ArrowRight");
   expect(await sel()).toEqual({ anchor: 5, focus: 5 });
-  // A line that starts with a chip: the caret before it is on its row, one ← reaches the line above, and typing there
-  // goes before the chip.
   await open([plain("a\n"), chip(), plain(" body")]);
   await call("place", 3); await press("ArrowLeft");
   expect(await sel()).toEqual({ anchor: 2, focus: 2 });
@@ -408,7 +397,7 @@ test("a caret left inside a prefix moves to the body start", { timeout: 60_000 }
 test("↑ and ↓ pass the wrapped rows one by one and come back to the same place", { timeout: 60_000 }, async () => {
   const start = `Intro text here\n- ${LONG}\nplain line`;
   await open(start);
-  // Body start 18; the item's rows start at 55 and 89 (measured), all at the body's x.
+  // Body start 18; the item's rows start at 55 and 89, all at the body's x.
   await call("place", 18);
   const visited: number[] = [];
   for (let i = 0; i < 3; i++) { await press("ArrowDown"); visited.push((await sel()).focus); }
@@ -424,11 +413,9 @@ test("↑ and ↓ pass the wrapped rows one by one and come back to the same pla
   await press("ArrowDown"); await press("ArrowUp");
   expect(await sel()).toEqual({ anchor: 3, focus: 3 });
   expect(Math.abs((await caret()).x - before.x)).toBeLessThanOrEqual(1);
-  // From an item's body start down onto a plain line and back up: the body start again.
   await open("- item one\nplain line here");
   await call("place", 2); await press("ArrowDown"); await press("ArrowUp");
   expect(await sel()).toEqual({ anchor: 2, focus: 2 });
-  // ↓ on the last item's last row goes to the end.
   await open(`- a\n- ${LONG}`);
   await call("place", 70); await press("ArrowDown");
   expect(await sel()).toEqual({ anchor: 4 + 2 + LONG.length, focus: 4 + 2 + LONG.length });
@@ -450,9 +437,8 @@ test("⌘← and ⌘→ stop at a wrapped row's start (the body start) and end, 
 
 test("Shift+↓, a drag, three clicks and two clicks select as on plain lines", { timeout: 60_000 }, async () => {
   await open("one two\nthree four\nfive");
-  // Chromium carries the caret's x to the next row and takes the nearer side of the character there. "one t|wo" (x 37.2)
-  // stands 1 px from "three|" (38.2) and 3 px from either neighbor's midpoint (measured); a caret within half a pixel
-  // of a midpoint ("on|e" at 18.1 over "thr" at 17.7) lands on either side with the device pixel ratio.
+  // Chromium keeps the caret's x across rows and takes the nearer side of the character there; an x near a midpoint
+  // lands on either side by device pixel ratio, so start where none is near.
   await call("place", 5); await press("Shift+ArrowDown");
   expect(await sel()).toEqual({ anchor: 5, focus: 13 });
   // Three clicks take the line with its line break, so typing replaces the whole line; two clicks take the word only.
@@ -467,7 +453,6 @@ test("Shift+↓, a drag, three clicks and two clicks select as on plain lines", 
   await frame.locator("#f").click({ position: { x: 20, y: 30 }, clickCount: 2 }); await dom.flush(frame);
   expect(await sel()).toEqual({ anchor: 8, focus: 13 });
   expect(await frame.evaluate(() => document.getSelection()!.toString())).toBe("three");
-  // A drag from the first line into the second item's body.
   await open("- one two\n- three four");
   const box = (await frame.locator("#f").boundingBox())!;
   await frame.page().mouse.move(box.x + 40, box.y + 12);
@@ -493,7 +478,6 @@ test("deletions across a line boundary take exactly one line break; ⌘⌫ and �
   await open("- ab\n- cd");
   await call("place", 5); await press("Backspace");
   expect(await text()).toBe("- ab- cd");
-  // ⌘⌫ on a wrapped item's second row takes that row's part only; on the first row the line's start.
   await open(`- ${LONG}`);
   await call("place", 70); await press("Meta+Backspace");
   expect(await text()).toBe("- Make the hero headline shorter so it st window width");
@@ -619,14 +603,12 @@ test("undo steps: a line-boundary deletion joins the typing, a caret move starts
   expect(await text()).toBe("abx");
   await press("Meta+z");
   expect(await text()).toBe("ab");
-  // Typing "1. " turns the line into an item, drawn at once; undo brings the plain line back.
   await open("a\n");
   for (const key of ["1", ".", " ", "b"]) await press(key);
   expect(await call("spans")).toEqual(['field-mark:ol "1."']);
   await press("Meta+z");
   expect(await text()).toBe("a\n");
   expect(await call("spans")).toEqual([]);
-  // A deletion through a chip is a step of its own.
   await open([plain("ab "), chip()]);
   await call("place", 4); await press("x"); await press("ArrowLeft"); await press("Backspace");
   expect(await text()).toBe("ab x");
@@ -647,7 +629,6 @@ test("Tab's indent moves an item under the one above as one undo step, and refus
 });
 
 test("chips and skill words keep their behaviour in items and on wrapped rows", { timeout: 60_000 }, async () => {
-  // A skill word on a wrapped item row is highlighted in place, and a chip word deletion stops at the chip.
   await open(`- ${LONG} /copy-check now`);
   expect(await call("spans")).toEqual(['field-mark:ul "-"', 'skill-word "/copy-check"']);
   const skill = await call<{ x: number; y: number }>("box", ".skill-word");
@@ -657,7 +638,6 @@ test("chips and skill words keep their behaviour in items and on wrapped rows", 
   expect(await text()).toBe("- a ￼");
   await press("Alt+Backspace");
   expect(await text()).toBe("- a ");
-  // A click on a chip puts the caret after it and tells the host.
   await open([plain("- a "), chip(), plain(" b")]);
   await frame.click(".anchor-chip"); await dom.flush(frame);
   expect(await sel()).toEqual({ anchor: 5, focus: 5 });
@@ -694,8 +674,8 @@ test("a spelling suggestion replaces its word inside an item without breaking th
 test("copy, the selected text and the accessibility value keep the typed text", { timeout: 60_000 }, async () => {
   await open(NESTED);
   await call("place", 0, NESTED.length);
-  // A real ⌘C would overwrite the person's system clipboard (POSTMORTEM 2026-10-27, runtime clipboard): the field's own
-  // copy handler writes to the event's DataTransfer instead.
+  // A real ⌘C overwrites the person's clipboard, so call the field's own copy handler, which writes to the event's DataTransfer
+  // (POSTMORTEM 2026-10-27 'Runtime clipboard capture constructed an item with no MIME types').
   expect((await call<string[]>("copy"))[0]).toBe(NESTED);
   // Lines are blocks, but the selected text adds no line break of its own and has no bullet.
   expect(await frame.evaluate(() => document.getSelection()!.toString())).toBe(NESTED);
@@ -715,12 +695,10 @@ test("a trailing line break, an empty last line and a read-only field", { timeou
   expect(await caretOn(1)).toEqual({ x: 0, onLine: true });
   await press("x");
   expect(await text()).toBe("- a\nx");
-  // The placeholder shows only while the field is completely empty.
   await open("\n");
   expect(await frame.evaluate(() => document.getElementById("f")!.hasAttribute("data-empty"))).toBe(false);
   await press("Backspace");
   expect(await frame.evaluate(() => document.getElementById("f")!.hasAttribute("data-empty"))).toBe(true);
-  // Read-only: no edit, but selection and copy work, and ⌘Z changes nothing.
   await open("- a\n- b");
   await call("lock"); await dom.flush(frame);
   await call("place", 0, 7);
@@ -769,8 +747,8 @@ test("a long draft focused at its end by code shows its caret at the field's max
     expect(view.top).toBeGreaterThanOrEqual(0);
     expect(view.bottom).toBeLessThanOrEqual(view.height);
   };
-  // The field already has focus with its caret at the start, scrolled to the top: a caret code then puts at the end
-  // (a conversation switched back, a preset picked) must scroll into view. Chromium's own edits scroll; code's do not.
+  // A caret that code puts at the end (a conversation switched back, a preset picked) must scroll into view:
+  // Chromium's own edits scroll, code's do not.
   for (const how of ["focusEnd", "fieldFocusEnd"]) {
     await open(draft);
     await call("setMax", 192);
@@ -780,8 +758,7 @@ test("a long draft focused at its end by code shows its caret at the field's max
     expect(await sel()).toEqual({ anchor: draft.length, focus: draft.length });
     await inView();
   }
-  // From another control with the caret left at the start (a preset picked from the docked card's list): focusing
-  // shows the old caret, and the caret put at the end must still come into view.
+  // Focusing from another control shows the old caret; the one then put at the end must still come into view.
   for (const how of ["focusEnd", "fieldFocusEnd"]) {
     await open(draft);
     await call("setMax", 192);
@@ -793,7 +770,6 @@ test("a long draft focused at its end by code shows its caret at the field's max
     expect(await sel()).toEqual({ anchor: draft.length, focus: draft.length });
     await inView();
   }
-  // From another control, and App's element focus() with the caret already at the end.
   for (const how of ["focusEnd", "fieldFocusEnd", "elementFocus"]) {
     await open(draft);
     await call("setMax", 192);
@@ -840,7 +816,6 @@ test("composing at an empty item's body and over a selection across items", { ti
   await session.send("Input.insertText", { text: "한" });
   await dom.flush(frame);
   expect(await text()).toBe("- 한");
-  // "b\n- c" selected in "- ab\n- cd": only the selection goes, and one undo brings it back.
   await open("- ab\n- cd");
   await call("place", 3, 8);
   await session.send("Input.imeSetComposition", { text: "하", selectionStart: 1, selectionEnd: 1 });
@@ -850,7 +825,6 @@ test("composing at an empty item's body and over a selection across items", { ti
   expect(await consistent()).toBe(true);
   await press("Meta+z");
   expect(await text()).toBe("- ab\n- cd");
-  // At an item's line start, before its marker: the line becomes plain text, and nothing is lost or doubled.
   await open("- a\n- b");
   await call("place", 4);
   await session.send("Input.imeSetComposition", { text: "하", selectionStart: 1, selectionEnd: 1 });
@@ -859,7 +833,6 @@ test("composing at an empty item's body and over a selection across items", { ti
   await session.send("Input.insertText", { text: "한" });
   await dom.flush(frame);
   expect(await text()).toBe("- a\n한- b");
-  // ProseMirror draws the line again once the composition has ended.
   await frame.waitForTimeout(100);
   expect(await call("spans")).toEqual(['field-mark:ul "-"']);
   expect(await consistent()).toBe(true);
@@ -886,8 +859,8 @@ test("composing at an empty item's body and over a selection across items", { ti
   expect(await consistent()).toBe(true);
 });
 
-// Each composition below leaves a syllable in the DOM, as the Korean input method does, and that syllable must reach
-// the text before the key acts on it.
+// Each composition leaves a syllable in the DOM, as the Korean input method does; it must reach the text
+// before the key acts on it.
 type Step = [string, ...unknown[]];
 const run = (...steps: Step[]) => call<unknown[]>("run", steps);
 async function composeThenPress(start: string, caretAt: number, key: "Enter" | "Tab", shift: boolean, resend = true, host?: Record<string, unknown>): Promise<unknown> {
@@ -949,8 +922,8 @@ test("a resent key the host takes answers the press: no line break or indent com
 });
 
 test("a Shift+Enter the host takes changes nothing first: the \`/\` list's pick is one undo step", { timeout: 60_000 }, async () => {
-  // ComposerField's onKey sees every key first: Home's \`/\` list picks its row on Shift+Enter (slashKey ignores Shift)
-  // and prevents the key, so no line break may come before the pick.
+  // ComposerField's onKey sees every key first and Home's `/` list picks on Shift+Enter, preventing it,
+  // so no line break may come before the pick.
   await open("/");
   await call("setHost", { slash: true });
   await call("place", 1);
@@ -968,7 +941,6 @@ test("without a resent Tab, one that cannot move the item moves focus from the d
   expect(await call("focused")).toBe("after");
   await composeThenPress("- a", 3, "Tab", true, false);
   expect(await call("focused")).toBe("before");
-  // A Tab that can move the item does not also move focus.
   await composeThenPress("- a\n- b", 7, "Tab", false, false);
   expect(await text()).toBe("- a\n  - b나");
   expect(await call("focused")).toBe("f");

@@ -119,9 +119,8 @@ function acpOperation(tool: Record<string, unknown>, root: string): string {
   return paths.map(path => displayPath(path, root)).join(", ");
 }
 
-// Antigravity asks the person through a standard permission request whose options are the answers:
-// two or more, all allow_once, no reject, the question as toolCall.title. Anything else, or past the question
-// limits, stays a permission request, which can still be answered; a cut question or a merged answer could not.
+// Antigravity asks through a permission request whose options are the answers (two or more, all allow_once, no reject).
+// Anything else, or past the limits, stays a permission request: a cut question or a merged answer could not be answered.
 export function acpQuestion(params: Record<string, unknown>, requestId: string): { event: Extract<EventPayload, { type: "question.request" }>; optionIds: string[] } | null {
   const L = QUESTION_LIMITS;
   const tool = object(params.toolCall) ? params.toolCall : {};
@@ -139,9 +138,8 @@ export function acpQuestion(params: Record<string, unknown>, requestId: string):
   };
 }
 
-// thinking: thought chunks came and nothing that ends thinking since (normalizeAcp). running (TransportState) holds the
-// tool calls still pending or in progress. countsEdits: only Copilot's completed diff is the applied change
-// (ARCHITECTURE 'Edit line counts').
+// thinking: thought chunks came and nothing ended thinking since. running holds the pending or in-progress tool calls.
+// countsEdits: only Copilot's completed diff is the applied change (ARCHITECTURE §7 'Edit line counts').
 export interface AcpTransport extends TransportState { turn: string; segment: number; text: string; tools: Record<string, AcpTool>; thinking?: true; countsEdits?: true }
 // diffs: the last diff content of a running call; it may come before a completion that carries none.
 interface AcpTool { kind: string; path: string; title: string; diffs?: AcpDiff[] }
@@ -189,9 +187,8 @@ function awake(state: AcpTransport): { state: AcpTransport; stage?: TurnStage } 
   const { thinking: _, ...rest } = state;
   return { state: rest, stage: GENERAL_STAGE };
 }
-// Updates arriving while no prompt is running (session/load replays the stored history) are not events of this turn.
-// Thinking (Copilot's thought chunks) ends on a message chunk, a tool call or a tool update with a status; usage, plan,
-// command-list and status-less tool updates come in the middle of it (Copilot sends usage about 2.5 s into a turn).
+// Updates while no prompt runs (session/load replays history) are not this turn's events. Thinking ends on a message
+// chunk, a tool call or a tool update with a status; usage, plan, command-list and status-less updates come within it.
 export function normalizeAcp(state: AcpTransport, update: Record<string, unknown>, root: string): TransportResult & { state: AcpTransport } {
   if (state.terminal) return { state, events: [] };
   const kind = update.sessionUpdate;
@@ -203,8 +200,7 @@ export function normalizeAcp(state: AcpTransport, update: Record<string, unknown
     if (!text) return { state: woke.state, events: [], ...(woke.stage ? { stage: woke.stage } : {}) };
     return { state: { ...woke.state, text: woke.state.text + text }, events: [{ type: "message.delta", messageId: woke.state.messageId, text }], ...(woke.stage ? { stage: woke.stage } : {}) };
   }
-  // used is what the provider reports; ACP does not define it. Antigravity's ACP server 1.3.0 sends the last model
-  // call's size (its first value after session/load was that turn's context, not a session total).
+  // used is what the provider reports; ACP does not define it (Antigravity sends the last model call's size).
   if (kind === "usage_update") {
     const value = contextValue(update.used, update.size);
     return { state: value ? { ...state, context: value } : state, events: [] };

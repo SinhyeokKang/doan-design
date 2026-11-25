@@ -4,8 +4,8 @@ import { afterEach, expect, test, vi } from "vitest";
 import { BUDDY_IDS, buddy, type BuddyId } from "./buddies";
 import { Buddy, fragmentFor, keepBuddy, mountBuddy, vertexFor } from "./Doany";
 
-// The WebGL calls of the buddy draft .doan/assets/buddies/motion-preview.js for Doany up to its first frame, from
-// app/scripts/doanyGolden.mjs (objects are creation ids, typed arrays are length and checksum).
+// The WebGL calls of .doan/assets/buddies/motion-preview.js for Doany up to its first frame, from app/scripts/doanyGolden.mjs
+// (objects are creation ids, typed arrays are length and checksum).
 const golden = JSON.parse(readFileSync(new URL("./doany.golden.json", import.meta.url), "utf8")) as { scenarios: { name: string; trace?: unknown[] }[] };
 const trace = golden.scenarios.find(item => item.name === "idle")!.trace!;
 const flush = () => new Promise(resolve => setImmediate(resolve));

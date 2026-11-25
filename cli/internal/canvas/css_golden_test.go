@@ -22,9 +22,8 @@ type cssScanResult struct {
 	Uses CustomUse
 }
 
-// largeRule builds a stylesheet with the rule of the export memory profile
-// (cli/internal/export/profile_test.go) at a small size: every stride-th rule
-// holds a url(), the others a colour and a padding.
+// largeRule builds, at a small size, the stylesheet of the export memory profile (export/profile_test.go):
+// every stride-th rule holds a url(), the others a colour and a padding.
 func largeRule(rules, stride int, minified bool) string {
 	var b strings.Builder
 	for i := range rules {
@@ -83,9 +82,8 @@ func cssScanAll() map[string]map[string]cssScanResult {
 	return out
 }
 
-// TestCSSScannersMatchGolden pins what ScanCSS, CSSRefs and CustomUses
-// report, so a change to the tokenizer cannot silently change what check
-// warns about or what export rewrites.
+// TestCSSScannersMatchGolden pins what ScanCSS, CSSRefs and CustomUses report, so a tokenizer change cannot
+// silently change what check warns about or what export rewrites.
 func TestCSSScannersMatchGolden(t *testing.T) {
 	got := cssScanAll()
 	if *updateCSSGolden {

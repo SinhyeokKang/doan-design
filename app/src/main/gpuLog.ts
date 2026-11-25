@@ -1,8 +1,7 @@
 import { appendFileSync } from "node:fs";
 
-// Evidence for transient rendering glitches: a lost GPU process or a fall back to software compositing, which in a
-// transparent vibrancy window can draw translucent fills opaque until restart. A packaged app started from Finder drops
-// stderr, so each event is also appended to a file under userData that a person can send us.
+// A lost GPU process or a software-compositing fallback can draw a vibrancy window's translucent fills opaque, and a
+// Finder-launched app drops stderr, so each event is also appended to a file under userData a person can send.
 
 export interface GpuLog {
   processGone(details: { type: string; reason: string; exitCode: number }): void;

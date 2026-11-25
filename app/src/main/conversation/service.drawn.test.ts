@@ -236,9 +236,8 @@ describe("canvas.drawn", () => {
     expect(h.drawn(first)).toMatchObject([{ canvas: c }]);
     expect(h.drawn(second)).toMatchObject([{ canvas: c }]);
   });
-  // POSTMORTEM 2026-11-15 'A running turn's in-memory canvas missed a move that a refused send had already saved': the
-  // watch holds the turn's own listing snapshot, not a copy of the conversation's canvas, so a move saved by a refused
-  // send changes nothing.
+  // POSTMORTEM 2026-11-15: the watch holds the turn's own listing snapshot, not a copy of the conversation's canvas, so a
+  // move saved by a refused send changes nothing.
   it("judges the same after a send refused as busy saved the conversation's moved canvas", async () => {
     fake();
     const h = fixture(); const id = await h.start();

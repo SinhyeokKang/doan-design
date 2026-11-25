@@ -32,9 +32,8 @@ func removeFailure(code, message string) *Error {
 	return &Error{Code: code, Message: message, NextSteps: steps}
 }
 
-// removeReply turns one v7 reply line into the command result. Any numeric v other than 7, including an older
-// app's v1 bad_request for a version it does not know, is another protocol. root is the requested root: a removal
-// that does not name it removed some other project.
+// removeReply turns one v7 reply line into the command result; any other numeric v, an older app's v1 bad_request
+// included, is another protocol. A removal that does not name root removed some other project.
 func removeReply(line []byte, root string, secrets []string) (map[string]any, *Error) {
 	decoder := json.NewDecoder(bytes.NewReader(line))
 	decoder.UseNumber()
@@ -71,9 +70,8 @@ func removeReply(line []byte, root string, secrets []string) (map[string]any, *E
 	reply := obj["error"].(map[string]any)
 	switch code := reply["code"].(string); code {
 	case "bad_token":
-		// The runtime file outlived the app that wrote it; a new app has another token. An app conversation's credential
-		// is refused here too, but its CLI refuses `doan remove` before dialling (conversation_refused), so this reads as
-		// a stale runtime file.
+		// The runtime file outlived the app that wrote it; a new app has another token. A conversation's CLI refuses `doan remove`
+		// before dialling (conversation_refused), so a refusal here reads as a stale runtime file.
 		return nil, removeFailure("app_not_running", "Doan rejected the token in its runtime file")
 	case "bad_request":
 		return nil, internal(errors.New("Doan rejected the remove request as malformed"))

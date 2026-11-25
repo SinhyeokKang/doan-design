@@ -10,9 +10,8 @@ import (
 	"testing"
 )
 
-// The runtime file can outlive the app's socket directory (ARCHITECTURE §4), so the CLI connects only to a socket this
-// user owns, in a directory owned by this user and writable by no one else.
-// listenAt answers every connection with an empty selection, so a refusal can only come from the CLI's own check.
+// The runtime file can outlive the app's socket directory (ARCHITECTURE §4), so the CLI connects only to a socket this user
+// owns in a private directory. listenAt answers with an empty selection, so a refusal can only be the CLI's own check.
 func listenAt(t *testing.T) (dir, socket string) {
 	t.Helper()
 	dir = shortTempDir(t)

@@ -53,8 +53,7 @@ describe("dockedAvailability", () => {
     expect(dockedAvailability(input({ mode: { kind: "existing", conversationId: "c", provider: "codex" }, auth: auth() })).enabled).toBe(false);
     expect(dockedAvailability(input({ mode: { kind: "existing", conversationId: "c", provider: "codex" }, auth: auth(), external: true })).enabled).toBe(true);
   });
-  // an open Overview whose project turned into a problem keeps its thread readable,
-  // and Send says why it is held, as Home does.
+  // A problem project's open Overview keeps its thread readable and Send says why, as Home does.
   test("an unavailable project holds Send with its reason before anything else", () => {
     const text = "doan-design isn’t available. Fix it from its menu in the sidebar.";
     expect(dockedAvailability(input({ unavailable: text }))).toEqual({ enabled: false, reason: { text } });
@@ -87,8 +86,7 @@ describe("dockedAvailability", () => {
     expect(dockedAvailability(input({ turn: "waiting" }))).toEqual({ enabled: true, reason: { text: "Answer or stop the request above." } });
     expect(dockedAvailability(input({ turn: "waiting", draft: EMPTY_DRAFT }))).toEqual({ enabled: false, reason: { text: "Answer or stop the request above." } });
   });
-  // Its turn ended and main still works on it (holding): a message goes to the queue, and an empty field is a disabled
-  // Send with no line.
+  // While main still works on an ended turn (holding), text queues.
   test("while this conversation holds after its turn, text queues", () => {
     expect(dockedAvailability(input({ turn: "holding" }))).toEqual({ enabled: true, reason: null });
     expect(dockedAvailability(input({ turn: "holding", draft: EMPTY_DRAFT }))).toEqual({ enabled: false, reason: null });
@@ -139,7 +137,7 @@ describe("dockedRefusal", () => {
     expect(dockedRefusal("rate_limited", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code reached a usage limit. Send again after it resets." });
     expect(dockedRefusal("bad_request", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Couldn’t send your message. Try again." });
     expect(dockedRefusal("session_in_use", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code is still using this session. Try again when it finishes." });
-    // the code alone does not tell an expired sign-in from none.
+    // The code alone does not tell an expired sign-in from none.
     expect(dockedRefusal("not_logged_in", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Sign in to Claude Code in Settings > Agents, then send again." });
   });
   // Cursor keeps no session for a first turn its plan limit stopped, so that conversation cannot continue even after the
@@ -164,7 +162,6 @@ describe("dockedRefusal", () => {
       expect(dockedRefusal("workspace_changed", mode, "claude", "doan-design")).toEqual({ kind: "notice", text, startNew: true });
     }
   });
-  // Home and the canvas panel offer Retry for the same start codes; the Overview's refused start does too.
   test("a refused start offers Retry exactly where Home does", () => {
     const start = { kind: "new", root: "/r" } as const;
     for (const code of ["process_exited", "busy", "session_unavailable", "session_in_use", "runtime_unsupported", "cli_install_failed", "unknown"]) {
@@ -173,7 +170,6 @@ describe("dockedRefusal", () => {
     for (const code of ["not_logged_in", "cli_missing", "rate_limited", "credential_override", "no_agent"]) {
       expect(dockedRefusal(code, start, "claude", "doan-design")).not.toHaveProperty("retry");
     }
-    // A conversation's send keeps its own notices, without Retry.
     expect(dockedRefusal("busy", EXISTING, "claude", "doan-design")).not.toHaveProperty("retry");
   });
   test("a terminal session's refusal names the session, not another agent", () => {
@@ -196,7 +192,6 @@ describe("dockedPicker", () => {
     expect(picked.trigger).toEqual({ provider: "claude", label: "Opus 5.5", ariaLabel: "Model: Opus 5.5 (Claude Code)", placeholder: false, isDefault: false });
     expect(picked.groups.map(group => group.provider)).toEqual(["claude"]);
   });
-  // the default row says so; no model names the drawer.
   test("the default row's name ends with default; with no model the trigger names its drawer", () => {
     const shown = dockedPicker({ ...view, trigger: { ...view.trigger, ariaLabel: "Agent: Claude Code, model Opus 5.5, default", isDefault: true } }, EXISTING);
     expect(shown.trigger).toEqual({ provider: "claude", label: "Opus 5.5", ariaLabel: "Model: Opus 5.5, default (Claude Code)", placeholder: false, isDefault: true });
@@ -211,8 +206,8 @@ describe("dockedPicker", () => {
   });
 });
 
-// one rule for both hosts decides the drawn text and whether
-// the suggestion is shown, so the →-key check can never disagree with what the field shows.
+// One rule decides the drawn text and whether the suggestion shows, so the →-key check
+// can never disagree with what the field shows.
 describe("composerPlaceholder", () => {
   const preset: PresetSummary = { id: "polish", title: "Polish", description: "Final pass", scope: "canvas" };
   const SUGGESTION = "Make the header lighter";
@@ -229,7 +224,7 @@ describe("composerPlaceholder", () => {
   });
   test("a field holding text or a chip shows no suggestion; attachments alone keep it (the field is still empty)", () => {
     expect(placeholder({ empty: false })).toEqual({ text: "Reply, / for presets", suggestion: null });
-    // A preset only stands in for the text while the field is empty, as the hosts decided before.
+    // A preset stands in for the text only while the field is empty.
     expect(placeholder({ empty: false, preset })).toEqual({ text: "Reply, / for presets", suggestion: null });
   });
   test("only an existing conversation shows one; the hosts' own texts pass through unchanged", () => {

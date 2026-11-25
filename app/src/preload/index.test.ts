@@ -153,7 +153,6 @@ test("project remove, locate and reveal use fixed channels", async () => {
   expect(mocks.invoke).toHaveBeenLastCalledWith("menu:state", { screen: "home", modal: false });
 });
 
-// The wizard's single-folder contract stays as it was.
 test("Open Project keeps its own channel next to Add Project", async () => {
   mocks.invoke.mockResolvedValueOnce(null);
   expect(await api.openFolder()).toBeNull();
@@ -385,7 +384,6 @@ test("design skills read through two fixed channels and pass the id as data", as
   expect(Object.keys(api.designSkills).sort()).toEqual(["get", "list"]);
 });
 
-// the page's project session mirrors the onboarding session's project calls on its own channels.
 test("Add Projects page calls use their own fixed channels and pass the request as data", async () => {
   const ids = { sessionId: "s", requestId: "r" };
   await api.readAddPage(); expect(mocks.invoke).toHaveBeenLastCalledWith("add-projects:read", {});
@@ -433,7 +431,6 @@ test("buddy screen calls use fixed channels and carry no data", async () => {
   await api.closeBuddyIntro(); expect(mocks.invoke).toHaveBeenLastCalledWith("buddy-intro:close");
 });
 
-// the Settings page and the Project Settings page live in the main window.
 test("settings page calls use fixed channels and pass their requests as data", async () => {
   const calls: [() => Promise<unknown>, unknown[]][] = [
     [() => api.readPreferences(), ["preferences:read"]],
@@ -456,8 +453,7 @@ test("settings page calls use fixed channels and pass their requests as data", a
   }
 });
 
-// Settings > About's update row, the header button and the Doan menu item. Requests carry no data: main decides from
-// its own state what a check, a restart or Release Notes does.
+// Requests carry no data: main decides from its own state what a check, a restart or Release Notes does.
 test("update calls use fixed channels and send no data", async () => {
   const calls: [() => Promise<unknown>, unknown[]][] = [
     [() => api.readUpdate(), ["update:get"]],
@@ -757,12 +753,11 @@ test("prototype reveal requests and Last used picks reach their listeners until 
   expect(picks.mock.calls).toEqual([[{ provider: "claude", model: "sonnet", effort: null, modelPicked: true }]]);
 });
 
-// The playing-target push and the drawing report it fed are gone; the playing frame below stays.
 test("offers no prototype target and reports no drawing conversation", () => {
   for (const name of ["onPrototypeTarget", "readPrototypeTarget", "setPrototypeDrawing"]) expect(api, name).not.toHaveProperty(name);
 });
 
-// The frame the prototype window plays, which the toolbar's frame drawer marks: main's answer unless a push came first.
+// The playing frame: main's answer unless a push came first.
 test("the playing frame arrives from its pushes and its read", async () => {
   const playing = { root: "/r", canvas: { id: "proto", path: ".doan/canvases/proto.html" }, frame: "phone" };
   const seen = vi.fn();

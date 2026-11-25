@@ -1,8 +1,7 @@
 import type { CanvasRow } from "../main/view";
 
-// Worktree switcher: the same canvas id as the current
-// canvas, else the canvas remembered for the target root (by path), else null
-// for the workspace's first screen.
+// The same canvas id as the current canvas, else the canvas remembered for the target root, else null for the
+// workspace's first screen.
 export function switchTarget(currentCanvasId: string | undefined, targetRows: readonly CanvasRow[], remembered: string | undefined): CanvasRow | null {
   if (currentCanvasId !== undefined) {
     const same = targetRows.find((row) => row.id === currentCanvasId);

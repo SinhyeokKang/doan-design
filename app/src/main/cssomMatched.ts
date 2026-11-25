@@ -1,4 +1,4 @@
-// The sandbox has no debugger. Reconstruct the matched declarations here so both inspectors can use inspectRows.
+// The sandbox has no debugger, so the matched declarations are reconstructed here for inspectRows.
 import {
   candidates,
   cascadeWinner,
@@ -76,8 +76,6 @@ function styleOf(style: CSSStyleDeclaration | undefined | null): CdpStyle {
   return { cssProperties };
 }
 
-// ---- selectors -----------------------------------------------------------
-
 function splitTop(text: string, sep: string): string[] {
   const out: string[] = [];
   let depth = 0,
@@ -125,7 +123,6 @@ export function specificity(selector: string): Spec {
     return selector.slice(start, i);
   };
   const group = (): string => {
-    // at "(": return inside, move past ")"
     let depth = 0;
     const start = i + 1;
     for (; i < n; i++) {
@@ -231,8 +228,6 @@ function expandNested(own: string, parent: string): string {
   }
   return found ? out : `${is} ${own}`;
 }
-
-// ---- rule collection -----------------------------------------------------
 
 interface Entry {
   style: CSSStyleDeclaration;
@@ -447,9 +442,8 @@ function collectRules(doc: Document, ancestors: Element[]): Collected {
     c.replaceSync(text);
     walk(c.cssRules, ctx);
   };
-  // Let the browser match selectors inside their original @scope context, including limits and :scope.
-  // Among the selected element and its ancestors there is only one possible root at each document depth.
-  // Restricting the innermost scope to that depth lets its marker report the winning root's proximity.
+  // The browser matches selectors inside their original @scope context, limits and :scope included. Restricting the
+  // innermost scope to the one possible root at each document depth lets its marker report the winning root's proximity.
   const scoped = (rule: CSSScopeRule, ctx: Ctx) => {
     const { start, end } = rule;
     const contextual = ctx.parent !== null || ctx.scope !== undefined || /:scope|[&\\]/i.test(start ?? "");
@@ -559,8 +553,6 @@ function matchProbe(doc: Document, { conditions, scopeCSS }: Collected): () => v
   };
 }
 
-// ---- UA and presentational stand-ins ---------------------------------------
-
 // The user-agent rules that set the inherited properties inspect.ts follows (color, font-*, line-height).
 // A UA winner is "default"; without these, an inherited author value would be reported instead.
 const UA: [string, string[]][] = [
@@ -585,8 +577,6 @@ function attributesStyle(el: Element): CdpStyle | undefined {
   }
   return cssProperties.length ? { cssProperties } : undefined;
 }
-
-// ---- matched styles --------------------------------------------------------
 
 function matches(el: Element, selector: string): boolean {
   try {

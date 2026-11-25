@@ -27,14 +27,12 @@ import { FrameListBody } from "../FrameListBody";
 import { useHeaderNoDrag } from "../headerNoDrag";
 import { useActivationFocus } from "../activationFocus";
 
-// The prototype window (PRODUCT §3 Show, one frame): the main window's shell without a sidebar, a header of Back,
-// Forward and Reload, the playing frame's name, the Fit/Responsive toggle and Export, and the frame's own document in a
-// sandboxed iframe in the content panel. Every decision is main's; this window draws its view, hosts the run's iframe,
-// forwards the run's reports and shows its export's toasts.
+// The prototype window (PRODUCT §3 Show, one frame). Every decision is main's; this window draws its view, hosts the run's sandboxed
+// iframe, forwards the run's reports and shows its export's toasts.
 
 export type PrototypeApi = PrototypeWindowApi & { onSnapshot(listener: (snapshot: PrototypeSnapshot) => void): () => void } & PrototypeConversationCalls;
 
-// The reading line waits so a quick load does not flash it in, as the shipped problem overlay's does.
+// The reading line waits so a quick load does not flash it in, as the problem overlay's does.
 const READING_DELAY_MS = 300;
 const SCENE_HEADING_ID = "prototype-state-heading", SCENE_LINE_ID = "prototype-state-line";
 // Export's sr-only reason while it is unavailable: Radix links the tooltip only while it is open.
@@ -103,9 +101,8 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   const clock = useVisibleClock(1000, api);
   const column = useRef<HTMLDivElement>(null);
   const convButton = useRef<HTMLButtonElement>(null);
-  // The open state this window last asked main for, until main's view shows it: focus then goes to the composer or
-  // the button. A view that arrives open by itself moves nothing. Each press decides from the view, not from this, so
-  // a request main never answered cannot turn the next press into the opposite one.
+  // The open state last asked of main, until main's view shows it: focus then goes to the composer or the button. Each press decides
+  // from the view, not from this, so an unanswered request cannot turn the next press into the opposite.
   const panelAsked = useRef<boolean | null>(null);
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   // The canvas page's fold motion, for this window's own toggle only: a drag must not animate, or the handle trails the
@@ -175,9 +172,8 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     setPanelMotion(true);
     void api.setPanel({ open });
   };
-  // Opening puts focus in the composer, or on the head's menu button before the first view, when there is no composer
-  // yet: the header's button it was on is hidden now. Closing puts it on that button, which has its box again by this effect.
-  // A composer blocked while open keeps focus itself (readOnly), so nothing moves then.
+  // Opening focuses the composer, or the head's menu button before the first view; closing focuses the header's button, which has its
+  // box again by this effect. A composer blocked while open keeps focus itself (readOnly).
   const headFallback = useRef(false);
   const composer = () => column.current?.querySelector<HTMLElement>(".composer-input") ?? null;
   const headTitle = () => column.current?.querySelector<HTMLElement>(".doan-conv-title .ov-title") ?? null;
@@ -227,9 +223,8 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   const runGen = currentRun(layers, gen)?.gen ?? null;
   const loadingRun = phase === "loading" ? runGen : null;
 
-  // A link the run's document followed. A move arms the pointer Reload's focus return when focus was in the frame (the
-  // new run's iframe takes it once ready) and names the frame it moves to once that view comes, for the live region.
-  // The broken link's toast stays off an export's progress or result toast, which it would replace.
+  // A followed link: a move arms the pointer Reload's focus return when focus was in the frame and names the frame it moves to for the live region.
+  // The broken link's toast stays off an export's toast, which it would replace.
   const followLink = (message: GotoMessage) => {
     const current = viewRef.current;
     const shown = toastRef.current.toast?.message;
@@ -283,9 +278,8 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     return () => clearTimeout(timer);
   }, [loadingGen]);
 
-  // A new state closes Details. Focus moves to a new scene's title only when it was inside the content, which the
-  // overlay now covers, or already fell to the page when a load made the content inert; otherwise it stays where the
-  // person put it and the live region speaks.
+  // A new state closes Details. Focus moves to a new scene's title only when it was inside the now-covered content or already fell to
+  // the page; otherwise it stays and the live region speaks.
   const scene = view === null ? (readFailure === null ? null : FIRST_READ_SCENE) : stateScene(view);
   const sceneKey = scene === null ? null : view === null ? "first-read" : `${gen}\n${phase}`;
   const focusWasInside = useRef(false);
@@ -296,9 +290,8 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     if (sceneKey !== null && focusWasInside.current) heading.current?.focus({ preventScroll: true });
   }, [sceneKey]);
 
-  // A pointer Reload replaces the iframe; the old one goes inert while the new one loads, so focus that was in the frame
-  // falls to the page. The new run takes it back once ready, unless the person put focus elsewhere meanwhile. A failure
-  // or lost state forgets the press: its scene takes focus by the rule above.
+  // A pointer Reload replaces the iframe, so focus that was in the frame falls to the page; the new run takes it back once ready unless
+  // the person moved it. A failure or lost state forgets the press.
   const visibleGen = layers.visible;
   const handFocus = useActivationFocus();
   useEffect(() => {
@@ -383,9 +376,8 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     api.export(run.target).then(done, () => done({ kind: "failed", reason: "failed" }));
   };
 
-  // The head menu's Delete asks first, as the main window's does. Cancel, the delete and a refusal all return focus to
-  // the menu's button, whatever the panel shows next; the move waits for the render that closes the modal alert
-  // (POSTMORTEM 2026-11-14 'A failed buddy switch dropped focus'), since the page behind it takes no focus.
+  // Cancel, the delete and a refusal all return focus to the menu's button; the move waits for the render that closes the modal alert
+  // (POSTMORTEM 2026-11-14), since the page behind it takes no focus.
   const [deleting, setDeleting] = useState<{ target: DeleteTarget; pending: boolean } | null>(null);
   // The delete alert is this window's modal: it holds the toast's clock as the main window's modals do (ARCHITECTURE §7 'Toasts').
   const modalOpen = deleting !== null;
@@ -440,9 +432,8 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
       onResize: next => { setDragWidth(null); void api.setPanel({ open: true, width: next === undefined ? panelBounds.default : clampPanel(next) }); } }} />;
 }
 
-// The conversation panel's part of the shell: the header's Show conversation, and the independent panel on the window's
-// right at the width main answered (the drag's preview width while a drag goes on), with its resize handle, its head's
-// title and Hide conversation, and its body.
+// The header's Show conversation, and the panel on the window's right at the width main answered (the drag's preview width during
+// a drag), with its resize handle, its head and its body.
 export interface ShellConversation {
   button: ConversationButton;
   open: boolean;
@@ -491,10 +482,8 @@ export interface ShellProps {
   onChoose(frame: string): void; onClose(): void; onDetails(): void; onExport(): void;
 }
 
-// The window's markup. Header controls come before the content in the Tab order, and the open conversation panel between
-// them, so neither the frame's Tab stops nor a focus trap in it keeps the panel out of reach; the state overlay covers
-// the content panel only, so they stay usable over it. Every control keeps one element tree in every state (no view
-// yet, pressed or not, either row) so a focused control or the open frame menu survives the change.
+// Header controls, then the open conversation panel, come before the content in the Tab order, so a focus trap in the frame cannot
+// keep them out of reach. Every control keeps one element tree in every state, so focus and the open frame menu survive.
 export function WindowShell({ view, layers, readingShown, details, live, width, menuOpen, exporting, toast, dialog, content, heading, name, frames, conversation: conv = FOLDED, readFailure = null, onReadRetry, onBack, onForward, onReload, onReloadPress, onReloadClick, onMode, onMenuOpen, onChoose, onClose, onDetails, onExport }: ShellProps) {
   const firstRead = view === null && readFailure !== null;
   const scene = view === null ? (firstRead ? FIRST_READ_SCENE : null) : stateScene(view);
@@ -543,10 +532,8 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
             {...(exportReason !== null ? { "aria-disabled": true, "aria-describedby": EXPORT_REASON_ID } : {})}
             onMouseDown={keepFocus} onClick={() => { if (exportState.available) onExport(); }}><Download aria-hidden="true" /></button>
         </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>{exportReason ?? "Export prototype"}</TooltipContent></Tooltip>
-        {/* One element in every state, before the first view too: only its name and badge change (POSTMORTEM
-            2026-11-13). While the panel is open it is hidden (no box, no Tab stop), since Hide conversation is in the
-            panel's head; closing shows it again and focus comes back to it. The badges are in its name, which the tooltip
-            says too: the dot alone does not tell an answer waiting from an unread ending. */}
+        {/* One element in every state (POSTMORTEM 2026-11-13). While the panel is open it is hidden, since Hide conversation is in the
+           panel's head; its name carries the badges, as the dot alone does not tell an answer waiting from an unread ending. */}
         <Tooltip><TooltipTrigger asChild>
           <button type="button" className="doan-icon-button pw-conv" data-ui-placement="chrome" aria-label={conv.button.name} aria-expanded={false} aria-controls={CONVERSATION_PANEL_ID}
             data-badge={conv.button.badge === null ? undefined : conv.button.badge === "permission" ? "true" : conv.button.badge} ref={conv.buttonRef} hidden={conv.open}
@@ -607,10 +594,8 @@ export function viewportStyles(box: ViewportBox) {
   };
 }
 
-// The content panel: the run's iframes (a new element per run; one loading stays hidden under the previous screen
-// until it is ready) or, with no run on screen, main's still image at the box main took it from; inert while anything
-// but a ready run shows, then the state overlay. A mode change only restyles the same elements, so the run is resized,
-// never loaded again.
+// A new iframe per run; one loading stays hidden under the previous screen until ready, else main's still image shows. Inert while
+// anything but a ready run shows. A mode change only restyles the same elements, so the run is never loaded again.
 function ContentPanel({ view, layers, covered, content, frames, children }: { view: PrototypeView | null; layers: HostLayers; covered: boolean; content?: RefObject<HTMLDivElement | null> | undefined; frames?: Map<number, HTMLIFrameElement> | undefined; children: ReactNode }) {
   const panel = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -642,9 +627,8 @@ function ContentPanel({ view, layers, covered, content, frames, children }: { vi
   </div>;
 }
 
-// The frame name, centred between the header's groups, opens this canvas's marked frames in their link groups. It names
-// the whole title in the shared Tooltip only while the name is cut short. The shell holds the menu's open state, which
-// its other header tooltips close on Esc too.
+// The frame name opens this canvas's marked frames in their link groups, with the whole title in the shared Tooltip only while cut.
+// The shell holds the menu's open state, which its other header tooltips close on Esc too.
 function FrameMenu({ view, open, onOpenChange, trigger: triggerRef, onTipEscape, onChoose }: { view: PrototypeView; open: boolean; onOpenChange(open: boolean): void; trigger?: RefObject<HTMLButtonElement | null> | undefined; onTipEscape(): void; onChoose(frame: string): void }) {
   const [cut, setCut] = useState(false);
   const [tip, setTip] = useState(false);

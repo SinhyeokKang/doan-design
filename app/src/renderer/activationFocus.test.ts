@@ -1,9 +1,8 @@
 import { describe, expect, test, vi } from "vitest";
 import { focusThroughActivation, refocusOnActivation } from "./activationFocus";
 
-// The sidebar hands a vanished row's focus to its canvas row while the window is in the background (`doan open` from a
-// terminal); activating the window then lets the platform restore focus to the first header control, because the row it
-// remembered is gone. The handed-over focus is put back once the window gains focus.
+// Activating the window lets the platform restore focus to the first header control when the remembered row
+// is gone, so focus handed over in the background (`doan open`) is put back once the window gains focus.
 
 function setup(hasFocus: boolean) {
   const win = new EventTarget();
@@ -27,7 +26,7 @@ test("the next window focus puts focus back at once and again after the platform
   expect(refocus).toHaveBeenCalledTimes(1);
   deferred.forEach(run => run());
   expect(refocus).toHaveBeenCalledTimes(2);
-  // Only that activation: later focus events are the person's own.
+  // Only the first activation refocuses: later focus events are the person's own.
   win.dispatchEvent(new Event("focus"));
   expect(refocus).toHaveBeenCalledTimes(2);
 });
@@ -52,8 +51,7 @@ test("cancelled before the window gains focus, nothing is put back", () => {
   expect(refocus).not.toHaveBeenCalled();
 });
 
-// Every focus recovery that can run while the window is in the background (POSTMORTEM 2026-11-17) goes through
-// focusThroughActivation: it focuses at once, and while the window lacks focus once more on activation.
+// Every focus recovery that can run in the background (POSTMORTEM 2026-11-17) goes through focusThroughActivation.
 describe("focusThroughActivation", () => {
   function page(hasFocus: boolean) {
     const win = new EventTarget();

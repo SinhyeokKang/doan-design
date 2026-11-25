@@ -2,15 +2,12 @@ import { LIMITS } from "../main/conversation/messageText";
 import type { Anchor } from "../main/conversation/types";
 import type { SelectTarget } from "./canvasMessage";
 
-// Pick from canvas and chip locate.
-
 export const PICKER_UNAVAILABLE = "Pick from canvas isn’t available while the canvas can’t be shown.";
 export const ANCHOR_LIMIT_TEXT = `A message can point at up to ${LIMITS.anchors} places. Remove one to add another.`;
 
 export type CanvasLoad = "loaded" | "loading" | "failed" | "noWidth" | "unlisted";
 
-// The composer's Pick, the toolbar's Picker and ⌘L. `composer` is the composer's reason line while it takes no input (null: it
-// does); `chips` the different places the draft already points at. A disabled control keeps its reason as a tooltip.
+// `chips`: the different places the draft already points at. A disabled control keeps its reason as a tooltip.
 export function pickerAvailability(composer: string | null, canvas: CanvasLoad, chips: number): { enabled: boolean; reason: string | null } {
   if (canvas !== "loaded") return { enabled: false, reason: PICKER_UNAVAILABLE };
   if (composer !== null) return { enabled: false, reason: composer };
@@ -18,9 +15,7 @@ export function pickerAvailability(composer: string | null, canvas: CanvasLoad, 
   return { enabled: true, reason: null };
 }
 
-// The size bubble's Add to message: the same chip as a pick of the selection, so after its own two reasons it takes the
-// Picker's judgement. The Picker's canvas reason names that other button, so the bubble says it in its own words; an
-// unlisted canvas keeps its notice (`unlisted`, null for a listed one).
+// The Picker's canvas reason names that other button, so the bubble says it in its own words.
 export const ADD_TO_MESSAGE_CAPTURING = "Finish or cancel the capture first.";
 export const ADD_TO_MESSAGE_OUTSIDE_FRAMES = "Only frames and what’s in them can go in a message.";
 export const ADD_TO_MESSAGE_UNAVAILABLE = "Add to message isn’t available while the canvas can’t be shown.";
@@ -39,15 +34,14 @@ export interface PickFrame extends Rect { id: string; title?: string }
 
 const inside = (p: { x: number; y: number }, r: Rect) => p.x >= r.x && p.y >= r.y && p.x <= r.x + r.width && p.y <= r.y + r.height;
 
-// A click on an empty spot, in the canvas document's coordinates: a point in the innermost frame under it, as an offset
-// from that frame. Outside every frame there is no anchor: board coordinates are the app's own layout, which an agent
-// cannot relate to the HTML.
+// Outside every frame there is no anchor: board coordinates are the app's own layout, which an agent cannot relate to
+// the HTML.
 export function pointAnchor(click: { x: number; y: number }, frames: readonly PickFrame[]): Anchor | null {
   if (!Number.isFinite(click.x) || !Number.isFinite(click.y)) return null;
   let best: PickFrame | null = null;
   for (const frame of frames) {
     if (![frame.x, frame.y, frame.width, frame.height].every(Number.isFinite) || !inside(click, frame)) continue;
-    // Nested frames: the smallest one holding the click is the innermost; a later frame wins a tie, as it draws on top.
+    // The smallest frame holding the click is the innermost; a later frame wins a tie, as it draws on top.
     if (!best || frame.width * frame.height <= best.width * best.height) best = frame;
   }
   if (!best) return null;
@@ -55,7 +49,7 @@ export function pointAnchor(click: { x: number; y: number }, frames: readonly Pi
   return { frame: { id: best.id, ...(best.title ? { title: best.title } : {}) }, point: { frameId: best.id, dx, dy } };
 }
 
-// A picked or selected frame or element as a chip's anchor: only what an agent can find in the HTML. null: neither.
+// Only what an agent can find in the HTML.
 export function targetAnchor(target: Omit<SelectTarget, "rect">): Anchor | null {
   const frame = target.frame && { id: target.frame.id, ...(target.frame.title === undefined ? {} : { title: target.frame.title }) };
   if (!target.element) return frame ? { frame } : null;
@@ -64,7 +58,6 @@ export function targetAnchor(target: Omit<SelectTarget, "rect">): Anchor | null 
   return frame ? { frame, element } : { element };
 }
 
-// The canvas script's anchors reply for one chip: candidate nodes per lookup and the rects of those nodes.
 export interface ChipReply {
   candidates: { doanId?: readonly string[]; selector?: readonly string[] | null; frame?: readonly string[] };
   rects: ReadonlyMap<string, Rect>;
@@ -77,8 +70,7 @@ export type ChipTarget =
 
 const unique = (nodes: readonly string[] | null | undefined) => (nodes?.length === 1 ? nodes[0]! : null);
 
-// reply null: the canvas is not loaded, so locate is disabled. An element is its unique doan-id, else its unique
-// selector; a frame its id; a point its frame's offset, missing once the frame is gone.
+// reply null: locate is disabled. A point goes missing once its frame is gone.
 export function resolveChipTarget(anchor: Anchor, reply: ChipReply | null): ChipTarget {
   if (!reply) return { kind: "unavailable" };
   if (anchor.element) {

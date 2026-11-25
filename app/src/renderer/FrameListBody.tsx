@@ -48,9 +48,8 @@ export function DrawerListbox({ label, groups, active, currentWord, onKeyDown, o
   </div>;
 }
 
-// Opening focuses the current row, else the first. With no row and an `empty` line, the content is a labelled dialog
-// holding that line instead of a list.
-// `onClose`: the drawer's own close, which an Esc on a row's tooltip also takes (TooltipEscape).
+// Opening focuses the current row, else the first; with no row and an `empty` line, the content is a labelled dialog holding
+// that line. `onClose`: the drawer's own close, which an Esc on a row's tooltip also takes (TooltipEscape).
 export function FrameListBody({ label, groups, open, empty, onPick, onClose, className, side, align }: {
   label: string; groups: readonly DrawerGroup[]; open: boolean; empty?: string; onPick(row: DrawerRow): void; onClose(): void;
   className: string; side?: "top" | "bottom"; align: "start" | "center" | "end";

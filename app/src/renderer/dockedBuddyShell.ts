@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: MIT
-// The docked buddy's DOM and WebGL shell: the preview shell of the docked draft .doan/assets/buddies/docked-poc.js
-// (MIT, Doan contributors) for the app. One buddy for the workspace: its ground (clip window, host, still image,
-// canvas, floor shadow) is one imperative node that moves between the surface slots with append, so the canvas keeps
-// its WebGL context. React draws only the empty slots (DockedComposer's card, CanvasTools) and registers them with
-// ref callbacks; App starts and stops the shell with the workspace screen and pushes what only it knows.
-// The buddy runs on its own requestAnimationFrame and never asks React to render. The frame loop parks whenever
-// another step could change nothing (time stopped, or dockedNeedsTime false) and wakes on an input change: a slot
-// attribute, a portalled popper, a resize, visibility, focus, reduced motion, a push from App or an event. While it
-// runs on its own it advances at most about 60 frames a second, so a 120 Hz display does not double the cost.
+// One imperative node moves between the surface slots with append, so the canvas keeps its WebGL context. It runs on
+// its own requestAnimationFrame, never renders React, and parks whenever another step could change nothing.
 import type { VisibleCalls } from "./visibleClock";
 import { EYE_TEXTURE, buddy as registry, type BuddyId } from "./buddies";
 import { canvasSize } from "./doanyMotion";
@@ -21,24 +14,19 @@ import {
 import { buddyBox, overlaps, silhouettePath, type Box, type SilhouetteMask } from "./dockedBuddyHit";
 import { dockedShaders } from "./dockedBuddyShader";
 
-// Floating elements the buddy hides under: Radix poppers (tooltips, menus, popovers) portalled to body, the slash
-// popover and the picking or capture hint. Measured by geometry: the menus and tooltips do not expose being open.
+// Measured by geometry: the menus and tooltips do not expose being open.
 export const FLOATING = "[data-radix-popper-content-wrapper], .slash-popover, .doan-picking";
-// The dock slot's attributes, written by DockedComposer: the card takes no input, and the step-aside reasons. popover
-// only wakes the parked loop and refreshes the floating list, since the slash popover opens inside the card where no
+// popover only wakes the parked loop and refreshes the floating list: the slash popover opens inside the card where no
 // other observer sees it.
 export const SLOT_ATTRIBUTES = ["data-accepts", "data-queue", "data-waiting", "data-notice", "data-popover"];
-// A thread scroll ends the rest only this soon after the person's own wheel, press or key, so following new agent
-// output (the thread sets its own scrollTop) does not.
+// A thread scroll ends the rest only this soon after the person's input, so following new agent output does not.
 const PERSON_SCROLL_MS = 1000;
-// A self-continued frame this soon after the last advanced one is skipped: one 60 Hz interval less a margin that no
-// 60 Hz vsync jitter reaches, so 60 Hz drops nothing and 120 Hz advances every other callback. The core still gets
-// each real timestamp, so its time model does not change; an input change applies on the very next callback.
+// One 60 Hz interval less a margin no vsync jitter reaches, so 60 Hz drops nothing and 120 Hz advances every other
+// callback. The core still gets each real timestamp; an input change applies on the very next callback.
 const FRAME_MS = 1000 / 60 - 4;
 
-// What only App knows. overview: the Overview covers the canvas page, whose toolbar stays laid out under it, so the
-// toolbar is no surface. covered: the problem overlay or first run is over the workspace. hint: a picking or capture
-// hint is shown, only to wake the loop (the hint is measured as a floating element).
+// overview: the Overview covers the canvas page, whose toolbar stays laid out under it, so the toolbar is no surface.
+// hint only wakes the loop; the hint itself is measured as a floating element.
 export interface WorkspaceInputs { overview: boolean; folded: boolean; folding: boolean; covered: boolean; hint: boolean }
 const NO_WORKSPACE: WorkspaceInputs = { overview: false, folded: false, folding: false, covered: false, hint: false };
 
@@ -46,8 +34,8 @@ const UNIFORMS = ["time", "squash", "lift", "tilt", "hatTilt", "layer", "energy"
 
 interface Target { draw(frame: DockedFrame): void; resize(size: number): void; lost(): boolean; release(): void; textures: Promise<unknown> }
 
-// Null without WebGL; throws when a shader does not compile or link, after releasing the context. Context options,
-// mesh, blend, texture parameters and units are the draft's, as Doany.tsx's are.
+// Null without WebGL; throws when a shader does not compile or link, after releasing the context. Settings match
+// Doany.tsx's.
 function glTarget(canvas: HTMLCanvasElement, id: BuddyId): Target | null {
   const gl = canvas.getContext("webgl", { alpha: true, antialias: true, premultipliedAlpha: false });
   if (!gl) return null;
@@ -116,25 +104,20 @@ function glTarget(canvas: HTMLCanvasElement, id: BuddyId): Target | null {
   }
 }
 
-// One buddy's drawing in the host: still image, canvas and WebGL, and the hit target shaped by the still image's
-// silhouette (shown only once that shape is read). A buddy change replaces only this.
-// failed: WebGL is gone for this rig (none, a shader, a texture, or the context lost); it shows the still image until rebuilt.
+// A buddy change replaces only this. failed: WebGL is gone for this rig; it shows the still image until rebuilt.
 interface Rig { id: BuddyId; still: HTMLImageElement; canvas: HTMLCanvasElement; hit: HTMLElement; shaped: boolean; target: Target | null; ready: boolean; failed: boolean; drawn: string; dispose(): void }
 
 interface Live {
   state: DockedState; ground: HTMLElement; shadow: HTMLElement; host: HTMLElement; rig: Rig;
   container: HTMLElement; personMovedAt: () => number; calls: VisibleCalls;
   raf: number; out: DockedFrame | null; intersecting: boolean; events: DockedEvent[]; activityAt: number; personAt: number;
-  // nativeVisible: the window is shown (document.hidden stays false while it is closed with the app running or the
-  // app is hidden; POSTMORTEM 2026-10-25). urgent: an input changed since the last advanced frame. advancedAt: that
-  // frame's timestamp. written: the last style strings, so an unchanged frame writes nothing.
+  // nativeVisible: document.hidden stays false while the window is closed with the app running or the app is hidden.
+  // written: the last style strings, so an unchanged frame writes nothing.
   nativeVisible: boolean; urgent: boolean; advancedAt: number; written: { host: string; shadow: string; opacity: string };
-  // rebuilt: a failed rig is rebuilt at most once per stretch the workspace is seen, so the buddy does not stay on the
-  // still image until the app restarts (a GPU process reset loses every context). A context lost after the rig was
-  // ready allows more rebuilds, each once the GPU is back (retries left, retry: the pending timer or 0). Nothing
-  // retries every frame.
+  // At most once per stretch the workspace is seen, so a GPU process reset does not leave the still image until restart.
+  // A context lost after the rig was ready allows more rebuilds, each once the GPU is back; nothing retries every frame.
   rebuilt: boolean; retries: number; retry: ReturnType<typeof setTimeout> | 0;
-  // The floating elements in the page, found again only when one can have come or gone (null: find them again).
+  // null: find them again.
   floating: Element[] | null;
   slotSizes: ResizeObserver; slotAttributes: MutationObserver; portals: MutationObserver; hostSize: ResizeObserver; view: IntersectionObserver;
   reduced: MediaQueryList; off(): void;
@@ -146,8 +129,8 @@ export class DockedBuddyShell {
   private id: BuddyId = "doany";
   private live: Live | null = null;
 
-  // Stable ref callbacks for React's slots. React 19 calls the cleanup instead of the callback with null, and
-  // StrictMode attaches twice; a cleanup clears only the node it attached.
+  // React 19 calls the cleanup instead of the callback with null, and StrictMode attaches twice; a cleanup clears only
+  // the node it attached.
   readonly dockSlot = (node: HTMLElement | null) => this.attach("dock", node);
   readonly toolsSlot = (node: HTMLElement | null) => this.attach("tools", node);
 
@@ -177,7 +160,7 @@ export class DockedBuddyShell {
     this.wake();
   }
 
-  // A buddy change rebuilds only the rig: the surface, each surface's x and the hide state carry on.
+  // The surface, each surface's x and the hide state carry on.
   setBuddy(id: BuddyId) {
     if (id === this.id) return;
     this.id = id;
@@ -193,9 +176,7 @@ export class DockedBuddyShell {
     live.rig = this.rig(live, this.id);
   }
 
-  // container: a stable element whose visibility gates time (not a slot, which folds and leaves). personMovedAt: the
-  // last view move or selection change, in Date.now() ms (the canvas page's following rest).
-  // `calls`: `window.doan`, or the prototype window's visibility event of the same name.
+  // container: a stable element whose visibility gates time (not a slot, which folds and leaves).
   start(container: HTMLElement, personMovedAt: () => number, calls: VisibleCalls) {
     if (this.live) return;
     const ground = element("span", "docked-buddy"), shadow = element("span", "docked-buddy-shadow"), clip = element("span", "docked-buddy-window"), host = element("span", "docked-buddy-host");
@@ -224,7 +205,6 @@ export class DockedBuddyShell {
     this.wake();
   }
 
-  // Leaving the workspace: the context goes back and nothing is left in the slots.
   stop() {
     const live = this.live;
     if (!live) return;
@@ -237,9 +217,8 @@ export class DockedBuddyShell {
     live.ground.remove();
   }
 
-  // An input changed: the next callback advances whatever the frame cap says.
-  // A pending frame is requested again, so a callback that never arrives (one requested while the window could not
-  // paint) cannot hold the id and park the loop for good.
+  // A pending frame is requested again, so a callback that never arrives (requested while the window could not paint)
+  // cannot hold the id and park the loop for good.
   private wake() {
     const live = this.live;
     if (!live) return;
@@ -249,14 +228,14 @@ export class DockedBuddyShell {
   }
   private next(live: Live) { if (!live.raf) live.raf = requestAnimationFrame(this.tick); }
 
-  // The GPU may be back: the next frame the buddy is seen rebuilds the rig.
+  // The next frame the buddy is seen rebuilds the rig.
   private allowRebuild(live: Live) {
     if (this.live !== live) return;
     if (live.retry) { clearTimeout(live.retry); live.retry = 0; }
     live.rebuilt = false;
     this.wake();
   }
-  // A failed rig waits for one more rebuild only while a lost ready rig left retries.
+  // A failed rig retries only while a lost ready rig left retries.
   private retryLater(live: Live) {
     if (live.retry || live.retries <= 0) return;
     const wait = RETRY_MS * 2 ** (RETRIES - live.retries);
@@ -270,13 +249,12 @@ export class DockedBuddyShell {
 
   private listen(live: Live) {
     const wake = () => this.wake();
-    // The pointer over the thread looks up. It never wakes the loop: a running loop takes it on its next frame, and a
-    // parked one (hidden, unseen or reduced motion) would change nothing visible, so it waits in the queue, once.
+    // The pointer over the thread never wakes the loop: a parked one would change nothing visible, so it waits queued.
     const move = (event: PointerEvent) => { if (closest(event.target, ".thread-scroll") && live.events.at(-1) !== "thread") live.events.push("thread"); };
-    // Typing in the composer looks down and ends a rest (focus alone does not: the app hands focus back to the field).
+    // Focus alone does not end a rest: the app hands focus back to the field.
     const typed = (event: Event) => { if (closest(event.target, ".docked .composer-input")) { live.activityAt = Date.now(); live.events.push("input"); this.wake(); } };
     const person = () => { live.personAt = Date.now(); };
-    // Any thread scroll the person caused (wheel, scrollbar, keys) ends a rest; read inside a frame, so no wake.
+    // Read inside a frame, so no wake.
     const scrolled = (event: Event) => {
       const now = Date.now();
       if (closest(event.target, ".thread-scroll") && now - live.personAt <= PERSON_SCROLL_MS) live.activityAt = now;
@@ -304,19 +282,17 @@ export class DockedBuddyShell {
 
   private rig(live: Live, id: BuddyId): Rig {
     const { host } = live, b = registry(id), g = dockedGeometry(id);
-    // The host's offset and pivot come from the buddy's foot contact, so no buddy needs its own CSS.
+    // From the buddy's foot contact, so no buddy needs its own CSS.
     host.style.top = `calc(100% + ${g.hostTop}px)`;
     host.style.transformOrigin = `50% ${g.originY * 100}%`;
     const still = document.createElement("img"), canvas = document.createElement("canvas"), hit = element("span", "docked-buddy-hit");
     still.alt = ""; still.src = b.assets.still; canvas.hidden = true; hit.hidden = true;
-    // The hit target paints first, under the still image and canvas, which take no pointer: the browser's hit test
-    // still reaches it, and painted before the WebGL canvas's layer it needs no compositing layer (and no clip-path
-    // mask layer) of its own. It draws nothing, so the order changes no pixel.
+    // Painted before the WebGL canvas's layer, the hit target needs no compositing or clip-path mask layer of its own; it
+    // draws nothing, so the order changes no pixel.
     host.append(hit, still, canvas);
     const rig: Rig = { id, still, canvas, hit, shaped: false, target: null, ready: false, failed: false, drawn: "", dispose: () => {} };
     let disposed = false;
-    // The host itself takes no pointer; the hit target over it, clipped to the painted body, does. It is the browser's
-    // hit test, not one on the app's pointermove, so it works over the board, whose OOPIF keeps its pointer events
+    // The browser's hit test, not one on pointermove, so it works over the board, whose OOPIF keeps its pointer events
     // from the app's document. The hop's lift (about 7px at most) is not followed.
     const readMask = () => {
       const mask = silhouette(still), path = mask && silhouettePath(mask, SIZE);
@@ -330,9 +306,8 @@ export class DockedBuddyShell {
     hit.addEventListener("click", poke); hit.addEventListener("mousedown", press);
     if (still.complete && still.naturalWidth > 0) readMask(); else still.addEventListener("load", readMask, { once: true });
     const goStill = () => { rig.ready = false; rig.failed = true; still.hidden = false; canvas.hidden = true; this.retryLater(live); this.wake(); };
-    // preventDefault lets Chromium restore the context, which tells when the GPU is back.
-    // A ready rig's loss also marks the stretch rebuilt: an earlier unseen stretch must not leave the next seen frame
-    // free to rebuild at once, while the GPU may still be restarting.
+    // preventDefault lets Chromium restore the context, which tells when the GPU is back. A ready rig's loss also marks
+    // the stretch rebuilt, so the next seen frame does not rebuild at once while the GPU may still be restarting.
     const lost = (event: Event) => { event.preventDefault(); if (rig.ready) { live.retries = RETRIES; live.rebuilt = true; } goStill(); };
     const restored = () => { if (!disposed) this.allowRebuild(live); };
     try {
@@ -393,14 +368,13 @@ export class DockedBuddyShell {
     const ws = this.workspace, events = live.events;
     live.events = [];
     let rects: Box[] | null = null;
-    // The page is searched only after a floating element can have come or gone; their rects are read at most once per
-    // frame, and not at all when there are none or no surface is there.
-    // A cached node that left the page means the set changed without an observer firing (a pick notice replaced by a capture one).
+    // A cached node that left the page means the set changed without an observer firing (a pick notice replaced by a
+    // capture one).
     const floating = () => rects ??= (live.floating = live.floating?.every(node => node.isConnected) ? live.floating : Array.from(document.querySelectorAll(FLOATING))).map(node => node.getBoundingClientRect());
     const surface = (name: SurfaceName) => {
       const el = this.slots[name];
       if (!el || !el.isConnected) return null;
-      // The slot spans the surface's padding box along its top edge (the toolbar has a 1px transparent border).
+      // The toolbar has a 1px transparent border.
       const r = el.getBoundingClientRect(), width = el.clientWidth;
       const present = width > 0 && el.checkVisibility({ visibilityProperty: true });
       return { present, width, floating: present && overlaps(buddyBox({ left: r.left, right: r.left + width, top: r.top }, xOn(live.state, name, width)), floating()) };
@@ -410,11 +384,11 @@ export class DockedBuddyShell {
     const has = (name: string) => !!dockSlot?.hasAttribute(name);
     return {
       surfaces: { dock: dock && { ...dock, accepts: dockSlot!.getAttribute("data-accepts") !== "false" }, tools: ws.overview ? null : surface("tools") },
-      // The core's prompts reason is a new conversation's notice or choice; the suggested prompts themselves are none.
+      // The suggested prompts themselves are no reason.
       reasons: { queue: has("data-queue"), prompts: has("data-notice"), waiting: has("data-waiting") },
       panel: { folded: ws.folded, folding: ws.folding },
       resting: Date.now() - Math.max(live.personMovedAt(), live.activityAt) >= REST_SECONDS * 1000 && document.hasFocus(),
-      // Time runs only while the workspace is seen and WebGL is ready; the still image never animates.
+      // The still image never animates.
       visible: shown && live.rig.ready,
       reduced: live.reduced.matches,
       events,
@@ -444,7 +418,7 @@ export class DockedBuddyShell {
 function element(tag: string, className: string) { const node = document.createElement(tag); node.className = className; return node; }
 function closest(target: EventTarget | null, selector: string) { return typeof (target as Element | null)?.closest === "function" && (target as Element).closest(selector) !== null; }
 
-// The still image's alpha, for the silhouette hit test; null until it loads or when its pixels cannot be read.
+// null until it loads or when its pixels cannot be read.
 function silhouette(still: HTMLImageElement): SilhouetteMask | null {
   const width = still.naturalWidth, height = still.naturalHeight;
   if (!width) return null;
@@ -454,5 +428,4 @@ function silhouette(still: HTMLImageElement): SilhouetteMask | null {
   try { context.drawImage(still, 0, 0); return { data: context.getImageData(0, 0, width, height).data, width, height }; } catch (error) { console.error("docked buddy: cannot read the still's pixels", error); return null; }
 }
 
-// The workspace's one buddy. App starts and stops it; DockedComposer and CanvasTools hand it their slots.
 export const dockedBuddy = new DockedBuddyShell();

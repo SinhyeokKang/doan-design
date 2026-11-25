@@ -7,11 +7,8 @@ import (
 	"github.com/SinhyeokKang/doan-design/cli/internal/canvas"
 )
 
-// collectUses records, over the canvas and every stylesheet it reaches, which
-// folders use each custom property (canvas.CustomUsers, which doan check
-// builds the same way). It reads before any rewrite, because a url() can be
-// declared before its user. The canvas is parsed for its elements only when
-// some style text uses a custom property.
+// collectUses records which folders use each custom property (canvas.CustomUsers, as doan check builds it) before any
+// rewrite, because a url() can be declared before its user. The canvas's elements are parsed only when some text uses one.
 func (in *inliner) collectUses(canvasPath string, src []byte) {
 	in.uses = canvas.CustomUsers{}
 	in.pending = nil
@@ -84,10 +81,8 @@ func (in *inliner) collectSheet(base, href string) {
 	in.collectText(path.Dir(r.Real), b, canvas.Stylesheet)
 }
 
-// replaceCustom resolves a url() held in custom property custom from dirs,
-// the folders that use the property. When they resolve it to different
-// paths it is refused whether or not those files exist, as doan check warns;
-// otherwise every folder names the same file.
+// replaceCustom resolves a url() held in custom property custom from dirs, the folders that use it. Different paths are
+// refused whether or not those files exist, as doan check warns.
 func (in *inliner) replaceCustom(from string, direct bool, h, href, custom string, dirs []string) (string, bool) {
 	for _, d := range dirs {
 		if d == movedBase {

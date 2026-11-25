@@ -5,53 +5,44 @@ import { boundaryLabel, type ThreadCommands } from "./commandView";
 import { PRESETS } from "../main/mcpConnectors/presets";
 import { stepCount } from "./editLinesLabel";
 
-// A conversation's merged events (main's state.ts mergeEvents) as the thread draws them.
 // Every item has a key that stays the same while later events arrive.
 
-// The person's text in order, with each anchor token `{{n}}` kept where it was typed.
 export type MessagePart = { text: string } | { anchor: number };
-// sentence: a step whose text is a sentence and wraps instead of staying on one line (Codex's MCP startup lines).
-// lines: absent until the edit's activity.result arrives.
+// sentence: wraps instead of staying on one line (Codex's MCP startup lines). lines: absent until the edit's
+// activity.result arrives.
 export interface ActivityStep { key: string; kind: "edit" | "read" | "command" | "other"; verb: string; path: string | null; sentence?: true; lines?: EditLines }
-// model: the model a model_unavailable end named.
 // detail: a usage limit's provider wording, which may name when the limit resets.
 export type TurnEnd = { kind: "failed"; code: FailureCode; model?: string; detail?: string } | { kind: "interrupted"; reason: "user" | "appQuit" | "crashed" };
 export type ThreadItem =
-  // anchors: the message's own, which its `{{n}}` parts point at (1-based), drawn as chips. `sending`: Send now has it
-  // in flight and the history has no event for it yet (seq null).
+  // `{{n}}` parts point at `anchors` (1-based). `sending`: Send now has it in flight and the history has no event for
+  // it yet (seq null).
   | { kind: "user"; key: string; seq: number | null; parts: MessagePart[]; anchors: readonly Anchor[]; preset: PresetRef | null; skills?: string[]; attachments: SentFile[]; sending?: true }
-  // `streaming`: more text may still come; a stopped or failed turn keeps what arrived and drops the caret.
+  // A stopped or failed turn keeps what arrived and drops the caret.
   | { kind: "agent"; key: string; messageId: string; text: string; streaming: boolean }
   | { kind: "noReply"; key: string }
-  // A Claude turn that asked for Fast and did not run it: one line in the turn, under the reply.
   | { kind: "fast"; key: string; seq: number; text: string; turnedOff: boolean }
-  // A run of activities folds into one line: "N steps", or the running tool's words while it is the running turn's last
-  // item and the turn indicator names a tool (activityRun). total: the known counts' sum, never on a running head.
+  // head: "N steps", or the tool's words while this is the running turn's last item and the indicator names a tool
+  // (activityRun). total: the known counts' sum, never on a running head.
   | { kind: "activity"; key: string; running: boolean; head: string; total?: EditLines; steps: ActivityStep[] }
   | { kind: "permission"; key: string; seq: number; requestId: string; summary: string; reason?: string; options: PermissionOption[]; status: "pending" | "answered" | "expired"; answer: PermissionOption | null }
-  // An agent's question. answers: what main kept of an answered one, by question id.
+  // answers: what main kept of an answered one, by question id.
   | { kind: "question"; key: string; seq: number; requestId: string; questions: Question[]; status: "pending" | QuestionOutcome; answers: Record<string, StoredAnswer> | null }
   // seq is null for the end a crash-folded turn never wrote; its key is the turn's, so it stays when later turns arrive.
   | { kind: "end"; key: string; seq: number | null; end: TurnEnd }
   | { kind: "marker"; key: string; seq: number; marker: "bound"; canvas: Canvas }
-  // A canvas of a turn, one card per path at the turn's end: one it drew (canvas.drawn, so `drawn`), one it asked a
-  // handoff for, or a missed handoff ("missed": a new canvas the turn edited and asked no handoff for). Its key is the
-  // turn's and the path's, so the card stays the same element through every status. `drawing`: its turn still runs.
+  // "missed": a new canvas the turn edited and asked no handoff for. The key is the turn's and the path's, so the card
+  // stays the same element through every status.
   | { kind: "canvasCard"; key: string; canvas: Canvas; drawing: boolean; drawn: boolean; handoff?: CardHandoff }
-  // A conversation a handoff started: its first message is the earlier agent's text, never the person's, so it is not
-  // read for a preset line or {{n}} markers.
-  // at: the message's time, the handoff's time the card's meta shows.
+  // A handoff's first message is the earlier agent's text, never the person's, so it is not read for a preset line
+  // or {{n}} markers.
   | { kind: "handoffCard"; key: string; seq: number; origin: HandoffOrigin; text: string; at: string }
-  // After a /compact or /clear turn that ran (draft provider-commands frame boundaries).
+  // After a /compact or /clear turn that ran.
   | { kind: "boundary"; key: string; label: string };
 
 export type CardHandoff = { outcome: "pending" | "cancelled" | "missed" } | { outcome: "started"; target: { conversationId: string; canvas: Canvas } } | { outcome: "refused"; reason: string };
 type CanvasCard = Extract<ThreadItem, { kind: "canvasCard" }>;
 
-// A sent file or folder as its message recorded it; a folder's path is its tooltip.
 export type SentFile = AttachmentRecord;
-// A queued message Send now put into the running turn, as its request: the text with its preset line and `{{n}}`
-// markers, the anchors those point at, and its files.
 export interface SendingMessage { id: string; text: string; anchors: readonly Anchor[]; attachments: readonly SentFile[] }
 
 export function anchorParts(text: string): MessagePart[] {
@@ -66,8 +57,8 @@ export function anchorParts(text: string): MessagePart[] {
   return parts;
 }
 
-// Paths in activity events are what the agent sent: absolute, relative, with ./ or .. segments. Steps show them
-// relative to the project root; a path outside it stays absolute. /tmp and /private/tmp name the same folder on macOS.
+// The agent sends absolute, relative, ./ or .. paths; one outside the root stays absolute. /tmp and /private/tmp name
+// the same folder on macOS.
 export function rootRelative(path: string, root: string): string {
   const normal = (value: string) => {
     const out: string[] = [];
@@ -93,29 +84,27 @@ const DONE_VERB = { read: "Read", edit: "Edited" } as const;
 const RUNNING_VERB = { read: "Reading", edit: "Editing" } as const;
 type ActivityEvent = Extract<ConversationEvent, { type: "activity" }>;
 
-// A command's text is never shown, only that one ran (user decision 2026-10-30, transport.ts).
+// A command's text is never shown, only that one ran (transport.ts).
 function step(event: ActivityEvent, root: string): ActivityStep {
   const path = event.path && (event.kind === "read" || event.kind === "edit") ? rootRelative(event.path, root) : null;
   const verb = event.kind === "command" ? "Ran a command" : event.kind === "other" || !path ? event.summary : DONE_VERB[event.kind];
   const sentence = event.kind === "other" && startupServers(event.summary) !== null;
   return { key: `s${event.seq}`, kind: event.kind, verb, path, ...(sentence ? { sentence: true as const } : {}) };
 }
-// Codex's MCP startup lines (main/conversation/mcpStartup.ts waitingLine and notReadyLine). History is append-only, so
-// main writes the not-ready line after its Waiting line; the thread shows them as one step that changed its text.
+// Codex's MCP startup lines (main/conversation/mcpStartup.ts). History is append-only, so main writes the not-ready
+// line after its Waiting line; the thread shows them as one step.
 const WAITING = /^Waiting for (.+)$/;
 const NOT_READY = /^(.+) (?:wasn’t ready, so this turn started without it|weren’t ready, so this turn started without them)\.$/;
-// What mcpStartup.ts names: a preset's label or a URL server's label, which is connectorLabel's URL host (presets.ts)
-// of any URL parseConnectorUrl accepts: localhost, IPv6 literals, trailing dots and ports included. Joined
-// "A, B and C". A name that is no such host ("the review") is not a startup line; a single word that is a valid host
-// can't be told apart, which is safe because folding also needs a following not-ready line for the same servers.
+// connectorLabel's host of any URL parseConnectorUrl accepts. A single word that is a valid host can't be told apart,
+// which is safe because folding also needs a following not-ready line for the same servers.
 const PRESET_LABELS = new Set(PRESETS.map(preset => preset.label));
 function isServerLabel(name: string): boolean {
   if (PRESET_LABELS.has(name)) return true;
   if (!name || /[\s/?#@\\]/.test(name) || !URL.canParse(`https://${name}/`)) return false;
   return new URL(`https://${name}/`).host === name;
 }
-// main bounds both lines at 512 characters by cutting the server list (waitingLine slices the line, notReadyLine its
-// list), so a line of that length may end in part of a server name, or in part of ", " / " and ".
+// main bounds both lines at 512 characters by cutting the server list, so a line of that length may end in part of a
+// server name or separator.
 const LINE_BOUND = 512;
 interface StartupServers { kind: "waiting" | "notReady"; names: string[]; cut: string | null }
 function startupServers(summary: string): StartupServers | null {
@@ -125,17 +114,14 @@ function startupServers(summary: string): StartupServers | null {
   const names = list.split(/, | and /);
   let cut: string | null = null;
   if (summary.length >= LINE_BOUND) {
-    // Possibly cut: the last item is the start of a name (a host has no space or comma, so whatever follows one is a
-    // separator's start). One name alone never reaches the bound (a host is at most a few hundred characters), so a
-    // bounded line with no complete name before its cut is no startup line (an agent's own long "Waiting for …").
+    // A host has no space or comma, so whatever follows one is a separator's start. One name alone never reaches the
+    // bound, so a bounded line with no complete name before its cut is no startup line.
     cut = names.pop()!.split(/[ ,]/)[0]!;
     if (names.length === 0) return null;
   }
   return names.every(isServerLabel) ? { kind: waiting ? "waiting" : "notReady", names, cut: cut || null } : null;
 }
-// The not-ready line replaces the Waiting line it ends: the servers it names were all waited for (some of them may have
-// become ready meanwhile). Complete names match exactly; a cut item matches the waited-for name it begins,
-// so another server's line still stays apart.
+// A cut item matches the waited-for name it begins, so another server's line still stays apart.
 function endsWaiting(previous: ActivityStep, next: ActivityStep): boolean {
   const before = previous.sentence ? startupServers(previous.verb) : null, after = next.sentence ? startupServers(next.verb) : null;
   if (before?.kind !== "waiting" || after?.kind !== "notReady") return false;
@@ -155,8 +141,8 @@ export function countHead(steps: readonly ActivityStep[]): { head: string; total
   return { head: stepCount(steps.length), total: { added: known.reduce((n, l) => n + l.added, 0), removed: known.reduce((n, l) => n + l.removed, 0) } };
 }
 
-// Whether two items hold the same data. threadItems builds new objects on every call, so the thread compares items by
-// value to skip drawing unchanged ones; items hold plain data only (no functions, dates or class instances).
+// threadItems builds new objects on every call, so the thread compares by value; items hold plain data only (no
+// functions, dates or class instances).
 export function sameItem(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;
   if (typeof a !== "object" || typeof b !== "object" || a === null || b === null || Array.isArray(a) !== Array.isArray(b)) return false;
@@ -165,12 +151,8 @@ export function sameItem(a: unknown, b: unknown): boolean {
   return keys.every(key => Object.hasOwn(b, key) && sameItem((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
 }
 
-// `live`: main holds a turn of this conversation (the list summary's phase is not "ended", or live events arrive). A
-// last turn without an end event while nothing is live was cut by a quit or crash: main never writes that end, its
-// fold folds the turn (state.ts), and the thread shows it as stopped before it finished, as it does for a turn folded
-// by the next turn.started.
-// commands: the conversation's command turns and boundaries (commandView threadCommands). A command turn's bubble
-// highlights its word as written (an alias too); a turn with a boundary draws it in place of No reply.
+// A last turn without an end while nothing is live was cut by a quit or crash: main never writes that end, so the
+// thread shows it as stopped. A turn with a boundary draws it in place of No reply.
 export function threadItems(events: readonly ConversationEvent[], root: string, live: boolean, commands?: ThreadCommands): ThreadItem[] {
   const items: ThreadItem[] = [];
   const opened = new Set<string>();
@@ -184,19 +166,17 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
   const turnOf = new Map<string, string>(), askTurn = new Map<string, string>();
   // Keyed by call and the activity's stored path, never the root-relative path a step shows.
   const edits = new Map<string, { step: ActivityStep; path: string | undefined }[]>();
-  // Each turn's cards in the order their paths first appeared, placed once every event is read: canvas.drawn and
-  // handoff.missed come after the turn's end too, possibly after the next message, so a card goes by its turn, not by its
-  // arrival, and it never closes the activity group still open.
+  // canvas.drawn and handoff.missed can come after the turn's end, even after the next message, so a card goes by its
+  // turn, not by its arrival, and never closes the activity group still open.
   const cards = new Map<string, CanvasCard>(), turnCards = new Map<string, CanvasCard[]>();
   const card = (turnId: string, canvas: Canvas): CanvasCard => {
     const id = `${turnId}:${canvas.path}`, held = cards.get(id);
-    // A drawn or missed canvas carries its ID, which a request's path alone lacks; the ID judges a later rename.
+    // The ID judges a later rename; a request's path alone lacks it.
     if (held) { if (canvas.id !== undefined && held.canvas.id === undefined) held.canvas = canvas; return held; }
     const item: CanvasCard = { kind: "canvasCard", key: `c${id}`, canvas, drawing: false, drawn: false };
     cards.set(id, item); turnCards.set(turnId, [...(turnCards.get(turnId) ?? []), item]);
     return item;
   };
-  // Each turn's last item, which its cards follow.
   const lastOf = new Map<string, ThreadItem>();
   const endTurn = (turnId: string) => {
     ended.add(turnId);
@@ -234,8 +214,8 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         if (turn !== null && !ended.has(turn)) foldCrashed(turn);
         turn = event.turnId;
         continue;
-      // Written after the turn's end with the asking turn's id, and possibly after an archive marker. A resolution
-      // without a path (written before a turn could request several) settles the turn's only requested card.
+      // Written after the turn's end with the asking turn's id. One without a path (written before a turn could request
+      // several) settles the turn's only requested card.
       case "handoff.resolved": {
         const asked = (turnCards.get(event.turnId) ?? []).filter(item => item.handoff);
         const item = event.canvas ? cards.get(`${event.turnId}:${event.canvas.path}`) : asked.length === 1 ? asked[0] : undefined;
@@ -351,14 +331,14 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
     // Nothing judges a request once main holds nothing of this conversation (main's fold: a restart's cancel).
     if (!live && item.handoff?.outcome === "pending") item.handoff = { outcome: "cancelled" };
   }
-  // Whether the thread's last row runs is the turn indicator's to say (turnStatus activityRun), not the events': an
-  // activity marks a tool's start or end, never both.
+  // The turn indicator says whether the last row runs (turnStatus activityRun): an activity marks a tool's start or
+  // end, never both.
   for (const { item } of groups) Object.assign(item, countHead(item.steps));
   return placeCards(items, turnCards, lastOf, askTurn);
 }
 
-// A turn's cards go after its last item. While a request of the running turn waits, they go right above it instead, so
-// Send now's messages, which withSending puts above the first waiting request, come after them and the request stays last.
+// While a request of the running turn waits, they go right above it, so Send now's messages come after them and the
+// request stays last.
 function placeCards(items: ThreadItem[], turnCards: ReadonlyMap<string, CanvasCard[]>, lastOf: ReadonlyMap<string, ThreadItem>, askTurn: ReadonlyMap<string, string>): ThreadItem[] {
   if (turnCards.size === 0) return items;
   const before = new Map<ThreadItem, CanvasCard[]>(), after = new Map<ThreadItem, CanvasCard[]>(), rest: CanvasCard[] = [];
@@ -372,10 +352,8 @@ function placeCards(items: ThreadItem[], turnCards: ReadonlyMap<string, CanvasCa
   return [...items.flatMap(item => [...(before.get(item) ?? []), item, ...(after.get(item) ?? [])]), ...rest];
 }
 
-// Messages Send now has in flight, as the person's messages after the history in press order.
-// An open permission request or question stays last, so they sit right above the first one still waiting. The history
-// has no event for them until the agent reads one; main writes that event before it answers Send now, so for a
-// moment both may show.
+// An open request stays last, so they sit right above the first one still waiting. main writes the history event
+// before it answers Send now, so for a moment both may show.
 export function withSending(items: ThreadItem[], sending: readonly SendingMessage[]): ThreadItem[] {
   if (sending.length === 0) return items;
   const messages = sending.map((message): ThreadItem => {
@@ -387,17 +365,15 @@ export function withSending(items: ThreadItem[], sending: readonly SendingMessag
   return [...items.slice(0, at), ...messages, ...items.slice(at)];
 }
 
-// A permission request or a question still waiting for the person.
 export function waitsForPerson(item: ThreadItem): item is Extract<ThreadItem, { kind: "permission" | "question" }> {
   return (item.kind === "permission" || item.kind === "question") && item.status === "pending";
 }
-// The open requests in arrival order, for where focus goes after one is answered (composerRules.focusAfter).
+// For where focus goes after one is answered (composerRules.focusAfter).
 export function pendingAsks(items: readonly ThreadItem[]): { requestId: string; key: string }[] {
   return items.filter(waitsForPerson).map(item => ({ requestId: item.requestId, key: item.key }));
 }
 
-// A finished question's folded lines: one per answered question, one per skipped or expired request. A
-// question without a header (Antigravity's) names itself by its sentence; a secret answer is never shown.
+// A question without a header (Antigravity's) names itself by its sentence; a secret answer is never shown.
 export function questionLines(item: Extract<ThreadItem, { kind: "question" }>): string[] {
   const name = (question: Question) => question.header || question.question;
   if (item.status === "skipped" || item.status === "expired") return [`${item.status === "skipped" ? "Skipped" : "Expired without an answer"} · ${item.questions.map(name).join(", ")}`];
@@ -409,8 +385,7 @@ export function questionLines(item: Extract<ThreadItem, { kind: "question" }>): 
 }
 
 export const FOLLOW_DISTANCE = 24;
-// The thread opens at the bottom and follows new output only while it is within 24px of the bottom; scrolled further
-// up, it stays and offers Jump to latest.
+// Follows new output only within 24px of the bottom; scrolled further up, it stays and offers Jump to latest.
 export function scrollFollow(opening: boolean, distanceFromBottom: number): boolean {
   return opening || distanceFromBottom <= FOLLOW_DISTANCE;
 }

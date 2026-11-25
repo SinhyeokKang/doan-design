@@ -40,7 +40,7 @@ describe("autoRegisterRoot", () => {
     expect(autoRegisterRoot(view, { root: W }, [MAIN])).toBe(false);
   });
 
-  // The app never re-derives a root (POSTMORTEM 2026-10-22): a symlink alias or a subfolder is not stored.
+  // The app never re-derives a root: a symlink alias or a subfolder is not stored.
   test.each([`${W}/.doan`, "/tmp/alias-of-w1"])("a request root the listing does not report as its root is refused: %s", (root) => {
     expect(autoRegisterRoot(listed(W, [MAIN, W]), { root }, [MAIN])).toBe(false);
   });
@@ -95,7 +95,7 @@ describe("storedAuto", () => {
     expect(storedAuto([W, "/gone"], [MAIN, W])).toEqual([W]);
   });
 
-  // POSTMORTEM 2026-10-26: an unreadable folders.json is no ground for deleting anything.
+  // An unreadable folders.json is no ground for deleting anything.
   test("an unreadable folders.json keeps every mark", () => {
     expect(storedAuto([W, "/gone"], null)).toEqual([W, "/gone"]);
   });

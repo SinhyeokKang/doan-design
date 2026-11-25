@@ -27,17 +27,14 @@ test("every notice shares one style on the base class; tones colour the text onl
   // Inline actions centre vertically in the notice; the icon stays on the first text line.
   expect(css).toContain(".doan-notice > :is(.doan-button, :has(> .doan-button)) { flex: none; align-self: center; margin-block: calc((var(--type-body-sm-line-height) - var(--size-control-sm)) / 2); }");
   expect(css).toContain(".doan-alert-icon { flex: none; margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }");
-  // The icon follows the text: no rule colours it on its own.
   expect(css).not.toMatch(/\.doan-notice[^{]*\.doan-alert-icon\s*\{[^}]*color/);
 });
 
-// Two or more actions in a notice stack on their own row at its end, 8px under the text. On that row the one-line
-// rule's negative block margins would eat the 12px bottom padding, so the stacked row drops them.
+// A stacked action row drops the one-line rule's negative block margins, which would eat the bottom padding.
 test("a stacked notice wraps its action group onto its own end-aligned row, 8px under the text, with no negative margins", () => {
   const css = read("./surfaces.css");
   expect(rule(css, ".doan-notice.stacked")).toBe("flex-wrap: wrap; row-gap: var(--space-2);");
   expect(rule(css, ".doan-notice.stacked > :has(> .doan-button)")).toBe("flex-basis: 100%; justify-content: flex-end; margin-block: 0;");
-  // The one-row layout is unchanged.
   expect(css).toContain(".doan-notice > :is(.doan-button, :has(> .doan-button)) { flex: none; align-self: center; margin-block: calc((var(--type-body-sm-line-height) - var(--size-control-sm)) / 2); }");
 });
 
@@ -59,8 +56,7 @@ test("a notice's text parts take no ink of their own, so the title, body, lines 
   expect(inked).toEqual([]);
 });
 
-// The one exception to the rule above (DESIGN 'Notices'): a notice's reason line, main's own account of a failure
-// under its sentence, is a caption in the metadata ink on every screen and in every tone.
+// DESIGN 'Notices': a notice's reason line is the one exception, a metadata-ink caption on every screen.
 test("a notice's reason line is a caption in the metadata ink, the same on every screen", () => {
   const sources = [read("./surfaces.css"), read("../styles.css")].join("\n").replace(/\/\*[\s\S]*?\*\//g, "");
   const reasons = [".ob-notice-reason", ".project-settings-notice-reason"];
@@ -103,10 +99,8 @@ test("quiet, trigger and accent own their hover and pressed fills, so the shared
   expect(css).toContain(':is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="subtle"], [data-ui-variant="panel"], [data-ui-variant="accent"]):is(:disabled, [data-disabled]) { background: transparent; }');
 });
 
-// DESIGN 'Busy action': a refused Cancel or a running toast action is `data-disabled` (focus stays on it) and keeps the
-// disabled fill under the pointer; the shared hover and pressed fills skip it as they skip a native disabled one, so no
-// screen restores the disabled fill itself. A busy confirm or Retry (aria-busy, no data-disabled) keeps its resting
-// fill under the pointer and press, so a control that cannot be pressed does not look pressable.
+// DESIGN 'Busy action': shared hover and pressed fills skip data-disabled like native disabled; a busy confirm
+// or Retry keeps its resting fill, so a control that cannot be pressed does not look pressable.
 test("every shared hover and pressed fill skips a data-disabled or busy button as it skips a disabled one", () => {
   const css = read("./controls.css");
   const fills = css.split("\n").filter(line => /^\s*(:is\(\.doan-button, \.doan-icon-button\)|\.doan-button|\.doan-icon-button)[^{]*(:hover|:active|\[data-state="open"\])[^{]*:not\(:disabled/.test(line));
@@ -119,11 +113,10 @@ test("every shared hover and pressed fill skips a data-disabled or busy button a
 test("panel rests on the panel white for a notice's inset fill, hovers one step darker, takes subtle's pressed fill and the shared disabled fill", () => {
   const css = read("./controls.css");
   expect(css).toContain(':is(.doan-button, .doan-icon-button)[data-ui-variant="panel"] { background: var(--surface-panel); }');
-  // Its hover comes after the shared opaque hover of the same weight, so it wins.
+  // The panel hover comes after the shared opaque hover of the same weight, so it wins.
   const hover = ':is(.doan-button, .doan-icon-button)[data-ui-variant="panel"]:hover:not(:disabled, [data-disabled], [aria-busy="true"]) { background: var(--affordance-panel-hover); }';
   expect(css.indexOf(hover)).toBeGreaterThan(css.indexOf(':hover:not(:disabled, [data-disabled], [aria-busy="true"]) { background: var(--affordance-subtle-hover); }'));
   expect(read("../tokens.css")).toContain("--affordance-panel-hover: var(--neutral-3);");
-  // Not excluded from the shared pressed rule, and a filled control when disabled.
   expect(css).not.toMatch(/:not\([^)]*\[data-ui-variant="panel"\][^)]*\):hover/);
   expect(css).not.toMatch(/:not\([^)]*\[data-ui-variant="panel"\][^)]*\):is\(:active/);
   expect(css).toMatch(/:not\(\[data-ui-variant="prominent"\], \[data-ui-variant="subtle"\], \[data-ui-variant="panel"\], \[data-ui-variant="accent"\]\):is\(:disabled, \[data-disabled\]\) \{ background: transparent; \}/);
@@ -222,7 +215,6 @@ test("a settings group is a bordered container of rows split by lines, and each 
   expect(row).toContain("padding: var(--space-3) 0;");
   expect(rule(css, ".doan-preference-row-content")).toContain("gap: var(--space-half);");
   expect(rule(css, ".doan-preference-row-label")).toContain("font-size: var(--type-body-sm-size);");
-  // A row's label is medium weight in every Settings page.
   expect(rule(css, ".doan-preference-row-label")).toContain("font-weight: var(--type-weight-medium);");
   expect(rule(css, ".doan-preference-row-description")).toContain("font-size: var(--type-caption-size);");
   expect(rule(css, ".doan-preference-row-description")).toContain("color: var(--text-subtle);");
@@ -236,8 +228,8 @@ test("in a narrow group a button control moves under the title; a switch stays b
   expect(css).toMatch(/@container \(max-width: 24rem\) \{\s*\.doan-preference-row-trailing:has\(button:not\(\[role="switch"\]\)\) \{ grid-column: 1 \/ -1; justify-content: flex-start; \}/);
 });
 
-// runtime-test (dogfooding #3): Radix copies the content's z-index onto its fixed portal wrapper, and with none the
-// wrapper painted under `.ov { z-index: 1 }`, so every Overview menu (title, worktree, agent, effort, presets) opened unseen.
+// Radix copies the content's z-index onto its fixed portal wrapper; with none the wrapper paints
+// under `.ov { z-index: 1 }`.
 test("portalled floating surfaces stack above the Overview", () => {
   const surfaces = read("./surfaces.css");
   const layer = rule(surfaces, "[data-radix-popper-content-wrapper] > .doan-floating");
@@ -247,8 +239,7 @@ test("portalled floating surfaces stack above the Overview", () => {
   expect(z(layer)).toBeGreaterThan(z(overview));
 });
 
-// Dropdown menus scroll with the app's quiet thumb, and the track stays out of the rounded corners: Chromium turns
-// the ::-webkit-scrollbar parts off once scrollbar-width or scrollbar-color is set, so a menu must not take them.
+// Chromium turns ::-webkit-scrollbar off once scrollbar-width or -color is set, so menus must set neither.
 test("menus share the quiet scrollbar and keep its track inside their corners", () => {
   const css = read("./surfaces.css");
   expect(css).toContain(".doan-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; }");
@@ -259,11 +250,8 @@ test("menus share the quiet scrollbar and keep its track inside their corners", 
   expect(css).toContain('.doan-menu[data-ui-size="compact"]::-webkit-scrollbar-track { margin: var(--radius-row); }');
 });
 
-// The thumb is transparent at rest and shows while the pointer is over the scroller or keyboard focus is on or in it.
-// :focus-visible, not :focus-within: an open modal dialog or menu always holds focus, so :focus-within would never hide it.
-// A menu counts only focus on its items: Radix focuses the menu itself on open, which Chromium marks :focus-visible
-// even when the pointer opened it. The menu passes the colour down as an inherited property, because Electron 45 did not
-// repaint a thumb whose own :hover rule changed. Only the colour changes, so the gutter keeps its width.
+// DESIGN 'Scrollbars': not :focus-within (open dialogs and menus hold focus); menus count item focus; colour only.
+// A menu inherits the thumb colour because Electron 45 does not repaint a thumb whose own :hover rule changes.
 test("scrollbar thumbs show only while the scroller is hovered or holds keyboard focus", () => {
   const css = read("./surfaces.css");
   expect(rule(css, ".doan-scroll:is(:hover, :focus-visible, :has(:focus-visible))")).toBe("scrollbar-color: var(--scrollbar-thumb-quiet) transparent;");
@@ -274,8 +262,6 @@ test("scrollbar thumbs show only while the scroller is hovered or holds keyboard
   expect(css).not.toMatch(/doan-(scroll|menu)[^{,]*:(hover|focus-visible)[^{]*\{[^}]*(scrollbar-width|width|height)\s*:/);
 });
 
-// A dialog is its own scroll container (overflow: auto), so in a short window it shows the same quiet thumb as every
-// other scrolling body; .doan-scroll is the one name for it.
 test("every modal dialog scrolls with the quiet scrollbar, and there is no second scrollbar class", async () => {
   const { readdirSync } = await import("node:fs");
   const dir = new URL("../", import.meta.url);
@@ -287,18 +273,16 @@ test("every modal dialog scrolls with the quiet scrollbar, and there is no secon
   expect(read("../styles.css")).not.toContain("native-scroll");
 });
 
-// A listbox row is not a Radix item, so it takes the menu row's fill from focus, which the pointer carries once focus is in the
-// list (the frame list does the same); with focus elsewhere, such as the popover's search box, it fills on hover alone.
-// The `/` list keeps its rows unfocusable and moves its one highlight instead.
+// A listbox row takes the menu fill from focus, or hover while the list has none; the `/` list keeps rows
+// unfocusable and moves one highlight.
 test("a focusable option row fills like a highlighted menu row while focused, or hovered when the list has no focus", () => {
   const css = read("./surfaces.css");
   expect(css).toContain('.doan-menu-item[role="option"][tabindex]:focus,\n[role="listbox"]:not(:has(:focus)) > .doan-menu-item[role="option"][tabindex]:hover { background: var(--affordance-floating-hover); }');
   expect(read("../styles.css")).not.toContain(".doan-frame-row:focus");
 });
 
-// The sidebar is transparent over the window's native vibrancy, which a web backdrop-filter cannot sample: under the
-// shared glass the rows below stayed crisp at the 10% the fill lets through, so the sidebar's project menu reads as
-// having no blur. It takes the opaque popover fill; every other dropdown keeps the shared glass.
+// The sidebar sits over native vibrancy, which backdrop-filter cannot sample, so its project menu takes the
+// opaque popover fill.
 test("the sidebar project menu is opaque while every other dropdown keeps the glass", () => {
   const styles = read("../styles.css");
   expect(rule(styles, ".shell-side-menu.doan-floating")).toBe("background: var(--surface-popover); backdrop-filter: none;");
@@ -309,10 +293,8 @@ test("the sidebar project menu is opaque while every other dropdown keeps the gl
   expect(read("./surfaces.css")).toContain(".doan-floating { background: var(--surface-elevated-glass); backdrop-filter: blur(var(--blur-sm)); }");
 });
 
-// POSTMORTEM 2026-11-02 'Every Overview menu opened under the Overview itself': the
-// capture layer takes the drag layer's place, under the canvas chrome and every portalled surface, so Stop, Open, the
-// tools and an open zoom menu stay over it. `[hidden]` must keep winning, so neither the layer nor the marquee sets
-// display; the area keeps clipping (POSTMORTEM 2026-11-02 'Tab walked into the draft').
+// POSTMORTEM 2026-11-02 (menus under the Overview, Tab walking into the draft): `[hidden]` must keep winning,
+// so neither layer nor marquee sets display, and the area keeps clipping.
 test("the capture layer sits in the drag layer's place, under the canvas chrome and portalled surfaces", () => {
   const styles = read("../styles.css");
   const z = (text: string | null) => Number(/z-index:\s*(\d+)/.exec(text ?? "")?.[1] ?? NaN);
@@ -326,9 +308,8 @@ test("the capture layer sits in the drag layer's place, under the canvas chrome 
   expect(rule(styles, ".doan-canvas-panel > .area")).toContain("overflow: clip;");
 });
 
-// POSTMORTEM 2026-11-03 'A canvas row menu closed by Esc dropped focus to the
-// page body': the snapshot hides app marks with opacity only, so layout holds and the focused tool keeps focus.
-// !important beats the agent glow's opacity animation. PoC found the renderer CSP blocks inline <style>.
+// POSTMORTEM 2026-11-03 (focus dropped to body): hide with opacity only, so the focused tool keeps focus.
+// !important beats the glow's animation; the CSP blocks inline <style>.
 test("the capture snapshot hides app marks with opacity alone", () => {
   const styles = read("../styles.css");
   const hide = /\[data-capture-snapshot\] :is\(([^)]*(?:\([^)]*\)[^)]*)*)\) \{([^}]*)\}/.exec(styles);
@@ -343,8 +324,7 @@ test("the capture snapshot hides app marks with opacity alone", () => {
 // does not swallow the click meant for that control.
 test("tooltips never take pointer events", () => {
   expect(rule(read("./surfaces.css"), ".doan-tooltip")).toContain("pointer-events: none;");
-  // Radix wraps the capsule in a positioned box the size of the capsule; that box would still take the press (found by
-  // hit-testing the next inspector row under an open row tooltip in the real app).
+  // Radix's positioned wrapper is the capsule's size and would still take the press.
   expect(rule(read("./surfaces.css"), "[data-radix-popper-content-wrapper]:has(> .doan-tooltip)")).toBe("pointer-events: none;");
 });
 
@@ -364,8 +344,7 @@ test("a toggle group is a 2px track on the hover backdrop, its pressed item rais
   expect(css.indexOf(':is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled]) { background: var(--affordance-disabled)')).toBeGreaterThan(-1);
 });
 
-// U28: one rule draws every spinner inside a button, in the button's own ink (a 30 % ring and a full-ink quarter) at
-// the small icon size, so it reads on any fill, the disabled grey included. Screen rules may not draw their own.
+// One shared rule draws every button spinner in the button's ink; screen rules may not draw their own.
 test("a spinner inside a button is 14px in the button's ink, from one shared rule", () => {
   const css = read("./controls.css");
   expect(rule(css, ":is(.doan-button, .doan-icon-button) > .doan-spinner"))
@@ -374,8 +353,7 @@ test("a spinner inside a button is 14px in the button's ink, from one shared rul
   for (const gone of [".doan-dialog-actions .doan-button > .doan-spinner", ".composer-send .doan-spinner", ".bg-line .bg-stop .doan-spinner", ".q-send .doan-spinner", ".problem-busy .doan-spinner"]) expect(styles, gone).not.toContain(`${gone} {`);
 });
 
-// D15: the cursor over an unavailable control is the arrow. Native disabled and aria-disabled controls (busy ones too)
-// share it; no rule sets not-allowed or progress.
+// Unavailable controls, busy ones included, use the arrow cursor.
 test("unavailable controls use the default cursor: no not-allowed or progress cursor in the renderer's styles", () => {
   const css = read("./controls.css");
   expect(rule(css, ":is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled])")).toBe("background: var(--affordance-disabled); color: var(--text-disabled); cursor: default;");
@@ -388,16 +366,12 @@ test("unavailable controls use the default cursor: no not-allowed or progress cu
   }
 });
 
-// U10: the conversation title trigger, aria-disabled while its list is read, takes the disabled ink and no hover or
-// pressed fill, outweighing the shared trigger rules.
 test("an unavailable conversation title trigger takes the disabled ink and no hover or pressed fill", () => {
   const styles = read("../styles.css");
   expect(rule(styles, '.ov-title.doan-button[aria-disabled="true"]')).toBe("color: var(--text-disabled);");
   expect(rule(styles, '.ov-title.doan-button[data-ui-variant="trigger"][aria-disabled="true"]:is(:hover, :active)')).toBe("background: transparent;");
 });
 
-// U5: the canvas header's zoom buttons, aria-disabled at a limit, take the disabled ink and no hover or pressed fill;
-// the window headers' Back and Forward have the same, pressed included.
 test("zoom and history buttons at their limit take the disabled ink and no hover or pressed fill", () => {
   const styles = read("../styles.css");
   expect(styles).toContain('.doan-canvas-zoom > .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); }');

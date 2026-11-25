@@ -1,19 +1,6 @@
 // SPDX-License-Identifier: MIT
-// Regenerates app/src/renderer/dockedBuddy.golden.json from the docked buddy draft .doan/assets/buddies/docked-poc.js.
-//
-//   node app/scripts/dockedBuddyGolden.mjs           # rewrites the golden
-//   node app/scripts/dockedBuddyGolden.mjs --check   # exits 1 if the golden differs from a fresh run
-//
-// Only the draft's DOM-free core (globalThis.dockedBuddyCore) runs, in a node vm without document, so the draft's
-// preview shell returns before touching anything. Math.random throws in the vm: the core must draw only from the
-// random function it is handed, which here is a seeded generator whose every value is logged. Time is the `now`
-// each scenario passes to advance(). Each frame records the inputs when they change, the events, the random values
-// drawn and, unless a long scenario samples it, the drawn frame and the core state afterwards; dockedBuddyCore.test.ts
-// replays every frame and compares.
-//
-// The docked shaders are Home's templates plus two lines, so before anything runs the generator checks that the
-// draft's templates are motion-preview.js's (Home's rig follows that file) and that the insertion anchor occurs
-// exactly once in every buddy's vertex source: a missing anchor would compile Home's shader without the foot pin.
+// Regenerates app/src/renderer/dockedBuddy.golden.json from .doan/assets/buddies/docked-poc.js (--check: exit 1 on drift).
+// Only its DOM-free core runs, without document so the preview shell stays inert; randomness is seeded, never Math.random.
 import { readFileSync, writeFileSync } from "node:fs";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";

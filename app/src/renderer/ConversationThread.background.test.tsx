@@ -5,11 +5,8 @@ import type { ConversationThreadProps } from "./ConversationThread";
 import type { ThreadItem } from "./threadItems";
 import type { ThreadTurn } from "./turnStatus";
 
-// The background work line under a done turn (draft frames background-line, background-widths): one still sentence in
-// the turn indicator's place with a small Stop. There is no DOM in these tests (ARCHITECTURE §7 'Home tests without a
-// DOM'): the thread body runs with its hooks kept by call order and its layout effects run after each draw, against a
-// stubbed document, as ConversationThread.focus.test.tsx does. Static markup checks what is drawn. Shift+Tab from the
-// composer is the real DOM order, checked in the real app.
+// No DOM here (ARCHITECTURE §7 'Home tests without a DOM'): the thread body runs with hooks kept by call order and layout
+// effects after each draw, against a stubbed document. Shift+Tab's real DOM order is checked in the real app.
 const hooks = vi.hoisted(() => ({
   slots: [] as unknown[], cursor: 0, mocked: false,
   layout: [] as ({ deps: unknown[] | undefined } | undefined)[], layoutCursor: 0, pending: [] as (() => void)[],
@@ -196,8 +193,8 @@ test("when the line goes while Stop holds focus, focus moves to the composer fie
   expect(composer).not.toHaveBeenCalled();
 });
 
-// Main answers a Stop at once when another host's Stop is already under way. Should that earlier Stop fail, main shows
-// the line without `stopping` again; this host's own press must not keep it stuck on Stopping.
+// Main answers a Stop at once when another host's Stop is under way; should that Stop fail, main shows the line without
+// `stopping`, so this host's press must not stay stuck on Stopping.
 test("a Stop main answered for the other host's press comes back when main's stopping ends without the work ending", async () => {
   draw({ background: { turnId: "t1", stopping: true } });
   draw({ background: { turnId: "t1" } });

@@ -32,10 +32,8 @@ export interface Shell {
   // Stores roots main already judged, after the stored ones; resolves to the
   // paths that were not stored yet. A given root already stored becomes hand-added.
   store(paths: readonly string[]): Promise<string[]>;
-  // Registers a worktree for a terminal agent's work signal (ARCHITECTURE §4 'Auto-registration'), listed at once
-  // from `view` (its `doan ls`) so it never shows as a loading row of its own. The caller has judged it with
-  // `autoRegisterRoot`. Publishes the list synchronously, with no focus: nothing on screen moves. False when the
-  // root is already stored.
+  // Registers a worktree for a terminal agent's work signal (ARCHITECTURE §4 'Auto-registration'), listed at once from
+  // `view` so it never shows loading. Publishes the list synchronously with no focus; false when already stored.
   adopt(root: string, view: Extract<FolderState, { kind: "list" }>): boolean;
   // Resolves to the stored paths it removed, in stored order.
   remove(paths: readonly string[]): Promise<{ paths: string[] }>;
@@ -75,8 +73,7 @@ interface Folder {
 }
 
 // The mode chosen for setup is not used on a re-root, so the notice says the project's own; an unknown mode, or none
-// from an older doan, is not guessed. Outside Git the CLI reports repo with not_git,
-// which is no Git to include the files in.
+// from an older doan, is not guessed. Outside Git the CLI reports repo with not_git, which is no Git to include into.
 function rerootMessage(root: string, listing: { storage?: StorageMode; storageReason?: StorageReason }): string {
   const { storage, storageReason } = listing;
   const kept = storage === "local" ? " and keeps its Doan files out of Git" : storage === "repo" && storageReason !== "not_git" ? " and includes its Doan files in Git" : "";
@@ -100,11 +97,8 @@ function sameScope(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((entry, i) => entry === b[i]);
 }
 
-// Electron-free on purpose: the window, dialog and IPC live in index.ts.
-// `autoRemoved` runs when a vanished auto-registered root left the list on its own, before the list goes out, so main
-// clears what it keeps for that root as on Remove (index.ts rootsLeft); `before` is the list before the removal.
-// `migrate` is the folder store's startup step (RootMigration): it runs before folders.json is rewritten and before any
-// folder is read, listed or pruned, so stores keyed by root move a symlink root's memory to its real path first.
+// Electron-free: the window, dialog and IPC live in index.ts. `autoRemoved` runs before the list goes out, so main
+// clears that root's state as on Remove; `migrate` runs before folders.json is rewritten or any folder is read.
 export interface ShellHooks {
   response?(record: ResponseRecord): void;
   // HEAD, FETCH_HEAD or ORIG_HEAD in the root's gitdir changed (watch.ts `git`), for the read state's git signal.
@@ -169,8 +163,8 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
         return false;
       }
     }
-    // An auto-registered root stays uninitialized for the renderer to hide: an upward re-root would make
-    // a parent the person never added hand-added and move focus to it (POSTMORTEM 2026-11-03).
+    // An auto-registered root stays uninitialized for the renderer to hide: an upward re-root would make a parent the
+    // person never added hand-added and move focus to it.
     if (view.kind === "uninitialized" && !store.auto().includes(folder.path)) {
       view = folderState(await runLs(cli, { cwd: folder.path }));
       if (folders.get(folder.path) !== folder || read !== folder.reads) return false;
@@ -367,11 +361,8 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
         const outcome = initOutcome(await runInit(cli, path, tokenCss, storage, { gitInit, ...(env ? { env } : {}) }),
           { tokenCss: tokenCss !== null, folder: path, home: hooks?.home ?? "" });
         if (folders.get(path) !== folder || folder.epoch !== epoch) return unavailable;
-        // init's own writes start a watcher read that can overtake this one and drop it as stale. The read is repeated
-        // up to three times, so in the usual race the setup answers after its listing has published; if every try is
-        // overtaken (a folder that keeps changing), it still answers success and the watcher's newer read publishes.
-        // A failed creation may have left its .git/ (cleanup_failed), so the folder reads as inside Git again and the
-        // form drops its .git/ line; the same bounded re-read as after a success.
+        // init's own writes start a watcher read that can overtake this one, so the read is repeated up to three times; if
+        // every try is overtaken it still answers success. A failed creation may leave its .git/, so it is re-read the same way.
         if (outcome.kind === "success" || (gitInit && outcome.kind === "error")) {
           for (let tries = 0; tries < 3 && await refresh(folder, { reread: true, served: false }) === false && folders.get(path) === folder; tries++);
         }

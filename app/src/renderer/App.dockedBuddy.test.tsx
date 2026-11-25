@@ -3,9 +3,8 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 
-// App owns the docked buddy: it starts it with the workspace screen, stops it off it, and tells it what only App knows
-// (the Overview over the canvas page, the panel folding and folded, a covering overlay, a picking or capture hint, the
-// chosen buddy). Driven with hooks as plain state, with App.problemOverlay.test.tsx's harness; the shell is a fake.
+// App starts the docked buddy with the workspace screen, stops it off it, and tells it what only App knows
+// (Overview over the canvas page, panel folding, overlays, hints, the chosen buddy). Hooks run as plain state.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,

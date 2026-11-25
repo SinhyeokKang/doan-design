@@ -5,9 +5,8 @@ import type { CanvasRow } from "../main/view";
 import type { ConversationThreadProps } from "./ConversationThread";
 import { threadItems, type ThreadItem } from "./threadItems";
 
-// A streamed delta must draw only the reply it extends: every other thread item is skipped by its memo comparison.
-// There is no DOM in these tests (no jsdom), so the thread body runs twice with its hooks kept by call order, as React
-// keeps them, and each item element the two runs produced goes through the comparison React would use.
+// A streamed delta must draw only the reply it extends. No DOM here: the thread body runs twice with hooks kept by call
+// order, and each item element goes through the comparison React would use.
 const hooks = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0 }));
 vi.mock("react", async original => {
   const actual = await original<typeof import("react")>();

@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
-// The buddies' motion model, ported from the buddy draft .doan/assets/buddies/motion-preview.js
-// (MIT, Doan contributors), whose time model is Doany's V1 .doan/assets/doany/motion/mascot.js with a slower blink.
-// The formulas, constants and operation order are the draft's, unchanged: doanyMotion.test.ts compares every value
-// bit for bit with the draft run in a vm (app/scripts/doanyGolden.mjs). Only the DOM/WebGL coupling is removed;
-// the per-buddy drawn bounds are in Doany.tsx (drawnPose), and the greet/blink/pause study controls are not ported.
+// Port of .doan/assets/buddies/motion-preview.js (MIT, Doan contributors): formulas, constants and operation order must
+// match it, since doanyMotion.test.ts compares every value bit for bit with it (app/scripts/doanyGolden.mjs).
 
 export type Mode = "idle" | "attentive" | "jump" | "reduced-motion";
 
@@ -24,7 +21,6 @@ export function initialState(): MotionState {
   return { time: 0, lookX: 0, lookY: 0, targetX: 0, targetY: 0, hat: 0, hatV: 0, jumpAt: -99, blinkAt: 2, nextBlink: 2, typingUntil: 0, pointerUntil: 0, last: 0, eye: 1, mode: "idle" };
 }
 
-// The draft's render(), without drawing.
 export function pose(state: MotionState, reduced: boolean): Pose {
   const t = state.time, still = reduced;
   let squash = still ? 0 : Math.sin(t * 1.9) * .016, lift = 0, energy = 0, tilt = still ? 0 : Math.sin(t * .85) * .025 + state.lookX * .065;
@@ -43,9 +39,8 @@ export function pose(state: MotionState, reduced: boolean): Pose {
   };
 }
 
-// The state half of the draft's tick(): `last` moves on every frame, so the first dt after a pause is
-// the real gap (capped at 0.035), and time only runs while `gate` is open (ready, visible, document
-// shown, motion allowed). Returns whether the frame advanced, which is when the draft draws.
+// `last` moves on every frame, so the first dt after a pause is the real gap (capped at 0.035). Returns whether the
+// frame advanced, which is when the asset draws.
 export function advance(state: MotionState, now: number, gate: boolean, random: () => number): boolean {
   const dt = Math.min(.035, state.last ? (now - state.last) / 1000 : 1 / 60); state.last = now;
   if (!gate) return false;
@@ -63,7 +58,6 @@ export function advance(state: MotionState, now: number, gate: boolean, random: 
   return true;
 }
 
-// How far into its hop the buddy is, 0 on the floor to 1 at the apex: the floor shadow shrinks and fades with it.
 // The hop's height is .22 before a buddy's own multiplier, so this is the same for every buddy.
 export function hopLift(pose: Pose): number {
   return pose.lift / .22;

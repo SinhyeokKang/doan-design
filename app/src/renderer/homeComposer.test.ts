@@ -34,7 +34,6 @@ function list(path: string, canvases: CanvasRow[] = [], git?: { common: string; 
 const missing = (path: string): FolderEntry => ({ path, kind: "notFound" });
 
 const FACTS: ToolFacts = { cli: "found", version: "supported", tools: "ready" };
-// Claude needs an organization to be ready (agentAuth unpinned).
 const ACCOUNT: AccountIdentity = { id: "acct", workspace: "org", email: "ada@example.com" };
 function dto(provider: Provider, f: { connected?: boolean; verified?: boolean; expired?: boolean; facts?: Partial<ToolFacts> } = {}): AuthStatusDto {
   const connected = f.connected ?? true;
@@ -54,8 +53,6 @@ const base = (over: Partial<SendInput> = {}): SendInput => ({
   skills: [], projects: 1, root: list("/r/doan-design"), projectName: "doan-design", auth: snapshot(dto("claude")), provider: "claude",
   text: "Draw a pricing page.", preset: null, attachments: [], sending: false, ...over,
 });
-
-// composeRequest
 
 test("a request without a preset is the user's text without the blank lines around it", () => {
   expect(composeRequest("\n \n Draw a pricing page.\n\n", null, [], 0)).toBe(" Draw a pricing page.");
@@ -87,8 +84,6 @@ test("the placeholder asks for a target once a preset is chosen", () => {
   expect(presetPlaceholder(null)).toBe("Describe what to design, / for presets");
   expect(presetPlaceholder(preset("polish"))).toBe("Which canvas or screen? Add details…");
 });
-
-// sendAvailability and the length limit
 
 test("the limit counts the user's text plus the preset header: 32,768 sends, 32,769 does not", () => {
   const header = composeRequest("", preset("polish"), [], 0).length + 2;
@@ -125,7 +120,6 @@ test("draftProblem checks only what was typed: a chip passes, typed braces do no
   expect(draftProblem([text("Move "), chip, text(" left of "), chip], null, [], [])).toBeNull();
   // Braces typed on both sides of a chip are separate pieces.
   expect(draftProblem([text("{"), chip, text("}")], null, [], [])).toBeNull();
-  // A typed {{1}} is refused even though a chip has that number.
   expect(draftProblem([text("Literal {{1}} then "), chip], null, [], [])).toEqual(markers);
   expect(draftProblem([chip, text(" then }}")], null, [], [])).toEqual(markers);
   // Text segments next to each other read as one piece.
@@ -183,8 +177,6 @@ test("while sending, Send is disabled without a reason line", () => {
   expect(sendAvailability(base({ sending: true }))).toEqual({ enabled: false, reason: null });
 });
 
-// startErrorView
-
 test("every start refusal has the draft's wording and Retry only where retrying can help", () => {
   const view = (code: string) => startErrorView(code, "claude", "doan-design");
   expect(view("not_logged_in")).toEqual({ text: "Couldn’t start with Claude Code: its sign-in has expired. Choose another agent.", retry: false });
@@ -201,8 +193,6 @@ test("every start refusal has the draft's wording and Retry only where retrying 
   expect(view("no_agent")).toEqual({ text: "No agent is ready to run.", retry: false });
   for (const code of ["bad_request", "unknown", "something_new"]) expect(view(code)).toEqual({ text: "Couldn’t start the conversation. Try again.", retry: true });
 });
-
-// defaultProject and rootForProject
 
 const DOAN = list("/r/doan-design", [], { common: "/r/doan-design/.git", main: "/r/doan-design", branch: "main" });
 const DOAN_WT = list("/r/wt/doan-home", [], { common: "/r/doan-design/.git", main: "/r/doan-design", branch: "feat-doan-home" });
@@ -248,8 +238,6 @@ test("switching project picks the sidebar's remembered worktree, else the first 
   expect(rootForProject([missing("/r/a"), missing("/r/b")], undefined)).toBe("/r/a");
 });
 
-// Providers
-
 test("connected providers that are ready or unverified can be chosen; others cannot", () => {
   expect(selectableProvider(dto("claude"))).toBe(true);
   expect(selectableProvider(dto("claude", { verified: false }))).toBe(true);
@@ -270,8 +258,6 @@ test("the default agent is the last one sent from Home while it can run, else th
   expect(defaultProvider(null, "claude")).toBeNull();
   expect(defaultProvider(undefined, "claude")).toBeNull();
 });
-
-// Models and effort
 
 const OPUS = { id: "opus", label: "Opus 5.5", default: true, efforts: ["low", "medium", "high", "max"] };
 const SONNET = { id: "sonnet", label: "Sonnet 5.5", default: false, efforts: ["low", "high"] };
@@ -334,7 +320,7 @@ test("a provider without a list yet has a Default row and asks to be read when i
   const choice = { provider: "codex" as const, model: null, effort: null };
   const unread = modelPickerView(auth, {}, choice).groups[1]!;
   expect(unread).toMatchObject({ read: true, note: null, rows: [{ kind: "default", label: "Default", selected: true }] });
-  // The draft (frame 05) puts the reading note in the group head beside a spinner, over the Default row.
+  // The reading note sits in the group head over the Default row.
   const loading = modelPickerView(auth, { codex: "loading" }, choice).groups[1]!;
   expect(loading).toMatchObject({ read: false, note: "Loading models", rows: [{ kind: "default", label: "Default", selected: true }] });
   // An empty list is an answer; a failed read is asked again when the group opens, as Settings > Agents' Retry does.
@@ -347,7 +333,7 @@ test("a provider without a list yet has a Default row and asks to be read when i
   expect(modelPickerView(auth, {}, choice).effort).toBeNull();
 });
 
-// Copilot lists its models without a request (2026-10-29 user), so it is read like the others.
+// Copilot lists its models without a request, so it is read like the others.
 test("Copilot's list is read automatically like every other provider's, with no lazy-read row", () => {
   const group = modelPickerView(snapshot(dto("copilot")), {}, { provider: "copilot", model: null, effort: null }).groups[0]!;
   expect(group).toMatchObject({ read: true, rows: [{ kind: "default", label: "Default", selected: true }] });
@@ -366,7 +352,7 @@ test("the effort capsule shows only for a model with levels; an unchosen level n
 const LUNA = { id: "gpt-6-luna", label: "GPT-6-Luna", default: true, efforts: ["low", "medium", "high", "xhigh"], defaultEffort: "medium" };
 const TERRA = { id: "gpt-5.6-terra", label: "GPT-5.6-Terra", default: false, efforts: ["low", "medium", "high"] };
 const CODEX_MODELS: ModelsState = { models: [LUNA, TERRA] };
-// The 2026-11-06 shape after main's pairing: Claude Code's default row carries its model's name, the opus row is gone.
+// Main's paired list: Claude Code's default row carries its model's name and there is no separate opus row.
 const CLAUDE_DEFAULT = { id: "default", label: "Opus 5.5", default: true, efforts: ["low", "medium", "high", "max"] };
 const PAIRED: ModelsState = { models: [CLAUDE_DEFAULT, SONNET, HAIKU] };
 
@@ -447,8 +433,6 @@ test("with no agent that can run the trigger says so", () => {
   expect(view.trigger).toEqual({ provider: null, label: "No agent ready", ariaLabel: "Agent: none ready", placeholder: false, isDefault: false });
   expect(modelPickerView(undefined, {}, { provider: null, model: null, effort: null }).groups).toEqual([]);
 });
-
-// Presets: suggestions, search, list view
 
 test("suggested presets follow the project's canvases, skipping ids the CLI did not list", () => {
   expect(suggestedPresets(list("/r/p"), PRESETS).map(p => p.id)).toEqual(["context", "shape", "document"]);
@@ -608,8 +592,6 @@ test("the / list has no tabs: an empty query lists every preset in catalog order
   expect(view.sections[0]!.rows[0]!.group).toBe("Start");
 });
 
-// Greeting
-
 test("the greeting never repeats the previous one and drops the project question without a project", () => {
   expect(GREETINGS).toEqual(["What should we design today?", "What are we making next?", "What would you like to change?", "What’s next for <project>?", "Where should we start?"]);
   for (let i = 0; i < 10; i++) {
@@ -631,8 +613,6 @@ test("the greeting keeps its sentence and follows only the chosen project's name
   expect(greetingText("Where should we start?", "malmoi")).toBe("Where should we start?");
 });
 
-// Keys and the / shortcut
-
 test("Enter sends, Shift+Enter and Enter during IME composition do not", () => {
   const key = (over: Partial<Parameters<typeof isSubmitKey>[0]>) => isSubmitKey({ key: "Enter", shiftKey: false, isComposing: false, keyCode: 13, ...over });
   expect(key({})).toBe(true);
@@ -653,10 +633,8 @@ test("/ at the very start of the field opens the preset query until dismissed", 
   expect(slashQuery("", false)).toBeNull();
 });
 
-// Attachments
-
-// main accepts at most 10 paths from one pick and refuses the rest, unchecked, as limit; those are left out like the
-// accepted ones the draft has no room for, in one notice with the count, never as one bare limit line each.
+// main takes at most 10 paths per pick and refuses the rest as limit; they join the draft's own overflow
+// in one counted notice.
 test("a pick of more than ten leaves the rest out with one counted notice, and releases what no longer fits", () => {
   const ok = (id: string) => ({ ok: true as const, attachment: { id, name: id, kind: "directory" as const, path: `/p/${id}`, pasted: false } });
   const over = (name: string) => ({ ok: false as const, name, error: "limit" as const });
@@ -828,7 +806,7 @@ test("group keys map to their names and icons; an unknown key keeps its name and
   ]);
 });
 
-// The fixed preference from Settings comes first, then today's rules.
+// The Settings preference comes first, then the last-sent rules.
 test("new conversation default: the fixed agent wins over the last one sent while it can run", () => {
   const auth = snapshot(dto("claude"), dto("codex"), dto("copilot", { verified: false }));
   expect(defaultProvider(auth, "claude", { provider: "codex" })).toBe("codex");
@@ -889,7 +867,6 @@ test.each([["ArrowRight", 39], ["Tab", 9]])("takesSuggestion accepts only a plai
   }
 });
 
-// The Fast switch row under the Effort levels, and its trigger name.
 const FAST_OPUS = { ...OPUS, fast: {} };
 const SOL = { id: "gpt-6.1-sol", label: "GPT-6.1 Sol", default: true, efforts: ["low", "high"], fast: { description: "2x speed, increased usage" } };
 test("the switch row shows only for a Claude or Codex model with Fast and effort levels, and never in Settings", () => {
@@ -902,7 +879,7 @@ test("the switch row shows only for a Claude or Codex model with Fast and effort
   expect(fast("codex", { models: [SOL] }, "gpt-6.1-sol", false)).toEqual({ on: false, description: "2x speed, increased usage" });
   // A Codex tier without a description has none.
   expect(fast("codex", { models: [{ ...SOL, fast: {} }] }, "gpt-6.1-sol")).toEqual({ on: true });
-  // No Fast: a model without it, no model (the list not read or failed), a model without levels, an ACP provider, Settings.
+  // No Fast: a model without it, no model, a model without levels, an ACP provider, Settings.
   expect(fast("claude", claude, "sonnet")).toBeNull();
   expect(modelPickerView(auth, { claude: "loading" }, { provider: "claude", model: null, effort: null, fast: true }).effort).toBeNull();
   expect(fast("claude", claude, "haiku")).toBeUndefined();
@@ -918,7 +895,6 @@ test("Fast on or off changes the trigger's name, never its label; an unavailable
   const unavailable = view(true, { models: [{ ...OPUS, fast: { unavailable: "extra_usage" } }] });
   expect(unavailable).toMatchObject({ label: "High", ariaLabel: "Effort: High" });
   expect(unavailable.fast).toEqual({ on: false, description: "Extra usage is turned off for this account.", unavailable: "extra_usage" });
-  // Without Fast the name reads as before.
   expect(modelPickerView(auth, { claude: { models: [OPUS] } }, { provider: "claude", model: "opus", effort: "high", fast: true }).effort).toMatchObject({ ariaLabel: "Effort: High", fast: null });
 });
 
@@ -942,7 +918,6 @@ test("an existing conversation's send names an off always and an on only while i
   expect(fastToSend(false, "cursor", null)).toEqual({});
 });
 
-// The menu folds a group's older models under one line; rows still hold every model.
 const F_C55 = { id: "claude-opus-5-5", label: "Opus 5.5", default: true };
 const F_C48 = { id: "claude-opus-4-8", label: "Opus 4.8", default: false, older: true as const };
 const F_SOL = { id: "gpt-6.1-sol", label: "GPT-6.1-Sol", default: true };
@@ -997,8 +972,7 @@ test("a group the person toggled stays as they left it when a list arrives", () 
   expect(olderToggled(olderToggled(NO_OLDER, "codex", true), "claude", true)).toEqual({ open: ["codex", "claude"], touched: ["codex", "claude"] });
 });
 
-// main classifies each list it reads (models.ts olderIds); the view keeps no fold state of its own, so a replacement
-// list read after an account change is shown with its own older marks.
+// main classifies each list it reads (models.ts olderIds); the view keeps no fold state of its own.
 test("a replacement list read after an account change carries its own older marks into the view", () => {
   const auth = snapshot(dto("codex"));
   const choice = { provider: "codex" as const, model: "gpt-6-sol", effort: null };
@@ -1047,7 +1021,7 @@ test("an open model menu keeps its first painted side until close releases the l
   expect(lockedOlderSide(null, "left")).toBeNull();
 });
 
-// A start refused by the usage limit names the reset when main knows it (usage-limit-resume.html home-refusal).
+// A start refused by the usage limit names the reset when main knows it.
 test("a usage-limit start refusal names the reset time when it is known", () => {
   expect(startErrorView("rate_limited", "claude", "doan-design", "at 3:00\u202fPM")).toEqual({ text: "Claude Code reached a usage limit. Send again after it resets at 3:00\u202fPM.", retry: false });
   expect(startErrorView("rate_limited", "codex", "doan-design", "Thursday at 3:00\u202fPM").text).toBe("Codex reached a usage limit. Send again after it resets Thursday at 3:00\u202fPM.");

@@ -98,10 +98,8 @@ func attr(n *html.Node, key string) string {
 	return ""
 }
 
-// StitchPrototype writes the prototype file of one frame from a general Export page as the viewer's browser code
-// does: it only joins the page's fragments, swapping the measure script in the decoded srcdoc for the isolation
-// script and escaping the result as an attribute value (& and "). Indexes are UTF-16 units, as in a JavaScript
-// string; for a canvas that is not valid UTF-8 the Go conversion here is not the browser's decoder.
+// StitchPrototype writes one frame's prototype file as the viewer's browser code does, only joining the page's fragments.
+// Indexes are UTF-16 units; for a canvas that is not valid UTF-8 the Go conversion here is not the browser's decoder.
 func StitchPrototype(page []byte, frame string) ([]byte, error) {
 	g, err := ReadGeneral(page)
 	if err != nil {

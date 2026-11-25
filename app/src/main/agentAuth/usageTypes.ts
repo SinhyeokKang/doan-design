@@ -1,9 +1,8 @@
 // Type-only: the renderer imports these, so nothing here may become a value import.
 import type { AuthAttempt, AuthErrorCode, AuthPhase, Provider, Readiness } from "./types";
 
-// A provider's rate-limit window. id is the provider's own key; label is Doan's English name.
-// limited is set only when the provider itself says the limit is reached, never inferred from usedPercent.
-// periodMins is the window's length when the provider gives it; label "Weekly" marks the provider's overall weekly window.
+// id is the provider's own key; label is Doan's English name, and "Weekly" marks the overall weekly window. limited is
+// set only when the provider says the limit is reached, never inferred from usedPercent.
 export interface UsageWindow { id: string; label: string; periodMins?: number; usedPercent: number; resetsAt?: number /* epoch ms */; limited?: true }
 // unlimited: every window the provider reports is unlimited; windows is then empty.
 export type UsageReading =

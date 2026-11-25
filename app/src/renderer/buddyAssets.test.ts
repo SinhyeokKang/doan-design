@@ -61,7 +61,6 @@ test("the friends' still, layers and shadow and Doany's shadow are 512² RGBA; e
   expect(buddy("doany").assets.shadow.startsWith("buddies/")).toBe(true);
 });
 
-// Each friend's app GIF and the source it is cut from.
 const FRIEND_SOURCES: Record<string, string> = { "artist.gif": "artist.gif", "artist-typing.gif": "typing.gif", "artist-reading.gif": "reading.gif" };
 
 test("the friends' working-notice GIFs are 128² with the source's frames and timing, and their rest frames are 128² RGBA", () => {
@@ -83,9 +82,8 @@ test("eye.png is the shared eye, unchanged from its source", () => {
 });
 
 test("public/buddies/ stays within 6 MB, Welcome's group photo aside", () => {
-  // Lossless copies by the maintainer's choice: palette compression would bring it near 2 MB but alter the artwork.
-  // Every friend's three working-notice variants took it past 5 MB, so the cap rose to 6 MB rather than lose that.
-  // The cap was set for the buddies' own layers; the group photo in group/ is one lossless picture outside it.
+  // The art is copied lossless: palette compression would alter it. The cap covers the buddies' own layers;
+  // the lossless group photo in group/ is outside it.
   const size = (dir: string): number => readdirSync(dir).reduce((sum, name) => { const path = join(dir, name); return sum + (path === join(PUBLIC, "buddies", "group") ? 0 : statSync(path).isDirectory() ? size(path) : statSync(path).size); }, 0);
   expect(size(join(PUBLIC, "buddies"))).toBeLessThanOrEqual(6_000_000);
 });

@@ -47,9 +47,8 @@ export function claudeFastOutcome(result: unknown, requested: boolean): FastUnus
   const reason = typeof result.fast_mode_disabled_reason === "string" && Object.hasOwn(CONTINUING, result.fast_mode_disabled_reason) ? CONTINUING[result.fast_mode_disabled_reason] : undefined;
   return reason ? { type: "fast.unused", reason, turnedOff: true } : { type: "fast.unused" };
 }
-// The turn's context value goes out in the terminal's own batch, right before it, so it adds no wait at turn end and
-// frames after the terminal (Claude's prompt suggestion call) cannot change it. Only a done or failed turn the
-// transport ended carries one: a stopped turn's interrupted does not.
+// The turn's context value goes out in the terminal's own batch, right before it, so frames after the terminal cannot
+// change it. Only a done or failed turn the transport ended carries one, not a stopped turn's interrupted.
 export function contextBefore(state: TransportState, terminal: EventPayload): EventPayload[] {
   return state.context && (terminal.type === "turn.done" || terminal.type === "turn.failed") ? [{ type: "context.usage", ...state.context }] : [];
 }
@@ -59,9 +58,8 @@ function count(value: unknown): value is number { return Number.isSafeInteger(va
 export function contextValue(used: unknown, size: unknown): { used: number; size: number } | undefined {
   return count(used) && count(size) && size >= 1 ? { used, size } : undefined;
 }
-// A top-level call's context: its input tokens with both cache kinds (BetaUsage; the cache fields may be null), and
-// the model whose modelUsage entry gives the window. A message Claude Code makes up itself (an API error, "No response
-// requested.") names the SDK's "<synthetic>" model and made no call, so the turn's last real call stays.
+// A top-level call's context: input tokens with both cache kinds (nullable), and the model whose modelUsage gives the
+// window. A made-up message names the "<synthetic>" model and made no call, so the turn's last real call stays.
 const CLAUDE_SYNTHETIC_MODEL = "<synthetic>";
 // The `error` Claude Code sets on the assistant message it makes up for an account problem (SDKAssistantMessageError).
 // Only values with an existing FailureCode are read; the rest fall to the result's text.
@@ -73,8 +71,7 @@ function claudeCall(message: Record<string, unknown>): { used: number; model: st
   const used = parts.reduce((sum, part) => sum + part, 0);
   return Number.isSafeInteger(used) ? { used, model: message.model } : undefined;
 }
-// modelUsage also holds auxiliary models' keys (Claude Code 2.1.318 and 2.1.284 listed a Haiku entry beside the turn's
-// model, whose key equals the top-level message.model), so the window is the call's own model's.
+// modelUsage also holds auxiliary models' keys beside the turn's model, so the window is the call's own model's.
 function claudeWindow(modelUsage: unknown, model: string): unknown {
   return object(modelUsage) && Object.hasOwn(modelUsage, model) && object(modelUsage[model]) ? modelUsage[model].contextWindow : undefined;
 }
@@ -103,15 +100,14 @@ export function steerTransport(state: TransportState, id: string): TransportStat
 // The wait after awaitingRead ran out: the turn ends as that success result would have.
 export function endSteerWait(state: TransportState): TransportResult { return finish(state, { type: "turn.done" }); }
 // The turn's own prompt, registered before it is written: a success result before the CLI read it closes a turn the
-// CLI opened by itself (a background task's notice, PoC Claude Code 2.1.322 and 2.1.284), not this one.
+// CLI opened by itself (a background task's notice), not this one.
 export function promptTransport(state: TransportState, uuid: string): TransportState {
   return state.terminal ? state : { ...state, prompt: uuid };
 }
 // The wait ran out with the prompt still unread: the CLI never took the message, so the turn fails.
 export function endPromptWait(state: TransportState): TransportResult { return finish(state, { type: "turn.failed", code: "prompt_unread" }); }
-// The live background tasks after a background_tasks_changed frame, null for any other frame. The frame is a level
-// signal that carries the whole set each time (SDK 0.3.312). An ambient entry is one the host leaves out of activity, so
-// it is left out of what is shown; withAmbient keeps it, since it may still run in a process group of its own.
+// The live background tasks after a background_tasks_changed frame (a level signal with the whole set), null otherwise.
+// Ambient entries are not shown; withAmbient keeps them, since they may run in a process group of their own.
 export function backgroundTasks(_current: readonly string[], raw: unknown, withAmbient = false): string[] | null {
   if (!object(raw) || raw.type !== "system" || raw.subtype !== "background_tasks_changed") return null;
   const tasks = Array.isArray(raw.tasks) ? raw.tasks : [];
@@ -125,7 +121,7 @@ function withConsumed(result: TransportResult, consumed: string[]): SteerResult 
 export function transportError(detail: string): FailureCode {
   if (/already has an active writer/i.test(detail)) return "session_in_use";
   if (/not logged in|authentication required|unauthorized|invalid api key|authentication failed/i.test(detail)) return "not_logged_in";
-  // "hit your usage limit": Codex's own words for a reached usage limit (0.144.2).
+  // "hit your usage limit": Codex's own words for a reached usage limit.
   if (/rate.?limit|too many requests|hit your weekly limit|hit your usage limit/i.test(detail)) return "rate_limited";
   if (/session.*(not found|unavailable)|thread.*not found/i.test(detail)) return "session_unavailable";
   return "unknown";
@@ -133,9 +129,8 @@ export function transportError(detail: string): FailureCode {
 function failed(state: TransportState, detail: string, code: FailureCode = transportError(detail)): TransportResult {
   return finish(state, { type: "turn.failed", code, ...(detail ? { detail: detail.slice(0, 4096) } : {}) });
 }
-// A Codex TurnError (the error notification's, or a failed turn/completed's). modelNotFound names the model only in
-// its message; the model ID comes from there, since a model the account lacks is one Doan never sent (ipc.ts takes
-// only models on the run's model/list). Without a readable ID the turn fails as any other error does.
+// A Codex TurnError. modelNotFound names the model only in its message, which gives the ID (a model Doan never sent);
+// without a readable ID the turn fails as any other error does.
 function codexFailed(state: TransportState, error: unknown): TransportResult {
   const detail = object(error) ? text(error.message) : "";
   const model = object(error) && error.codexErrorInfo === "modelNotFound" ? /'([^'\s]+)' model\b/.exec(detail)?.[1] : undefined;
@@ -147,8 +142,7 @@ function text(value: unknown): string { return typeof value === "string" ? value
 // vocabulary, not words for the strip.
 export const GENERIC_SUMMARY = { edit: "Editing files", read: "Reading files", command: "Running a command", other: "Using a tool" } as const;
 // A permission request leads with what will run (ARCHITECTURE §7: the approval card shows the command), so it keeps far
-// more of it than other one-line summaries; the agent's own words about it (reason) stay short. A cut text ends in "…",
-// so the person sees that more would run than the card shows (clip).
+// more of it than other summaries; a cut text ends in "…" so the person sees that more would run (clip).
 export const PERMISSION_SUMMARY_MAX = 8192;
 const PERMISSION_REASON_MAX = 512;
 // The agent's description of a request, unless it only repeats what the card already shows.
@@ -161,19 +155,16 @@ export function displayPath(path: string, root: string): string {
   const relative = posix.relative(root, posix.resolve(root, path));
   return relative && !relative.startsWith("..") && !posix.isAbsolute(relative) ? relative : path;
 }
-// Allow answers for `command` whole. Codex's `commandActions` is a best-effort parse for display that can name only part
-// of the line, so it never stands in for the command. Only
-// the login-shell wrapper Codex adds (`/bin/zsh -lc <script>`, a system shell) comes off, and only when the rest decodes
-// as exactly one shell word; anything else shows as sent.
+// Allow answers for `command` whole; Codex's `commandActions` is a display parse that can name only part of it. Only
+// Codex's login-shell wrapper (`/bin/zsh -lc <script>`) comes off, when the rest decodes as one shell word.
 const SHELL_WRAPPER = /^\/bin\/(?:zsh|bash|sh) -l?c (.+)$/s;
 function commandText(input: Record<string, unknown>): string {
   const command = text(input.command);
   const script = SHELL_WRAPPER.exec(command)?.[1];
   return (script !== undefined && shellWord(script)) || command;
 }
-// One POSIX shell word, as Codex's quoting writes it: '…' runs, "…" runs with \ escapes, backslash escapes and plain
-// characters. Null for anything a shell would expand or split (an unescaped $ or ` in double quotes, a space, an
-// operator), since the decoded text would then not be the script.
+// One POSIX shell word as Codex's quoting writes it ('…', "…" with \ escapes, backslash escapes, plain characters).
+// Null for anything a shell would expand or split, since the decoded text would then not be the script.
 function shellWord(source: string): string | null {
   let word = "", i = 0;
   while (i < source.length) {
@@ -199,9 +190,8 @@ function shellWord(source: string): string | null {
   }
   return word || null;
 }
-// Codex app-server's RequestPermissionProfile (checked against 0.169.0's generated schema): `network.enabled`, and
-// `fileSystem` paths by access, as the legacy `read`/`write` lists and as `entries`. Each kind reads as one line; a piece
-// of another shape stays as short JSON, so a new kind is still shown.
+// Codex app-server's RequestPermissionProfile: `network.enabled`, and `fileSystem` paths by access (legacy read/write
+// lists and entries). Each kind reads as one line; another shape stays as short JSON, so a new kind still shows.
 const ACCESS_LINES = { read: "Read", write: "Write", deny: "No access to" } as const;
 const SPECIAL_PATHS: Readonly<Record<string, string>> = { root: "/", slash_tmp: "/tmp", tmpdir: "the temporary folder", minimal: "system folders", project_roots: "the project" };
 const shortJson = (value: unknown) => { const json = JSON.stringify(value); return json.length > 120 ? `${json.slice(0, 120)}…` : json; };
@@ -308,9 +298,8 @@ function claudeKind(tool: string): ActivityKind {
   return /^(Write|Edit|MultiEdit)$/.test(tool) ? "edit" : /^(Read|Glob|Grep)$/.test(tool) ? "read" : tool === "Bash" ? "command" : "other";
 }
 function claudePath(input: Record<string, unknown>): string { return text(input.file_path) || text(input.path); }
-// A Doan connector's tool (`mcp__doan-<slug>__<tool>`) is named with its connector, and its input never reaches the
-// summary: it can hold page ids, queries and bodies. labels maps doan- names to
-// connector names; the presets are always known.
+// A Doan connector's tool (`mcp__doan-<slug>__<tool>`) is named with its connector; its input (page ids, queries,
+// bodies) never reaches the summary. labels maps doan- names to connector names.
 const DOAN_MCP_TOOL = new RegExp(`^mcp__(${CONNECTOR_NAME_PATTERN})__(.+)$`, "s");
 const PRESET_LABELS = connectorLabels([]);
 function doanToolSummary(tool: string, labels: Readonly<Record<string, string>>): string | null {
@@ -319,9 +308,8 @@ function doanToolSummary(tool: string, labels: Readonly<Record<string, string>>)
 }
 // Another MCP server's tool, named by its server as Claude Code names it (mcp__<server>__<tool>).
 const MCP_TOOL = /^mcp__(.+?)__(.+)$/s;
-// What the approval lets run, never the agent's description of it: the command, the file, the pattern or address, or
-// the MCP tool with its server and then its arguments. An MCP tool's argument named command, path or url is only an
-// argument, so it never leads.
+// What the approval lets run, never the agent's description: the command, file, pattern or address, or the MCP tool
+// with its server, then its arguments; an MCP argument named command, path or url never leads.
 export function claudePermissionSummary(tool: string, input: Record<string, unknown>, root: string, labels: Readonly<Record<string, string>> = PRESET_LABELS): string {
   const doan = doanToolSummary(tool, labels);
   if (doan) return doan;
@@ -334,17 +322,14 @@ function claudeToolSummary(tool: string, input: Record<string, unknown>, root: s
   const path = claudePath(input);
   return doanToolSummary(tool, labels) ?? (text(input.description) || text(input.command) || (path && displayPath(path, root)) || text(input.pattern) || GENERIC_SUMMARY[claudeKind(tool)]).slice(0, 512);
 }
-// Activity is stored and published for every call, so a shell command's text, description or arguments never go in it
-// (user decision 2026-10-30); only the permission request shows the command being approved.
-// A Doan connector's tool input is the connector's (a page id, a query), never a file of the repo, so it gives no path.
+// Activity is stored and published for every call, so a shell command's text, description or arguments never go in it;
+// only the permission request shows the command. A Doan connector's tool input is never a repo file, so no path.
 function claudeActivity(tool: string, input: Record<string, unknown>, root: string, labels: Readonly<Record<string, string>>, id: string): ActivityEvent {
   const kind = claudeKind(tool);
   return activity(kind, DOAN_MCP_TOOL.test(tool) ? "" : claudePath(input), kind === "command" ? GENERIC_SUMMARY.command : claudeToolSummary(tool, input, root, labels), root, kind === "edit" ? callIdOf(id) : undefined);
 }
-// A command Codex parsed into one read-only action reads files; the turn indicator says so, while its activity stays a
-// command. Anything else (unknown, several actions, none) gives no stage. The command text never
-// goes in, only a read's file path. A listFiles or search names a folder the indicator does not show ("Reading files"),
-// so its stage carries no path: the renderer shows "Reading <path>" exactly when a path is there.
+// A command Codex parsed into one read-only action reads files: the stage says so, its activity stays a command, and
+// only a read's path goes in. A listFiles or search names a folder, so its stage carries no path.
 function codexReadStage(item: Record<string, unknown>, root: string): TurnStage | null {
   const actions = Array.isArray(item.commandActions) ? item.commandActions : [];
   const [only] = actions;
@@ -365,9 +350,8 @@ function codexActivities(item: Record<string, unknown>, root: string, labels: Re
   const tool = text(item.tool), server = text(item.server);
   return { events: [activity("other", "", tool ? (server ? `${tool} (${serverLabel(server, labels)})` : tool) : GENERIC_SUMMARY.other, root)], files: "" };
 }
-// The mode a top-level Claude system/init or system/status reports ({type: "system", subtype, permissionMode}, SDK
-// 0.3.312), in Claude's own ids; undefined for a subagent's frame and any other message. Callers map it: init gives the
-// mode an Ask first turn's settings run, status a switch inside the process (a plan approval, or a suggestion's setMode).
+// The mode a top-level Claude system/init or system/status reports, in Claude's ids; undefined for a subagent's frame or
+// any other message. init gives an Ask first turn's settings mode; status a switch inside the process.
 export interface ClaudeModeReport { source: "init" | "status"; mode: string }
 export function claudeModeReport(raw: unknown): ClaudeModeReport | undefined {
   if (!object(raw) || raw.parent_tool_use_id || raw.type !== "system" || (raw.subtype !== "init" && raw.subtype !== "status") || typeof raw.permissionMode !== "string") return undefined;
@@ -376,9 +360,8 @@ export function claudeModeReport(raw: unknown): ClaudeModeReport | undefined {
 // labels: the connector names of the run (connectorLabels), so a Doan connector's tool never shows its doan- name.
 export function normalizeClaude(state: TransportState, raw: unknown, root: string, labels?: Readonly<Record<string, string>>): SteerResult {
   if (state.terminal || !object(raw) || raw.parent_tool_use_id) return unchanged(state);
-  // A steered message is read when its uuid first appears in a frame's user_message_uuids: the system/status after a
-  // tool result when it folds into the running turn, or the system/init of the turn the CLI runs for it (PoC, Claude Code 2.1.317 and 2.1.312).
-  // An older producer's frame names only user_message_uuid (SDK 0.3.312); 2.1.284 first names the prompt on message_start.
+  // A steered message is read when its uuid first appears in user_message_uuids (a status after a tool result, or the
+  // init of the CLI's next turn); an older producer names only user_message_uuid, or the prompt on message_start.
   const seen: unknown[] = [...Array.isArray(raw.user_message_uuids) ? raw.user_message_uuids : [], raw.user_message_uuid];
   const read = consume(state, seen);
   const { prompt: _prompt, ...rest } = read.state;
@@ -444,13 +427,12 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
     const { fastUnused: _previous, ...rest } = state, verdict = claudeFastOutcome(raw, state.fastRequested === true);
     state = verdict ? { ...rest, fastUnused: verdict } : rest;
     if (raw.terminal_reason === "aborted_tools" || raw.terminal_reason === "interrupted") return aborted(state);
-    // queued_turn_count stays 0 while a steered message is unread (same PoC), so only the uuids tell that the CLI goes on
-    // to another turn for it; that turn's result ends this one. A stop still ends here.
-    // The same holds for the turn's own prompt: a success result before it was read is another turn's.
+    // queued_turn_count stays 0 while a steered message is unread, so only the uuids tell that the CLI goes on to another
+    // turn whose result ends this one; likewise a success result before the prompt was read is another turn's.
     if (raw.subtype === "success" && raw.is_error === false) {
       if ((state.steered?.length || state.prompt !== undefined) && !state.stop) return { ...unchanged(state), awaitingRead: true };
       // A built-in that answers without the model (/context) may bring its text only here. num_turns 0 says no model turn
-      // ran (PoC: /compact's result), so a model turn's result never repeats its last message.
+      // ran, so a model turn's result never repeats its last message.
       const answer = raw.num_turns === 0 && !state.stop && !state.compacted && !state.completedMessages.length ? commandOutput(text(raw.result)) : "";
       const done = finish(state, { type: "turn.done" });
       return answer ? { ...done, events: [{ type: "message.done", messageId: text(raw.uuid) || state.messageId, text: answer }, ...done.events] } : done;
@@ -458,9 +440,8 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
     const detail = Array.isArray(raw.errors) ? raw.errors.filter((e): e is string => typeof e === "string").join("\n") : text(raw.result);
     return failed(state, detail, state.claudeFailure);
   }
-  // The model is being asked again (after the prompt and after every tool result), or the last running tool just
-  // returned. A result while a parallel sibling still runs reports nothing, so the activity rule keeps naming a tool.
-  // A result for a call that never ran as an activity (AskUserQuestion) removes nothing.
+  // The model is asked again, or the last running tool returned. A result while a sibling runs reports nothing, and one
+  // for a call that never ran as an activity (AskUserQuestion) removes nothing.
   if (raw.type === "system" && raw.subtype === "status" && raw.status === "requesting") return { ...unchanged(state), stage: GENERAL_STAGE };
   if (raw.type === "system" && raw.subtype === "compact_boundary") {
     const metadata = object(raw.compact_metadata) ? raw.compact_metadata : {};
@@ -511,10 +492,8 @@ export function claudeQuestion(input: unknown): ClaudeQuestion | null {
   }
   return { questions, textById };
 }
-// The PermissionResult for a checked answer. Several choices and Other text go as one comma-joined string, as the CLI's
-// own card answers. A skip sends no answer text, which the model would read as an answer, and marks each question
-// unanswered only for a session that advertises it (system/init capabilities); an older CLI refuses the mark, so a
-// skip there is a denial.
+// The PermissionResult for a checked answer: choices and Other as one comma-joined string, as the CLI's card answers. A
+// skip sends no text (the model reads any as the answer), and marks questions unanswered only where advertised, else denies.
 export type ClaudeQuestionResult = { behavior: "allow"; updatedInput: Record<string, unknown> } | { behavior: "deny"; message: string };
 export function claudeQuestionResult(input: Record<string, unknown>, read: ClaudeQuestion, answer: QuestionAnswer, unanswered: boolean): ClaudeQuestionResult {
   if (answer.outcome === "skipped") {
@@ -547,10 +526,8 @@ export function storedAnswers(questions: readonly Question[], answer: Extract<Qu
 }
 // labels: the connector names of the run (connectorLabels); the presets when absent.
 export interface CodexContext { root: string; sessionId: string; turnId: string; labels?: Readonly<Record<string, string>> }
-// decline: answered with response at once, and the turn goes on: an MCP elicitation doan does not ask about (a form, or a
-// tool approval with no turn to ask in), and every requestUserInput of this thread (Codex 0.166.0 sends none in a
-// Doan mode, so no card exists for it). unsupported and route are answered with an error.
-// boundary: the turn's compaction item completed (thread/compact/start's turn), the only sign it compacted.
+// decline: answered at once and the turn goes on (an MCP elicitation doan does not ask about, every requestUserInput of
+// this thread). unsupported and route: answered with an error. boundary: the compaction item completed.
 export interface CodexTransportResult extends SteerResult {
   boundary?: BoundaryKind;
   request?: { id: string | number; method: string; disposition: "permission" | "unsupported" | "route" } | { id: string | number; method: string; disposition: "decline"; response: unknown };
@@ -576,9 +553,8 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
     // approval held now could never be answered.
     const asking = matched && !state.terminal && !(state.stop && raw.method === MCP_ELICITATION);
     const permission = asking ? codexPermission(raw, state.fileSummaries, context.labels) : null;
-    // An elicitation this turn cannot ask about (a form, or one with no running turn to ask in) is declined, never failed: the
-    // tool call fails and the turn goes on.
-    // No answers is a normal reply Codex reads as "no answer received" and goes on from, whatever the question.
+    // An elicitation this turn cannot ask about is declined, never failed: the tool call fails and the turn goes on. No
+    // answers is a normal reply Codex reads as "no answer received".
     if (!otherOwner && raw.method === USER_INPUT) return { ...unchanged(state), request: { id: raw.id, method: raw.method, disposition: "decline", response: { id: raw.id, result: { answers: {} } } } };
     if (!otherOwner && !permission && raw.method === MCP_ELICITATION) return { ...unchanged(state), request: { id: raw.id, method: raw.method, disposition: "decline", response: { id: raw.id, result: { action: "decline" } } } };
     const disposition = otherOwner ? "route" : permission ? "permission" : "unsupported";
@@ -593,9 +569,8 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
   if (params.threadId !== context.sessionId) return unchanged(state);
   const turnId = object(params.turn) ? params.turn.id : params.turnId;
   if (turnId !== context.turnId) return unchanged(state);
-  // last is the turn's latest model call; its inputTokens already include the cached ones (Codex 0.166.0 and 0.158.0:
-  // cachedInputTokens never exceeded inputTokens), while totalTokens adds output. After thread/resume, 0.158.0 replayed
-  // the previous turn's notification once before the new turn/start reply; the turn check drops it.
+  // last is the turn's latest model call; its inputTokens include the cached ones, while totalTokens adds output. A resumed
+  // server may replay the previous turn's notification before the turn/start reply; the turn check drops it.
   if (raw.method === "thread/tokenUsage/updated") {
     const usage = object(params.tokenUsage) ? params.tokenUsage : {};
     const value = contextValue(object(usage.last) ? usage.last.inputTokens : undefined, usage.modelContextWindow);
@@ -606,8 +581,7 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
   }
   if ((raw.method === "item/completed" || raw.method === "item/started") && object(params.item)) {
     const item = params.item;
-    // A turn/steer is read on acceptance; its userMessage item echoes clientUserMessageId as clientId
-    // (PoC, Codex 0.166.0 and 0.164.0).
+    // A turn/steer is read on acceptance; its userMessage item echoes clientUserMessageId as clientId.
     if (item.type === "userMessage") {
       const read = consume(state, typeof item.clientId === "string" ? [item.clientId] : []);
       return withConsumed(unchanged(read.state), read.consumed);

@@ -40,9 +40,8 @@ export function checkList(value: unknown): Check[] {
   return value;
 }
 
-// What is wrong with a self-test fixture's outcome, or null when it is as expected.
-// A checks_error is a broken checks.ts, not the failure a fail fixture is meant
-// to show, so it never counts as one.
+// What is wrong with a self-test fixture's outcome, or null. A checks_error means a broken checks.ts, so it never
+// counts as the failure a fail fixture is meant to show.
 export function fixtureProblem(kind: "pass" | "fail", checks: Check[], result: Result): string | null {
   const broken = checks.find(c => c.id === "checks_error");
   if (broken) return `checks did not run: checks_error (${broken.detail})`;

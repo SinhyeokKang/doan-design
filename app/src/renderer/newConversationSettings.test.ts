@@ -5,7 +5,7 @@ import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider } from "../main/agentAuth/types";
 
-// The 2026-11-06 shape after main's pairing: Claude Code's default row carries its model's name, the opus row is gone.
+// Main's paired list: Claude Code's default row carries its model's name and there is no separate opus row.
 const CLAUDE: ModelsState = { models: [
   { id: "default", label: "Opus 5.5", default: true, efforts: ["low", "medium", "high", "max"] },
   { id: "sonnet", label: "Sonnet 5.5", default: false, efforts: ["low", "high"] },
@@ -95,7 +95,6 @@ test("an ACP model whose id is default keeps its own row and value, apart from t
   expect(claude.rows.some(row => row.kind === "model" && row.id === "default")).toBe(false);
 });
 
-// The Settings Model menu folds the same way; its Default row never folds.
 const CODEX_OLDER: ModelsState = { models: [
   { id: "gpt-6.1-sol", label: "GPT-6.1-Sol", default: true },
   { id: "gpt-6-sol", label: "GPT-6-Sol", default: false, older: true },

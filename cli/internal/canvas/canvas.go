@@ -238,9 +238,8 @@ func Parse(path string, data []byte) (Canvas, error) {
 				addURL(attrs["href"])
 				addURL(attrs["xlink:href"])
 			}
-			// A <use> that leaves the canvas is svg_use_not_inline, not an
-			// external resource: the app never loads it. href wins over
-			// xlink:href whenever it is present, as in the browser.
+			// A <use> that leaves the canvas is svg_use_not_inline, not an external resource: the app never loads it.
+			// href wins over xlink:href whenever it is present, as in the browser.
 			if n.Namespace == "svg" && n.Data == "use" {
 				ref, ok := attrs["href"]
 				if !ok {
@@ -275,12 +274,8 @@ func Parse(path string, data []byte) (Canvas, error) {
 	return c, nil
 }
 
-// Elements holds the tag names, classes (".x") and ids ("#x") of a
-// canvas's elements, lowercased, so a comparison can only find more matches
-// than the browser (quirks mode compares classes and ids without case).
-// Elements inside <template> count too: they are only inert until a script
-// clones them, and a canvas with scripts has no Elements at all. A
-// user-modify declaration in its styles is handled by CustomUsers.
+// Elements holds lowercased tag names, classes (".x") and ids ("#x"): quirks mode compares classes and ids
+// without case, so lowering only finds more matches. Elements inside <template> count too.
 type Elements struct{ keys map[string]bool }
 
 // Match reports whether some compound in needs (selectorNeeds) has every
@@ -314,10 +309,8 @@ func ElementsOf(data []byte) *Elements {
 	return elementsOf(root)
 }
 
-// elementsOf returns nil when the canvas can add elements or change their
-// classes or ids at run time: a script element, an event handler attribute,
-// a javascript: URL, an SVG animation of class or id, or a contenteditable
-// attribute (typing Enter in an editable element inserts a <div>).
+// elementsOf returns nil when the canvas can change its elements at run time: scripts, event handlers,
+// javascript: URLs, SVG animation of class or id, or contenteditable (Enter inserts a <div>).
 func elementsOf(root *html.Node) *Elements {
 	e := &Elements{keys: map[string]bool{}}
 	dynamic := false

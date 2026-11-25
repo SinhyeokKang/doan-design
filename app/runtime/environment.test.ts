@@ -20,7 +20,7 @@ test("runtime launches override every user-state location without changing the p
   assert.equal(env.DOAN_RUNTIME, join(data, "runtime.json"));
   assert.equal(env.DOAN_CLI, cli);
   assert.equal((await stat(env.SHELL!)).mode & 0o777, 0o755);
-  // The app's own classifier decides; the legacy `{}` no longer ends first run.
+  // The app's own classifier decides: a legacy `{}` record does not end first run.
   assert.deepEqual(classifyCompletion(await readFile(join(data, "onboarding.json"), "utf8")), { kind: "complete", projectRoot: env.HOME });
 });
 

@@ -27,9 +27,8 @@ export function presetLookups(ctx: CheckContext, successfulOnly = false) {
   };
 }
 
-// Each `required` entry must be read; an array entry accepts any one of its
-// ids. Every catalog id read must be in `allowed`; an empty `allowed` means no
-// body may be read. Both of those fail beside a command that could not be read completely.
+// Each `required` entry must be read (an array entry accepts any one) and every read id must be in `allowed`
+// (empty: no body read at all). That allow check, in either form, fails beside an incomplete read.
 export function presetChecks(ctx: CheckContext, o: { required: (string | string[])[]; allowed: string[] }): Check[] {
   const l = presetLookups(ctx);
   // An interrupted output may already have delivered part of an out-of-scope body.
@@ -114,9 +113,8 @@ export function canvasParts(ctx: CheckContext, path: string, at: "final" | "seed
   return JSON.parse(parsed.stdout);
 }
 
-// Ids, frames and the listed texts the request must leave alone. `allIds: false`
-// skips the id check where removing elements is part of the request; `texts`
-// names element ids, or "all" for every seed element except `except`.
+// What the request must leave alone. `allIds: false` skips ids where removal is the request; `texts` names
+// element ids, or "all" for every seed element except `except`.
 export function preserved(ctx: CheckContext, path: string, o: { allIds?: boolean; frames?: string[]; texts?: string[] | "all"; except?: string[] } = {}): Check[] {
   const seed = canvasParts(ctx, path, "seed")!;
   const final = canvasParts(ctx, path) ?? { frames: {}, elements: {}, css: "" };
@@ -141,9 +139,8 @@ export function checkClean(ctx: CheckContext): Check {
   return { id: "doan_check_clean", pass: check.code === 0 && check.json?.result?.summary?.errors === 0, detail: `exit ${check.code}, ${JSON.stringify(check.json?.result?.summary ?? check.json?.error)}` };
 }
 
-// Two ways around the paths a run provides that D4b checks: another doan binary or
-// `go run`/`go build` of the doan command, and reading doan's source files.
-// `designskill` is the presets' package name, so any spelling of a path into it (a glob, a module cache) names it.
+// Ways around the run's paths: another doan binary, `go run`/`go build` of doan, or reading doan's source.
+// `designskill` is the presets' package, so any spelling of a path into it counts.
 const SOURCE = /designskill|cli\/internal\/cli\/skill\.md/;
 
 export function otherDoanCheck(ctx: CheckContext): Check {

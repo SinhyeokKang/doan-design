@@ -17,7 +17,7 @@ describe("editMenuItems", () => {
     expect(shape(editMenuItems(input()))).toEqual(["cut", "copy", "paste", "-", "selectAll"]);
   });
 
-  // macOS order, read from NSTextView.menu(for:) on macOS 26.6.2: spelling, Look Up, then Cut/Copy/Paste.
+  // macOS order, from NSTextView.menu(for:): spelling, Look Up, then Cut/Copy/Paste.
   test("an editable field with a selected misspelled word: suggestions, Look Up, then the edit items", () => {
     const items = editMenuItems(input({ selection: "wrold", misspelled: "wrold", suggestions: ["world", "would"] }));
     expect(shape(items)).toEqual(["suggest:world", "suggest:would", "-", "Look Up “wrold”", "-", "cut", "copy", "paste", "-", "selectAll"]);

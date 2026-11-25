@@ -6,9 +6,8 @@ import type { ConversationThreadProps } from "./ConversationThread";
 import type { ThreadItem } from "./threadItems";
 import type { ThreadTurn, TurnStatus } from "./turnStatus";
 
-// The thread's turn indicator. There is no DOM in these tests (the App tests' no-DOM style): hooks
-// run as plain state with their effects and cleanups, so the settle wait and the indicator's own timer run on fake
-// timers; static markup checks what is drawn.
+// No DOM here: hooks run as plain state with their effects and cleanups, so the settle wait and the indicator's own timer
+// run on fake timers; static markup checks what is drawn.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], memos: [] as { value: unknown; deps: unknown[] }[],
   effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],

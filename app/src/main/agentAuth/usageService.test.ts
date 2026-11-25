@@ -292,7 +292,7 @@ describe("UsageService connection changes", () => {
     gate.resolve(ok(h.now(), 88)); await usage.settled();
     expect(usage.entries()).toEqual([{ provider: "claude", inFlight: false, reading: ok(h.now(), 42) }]);
   });
-  // review-B 🟢1: the earlier account's read is stopped when the new account's read takes its place.
+  // The earlier account's read is stopped when the new account's read takes its place.
   it("stops the earlier account's read when a replacement's read starts", async () => {
     const signals: AbortSignal[] = [];
     const h = setup({ read: (_provider, _lease, signal) => { signals.push(signal); return new Promise(resolve => signal.addEventListener("abort", () => resolve(failed(0)))); } });

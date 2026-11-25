@@ -83,8 +83,7 @@ describe("resolveChipTarget", () => {
   });
 });
 
-// A picked or selected frame or element as the anchor a chip carries: what the agent can find in the HTML, nothing
-// the app only uses itself (the rect, the path, the outer HTML, the implements paths).
+// A chip's anchor carries only what the agent can find in the HTML, nothing the app alone uses.
 describe("targetAnchor", () => {
   const frame = { id: "shipping", title: "Shipping", implements: "app/src/Shipping.tsx" };
   const path = [{ label: "shipping", selector: '[data-doan-frame="shipping"]' }];
@@ -113,7 +112,6 @@ describe("targetAnchor", () => {
   });
 });
 
-// The size bubble's Add to message: Pick from canvas's judgement for the same chip, after two reasons of its own.
 describe("bubbleAddAvailability", () => {
   const inFrame: Anchor = { frame: { id: "shipping" }, element: { selector: "#pay", tag: "button" } };
   const note: Anchor = { element: { selector: "body > p:nth-of-type(1)", tag: "p" } };

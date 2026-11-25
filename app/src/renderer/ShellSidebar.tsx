@@ -43,7 +43,7 @@ interface Props {
   homeDirectory: string | null;
   search(): void;
   toggle(key: string): void;
-  // The project row's chevron and ←/→: fold or unfold without moving (project-row-disclosure draft).
+  // The project row's chevron and ←/→: fold or unfold without moving.
   disclose(key: string): void;
   // Opens or closes a project's group; allowed while the page is locked, as project disclosure is.
   toggleGroup(key: string, group: GroupId): void;
@@ -61,30 +61,25 @@ interface Props {
   home?: boolean;
   // The Home row is current only on Home itself, not on a page that shows Home's sidebar (PRODUCT §5 item 3).
   homeCurrent?: boolean;
-  // The Home row above the projects (dogfooding #2: Home had no visible way back).
+  // The Home row above the projects.
   goHome?(): void;
   // Home-conversation states by slotKey and roots to flash after an add.
   slots?: ReadonlyMap<string, Slot>;
   highlight?: readonly string[];
-  // A page holds work (Add Projects selecting or cloning; Settings or Project Settings a confirmation or a write): moves
-  // away are shown unavailable and App ignores them. aria-disabled keeps them in the
-  // focus order.
+  // A page holds work (Add Projects selecting or cloning; Settings or Project Settings a confirmation or a write): moves away are
+  // shown unavailable (aria-disabled, kept in the focus order) and App ignores them.
   locked?: boolean;
   // Why, while locked: the unavailable menu and delete buttons give it in their tooltip and description.
   lockReason?: string | null;
-  // The Settings page: the project tree gives way to its categories, a plain list of buttons.
-  // Choosing one leaves focus on its row.
+  // The Settings page: the project tree gives way to its categories, a plain list of buttons; choosing one leaves focus on its row.
   // mcp: MCP Connectors is listed only while Claude Code or Codex is signed in.
   settings?: { section: SettingsSection; select(section: SettingsSection): void; mcp?: boolean };
   canvasMenu: CanvasMenu;
   // The viewed canvas's conversations under its row (PRODUCT §5 item 1).
   conversations?: SidebarConversations;
 }
-// What the viewed canvas's conversation list needs from App. `shown`: the conversation the canvas panel shows, or would
-// show when unfolded; null in its new conversation state. `bare`: the sidebar slots without conversation states (terminal
-// spinners, canvas notices), for the canvas row while its list carries the conversation signals. `folded` is one value
-// for every canvas on this device. `remove` opens the title menu's Delete alert; `after` is the tree key focus goes to
-// once it deletes, computed here before the alert takes focus.
+// `shown`: the panel's conversation, or the one it would show. `bare`: slots without conversation states, for a row whose list
+// carries them. `folded` is device-wide. `remove`'s `target.after`: focus after the delete, computed before the alert.
 export interface SidebarConversations {
   list(root: string): readonly ConversationSummary[] | "loading" | "error";
   shown: string | null;
@@ -96,9 +91,8 @@ export interface SidebarConversations {
   open(root: string, row: CanvasRow, conversationId: string): void;
   remove(target: Extract<DeleteTarget, { from: "sidebar" }>, trash: HTMLElement | null): void;
 }
-// A canvas row's menu. `blocked`: an agent works on the canvas (trashBlock),
-// so Move to Trash is unavailable; `exporting`: that canvas's export is running. `trash` gets the row's button, where
-// focus goes back when the dialog closes.
+// `blocked`: an agent works on the canvas (trashBlock), so Move to Trash is unavailable; `exporting`: that canvas's export is
+// running. `trash` gets the row's button, where focus goes back when the dialog closes.
 export interface CanvasMenu {
   blocked(root: string, row: CanvasRow): boolean;
   exporting(root: string, path: string): boolean;
@@ -109,18 +103,15 @@ export interface CanvasMenu {
 export type OpenMenu = { kind: "project" | "canvas"; key: string };
 // `canvas` and `conversation` rows hand a lost focus to their siblings, then their parent (recoveryKey).
 export interface TreeRow { key: string; parent?: string; canvas?: boolean; conversation?: boolean }
-// The menu a list change or a lock closes, by kind: the project menu's root left its card, the canvas menu's row left
-// the tree or the page locked (POSTMORTEM 2026-11-01: a popup whose trigger turns unavailable closes its own state).
-// A canvas menu is never judged by the project rule, which would close it as soon as it opened.
+// A menu closes when, by kind: the project menu's root left its card; the canvas menu's row left the tree or the page
+// locked (POSTMORTEM 2026-11-01). A canvas menu is never judged by the project rule, which would close it at once.
 export function staleMenu(menu: OpenMenu | null, cards: readonly HomeCard[], menuRoot: string | null, rows: readonly TreeRow[], locked: boolean): boolean {
   if (menu?.kind === "project") return !cards.some(card => card.key === menu.key && card.rows.some(row => row.path === menuRoot));
   if (menu?.kind === "canvas") return locked || !rows.some(row => row.key === menu.key);
   return false;
 }
-// Where focus goes when the focused row leaves the tree. A canvas row hands it to the next row of its group, else the
-// previous one, else the group's head, so a removed canvas row's focus stays in its group. A conversation row does the
-// same within its list, else goes to its canvas row (a folded list, a canvas left with one conversation).
-// Any other row: the row now at its place.
+// When the focused row leaves the tree: a canvas row hands focus to the next row of its group, else the previous, else its
+// head; a conversation row does the same within its list, else goes to its canvas row. Any other row: the row now at its place.
 export function recoveryKey(previous: readonly TreeRow[], current: readonly TreeRow[], lost: string): string | undefined {
   const index = previous.findIndex(row => row.key === lost);
   const parent = previous[index]?.parent;
@@ -134,10 +125,8 @@ export function recoveryKey(previous: readonly TreeRow[], current: readonly Tree
 }
 const SECTION_ICONS: Record<SettingsSection, typeof Bot> = { general: SlidersHorizontal, agents: Bot, mcp: Plug, notifications: Bell, about: Info };
 const RANK: Record<Slot["kind"], number> = { permission: 4, working: 3, scheduled: 2, unseen: 1, canvas: 0 };
-// A canvas row's slot shows once, on the nearest rendered row (PRODUCT §5 item 1): its own, else its closed group's
-// head, else the collapsed project's row. A project row shows its roots' own slots and every bound canvas slot no row
-// or head below it carries (`covered`), so a permission request in a collapsed project is never hidden. Among equals
-// the first in `slots` wins.
+// A project row shows its roots' own slots and every bound canvas slot no row or head below carries (`covered`), so a permission
+// request in a collapsed project is never hidden (PRODUCT §5 item 1). Among equals the first in `slots` wins.
 export function projectSlot(slots: ReadonlyMap<string, Slot>, roots: readonly string[], covered: readonly string[]): Slot | undefined {
   let best: Slot | undefined;
   for (const [key, slot] of slots) {
@@ -197,10 +186,8 @@ interface RowMenu {
   // Focus for a menu whose row left the tree while it was open.
   lostFocus(): void;
 }
-// A canvas row's button and menu, drawn inline so the row's own tree holds
-// it. Unavailable items keep `aria-disabled`, not Radix `disabled`, so arrows still reach them and their reason line
-// is read through `aria-describedby` (docs/design/onboarding.md 'Locked Back'); their name is the label alone, so the reason is read once. While the page is locked the button is unavailable too:
-// unlike the project menu, nothing in this one works then.
+// Canvas row menu: unavailable items keep `aria-disabled`, not Radix `disabled`, so arrows reach them and their reason is read
+// (docs/design/onboarding.md 'Locked Back'). While locked its button is unavailable too, unlike the project menu's.
 function canvasRowMenu(args: RowMenu): ReactElement {
   const { menu, root, row, locked } = args;
   const exportReason = canvasExportReason(row, menu.exporting(root, row.path), false);
@@ -269,9 +256,8 @@ export function ShellSidebar(props: Props) {
   const canvasRows = new Map<string, { root: string; row: CanvasRow; canvases: readonly CanvasRow[] }>();
   // Set once the rows are built: the canvas row the list sits under, whether it has a list, and the list's first row.
   let listAt: string | null = null, listFirst: string | undefined;
-  // Each listed, expanded project's groups and visible rows, built once for both the keyboard order and the render.
-  // `mark`: what the slot shows; `state`: the root's own problem or reading state, which describes the row even while a
-  // conversation state wins the slot.
+  // Each listed, expanded project's groups and visible rows, built once for the keyboard order and the render. `state`: the root's
+  // own problem or reading state, which describes the row even while a conversation state wins the slot.
   const layouts = new Map<string, { groups: SidebarGroup[]; items: SidebarItem[]; mark: RowSlot | null; state: RowSlot | null }>();
   const slowRoots = useSlowRoots(cards.flatMap(card => card.rows.filter(row => row.kind === "loading").map(row => row.path)));
   const focus = (key: string | undefined) => {
@@ -401,9 +387,8 @@ export function ShellSidebar(props: Props) {
     previousRows.current = rows.map(row => ({ key: row.key, ...(row.parent !== undefined ? { parent: row.parent } : {}), ...(row.canvas ? { canvas: true } : {}), ...(row.conversation ? { conversation: true } : {}) }));
     previousProjects.current = cards.map(card => card.key);
   });
-  // The chevron sits inside its canvas row, which stays when the chevron goes (the canvas left with one conversation), so
-  // the row recovery above never sees it; with focus on it, focus would fall to the page body (POSTMORTEM 2026-11-03).
-  // Checked after the commit, once the node is gone, and only when nothing else took focus.
+  // The chevron sits inside its canvas row, which stays when the chevron goes, so the row recovery never sees it; with focus on it,
+  // focus would fall to the page body (POSTMORTEM 2026-11-03). Checked after the commit, when nothing else took focus.
   const chevronRef = (key: string) => (node: HTMLButtonElement | null) => {
     if (node) { chevrons.current.set(key, node); return; }
     const gone = chevrons.current.get(key);
@@ -479,8 +464,7 @@ export function ShellSidebar(props: Props) {
         const run = (action: () => void) => { if (target()) action(); };
         return <div className="shell-project" key={card.key}>
           <div ref={rowRef(card.key)} className={`shell-project-row row${card.rows.some(row => props.highlight?.includes(row.path)) ? " flash" : ""}`} role="treeitem" data-key={card.key} aria-label={card.name} aria-describedby={layout.state ? stateId : undefined} aria-disabled={locked} aria-level={1} aria-expanded={listed ? expanded : undefined} aria-current={current && !canvas && !props.unlisted ? "location" : undefined} tabIndex={active === card.key ? 0 : -1} onFocus={event => { if (event.target === event.currentTarget) setFocused(card.key); }} onKeyDown={event => keyboard(event, card.key)} onClick={() => props.toggle(card.key)}>
-            {/* The chevron takes the thumbnail's place on hover and focus; tabIndex -1 because the row is the tree's stop
-                and ←/→ fold it (project-row-disclosure draft). */}
+            {/* The chevron takes the thumbnail's place on hover and focus; tabIndex -1 because the row is the tree's stop and ←/→ fold it. */}
             <span className="shell-lead"><span className={`shell-thumbnail hue-${projectHue(card.name)}`} aria-hidden="true">{projectInitial(card.name)}</span>
               {listed && <button type="button" className="shell-disclosure" aria-label={`${expanded ? "Collapse" : "Expand"} ${card.name}`} tabIndex={-1} onClick={event => { event.stopPropagation(); props.disclose(card.key); }}><ChevronDown aria-hidden="true" /></button>}</span>
             <NameTip text={card.name}><span className="shell-project-name">{card.name}</span></NameTip>
@@ -527,9 +511,8 @@ export function ShellSidebar(props: Props) {
                 {group.open && <div role="group">{group.rows.length ? group.rows.map((row, canvasIndex) => {
                   const descriptionId = `${countId}-${canvasIndex}`;
                   const key = `${entry.path}\n${row.path}`, problem = rowProblem(row), name = canvasStem(row.path);
-                  // The canvas row the conversation list sits under: its icon gives way to the chevron on hover or
-                  // keyboard focus (as the project row's thumbnail does), and its slot drops the conversation signals
-                  // the list's rows carry. The chevron never takes focus, so it cannot drop it to the page when it goes.
+                  // The canvas row the conversation list sits under: its icon gives way to the chevron on hover or keyboard focus, and its slot drops
+                  // the signals the list's rows carry. The chevron never takes focus, so it cannot drop it to the page.
                   const here = key === listAt, folded = !!conversations?.folded;
                   const slot = here && conversations ? canvasRowMark(props.slots ?? new Map(), conversations.bare, key, !folded) : props.slots?.get(slotKey(entry.path, row.path));
                   return <Fragment key={key}><div><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem ? descriptionId : undefined} aria-label={name} data-key={key} role="treeitem" aria-disabled={locked} aria-level={3} aria-current={!props.home && entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} aria-expanded={here ? !folded : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => { pressedRow.current = { key, arrived: false }; openCanvasRow(entry.path, row, key); }}>

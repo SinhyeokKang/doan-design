@@ -12,7 +12,7 @@ function rule(css: string, selector: string): string {
 
 const styles = read("./styles.css");
 
-// DESIGN 'Scrollbars': `.doan-scroll` is the one way a scroller gets the thin, quiet bar; no rule restates it.
+// DESIGN 'Scrollbars': `.doan-scroll` is the one thin bar; no rule restates it.
 describe("scrollers take .doan-scroll instead of their own scrollbar rules", () => {
   test.each([".conversation-thread .md-code pre", ".conversation-thread .md-table", ".conversation-thread .thread-scroll", ".composer-input"])("%s sets no scrollbar property", selector => {
     expect(rule(styles, selector)).not.toMatch(/scrollbar-/);
@@ -55,7 +55,6 @@ describe("small corners read the radius steps", () => {
   });
 });
 
-// The scrollers that used to restate the bar take the class in markup.
 describe("scrollers carry .doan-scroll in markup", () => {
   test("the thread, its code blocks and tables, and the composer field", () => {
     const thread = read("./ConversationThread.tsx"), parts = read("./ComposerParts.tsx");
@@ -66,8 +65,7 @@ describe("scrollers carry .doan-scroll in markup", () => {
   });
 });
 
-// DESIGN 'No coloured edge stripes': a list read failure in a narrow list (the right panel, the conversation title
-// menus, the sidebar's unreadable canvas) is an inline error, the alert icon and danger ink, at the row's own density.
+// DESIGN 'No coloured edge stripes': a narrow list's read failure is an inline error.
 describe("narrow list read failures are inline errors", () => {
   test.each([".rp-error", ".conv-error", ".shell-canvas-error"])("%s takes the danger ink", selector => {
     expect(rule(styles, selector)).toContain("color: var(--text-danger);");
@@ -80,7 +78,7 @@ describe("narrow list read failures are inline errors", () => {
   });
 });
 
-// The old base rules for `.row` and `.err` are gone; the sidebar's rows and the status chips set what they show.
+// Rows and status chips set what they show: no base `.row` or `.err` rule.
 test("no legacy .row or .err base rule remains", () => {
   for (const selector of [".row", ".row .g", ".row:hover", ".err"]) expect(styles).not.toContain(`\n${selector} {`);
 });

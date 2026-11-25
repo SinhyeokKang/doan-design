@@ -2,9 +2,8 @@ import { describe, expect, test } from "vitest";
 import { updateState } from "./state";
 import type { UpdateErrorCode, UpdateEvent, UpdateState } from "./types";
 
-// The update state machine: electron-updater events and the app's own events (a check starting, the restart
-// beginning, the quit cancelled) move one state. An event a state does not use returns that same state object, so
-// the service can skip a push.
+// electron-updater events and the app's own events move one state. An event a state does not use returns that same
+// object, so the service can skip a push.
 
 const idle: UpdateState = { kind: "idle" };
 const upToDate: UpdateState = { kind: "upToDate", manual: false };
@@ -138,7 +137,7 @@ describe("ready", () => {
     }
   });
 
-  // Squirrel refusing a read-only volume while staging: Restart to Update is the draft's action for an install failure.
+  // Squirrel refusing a read-only volume while staging: Restart to Update is the action for an install failure.
   test("a Squirrel install failure while ready is a failed install", () => {
     expect(run(ready, native("installFailed"))).toEqual(failedInstall);
   });

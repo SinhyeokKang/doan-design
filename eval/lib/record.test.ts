@@ -36,7 +36,7 @@ test("the round row groups results by scenario and keeps repeats in order", () =
   assert.equal(row, `| 2026-10-24 | Claude Code 2.1.310, Codex 0.164.0 | ${"ab".repeat(6)} | 0.1.0 | W1: claude pass, codex fail/pass; R2: claude judge_error | |`);
 });
 
-// Codex reaches the app socket through the workspace's project rule, so these are no longer known conditions.
+// Codex reaches the app socket through the workspace's project rule, so these are not known conditions.
 test("R2, O1 and O2 Codex failures are issue candidates", () => {
   const meta = { date: "2026-10-31", versions: {}, guideSha256: "", cliVersion: "" };
   const formerlyExpected = {

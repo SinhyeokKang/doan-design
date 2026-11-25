@@ -21,10 +21,8 @@ export function finalAnswer(transcript: string): string {
   return toolOutput ? "" : prose;
 }
 
-// Markdown that a reader sees as prose: fenced blocks and inline code spans removed, because a link inside code is
-// shown as text, not drawn as a link (R9b scores only links the app would draw). A fence that is never closed runs to
-// the end of the text, and an inline code span never crosses a blank line (CommonMark), so a stray backtick in one
-// paragraph cannot swallow a link in the next.
+// Removes fenced blocks and code spans, where a link shows as text (R9b scores only drawn links). An unclosed fence
+// runs to the end; a span never crosses a blank line (CommonMark), so a stray backtick stays local.
 export function withoutCode(markdown: string): string {
   const kept: string[] = [];
   let fence: { char: string; size: number } | null = null;

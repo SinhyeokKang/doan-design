@@ -8,7 +8,6 @@ import { Tooltip, TooltipContent, TooltipProvider } from "./components/ui/toolti
 import { contextDrawerView } from "./contextDrawer";
 import { ContextDrawerPanel, ContextRingView, type ContextRingViewProps } from "./ContextRing";
 
-// The confirmed draft .doan/canvases/context-ring-drawer.html (frames trigger and drawer), drawn without state.
 const NOW = Date.UTC(2026, 10, 16, 12, 0, 0);
 const MIN = 60_000, HOUR = 60 * MIN;
 const CONTEXT = { value: 42, percent: 42, used: 84_000, size: 200_000 };
@@ -42,7 +41,7 @@ describe("ContextRingView button", () => {
     expect(markup).toMatch(/^<button type="button" class="context-ring" aria-label="Context window 42% used · last turn" aria-description="84K of 200K tokens" aria-haspopup="dialog" aria-expanded="false"/);
     expect(markup).not.toContain('role="img"');
     expect(markup).not.toContain("tabindex");
-    // The dial is the shipped 16px ring geometry, hidden from assistive tech; no text or mark is added.
+    // The dial is the composer's 16px context ring geometry, hidden from assistive tech; no text or mark is added.
     expect(markup).toMatch(/<span class="context-ring-dial" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" aria-hidden="true"><circle class="track" cx="12" cy="12" r="10.5"><\/circle><circle class="value" cx="12" cy="12" r="10.5" pathLength="100" stroke-dasharray="42 100"><\/circle><\/svg><\/span><\/button>$/);
     expect(markup.replace(/<[^>]*>/g, "")).toBe("");
   });
@@ -127,8 +126,8 @@ describe("ContextDrawerPanel", () => {
   });
 });
 
-// Draft frame trigger: the visible box stays the shipped 16px ring with its 2px start margin; an invisible ::before
-// 4px out on every side is the hit box and carries hover, pressed and focus, so no layout box moves.
+// The visible box stays the 16px ring with its 2px start margin; an invisible ::before 4px out on every side is the hit
+// box and carries hover, pressed and focus, so no layout box moves.
 describe("context ring CSS", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   it("keeps the visible box and clears the button's own box", () => {

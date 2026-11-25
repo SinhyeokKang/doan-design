@@ -4,12 +4,11 @@ export interface ProviderEnvInput {
   provider: Provider; inherited: Record<string, string | undefined>; path: string; profileDir: string; appRuntime: string; extra?: Record<string, string>;
 }
 export type ProviderEnv = { ok: true; env: Record<string, string> } | { ok: false; code: "invalid_provider" | "invalid_profile_dir" | "invalid_runtime" | "invalid_path" | "invalid_extra" | "reserved_extra" };
-// An allowlist, not a denylist: inherited API keys, other providers' homes and external
-// session IDs would otherwise override the dedicated login. Read from the launchd environment (launchEnv), so a
-// terminal-launched app signs in the way a Dock-launched one does.
+// An allowlist: inherited API keys, other providers' homes and session IDs would override the dedicated login. Read from
+// the launchd environment, so a terminal-launched app signs in the way a Dock-launched one does.
 const INHERITED = new Set(["HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG", "TZ", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS",
   "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy"]);
-// The PoC isolated Cursor, Antigravity and Copilot only through a dedicated HOME; Codex needed the real HOME for its keyring.
+// Cursor, Antigravity and Copilot are isolated only through a dedicated HOME; Codex needs the real HOME for its keyring.
 const PROFILE_VARIABLE: Record<Provider, string> = { claude: "CLAUDE_CONFIG_DIR", codex: "CODEX_HOME", cursor: "HOME", antigravity: "HOME", copilot: "HOME" };
 const RESERVED = new Set(["PATH", "DOAN_RUNTIME", "DOAN_APP_CONVERSATION", "DOAN_CONVERSATION_ID", "DOAN_HANDOFF", "HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "GEMINI_HOME", "SSH_AUTH_SOCK", "GIT_CONFIG_GLOBAL"]);
 function absolute(value: unknown): value is string { return typeof value === "string" && value.startsWith("/") && !value.includes("\0"); }
@@ -27,8 +26,7 @@ export function providerEnv(input: ProviderEnvInput): ProviderEnv {
   for (const [name, text] of Object.entries(inherited)) if ((INHERITED.has(name) || name.startsWith("LC_")) && value(text)) env[name] = text;
   Object.assign(env, Object.fromEntries(extra), { PATH: input.path, DOAN_RUNTIME: input.appRuntime, DOAN_APP_CONVERSATION: "1", [PROFILE_VARIABLE[input.provider]]: input.profileDir });
   if (PROFILE_VARIABLE[input.provider] === "HOME") {
-    // A dedicated HOME hides the user's git and ssh setup from the agent's tool shell; only these two come back
-    // (user decision 2026-10-28). gh and other tokens stay out.
+    // A dedicated HOME hides the user's git and ssh setup from the agent's tool shell; only these two come back.
     if (value(inherited.SSH_AUTH_SOCK) && inherited.SSH_AUTH_SOCK) env.SSH_AUTH_SOCK = inherited.SSH_AUTH_SOCK;
     if (absolute(inherited.HOME)) env.GIT_CONFIG_GLOBAL = `${inherited.HOME.replace(/\/+$/, "")}/.gitconfig`;
   }

@@ -29,7 +29,7 @@ test("read and exists refuse a symlink, or a symlinked ancestor, that leaves the
       assert.throws(() => ctx.read(escape), /leaves the repo/, escape);
       assert.throws(() => ctx.exists(escape), /leaves the repo/, escape);
     }
-    // Links that stay inside, and plain misses, behave as before.
+    // Links that stay inside still read, and a plain miss is not refused.
     assert.equal(ctx.read("alias.html"), "inside");
     assert.equal(ctx.exists("alias.html"), true);
     assert.equal(ctx.read(".doan/canvases/missing.html"), null);

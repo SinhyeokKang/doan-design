@@ -2,8 +2,7 @@ import { expect, test } from "vitest";
 import type { ShellProject } from "../restore/uiState";
 import { afterRemoved, type RemovedState } from "./afterRemoved";
 
-// What the window forgets about roots that left the list, whether its own Remove from Doan took them out or
-// `doan remove` did (folders:removed): one transformation, so both leave the same state.
+// Remove from Doan and `doan remove` (folders:removed) share one transformation, so both leave the same state.
 
 const app: ShellProject = { roots: ["/w/app", "/w/app-fix"], expanded: true, selectedRoot: "/w/app-fix", selectedAt: 5, groups: { ds: false } };
 const other: ShellProject = { roots: ["/w/other"], expanded: false, collapsed: true };

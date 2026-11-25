@@ -1,6 +1,5 @@
-// Calls `changed` each time devicePixelRatio changes, as when the window moves to a display of another scale. That
-// changes no CSS size, so no content-box ResizeObserver fires (and a device-pixel-content-box one did not fire for a
-// scale change emulated over CDP). A resolution query matches one ratio, so each change listens to the new one.
+// A scale change changes no CSS size, so no ResizeObserver fires, not even a device-pixel-content-box one. A
+// resolution query matches one ratio, so each change listens to the new one.
 export function onDevicePixelRatio(changed: () => void): () => void {
   let stop = () => {};
   const listen = () => {

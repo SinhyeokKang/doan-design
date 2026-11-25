@@ -16,8 +16,7 @@ export interface ShellProject {
   selectedRoot?: string;
   selectedAt?: number;
   expanded: boolean;
-  // The loaded project folded by its chevron (project-row-disclosure). Saved with the rest but not read back, so a
-  // relaunch shows it unfolded.
+  // The loaded project folded by its chevron. Saved but not read back, so a relaunch shows it unfolded.
   collapsed?: boolean;
   // The sidebar groups the person closed, by fixed id; a missing one is open.
   groups?: { ds?: false; canvases?: false };
@@ -69,9 +68,8 @@ export interface UiState {
   // The Overview's Conversations panel, apart from the canvas panel's. Missing is
   // its default.
   overviewPanel?: { width: number };
-  // The shell sidebar, one per device: its width (missing is the default; the renderer clamps a kept width), whether
-  // it is hidden and whether the viewed canvas's conversation list is folded (only `true` is stored for either). Each is
-  // read on its own; with none the field is left out.
+  // The sidebar, one per device: width (missing is default; the renderer clamps it), hidden and conversations folded.
+  // Only `true` is stored for the flags; each is read on its own, and with none the field is left out.
   sidebar?: { width?: number; hidden?: true; conversationsFolded?: true };
   // The canvas tool last chosen on this device. Only Hand is stored; a missing
   // field is Select.
@@ -87,13 +85,8 @@ const CANVAS_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 // The conversation id rule main's history files enforce (`main/conversation/io.ts`).
 const CONVERSATION_ID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
 
-// A broken file or a size over the limit is `null`, which starts at home. A
-// wrong-typed optional field or map entry is dropped on its own so one bad
-// entry does not cost the rest. Roots outside `savedRoots` are dropped
-// everywhere: a removed project must not keep memory. The scale is kept as
-// saved; the restore plan clamps it.
-// `spellings` (FolderStore.spellings) map another spelling of a listed root to the listed one: memory kept under it is
-// read under the listed root before the filter, so the same project is not dropped as a removed one.
+// Broken or oversized is `null`; a bad optional field or entry drops alone, and unsaved roots drop everywhere.
+// `spellings` map aliases to listed roots before that filter; scale is left unclamped for restorePlan.
 export function parseUiState(text: string, savedRoots: readonly string[], spellings: ReadonlyMap<string, string> = new Map()): UiState | null {
   if (new TextEncoder().encode(text).length > UI_STATE_MAX_BYTES) return null;
   let parsed: unknown;
@@ -154,8 +147,7 @@ export function parseUiState(text: string, savedRoots: readonly string[], spelli
   }
   if (value["canvasTool"] === "hand") state.canvasTool = "hand";
   if (isRecord(value["home"])) state.home = parseHome(value["home"], saved);
-  // `settingsTab` is the old Settings window's field, read until the renderer first saves `settingsSection`.
-  // Settings > Connections was removed; a stored one opens About.
+  // `settingsTab` is the older field, read until `settingsSection` is saved; a stored "connections" opens About.
   const restored = (stored: unknown) => stored === "connections" ? "about" : parseSettingsSection(stored);
   const section = restored(value["settingsSection"]) ?? restored(value["settingsTab"]);
   if (section !== null) state.settingsSection = section;
@@ -166,10 +158,8 @@ export function parseUiState(text: string, savedRoots: readonly string[], spelli
   return state;
 }
 
-// Rewrites every root this file keys or names (the open place, `expanded`, `lastByRoot`, `shellProjects` keys, roots
-// and selection, `conversationByRoot`, `conversationByCanvas`, `home.lastRoot`) from each spelling in `aliases` to the one it maps to, on the
-// raw value so parseUiState still validates the result. Where both spellings hold a value the target's wins, per map
-// key, per `shellProjects` field and per `conversationByCanvas` canvas; the other fills only what the target lacks.
+// Rewrites every root this file keys or names from an alias to its target, on the raw value so parseUiState still
+// validates it. Where both spellings hold a value the target wins; the alias only fills what it lacks.
 export function renameUiRoots(value: Record<string, unknown>, aliases: ReadonlyMap<string, string>): Record<string, unknown> {
   const real = (root: unknown) => typeof root === "string" ? aliases.get(root) ?? root : root;
   const rekey = (map: unknown, merge: (kept: unknown, alias: unknown) => unknown = kept => kept): unknown => {
@@ -300,9 +290,8 @@ export function withoutRoots<T>(map: Readonly<Record<string, T>>, removed: reado
   return Object.fromEntries(Object.entries(map).filter(([root]) => !gone.has(root)));
 }
 
-// The canvas conversation memory without one canvas of `root` (by the key it was remembered under), or without every
-// canvas that remembers a conversation: a canvas moved to the Trash or a deleted conversation leaves nothing, so the
-// memory does not grow until ui-state passes UI_STATE_MAX_BYTES and every save is refused. The same map when unchanged.
+// Drops one canvas of `root` (by its remembered key) so memory does not grow past UI_STATE_MAX_BYTES, which
+// would refuse every save. The same map when unchanged.
 export function withoutCanvas(map: Record<string, Record<string, string>>, root: string, canvas: { path: string; id?: string }): Record<string, Record<string, string>> {
   const key = conversationCanvasKey(canvas), canvases = map[root];
   if (!canvases || !Object.hasOwn(canvases, key)) return map;
@@ -312,13 +301,8 @@ export function withoutConversation(map: Record<string, Record<string, string>>,
   if (!Object.values(map).some(canvases => Object.values(canvases).includes(conversationId))) return map;
   return withoutEmpty(Object.fromEntries(Object.entries(map).map(([root, canvases]) => [root, Object.fromEntries(Object.entries(canvases).filter(([, id]) => id !== conversationId))])));
 }
-// The same memory without what a read list no longer names: a canvas missing from its root's canvas list, or a
-// conversation missing from its root's conversation list. Nothing else forgets a conversation deleted in the prototype
-// window or a canvas deleted outside Doan. A list not read (null: still reading, or failed) drops nothing, since an
-// unread list says nothing about what is gone. A canvas an agent is rewriting can be listed for a moment without its ID
-// (unparsable or unreadable); it is still listed at its path, so an entry whose conversation's canvas is such a row
-// stays; without a read conversation list such an entry cannot be told from one whose canvas is gone, so then the canvas
-// list drops nothing. The same map when unchanged.
+// Drops entries a read list no longer names; an unread list drops nothing, and a canvas listed without its ID keeps
+// its entry (ARCHITECTURE §7 'Navigation persistence and IPC'). The same map when unchanged.
 export function withoutUnlisted(map: Record<string, Record<string, string>>, listed: (root: string) => { canvases: readonly { path: string; id?: string }[] | null; conversations: readonly { conversationId: string; canvas?: { path: string } }[] | null }): Record<string, Record<string, string>> {
   const next = Object.fromEntries(Object.entries(map).map(([root, canvases]) => {
     const { canvases: rows, conversations } = listed(root);

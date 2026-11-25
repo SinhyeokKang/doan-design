@@ -24,26 +24,21 @@ function only<T>(list: T[]): T {
 
 const tokensCss = () => readFileSync(new URL("tokens.css", renderer), "utf8");
 
-// The design's accent places, as exact selectors (or a TS file): a descendant of an
-// allowed row is a new place and has to be listed here on purpose. The .side .row
-// selectors read violet itself, not the chosen buddy's accent.
+// The accent places as exact selectors (or a TS file), so a descendant is a new place listed on purpose.
+// The .side .row selectors read violet itself, not the buddy's accent.
 const violetAllowed = [
   ".side .row:hover",
   '.side .row[aria-current="location"]',
-  // Everything drawn inside the current row takes the row's ink.
   '.side .row[aria-current="location"] :is(.g, .glyph, .d, .tw)',
-  // Home's Send, the shared accent icon button (doan-home approved draft, 2026-10-29 user).
+  // Home's Send, the shared accent icon button.
   '.doan-icon-button[data-ui-variant="accent"]',
   '.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled, [data-disabled], [aria-busy="true"])',
   '.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled], [aria-busy="true"])',
-  // The rest of Home's accent places: the chosen
-  // preset chip, the suggested prompts' group icons, the Home-only glow around the composer (dogfooding moved it from a panel-wide ellipse), the drop outline and the sidebar status slot.
+  // Home's other accent places: preset chip, suggestion icons, composer glow, drop outline, sidebar status slot.
   ".preset-chip",
   ".suggestion svg",
-  // The suggested prompt's icon tile (suggested-prompt-variants C, confirmed 2026-11-03).
   ".suggestion-icon",
-  // The project and canvas names inside a suggested sentence: the anchor chip's values as an inline highlight
-  // (confirmed draft 2026-11-06).
+  // Project and canvas names inside a suggested sentence.
   ".suggestion-value",
   ".skill-word",
   ".preset-item .suggestion-icon svg",
@@ -53,42 +48,26 @@ const violetAllowed = [
   ".row-slot.permission",
   ".row-slot.unseen i",
   ".row-slot.ended",
-  // The Fast icon on the Effort trigger, the Effort menu's Fast row and the thread's Fast-not-used line (confirmed draft 2026-11-06).
   ".composer-effort .fast-icon",
   ".fast-slot",
   ".conversation-thread .activity-head.fast-note svg",
-  // The person's message in the conversation thread: a light accent bubble and its preset line (confirmed draft 2026-10-31).
   ".conversation-thread .bubble",
   ".conversation-thread .bubble-preset",
-  // The canvas conversation panel's resize bar, shown on hover, drag and focus (malmoi's
-  // resizer; confirmed draft 2026-11-01).
+  // The canvas conversation panel's resize bar.
   ".doan-panel-handle::after",
-  // The agent indicator on the canvas: the edge glow (confirmed draft 2026-11-01). The notice's accent dot is now Doany the artist, an image (doany-artist draft).
+  // The agent indicator's edge glow on the canvas.
   ".doan-agent-glow",
-  // Inline anchor chips in the composer field: light accent fill, dark accent ink (confirmed draft 2026-11-01).
   ".anchor-chip",
-  // The chosen buddy card in first run's Cover Flow row: its 2px ring in the accent icon colour and the Home
-  // composer's glow (buddy-choice draft).
   ".buddy-card:has(input:checked)",
-  // The dot on the folded conversation panel's open button, the sidebar slot's unseen dot (confirmed draft open-badge).
   '.doan-icon-button[data-badge="true"]::after',
-  // The same dot for an unread ending on the conversation's open buttons (canvas header, prototype window); the
-  // sidebar toggle keeps the bubble (canvas-inspector-panel draft header-buttons).
+  // The unread ending's dot on the conversation's open buttons; the sidebar toggle keeps the bubble.
   ':is(.doan-canvas-head .doan-panel-show, .pw-conv).doan-icon-button[data-badge="unseen"]::after',
-  // The unread finished conversation's speech bubble: the folded buttons' badge and the sidebar slot (`.row-slot.ended`).
   ".badge-bubble",
-  // The canvas jump highlight (chip locate, Frames drawer, Quick Open, deep link): a 3px accent gradient line drawn
-  // by the masked ::before and an accent glow, readable over any canvas.
   ".mark.jump-highlight",
   ".mark.jump-highlight::before",
-  // Its working-frame variant: the travelling gradient and the breathing glow.
   ".mark.jump-highlight.working::before",
   "@keyframes doan-work-glow",
-  // Select's canvas text range: the accent at 30 % alpha over the glyphs (canvas-text-copy draft, confirmed 2026-11-13).
   ".text-range > .text-rect",
-  // The canvas's selection and hover line, in the accent icon colour, and the size bubble as an accent capsule whose
-  // buttons (Play, Add to message) take its ink for their icon, hover fill, focus ring and unavailable ink
-  // (canvas-mark-accent draft).
   ".mark",
   ".dims",
   ".bubble-button",
@@ -104,12 +83,8 @@ function compareAllowed(found: string[], allowed: string[]) {
   };
 }
 
-// Role pairs the light system must keep readable. Translucent backgrounds are
-// composited over both white and black by contrastPairs itself.
-// Non-text 3:1 covers what identifies a component: border-prominent and focus rings.
-// Decorative hairlines (border-standard, about 1.2:1 on white) and text fields edged by their
-// inset fill (about 1.1:1) are left out on purpose (decided 2026-10-26): a hairline only
-// separates, and a field shows its border-prominent edge once focused.
+// Role pairs the light system keeps readable (contrastPairs composites translucent backgrounds itself).
+// Hairlines and inset-filled fields are left out on purpose: they separate, or show a border once focused.
 const rolePairs: ContrastPair[] = [
   ...["--surface-panel", "--surface-popover", "--surface-inset", "--bg-app", "--surface-elevated-glass", "--surface-navigation-selected", "--affordance-floating-hover", "--affordance-subtle-hover", "--affordance-sidebar-hover"]
     .flatMap(bg => [{ fg: "--text-standard", bg, kind: "body" as const }, { fg: "--text-subtle", bg, kind: "body" as const }, { fg: "--text-metadata", bg, kind: "meta" as const }]),
@@ -128,7 +103,6 @@ const rolePairs: ContrastPair[] = [
   { fg: "--text-danger", bg: "--surface-panel", kind: "body" },
   { fg: "--text-warning", bg: "--surface-panel", kind: "body" },
   { fg: "--text-success", bg: "--surface-panel", kind: "body" },
-  // Status pills: each status text on its own fill.
   { fg: "--text-danger", bg: "--affordance-danger", kind: "body" },
   { fg: "--text-warning", bg: "--affordance-warning", kind: "body" },
   { fg: "--text-success", bg: "--affordance-success", kind: "body" },
@@ -336,7 +310,7 @@ describe("accentPlaces", () => {
     expect(accentPlaces([{ path: "a.css", text: ".a { color: var(--plain); }" }], tokens)).toEqual([]);
   });
 
-  // Doany's accent is violet, so the switch layer points there by default and each buddy's block re-points it.
+  // Doany's violet is the default accent; each buddy's block re-points the switch layer.
   const buddyTokens = `:root { --violet-9: #973be1; --violet-5: #e9ddf9; --puri-9: #55bc98; --puri-icon: #158b6a; --grey-1: #fff; --grey-8: #808080; }
     :root { --buddy-9: var(--violet-9); --buddy-icon: var(--violet-9); }
     :root[data-buddy="puri"] { --buddy-9: var(--puri-9); --buddy-icon: var(--puri-icon); }
@@ -465,8 +439,6 @@ describe("nestedRadius", () => {
   });
 });
 
-// These read the real renderer sources; they turn green as the tokens,
-// the design system stylesheet and the accent mapping land.
 describe("renderer sources", () => {
   test("legacyAliases: tokens.css keeps the 25 legacy names as role aliases", () => {
     expect(legacyAliases(tokensCss())).toEqual([]);
@@ -476,7 +448,7 @@ describe("renderer sources", () => {
     expect(cssVarUsage(rendererSources())).toEqual([]);
   });
 
-  // Doany is the plain :root (no data-buddy attribute); the friends each have a block.
+  // Doany is the plain :root with no data-buddy attribute.
   const everyBuddy = () => [undefined, ...buddyIds(tokensCss())];
 
   test("tokens.css has a :root[data-buddy] block for each friend buddy", () => {

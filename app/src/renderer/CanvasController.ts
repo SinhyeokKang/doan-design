@@ -23,10 +23,10 @@ import { EMPTY_FOLLOW, followDecision, followedFrames, followStopped, markFollow
 
 export const MEASURE_ANSWER_MS = 1000;
 const REMEASURE_MS = 50;
-// A cursor reading that comes later than this may no longer be where the click was.
+// A later cursor reading may no longer be where the click was.
 const CLICK_CURSOR_MS = 500;
-// Focus a pointer press gives the canvas area. Without focusVisible: false the Canvas region draws its keyboard ring
-// after any key use: the app never sees a click that lands in the canvas's iframe, so Chromium counts it as keyboard.
+// Without focusVisible: false the Canvas region draws its keyboard ring: the app never sees a click inside the
+// iframe, so Chromium counts the focus as keyboard focus.
 const CLICK_FOCUS: FocusOptions = { preventScroll: true, focusVisible: false };
 
 export interface CanvasState {
@@ -36,49 +36,40 @@ export interface CanvasState {
   layout: LayoutMessage | null;
   selection: SelectionView | null;
   currentFrame: number | null;
-  // The selection-lost line, until the next selection or canvas change.
   notice: string;
   status: "empty" | "loading" | "noWidth" | "failed" | "missing" | null;
   message: string;
   error: string;
   unlisted: boolean;
   zoom: number;
-  // The exact view scale behind the rounded `zoom`: the zoom controller's step limits read it. Published with the
-  // other changes, and whenever the view reaches or leaves a zoom limit.
+  // The exact scale behind the rounded `zoom`; the zoom controller's step limits read it.
   scale: number;
-  // The tool a person chose; a pick runs ahead of it and leaves it as it was.
+  // A pick runs ahead of it and leaves it as it was.
   tool: CanvasTool;
-  // While the canvas waits for one click to name a chip's target.
   picking: boolean;
-  // Capture mode: the board waits for a drag to name an area. Never with `picking`; like a
-  // pick it runs ahead of `tool` and leaves it as it was.
+  // Never with `picking`; like a pick it runs ahead of `tool` and leaves it as it was.
   capturing: boolean;
 }
 
-// App's half of a capture, told of the area (window content CSS px) once capture mode has ended on it. It returns the
-// snapshot call, or null to take none (its attachment limit). The controller hides the app's marks, calls it two
-// frames later and shows them again once its promise settles, so App settles the composer chip inside it.
+// Called with the area (window content CSS px) once capture mode ends; null takes no snapshot. The controller hides
+// the marks, calls the snapshot two frames later and shows them again once it settles.
 export type CaptureListener = (rect: Rect) => (() => Promise<unknown>) | null;
 
-// How a pick ended. `frames` is the layout's frame list the anchor was taken from, for the chip's name.
+// `frames` is the layout the anchor was taken from, for the chip's name.
 export type PickResult = { kind: "picked"; anchor: Anchor; frames: readonly CanvasFrameRect[] } | { kind: "cancelled" };
-// "missing": the canvas answered with no unique match. "timeout": it did not answer in time, which says nothing about
-// the target, so the caller ends the locate without claiming the target is gone.
+// "timeout" says nothing about the target, so the caller ends the locate without claiming the target is gone.
 export type LocateResult = "shown" | "missing" | "timeout";
 
-// The work the open canvas shows, from the agent notice's pick (`pickWork`): `source`
-// is the terminal session or conversation, `key` its work turn. `keys` are every work turn on the canvas.
+// `source` is the terminal session or conversation, `key` its work turn; `keys` are every work turn on the canvas.
 export interface CanvasWork { source: string; key: string; frame?: string; waiting: boolean }
 export interface CanvasWorkTarget { root: string; path: string; work: CanvasWork | null; keys: readonly string[] }
 // The working-frame marker's slide to another frame (--time-settle).
 const WORK_SLIDE_MS = 220;
-// Who changed the view. The default is the person, so a new route that moves the view
-// stops following without anyone remembering to say so; the app's own are a follow move, the open fit, settleFit, a
-// restored view and a viewport resize, which only re-places the view it has.
+// Defaults to the person, so a new route that moves the view stops following without anyone opting in. A viewport
+// resize counts as the app's: it only re-places the view it has.
 type ViewOrigin = "person" | "app";
 const canvasKey = (root: string, path: string) => `${root}\0${path}`;
 
-// A point's ring on the board, in screen px.
 const POINT_RING = 12;
 const LOCATE_ID = "locate";
 
@@ -86,14 +77,12 @@ export function initialCanvasState(): CanvasState {
   return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", status: "empty", message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, scale: 1, tool: "select", picking: false, capturing: false };
 }
 
-// What a pan or zoom changes many times a second. Only the canvas header shows these, so App hands them to the header
-// through a store instead of re-rendering the whole page for each.
+// Only the canvas header shows these, so App hands them over through a store instead of re-rendering the page.
 export interface CanvasViewFields { zoom: number; scale: number; currentFrame: number | null }
 const VIEW_KEYS = new Set<keyof CanvasState>(["zoom", "scale", "currentFrame"]);
 export const canvasViewFields = (state: CanvasState): CanvasViewFields => ({ zoom: state.zoom, scale: state.scale, currentFrame: state.currentFrame });
 
-// True when a publish changed the view fields and nothing else. `publish` copies the state, so an unchanged field keeps
-// its identity. A publish that changed nothing still counts as a change, as it always did.
+// `publish` copies the state, so an unchanged field keeps its identity. A publish that changed nothing still counts.
 export function viewOnlyChange(previous: CanvasState, next: CanvasState): boolean {
   const keys = Object.keys(next) as (keyof CanvasState)[];
   if (keys.some(key => !VIEW_KEYS.has(key) && previous[key] !== next[key])) return false;
@@ -115,10 +104,8 @@ export class CanvasViewStore {
   }
 }
 
-// What App does with a publish: a view-only one goes to the store's subscribers (the header) and App keeps its state
-// (null). Any other goes to App, and the store takes its view fields without telling anyone, so the header draws the
-// new layout, canvas and view in the same render rather than the new view over the old layout first. `last` is the last
-// state handed to App.
+// A view-only publish goes to the store's subscribers and App keeps its state (null). Any other goes to App, and the
+// store takes its view fields silently, so the header never draws the new view over the old layout.
 export function routeCanvasPublish(last: CanvasState, next: CanvasState, store: CanvasViewStore): CanvasState | null {
   const viewOnly = viewOnlyChange(last, next);
   store.set(canvasViewFields(next), viewOnly);
@@ -128,11 +115,7 @@ export function routeCanvasPublish(last: CanvasState, next: CanvasState, store: 
 const isProblemKind = (kind: FolderEntry["kind"] | undefined): boolean =>
   kind === "notFound" || kind === "uninitialized" || kind === "error" || kind === "cliError";
 
-// One target of an anchors query: a frame id, or an element's doan id and selector.
 export interface AnchorTarget { id: string; doanId?: string; selector?: string; frame?: string }
-// Where openCanvas moves once the canvas shows: a frame (Quick Open, a deep link, `doan open`, a reply chip) or an
-// element by its doan id (a reply chip).
-// anchor: a person's chip from the prototype window, located once the canvas has laid out, its outcome to `located`.
 export type OpenTarget = { frame: string } | { element: string } | { anchor: Anchor };
 
 // React owns the surrounding shell; only this controller owns the board's children.
@@ -149,143 +132,117 @@ export class CanvasController {
   private answerTimer: ReturnType<typeof setTimeout> | undefined;
   private remeasureTimer: ReturnType<typeof setTimeout> | undefined;
   private jumpTo: number | null = null;
-  // The view a fresh load fitted to the board as it was then, until settleFit fits it again to the canvas page's
-  // column. Held by identity: any other view (a pan, a zoom, a jump, a remembered view) replaces the object and so
-  // ends the wait without a refit.
+  // Held by identity: any other view (pan, zoom, jump, remembered view) replaces the object and so ends the wait for
+  // settleFit without a refit.
   private firstFit: View | null = null;
   private pendingFrame: { id: string; index?: number; found?: (found: boolean) => void } | null = null;
-  // A reply chip's element, located after the first layout. It lives as
-  // pendingFrame does and also carries the root and canvas it was asked for: worktrees share canvas ids and paths
-  // (POSTMORTEM 2026-11-01), so only that canvas's first layout takes it. A missing target ends silently.
+  // Carries the root and canvas it was asked for: worktrees share canvas ids and paths, so only that canvas's first
+  // layout takes it. A missing target ends silently.
   private pendingLocate: { folder: string; path: string; anchor: Anchor; located?: (result: LocateResult) => void } | null = null;
   private jumpRect: CanvasRect | null = null;
   private jumpKind: "rect" | "point" = "rect";
   private jumpMark: HTMLElement | null = null;
   private viewResize: ResizeObserver | null = null;
-  // The canvas area's left edge on screen when it was last laid out, null before that.
   private viewportLeft: number | null = null;
   private jumpTimer: ReturnType<typeof setTimeout> | undefined;
   private work: CanvasWorkTarget | null = null;
   private workMark: HTMLElement | null = null;
-  // The frame the marker is on, null while it is hidden: a slide needs a frame to come from, and a reload keeps only a
-  // marker already shown.
+  // Null while hidden: a slide needs a frame to come from, and a reload keeps only a marker already shown.
   private workMarkFrame: string | null = null;
   private workSlideTimer: ReturnType<typeof setTimeout> | undefined;
-  // The canvas the last setWork described: a change is entering it.
   private workCanvas: string | null = null;
-  // The last work source shown on that canvas, kept across a pick with no work while a work turn is still on it: the
-  // followed conversation's work can go a moment before the board moves to another conversation, and that switch is still
-  // a change of source.
+  // Kept across a pick with no work while a work turn is still on the canvas: the followed conversation's work can go a
+  // moment before the board moves to another conversation, and that switch is still a change of source.
   private workSource: string | null = null;
-  // Per canvas (root + path), renderer memory only; leaving and coming back in the same work turn keeps it.
+  // Per canvas (root + path), renderer memory only.
   private followMemory = new Map<string, FollowMemory>();
   private lastPersonMove = Date.now();
-  // Judges a working frame again when the rest it waits for ends (spec 9); any new judgement replaces it.
+  // Any new judgement replaces it.
   private followTimer: ReturnType<typeof setTimeout> | undefined;
-  // Selection (design flows 3–7). `seq` orders the renderer's commands against
-  // the script's own clicks; each new document starts again at 0.
+  // `seq` orders the renderer's commands against the script's own clicks; each new document starts again at 0.
   private seq = 0;
   private hoverSeq = 0;
   private selectedRect: CanvasRect | null = null;
   private hoverRect: CanvasRect | null = null;
-  // The inspector element menu's row under the pointer or keyboard focus, drawn in the hover mark's place.
   private treeHover: CanvasRect | null = null;
-  // The inspector's element-tree channel: its own seq, apart from selection, hover and pick, and the document and seq
-  // of the last request, so only the answer to that one reaches the listener.
+  // The element-tree channel has its own seq, apart from selection, hover and pick; only the latest answer counts.
   private treeSeq = 0;
   private treeAsked: { document: string; seq: number } | null = null;
   private treeListener: ((message: ElementTreeMessage) => void) | null = null;
   private altHeld = false;
-  // Whether the canvas was last told ⌘ is down, so the app losing focus can take it back (⌘Tab sends no keyup).
+  // Whether the canvas was told ⌘ is down, so the app losing focus can take it back (⌘Tab sends no keyup).
   private metaHeld = false;
   // The Escape a toolbar tooltip took, and whether anything after the tooltip handled it (toolbarEscape).
   private tooltipEscape: { event: KeyboardEvent; handledAfter: boolean } | null = null;
   private markHidden = false;
   private reanchor: AnchorRequest | null = null;
   private marks: { hover: HTMLElement; selected: HTMLElement; size: HTMLElement } | null = null;
-  // The Option-hover measurement's layer and its line elements (each with its label), reused across draws.
   private measure: { layer: HTMLElement; lines: { line: HTMLElement; label: HTMLElement }[] } | null = null;
   private sentSelection = "null";
   private anchorDocument: string | null = null;
   private anchorGeneration = 0;
   private anchorRequest = 0;
   private anchorRevision = 0;
-  // The ids last asked for in this document, and the newest reply for them.
   private anchorTargets: ReadonlySet<string> = new Set();
   private anchors: { generation: number; candidates: ReadonlyMap<string, TargetCandidates>; rects: ReadonlyMap<string, PinGeometry> } | null = null;
-  // Picking. The pick channel has its own seq, apart from selection and hover, and lives as
-  // long as one canvas document (its token, `pickDocument`): a reload, a same-ID move or the canvas replacing its
-  // own document at the same URL restarts it. Not `anchorDocument`: the iframe's load event clears that to re-ask for
-  // anchors, also when it comes late for the same document, and a channel restarted then would resend seq 1, which
-  // the script has already taken and ignores, leaving the canvas closed to clicks. `activePick` is the pick-start sent to the current document; null while
-  // the pick waits for a document's first layout, and after the pick ended. `pickAcked`: that document took it.
-  // Until then the iframe gets no pointer input, since a click there would still select.
+  // The pick channel lives as long as one canvas document (`pickDocument`), not `anchorDocument`: a late load event
+  // clears that, and a restarted channel would resend seq 1, which the script ignores, leaving clicks blocked.
   private pickDocument: string | null = null;
   private pickSeq = 0;
   private activePick: number | null = null;
   private pickAcked = false;
   private pickListener: ((result: PickResult) => void) | null = null;
-  // A pick that ended in a flow which publishes later: told after that publish, so the listener sees the new state.
+  // Told after the later publish, so the listener sees the new state.
   private pickEnded: PickResult | null = null;
-  // The Frames drawer's last pick-frame command in this document, to tell its reply from a click.
+  // To tell the Frames drawer's reply from a click.
   private pickFrameCommand: { seq: number; id: string } | null = null;
   private locating: { anchor: Anchor; generation: number; request: number; settled: (result: LocateResult) => void; timer: ReturnType<typeof setTimeout> } | null = null;
-  // Hand tool. The controller lives as long as the app, so the tool
-  // outlives the Overview and empty states, which rebuild `state`. `toolChosen`: the person picked one, so a late
-  // saved tool does not replace it. A tool chosen during a drag waits for its end (`pendingTool`): lowering the
-  // layer first would drop the pointerup on the iframe, which selects.
+  // The controller outlives the Overview and empty states, which rebuild `state`. A tool chosen mid-drag waits for its
+  // end: lowering the layer first would drop the pointerup on the iframe, which selects.
   private tool: CanvasTool = "select";
   private toolChosen = false;
   private pendingTool: CanvasTool | null = null;
   private spaceHeld = false;
-  // `mode`: a pan, or Hand's plain press waiting for the canvas to say whether it is on text (`asking`, its travel held
-  // in `held`), then the canvas's text drag (`text`), or one Esc ended (`ended`), whose moves do nothing.
+  // `asking`: Hand's plain press waiting for the canvas to say whether it is on text; `ended`: Esc ended it, moves do
+  // nothing.
   private drag: { pointerId: number; x: number; y: number; mode: "pan" | "asking" | "text" | "ended"; probe: number; held: Point } | null = null;
-  // Hand's text cursor: the canvas's answer to the newest text-at, the probe it answers, and the resting point a
-  // frame's text-at asks about. Probes count for text-at and text-press together.
+  // Probes count for text-at and text-press together.
   private textProbe = 0;
   private hoverProbe = 0;
   private textHover = false;
   private hoverPoint: Point | null = null;
   private layerShown = false;
-  // Capture mode. The layer and its marquee are made on the first start, right after the
-  // drag layer, and only the controller shows them. A drag that capture mode leaves early (Esc, a cancel) stays as
-  // `dropped`: the layer stays up until that pointer's release, which would otherwise land on the iframe as a
-  // selecting click (ARCHITECTURE §3 'Input'). A drag ends at once only with its board.
+  // A drag that capture mode leaves early stays `dropped`: the layer stays up until that pointer's release, which would
+  // otherwise land on the iframe as a selecting click (ARCHITECTURE §3 'Input').
   private captureLayer: HTMLElement | null = null;
   private marquee: HTMLElement | null = null;
   private captureShown = false;
   private captureDrag: { pointerId: number; start: Point; end: Point; dropped: boolean } | null = null;
   private captureListener: CaptureListener | null = null;
-  // Snapshots between hiding the marks and their answer; the root attribute stays until the last one settles.
+  // The root attribute stays until the last snapshot settles.
   private snapshots = 0;
   private snapshotFrames = new Set<number>();
   private canvasPage = true;
-  // The page's open menus, lists, popovers and dialogs, which hold following off, by the tool keys' rule. Their React
-  // owners live outside the controller, so it reads the document.
+  // Open menus, lists, popovers and dialogs hold following off; their React owners live outside, so it reads the DOM.
   overlayOpen: () => boolean = () => pageOverlayOpen(document);
-  // The newest canvas click waiting for main's cursor reading; an older reading does not move focus.
+  // An older cursor reading does not move focus.
   private clickTag = 0;
-  // The composer's preset lists, which close on a press in the canvas (the app's document never sees one).
+  // The composer's preset lists: they close on a canvas press, which the app's document never sees.
   private pressListeners = new Set<() => void>();
-  // The canvas's Select text range: its line rects (iframe viewport px) painted on the overlay, the text ⌘C copies once
-  // the drag is released, and whether a drag is in progress. `textEpoch` is the last clear-text sent to the current
-  // document; a range it posted before that clear carries a smaller one. Its own channel: the selection and hover seqs
-  // are left alone.
+  // `textEpoch` is the last clear-text sent to the current document; a range posted before that clear carries a
+  // smaller one.
   private textRects: CanvasRect[] = [];
   private canvasText: string | null = null;
   private textDragging = false;
   private textEpoch = 0;
-  // Whether the range shown came from a drag the app believed (`held` once released), and the OS cursor reading a new
-  // range waits for: `message` is the newest text-range of that drag, applied if the reading passes; `tag` makes a
-  // later check or a clear win over an older reply.
+  // `message` waits for the OS cursor reading and applies only if it passes; `tag` makes a later check or a clear win
+  // over an older reply.
   private textTrust: "none" | "dragging" | "held" = "none";
   private textCheck: { tag: number; asked: number; message: TextRangeMessage } | null = null;
   private textTag = 0;
   private textLayer: { layer: HTMLElement; rects: HTMLElement[] } | null = null;
 
-  // Raised by every move or selection change; a workspace open that waits for its folder's read goes ahead only
-  // while it is still the latest. `valid` checks the destination against the current list right before applying.
+  // A workspace open waiting for its folder's read goes ahead only while it is still the latest.
   private transitionIntent = 0;
   private transition(apply: () => void, valid: () => boolean = () => true): void {
     this.transitionIntent++;
@@ -293,7 +250,7 @@ export class CanvasController {
   }
 
   private resetAnchors(): void {
-    // A locate asked the document being replaced; its nodes mean nothing in the next one.
+    // The located nodes mean nothing in the next document.
     this.endLocate();
     this.anchorGeneration++;
     this.anchorDocument = null;
@@ -302,9 +259,8 @@ export class CanvasController {
     this.anchors = null;
   }
 
-  // Asks the canvas where `targets` are now; its reply replaces any earlier one. The canvas answers again by
-  // itself when its layout, scroll or DOM changes. Returns the generation the reply's node tokens belong to, or
-  // null when no document has laid out yet.
+  // The canvas answers again by itself when its layout, scroll or DOM changes. Returns the generation the reply's node
+  // tokens belong to, or null before any layout.
   requestAnchors(targets: readonly AnchorTarget[]): number | null {
     this.anchorRequest++;
     this.anchorRevision = 0;
@@ -331,11 +287,8 @@ export class CanvasController {
     }
   }
 
-  // Chip locate: finds the anchor in the shown document, moves the view to it (settleLocate)
-  // and highlights it for 1.2 s; a point gets a 12 px ring at its offset in its frame. `settled` hears "missing" when
-  // the canvas has no unique match, "timeout" when it does not answer within MEASURE_ANSWER_MS. A newer locate or a
-  // new document drops one in flight without an answer. false: no shown document to ask, so locate is unavailable.
-  // Never changes the selection, main's selection or the composer.
+  // A newer locate or a new document drops one in flight without an answer. false: no shown document to ask. Never
+  // changes the selection, main's selection or the composer.
   locate(anchor: Anchor, settled: (result: LocateResult) => void): boolean {
     this.endLocate();
     if (this.loading || this.state.status !== null || this.state.unlisted) return false;
@@ -360,8 +313,7 @@ export class CanvasController {
     this.locating = null;
   }
 
-  // Frames move as picking one in the drawer does (fitFrame); elements and points keep the scale and are centred,
-  // an element larger than the view zoomed out to fit (2026-11-02 user).
+  // Elements and points keep the scale and are centred; an element larger than the view is zoomed out to fit.
   private settleLocate(locating: NonNullable<CanvasController["locating"]>, target: ReturnType<typeof resolveChipTarget>): void {
     if (this.frame === null || (target.kind !== "node" && target.kind !== "point")) { locating.settled("missing"); return; }
     const size = this.viewportSize();
@@ -383,9 +335,9 @@ export class CanvasController {
     private overlay: Pick<HTMLElement, "append">,
     private changed: (state: CanvasState) => void,
     private sendSelection: (selection: Selection | null) => void,
-    // The drag layer App renders right after the overlay: over the board and the iframe, under the canvas chrome.
+    // Over the board and the iframe, under the canvas chrome.
     private layer: Pick<HTMLElement, "hidden" | "dataset" | "addEventListener" | "removeEventListener" | "setPointerCapture" | "releasePointerCapture" | "hasPointerCapture" | "after">,
-    // Main's reading of the OS cursor in the window's content coordinates, null when it cannot tell.
+    // Window content coordinates; null when main cannot tell.
     private pointer: () => Promise<{ x: number; y: number } | null>,
   ) {
     if (typeof ResizeObserver !== "undefined" && "nodeType" in viewport) {
@@ -415,7 +367,7 @@ export class CanvasController {
     layer.addEventListener("lostpointercapture", this.layerUp);
   }
 
-  // An arrow property, so the page can hand it on as is: one function for the controller's life, `this` bound.
+  // An arrow property, so the page can hand it on as is.
   canvasPress = (listener: () => void): (() => void) => {
     this.pressListeners.add(listener);
     return () => { this.pressListeners.delete(listener); };
@@ -476,7 +428,7 @@ export class CanvasController {
     if (ended) this.pickListener?.(ended);
   }
 
-  // Main keeps the one app-wide selection for `doan active` (design flow 11).
+  // For `doan active`.
   private syncMain(): void {
     const open = this.state.open;
     const selection = open && this.state.selection ? mainSelection(open, this.state.selection) : null;
@@ -492,12 +444,11 @@ export class CanvasController {
     return JSON.stringify([layout?.frames.map(frame => [frame.id, frame.title, frame.prototype]), layout?.truncated, status, shown, unlisted]);
   }
 
-  // `listed` is main's list before App hides rows (PRODUCT §5 item 1): a hidden root keeps its
-  // remembered canvas, since a restart reads an auto-registered worktree as `loading` and only then shows it.
+  // `listed` is main's list before App hides rows: a hidden root keeps its remembered canvas, since a restart reads an
+  // auto-registered worktree as `loading` and only then shows it.
   updateEntries(next: FolderEntry[], listed: readonly FolderEntry[] = next): void {
     this.applyEntries(next, listed);
-    // After the open canvas has followed this update, so the entered workspace
-    // starts from the new list rather than being diffed against the old one.
+    // After the open canvas followed this update, so the entered workspace starts from the new list.
     const waiting = this.waitingWorkspace;
     const kind = waiting && next.find(entry => entry.path === waiting.folder)?.kind;
     if (!waiting || kind === "loading") return;
@@ -517,9 +468,7 @@ export class CanvasController {
     if (open === null) { this.trash.sweep(next); return; }
     const update = canvasViewUpdate(prev, next, open, this.trash);
     this.trash.sweep(next);
-    // Reads the flow-7 table for every folder update in one place. For reload
-    // and clear, load() and dropFrame() apply the same effect again, so either
-    // path alone keeps the rule (the clearing-row tests go red only without both).
+    // load() and dropFrame() apply the same effect again for reload and clear, so either path alone keeps the rule.
     this.applySelectionEffect(update);
     switch (update.kind) {
       case "reload":
@@ -536,9 +485,8 @@ export class CanvasController {
         this.state.shown = to;
         const remembered = this.workspaceMemory.get(open.folder);
         if (remembered?.path === open.canvas) remembered.path = to;
-        // A reply chip's element still waiting for this canvas's first layout follows it, as the waiting frame does.
         if (this.pendingLocate?.folder === open.folder && this.pendingLocate.path === open.canvas) this.pendingLocate = { ...this.pendingLocate, path: to };
-        // The same canvas reloaded at its new path: the view stays and the selection is asked for again.
+        // The view stays and the selection is asked for again.
         this.load(update.canvas, false);
         this.canvasMoved?.({ folder: open.folder, from: open.canvas, row: update.canvas });
         break;
@@ -556,7 +504,6 @@ export class CanvasController {
         this.dropFrame();
         if (update.reason === "missing" || update.reason === "duplicateId") this.canvasRemoved?.({ folder: open.folder, row: open.row, duplicates: update.reason === "duplicateId" ? update.count : null });
         this.state.status = update.reason === "closed" ? "empty" : "missing";
-        // A problem root's overlay names the problem (PRODUCT §5 item 3 'Problem states').
         this.state.message = update.reason === "closed" ? "Pick a canvas from the list"
           : update.reason === "notFound" || update.reason === "uninitialized" ? ""
           : `${open.canvas} is no longer in the list. It was deleted or moved.`;
@@ -565,7 +512,6 @@ export class CanvasController {
       // Keep the last rendered document while its folder cannot be read.
       case "errorLine": this.state.error = update.message; break;
       case "none": {
-        // A listing change that needs no reload still updates the row.
         const entry = next.find(entry => entry.path === open.folder);
         const row = entry?.kind === "list" ? entry.canvases.find(row => row.path === open.canvas) : undefined;
         if (row) this.state.open = { ...open, row };
@@ -576,38 +522,31 @@ export class CanvasController {
   }
 
   private workspaceMemory = new Map<string, { path: string; view: View }>();
-  // The open canvas left the folder's list (deleted or moved). `duplicates`:
-  // how many rows now use its id, when that is why it was not followed.
+  // `duplicates`: how many rows now use its id, when that is why it was not followed.
   canvasRemoved: ((removed: { folder: string; row: CanvasRow; duplicates: number | null }) => void) | null = null;
   // A `trashed` clear calls neither canvasRemoved nor canvasMoved: App shows the Overview from `open: null` alone and
-  // records no visit, as for a missing canvas (App.canvasTrash.test.tsx).
-  // Move to Trash marks: begin before `canvas:trash` is sent, settle with its reply.
+  // records no visit. Marks begin before `canvas:trash` is sent and settle with its reply.
   readonly trash = new TrashMarks();
-  // The open canvas was followed to `row`, the row of the list that decided it.
   canvasMoved: ((move: { folder: string; from: string; row: CanvasRow }) => void) | null = null;
   // Pans do not publish state, so persistence listens here.
   viewChanged: (() => void) | null = null;
   linkedCanvas: ((root: string) => void) | null = null;
-  // The size bubble's Play prototype, shown while the selected frame itself can play (the toolbar Play's judgement).
-  // `onFocusLost`: the button had focus and the whole bubble is going away, so App can hand focus to another visible
+  // `onFocusLost`: the button had focus and the whole bubble is going away, so App can move focus to another visible
   // control first.
   bubblePlay: { onPlay(): void; onFocusLost(): void } | null = null;
-  // The size bubble's Add to message, which App renders into `host` (handed over once, when the bubble is first built):
-  // the controller keeps the bubble's DOM and its press, App the button, its availability and its tooltip. `onAdd`: a
-  // press while the bubble shows, available or not (App checks). `button`: App's button, to read and move focus.
-  // `onFocusLost` as Play's.
+  // The controller keeps the bubble's DOM and its press; App renders the button into `host` and owns its availability and
+  // tooltip. `onAdd` fires on any press while the bubble shows (App checks availability).
   bubbleAdd: { host(element: HTMLElement): void; onAdd(): void; button(): HTMLElement | null; onFocusLost(): void } | null = null;
   bubbleInspect: { onInspect(): void; button(): HTMLElement | null; onFocusLost(): void; restoreFocus(): void } | null = null;
-  // The portal host stays after the label as Play comes and goes, so its focused button stays mounted.
+  // The host stays after the label as Play comes and goes, so its focused button stays mounted.
   private bubble: { play: HTMLButtonElement | null; label: HTMLElement; host: HTMLElement; playShown: boolean } | null = null;
-  // A reload hid the bubble while one of its buttons had focus, and App's onFocusLost put focus on `holder`: once the
-  // selection is found again, focus comes back to the same button if it never left the holder meanwhile. Any focus move
-  // elsewhere ends the wait for good, even one that comes back to the holder (ARCHITECTURE §3, as `FocusIntent`).
+  // Focus comes back to the same button once the selection is found again, unless focus left the holder meanwhile
+  // (ARCHITECTURE §3, as `FocusIntent`).
   private bubbleReturn: { button: BubbleAction; holder: Element | null; moved: (event: FocusEvent) => void } | null = null;
-  // The bubble's Play while it is on screen, for focus to come back to when the prototype window closes.
+  // For focus to come back to when the prototype window closes.
   bubblePlayButton(): HTMLButtonElement | null { return this.bubble?.playShown ? this.bubble.play : null; }
   currentView(): View { return { ...this.view }; }
-  // Per-root memory as saved to and restored from `ui-state.json` (`lastByRoot`).
+  // Saved to and restored from `ui-state.json` (`lastByRoot`).
   memory(): Record<string, { canvas: string; view: View }> {
     return Object.fromEntries([...this.workspaceMemory].map(([root, item]) => [root, { canvas: item.path, view: { ...item.view } }]));
   }
@@ -622,40 +561,36 @@ export class CanvasController {
     if (!shown && this.onCanvasPage()) this.enteredPage();
     if (!active) this.cancelWorkspaceOpen();
     if (!active) { this.releaseInput(); this.clearText(true); }
-    // Leaving the canvas page for another screen cancels the pick and capture mode.
     if (!active && this.state.picking) { this.endPick({ kind: "cancelled" }); this.publish(); }
     if (!active) this.cancelCapture();
   }
 
-  // The canvas page is on screen: not Home, the Overview or a modal. V, H and Space act only there; capture mode ends
-  // when it goes.
+  // Not Home, the Overview or a modal. V, H and Space act only there; capture mode ends when it goes.
   setCanvasPage(shown: boolean): void {
     const before = this.onCanvasPage();
     const changed = shown !== this.canvasPage;
     this.canvasPage = shown;
     if (!before && this.onCanvasPage()) this.enteredPage();
     if (!shown) { this.releaseInput(); this.cancelCapture(); this.clearText(true); }
-    // An Option measurement hides under a modal and comes back when it closes, with the pointer still on its target.
+    // An Option measurement hides under a modal and comes back when it closes.
     if (changed) this.drawMarks();
     if (changed && shown) this.refindHover();
   }
 
   private onCanvasPage(): boolean { return this.workspaceActive && this.canvasPage; }
 
-  // A problem project's overlay covers the canvas (ARCHITECTURE §7 'Problem overlay'): no key reaches it, Esc's
-  // clearing of the selection included, while focus sits in the overlay.
+  // No key reaches the canvas while focus sits in the problem overlay, Esc's selection clear included
+  // (ARCHITECTURE §7 'Problem overlay').
   private covered = false;
   setCovered(covered: boolean): void {
     if (covered === this.covered) return;
     this.covered = covered;
-    // As for a modal: the Option measurement hides under the overlay and comes back after it. The overlay took the
-    // hover away (the app heard the pointer over it), so it is asked for again at the resting pointer.
+    // The overlay took the hover away, so it is asked for again at the resting pointer.
     this.drawMarks();
     if (!covered) this.refindHover();
   }
 
-  // The toolbar's Select and Hand. While picking they cancel the pick first; V and H
-  // still change nothing then (shortcut).
+  // While picking they cancel the pick first; V and H still change nothing then.
   setTool(tool: CanvasTool): void {
     this.cancelPick();
     this.cancelCapture();
@@ -663,7 +598,7 @@ export class CanvasController {
     this.applyTool(tool);
   }
 
-  // The tool read from ui-state at launch; a tool the person chose before the read stays.
+  // A tool the person chose before the read stays.
   restoreTool(tool: CanvasTool): void {
     if (!this.toolChosen) this.applyTool(tool);
   }
@@ -676,8 +611,7 @@ export class CanvasController {
     this.publish();
   }
 
-  // Switching to Hand drops the selection. A held Space and a pick leave `tool`
-  // alone, so they keep it. Does not publish: callers do.
+  // Switching to Hand drops the selection; a held Space and a pick leave `tool` alone, so they keep it. Callers publish.
   private enterTool(tool: CanvasTool): void {
     const toHand = this.tool === "select" && tool === "hand";
     this.tool = tool;
@@ -685,8 +619,8 @@ export class CanvasController {
     if (toHand) this.dropSelection();
   }
 
-  // Esc's clear without its publish. The clear command raises the selection seq, so a select the canvas sent before
-  // it cannot bring the selection back, and it makes the script forget the node its layouts would report again.
+  // The clear raises the selection seq, so a select sent before it cannot bring the selection back, and the script
+  // forgets the node its layouts would report again.
   private dropSelection(): void {
     if (!shouldGuardEscape(this.state.selection, this.reanchor)) return;
     this.transition(() => {
@@ -701,14 +635,12 @@ export class CanvasController {
 
   cancelWorkspaceOpen(): void { this.waitingWorkspace = null; this.transitionIntent++; }
 
-  // A project added a moment ago is still being read when its "Added" toast
-  // offers Open; dropping that click left the previous workspace on screen.
-  // Any later transition bumps `transitionIntent` and so supersedes the wait.
-  // `settled`: whether the open goes ahead (entering or reporting) when the folder's read settles to this kind.
+  // A project added a moment ago is still being read when its "Added" toast offers Open. Any later transition bumps
+  // `transitionIntent` and so supersedes the wait.
   private waitingWorkspace: { folder: string; intent: number; open: () => void; settled: (kind: FolderEntry["kind"] | undefined) => boolean } | null = null;
 
-  // `overview`: the Overview shows a problem root's overlay, so a problem root enters it too (ARCHITECTURE §7
-  // 'Memory'); a path that opens a canvas still needs a list.
+  // A problem root enters the Overview too, which shows its overlay (ARCHITECTURE §7 'Memory'); a path that opens a
+  // canvas still needs a list.
   openWorkspace(folder: string, entered: (folder: string) => void, sameCanvas = false, unavailable?: (entry: FolderEntry | undefined) => void, overview = false): void {
     const kind = () => this.entries.find(entry => entry.path === folder)?.kind;
     const enters = (kind: FolderEntry["kind"] | undefined) => kind === "list" || (overview && isProblemKind(kind));
@@ -738,7 +670,6 @@ export class CanvasController {
     entered(folder);
   }
 
-  // `shown`: told once the Overview is on screen.
   showOverview(shown?: () => void): void {
     if (!this.state.open) { this.cancelWorkspaceOpen(); shown?.(); return; }
     this.transition(() => {
@@ -751,8 +682,7 @@ export class CanvasController {
     });
   }
 
-  // `opened`: told once the canvas is the open one. A frame or element target replaces any earlier one still waiting
-  // for the first layout: the last request wins.
+  // A frame or element target replaces any earlier one still waiting for the first layout: the last request wins.
   openCanvas(folder: string, row: CanvasRow, to?: OpenTarget, target?: { keepView?: boolean; index?: number; found?: (found: boolean) => void; unavailable?: (entry: FolderEntry | undefined) => void; opened?: () => void; located?: (result: LocateResult) => void }): void {
     const frameId = to && "frame" in to ? to.frame : undefined;
     const element: Anchor | undefined = to && "element" in to ? { element: { doanId: to.element } } : to && "anchor" in to ? to.anchor : undefined;
@@ -797,8 +727,7 @@ export class CanvasController {
     });
   }
 
-  // A move the person made in the conversation panel before the opened canvas laid out (choosing another conversation,
-  // New, ⌘N) drops the reply chip's element still waiting there.
+  // A move the person made in the conversation panel before the canvas laid out drops the waiting reply chip element.
   dropPendingLocate(): void { this.pendingLocate = null; }
 
   private locatePending(): void {
@@ -821,14 +750,12 @@ export class CanvasController {
 
   // A new element ends the old document before resetting its measurement viewport.
   private load(row: CanvasRow, fresh: boolean, view?: View): void {
-    // The document under a drag or a held Space goes away; neither carries over to the next one.
     this.stopDrag();
     this.spaceHeld = false;
     this.clearJump();
     // A reload of the same row before its first layout still owes the picked frame and element.
     if (fresh) { this.pendingFrame = null; this.pendingLocate = null; }
-    // A new document restarts the pick channel. Opening a canvas ends the pick (dropFrame below); a reload or a
-    // same-ID move keeps it for the new document's first layout.
+    // Opening a canvas ends the pick (dropFrame); a reload or a same-ID move keeps it for the new document's first layout.
     this.pickDocument = null;
     this.resetPickChannel();
     this.resetAnchors();
@@ -846,8 +773,8 @@ export class CanvasController {
     }
     const next = document.createElement("iframe");
     next.setAttribute("sandbox", "allow-scripts");
-    // The draft's own controls are not the app's: Tab walking into them drew their focus rings and made Chromium
-    // scroll the canvas area to reveal them, carrying the floating tools out of view (dogfooding).
+    // Tab walking into the canvas's own controls drew their focus rings and made Chromium scroll the canvas area,
+    // carrying the floating tools out of view.
     next.tabIndex = -1;
     next.title = row.path;
     next.addEventListener("load", () => this.frameLoaded(next));
@@ -980,8 +907,8 @@ export class CanvasController {
     if (message.type === "key") {
       // An Escape the canvas sent before its pick-start arrived still meant the pick.
       if (message.key === "Escape") this.forwardEscape();
-      // Space, V and H come only from a canvas focused by an ⌥-click. A Space down is believed only while the iframe
-      // has focus, so a canvas cannot raise the layer over a person's clicks by itself; its release always counts.
+      // Only a canvas focused by an ⌥-click sends these. Space down counts only while the iframe has focus, so a canvas
+      // cannot raise the layer over clicks by itself; its release always counts.
       else if (message.key === "Space") this.shortcut({ kind: "space", down: message.down }, !this.onCanvasPage() || document.activeElement !== this.frame);
       else if (message.key === "V" || message.key === "H") this.shortcut({ kind: "tool", tool: message.key === "V" ? "select" : "hand" }, !this.onCanvasPage());
       // Unlike Escape, an old modifier snapshot must not override a newer press.
@@ -994,7 +921,7 @@ export class CanvasController {
       return;
     }
     if (message.type === "hover") {
-      // The answer to the app's own hover-at is not the person moving (refindHover); later hovers at that seq are.
+      // The answer to the app's own hover-at is not the person moving; later hovers at that seq are.
       const asked = message.seq === this.refindSeq;
       this.refindSeq = null;
       this.hoverSeq = message.seq; this.hoverRect = message.rect; this.drawMarks();
@@ -1016,9 +943,8 @@ export class CanvasController {
     this.publish();
   }
 
-  // A click takes a seq at least the renderer's: it can win the race with a command still on its way and take that
-  // command's seq. A select-anchor or select-parent reply names its command; a pick-frame reply has no name, so it is
-  // the frame the drawer asked for at that command's seq. Of clears, only Esc's step past the outermost frame answers.
+  // A click takes a seq at least the renderer's, so it can take the seq of a command still on its way. A pick-frame
+  // reply has no name, so it is the drawer's frame at that seq; of clears, only Esc's step past the outermost answers.
   private commandReply(message: Exclude<SelectionMessage, { type: "hover" | "key" }>): boolean {
     if (message.answer !== undefined) return true;
     if (message.type === "clear") return false;
@@ -1031,7 +957,6 @@ export class CanvasController {
     const effect = selectionAfter(trigger);
     if (!effect.keep) { this.clearSelection(effect.notice); return; }
     if (!effect.mark && this.state.selection !== null) {
-      // Ask the next document for the same anchor after its first layout.
       this.reanchor = anchorRequest(this.state.selection);
       this.markHidden = true;
       this.drawMarks();
@@ -1063,16 +988,15 @@ export class CanvasController {
     this.post({ ...message, seq: this.hoverSeq });
   }
 
-  // Without a selection to clear, Esc and a blank click only raise the intent,
-  // which still cancels a pending Open: the person's latest action wins over an open that was still waiting.
+  // Without a selection, Esc and a blank click still raise the intent, so the person's latest action cancels a
+  // pending Open.
   private clearOnEscape(): void {
     if (!shouldGuardEscape(this.state.selection, this.reanchor)) { this.transitionIntent++; return; }
     this.transition(() => this.escapeNow());
   }
 
-  // Esc steps the selection back one level (PRODUCT §5 item 4). Only the canvas knows the frames around the selection,
-  // so it answers the step on the selection channel, and anything it sent before the step loses to the step's seq. A
-  // selection a reload is still looking for has no node to step from yet, so Esc clears it.
+  // Only the canvas knows the frames around the selection, so it answers the step on the selection channel. A selection
+  // a reload is still looking for has no node to step from yet, so Esc clears it.
   private stepOnEscape(): void {
     if (this.state.selection === null || this.reanchor !== null) { this.clearOnEscape(); return; }
     this.transition(() => {
@@ -1081,7 +1005,7 @@ export class CanvasController {
     });
   }
 
-  // Escape and a click on the board's margin: the person's deselect, which stops following in a work turn.
+  // The person's deselect, which stops following in a work turn.
   private escapeNow(): void {
     if (this.state.selection === null && this.reanchor === null) return;
     this.personActive(true);
@@ -1090,9 +1014,7 @@ export class CanvasController {
     this.publish();
   }
 
-  // The inspector's element menu. A request goes to the document of the last layout on the tree's own channel, so no
-  // selection, hover or pick seq moves and the selection stays as it is; only the answer to the latest request, from
-  // that same document, reaches the listener. False when no listed canvas has laid out yet.
+  // The tree has its own channel, so no selection, hover or pick seq moves. False when no listed canvas has laid out.
   requestElementTree(): boolean {
     const document = this.pickDocument;
     if (document === null || this.frame === null || this.loading || this.state.unlisted) return false;
@@ -1102,7 +1024,6 @@ export class CanvasController {
     return true;
   }
 
-  // The one listener for element-tree answers; returns its removal.
   onElementTree(listener: (message: ElementTreeMessage) => void): () => void {
     this.treeListener = listener;
     return () => { if (this.treeListener === listener) this.treeListener = null; };
@@ -1114,16 +1035,14 @@ export class CanvasController {
     this.treeListener?.(message);
   }
 
-  // A menu row's node marked on the board as a canvas hover would mark it (iframe viewport px, as hover rects are);
-  // null takes it off and the canvas's own hover shows again.
+  // Iframe viewport px, as hover rects are; null takes it off and the canvas's own hover shows again.
   previewElement(rect: CanvasRect | null): void {
     if (this.treeHover === rect) return;
     this.treeHover = rect;
     this.drawMarks();
   }
 
-  // A menu row picked: that node is selected as a ⌘-click on it would select it, and the canvas answers on the
-  // selection channel like any select-anchor.
+  // Selected as a ⌘-click on that node would; the canvas answers on the selection channel like any select-anchor.
   selectElement(anchor: ElementTreeAnchor): void {
     if (this.frame === null || this.loading || this.state.unlisted) return;
     this.treeHover = null;
@@ -1133,18 +1052,16 @@ export class CanvasController {
     });
   }
 
-  // The one listener for how picks end; returns its removal.
   onPicked(listener: (result: PickResult) => void): () => void {
     this.pickListener = listener;
     return () => { if (this.pickListener === listener) this.pickListener = null; };
   }
 
-  // Puts the shown canvas in the pick tool until one click names a target, Esc, cancelPick or leaving the canvas.
   // false: no canvas is shown. A reload in progress keeps the pick for the new document's first layout.
   pick(): boolean {
     if (this.frame === null || this.state.open === null || this.state.status !== null || this.state.unlisted) return false;
     if (this.state.picking) return true;
-    // A pick that starts drops the selection, ahead of pick-start so the script lets go of it before picking.
+    // Ahead of pick-start, so the script lets go of the selection before picking.
     this.dropSelection();
     // Capture mode already cleared it, and its layer kept every press from the canvas since.
     if (!this.state.capturing) this.clearText(true);
@@ -1162,12 +1079,11 @@ export class CanvasController {
     this.publish();
   }
 
-  // The toolbar's Capture area. false: no board is drawn. A reload in progress keeps capture mode, and the drag too. A
-  // pick in progress ends; the selection stays.
+  // false: no board is drawn. A reload in progress keeps capture mode and the drag. A pick ends; the selection stays.
   startCapture(): boolean {
     if (this.state.open === null || !this.boardShown()) return false;
     if (this.state.capturing) return true;
-    // The capture image shows no highlight. A pick in progress already cleared it, and the canvas holds no range then.
+    // The capture image shows no highlight. A pick in progress already cleared it.
     if (!this.state.picking) this.clearText(true);
     this.endPick({ kind: "cancelled" });
     this.makeCaptureLayer();
@@ -1182,7 +1098,6 @@ export class CanvasController {
     this.publish();
   }
 
-  // The one listener for captured areas; returns its removal.
   onCapture(listener: CaptureListener): () => void {
     this.captureListener = listener;
     return () => { if (this.captureListener === listener) this.captureListener = null; };
@@ -1195,14 +1110,14 @@ export class CanvasController {
     if (this.captureDrag !== null) { this.captureDrag.dropped = true; this.drawMarquee(); }
   }
 
-  // The board goes away: a drag on it ends at once, as Hand's does.
+  // A drag on the board ends at once, as Hand's does.
   private endCaptureWithBoard(): void {
     this.stopCaptureDrag();
     this.endCapture();
   }
 
-  // Transparent and aria-hidden: it only takes the pointer, under the canvas chrome, so Stop, Open, Reload and the
-  // tools row stay clickable, and the wheel still reaches wheelOnMargin through `.area`.
+  // Under the canvas chrome, so Stop, Open, Reload and the tools row stay clickable, and the wheel still reaches
+  // wheelOnMargin through `.area`.
   private makeCaptureLayer(): void {
     if (this.captureLayer !== null) return;
     const layer = document.createElement("div");
@@ -1223,7 +1138,7 @@ export class CanvasController {
     this.marquee = marquee;
   }
 
-  // Only the primary button drags. The layer never takes focus, so focus stays where the person left it.
+  // The layer never takes focus, so focus stays where the person left it.
   private captureDown = (event: PointerEvent): void => {
     event.preventDefault();
     if (event.button !== 0 || this.captureDrag !== null || !this.state.capturing || this.captureLayer === null) return;
@@ -1233,7 +1148,7 @@ export class CanvasController {
     this.drawMarquee();
   };
 
-  // In the area's screen px: a wheel pan during the drag moves the canvas under a fixed marquee.
+  // Screen px: a wheel pan during the drag moves the canvas under a fixed marquee.
   private captureMove = (event: PointerEvent): void => {
     const drag = this.captureDrag;
     if (drag === null || event.pointerId !== drag.pointerId || drag.dropped) return;
@@ -1241,9 +1156,8 @@ export class CanvasController {
     this.drawMarquee();
   };
 
-  // The layer comes down only here, after the release it took. A click, a small area, a dropped drag or a reload whose
-  // document has not laid out yet takes nothing and capture mode goes on; an area ends capture mode at
-  // once and then goes to App.
+  // The layer comes down only here, after the release it took. A click, a small area, a dropped drag or a document not
+  // laid out yet takes nothing and capture mode goes on.
   private captureUp = (event: PointerEvent): void => {
     const drag = this.captureDrag;
     if (drag === null || event.pointerId !== drag.pointerId) return;
@@ -1257,7 +1171,7 @@ export class CanvasController {
     this.snapshot(rect);
   };
 
-  // pointercancel and a lost pointer capture drop the drag only; capture mode goes on.
+  // The drag only; capture mode goes on.
   private captureDropped = (event: PointerEvent): void => {
     if (this.captureDrag === null || event.pointerId !== this.captureDrag.pointerId) return;
     this.stopCaptureDrag();
@@ -1286,8 +1200,8 @@ export class CanvasController {
     return { x: event.clientX - origin.left, y: event.clientY - origin.top };
   }
 
-  // The root attribute hides the app's marks by opacity (styles.css), so nothing moves and focus stays. The first frame
-  // paints them hidden; the second lets that paint reach the window before main reads its pixels.
+  // The root attribute hides the marks by opacity, so nothing moves and focus stays. The second frame lets the hidden
+  // paint reach the window before main reads its pixels.
   private snapshot(rect: Rect): void {
     const take = this.captureListener?.(rect) ?? null;
     if (take === null) return;
@@ -1310,8 +1224,7 @@ export class CanvasController {
     if (--this.snapshots === 0) document.documentElement.removeAttribute("data-capture-snapshot");
   }
 
-  // Sent once the current document has laid out with its token; the token keeps a command from reaching the
-  // document that replaces this one.
+  // The token keeps a command from reaching the document that replaces this one.
   private armPick(): void {
     if (this.loading || this.frame === null || this.pickDocument === null) return;
     this.pickSeq += 1;
@@ -1329,8 +1242,8 @@ export class CanvasController {
     this.syncFrameInput();
   }
 
-  // The canvas takes pointer input unless a pick waits for the current document to acknowledge its start. Pans and
-  // zooms then land on the board's margin handlers, so they keep working.
+  // Off until the document acknowledges a pick, since a click there would still select; pans and zooms then land on
+  // the board's margin handlers.
   private syncFrameInput(): void {
     if (this.frame) this.frame.style.pointerEvents = this.state.picking && !this.pickAcked ? "none" : "";
   }
@@ -1356,18 +1269,17 @@ export class CanvasController {
     this.pickEnded = result;
   }
 
-  // A reply counts only for the pick-start in force in the current document: one after Esc, a toggle, leaving the
-  // canvas or a newer pick names another seq, or none, and one from a replaced document another token.
+  // A reply counts only for the pick-start in force in the current document; one from a replaced document carries
+  // another token.
   private receivePicked(message: PickedMessage): void {
     if (!this.state.picking || this.activePick === null || message.pick !== this.activePick || message.document !== this.pickDocument ||
       this.lastHref === null || !sameDocument(this.lastHref, message.href)) return;
     if ("cancelled" in message) { this.cancelPick(); return; }
-    // The picker's boundary: only frames and what is in them can be chips. A forged or stray reply for anything
-    // outside every frame keeps picking (targetAnchor itself takes any frame or element).
+    // Only frames and what is in them can be chips; a forged or stray reply outside every frame keeps picking
+    // (targetAnchor itself takes any frame or element).
     if ("target" in message && message.target.frame === undefined) return;
     const frames = this.state.layout?.frames ?? [];
     const anchor = "target" in message ? targetAnchor(message.target) : pointAnchor(message.point, frames);
-    // Outside every frame there is nothing to point at, and the pick goes on.
     if (anchor === null) return;
     this.endPick({ kind: "picked", anchor, frames });
     this.publish();
@@ -1394,17 +1306,13 @@ export class CanvasController {
     const tooltipOnly = this.tooltipEscape?.event === event && !this.tooltipEscape.handledAfter;
     this.tooltipEscape = null;
     if (event.key !== "Escape" || event.isComposing || event.keyCode === 229 || (event.defaultPrevented && !tooltipOnly)) return;
-    // Esc while picking cancels only the pick, wherever focus is: the composer, the canvas or the panel. Menus and
-    // the `/` list handle their Esc first and prevent it.
+    // Esc while picking cancels only the pick, wherever focus is. Menus and the `/` list handle their Esc first.
     const step = this.escape(editableTarget(event.target), event.repeat);
     if (step === "cancelPick" || step === "cancelCapture" || step === "selectTool" || step === "clearText") event.preventDefault();
   };
 
-  // An open toolbar tooltip takes the Escape at the document's capture phase and Radix prevents it right after this
-  // call, so keydown would skip it (ARCHITECTURE §3 'Actions and focus'). The step stays keydown's: this only marks the
-  // event, and keydown takes it as unhandled unless something after the tooltip (the composer's `/` list, a field)
-  // prevented it too, so one press closes the tooltip and takes the step the same Escape takes with no tooltip. Radix's
-  // own prevention is the first call it makes on the event; a later one is someone else's.
+  // A toolbar tooltip takes Escape at the capture phase and Radix prevents it right after this call, so keydown would
+  // skip it (ARCHITECTURE §3 'Actions and focus'); Radix's prevention is its first call, a later one is someone else's.
   toolbarEscape(event: KeyboardEvent): void {
     if (event.defaultPrevented) return;
     const mark = { event, handledAfter: false };
@@ -1414,15 +1322,13 @@ export class CanvasController {
     this.tooltipEscape = mark;
   }
 
-  // An Escape forwarded from a focused canvas never reaches the app's document, where Radix's layers listen for it, so
-  // it is replayed there as the key itself would arrive: an open layer (the toolbar's tooltip, a popover opened without
-  // focus) takes it at the capture phase, and it bubbles to keydown, which takes the canvas's step on the same terms.
+  // A focused canvas's Escape never reaches the app's document, where Radix's layers listen, so it is replayed there
+  // as the key itself would arrive.
   private forwardEscape(): void {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
   }
 
-  // Esc's next step; `editable`: it came from a text field. Returns the step. A held Esc's auto-repeat (`repeat`) takes
-  // no Select step, so one press steps back one level (PRODUCT §5 item 4) instead of walking the selection all the way out.
+  // A held Esc's auto-repeat takes no Select step, so one press steps back one level instead of walking all the way out.
   private escape(editable: boolean, repeat = false): ReturnType<typeof escapeStep> {
     // Esc during Hand's text drag ends it and clears the range, as in Select, before it turns Hand off.
     if (this.drag?.mode === "text" && !editable && !this.state.picking && !this.state.capturing) {
@@ -1440,8 +1346,7 @@ export class CanvasController {
     return step;
   }
 
-  // V, H and Space from the app or a focused canvas; `ignored`: the source does not count. A pick and capture mode run
-  // ahead of the tool, so they take neither. Returns whether the key was the canvas's.
+  // A pick and capture mode run ahead of the tool, so they take neither. Returns whether the key was the canvas's.
   private shortcut(shortcut: ToolShortcut, ignored: boolean): boolean {
     if (shortcut.kind === "space" && !shortcut.down) {
       const held = this.spaceHeld;
@@ -1450,11 +1355,10 @@ export class CanvasController {
       return held;
     }
     if (ignored || this.state.picking || this.state.capturing) return false;
-    // A text drag in progress keeps its tool and gets no layer under it; the key is still the canvas's, so nothing else
-    // acts on it.
+    // The key is still the canvas's, so nothing else acts on it.
     if (this.textDragging) return true;
     if (shortcut.kind === "tool") { this.toolChosen = true; this.applyTool(shortcut.tool); return true; }
-    // Without a drawn board Space does nothing, and a Space held from then does not pan the board that comes later.
+    // A Space held from here does not pan the board that comes later.
     if (!this.boardDrawn()) return false;
     this.spaceHeld = true;
     this.syncLayer();
@@ -1471,7 +1375,7 @@ export class CanvasController {
     this.drawMarks();
   };
 
-  // ⌘ goes on the hover channel: it changes only what the canvas's hover shows, never a selection command's seq.
+  // The hover channel: ⌘ changes only what the canvas's hover shows, never a selection command's seq.
   private setMeta(down: boolean): void {
     this.metaHeld = down;
     this.sendHoverCommand({ type: "hover-meta", meta: down });
@@ -1490,12 +1394,9 @@ export class CanvasController {
     }
   };
 
-  // The canvas sends a hover only on a pointer move, so where the hover could show again with the pointer resting on the
-  // canvas, the app names the resting point and the canvas finds what is under it (hover-at, on the hover channel). The
-  // point is main's OS cursor point: the app hears no pointer move over the canvas iframe, so it has none of its own
-  // there. Only when the canvas itself is what lies under the pointer.
+  // The app hears no pointer move over the canvas iframe, so to show a hover again at a resting pointer it sends main's
+  // OS cursor point (hover-at) and the canvas finds what is under it.
   private refindOnLoad = false;
-  // The hover seq of the last hover-at, until its answer arrives.
   private refindSeq: number | null = null;
   private refindHover(): void {
     if (this.hoverRect !== null || this.loading || this.frame === null) return;
@@ -1512,8 +1413,7 @@ export class CanvasController {
     }, (error: unknown) => { console.error("pointer:get failed", error); });
   }
 
-  // A menu or popover (overlayOpen) takes focus when it opens and gives it back when it closes, which is the only sign of
-  // it here; an Option measurement hides and comes back with it while the pointer rests on its target.
+  // Focus moving is the only sign here that a menu or popover opened or closed.
   private focusMoved = (): void => {
     if (this.altHeld) this.drawMarks();
   };
@@ -1526,7 +1426,7 @@ export class CanvasController {
 
   private pointerOnApp = (event: PointerEvent): void => {
     this.altHeld = event.altKey;
-    // Over the board's margins or the drag layer; over the canvas itself the move arrives as its hover message.
+    // Over the canvas itself the move arrives as its hover message.
     if (Object.is(event.target, this.viewport) || Object.is(event.target, this.layer)) this.personActive(false);
     // OOPIFs do not reliably receive pointerout when the pointer enters the app.
     if (event.target !== this.frame && this.hoverRect !== null) {
@@ -1546,10 +1446,8 @@ export class CanvasController {
     this.clearOnEscape();
   };
 
-  // A press closes the open preset lists at once. One that held focus takes its focused search box with it, and focus
-  // would fall to the page body; it goes to the canvas area the person pressed instead. Focus already in the canvas
-  // frame (an ⌥-press) or anywhere still on the page stays where it is. The isConnected check holds only while the
-  // Presets popover has no close animation: one would keep the search box attached past the listeners.
+  // A focused search box closing with its list would drop focus to the body, so it goes to the canvas area instead. The
+  // isConnected check holds only while the Presets popover has no close animation.
   private pressed(): void {
     const focused = document.activeElement;
     for (const listener of [...this.pressListeners]) listener();
@@ -1557,11 +1455,8 @@ export class CanvasController {
     if (focused !== null && focused !== document.body && !(focused as Node).isConnected && (now === null || now === document.body)) this.viewport.focus(CLICK_FOCUS);
   }
 
-  // A click on the canvas sends the keys after it there, not to the composer. Never during a pick: its chip goes in at
-  // the composer's caret. The click reaches the app only as the canvas's message, which a canvas can send without one,
-  // and the app gets no pointer event while the pointer is over the out-of-process iframe (it enters straight from the
-  // composer or the tools row). So main reads the OS cursor, and focus moves only when it is over the canvas area,
-  // read soon after this click and before anything else took focus.
+  // The app gets no pointer event over the out-of-process iframe, and a canvas can send a click message without a
+  // click, so focus moves only when main's OS cursor reading, taken soon after, is over the canvas area. Never in a pick.
   private focusOnClick(): void {
     if (this.state.picking) return;
     const tag = ++this.clickTag;
@@ -1574,8 +1469,7 @@ export class CanvasController {
     }, (error: unknown) => { console.error("pointer:get failed", error); });
   }
 
-  // The layer shows while Hand or a held Space can pan a drawn board, and through a drag in progress. Not under the
-  // capture layer: in Hand both would be up at once.
+  // False under the capture layer, or in Hand the drag layer and the capture layer would both be up.
   private boardDrawn(): boolean {
     return !this.state.picking && !this.captureHeld() && this.boardShown();
   }
@@ -1584,7 +1478,6 @@ export class CanvasController {
     return this.frame !== null && this.state.status === null && !this.state.unlisted;
   }
 
-  // Capture mode, or a drag it left that still holds the layer.
   private captureHeld(): boolean { return this.state.capturing || this.captureDrag !== null; }
 
   private syncLayer(): void {
@@ -1595,14 +1488,11 @@ export class CanvasController {
     // A drag and a held Space end with the board they were on; the tool stays.
     if (!board) { this.stopDrag(); this.spaceHeld = false; }
     const show = board && (this.tool === "hand" || this.spaceHeld || this.drag !== null);
-    // A pointer resting over the canvas keeps the cursor the canvas last set until it moves, so the canvas shows the
-    // hand itself while the layer is up. The other way round, once the pointer has moved over the layer the app
-    // document holds the cursor, and after the layer goes down Chromium recomputes it over the iframe only when the
-    // iframe's own cursor value changes, and only reliably once a frame without the layer has been drawn (measured with
-    // a real pointer: a lowered layer alone left the hand, and a change in the same task did only sometimes).
+    // Chromium recomputes the cursor over the iframe only when the iframe's own cursor value changes, and reliably only
+    // after a frame without the layer has been drawn; a resting pointer keeps the canvas's cursor, so it shows the hand.
     if (show !== this.layerShown) {
-      // Not to an iframe still loading: its script would never hear it, and the hover seq would run ahead of the new
-      // document, dropping its hovers. It starts without the hand, and its first layout sends it if the layer is up.
+      // Not to an iframe still loading: the hover seq would run ahead of the new document and drop its hovers. Its first
+      // layout sends it if the layer is up.
       if (!this.loading) this.sendHoverCommand({ type: "hover-hand", hand: show });
       const frame = this.frame;
       if (!show && frame !== null) {
@@ -1613,7 +1503,7 @@ export class CanvasController {
       }
     }
     if ((show && !this.layerShown) || (capture && !this.captureShown)) {
-      // The iframe gets no pointermove under the layer, and an OOPIF's pointerout cannot be trusted (POSTMORTEM 2026-10-23).
+      // The iframe gets no pointermove under the layer, and an OOPIF's pointerout cannot be trusted.
       this.hoverRect = null;
       this.sendHoverCommand({ type: "hover-leave" });
     }
@@ -1645,27 +1535,24 @@ export class CanvasController {
     else this.syncLayer();
   }
 
-  // Only the primary button drags, with any modifier. The layer never takes focus; a drag in Hand moves it to the
-  // canvas area as a click there would, while a held Space already has it where Space came from.
+  // The layer never takes focus; a drag in Hand moves it to the canvas area as a click would, while a held Space
+  // already has it where Space came from.
   private layerDown = (event: PointerEvent): void => {
     event.preventDefault();
     if (event.button !== 0 || this.drag !== null) return;
     if (!this.spaceHeld) this.viewport.focus(CLICK_FOCUS);
-    // Keeps the drag when the pointer leaves the window.
     this.layer.setPointerCapture(event.pointerId);
-    // Hand's press is the canvas's next primary press, so it ends the range as one in Select does; a held Space and a
-    // Ctrl press keep it.
+    // Hand's press is the canvas's next primary press, so it ends the range as in Select; a held Space and Ctrl keep it.
     const handPress = !this.spaceHeld && this.tool === "hand" && !event.ctrlKey;
     if (handPress) this.clearText();
-    // A plain press on canvas text drags a range as Select's does (PRODUCT §5 item 4). Only the canvas can tell, so the
-    // pan waits for its answer (onTextHit); a press with a modifier pans at once.
+    // Only the canvas can tell whether a plain press is on text, so the pan waits for its answer (onTextHit); a press
+    // with a modifier pans at once.
     const asks = handPress && !event.metaKey && !event.altKey && !event.shiftKey && this.frame !== null && !this.loading && this.pickDocument !== null;
     this.drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, mode: asks ? "asking" : "pan", probe: asks ? ++this.textProbe : 0, held: { x: 0, y: 0 } };
     if (asks) this.post({ type: "text-press", epoch: this.textEpoch, ...this.boardPointAt(event.clientX, event.clientY), sx: event.clientX, sy: event.clientY, probe: this.textProbe });
     this.syncLayer();
   };
 
-  // A point in the app's client px, on the board in the canvas's document coordinates.
   private boardPointAt(x: number, y: number): Point {
     const area = this.viewport.getBoundingClientRect();
     return screenToBoard(this.view, { x: x - area.left, y: y - area.top });
@@ -1691,7 +1578,7 @@ export class CanvasController {
     this.syncLayer();
   }
 
-  // Hand's text cursor follows a resting pointer: one text-at a frame, for the newest point.
+  // One text-at a frame, for the newest point.
   private askTextHover(point: Point): void {
     const queued = this.hoverPoint !== null;
     this.hoverPoint = point;
@@ -1705,8 +1592,7 @@ export class CanvasController {
     });
   }
 
-  // Each move's own travel, not the start plus the total: a zoom during the drag stays. The board's transform holds
-  // the scale, so screen px move it 1:1.
+  // Each move's own travel, not the start plus the total: a zoom during the drag stays.
   private layerMove = (event: PointerEvent): void => {
     const drag = this.drag;
     if (drag === null) {
@@ -1727,7 +1613,7 @@ export class CanvasController {
   private layerUp = (event: PointerEvent): void => {
     const drag = this.drag;
     if (drag === null || event.pointerId !== drag.pointerId) return;
-    // The canvas's press or drag ends as a pointerup there would; a cancel or a lost capture ends it where it was.
+    // A cancel or a lost capture ends it where it was.
     if (drag.mode === "asking" || drag.mode === "text") {
       this.post(event.type === "pointerup" ? { type: "text-release", epoch: this.textEpoch, ...this.boardPointAt(event.clientX, event.clientY) } : { type: "text-release", epoch: this.textEpoch });
     }
@@ -1737,17 +1623,16 @@ export class CanvasController {
   private onLayout(message: LayoutMessage): void {
     const documentChanged = message.document !== undefined && message.document !== this.anchorDocument;
     if (documentChanged) { this.resetAnchors(); this.anchorDocument = message.document ?? null; }
-    // Another document, even at the same URL in the same iframe (the canvas's own location.reload()), ends the pick
-    // channel of the one it replaced; the pick itself goes on below unless the page is another canvas.
+    // Another document, even the canvas's own location.reload() in the same iframe, ends the replaced one's pick
+    // channel; the pick itself goes on below unless the page is another canvas.
     if (message.document !== undefined && message.document !== this.pickDocument) {
       this.pickDocument = message.document;
       this.resetPickChannel();
-      // The range was the replaced document's, and the new one counts its clears from 0.
+      // The new document counts its clears from 0.
       this.textEpoch = 0;
       this.resetText();
-      // A held Space and a drag end with the board they were on, also when the canvas replaces its own document
-      // (its location.reload()), which keeps the iframe; the tool stays. Not on the anchor document's change: the
-      // iframe's load event forgets that one while the document stays.
+      // A held Space and a drag end with the document, even one the canvas replaced itself in the same iframe. Not on the
+      // anchor document's change: the iframe's load event forgets that one while the document stays.
       if (this.spaceHeld || this.drag !== null) { this.spaceHeld = false; this.finishDrag(); }
       // Hand keeps the layer up through the canvas's own reload, and the new document has no hand of its own.
       if (this.layerShown) this.sendHoverCommand({ type: "hover-hand", hand: true });
@@ -1761,17 +1646,15 @@ export class CanvasController {
     // Against the height before this layout resizes the iframe, as layoutHeight does.
     const selected = selectedFromLayout({ ...this.expectation(), href: message.href }, message);
     this.setFrameHeight(layoutHeight(this.lastHref, this.frameHeight, message));
-    // A layout that does not confirm the current height (measured before the
-    // iframe had its viewport, or before our resize) needs another one, and the
-    // canvas sends that one on an animation frame an off-screen iframe never
-    // gets. `measure` is answered without one.
+    // A layout that does not confirm the current height needs another, which the canvas sends on an animation frame an
+    // off-screen iframe never gets. `measure` is answered without one.
     clearTimeout(this.remeasureTimer);
     if (Math.abs(message.viewport - this.frameHeight) > 1 || Math.min(message.height, MAX_HEIGHT) !== this.frameHeight) {
       const frame = this.frame;
       this.remeasureTimer = setTimeout(() => { if (frame === this.frame) this.post({ type: "measure" }); }, REMEASURE_MS);
     }
-    // A hidden iframe can report every frame at the origin before receiving its viewport.
-    // Leave the open pending for the measurement requested above, including across a reload.
+    // A hidden iframe can report every frame at the origin before receiving its viewport; the open waits for the
+    // measurement requested above, also across a reload.
     if (this.pendingFrame !== null && message.viewport === 0 && this.frameHeight > 0) return;
     this.lastHref = message.href;
     clearTimeout(this.answerTimer);
@@ -1785,7 +1668,7 @@ export class CanvasController {
       this.hoverRect = null;
       this.treeHover = null;
       this.applySelectionEffect({ kind: "otherCanvas" });
-      // A link or the canvas's own script left for another page: another canvas, so the pick and capture mode end.
+      // Another page is another canvas, so the pick and capture mode end.
       this.resetPickChannel();
       this.endPick({ kind: "cancelled" });
       this.endCaptureWithBoard();
@@ -1798,7 +1681,7 @@ export class CanvasController {
       this.state.status = null;
       if (this.reanchor !== null) this.sendCommand({ type: "select-anchor", ...this.reanchor });
     }
-    // A reloaded document hears no pointer move until the pointer moves; its hover is asked for at the resting pointer.
+    // A reloaded document hears no pointer move until the pointer moves.
     if (first && this.refindOnLoad) { this.refindOnLoad = false; this.refindHover(); }
     this.state.layout = message;
     const linked = this.markShown(message.href);
@@ -1855,8 +1738,8 @@ export class CanvasController {
     this.post({ type: "measure" });
   }
 
-  // `index` and `id` are the row the frame drawer drew, which may predate the current layout. Like Quick Open's
-  // pending frame: the index while it still holds that id, else the id's first frame, else nothing.
+  // The row the frame drawer drew may predate the current layout: the index while it still holds that id, else the
+  // id's first frame, else nothing.
   selectFrame(index: number, id: string): void {
     const resolve = () => {
       const frames = this.state.unlisted ? [] : this.state.layout?.frames ?? [];
@@ -1915,10 +1798,8 @@ export class CanvasController {
     this.applyView();
   }
 
-  // The first Fit of a freshly opened canvas, again at the board's present size. The
-  // canvas loads while the Overview still lays out the page (its right column is 280 wide), so the renderer calls this
-  // once the canvas page's own column width is applied. Only once per load; later resizes keep the board's screen
-  // position on either side (viewportResized).
+  // The canvas loads while the Overview still lays out the page, so the renderer calls this once the canvas page's
+  // column width applies. Once per load; later resizes keep the board's screen position (viewportResized).
   settleFit(): void {
     const pending = this.firstFit;
     this.firstFit = null;
@@ -1927,7 +1808,7 @@ export class CanvasController {
     this.applyView("app");
   }
 
-  // The zoom menu's fixed percentages: the view center stays put, like the steps and 100%.
+  // The view center stays put, like the steps and 100%.
   zoomTo(scale: number): void {
     if (this.frame === null) return;
     const size = this.viewportSize();
@@ -1947,21 +1828,19 @@ export class CanvasController {
   };
 
   wheel(input: WheelInput, point: Point): void {
-    // The element under the cursor changes without a pointermove (flow 2). An Option measurement keeps its target,
-    // a board rect that applyView redraws where the board moved it.
+    // The element under the cursor changes without a pointermove. An Option measurement keeps its target, a board rect
+    // that applyView redraws where the board moved it.
     if (!this.altHeld) this.hoverRect = null;
     const action = wheelAction(input);
     this.view = "zoom" in action ? zoomAt(this.view, action.zoom, point, ZOOM_LIMITS) : panBy(this.view, action.pan.dx, action.pan.dy);
     this.applyView();
-    // The board moved under a resting pointer, which the canvas never hears as a pointermove: the drag's end follows
-    // the board point now under it.
+    // The canvas never hears the board moving under a resting pointer, so the drag's end follows the board point now
+    // under it.
     if (this.textDragging) { const at = screenToBoard(this.view, point); this.post({ type: "text-point", epoch: this.textEpoch, x: at.x, y: at.y }); }
   }
 
-  // The view is kept relative to the area's top-left, so a sidebar fold, unfold or width drag, which moves the left
-  // edge, would carry the board along. Taking the edge's move off the view keeps the board where it is on screen, as the
-  // conversation panel does by moving only the right edge. Done on every callback, so a fold animation's frames do not
-  // slide it either. An area not laid out (zero width) is skipped, so its return counts the edge it had before.
+  // The view is relative to the area's top-left, so a sidebar fold or resize would carry the board along; taking the
+  // edge's move off keeps it in place. A zero-width area is skipped, so its return counts the edge it had before.
   private viewportResized = (): void => {
     const rect = this.viewport.getBoundingClientRect();
     if (rect.width > 0) {
@@ -1995,9 +1874,8 @@ export class CanvasController {
     if (zoom !== this.state.zoom || changedCurrent || changedLimit) { this.state.zoom = zoom; this.publish(); }
     this.viewChanged?.();
   }
-  // The open canvas's work from the agent notice's pick. App calls it whenever that pick or the open canvas changes,
-  // also with no work, so a change of canvas is seen as entering it: the frame worked on then counts as followed, and
-  // following waits for the next one.
+  // App also calls it with no work, so a change of canvas is seen as entering it: the frame worked on then counts as
+  // followed, and following waits for the next one.
   setWork(target: CanvasWorkTarget | null): void {
     const key = target && canvasKey(target.root, target.path);
     const entered = key !== this.workCanvas;
@@ -2006,11 +1884,10 @@ export class CanvasController {
     this.work = target;
     this.workCanvas = key;
     const next = target?.work ?? null;
-    // Another source winning names a frame the board must not swing to, whether that frame exists yet or the document
-    // is reloading: counted as followed here, not when the frame is next evaluated.
+    // Another source winning names a frame the board must not swing to, so it counts as followed here, not when the
+    // frame is next evaluated.
     const sourceChanged = previous !== null && next !== null && previous !== next.source;
-    // Entering another canvas, or no work turn left on this one, ends the story: a later turn is followed from its first
-    // frame, whichever source it is.
+    // A later turn is then followed from its first frame, whichever source it is.
     if (entered || (next === null && (target?.keys.length ?? 0) === 0)) this.workSource = null;
     if (next) this.workSource = next.source;
     if (target && key) {
@@ -2023,8 +1900,8 @@ export class CanvasController {
     this.drawWork(before !== null && frame !== undefined && frame !== before);
   }
 
-  // Moves the view to the working frame when followDecision says so; true when it moved (the move placed the marker).
-  // Not while the document reloads or failed: the frame is read from the next layout.
+  // true when it moved (the move placed the marker). Not while the document reloads or failed: the frame is read from
+  // the next layout.
   private followWork(): boolean {
     clearTimeout(this.followTimer);
     const work = this.openWork(), target = this.work;
@@ -2049,11 +1926,11 @@ export class CanvasController {
     return this.state.picking || this.state.capturing || this.drag !== null || this.captureDrag !== null || this.spaceHeld || this.textDragging || !this.onCanvasPage() || this.overlayOpen();
   }
 
-  // The person acted on the canvas page: the rest starts again. A view change or a selection change also stops every
-  // work turn on the open canvas (`stop`); a pointer move or typing does not.
+  // A view or selection change also stops every work turn on the open canvas (`stop`); a pointer move or typing does
+  // not.
   private personActive(stop: boolean): void {
     this.lastPersonMove = Date.now();
-    // A stop ends the wait; a plain move only pushes the rest's end, which the timer finds when it fires and re-arms.
+    // A plain move only pushes the rest's end, which the timer finds when it fires and re-arms.
     if (stop) clearTimeout(this.followTimer);
     const target = this.work, open = this.state.open;
     if (!stop || !target || !open || target.root !== open.folder || target.path !== open.canvas || target.keys.length === 0) return;
@@ -2063,12 +1940,10 @@ export class CanvasController {
 
   private typed = (): void => { this.personActive(false); };
 
-  // The last moment the person moved the view, changed the selection, typed or pointed at the board (Date.now() ms):
-  // the docked buddy's rest starts from it, as following's does.
+  // Date.now() ms; the docked buddy's rest starts from it, as following's does.
   personMovedAt(): number { return this.lastPersonMove; }
 
-  // Back on the canvas page (from Home, Settings or another workspace's screen): like opening the canvas, the frame
-  // worked on now counts as followed and the rest starts again.
+  // Like opening the canvas: the frame worked on now counts as followed and the rest starts again.
   private enteredPage(): void {
     this.lastPersonMove = Date.now();
     const work = this.openWork(), target = this.work;
@@ -2082,18 +1957,14 @@ export class CanvasController {
     return open && target && !this.state.unlisted && target.root === open.folder && target.path === open.canvas ? target.work : null;
   }
 
-  // The working-frame marker: the jump highlight kept for the work turn, on the first frame with the id. A reload keeps
-  // a shown marker on the previous layout's rect until the new layout places it: every agent write reloads the canvas,
-  // and hiding it in between restarted its animations each time, so a run of writes blinked it. It goes when the
-  // document is not laid out (first load, failed, no width) or the new layout lacks the frame, and does not appear
-  // mid-reload when it was not shown before. It is placed in screen px on every view change, so it slides only when
-  // the working frame changes (`slide`); any other redraw puts it on its frame at once, ending a slide.
+  // A reload keeps a shown marker on the previous rect until the new layout places it: every agent write reloads the
+  // canvas, and hiding it in between restarted its animations each time. It slides only when the working frame changes.
   private drawWork(slide = false): void {
     clearTimeout(this.workSlideTimer);
     const work = this.state.status !== null || (this.loading && this.workMarkFrame === null) ? null : this.openWork();
     const rect = work ? workFrameRect(this.state.layout, work.frame) : null;
-    // A reload's first layout can report every frame as 0 × 0 before the document is measured: the frame has not
-    // gone, so a marker already on it stays put for the measured layout instead of hiding and restarting.
+    // A reload's first layout can report every frame as 0 × 0 before measuring; the frame has not gone, so the marker
+    // stays put.
     const frames = this.state.layout?.frames ?? [];
     if (rect === null && work !== null && work.frame === this.workMarkFrame && frames.some(frame => frame.id === work.frame) && frames.every(frame => frame.width === 0 && frame.height === 0)) return;
     if (work === null || rect === null) {
@@ -2118,9 +1989,8 @@ export class CanvasController {
   // A range waiting for its cursor reading counts: Esc and the other clears must drop it before the reply paints it.
   private hasText(): boolean { return this.textRects.length > 0 || this.textDragging || this.textCheck !== null; }
 
-  // Ranges come only from the current document after the last clear-text, and not in a pick or capture mode, which
-  // cleared it and leave the canvas no clicks of its own. In Hand the canvas sees no press: a range comes only from the
-  // text drag the app drives (onTextHit), or is one already shown or waiting for its cursor reading.
+  // A pick or capture mode cleared the range and leaves the canvas no clicks of its own. In Hand the canvas sees no
+  // press, so a range comes only from the text drag the app drives (onTextHit).
   private onTextRange(message: TextRangeMessage): void {
     if (message.document !== this.pickDocument || message.epoch < this.textEpoch) return;
     if (this.state.picking || this.state.capturing) return;
@@ -2129,16 +1999,12 @@ export class CanvasController {
     if (this.textTrust === "dragging") { this.applyText(message); return; }
     // The canvas cleared it (its next press, or a drag back to its start).
     if (!message.dragging && message.rects.length === 0) { this.resetText(); return; }
-    // A layout moving the lines of a range already believed.
     if (this.textTrust === "held" && !message.dragging && message.text === undefined) { this.applyText(message); return; }
     this.checkText(message);
   }
 
-  // A canvas can post a range without the person touching it, and a believed one folds the app's text selection, sets
-  // what ⌘C copies and, while dragging, holds V, H, Space and following. So a new range (a drag's start, or text with no
-  // start the app saw) counts only when main reads the OS cursor over the canvas area within 500 ms, as a click's focus
-  // does; the rest of that drag is then believed through its release. Messages arriving meanwhile wait; the newest is
-  // applied when the reading passes.
+  // A canvas can post a range unprompted, so a new range counts only when main reads the OS cursor over the canvas area
+  // within 500 ms, as a click's focus does; messages arriving meanwhile wait and the newest applies if it passes.
   private checkText(message: TextRangeMessage): void {
     const waiting = this.textCheck;
     if (waiting !== null && Date.now() - waiting.asked <= CLICK_CURSOR_MS) { waiting.message = message; return; }
@@ -2155,7 +2021,7 @@ export class CanvasController {
     this.textCheck = null;
     const area = this.viewport.getBoundingClientRect();
     const inside = point !== null && Date.now() - check.asked <= CLICK_CURSOR_MS && point.x >= area.left && point.x < area.right && point.y >= area.top && point.y < area.bottom;
-    // Not the person's drag: the canvas drops its range too, so a later layout does not bring it back.
+    // The canvas drops its range too, so a later layout does not bring it back.
     if (!inside) { this.clearText(true); return; }
     // The selection made last is the one copied: a canvas text drag folds the app's own text selection.
     const selection = window.getSelection();
@@ -2164,7 +2030,6 @@ export class CanvasController {
     this.applyText(check.message);
   }
 
-  // A message of a believed drag: its rects, whether it still drags, and its text once released.
   private applyText(message: TextRangeMessage): void {
     const ended = !message.dragging && this.textTrust === "dragging";
     this.textRects = message.rects;
@@ -2177,8 +2042,7 @@ export class CanvasController {
     this.drawMarks();
   }
 
-  // Clears the range here and tells the canvas, which ends a drag in progress. `always`: also when nothing is shown
-  // yet, since a range the canvas posted may still be on its way (switching to Hand, a pick, capture mode, leaving).
+  // `always`: also when nothing is shown yet, since a range the canvas posted may still be on its way.
   private clearText(always = false): void {
     if (!always && !this.hasText()) return;
     if (this.frame !== null && !this.loading && this.pickDocument !== null) {
@@ -2188,9 +2052,8 @@ export class CanvasController {
     this.resetText();
   }
 
-  // The document the range was in went away (or the canvas cleared it itself): nothing to tell it.
+  // Nothing to tell the canvas.
   private resetText(): void {
-    // A range still waiting for its cursor reading goes too.
     this.textCheck = null;
     this.textTag += 1;
     this.textTrust = "none";
@@ -2210,8 +2073,7 @@ export class CanvasController {
     event.preventDefault();
   };
 
-  // A new text selection in the app (a message bubble, a field) clears the canvas range, so only one selection shows. A
-  // caret moving, as typing does, is no selection.
+  // A new app text selection clears the canvas range, so only one shows. A caret moving, as typing does, is none.
   private appSelection = (event: Event): void => {
     if (!this.hasText()) return;
     const target: unknown = event.target;
@@ -2221,8 +2083,8 @@ export class CanvasController {
     if (inField || (selection && selection.rangeCount > 0 && !selection.isCollapsed)) this.clearText();
   };
 
-  // One rect per line in board px, inside a layer that takes the board's own transform: a pan moves one element, not
-  // every rect. Under the marks (styles.css), so the selection and hover outlines stay on top.
+  // The layer takes the board's own transform, so a pan moves one element, not every rect. Under the marks
+  // (styles.css), so the selection and hover outlines stay on top.
   private drawText(): void {
     if (this.textLayer === null) {
       if (this.textRects.length === 0) return;
@@ -2254,10 +2116,8 @@ export class CanvasController {
     this.textLayer.layer.style.transform = `translate(${this.view.x}px, ${this.view.y}px) scale(${this.view.scale})`;
   }
 
-  // Marks live outside the iframe so the canvas DOM, its MutationObserver and
-  // the anchors stay untouched; drawn in screen px so lines stay 1px at any
-  // scale, while the size label (a child of the selection mark, centered
-  // under it by CSS) reads canvas px.
+  // Outside the iframe so the canvas DOM, its MutationObserver and the anchors stay untouched; screen px so lines stay
+  // 1px at any scale, while the size label reads canvas px.
   private drawMarks(): void {
     const measured = this.measured();
     const hover = measured === null && (this.markHidden || this.altHeld || this.layerShown || this.captureShown || this.textDragging) ? null : this.treeHover ?? this.hoverRect;
@@ -2293,10 +2153,8 @@ export class CanvasController {
     this.drawMeasure(measured);
   }
 
-  // PRODUCT §5 item 4: Option with a selection measures to the hover target, wherever the hover mark could show
-  // (nothing measures over a pick, the drag or capture layer, a text drag, or anything covering the canvas). altHeld
-  // stays the one source of Option's state (POSTMORTEM 2026-10-23 'Hover stayed hidden across direct reentry and Alt
-  // focus transfer'). Returns the two rects, or null when nothing is measured.
+  // altHeld stays the one source of Option's state. Nothing measures over a pick, the drag or capture layer, a text
+  // drag, or anything covering the canvas.
   private measured(): { selected: CanvasRect; target: CanvasRect } | null {
     const selected = this.selectedRect;
     const target = this.hoverRect;
@@ -2305,7 +2163,7 @@ export class CanvasController {
     return { selected, target };
   }
 
-  // Lines in screen px, so they stay 1px at any zoom; the labels read canvas px.
+  // Screen px, so lines stay 1px at any zoom; the labels read canvas px.
   private drawMeasure(measured: { selected: CanvasRect; target: CanvasRect } | null): void {
     if (measured === null) {
       if (this.measure !== null) this.measure.layer.hidden = true;
@@ -2360,8 +2218,7 @@ export class CanvasController {
     this.moveBubbleFocus(selected !== null, onPlay ? "play" : onAdd ? "add" : onInspect ? "inspect" : null);
   }
 
-  // Focus never falls to the page body when a bubble button goes (PRODUCT §5 item 2 'Play controls'): Play alone
-  // going hands it to Add to message beside it; the whole bubble going hands it to App's control for the same action.
+  // Focus never falls to the page body when a bubble button goes (PRODUCT §5 item 2 'Play controls').
   private moveBubbleFocus(shown: boolean, had: BubbleAction | null): void {
     const bubble = this.bubble!;
     if (!shown) {

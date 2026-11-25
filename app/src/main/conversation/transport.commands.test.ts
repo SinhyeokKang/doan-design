@@ -8,11 +8,11 @@ function claude(frames: unknown[]) {
   for (const frame of frames) { const next = normalizeClaude(state, frame, "/repo"); state = next.state; events.push(...next.events); }
   return events;
 }
-// num_turns 0: no model turn ran, as /compact's result reported (PoC, Claude Code 2.1.326).
+// num_turns 0: no model turn ran, as /compact's result reports.
 const success = (result: string, turns = 0) => ({ type: "result", subtype: "success", is_error: false, result, num_turns: turns, uuid: "r1", session_id: "s" });
 
 // A built-in that answers without the model (/context, /usage) is a text result, shown as the agent's answer
-// (SDK 0.3.312 SDKLocalCommandOutputMessage: "Displayed as assistant-style text in the transcript").
+// (SDKLocalCommandOutputMessage: "Displayed as assistant-style text in the transcript").
 describe("Claude command output", () => {
   it("shows a local command's output as a message", () => {
     expect(claude([{ type: "system", subtype: "local_command_output", content: "Plan usage: 12%", uuid: "o1", session_id: "s" }, success("Plan usage: 12%")]))

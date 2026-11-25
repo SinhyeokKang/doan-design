@@ -70,13 +70,12 @@ export interface ComposerMemory {
   // main keeps the ids for its recheck until no last request or draft uses them.
   lastKeys: Record<string, string[]>;
   lastIds: Record<string, string[]>;
-  // A start still waiting for main, kept here so a later visit stays locked and its reply clears only the draft it
-  // sent; and the refusal or attachment notice under the composer. command: the start was a provider command, which
-  // took neither the preset nor the attachments (`keys` are the draft's, kept).
+  // A start still waiting for main, so a later visit stays locked and its reply clears only the draft it sent. command: a
+  // provider command took neither the preset nor the attachments (`keys` are the draft's, kept).
   sending: { generation: number; text: string; preset: string | null; keys: string[]; command?: true } | null;
   generation: number;
   notice: { text: string; retry: boolean } | null;
-  // The card of a built-in Doan does not run, under the composer until Dismiss or a start (this run only).
+  // The card of a built-in command Doan does not run, under the composer until Dismiss or a start (this run only).
   card?: CommandCard | null;
   greeting: string | null;
   // The last `select` and `restore` requests already applied, so a later visit does not apply them again.
@@ -133,18 +132,17 @@ export interface HeroComposerProps {
   openSettings(target: SettingsTarget): void;
   // The buddy above the greeting: the latest pick, else the saved one (App); Doany when not given.
   buddy?: BuddyId;
-  // A model or effort pick is remembered as Last used before any send (dogfooding #6).
+  // A model or effort pick is remembered as Last used before any send.
   onRemember?(choice: ComposerChoice): void;
 }
 
 // The group sits 64px above the panel's centre with at least --space-8 around it.
 const STAGE_LIFT = 64, STAGE_MIN = 32;
-// The group's height in its reference state: an empty two-line field with the suggestions shown (their place is kept
-// while hidden). What a draft adds inside the card (chips, extra lines, the counter) and the reason line or notice
-// below the suggestions are left out, so they grow downward from a field that stays where it was.
-// A project none of whose roots is a list (missing, reading, unhealthy) can't take a request.
+// A project none of whose roots is a list can't take a request.
 function projectDown(card: { rows: readonly FolderEntry[] }): boolean { return card.rows.every(row => row.kind !== "list"); }
 
+// The group's height in its reference state (an empty two-line field, suggestions shown): what a draft adds is left out, so it
+// grows downward from a field that stays where it was.
 function referenceHeight(stage: HTMLElement): number {
   const box = (node: Element) => node.getBoundingClientRect();
   const card = stage.querySelector(".composer-card"), field = stage.querySelector(".composer-input");
@@ -180,9 +178,8 @@ const MAIN_SKILLS: SkillsCalls = { listConversationSkills: request => window.doa
 
 export { slashKey } from "./homeComposer";
 
-// Cmd+V: text pastes as text; Finder files attach by their local path; an image alone attaches as a
-// pasted image. Finder puts the file names on the clipboard as text too, so text that names the copied files is
-// not a text paste.
+// Cmd+V: text pastes as text, Finder files attach by path, an image alone attaches as a pasted image. Finder also puts the file
+// names on the clipboard as text, so text naming the copied files is not a text paste.
 export function pasteAction(text: string, files: readonly { name: string; type: string }[]): "text" | "files" | "none" {
   if (files.length === 0) return text ? "text" : "none";
   if (text.trim() && !files.some(file => text.includes(file.name))) return "text";
@@ -296,8 +293,8 @@ export function HeroComposer(props: HeroComposerProps) {
   const generation = provider ? generationOf(auth, provider) : 0;
   useEffect(() => { if (root && healthy && provider && ready) readModels(root, provider); }, [root, healthy, provider, ready, generation]);
 
-  // Presets: read on entering Home and kept for the run; a failure is read again when the popover opens (§4.4), from
-  // the loading state. Retry keeps the failed reply, its line and itself, until the answer; it resolves whether it read.
+  // Read on entering Home and kept for the run; a failure is read again when the popover opens, from the loading state. Retry
+  // keeps the failed reply, its line and itself until the answer; it resolves whether it read.
   const loadPresets = () => window.doan.designSkills.list().catch(() => undefined).then(reply => {
     update({ presets: reply ?? { v: 1, ok: false, error: { code: "cli_error", reason: "failed", message: "" } } as PresetListReply });
     return reply?.ok === true;
@@ -308,7 +305,6 @@ export function HeroComposer(props: HeroComposerProps) {
   const presets = m.presets?.ok ? m.presets.result.presets : [];
   const suggested = suggestedPresets(entry, presets);
 
-  // The draft
   const { text, preset, attachments } = m;
   const projectSkills = useProjectSkills(MAIN_SKILLS, root, provider, root && props.working.has(root) ? "running" : "idle", generation);
   const skills = projectSkills.skills;
@@ -365,7 +361,6 @@ export function HeroComposer(props: HeroComposerProps) {
     if (fromSlash) queueMicrotask(focusEnd);
   };
 
-  // Attachments
   const thumbnailUrl = (bytes: Uint8Array | undefined): string | null => {
     if (!bytes || typeof URL.createObjectURL !== "function") return null;
     return URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: "image/png" }));
@@ -539,11 +534,8 @@ export function HeroComposer(props: HeroComposerProps) {
     queueMicrotask(() => field.current?.focus());
   };
 
-  // A first message a quit stopped before main accepted it, in an earlier run, comes back once after what is typed here,
-  // when its project is the picked one; the project's Overview may take it first. Home starts carry no anchors. main
-  // hands it over only once, so a reply that comes after another pick picks its project again rather than send it there.
-  // One that comes while a start is out waits for it to settle: that start's success clears only the draft it sent.
-  // A take main answered with an error kept the draft there (preload takeStartDraft): the next pick asks again.
+  // A first message a quit stopped returns once, after what is typed, waiting out a start in progress. main hands it over
+  // only once, so landing picks its own project again even if another was picked meanwhile.
   useEffect(() => {
     if (!root) return;
     restoreStartDraft(window.doan, memory.current.startsAsked, root, { root }, returned => {
@@ -578,7 +570,7 @@ export function HeroComposer(props: HeroComposerProps) {
       const url = memory.current.thumbnails[replaced.key];
       if (url && !keptKeys.has(replaced.key) && !Object.values(memory.current.lastKeys).some(keys => keys.includes(replaced.key))) URL.revokeObjectURL(url);
     }
-    // The files are checked again at once (2026-10-29 user): each chip shows checking, then ready or moved.
+    // The files are checked again at once: each chip shows checking, then ready or moved.
     const ids = request.attachments.flatMap(a => a.id ? [a.id] : []);
     if (ids.length) void window.doan.recheckAttachments(ids).catch(() => null).then(results => update(current => ({
       attachments: current.attachments.map(a => {

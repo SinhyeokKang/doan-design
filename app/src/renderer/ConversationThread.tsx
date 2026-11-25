@@ -36,9 +36,8 @@ import { entering, FOLLOW_START, followStep, nextFollow, revealBoundary, revealS
 import { bubbleBlocks, type BubbleList } from "./composerLists";
 import { activityRun, backgroundLine, drawingCards, elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
 
-// The conversation thread (draft frames thread-*). The host reads the history, merges
-// live events and passes threadItems' result; links, copying and every action go back through callbacks, so the
-// thread never reaches main itself.
+// The host reads the history, merges live events and passes threadItems' result; links, copying and every action go back
+// through callbacks, so the thread never reaches main itself.
 
 export interface ConversationThreadProps {
   // Scroll position, opened activity lines and the follow state belong to one conversation; another id starts afresh.
@@ -52,8 +51,8 @@ export interface ConversationThreadProps {
   // Requests with a later seq arrived while the thread was open. Only those are announced as alerts; drawing history
   // announces nothing.
   liveAfter: number;
-  // Whether an earlier build's promotion marker's canvas, a canvas card's canvas or handoff target, or a handoff card's source is still
-  // listed (found by ID).
+  // Whether a promotion marker's canvas, a canvas card's canvas or handoff target, or a handoff card's source is still listed
+  // (found by ID).
   canvasListed(canvas: Canvas): boolean;
   // Resolves to main's refusal, or rejects, when the answer did not reach the agent; the request then says so.
   onAnswer(requestId: string, optionId: string): Promise<void | { error: string }> | void;
@@ -85,9 +84,8 @@ export interface ConversationThreadProps {
   onCopy(text: string): Promise<boolean>;
   // Shortens a sent folder's path in its tooltip to ~; null or absent shows it whole.
   homeDirectory?: string | null;
-  // The canvas panel's: a sent message's chips are buttons that show their target on the canvas;
-  // without it they are drawn as plain chips. `locateDisabled` while the canvas cannot be shown. Settles
-  // with how the locate ended; only "missing" shows "No longer in the canvas".
+  // The canvas panel's: a sent message's chips show their target on the canvas; without it they are plain chips. Settles with
+  // how the locate ended; only "missing" shows "No longer in the canvas".
   onLocate?(anchor: Anchor): Promise<LocateOutcome>;
   locateDisabled?: boolean;
   // The conversation's Doan connection is at its usage limit until this reset (limitReset.ts resetTimeText): the last
@@ -97,10 +95,8 @@ export interface ConversationThreadProps {
   resendHidden?: boolean;
   // The open canvas's frames, which name a frame chip by its current title; undefined while it has no layout.
   frames?: readonly FrameName[] | undefined;
-  // Chips in the agent's replies: `doan:` links that point into a canvas of the
-  // conversation's root. Pressing one asks the host; it settles with the locate's outcome when the chip pointed into
-  // the open canvas, so "missing" shows "No longer in the canvas" under the reply. Without it reply chips are drawn as
-  // plain chips.
+  // Pressing a `doan:` reply chip asks the host; it settles with the locate's outcome when the chip pointed into the open
+  // canvas, so "missing" shows the note under the reply. Without it reply chips are plain chips.
   onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
   // The id of the canvas the thread belongs to (the canvas panel's), null in the Overview. A chip into it is named from
   // `frames` while the canvas has a layout and follows `locateDisabled`; every other chip names its canvas.
@@ -119,7 +115,7 @@ export interface ConversationThreadProps {
   // once main stopped that work, false when it could not (the host says so in a toast).
   background?: { turnId: string; stopping?: true } | null;
   onStopBackground?(turnId: string): Promise<boolean>;
-  // The card of a built-in Doan does not run, sent from this conversation's composer: at the thread's end for this run.
+  // The card of a built-in command Doan does not run, sent from this conversation's composer, at the thread's end for this run.
   card?: CommandCard | null;
   onCardAction?(target: CommandCardTarget): void;
   onCardDismiss?(): void;
@@ -130,9 +126,8 @@ export interface ConversationThreadProps {
   // Main is stopping the turn: a reply still revealing shows whole at once.
   stopping?: boolean;
 }
-// focusItem: an entry's focus on a waiting request: a question's first option or answer input, a
-// permission request's first choice; after a handoff's move, the handoff card itself. False
-// when the item has no such control drawn.
+// focusItem: a question's first option or answer input, a permission request's first choice, or after a handoff's move the
+// handoff card itself. False when the item has no such control drawn.
 export interface ConversationThreadHandle { scrollToItem(key: string): void; focusItem(key: string): boolean }
 const ENTRY_FOCUS = ":is(.q-card input, .strip-actions button, .handoff-card)";
 
@@ -150,10 +145,8 @@ export type LocateOutcome = "shown" | "missing" | "timeout" | "unavailable";
 export const LOCATE_MISSING_TEXT = "No longer in the canvas";
 export const LOCATE_NOTE_MS = 4000;
 
-// "No longer in the canvas" next to a chip, for 4 s or until the person's next action. The result arrives after the
-// click or Enter that asked for it, so the listeners added here only see later input. Each show restarts the 4 s.
-// `scroller`: the field that scrolls the chip under a note placed by it; a scroll there also counts as the next action,
-// since the note would otherwise point at another line or outlive a chip scrolled out of view.
+// The locate note shows for 4 s or until the next action; the result arrives after the click or Enter that asked, so these listeners see
+// only later input. A scroll of `scroller` counts too, or the note would point at another line.
 export function useLocateNote(scroller?: () => EventTarget | null): [shown: boolean, show: () => void] {
   const [shown, setShown] = useState(0);
   useEffect(() => {
@@ -175,10 +168,8 @@ export function useLocateNote(scroller?: () => EventTarget | null): [shown: bool
 }
 const COPIED_MS = 2000;
 
-// The draft's copy (thread-states). Codes without a frame of their own read as an unexpected stop. resend: false when
-// the turn never began, so there is no request worth resending as it was (body "" draws no second line). resets: the
-// connection's live usage-limit reset as limitReset.ts words it, given for the last turn only; it wins over the time
-// Claude's detail names, since messages sent now wait for it.
+// Codes without their own copy read as an unexpected stop. resend: false when the turn never began (body "" draws no second
+// line). resets: the live usage-limit reset, last turn only; it wins over the time Claude's detail names.
 export function endView(end: TurnEnd, provider: Provider, resets: string | null = null): { title: string; body: string; tone: "error" | null; signIn: boolean; resend?: false } {
   const p = PROVIDER_NAMES[provider];
   if (end.kind === "interrupted") return { title: "Stopped", body: end.reason === "user" ? "You stopped the agent." : "The agent stopped before it finished.", tone: null, signIn: false };
@@ -267,10 +258,8 @@ function Link({ href, children }: { href: string | undefined; children?: ReactNo
 }
 const CHIP_ICONS = { frame: Frame, element: SquareMousePointer, point: MapPin } as const;
 
-// How a reply chip reads. The link's text is agent output and never names the
-// chip. A chip into the open canvas takes that canvas's frame titles while it has a layout; any other chip, and that
-// one without a layout, takes the titles of the list row with the link's canvas id. Without exactly one such row the
-// chip shows the id itself and names its canvas by the link's id.
+// The link's text is agent output and never names the chip. A chip into the open canvas takes its frame titles while it has a
+// layout; otherwise the titles of the one list row with the link's canvas id, else the id itself.
 export function replyChipView(link: ReplyAnchor, canvas: Pick<ReplyCanvas, "openCanvasId" | "frames" | "rows">): {
   kind: "frame" | "element"; label: string; title: string; canvasName: string | null; ariaLabel: string; same: boolean } {
   const same = canvas.openCanvasId !== null && canvas.openCanvasId === link.canvas;
@@ -289,9 +278,8 @@ function ReplyLink({ href, children }: { href: string; children?: ReactNode }) {
   const link = parseReplyAnchor(href);
   return link ? <ReplyChip link={link} /> : <span>{children}</span>;
 }
-// The sent chip's look (SentChip). Only a chip into the open canvas follows locateDisabled and can show the note;
-// another canvas's chip opens that canvas and can always be pressed. Its canvas name is drawn apart, so only the
-// label ellipsizes at the chip's width.
+// Only a chip into the open canvas follows locateDisabled and can show the note; another canvas's chip can always be pressed.
+// Its canvas name is drawn apart, so only the label ellipsizes.
 export function ReplyChip({ link }: { link: ReplyAnchor }) {
   const canvas = useContext(ReplyCanvasContext), { replyChip } = useContext(Actions), note = useContext(ReplyNote);
   const key = useId();
@@ -306,9 +294,8 @@ export function ReplyChip({ link }: { link: ReplyAnchor }) {
     onClick={() => { if (!disabled) void replyChip(link)?.then(outcome => { if (view.same && outcome === "missing") note.show(key); }); }}>{body}</button></ChipTip>;
 }
 
-// Agent output is untrusted, as the selection's `html`/`text` are (ARCHITECTURE §3 'Selection'): no raw
-// HTML (react-markdown escapes it; no rehype-raw), no images (their alt text stays), https links only; a `doan:` link
-// is a reply chip or text.
+// Agent output is untrusted (ARCHITECTURE §3 'Selection'): no raw HTML (react-markdown escapes it; no rehype-raw), no images,
+// https links only; a `doan:` link is a reply chip or text.
 const COMPONENTS: Components = {
   a: ({ href, children }) => href?.startsWith("doan:") ? <ReplyLink href={href}>{children}</ReplyLink> : <Link href={href}>{children}</Link>,
   img: ({ alt }) => alt ? <span>{alt}</span> : null,
@@ -316,9 +303,8 @@ const COMPONENTS: Components = {
   table: ({ children }) => <div className="md-table doan-scroll"><table>{children}</table></div>,
 };
 const PLUGINS = [remarkGfm];
-// A finished message parses once; a streaming one parses at most once per animation frame.
-// remark-gfm's footnotes take fixed ids: clobberPrefix renames the notes, and the label ("footnote-label", which every
-// reference names in aria-describedby) is renamed here, so two messages never share an id.
+// remark-gfm's footnotes take fixed ids: clobberPrefix renames the notes, and the label (which every reference names in
+// aria-describedby) is renamed here, so two messages never share an id.
 type HastNode = { type?: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: HastNode[] };
 function labelPrefix(prefix: string) {
   const label = `${prefix}-footnote-label`;
@@ -330,11 +316,8 @@ function labelPrefix(prefix: string) {
   };
   return () => visit;
 }
-// The streaming caret follows the reply's last character (turn-activity.html frame `states`, tile 6): it goes inside
-// the last text block, never beside the blocks, where .msg-agent's flex column would put it on its own line. Containers
-// are entered down to their last child; an element whose last child is text or inline content takes the caret. A code
-// block's text ends in the line break mdast-util-to-hast adds, so the caret goes before it, on the code's last line.
-// With no text block yet (an empty reply, or one ending in a rule) the caret stays after the blocks.
+// The streaming caret goes inside the last text block: beside the blocks, .msg-agent's flex column would put it on its own
+// line. A code block's text ends in the line break mdast-util-to-hast adds, so the caret goes before it.
 const BLOCKS = new Set(["p", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "blockquote", "pre", "table", "thead", "tbody", "tr", "td", "th", "section"]);
 const caret = (): HastNode => ({ type: "element", tagName: "span", properties: { className: ["caret"], ariaHidden: "true" }, children: [] });
 // Line breaks between blocks are whitespace text nodes, not content.
@@ -480,8 +463,8 @@ function useReveal(text: string, streaming: boolean, flush: boolean, start: numb
   if (mode === "flush" || reduced || (!streaming && state.shown >= text.length && !fading(state.at))) return null;
   return { length: Math.min(state.shown, text.length), runs: state.runs, now: state.at ?? 0 };
 }
-// A reply, and under it the "No longer in the canvas" note of a reply chip (draft frame `panel-missing`).
-// className: a handoff card's body is the same Markdown without the reply's own block. flush: show what arrived whole.
+// A reply, and under it a reply chip's "No longer in the canvas" note. className: a handoff card's body is the same Markdown
+// without the reply's own block. flush: show what arrived whole.
 function AgentMessage({ text, streaming, flush = false, start = text.length, className = "msg-agent md" }: { text: string; streaming: boolean; flush?: boolean; start?: number; className?: string }) {
   const host = useRef<HTMLDivElement | null>(null);
   const reveal = useReveal(text, streaming, flush, start, host), prefix = useId();
@@ -514,17 +497,15 @@ export async function answerReached(send: () => Promise<void | { error: string }
   const refusal = await answerRefusal(send);
   return refusal === null || refusal === "stale";
 }
-// A question's answer or skip: the card stays locked until question.resolved folds it. A stale refusal means main
-// settled the request already, or will by its own expiry, so it waits without an error line; any
-// other refusal unlocks the card with its choices kept.
+// The card stays locked until question.resolved folds it. A stale refusal means main settled the request (or will by its own
+// expiry), so it waits without an error line; any other refusal unlocks the card with its choices kept.
 export async function settleQuestionSend(send: () => Promise<void | { error: string }> | void, edit: (action: QuestionDraftAction) => void): Promise<void> {
   const refusal = await answerRefusal(send);
   if (refusal !== null && refusal !== "stale") edit({ type: "failed" });
 }
 
-// Arrow keys choose radios as they move, so an Other reached that way only opens its input, while a click or Space on
-// it also moves focus there. The keydown comes before the change it causes and the keyup after, so a flag
-// between them tells the two apart; one keyboard is in use at a time, so one flag serves every card.
+// An Other reached by arrow keys only opens its input; a click or Space also moves focus there. keydown comes before the
+// change and keyup after, so a flag between them tells the two apart; one flag serves every card.
 let arrowing = false;
 const ARROWS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 const arrowKeys = {
@@ -545,10 +526,8 @@ export interface QuestionCardProps {
   onSkip(): void;
   onStop(): void;
 }
-// A waiting question (draft frames question-card, keyboard, send-states). The permission notice without its
-// "needs your answer" title: the first question is the title beside the mark, and each further question's sentence
-// sits above its options. The options are Settings rows; nothing in them is cut. No hooks: the
-// draft is the host's, and focus goes by id.
+// The first question is the title beside the mark, and each further question's sentence sits above its options. No hooks:
+// the draft is the host's, and focus goes by id.
 export function QuestionCard({ item, provider, live, base, draft, onDraft, onSend, onSkip, onStop }: QuestionCardProps) {
   const locked = draft.sending !== null, ready = canSend(item.questions, draft);
   const id = (question: Question, part: string) => `${base}-${item.requestId}-${question.id}${part}`;
@@ -639,10 +618,8 @@ function endsInBlankLine(parts: readonly MessagePart[]): boolean {
   return !last || ("text" in last && last.text.endsWith("\n"));
 }
 
-// The list's marker column, in ch, for the bubble's hanging indent: at least as wide as its widest marker so the bodies
-// line up, without measuring. Markers draw in plain figures (styles.css), so each digit counts its own width in Geist,
-// in ch (a "0", the widest, is 1ch; a "1" is 0.58ch), and ". " 0.7ch; each is rounded up, so the column never cuts into
-// the text. "- " and "* " fit the --space-3 minimum (0).
+// The marker column in ch, without measuring: markers draw in plain figures, so each digit counts its own Geist width
+// (a "0" is 1ch) and ". " 0.7ch, each rounded up so the column never cuts into the text.
 const DIGIT_CH: Record<string, number> = { "0": 1, "1": 0.58, "2": 0.94, "3": 0.93, "4": 0.93, "5": 0.95, "6": 0.9, "7": 0.79, "8": 0.92, "9": 0.9 };
 function markColumn(block: BubbleList): number {
   if (block.list !== "ol") return 0;
@@ -650,8 +627,8 @@ function markColumn(block: BubbleList): number {
   return Math.round(Math.max(...block.items.map(item => width(item.marker))) * 100) / 100;
 }
 
-// A sent message: its bubble, attachments and the chip locate note under the bubble (draft frame `chip-locate`). One
-// Send now has in flight ends with a Sending line and has no actions (canvas-composer-polish draft frame `sending`).
+// A sent message: its bubble, attachments and the chip locate note. One Send now has in flight ends with a Sending line and
+// has no actions.
 function UserMessage({ entry, frames, disabled, onLocate, home, entryAge: age }: { entry: Extract<ThreadItem, { kind: "user" }>; frames: readonly FrameName[] | undefined; disabled: boolean; onLocate: ConversationThreadProps["onLocate"]; home: string | null; entryAge: number | null }) {
   const base = useId();
   // How far its entry had run when this element mounted: a history message replacing the Sending one goes on from there.
@@ -675,8 +652,8 @@ function UserMessage({ entry, frames, disabled, onLocate, home, entryAge: age }:
       piece.skill ? <span key={index} className="skill-word">{piece.text}</span> : <Fragment key={index}>{piece.text}</Fragment>)}</Fragment>;
   });
   const blocks = bubbleBlocks(entry.parts), listed = blocks.some(block => block.kind === "list");
-  // Lists are role="list" blocks, not ul/ol: Chromium leaves an ul/ol marker out of copied text, and the person copies
-  // what they sent, markers and depth spaces included. A message without a list draws as plain text, as before.
+  // Lists are role="list" blocks, not ul/ol: Chromium leaves an ul/ol marker out of copied text, and the person copies what
+  // they sent, markers and depth spaces included.
   const list = (block: BubbleList, depth: number, mark = markColumn(block)): ReactNode => <div className="bubble-list" role="list">{block.items.map((item, i) => <div key={i} className="bubble-item" role="listitem">
     {item.lead && <span className="list-depth" data-depth={depth}>{item.lead}</span>}
     <span className="list-mark" data-kind={block.list} data-mark={mark}>{item.marker}</span>
@@ -786,9 +763,8 @@ function fitKeep(name: string, width: number, measure: (text: string) => number)
   }
   return low;
 }
-// The card's name never wraps: a long one is cut in the middle, keeping its extension, with the full name in the tooltip
-// (the card's and Open's accessible names already hold it). The title row's width is set by the card's grid column,
-// not by the name, so measuring it never loops.
+// A long name is cut in the middle, keeping its extension, with the full name in the tooltip. The title row's width is set
+// by the card's grid column, not by the name, so measuring it never loops.
 function CardName({ name, kind }: { name: string; kind: "canvas" | "overview" }) {
   const title = useRef<HTMLSpanElement | null>(null);
   const [keep, setKeep] = useState<number | null>(null);
@@ -812,10 +788,8 @@ function CardName({ name, kind }: { name: string; kind: "canvas" | "overview" })
   return <span className="cc-title" ref={title}><Kind className="cc-kind" aria-hidden="true" />
     {shown === name ? label : <Tooltip><TooltipTrigger asChild>{label}</TooltipTrigger><TooltipContent>{name}</TooltipContent></Tooltip>}</span>;
 }
-// The receiving conversation's first message: the canvas card's surface and head row naming the source in bold, then the
-// earlier agent's text as its Markdown, apart from the person's bubble. The card takes focus after a move, so it is a
-// labelled group. Its source is a canvas, or for a project conversation's handoff the root's Overview (no banner), whose
-// Open shows the source conversation there.
+// The canvas card's surface and head row naming the source in bold, then the earlier agent's text as Markdown. It takes focus
+// after a move, so it is a labelled group; an Overview source has no banner and its Open shows the source conversation.
 export function HandoffCard({ entry, context, project, canvasListed, conversationListed, onOpen, onOpenOverview }: { entry: Extract<ThreadItem, { kind: "handoffCard" }>; context: CardContext; project: string;
   canvasListed(canvas: Canvas): boolean; conversationListed?: ((conversationId: string) => boolean) | undefined;
   onOpen?: ((canvas: Canvas, conversationId: string) => void) | undefined; onOpenOverview?: ((conversationId: string) => void) | undefined }) {
@@ -905,11 +879,8 @@ function lastEnd(items: readonly ThreadItem[]): { key: string; resend: boolean }
   }
   return null;
 }
-// The running turn reads as the indicator's settled stage kind, so it changes only when that kind does. The background
-// line is no live region: this status says it once as it appears, and the same words while it stays (Stopping too).
-// Once the turn ended, its new canvases follow the end's title, or are said alone after a turn without one. `ended` holds
-// the cards as the history has them: a Stop hides the indicator and stops their spinners before the turn's end arrives,
-// and the count waits for that end.
+// Changes only with the settled stage kind. It alone announces the background line (the line has no live region), Stopping included.
+// `ended`: history's cards, since a Stop ends their spinners before the turn's end arrives, and the count waits for it.
 function phaseText(items: readonly ThreadItem[], ended: readonly ThreadItem[], provider: Provider, shown: TurnStatus, background: boolean): string {
   const p = PROVIDER_NAMES[provider];
   if (items.some(waitsForPerson)) return `${p} needs your answer`;
@@ -921,12 +892,8 @@ function phaseText(items: readonly ThreadItem[], ended: readonly ThreadItem[], p
   return title ? `${title}${title.endsWith(".") ? "" : "."} ${cards}` : cards;
 }
 
-// The turn indicator (draft frame `states`): in the reply's place at the thread's end, one
-// line of the stage's words under a sweep and the time since the turn started. It is no live region and takes no
-// focus; the time is hidden from screen readers. Its own timer redraws only this line each second, so the thread's
-// items and scroll effect do not run every second. The timer stops while the document is hidden or the window is closed
-// or the app hidden, and the time is counted again from `at` once it shows (POSTMORTEM 2026-10-25: document visibility
-// is not native visibility). It differs from useVisibleClock only in waking on the turn's whole seconds.
+// The turn indicator has no live region or focus. Its own timer redraws only this line each second, so the thread's items do not run every
+// second; it stops while hidden and counts again from `at` (POSTMORTEM 2026-10-25: document visibility is not native visibility).
 export function TurnIndicator({ text, at, provider, visibility }: { text: string; at: string; provider: Provider; visibility: VisibleCalls }) {
   const [, tick] = useState(0);
   useEffect(() => {
@@ -1001,10 +968,8 @@ function focusedItem(scroller: HTMLElement | null): string | null {
   return active.closest("[data-item]")?.getAttribute("data-item") ?? null;
 }
 
-// What the follow does when the thread's content or viewport changed size. distance: from the bottom before the change,
-// which decides whether a view the person left near the bottom follows again. While a reply reveals, the view sticks to
-// the bottom each frame (an ease would keep the line being written below the fold); a one-time growth eases. behind:
-// Jump to latest's new state, null to keep it; only new content (grew: a taller thread) shows it.
+// distance: from the bottom before the change. While a reply reveals, the view sticks to the bottom each frame (an ease
+// would keep the line being written below the fold); a one-time growth eases. behind: only new content shows it.
 export type FollowMove = "snap" | "ease" | "none";
 export function followResize(state: FollowState, change: { reduced: boolean; revealing: boolean; distance: number; now: number; grew: boolean }): { state: FollowState; move: FollowMove; behind: boolean | null } {
   const next = nextFollow(state, { type: "frame", at: change.now, distance: change.distance });
@@ -1021,9 +986,8 @@ export const ConversationThread = forwardRef<ConversationThreadHandle, Conversat
   return <ThreadBody key={props.conversationId} {...props} handle={ref} />;
 });
 
-// One thread item. Its host re-renders the thread on every streamed delta, so an item draws again only when its own data
-// or what it reads from outside that data (deps, compared by value) changed. `draw` is left out of the comparison: a
-// kept item's handlers come from an earlier render, so they reach the host through ThreadBody's `latest`.
+// The host re-renders the thread on every streamed delta, so an item draws again only when its data or deps (compared by
+// value) changed. `draw` is left out: a kept item's handlers reach the host through ThreadBody's `latest`.
 export const ThreadEntry = memo(function ThreadEntry({ entry, draw }: { entry: ThreadItem; deps: readonly unknown[]; draw: (entry: ThreadItem) => ReactNode }) {
   return <div className="thread-item" data-item={entry.key}>{draw(entry)}</div>;
 }, (a, b) => sameItem(a.deps, b.deps) && sameItem(a.entry, b.entry));
@@ -1051,10 +1015,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   // The card last answered, skipped or stopped here and the focusAfter rule for it: once that card folds, by any
   // status, its button is gone and focus moves on by the rule (ARCHITECTURE §7 'Renderer primitives' 'Thread focus').
   const folding = useRef<{ requestId: string; action: FocusAction } | null>(null);
-  // A card can also fold with no press here: the agent's CLI cancels it or the turn ends. When focus was
-  // in it, or its Other field held text not sent, it is the card folding, and focus moves on as after an answer. Focus is
-  // read as this render begins, before its commit replaces the card's controls; the drafts are those of the last commit,
-  // since the store drops a question's draft with the resolution that folds it.
+  // A card can fold with no press here (the CLI cancels it or the turn ends); focus in it, or unsent Other text, moves on as
+  // after an answer. Focus is read before this commit replaces the card; the drafts are the last commit's.
   const focusedKey = focusedItem(scroller.current);
   const shown = useRef<readonly { requestId: string; key: string; unsent: boolean }[]>([]);
   const stop = (requestId: string) => { folding.current = { requestId, action: { kind: "stopped" } }; latest.current.onStop(); };
@@ -1081,10 +1043,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     return !!control;
   };
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The indicator's stage after settle, kept as state derived while rendering: an immediate change shows in
-  // the same render, so the indicator is there from the render the person's message enters.
-  // It belongs to one turn: a next turn starts from nothing, even when no render showed the earlier one's end (a queue
-  // starting it at once), so an earlier turn's shown or pending stage never shows beside it.
+  // The stage after settle is derived while rendering, so the indicator shows from the render the message enters. It belongs to
+  // one turn: a next turn starts from nothing even when no render showed the earlier one's end.
   const turnId = props.turn?.turnId ?? null;
   const [held, setHeld] = useState<{ turnId: string | null; settled: Settled } | null>(null);
   const settled = settle(held?.turnId === turnId ? held.settled : null, props.turn?.status ?? NO_TURN, Date.now());
@@ -1265,9 +1225,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     const key = target.kind === "option" ? asks.find(ask => ask.requestId === target.requestId)!.key : null;
     handFocus(() => { if (key !== null) focusIn(key); else props.onFocusComposer?.(); });
   }, [items]);
-  // A turn's cards sit above a request still waiting and below it once it folds, so React moves the card stack past
-  // the request; moving a focused control's ancestor drops its focus to the page. Focus goes back to the same card's
-  // Open, unless the person moved it elsewhere or the card is gone.
+  // React moves the card stack past a request that folds, and moving a focused control's ancestor drops its focus to the page.
+  // Focus goes back to the same card's Open, unless the person moved it or the card is gone.
   const cardFocused = focusedKey !== null && Array.isArray(items) && items.some(item => item.kind === "canvasCard" && item.key === focusedKey) ? focusedKey : null;
   useLayoutEffect(() => {
     if (cardFocused === null || (document.activeElement && document.activeElement !== document.body)) return;
@@ -1443,7 +1402,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     <div className="thread-scroll doan-scroll" ref={scroller} onScroll={onScroll}>
       <div className="thread">{stacks(drawn).map(run => run.length === 1 && run[0]!.kind !== "canvasCard"
         ? <ThreadEntry key={run[0]!.key} entry={run[0]!} deps={depsOf(run[0]!)} draw={item} />
-        // A run of cards stacks closer than thread items do (the draft's gap); each card stays its own item.
+        // A run of cards stacks closer than thread items do; each card stays its own item.
         : <div key={`stack:${run[0]!.key}`} className="thread-item"><div className="canvas-cards">{run.map(card => <ThreadEntry key={card.key} entry={card} deps={depsOf(card)} draw={item} />)}</div></div>)}
         {props.turn && settled.shown.kind !== "none" && settled.shown.kind !== "waiting" &&
           <div className="thread-item"><TurnIndicator text={props.turn.label ?? turnText(settled.shown, p)} at={props.turn.at} provider={provider} visibility={props.visibility} /></div>}

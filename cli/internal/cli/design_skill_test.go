@@ -259,18 +259,15 @@ func TestSkillGuidePresetRules(t *testing.T) {
 		"`doan design-skill <id> --json` returns a `body`",
 		"`[doan:design-skill] end of preset <id> v<version>`, with no truncation notice; else read it again, in parts if truncated",
 		"no project or app needed",
-		// Design §3 rules 1–5.
 		"A preset the user names: read it; if missing, say so and run no similar id.",
 		"its description clearly fits the request's purpose, target and negations",
 		"ask only about ambiguity that changes the result",
 		"No fit, or a concrete edit like “move this button 4px left”: read no body.",
-		// U-018: updating a design-system reference after a code change was taken as a concrete edit.
 		"Creating or updating a design-system reference (`.doan/ds/` canvases or a rules document) is not a concrete edit: list descriptions first.",
 		"a review ends with a report; change only the requested scope; start no unrequested diagnosis",
 		"The request, existing constraints, these rules and canvas conventions outrank a preset.",
 		"skip unneeded handoffs, subagents and engines",
 		"report unrun checks as unverified",
-		// Failure rules.
 		"If `doan design-skill` fails or a read is refused, say the preset was not applied.",
 		"Named preset: never claim or substitute it; then ask the user to open Doan from Applications and check Settings… > About.",
 		"Self-chosen: say so in one line and continue, without guessing an unconfirmed target or conventions.",

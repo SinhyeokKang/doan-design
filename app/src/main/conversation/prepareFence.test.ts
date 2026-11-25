@@ -60,7 +60,7 @@ it("runs a Claude list read under the outer fence, even when the settings turn t
   const ready = await prepare("claude", w).run({ root: w.project, mode: "new", runtime: "claude", text: "", anchors: [] }, undefined, "listing");
   expect(ready.fence).toEqual({ paths: { userData: w.real, profile: realpathSync.native(w.profile), attachments: [] } });
 });
-// An ACP list read opens a session like a run, and Copilot's and Cursor's start the MCP servers the profile names (probe).
+// An ACP list read opens a session like a run, and Copilot's and Cursor's start the MCP servers the profile names.
 it("runs the ACP providers' list reads under the outer fence", async () => {
   for (const provider of ["cursor", "antigravity", "copilot"] as const) {
     const w = world(provider);
@@ -69,7 +69,7 @@ it("runs the ACP providers' list reads under the outer fence", async () => {
   }
 });
 // Copilot's --version imports a newer package from the profile's cache when one is there, and Cursor's runs Node with a
-// compile cache in the profile (probe), so both run in the outer fence; Claude's and Codex's stay outside it.
+// compile cache in the profile, so both run in the outer fence; Claude's and Codex's stay outside it.
 it("checks Copilot's and Cursor's version in the outer fence and Claude's outside it", async () => {
   for (const provider of ["copilot", "cursor"] as const) {
     vi.clearAllMocks();
@@ -86,8 +86,8 @@ it("checks Copilot's and Cursor's version in the outer fence and Claude's outsid
   await prepare("claude", c).run({ root: c.project, mode: "new", runtime: "claude", text: "", anchors: [] }, undefined, "listing");
   expect(mocks.run.mock.calls[0]!.slice(0, 2)).toEqual(["/bin/claude", ["--version"]]);
 });
-// cursor-agent (2026.10.22 and 2026.11.22) exits at start when it cannot create its local worker's socket folder, which a short HOME puts
-// inside the closed .cursor folder. Doan creates it, empty, from outside the fence; the fence opens nothing new.
+// cursor-agent exits at start when it cannot create its local worker's socket folder, which a short HOME puts inside
+// the closed .cursor folder. Doan creates it, empty, from outside the fence; the fence opens nothing new.
 function cursorWorld(home: "short" | "long") {
   // Under /tmp the profile path is short enough for the folder to land in .cursor/projects (cursorWorkerDir).
   const base = realpathSync.native(mkdtempSync(home === "short" ? "/tmp/dw-" : join(tmpdir(), `doan-fence-${"x".repeat(40)}-`))); roots.push(base);
@@ -172,9 +172,8 @@ it("refuses a Claude list read whose fence cannot be built as unknown and frees 
   await expect(run({ root: w.project, mode: "new", runtime: "claude", text: "", anchors: [] }, undefined, "listing")).rejects.toThrow(/^unknown$/);
   expect(release).toHaveBeenCalled();
 });
-// Code the repository or the profile makes the CLI start (hooks, MCP servers, plugins, credential helpers, Git filters)
-// runs beside the model, outside Claude's own sandbox, and detecting it kept missing shapes. So every Claude turn runs
-// under the outer fence, whatever a settings source says about the sandbox; the runner turns that sandbox off.
+// Code the repository or profile makes the CLI start (hooks, MCP servers, plugins, helpers) runs outside Claude's own
+// sandbox, so every Claude turn runs under the outer fence whatever settings say; the runner turns that sandbox off.
 const HOOKS = { hooks: { SessionStart: [{ hooks: [{ type: "command", command: "./reader.sh" }] }] } };
 const SETTINGS: [string, (w: ReturnType<typeof world>) => void][] = [
   ["no settings", () => {}],
@@ -190,7 +189,7 @@ for (const [shape, plant] of SETTINGS) {
     expect(ready.fence).toEqual({ paths: { userData: w.real, profile: realpathSync.native(w.profile), attachments: [join(w.real, "attachments", "0f4e")] } });
   });
 }
-// The choice no longer reads the repository, so a FIFO where its settings or skills go cannot hold main.
+// The choice reads nothing in the repository, so a FIFO where its settings or skills go cannot hold main.
 it("prepares a Claude turn without reading the repository's settings or skills", async () => {
   for (const at of [["settings.json"], ["settings.local.json"], ["skills", "x", "SKILL.md"]]) {
     const w = world("claude");

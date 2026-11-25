@@ -11,44 +11,39 @@ export type ConversationList = ReadonlyMap<string, readonly ConversationSummary[
 // A scheduled conversation asks nothing of the person: after working and a terminal agent, before an unseen ending.
 const RANK: Record<Slot["kind"], number> = { permission: 4, working: 3, scheduled: 2, unseen: 1 };
 
-// What is left for the person in one conversation, or null. `seen` holds conversations the person marked seen whose
-// list refresh has not arrived yet (Dismiss, a visit): the reply and the list notice may come in any order
-// (POSTMORTEM 2026-10-26). Any conversation, whatever started it: the sidebar's own callers keep their fromHome filter.
-// `scheduled`: the conversation's slot while its messages wait for the usage limit's reset (limitReset.ts).
+// `seen`: marked seen before the list refresh arrived; the reply and the list notice may come in any order. Any
+// conversation counts: the sidebar's own callers keep their fromHome filter.
 export function conversationWork(c: ConversationSummary, seen: ReadonlySet<string>, scheduled: Slot | null = null): Slot | null {
   if (c.readError) return null;
   const p = PROVIDER_NAMES[c.provider];
   if (c.phase === "waiting") return { kind: "permission", label: `${p} needs your answer` };
-  // main's working also covers a turn whose handoffs are still to settle and a queue about to go out, the state Delete
-  // reads (deleteAvailability), so a row never reads finished while its Delete says the agent is working.
+  // main's working also covers handoffs still to settle and a queue about to go out, as Delete reads it, so a row never
+  // reads finished while its Delete says the agent is working.
   if (c.phase === "running" || c.working) return { kind: "working", label: `${p} is working` };
   if (scheduled) return scheduled;
-  // Failed and stopped turns may have changed files too, so every ending waits to be seen (2026-10-29 user).
+  // Failed and stopped turns may have changed files too, so every ending waits to be seen.
   return c.unseen && !seen.has(c.conversationId) ? { kind: "unseen", label: "Conversation finished — unread" } : null;
 }
 
-// The scheduled slot of a conversation whose messages wait for the usage limit's reset, or null.
 export function scheduledOf(c: ConversationSummary, now = Date.now(), clock: Clock = localClock()): Slot | null {
   return c.scheduledAt ? scheduledSlot(c.scheduledAt, now, clock) : null;
 }
 
-// A canvas row by ID first, so a moved canvas keeps its slot; a canvas without an ID matches by path.
+// By ID first, so a moved canvas keeps its slot.
 function listed(canvas: Canvas, rows: readonly Canvas[]): Canvas | null {
   const byId = canvas.id ? rows.filter(row => row.id === canvas.id) : [];
   if (byId.length === 1) return byId[0]!;
   return canvas.id ? null : rows.find(row => !row.id && row.path === canvas.path) ?? null;
 }
 
-// The sidebar row a conversation's slot sits on: its canvas row while listed, else its project row.
+// A conversation's slot sits on its canvas row while listed, else on its project row.
 export function slotKeyOf(root: string, c: ConversationSummary, rows: readonly Canvas[]): string {
   const row = c.canvas ? listed(c.canvas, rows) : null;
   return slotKey(root, row?.path);
 }
 
-// The sidebar slots from main's list: the strongest state on each row, keyed like homeConversations' slotKey. Every
-// conversation bound to a canvas counts, whatever started it (PRODUCT §5 item 1); of the project conversations only Home
-// ones do. A conversation whose canvas is no longer listed shows on its project row. `canvases` gives each root's
-// listed canvas rows.
+// Every conversation bound to a canvas counts (PRODUCT §5 item 1); of the project conversations only Home ones do. One
+// whose canvas is no longer listed shows on its project row.
 export function slotsFromList(lists: ConversationList, seen: ReadonlySet<string>, canvases: (root: string) => readonly Canvas[]): Map<string, Slot> {
   const slots = new Map<string, Slot>();
   for (const [root, list] of lists) {
@@ -68,11 +63,8 @@ export function terminalSlotLabel(provider: WorkItem["provider"]): string {
   return provider ? `${PROVIDER_NAMES[provider]} is working in a terminal` : "An agent is working in a terminal";
 }
 
-// The conversation slots plus terminal sessions' working spinners. A row is
-// root + path: worktrees share canvas paths (POSTMORTEM 2026-11-01). Only listed canvas rows show one, so a path not
-// listed yet shows once it appears. On its row an app conversation working or waiting wins, and a terminal session
-// beats an unseen ending. Terminal rows go in newest-changed first, so a project row standing for several names the
-// most recently changed canvas (`projectSlot`); app slots that win come before them.
+// A row is root + path: worktrees share canvas paths. Terminal rows go in newest-changed first, so a project row
+// standing for several names the most recently changed canvas.
 export function withTerminalSlots(conversations: ReadonlyMap<string, Slot>, work: readonly WorkItem[], entries: readonly FolderEntry[]): Map<string, Slot> {
   const terminal = new Map<string, { slot: Slot; mtimeMs: number }>();
   for (const item of work) {
@@ -90,9 +82,7 @@ export function withTerminalSlots(conversations: ReadonlyMap<string, Slot>, work
   return slots;
 }
 
-// The workspace strip for one root: the Home conversation with work left (running, waiting for an answer, or an
-// unseen ending), the strongest state first and then the latest activity. null when nothing is left. A scheduled
-// conversation is not work left here: the strip does not show the usage limit's queue.
+// A scheduled conversation is not work left here: the strip does not show the usage limit's queue.
 export function stripFromList(list: readonly ConversationSummary[], seen: ReadonlySet<string>): ConversationSummary | null {
   let best: { c: ConversationSummary; rank: number } | null = null;
   for (const c of list) {

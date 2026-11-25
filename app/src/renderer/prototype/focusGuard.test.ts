@@ -1,9 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { ColumnFocusGuard, FOCUS_GUARD_MS } from "./focusGuard";
 
-// A run reloaded while the person types in the conversation column must not take their focus: a frame's own focus()
-// or autofocus would. The host cannot tell a script's focus() from the person's click into the frame, so it returns
-// focus only for a run created while focus was in the column, until 1 s after that run is ready and shown.
+// A reloaded run must not take focus from the conversation column. A script's focus() looks like a click, so the host
+// returns focus only for a run created with focus there, until 1 s after it is ready and shown.
 
 const frame = (name: string) => ({ name }) as unknown as HTMLIFrameElement;
 const field = { name: "composer" } as unknown as HTMLElement;

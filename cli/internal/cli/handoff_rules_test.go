@@ -323,7 +323,7 @@ func TestHandoffFailureSteps(t *testing.T) {
 			}
 		}
 	}
-	// A project conversation hands off too, so the step no longer says only a canvas conversation does.
+	// A project conversation hands off too, so the step does not say only a canvas conversation does.
 	if steps := strings.Join(handoffFailure("not_app_conversation", "m").NextSteps, "\n"); strings.Contains(steps, "canvas conversation") {
 		t.Errorf("not_app_conversation: still names a canvas conversation: %q", steps)
 	}

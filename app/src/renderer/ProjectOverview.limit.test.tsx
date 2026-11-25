@@ -108,7 +108,6 @@ test("an untitled conversation's header reads its first list message without mar
   expect(render()).toMatch(/class="ov-title doan-button"[^>]*>.*?<span>Hero Footer Cart<\/span>/);
 });
 
-// U16: the Overview's attachment refusals show under its composer, not as the window's toast.
 test("a chosen file main refuses and files over the limit are reported to the composer, not as a toast", async () => {
   const { render, props } = setup();
   const onNotice = vi.fn();

@@ -29,7 +29,7 @@ describe("settleDeadline", () => {
 });
 
 // A Claude turn's own prompt carries a uuid; a success result counts only once the CLI read that prompt. A turn the CLI
-// opened by itself (a background task's notice) closes with a success result first (PoC, 2.1.322 and 2.1.284).
+// opened by itself (a background task's notice) closes with a success result first.
 describe("a Claude turn's prompt read", () => {
   const PROMPT = "00000000-0000-4000-8000-000000000001";
   const STEER = "00000000-0000-4000-8000-000000000002";
@@ -104,7 +104,7 @@ describe("a Claude turn's prompt read", () => {
   });
 });
 
-// The level signal is the whole live set each time (SDK 0.3.312); a subagent counts, an ambient entry does not.
+// The level signal is the whole live set each time; a subagent counts, an ambient entry does not.
 describe("backgroundTasks", () => {
   const changed = (tasks: unknown[]) => ({ type: "system", subtype: "background_tasks_changed", tasks });
   it("replaces the set with each signal", () => {
@@ -127,7 +127,7 @@ describe("backgroundTasks", () => {
 });
 
 // How the next send (or a queue at the turn's end) ends a finished turn's process. Background work runs in process
-// groups of its own, which only the CLI's SIGTERM handling stops (PoC): a SIGKILL first would orphan it.
+// groups of its own, which only the CLI's SIGTERM handling stops: a SIGKILL first would orphan it.
 describe("afterTurnCleanup", () => {
   const done = { finished: false, inputClosed: true, background: 0, doneTurn: true, promptRead: true };
   it("kills at once a done turn whose process only has its suggestion left", () => {

@@ -1,10 +1,9 @@
-// Static checks over the renderer's own stylesheets and token file. They read
-// repository text only, so tests can pin the design system without a browser.
+// These checks read repository text only, so tests can pin the design system without a browser.
 
 export interface SourceFile { path: string; text: string }
 
 interface Declaration { prop: string; value: string; valueStart: number }
-// `parent`: the enclosing block, which names a keyframe step's animation.
+// `parent` names a keyframe step's animation.
 interface Block { prelude: string; declarations: Declaration[]; parent?: Block }
 
 // Blank comments in place so offsets, and therefore line numbers, stay true.
@@ -46,7 +45,6 @@ function blocks(css: string): Block[] {
   return out;
 }
 
-// Splits on commas outside parentheses, brackets and strings.
 function splitTopLevel(text: string) {
   const parts: string[] = [];
   let depth = 0, start = 0, quote = "";
@@ -68,12 +66,12 @@ const isTheme = (prelude: string) => prelude.startsWith("@theme");
 const buddySelector = /^:root\[data-buddy="([\w-]+)"\]$/;
 const buddyOf = (prelude: string) => splitTopLevel(prelude).map(selector => buddySelector.exec(selector)?.[1]).find(id => id !== undefined);
 
-/** The friend buddies that tokens.css themes with a `:root[data-buddy="<id>"]` block, in source order. Doany has none. */
+/** Doany has none. */
 export function buddyIds(css: string): string[] {
   return [...new Set(blocks(css).map(block => buddyOf(block.prelude)).filter((id): id is string => id !== undefined))];
 }
 
-/** Custom properties of the plain `:root`; with a buddy, that buddy's `:root[data-buddy]` block is laid over them. */
+/** With a buddy, that buddy's `:root[data-buddy]` block is laid over them. */
 export function rootTokens(css: string, buddy?: string) {
   const tokens = new Map<string, string>(), parsed = blocks(css);
   const take = (block: Block) => { for (const d of block.declarations) if (d.prop.startsWith("--")) tokens.set(d.prop, d.value); };
@@ -83,8 +81,8 @@ export function rootTokens(css: string, buddy?: string) {
   return tokens;
 }
 
-// tokens.css keeps its palette in the first :root block, so a name defined there is a
-// palette step and anything later is a role or a legacy name.
+// tokens.css keeps its palette in the first :root block, so a name defined there is a palette step and anything later
+// is a role or a legacy name.
 function paletteNames(css: string) {
   const first = blocks(css).find(block => isPlainRoot(block.prelude));
   return new Set(first?.declarations.filter(d => d.prop.startsWith("--")).map(d => d.prop) ?? []);
@@ -95,7 +93,6 @@ const runtimeVariable = (name: string) => name.startsWith("--tw-") || name.start
 
 export interface VarUse { path: string; line: number; name: string }
 
-/** Lists `var(--*)` reads with no `:root` or `@theme` definition in any of the files. */
 export function cssVarUsage(files: SourceFile[]): VarUse[] {
   const defined = new Set<string>();
   const parsed = files.map(file => ({ file, blocks: file.path.endsWith(".css") ? blocks(file.text) : [] }));
@@ -125,7 +122,7 @@ export function cssVarUsage(files: SourceFile[]): VarUse[] {
 
 export const legacyNames = ["bg", "panel", "panel-2", "raised", "line", "line-2", "text", "text-2", "text-3", "text-4", "accent", "accent-ink", "accent-soft", "accent-line", "board-bg", "board-dot", "ok", "warn", "err", "shadow-1", "shadow-2", "tl-red", "tl-yellow", "tl-green", "font-sans"].map(name => `--${name}`);
 
-/** Lists problems with the legacy names, which must stay as aliases of roles in the same file. */
+/** The legacy names must stay as aliases of roles in the same file. */
 export function legacyAliases(tokensCss: string): string[] {
   const tokens = rootTokens(tokensCss), palette = paletteNames(tokensCss), problems: string[] = [];
   for (const name of legacyNames) {
@@ -140,17 +137,15 @@ export function legacyAliases(tokensCss: string): string[] {
   return problems;
 }
 
-// Doany's accent is violet; each friend's palette is named after it. A prefix match on the
-// palette and on the --buddy-* switch keeps legacy --accent* names (greys) out of the accent.
+// A prefix match on the palette and on the --buddy-* switch keeps legacy --accent* names (greys) out of the accent.
 const isSwitch = (name: string) => name.startsWith("--buddy-");
 const accentPalette = (tokensCss: string) => {
   const prefixes = ["--violet-", ...buddyIds(tokensCss).map(id => `--${id}-`)];
   return (name: string) => prefixes.some(prefix => name.startsWith(prefix));
 };
 
-// Every token whose var() chain, under the default or any buddy's overrides, reaches a name
-// `hit` accepts without passing through one `stop` accepts. A role that only forwards to the
-// accent counts as accent too.
+// Under the default or any buddy's overrides, without passing a `stop` name. A role that only forwards to the accent
+// counts as accent too.
 function namesReaching(tokensCss: string, hit: (name: string) => boolean, stop: (name: string) => boolean) {
   const found = new Set<string>();
   for (const buddy of [undefined, ...buddyIds(tokensCss)]) {
@@ -171,13 +166,12 @@ function namesReaching(tokensCss: string, hit: (name: string) => boolean, stop: 
   return found;
 }
 
-/** Lists, in source order, each selector (or TS file, or `@theme`) that reads a token reaching any buddy's accent palette or the `--buddy-*` switch. */
 export function accentPlaces(files: SourceFile[], tokensCss: string): string[] {
   const palette = accentPalette(tokensCss), accent = (name: string) => palette(name) || isSwitch(name);
   return placesReading(files, accent, namesReaching(tokensCss, accent, () => false));
 }
 
-/** Lists the places that read an accent palette step without going through the `--buddy-*` switch, so they keep one colour whatever the buddy. */
+/** Such places keep one colour whatever the buddy. */
 export function paletteAccentPlaces(files: SourceFile[], tokensCss: string): string[] {
   const palette = accentPalette(tokensCss);
   return placesReading(files, palette, namesReaching(tokensCss, palette, isSwitch));
@@ -205,8 +199,7 @@ function placesReading(files: SourceFile[], direct: (name: string) => boolean, n
 
 export interface EdgeStripe { path: string; line: number; selector: string; declaration: string }
 
-// A start-side rule may only be a 1px pane divider in a neutral border role; anything
-// thicker or coloured marks a message, notice, card or row, which the design forbids.
+// Anything thicker or coloured marks a message, notice, card or row, which the design forbids.
 const neutralDividers = ["--border-standard", "--border-prominent"];
 const startSide = /^border-(left|inline-start)(-width|-color)?$/;
 const keywordWidths: Record<string, number> = { thin: 1, medium: 3, thick: 5 };
@@ -231,7 +224,6 @@ function startBorderAllowed(prop: string, value: string) {
   return stripeAllowed(width ?? 1, colour);
 }
 
-// Splits a value on spaces outside parentheses.
 function splitWords(text: string) {
   const words: string[] = [];
   let depth = 0, current = "";
@@ -257,7 +249,7 @@ function insetStripeAllowed(value: string) {
   });
 }
 
-// border-width with two to four values: a start side wider than the end side is a stripe.
+// A start side wider than the end side is a stripe.
 function borderWidthsAllowed(value: string) {
   const widths = splitWords(value).map(lengthPx);
   if (widths.length < 2 || widths.some(px => px === undefined)) return true;
@@ -265,8 +257,7 @@ function borderWidthsAllowed(value: string) {
   return left < 2 || left <= right;
 }
 
-// A ::before or ::after pinned to the start edge, a few pixels wide and filled, draws the
-// same bar a border would; this is how earlier rows marked their current state.
+// A thin filled ::before or ::after pinned to the start edge draws the same bar a border would.
 function pseudoBar(block: Block) {
   if (!/::?(before|after)\b/.test(block.prelude)) return undefined;
   const value = (prop: string) => block.declarations.find(d => d.prop === prop)?.value;
@@ -277,7 +268,6 @@ function pseudoBar(block: Block) {
   return atStart && filled && px !== undefined && px > 0 && px <= 4 ? width : undefined;
 }
 
-/** Lists start-side border, inset-shadow and pseudo-element stripes in renderer CSS that are thicker than 1px or not neutral. */
 export function edgeStripes(files: SourceFile[]): EdgeStripe[] {
   const found: EdgeStripe[] = [];
   for (const file of files) {
@@ -299,7 +289,7 @@ export interface TypeRoleUse { path: string; line: number; selector: string; rol
 
 const roleSize = /var\(\s*--type-([\w-]+?)-size\s*\)/;
 
-/** Lists CSS rules that set a type role's size (in any declaration) without setting `letter-spacing`: a role is applied whole. */
+/** A role is applied whole, so its size never goes without `letter-spacing`. */
 export function typeRoleTracking(files: SourceFile[]): TypeRoleUse[] {
   const found: TypeRoleUse[] = [];
   for (const file of files) {
@@ -313,7 +303,7 @@ export function typeRoleTracking(files: SourceFile[]): TypeRoleUse[] {
   return found;
 }
 
-/** The inner corner that stays concentric with an outer one: max(0, outer − inset − border). */
+/** max(0, outer − inset − border). */
 export function nestedRadius(outer: number, inset: number, border: number) {
   return Math.max(0, outer - inset - border);
 }
@@ -379,8 +369,7 @@ function relativeLuminance(c: Rgba) {
   return 0.2126 * linear(c.r) + 0.7152 * linear(c.g) + 0.0722 * linear(c.b);
 }
 
-// APCA-W3 0.0.98G: simple 2.4 power curve, soft black clamp, then the
-// polarity-specific exponents. Returns Lc (negative for light text on dark).
+// APCA-W3 0.0.98G. Returns Lc (negative for light text on dark).
 function apcaLc(text: Rgba, background: Rgba) {
   const y = (c: Rgba) => 0.2126729 * (c.r / 255) ** 2.4 + 0.7151522 * (c.g / 255) ** 2.4 + 0.072175 * (c.b / 255) ** 2.4;
   const clamp = (v: number) => (v > 0.022 ? v : v + (0.022 - v) ** 1.414);
@@ -395,7 +384,7 @@ function apcaLc(text: Rgba, background: Rgba) {
 }
 
 export type ContrastKind = "body" | "meta" | "nontext" | "disabled";
-// `over`: the token a translucent `bg` sits on, when that surface is known (a pressed row on the shell).
+// `over`: the token a translucent `bg` sits on, when that surface is known.
 export interface ContrastPair { fg: string; bg: string; over?: string; kind: ContrastKind }
 export interface ContrastResult extends ContrastPair {
   // "white" or "black" when a translucent bg was tried over both, the `over` token when given, null when opaque.
@@ -411,7 +400,7 @@ const meets: Record<ContrastKind, (wcag: number, lc: number) => boolean> = {
   disabled: () => true,
 };
 
-/** Measures each token pair under the default or one buddy's tokens; a translucent background yields one result per backdrop (white, black) unless the pair names what it sits `over`. */
+/** A translucent background yields one result per backdrop (white, black) unless the pair names what it sits `over`. */
 export function contrastPairs(tokensCss: string, pairs: ContrastPair[], buddy?: string): ContrastResult[] {
   const tokens = rootTokens(tokensCss, buddy);
   const resolve = (name: string, seen: string[] = []): Rgba => {

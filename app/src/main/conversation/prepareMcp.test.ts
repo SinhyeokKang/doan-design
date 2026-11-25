@@ -55,9 +55,8 @@ it("gives no connector facts to a provider that cannot use the servers", async (
   expect(run.mcp).toBeUndefined();
 });
 
-// index.ts hands the connectors service to the account prepare as connectorFacts(() => mcp): read when a run asks, so a
-// Connect's generation and an added URL server's name reach the next run, and the defaults hold while it is absent
-// (agent sign-in storage unreadable).
+// index.ts hands the connectors service over as connectorFacts(() => mcp): read when a run asks, so a Connect's
+// generation and an added server's name reach the next run; the defaults hold while it is absent.
 it("reads the connectors service when a run asks, and falls back to the defaults while there is none", async () => {
   // The service is what index.ts passes; this fails to compile if it stops being one.
   const service: McpConnectorFacts | undefined = undefined as McpService | undefined;

@@ -12,10 +12,8 @@ export interface DesignChange {
 // later turns out not to be listed only costs a row revision nobody reads.
 const canvasName = (name: string) => canvasKind(name) !== null;
 
-// Claude Code writes `<name>.tmp.<pid>.<hex>` beside the file and renames it
-// over; Node atomic writes were seen as `.<name>.tmp-<pid>` and `<name>.tmp`.
-// Such a name counts as part of the canvas save only when the canvas itself is
-// in the same set; alone it bumps, which at worst costs one more reload.
+// Agents' atomic writes leave temp names beside the file (`<name>.tmp.<pid>.<hex>`, `.<name>.tmp-<pid>`, `<name>.tmp`).
+// One counts as part of the canvas save only when the canvas is in the same set; alone it bumps (one more reload).
 function tempSibling(name: string, canvases: readonly string[]): boolean {
   const dir = posix.dirname(name);
   const base = posix.basename(name).toLowerCase().replace(/^\./, "");

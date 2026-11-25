@@ -9,8 +9,7 @@ import { knownBuddyId, type BuddyId } from "../renderer/buddies";
 // its tests are its schema.
 
 export interface NotificationPreferences { enabled: boolean; approval: boolean; finished: boolean; failed: boolean }
-// null is Last used: Home starts from the conversation sent last, as before this file existed.
-// permissionMode: Default is stored as no key.
+// null is Last used: Home starts from the conversation sent last. permissionMode: Default is stored as no key.
 export interface NewConversationPreference { provider: Provider; model?: string; effort?: string; permissionMode?: Exclude<PermissionModeId, "default"> }
 // autoCheck off stops only the automatic update checks; a manual check and the install at quit still run.
 export interface UpdatePreferences { autoCheck: boolean }
@@ -63,9 +62,8 @@ function updates(value: unknown, exact: boolean): UpdatePreferences | null {
 }
 
 const CHOICE_KEYS = ["provider", "model", "effort", "permissionMode"];
-// undefined: not a valid choice. `exact` refuses unknown fields and modes, as a renderer request must. Read from the
-// file, a mode this build cannot read is the one field that reads as Default rather than breaking the file: a later
-// build may add modes.
+// undefined: not a valid choice. `exact` refuses unknown fields and modes, as a renderer request must; read from the
+// file, an unknown mode reads as Default rather than breaking the file, since a later build may add modes.
 function newConversation(value: unknown, exact: boolean): NewConversationPreference | null | undefined {
   if (value === null) return null;
   if (!record(value) || !validProvider(value.provider)) return undefined;
@@ -76,11 +74,8 @@ function newConversation(value: unknown, exact: boolean): NewConversationPrefere
   return { provider: value.provider, ...(value.model === undefined ? {} : { model: value.model as string }), ...(value.effort === undefined ? {} : { effort: value.effort as string }), ...(mode ? { permissionMode: mode } : {}) };
 }
 
-// null text: no file. Unknown fields are ignored and a known field left out takes its default; a known field with
-// a wrong value makes the whole file broken rather than half-applied. Like a permission mode, a buddy this build cannot
-// read is that field only: a later build may add buddies. So is a buddy change time: losing it only lifts the buddy lock,
-// while a broken file would reset notifications and New conversation too. buddyKey: the file had the key at all, an unknown id
-// included, which is what decides whether the buddy screen opens for someone who finished first run.
+// A known field with a wrong value breaks the whole file; an unreadable buddy or buddy change time is that field only.
+// buddyKey: the file had the key at all, an unknown id included; it decides the buddy screen after first run.
 export function parsePreferencesFile(text: string | null): { snapshot: PreferencesSnapshot; buddyKey: boolean } {
   const read = (snapshot: PreferencesSnapshot, buddyKey = false) => ({ snapshot, buddyKey });
   const broken = read({ preferences: DEFAULT_PREFERENCES, notice: "broken" });

@@ -8,9 +8,6 @@ import { drawerSearchLabel, presetListView, searchDrawer, slashKey, slashQuery, 
 import { fieldHighlightRuns } from "./skillWords";
 import { threadItems } from "./threadItems";
 
-// The renderer's side of provider built-in commands (draft `.doan/canvases/provider-commands.html`): the `/` list and
-// the Presets popover's Commands tab, the field's highlight, the thread's command turns and boundaries, and the ring.
-
 const preset: PresetSummary = { id: "polish", title: "Polish the details", description: "Refine spacing", scope: "screen", group: "refine" };
 const reply: PresetListReply = { v: 1, ok: true, result: { version: "1", presets: [preset] } };
 const skill = (name: string, description = ""): SkillSummary => ({ kind: "skill", name, description });
@@ -203,7 +200,6 @@ describe("titles and queue rows", () => {
     const list = [...message("t1", "/compact"), done("t1"), ...message("t2", "Make it darker"), done("t2")];
     expect(firstTitleMessage("claude", list)).toMatchObject({ type: "user.message", text: "Make it darker" });
     expect(firstTitleMessage("claude", list.slice(0, 3))).toBeUndefined();
-    // A word the provider does not run as a command is an ordinary first message.
     expect(firstTitleMessage("cursor", [...message("t1", "/compact")])).toMatchObject({ text: "/compact" });
   });
 

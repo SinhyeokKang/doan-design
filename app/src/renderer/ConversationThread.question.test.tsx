@@ -7,8 +7,7 @@ import { TooltipProvider } from "./components/ui/tooltip";
 import { EMPTY_QUESTION_DRAFT, questionDraft, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
 import type { ThreadItem } from "./threadItems";
 
-// The draft frames question-card, keyboard, send-states and folded. There is no DOM in
-// these tests: the card is drawn to markup, and its handlers are called from the element tree it returns.
+// No DOM here: the card is drawn to markup, and its handlers are called from the element tree it returns.
 
 const layout: Question = { id: "0", header: "Layout", question: "Which layout should the settings header use?", options: [{ label: "Compact", description: "Title and actions on one line" }, { label: "Two rows" }], multiSelect: false, other: true };
 const sections: Question = { id: "1", header: "Sections", question: "Which sections should the Settings page keep?", options: [{ label: "Agents" }, { label: "Notifications" }], multiSelect: true, other: true };
@@ -196,7 +195,7 @@ describe("question card", () => {
   test("a failed send keeps the choices and says so under the actions", () => {
     const draft = questionDraft(questionDraft(draftOf({ type: "choose", question: layout, option: 1 }), { type: "sending", how: "answer" }), { type: "failed" });
     const out = card({ draft });
-    // U31: the shared inline error line, led by the alert icon (DESIGN 'Errors').
+    // The shared inline error line, led by the alert icon (DESIGN 'Errors').
     expect(out).toMatch(/<p class="settings-msg error ask-error" role="alert"><svg[^>]*class="[^"]*doan-alert-icon[^"]*"[^>]*>.*?<\/svg><span>Couldn’t send your answer\. Try again\.<\/span><\/p>/);
     expect(out).toContain('<div class="doan-notice thread-notice q-card">');
     expect(out).toMatch(/<input type="radio" aria-labelledby="b-q1-0-l1" name="b-q1-0" checked=""[^>]*\/><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"><\/span><\/span><span class="doan-preference-row-content"><span class="doan-preference-row-label" id="b-q1-0-l1">Two rows/);
@@ -260,8 +259,8 @@ describe("the thread's question items", () => {
 });
 
 describe("settleQuestionSend", () => {
-  // main may keep a request pending after a stale reply until its own expiry resolves it, so the card
-  // folds only on question.resolved and a stale reply leaves it locked without an error line.
+  // main may keep a request pending after a stale reply until its own expiry resolves it, so the card folds only on
+  // question.resolved and a stale reply leaves it locked without an error line.
   test("a stale reply keeps the card locked without an error; any other refusal unlocks it with the error", async () => {
     const edit = vi.fn();
     await settleQuestionSend(async () => ({ error: "stale" }), edit);

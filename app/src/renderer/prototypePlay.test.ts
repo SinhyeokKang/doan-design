@@ -126,8 +126,6 @@ describe("closedFocusTarget", () => {
   });
 });
 
-// The toolbar's frame drawer: the playable frames of the board's layout, in link groups, the prototype window's frame
-// marked Playing only when it plays this canvas.
 describe("playDrawer", () => {
   const long = "x".repeat(200);
   const linked = [

@@ -2,8 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { CanvasRect } from "./canvasMessage";
 import { measureLines, type MeasureLine } from "./measure";
 
-// Every expected line below was observed in Figma's web editor at 100 %, with the same shapes at the same canvas
-// coordinates, and read off its captures in canvas px. The rules they pin are in PRODUCT §5 item 4.
+// Expected lines are Figma's at 100 %, in canvas px; the rules are PRODUCT §5 item 4.
 const rect = (x: number, y: number, width: number, height: number): CanvasRect => ({ x, y, width, height });
 const Parent = rect(100, 100, 700, 560);
 const A = rect(200, 200, 120, 80);
@@ -87,7 +86,6 @@ describe("measureLines: overlapping or containing", () => {
   });
 });
 
-// Touching: a gap of exactly 0 on one axis.
 describe("measureLines: touching", () => {
   // Overlapping or also touching on the other axis: nothing to measure, whichever of the two is selected.
   test.each<[string, CanvasRect, CanvasRect]>([
@@ -110,10 +108,8 @@ describe("measureLines: touching", () => {
   });
 });
 
-// The selection S is 120×60 at y 320–380, the target T is 40 high at y 200–240, 80 above. Only T's columns change.
-// Each case runs both ways: S selected and Option over T, then T selected and Option over S. A side's edge difference
-// shows when it is not zero and either the selection's edge lies strictly inside the target's columns or the target's
-// columns lie strictly inside the selection's.
+// S (selection) is 120×60 at y 320–380, T is 40 high at y 200–240; each case runs both ways. An edge difference shows
+// when non-zero and the selection's edge is strictly inside T's columns, or T's strictly inside the selection's.
 describe("measureLines: edge differences when only one axis overlaps", () => {
   const S = rect(100, 320, 120, 60);
   const T = (left: number, right: number) => rect(left, 200, right - left, 40);

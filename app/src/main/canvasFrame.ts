@@ -56,9 +56,8 @@ export function isCanvasFrame(url: string, base: string, parentIsMain: boolean):
   return prefix !== null && parseUnder(url, prefix) !== null;
 }
 
-// The window refuses popups, so a parentless initiator is the app's own main
-// frame, i.e. the renderer setting an iframe src. A missing initiator (browser-
-// started, or the initiating frame is gone) is not the app.
+// The window refuses popups, so a parentless initiator is the app's own main frame setting an iframe src. A missing
+// initiator (browser-started, or the frame is gone) is not the app.
 export function startedByApp(initiator: { parent?: unknown } | null | undefined): boolean {
   return isTopFrame(initiator);
 }
@@ -72,9 +71,8 @@ export function navigationGate(frame: FrameLike | null | undefined): "refuse" | 
   return "check";
 }
 
-// The app may load any token URL; it never builds a src from canvas-sent values,
-// so this does not let a canvas pick another folder. A canvas itself stays under
-// the folder key it is on.
+// The app never builds a src from canvas-sent values, so allowing any token URL does not let a canvas pick another
+// folder. A canvas itself stays under the folder key it is on.
 export function allowFrameNavigation(current: string, next: string, base: string, fromApp: boolean): boolean {
   const prefix = tokenBase(base);
   if (prefix === null || parseUnder(next, prefix) === null) return false;

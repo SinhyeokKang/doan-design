@@ -23,15 +23,11 @@ export interface LocalServer {
 
 const HOST = "127.0.0.1";
 
-// macOS `O_NOFOLLOW_ANY` (<sys/fcntl.h>): fail with ELOOP if any component of
-// the path is a symlink. Node does not export it. The app is Mac-only (PRODUCT).
+// macOS `O_NOFOLLOW_ANY` (<sys/fcntl.h>): fail with ELOOP if any path component is a symlink. Node does not export it.
 const O_NOFOLLOW_ANY = 0x20000000;
 
-// The server opens only realpath results, which contain no links. Opening them
-// with O_NOFOLLOW_ANY means a directory swapped for a link between the realpath
-// check and the open fails instead of leading the open outside the scope.
-// O_NONBLOCK: a FIFO would otherwise hold a libuv thread until a writer appears;
-// opened at once, it fails the caller's regular-file check.
+// The server opens only realpath results, so a directory swapped for a link after the realpath check fails the open.
+// O_NONBLOCK: a FIFO would otherwise hold a libuv thread until a writer appears.
 export function openNoFollow(path: string): Promise<FileHandle> {
   return open(path, O_NOFOLLOW_ANY | constants.O_RDONLY | constants.O_NONBLOCK);
 }
@@ -74,9 +70,8 @@ export async function startServer(onResponse: (record: ResponseRecord) => void =
     const folder = parsed && folders.get(parsed.folderKey);
     if (!parsed || !folder) return notFound(res);
 
-    // `fs.promises.realpath` returns the on-disk spelling (letter case and
-    // NFC/NFD), so the scope comparison needs no separate step. The JS
-    // `fs.realpath`/`realpathSync` keep the request's spelling and must not be used.
+    // `fs.promises.realpath` returns the on-disk spelling (case, NFC/NFD), so the scope comparison needs no separate step.
+    // The JS `fs.realpath`/`realpathSync` keep the request's spelling and must not be used.
     let realRoot: string;
     let realFile: string;
     try {

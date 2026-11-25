@@ -6,10 +6,8 @@ import type { WorkItem } from "../main/workState";
 import { initialCanvasState } from "./CanvasController";
 import type { ShellProject } from "../restore/uiState";
 
-// PRODUCT §5 item 1: an auto-registered worktree that is not a list is hidden everywhere the
-// group's worktrees show, its registration and removal move nothing, and the worktree on screen that vanishes or hides
-// hands the screen to the worktree selected before it (else the main checkout) instead of going Home. Hooks run as plain
-// state so App's own wiring runs (App.terminalWork.test.tsx).
+// PRODUCT §5 item 1: an auto-registered worktree that is not a list is hidden, and the worktree on screen that
+// vanishes hands the screen to the one selected before it (else the main checkout). Hooks run as plain state.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -315,8 +313,8 @@ test("a launch restore on an auto-registered worktree waits while it is read, th
   expect(sidebar().loaded).toBe(W);
 });
 
-// at a restart the auto-registered worktree is `loading`, hidden but not gone. Its remembered canvas
-// and the group's saved selection stay until it is read, even when another root is read first.
+// At a restart the auto-registered worktree is `loading`, hidden but not gone; its remembered canvas and the
+// group's saved selection stay until it is read.
 const loading = (root: string): FolderEntry => ({ path: root, kind: "loading", lastCommon: KEY });
 const VIEW = { scale: 0.5, x: 12, y: -40 };
 const homeRestore = { screen: "home", expanded: {}, lastByRoot: { [W]: { canvas: A, view: VIEW } }, shellProjects: { [KEY]: { roots: [MAIN, OTHER, W], expanded: true, selectedRoot: W, selectedAt: 5 } } };
@@ -342,8 +340,8 @@ test("a Home restore keeps the group's selected auto-registered worktree while i
   expect(home()).toBeDefined();
 });
 
-// a page opened from the vanished worktree's workspace leaves for the worktree that took its place,
-// as Locate moves the origin (POSTMORTEM 2026-10-25); Remove from Doan of the whole group still leaves for Home.
+// A page opened from the vanished worktree's workspace leaves for the worktree that took its place, as Locate
+// moves the origin; Remove from Doan of the whole group still leaves for Home.
 const leave = () => { (all(tree).find(element => "forward" in element.props && "previous" in element.props)!.props as { previous(): void }).previous(); render(); };
 const pages = [
   ["Project Settings", () => { sidebar().projectSettings(W); render(); }],

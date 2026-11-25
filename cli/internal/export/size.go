@@ -5,11 +5,8 @@ import (
 	"sort"
 )
 
-// SizeCheck reports whether the final page of size bytes is within MaxBytes (Inline checks the rewritten canvas only,
-// and the shell and the srcdoc escape make the page larger). When it
-// is not, largest names the five biggest files it includes, largest first
-// (equal sizes by path), so the caller can say what to shrink. assets is not
-// reordered.
+// SizeCheck reports whether the final page of size bytes is within MaxBytes (Inline checks only the rewritten canvas).
+// When it is not, largest names the five biggest files it includes, largest first; assets is not reordered.
 func SizeCheck(size int64, assets []Asset) (ok bool, largest []Asset) {
 	if size <= MaxBytes {
 		return true, nil

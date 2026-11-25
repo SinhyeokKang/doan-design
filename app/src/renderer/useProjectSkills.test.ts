@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { ComposerTurn } from "./composerRules";
 
-// The hook run as plain state, its effects after each call (the App tests' no-DOM style).
+// The hook run as plain state, its effects after each call (no DOM).
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as { deps: unknown[] }[], pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
@@ -72,7 +72,7 @@ test("a turn end during a pending read reads once more after it and shows that r
   await settle();
   hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = [];
   expect(useProjectSkills(window.doan, "/code/doan", "claude", "idle").skills).toEqual([{ name: "made" }]);
-  // Only one more: ends that came while the read was pending are one read, not one each.
+  // Only one more read: ends that came while the read was pending are one read, not one each.
   await settle();
   expect(list).toHaveBeenCalledTimes(2);
 });

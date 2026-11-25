@@ -38,9 +38,8 @@ export function findOnPath(path: string, name: string, exists: (path: string) =>
   return null;
 }
 
-// storage "local" keeps Doan files out of Git. Without it init follows the root's current mode, so a new worktree of a
-// project already kept out of Git gets no .gitattributes either (PRODUCT §5 item 8). gitInit: the screen showed the
-// .git/ setup creates outside Git; it means something only with Keep out of Git.
+// storage "local" keeps Doan files out of Git; without it init follows the root's current mode (PRODUCT §5 item 8).
+// gitInit: the screen showed the .git/ setup creates outside Git; it means something only with Keep out of Git.
 export function initArgs(folder: string, tokenCss: string | null, storage: "local" | null = null, gitInit = false): string[] {
   return ["init", "--json", "--repo", folder, ...(tokenCss === null ? [] : ["--token-css", tokenCss]), ...(storage === null ? [] : ["--storage", storage]),
     ...(storage === "local" && gitInit ? ["--git-init"] : [])];

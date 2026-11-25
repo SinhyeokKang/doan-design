@@ -10,7 +10,7 @@ const fixture = (name: string): string => readFileSync(new URL(`../../../schema/
 const canvases = [{ path: ".doan/canvases/a.html", id: "a", frames: [], comments: { open: 1, resolved: 0 } }];
 const listResult = { root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases };
 
-// exit 0 with an answer that cannot be read and nothing on stderr (draft .doan/canvases/fixes-0-1-2.html, frame overlay-cli-error).
+// exit 0 with an answer that cannot be read and nothing on stderr.
 const UNREADABLE = "The doan command answered, but Doan couldn’t read the answer.";
 
 function run(overrides: Partial<CliRun>): CliRun {
@@ -255,10 +255,8 @@ describe("initOutcome", () => {
     expect(initOutcome(run({ timedOut: true }))).toMatchObject({ kind: "cliError", reason: "timed out after 10 s" });
     expect(initOutcome(run({ spawnError: "ENOENT" }))).toMatchObject({ kind: "cliError", reason: "ENOENT" });
   });
-  // The CLI's real envelopes (cli/internal/cli/storage.go, init.go) carry short path-free messages, so the Set
-  // Up dialog's sentences for the two storage codes are the app's (draft frame setup-dialog), whatever the CLI said.
-  // An exclude failure is not always a link, so its recovery is the common one. CSS guidance only follows a chosen
-  // token CSS: an unrelated usage_error ("already set up", a .gitattributes directory) gets none of it.
+  // The CLI's storage refusals carry short path-free messages, so the Set Up dialog's sentences are the app's whatever
+  // the CLI said. CSS guidance only follows a chosen token CSS, not an unrelated usage_error.
   const G = {
     notGit: { code: "local_not_git", message: "Local storage requires a Git repository", nextSteps: ["Choose Include in Git (--storage repo), or use a Git repository"] },
     exclude: { code: "local_exclude_failed", message: "Cannot read or write the Git exclude file for Doan storage", nextSteps: ["Use a regular exclude file within 1 MiB, with readable and writable Git metadata, then retry"] },
@@ -272,8 +270,8 @@ describe("initOutcome", () => {
       expect(initOutcome(refusal(error, 5))).toEqual({ kind: "error", code: "local_exclude_failed", message: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up.", guidance: "Make sure the repository’s Git metadata and its exclude file can be read and written, then try again." });
     }
   });
-  // A Keep out of Git setup that had to create the repository (draft keep-out-git-init, frame setup-form): the Set Up
-  // form's own sentences. git_init_failed says only that nothing was set up; cleanup_failed names the .git Doan left.
+  // A Keep out of Git setup that had to create the repository: git_init_failed says only that nothing was set up;
+  // cleanup_failed names the .git Doan left.
   test("a refused repository creation says what failed in the Set Up form's words", () => {
     const failed = (code: string, message: string) => run({ exitCode: code === "git_missing" ? 5 : 2, stdout: failure(code, message) });
     expect(initOutcome(failed("git_missing", "Git is not installed"), { folder: "/w/new" })).toEqual({ kind: "error", code: "git_missing",

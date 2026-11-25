@@ -4,9 +4,8 @@ import type { Canvas } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 
-// The canvas conversation panel, run with hooks as plain state (the App tests' no-DOM
-// style): a terminal session choice that was chosen falls back to a new conversation while that session works in a
-// terminal, and stays a new conversation once the session ends, so the choice never flips back under a draft.
+// Hooks run as plain state: a chosen terminal session choice falls back to a new conversation while that session works
+// in a terminal, and stays new once it ends, so the choice never flips back under a draft.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -100,9 +99,8 @@ function resumeChoice(node: ReactNode): { offer: string; held: boolean } | null 
   return resumeChoice(element.props.children);
 }
 
-// On the first entry the linked Claude session works in a terminal, so its process holds it (session_in_use) and
-// the choice waits. The target is read again when the work list changes and when the window comes back, since nothing
-// tells the run when that process exits; the choice returns once the session can run.
+// The linked Claude session's terminal process holds it (session_in_use), so the choice waits. Nothing tells the run when
+// that process exits, so the target is read again when the work list changes and when the window comes back.
 test("a Claude session a terminal process holds waits on first entry and returns once it can run", async () => {
   const target = vi.fn(async () => ({ available: false, reason: "session_in_use", runtime: "claude", session: "s1" }) as unknown);
   (window as unknown as { doan: { conversationResumeTarget: unknown } }).doan.conversationResumeTarget = target;
@@ -192,9 +190,8 @@ test("the panel hands the page's canvas press signal to its composer", async () 
   expect(composer(tree)?.canvasPress).toBe(canvasPress);
 });
 
-// A runtime finding in /design-sync: the move's arrival comes with the render that still
-// shows the canvas left behind, whose thread has no card. It waits for the receiving conversation and focuses its
-// card there instead of sending focus to the old composer.
+// The move's arrival comes with the render that still shows the canvas left behind, whose thread has no card; it waits
+// for the receiving conversation instead of sending focus to the old composer.
 test("a handoff arrival waits for the receiving canvas and conversation, then is applied once", async () => {
   const DRAFTS: Canvas = { path: ".doan/canvases/drafts.html", id: "drafts" };
   const entry: FolderEntry = { path: ROOT, kind: "list", servedRev: 0, canvases: [{ path: DRAFTS.path, id: "drafts", url: "d" }, { path: CANVAS.path, id: "checkout", url: "u" }] };
@@ -242,8 +239,7 @@ function dockedProps(node: ReactNode): Record<string, unknown> | null {
   return dockedProps(element.props.children);
 }
 
-// POSTMORTEM 2026-11-02: the panel's own start sends the Fast its switch shows, and its remembered
-// choice carries no Fast, which only a switch records.
+// POSTMORTEM 2026-11-02: the panel's own start sends the Fast its switch shows, and its remembered choice carries no Fast.
 test("a new conversation started from the panel sends the Fast it shows and remembers none", async () => {
   const { authStatus } = await import("../main/agentAuth/state");
   const start = vi.fn(async (_request: unknown) => ({ conversationId: "c9" }));

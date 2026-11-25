@@ -6,7 +6,7 @@ import type { AccountIdentity } from "./types";
 // "nothing" rather than throwing: a lookup only adds an email to a result it never changes.
 export const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 export const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
-// The 1.3.0 server asks for this scope (_DEFAULT_SCOPES) and reads the email the same way (_fetch_account_email).
+// The server asks for this scope and reads the email the same way.
 const EMAIL_SCOPE = "https://www.googleapis.com/auth/userinfo.email";
 
 // Codex app-server `account/read`: only a ChatGPT account carries an email.

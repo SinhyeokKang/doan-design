@@ -52,7 +52,7 @@ const click = (label: string) => (button(label).props.onClick as () => void)();
 const text = () => words(all(tree).filter(element => typeof element.type === "string").map(element => element.props.children));
 function resetHooks() { hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = []; }
 
-// Settings > About (PRODUCT §5 item 0 'About'), over BM's aboutView rows.
+// Settings > About (PRODUCT §5 item 0 'About').
 const { SettingsAbout } = await import("./SettingsAbout");
 const { AlertIcon } = await import("./AlertIcon");
 import type { AboutRead } from "../main/about";
@@ -258,7 +258,7 @@ test("the row's actions ask main: Check for Updates, Retry, Release Notes and Re
   expect(doan.installUpdate).toHaveBeenCalledTimes(1);
 });
 
-// D1: the pressed check keeps its button mounted and focusable while main checks, busy with the spinner inside.
+// The pressed check keeps its button mounted and focusable while main checks, busy with the spinner inside.
 test("a manual check keeps Check for Updates in place, busy and aria-disabled with the spinner inside; a press does nothing", () => {
   onNoonDay();
   render(); push(snap({ kind: "checking", manual: true, last: { kind: "upToDate", manual: true } })); render();
@@ -424,8 +424,8 @@ test("a restart main holds back for a conversation reads the reason, not ready a
   expect(live()).toBe(BLOCKED_READ);
 });
 
-// Draft frames about-notes-failed and about-notes-failed-stacked: Release Notes ↗ that main could not open puts the
-// shared error line under the row (no role) and the page's live region reads it once. Release Notes ↗ is the retry.
+// Release Notes ↗ that main could not open puts the shared error line under the row (no role) and the page's live region reads
+// it once. Release Notes ↗ is the retry.
 const NOTES_FAILED = "Couldn’t open the release notes in your browser. Try again, or find Doan 0.1.1 on GitHub Releases.";
 const errorLines = () => all(row("version").props.children as ReactNode).filter(element => String(element.props.className) === "settings-msg error selectable");
 const notesLine = () => errorLines().find(element => words(element.props.children).startsWith("Couldn’t open the release notes"));

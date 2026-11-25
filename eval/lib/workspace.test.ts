@@ -190,8 +190,8 @@ test("an onboarding script starts the fake app, and checks read its v2 exchanges
   }
 });
 
-// A correct agent must find the project set up after the app says so (agent-eval
-// 2026-10-29 O1), while repo_untouched still sees only what the agent changed.
+// A correct agent must find the project set up after the app says so, while repo_untouched still sees only
+// what the agent changed.
 test("a successful initialize writes what doan init writes, and only the agent's edits count as changes", async () => {
   const o1 = loadScenario(join(import.meta.dirname, "../scenarios"), "O1");
   const ws = await prepareWorkspace({ scenario: o1, agent: "fixture", cli, stub: "stub\n" });
@@ -259,7 +259,7 @@ test("worktree runs the agent in a second worktree of the seed commit while the 
   assert.equal(existsSync(ws.base), false);
 });
 
-// Codex 0.169.0 loads a linked worktree's project config when the first worktree is trusted (probe), so the second one
+// Codex 0.169.0 loads a linked worktree's project config when the first worktree is trusted, so the second one
 // is not trusted on its own.
 test("a Codex run in a second worktree trusts only the first", async () => {
   const saved = process.env.CODEX_HOME;
@@ -332,9 +332,8 @@ test("each real agent's environment leaves out the user's own instruction files;
     const codex = await prepareWorkspace({ scenario: seeded(), agent: "codex", cli, stub: "stub\n" });
     const home = codex.env.CODEX_HOME!;
     try {
-      // Codex's workspace-write sandbox opens the agent's folder, /tmp and $TMPDIR to the agent's shell (codex-cli 0.169.0
-      // `codex sandbox -P :workspace`), while Codex itself, outside that sandbox, writes refreshed tokens through the
-      // home's links and keeps the rollout read as evidence there.
+      // workspace-write opens the agent's folder, /tmp and $TMPDIR (codex-cli 0.169.0), while Codex outside the sandbox
+      // writes tokens through the home's links and keeps the rollout there.
       for (const writable of ["/tmp", "/private/tmp", realpathSync(tmpdir()), codex.base])
         assert.ok(!`${home}/`.startsWith(`${writable}/`), `${home} is inside ${writable}`);
       assert.equal(codex.codexHome, home);
@@ -400,9 +399,8 @@ test("a Codex run's own sessions are kept in the run directory when its rollout 
   }
 });
 
-// Codex runs with approval_policy="never", where a command that needs to leave the sandbox is refused outright. The eval
-// measures how agents use the guide, not the person's approvals, so its rule is agent setup's rule plus an allow rule
-// for each command agent setup leaves to the person's Codex settings: every `doan` command runs outside the sandbox.
+// approval_policy="never" refuses commands leaving the sandbox and the eval measures guide use, so its rule also
+// allows every command agent setup leaves to the person's Codex settings.
 test("the eval's Codex rule is agent setup's rule plus allow rules for every other command", () => {
   assert.ok(evalCodexRuleText().startsWith(codexRuleText()));
   const allowed = [...evalCodexRuleText().matchAll(/^prefix_rule\(pattern=\["doan", "([a-z-]+)"\], decision="allow"\)$/gm)].map(([, command]) => command).sort();

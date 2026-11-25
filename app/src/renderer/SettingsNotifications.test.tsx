@@ -82,7 +82,7 @@ test("Delivery and Notify me about: four switches with the design's copy, the pe
   expect(button("Open System Settings ↗")).toBeDefined();
 });
 
-// D20: the hint's two actions sit inside its notice, stacked on their own row, panel on the inset fill.
+// The hint's two actions sit inside its notice, stacked on their own row, panel on the inset fill.
 test("the permission hint's actions sit inside its notice, stacked, as panel buttons", () => {
   render();
   const notice = all(tree).find(element => String(element.props.className).startsWith("doan-notice"))!;
@@ -126,7 +126,7 @@ test("Send test notification says it was sent, or that Doan isn’t allowed; Ope
   doan.sendTestNotification!.mockResolvedValueOnce({ kind: "failed" });
   click("Send test notification"); await flush(); render();
   const alert = all(tree).find(element => element.props.role === "alert")!;
-  // The notice's text, beside its actions (D20).
+  // The notice's text, beside its actions.
   expect(words(all(alert).find(element => String(element.props.className).includes("ob-notice-text"))!.props.children)).toBe("Doan isn’t allowed to show notifications. Allow it in System Settings › Notifications.");
   click("Open System Settings ↗");
   expect(doan.openNotificationSettings).toHaveBeenCalledWith();

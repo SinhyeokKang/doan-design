@@ -48,8 +48,7 @@ test("both shapes draw the same field at the same place; only data-shape differs
   const capsule = render({}, { text, shape: "capsule" }), box = render({}, { text, shape: "box" });
   expect(capsule).toContain('data-shape="capsule"');
   expect(box).toBe(capsule.replace('data-shape="capsule"', 'data-shape="box"'));
-  // DOM order: field, Presets, Send in the card, then Attach, the model and effort under it (Attach left the card for
-  // the tray, before the pickers).
+  // DOM order: field, Presets, Send in the card, then Attach, the model and effort in the tray.
   const order = ["composer-input", 'aria-label="Design presets"', 'aria-label="Send"', 'aria-label="Attach files or folders"', "composer-agent", "composer-effort"].map(part => capsule.indexOf(part));
   expect(order.every(at => at >= 0)).toBe(true);
   expect([...order].sort((a, b) => a - b)).toEqual(order);
@@ -112,8 +111,8 @@ test("a chip makes the box and draws the chip row before the field", () => {
   expect(html.indexOf("composer-chips")).toBeLessThan(html.indexOf("composer-input"));
 });
 
-// Pick from canvas at the left end of the model row, pressed while the
-// canvas picks; unavailable with aria-disabled (not disabled) so its reason shows as a tooltip.
+// Pick from canvas at the left end of the model row, pressed while the canvas picks; aria-disabled (not disabled) so its
+// reason shows as a tooltip.
 test("the canvas panel's composer draws Pick from canvas first in the model row", () => {
   const html = render({ pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} } });
   expect(html).toMatch(/<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"[^>]*><svg[^]*?<\/button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"/);
@@ -166,8 +165,8 @@ test("permission CSS: a Full access run mode warns as stored Full access does", 
   expect(css).not.toMatch(/\[data-warning\][^{]*\{[^}]*(--affordance-warning|--text-warning)/);
 });
 
-// a draft that points at 32 places shows the reason line under the composer, whatever was
-// pressed; removing one place takes it away (Pick from canvas, Add and ⌘L stay unavailable meanwhile, App's part).
+// A draft that points at 32 places shows the reason line under the composer; removing one place takes it away (Pick from
+// canvas, Add and ⌘L stay unavailable meanwhile, App's part).
 test("a draft at 32 places shows the limit line under the composer until a chip goes", () => {
   const chips = (n: number) => Array.from({ length: n }, (_, i) => ({ kind: "chip" as const, anchor: { frame: { id: `frame-${i}` } } }));
   const pick = { pressed: false, enabled: false, reason: "A message can point at up to 32 places. Remove one to add another.", onToggle: () => {} };
@@ -180,8 +179,8 @@ test("a draft at 32 places shows the limit line under the composer until a chip 
   expect(render({}, { segments: chips(32) })).not.toContain(line);
 });
 
-// Draft frame `docked-tray`: the picker follows Effort in the tray; each label is a
-// `.label` the width steps hide, and the trigger keeps its tooltip and aria-label.
+// The picker follows Effort in the tray; each label is a `.label` the width steps hide, and the trigger keeps its tooltip
+// and aria-label.
 test("the permission picker follows Effort in the tray, at xs, with its mode and a tooltip", () => {
   const html = render({ permission: permissionPickerView("claude", undefined, "plan"), onPickPermission: () => {} });
   expect(html).toMatch(/class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" data-mode="plan" aria-label="Permission: Plan \(read-only\)"/);
@@ -191,8 +190,8 @@ test("the permission picker follows Effort in the tray, at xs, with its mode and
   expect(render({ permission: null, onPickPermission: () => {} })).not.toContain("composer-permission");
 });
 
-// Draft frame `run-mode-docked-steps`: the run-mode trigger names the observed mode in its label, aria-label and tooltip
-// label, and carries data-run-mode for its own width step; plain Ask first carries neither attribute.
+// The run-mode trigger names the observed mode in its label, aria-label and tooltip, and carries data-run-mode for its own
+// width step; plain Ask first carries neither.
 test("a run-mode trigger in the tray names Claude Code's mode and carries data-run-mode", () => {
   const html = render({ permission: permissionPickerView("claude", undefined, "default", "auto"), onPickPermission: () => {} });
   expect(html).toMatch(/class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Ask first, Claude Code settings run Auto mode"[^>]*data-run-mode="auto"/);
@@ -203,7 +202,7 @@ test("a run-mode trigger in the tray names Claude Code's mode and carries data-r
   expect(plain).not.toContain("data-warning");
 });
 
-// Draft frame `docked-fixed`: a terminal session takes no mode; its trigger keeps its place.
+// A terminal session takes no mode; its trigger keeps its place.
 test("a terminal session shows a fixed Permission trigger after its fixed Effort", () => {
   const html = render({ fixed: true, permission: permissionPickerView("claude", undefined, "bypass"), onPickPermission: () => {} });
   expect(html).toMatch(/class="composer-permission doan-button is-fixed" data-ui-size="xs" data-ui-variant="trigger" aria-disabled="true" aria-label="Permission: set by the terminal session"[^>]*><svg[^>]*lucide-shield[^-]/);
@@ -212,8 +211,8 @@ test("a terminal session shows a fixed Permission trigger after its fixed Effort
   expect(html.indexOf("composer-effort")).toBeLessThan(html.indexOf("composer-permission"));
 });
 
-// a terminal session's fixed triggers name their drawers, in the placeholder
-// ink; the tooltip and the names still say the terminal sets them.
+// A terminal session's fixed triggers name their drawers in the placeholder ink; the tooltip and the names still say the
+// terminal sets them.
 test("a terminal session's fixed Effort and Permission triggers read Effort and Permission", () => {
   const html = render({ fixed: true, permission: permissionPickerView("claude", undefined, "default"), onPickPermission: () => {} });
   expect(html).toMatch(/aria-label="Effort: set by the terminal session"[^>]*><svg[^>]*lucide-gauge[^>]*>.*?<\/svg><span class="label placeholder">Effort<\/span><\/button>/);
@@ -239,8 +238,8 @@ test("a folder chip in the draft shows the folder icon, its name and Folder; a r
   expect(replaced).toMatch(/<span class="attach-chip problem"[^>]*><span class="file-icon" aria-hidden="true"><svg[^>]*lucide-triangle-alert[^>]*>.*?<\/svg><\/span><span class="attach-text"><b>references<\/b><small>Replaced<\/small>/);
 });
 
-// folder-attachments draft: a queued message with a folder shows the first folder's icon and name before its text,
-// +N for the other attachments, and the full list in its tooltip and accessible name; Send now and Remove stay.
+// A queued message with a folder shows the first folder's icon and name before its text, +N for the other attachments, and
+// the full list in its tooltip and accessible name.
 test("a queued message with a folder names it inline, counts the rest and describes every attachment to its buttons", () => {
   const attachments = [
     { name: "brand-guidelines.pdf", size: 1, kind: "file" as const, path: "/Users/ada/Projects/Atlas/brand-guidelines.pdf" },
@@ -254,7 +253,7 @@ test("a queued message with a folder names it inline, counts the rest and descri
   expect(files).toMatch(/aria-describedby="[^" ]+"[^>]*>/);
 });
 
-// Draft frame `sending` (the shared xs subtle capsule).
+// The shared xs subtle capsule.
 test("a row that offers Send now draws it between the text and Remove as the subtle capsule", () => {
   const rows = render({ turn: "running", sendNow: true, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "Also make the caption shorter" }] });
   expect(rows).toMatch(/<span class="queue-text" id="([^"]+)">Also make the caption shorter<\/span><button type="button" class="doan-button queue-send" data-ui-size="xs" data-ui-variant="subtle" aria-describedby="\1"[^>]*>Send now<\/button><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" aria-describedby="\1"[^>]*>/);
@@ -264,23 +263,21 @@ test("a row that offers Send now draws it between the text and Remove as the sub
 });
 
 
-// the docked field is one line tall, so an empty box
-// (attachments only) draws its placeholder, a long suggestion included, on one line with an ellipsis as the capsule
-// does; a wrapped one would overflow the field and scroll it. The full text stays aria-placeholder and → reaches it.
+// The docked field is one line tall, so an empty box draws its placeholder on one line with an ellipsis; a wrapped one would
+// overflow the field and scroll it. The full text stays aria-placeholder.
 test("the empty box's placeholder stays on one line and ends in an ellipsis", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain('.docked[data-shape="box"] .composer-input[data-empty]::before { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }');
 });
 
-// Draft frames place-capsule, place-box, ring-states: a 16px ring at
-// the tray's right end with no text in it; its name and description carry the percent and the token counts.
+// A 16px ring at the tray's right end with no text in it; its name and description carry the percent and the token counts.
 const CONTEXT = { value: 42, percent: 42, used: 84_000, size: 200_000 };
 const RING = /<button type="button" class="context-ring" aria-label="Context window 42% used · last turn" aria-description="84K of 200K tokens" aria-haspopup="dialog" aria-expanded="false"[^>]*><span class="context-ring-dial" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" aria-hidden="true"><circle class="track" cx="12" cy="12" r="10.5"><\/circle><circle class="value" cx="12" cy="12" r="10.5" pathLength="100" stroke-dasharray="42 100"><\/circle><\/svg><\/span><\/button><\/div>/;
 const tray = (html: string) => html.slice(html.indexOf('<div class="composer-tray">'));
 
-// The ring is a button, the tray's last control in Tab order (draft context-ring-drawer.html frame trigger), and stays
-// enabled while the turn runs: that is when its values are wanted most.
+// The ring is a button, the tray's last control in Tab order, and stays enabled while the turn runs: that is when its values
+// are wanted most.
 test("a recorded value draws the ring as the tray's last child, a button in Tab order with no visible text", () => {
   const html = render({ context: CONTEXT });
   expect(tray(html)).toMatch(new RegExp(`^<div class="composer-tray">[^]*?${RING.source}`));
@@ -323,8 +320,8 @@ test("a conversation whose canvas is gone has no ring", () => {
   expect(render({ mode: { kind: "existing", conversationId: "c1", provider: "claude" }, context: CONTEXT })).toContain("context-ring");
 });
 
-// every tray control 2px apart, and the ring 4px after the last picker (tray gap 2 +
-// the ring's start margin 2), the tray's 12px end padding after.
+// Every tray control 2px apart, the ring 4px after the last picker (tray gap 2 + its start margin 2), the tray's 12px end
+// padding after.
 test("context ring CSS: 16px, no shrink, 2px start margin in the docked tray, track and danger inks", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(".docked .composer-tray { justify-content: flex-end; gap: var(--space-half); min-height: var(--size-control-sm); padding: var(--space-1) var(--space-3) 0; }");
@@ -335,7 +332,7 @@ test("context ring CSS: 16px, no shrink, 2px start margin in the docked tray, tr
   expect(css).toContain('.context-ring[data-band="full"] .value { stroke: var(--border-danger); }');
 });
 
-// the steps move earlier so the model name stays whole with the new labels.
+// The steps keep the model name whole beside the labels.
 test("docked tray steps: Permission's label hides below a 432 content width, Effort's below 384", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain("@container (max-width: 431px) { .docked .composer-permission .label { display: none; } }");
@@ -347,8 +344,8 @@ test("docked tray steps: Permission's label hides below a 432 content width, Eff
   expect(css).toMatch(/\.doan-button \.label\.placeholder \{ color: var\(--text-metadata\); \}/);
 });
 
-// in the docked tray a value reads in the standard ink and a
-// drawer's name in the metadata ink, as on Home; a disabled trigger and Full access keep their own inks.
+// In the docked tray a value reads in the standard ink and a drawer's name in the metadata ink; a disabled trigger and Full
+// access keep their own inks.
 test("docked tray CSS: trigger values in the standard ink, drawer names in the metadata ink", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain('.docked .composer-tray :is(.composer-agent, .composer-effort, .composer-permission:not([data-mode="bypass"]):not([data-warning])):not(:disabled) { color: var(--text-standard); }');

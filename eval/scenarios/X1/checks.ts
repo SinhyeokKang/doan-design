@@ -74,7 +74,7 @@ const checks: Checks = ctx => {
     { id: "export_command", pass: asked.length > 0, detail: `doan export commands: ${JSON.stringify(calls)}` },
     { id: "output_outside_repo", pass: page !== null, detail: page ? `${page.length} bytes at ${output}` : `no file at ${output}` },
     { id: "output_is_doan_export", pass: same, detail },
-    // Both pages stay in the check: a leftover path breaks for the reviewer, and the shell's own markup must stay clean too.
+    // The export page and its canvases are both checked: a leftover path breaks for the reviewer, and the shell's own markup must stay clean too.
     { id: "no_repo_relative_reference", pass: page !== null && refs.length === 0, detail: page ? (refs.length ? `still referenced: ${JSON.stringify(refs)}` : "no local reference in the page or its srcdoc") : "no output file" },
     { id: "assets_inlined", pass: page !== null && /data:image\/png;base64,/.test(inner) && /data:text\/css/.test(inner), detail: page ? `canvas has the avatar as a data: image: ${/data:image\/png;base64,/.test(inner)}; the token CSS as data: CSS: ${/data:text\/css/.test(inner)}` : "no output file" },
     { id: "repo_unchanged", pass: changed.length === 0, detail: JSON.stringify(changed) },

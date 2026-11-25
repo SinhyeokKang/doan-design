@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import type { ConversationEvent } from "../main/conversation/types";
 import { preferenceAfterPick, rememberChoice, rememberFast, rememberPermission, shouldTurnOffFast } from "./rememberChoice";
 
-// Dogfooding #6: a pick alone is remembered as Last used, per provider, and a fixed Settings default follows it.
+// A pick alone is remembered as Last used, per provider, and a fixed Settings default follows it.
 test("a pick becomes the last provider and that provider's model and effort", () => {
   const memory = { lastRoot: "/r", lastProvider: "codex" as const, models: { codex: { model: "gpt-6", effort: "high" } } };
   expect(rememberChoice(memory, { provider: "claude", model: "opus", effort: "low" })).toEqual({
@@ -30,8 +30,7 @@ test("Last used in Settings stays Last used; a fixed default takes the pick", ()
   expect(preferenceAfterPick({ provider: "claude", model: "opus" }, { provider: "claude", model: null, effort: null })).toBeUndefined();
 });
 
-// The mode is remembered apart from the model, and a mode picked while the
-// model list is not read still counts.
+// A mode picked while the model list is not read still counts.
 test("a picked mode is the provider's last mode; Default is stored as none", () => {
   const memory = { lastProvider: "claude" as const, models: { claude: { model: "opus" } } };
   expect(rememberChoice(memory, { provider: "claude", model: null, effort: null, permissionMode: "bypass" })).toEqual({
@@ -67,8 +66,6 @@ test("a fixed Settings default takes the picked mode, with or without a model", 
   expect(preferenceAfterPick({ provider: "codex" }, { provider: "claude", model: null, effort: null, permissionMode: "plan" })).toBeUndefined();
 });
 
-// Fast is remembered per provider, apart from the model, only when the switch
-// changes or Fast turns itself off.
 test("a switched Fast is its provider's, kept across model picks and apart from the other provider", () => {
   const memory = { lastProvider: "codex" as const, models: { codex: { model: "gpt-6" } } };
   const on = rememberChoice(memory, { provider: "codex", model: "gpt-6", effort: null, fast: true });
@@ -110,8 +107,7 @@ test("only a turnedOff Fast-not-used event received live turns Last used off", (
   expect(shouldTurnOffFast(event({ type: "turn.done" }), true)).toBe(false);
 });
 
-// A fixed default with Model Default (no model) stays unfixed after a composer pick that leaves the model alone: the
-// composer's model is then only the provider's default, which Settings' Default row already stands for.
+// Under Model Default, a pick that leaves the model alone shows only the provider's default, so no model is fixed.
 test("a pick that leaves the model alone never fixes the provider's default model", () => {
   expect(preferenceAfterPick({ provider: "codex" }, { provider: "codex", model: "gpt-6-luna", effort: null, permissionMode: "plan" })).toEqual({ provider: "codex", permissionMode: "plan" });
   expect(preferenceAfterPick({ provider: "codex" }, { provider: "codex", model: "gpt-6-luna", effort: "high", effortPicked: true })).toEqual({ provider: "codex", effort: "high" });
@@ -123,8 +119,7 @@ test("a pick that leaves the model alone never fixes the provider's default mode
   expect(preferenceAfterPick({ provider: "codex" }, { provider: "codex", model: "gpt-6-luna", effort: null, modelPicked: true })).toEqual({ provider: "codex", model: "gpt-6-luna" });
 });
 
-// A fixed effort stays unless an effort was picked, and only an effort picked for the fixed model (or for the default
-// model under Model Default) is written.
+// Only an effort picked for the fixed model (or the default model under Model Default) is written.
 test("a pick that leaves the effort alone keeps a fixed effort; a picked effort is fixed only for its own model", () => {
   const terra = { provider: "codex" as const, model: "gpt-5.6-terra", effort: "xhigh" };
   // The project does not list Terra: the composer shows GPT-6-Luna with no level.
@@ -136,8 +131,7 @@ test("a pick that leaves the effort alone keeps a fixed effort; a picked effort 
   expect(preferenceAfterPick({ provider: "codex", model: "gpt-5.6-terra", effort: "xhigh" }, { provider: "codex", model: "gpt-5.6-terra", effort: "low", effortPicked: true })).toEqual({ provider: "codex", model: "gpt-5.6-terra", effort: "low" });
 });
 
-// The model's and the level's provenance apply apart. Re-picking the fixed model keeps its fixed level unless a
-// level was picked; a newly picked model takes no level that was only shown.
+// Re-picking the fixed model keeps its level unless one was picked; a new model takes no merely shown level.
 test("a model pick keeps the fixed level unless a level was picked, and carries no shown level to another model", () => {
   const terra = { provider: "codex" as const, model: "gpt-5.6-terra", effort: "xhigh" };
   expect(preferenceAfterPick(terra, { provider: "codex", model: "gpt-5.6-terra", effort: null, modelPicked: true, permissionMode: "plan" })).toEqual({ ...terra, permissionMode: "plan" });

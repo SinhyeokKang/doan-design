@@ -1,24 +1,5 @@
-// The script the prototype window injects into its run's canvas document, before the canvas's own scripts. It is
-// serialized with toString() and must stay self-contained: no imports, no closure over this module. It never runs in
-// the board (canvasScript.ts does), so a prototype gets no Select or Picker key and click handling and no iframe
-// height growth.
-//
-// It finds the target frame in the live document at DOMContentLoaded, or after the `load` handlers when it is not
-// there yet. When the frame cannot play after the `load` handlers either, it watches the document for up to
-// LATE_FRAME_MS and reports as soon as the frame can play, else the frame's state when the time is up: the board
-// follows the document as it changes, so a frame a script makes a little later (after a fetch) shows as playable
-// there. The whole document stays as it is and the frame is placed in the viewport in place: its ancestors lose their
-// layout and their other children are hidden, so ancestor selectors, listeners and relative assets keep working.
-// Elements added outside the frame after that moment (a modal appended to body) show. One RunMessage goes to the
-// host; when it went out before the `load` handlers, one FramesMessage follows them with the drawer list. Both carry
-// the document's `data-doan-goto` links.
-//
-// A click on a link inside the playing frame posts one GotoMessage. The listener is on the window's capture phase and
-// registered before the canvas's own scripts run, so a canvas stopping the click's propagation, even in its own window
-// capture listener, cannot keep it from us; only `preventDefault()` cancels, read after a 0 ms timer so the canvas's
-// handlers have all run. `isTrusted` is not checked: a canvas can post a GotoMessage for the current gen itself anyway.
-// The click's target is the one the window sees, so a link inside a shadow root (retargeted to its host) or a nested
-// iframe (its clicks never reach this window) does nothing, as `doan check`'s static rules say.
+// Injected into the run's canvas document before its own scripts and serialized with toString(), so self-contained.
+// Placement, late frames and link clicks follow ARCHITECTURE §3 'Prototype window'.
 export function prototypeScript(target: string, gen: number, url: string): void {
   // Only the prototype window's direct child, and only the run's own document: a nested iframe or a document the
   // canvas moved to (the navigation gate refuses those anyway) gets nothing.
@@ -51,9 +32,8 @@ export function prototypeScript(target: string, gen: number, url: string): void 
     return text.slice(0, last >= 0xd800 && last <= 0xdbff ? MAX_STRING - 1 : MAX_STRING);
   };
 
-  // The drawer list: frames with a unique, non-empty ID and a valid mark, in document order, numbered by their
-  // position among all frames as the board's frame drawer numbers them. Only the first 1,000 frames of the document
-  // can be listed, the board's limit, whatever is marked; an ID is still judged shared over all frames.
+  // Frames with a unique, non-empty ID and a valid mark, numbered as the board's frame drawer numbers them. Only the
+  // first 1,000 frames can be listed, the board's limit; an ID is still judged shared over all frames.
   const list = () => {
     const all = frames();
     const counts = new Map<string, number>();
@@ -136,19 +116,14 @@ export function prototypeScript(target: string, gen: number, url: string): void 
     if (document.readyState !== "complete") afterLoad(() => judge(el));
   };
 
-  // A frame that paints its own opaque background colour is the whole picture, so its ancestors' paint (the root's
-  // and the body's background above all) must not show around its rounded corners. Only ever added: a document judged
-  // once to clear stays cleared, so a later read of a background that inherited the cleared paint changes nothing.
-  // The root and the body are not judged when they are the frame: clearing would reach the frame itself.
+  // A frame that paints its own opaque background is the whole picture, so its ancestors' paint must not show around its
+  // rounded corners. Only ever added; the root and the body are not judged when they are the frame.
   const judge = (el: Element) => {
     if (el === document.documentElement || el === document.body) return;
     if (ownBackground(getComputedStyle(el).backgroundColor)) document.documentElement.setAttribute("data-doan-proto-clear", "");
   };
-  // Whether a computed background-color is fully opaque. Chromium writes the alpha after "/" in the space syntax, as
-  // the fourth argument of rgba() and hsla(), and leaves it out when it is 1. A background image never counts: a
-  // texture or a half-transparent gradient often takes its colour from the body. A frame a script detached computes
-  // "", which does not count either. isolate.js holds the same body
-  // (exportViewer.test.ts compares them).
+  // Chromium writes the alpha after "/" or as rgba()/hsla()'s fourth argument, and omits it at 1. A background image or
+  // a detached frame's "" never counts. isolate.js holds the same body (exportViewer.test.ts compares them).
   function ownBackground(color: string): boolean {
     if (color === "" || color === "transparent") return false;
     const slash = color.lastIndexOf("/");

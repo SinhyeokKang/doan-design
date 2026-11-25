@@ -5,8 +5,7 @@ import { openBlockedMessage } from "./deepLinks";
 import type { Screen } from "./menuState";
 import type { FolderEntry } from "./view";
 
-// `doan remove` (app-socket v7) once its schema, token and registered root passed. Main judges with what it already
-// holds and removes itself, so nothing is asked of the renderer: a refusal that says "nothing changed" can never be
+// Main judges with what it already holds and removes itself, so a refusal that says "nothing changed" can never be
 // overtaken by a removal still landing (ARCHITECTURE §4 'Removing a project over app-socket v7').
 
 export interface CliRemoveMenu { screen: Screen; modal: boolean; locked?: boolean; projectSettings?: boolean }
@@ -30,16 +29,14 @@ const NOT_OPEN = "The project is not open in Doan.";
 const RUNNING = "A conversation is running in this project in Doan.";
 const refuse = (code: Exclude<RemoveErrorCode, "bad_request" | "bad_token">, message: string): CliRemoveDecision => ({ kind: "refuse", response: { v: 7, ok: false, error: { code, message } } });
 
-// The CLI has no confirmation, so any running turn in the group refuses, not only the project conversations the
-// menu's dialog counts. An app conversation's agent never gets here: its CLI refuses `doan remove` before dialling
-// (`conversation_refused`), and its conversation credential is answered `bad_token` (ARCHITECTURE §4 'App-socket credentials').
+// The CLI has no confirmation, so any running turn in the group refuses. An app conversation's agent never gets here
+// (ARCHITECTURE §4 'App-socket credentials').
 export function cliRemoveDecision({ root, entries, ready, firstRun, menu, liveTurns, pendingRoots }: CliRemoveInput): CliRemoveDecision {
   const card = groupProjects(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])))
     .find(candidate => candidate.rows.some(row => row.path === root));
   if (!card) return refuse("project_not_open", NOT_OPEN);
-  // What the person must finish is named before loading: loading ends by itself while these stay until the person acts
-  // (readiness does not wait for first run or the buddy screen), and a locked Add Projects page is itself reading the
-  // root it sets up.
+  // What the person must finish is named before loading: loading ends by itself while these wait for the person, and a
+  // locked Add Projects page is itself reading the root it sets up.
   if (firstRun) return refuse("busy", openBlockedMessage("first_run"));
   if (menu.modal) return refuse("busy", "A dialog is open in Doan. Close it, then try again.");
   if (menu.locked === true) {

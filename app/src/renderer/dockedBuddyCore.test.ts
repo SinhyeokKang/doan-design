@@ -7,10 +7,8 @@ import {
   type DockedEvent, type DockedFrame, type DockedInputs, type DockedState,
 } from "./dockedBuddyCore";
 
-// Expected values come from running the docked buddy draft .doan/assets/buddies/docked-poc.js in a node vm
-// (app/scripts/dockedBuddyGolden.mjs), never from the port: the port must reproduce the draft bit for bit. Every
-// frame is replayed in order with the random values the draft drew; sampled frames also compare the drawn frame and
-// the whole core state.
+// Expected values come from the draft docked-poc.js run in a vm (app/scripts/dockedBuddyGolden.mjs), never from
+// the port. Frames replay in order with the draft's random values; sampled ones also compare frame and core state.
 interface Entry { now: number; inputs?: Omit<DockedInputs, "events">; events?: DockedEvent[]; random?: number[]; out?: unknown; state?: Record<string, unknown> }
 interface Scenario { name: string; buddy: BuddyId; created: { random: number[]; state: Record<string, unknown> }; log: Entry[] }
 const golden = JSON.parse(readFileSync(new URL("./dockedBuddy.golden.json", import.meta.url), "utf8")) as {
@@ -19,7 +17,7 @@ const golden = JSON.parse(readFileSync(new URL("./dockedBuddy.golden.json", impo
   scenarios: Scenario[];
 };
 
-// The draft's preview-only Jump control keeps a flag the app has no use for; it is never set in the golden.
+// The draft's preview-only Jump flag has no use in the app and is never set in the golden.
 const PREVIEW_ONLY = ["requestedJump"];
 const plain = (value: unknown) => JSON.parse(JSON.stringify(value)) as unknown;
 const plainState = (state: DockedState) => plain(state) as Record<string, unknown>;
@@ -59,7 +57,7 @@ test("constants, hide styles, per-buddy geometry and the standing x match the dr
   for (const item of golden.xOn) expect(xOn(item.state, item.name, item.width), JSON.stringify(item)).toBe(item.x);
 });
 
-// ---- Edge cases beyond the golden: the rules, checked against the port's own behaviour. ----
+// Edge cases beyond the golden, checked against the port's own behaviour.
 
 const DOCK = { present: true, accepts: true, width: 360, floating: false };
 const TOOLS = { present: true, width: 300, floating: false };
@@ -73,7 +71,6 @@ type Patch = Partial<Omit<DockedInputs, "surfaces" | "reasons" | "panel">> & {
   reasons?: Partial<DockedInputs["reasons"]>; panel?: Partial<DockedInputs["panel"]>;
 };
 
-// A driver: one 33 ms frame per call, random .5 unless a test sets it.
 function rig(start: DockedInputs = CANVAS, id: BuddyId = "doany") {
   let random = () => .5;
   const state = createDockedState(id, random);
@@ -500,7 +497,6 @@ test("time is needed until the buddy rests hidden with nowhere to go", () => {
   expect(dockedNeedsTime(r.state)).toBe(true);
   r.until(() => !dockedNeedsTime(r.state));
   expect(r.out).toMatchObject({ surface: "dock", presence: "hidden", conceal: 1 });
-  // Parked: further steps without an input change move nothing that is drawn, and the trip stays as it is.
   const trip = plain(r.state.trip);
   const parked = r.run(2);
   expect(parked.every(frame => frame.presence === "hidden" && frame.conceal === 1 && frame.host.x === r.out.host.x)).toBe(true);
@@ -549,7 +545,6 @@ test("a buddy change swaps the buddy and its tempo and keeps the rest of the sta
   setDockedBuddy(r.state, "puri");
   expect(plainState(r.state)).toEqual(before);
   expect(createDockedState("doany", () => .5).tempo).toBe(1);
-  // The trip goes on after the change.
   setDockedBuddy(r.state, "doany");
   expect(r.until(out => out.presence === "shown")).toMatchObject({ surface: "tools", conceal: 0 });
 });

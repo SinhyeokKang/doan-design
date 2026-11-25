@@ -217,9 +217,8 @@ func TestAssembleShellScriptIsLibAndShellInOneFunction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// viewerApp.js is the app's generated prototype and size-bubble judgments, which shell.js and player.js call.
-	// player.js runs first: in a player window (the same file opened with #doan-play=) it plays and the board's
-	// files, in a function of their own, never run.
+	// viewerApp.js holds the app's generated prototype and size-bubble judgments that shell.js and player.js call. In a player
+	// window (#doan-play=) player.js plays and the board's files, wrapped in their own function, never run.
 	shared := strings.Join([]string{viewerFile(t, "lib.js"), viewerFile(t, "viewerApp.js"), viewerFile(t, "player.js")}, "\n")
 	board := strings.Join([]string{viewerFile(t, "inspectPanel.js"), viewerFile(t, "inspectMessage.js"), viewerFile(t, "inspectView.js"), viewerFile(t, "shell.js")}, "\n")
 	want := "(function () {\n" + shared + "\nif (!startPlayer()) (function () {\n" + board + "\n})();\n})();"
@@ -268,8 +267,7 @@ func viewerFile(t *testing.T, name string) string {
 	return string(b)
 }
 
-// fillShell replaced a strings.Replacer over the placeholders; it must agree
-// with one on any shell, including braces next to a placeholder.
+// fillShell must agree with a strings.Replacer over the placeholders on any shell, including braces next to a placeholder.
 func TestFillShellMatchesAReplacer(t *testing.T) {
 	var pairs []string
 	for i, p := range placeholders {

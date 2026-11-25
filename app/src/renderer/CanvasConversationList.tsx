@@ -18,9 +18,8 @@ import { useActivationFocus } from "./activationFocus";
 
 export type CanvasList = readonly CanvasConversationRow[] | "loading" | "error";
 
-// The row that holds focus, for handing focus on when it leaves the list. A blur to nowhere (window
-// blur, the row's removal) keeps it; focus on another element or pointer input outside the rows ends it, so a row
-// removed after the person moved on takes no focus, which would pull them back to a list they had left.
+// A blur to nowhere (window blur, the row's removal) keeps the row; focus elsewhere or pointer input outside ends it,
+// so a row removed after the person moved on never pulls focus back.
 export class RowFocusMemory {
   private key: string | null = null;
   focus(key: string): void { this.key = key; }
@@ -37,9 +36,8 @@ export class RowFocusMemory {
   }
 }
 
-// The order to draw while the pointer or keyboard focus is in the list (`frozen`, the order last drawn): rows keep their
-// places and a new row joins at the end, so a row never moves under the pointer; rows that left go. The sidebar's
-// viewed-canvas list holds its order by the same rule (titleMenuOrder).
+// `frozen` is the order last drawn: rows keep their places and a new row joins at the end, so a row never moves under the
+// pointer. The sidebar's viewed-canvas list holds its order by the same rule (titleMenuOrder).
 export function heldOrder(keys: readonly string[], frozen: readonly string[] | null): string[] {
   if (frozen === null) return [...keys];
   const listed = new Set(keys), kept = frozen.filter(key => listed.has(key)), known = new Set(kept);
@@ -80,7 +78,7 @@ export function CanvasConversationList({ list, current, project, thumbnails, ope
   drawn.current = keys;
   const byKey = new Map(listed.map(item => [item.key, item]));
   const rows = keys.flatMap(key => { const item = byKey.get(key); return item ? [item] : []; });
-  // Only a project row is the Overview's current one, never a canvas row under that key (an earlier build's promotion).
+  // Only a project row is the Overview's current one, never a canvas row under that key.
   const currentKey = rows.find(item => item.kind === "project" && item.key === current)?.key ?? null;
   const [active, setActive] = useState<string | null>(null);
   const tabKey = active !== null && keys.includes(active) ? active : currentKey ?? keys[0] ?? null;
@@ -165,9 +163,8 @@ function Row({ item, project, thumbnail, current, tabbable, open, focus, blur, c
   const id = useId();
   const canvas = item.kind === "canvas" ? item : null;
   const problem = canvas?.problem ? canvasRowProblemText(canvas.problem, project) : null;
-  // The head is the conversation's title, and the caption line under it the canvas name (draft frame overview-rows).
-  // A project row draws no caption, its kind told by the missing thumbnail; screen readers hear "Overview" there.
-  // A problem row is named by its title and described by its canvas and reason, so the reason is read once.
+  // A project row draws no caption, its kind told by the missing thumbnail. A problem row is named by its title and
+  // described by its canvas and reason, so the reason is read once.
   const named = problem === null ? {} : { "aria-labelledby": `${id}-name`, "aria-describedby": `${id}-why` };
   const openable = canvas?.openable ?? true;
   return <li className="cv-item">
@@ -185,10 +182,8 @@ function Row({ item, project, thumbnail, current, tabbable, open, focus, blur, c
   </li>;
 }
 
-// A row's Delete (draft frames cv-delete, cv-special): the title menu's row Delete as a
-// sibling of the row button, which cannot hold a button. It shares the row's Tab stop, so Tab moves between the two
-// while ↑/↓, Home and End move between rows. An unavailable one stays focusable with `aria-disabled` and reads its
-// reason. The focus target after the delete is computed now: the alert takes focus, so the list forgets the row.
+// A sibling of the row button, which cannot hold a button; it shares the row's Tab stop while ↑/↓, Home and End move
+// between rows. The focus target after the delete is computed now: the alert takes focus, so the list forgets the row.
 export function RowDelete({ item, keys, tabbable, onDelete, onFocus }: { item: CanvasConversationRow; keys: readonly string[]; tabbable: boolean; onDelete: CanvasConversationListProps["onDelete"]; onFocus(): void }) {
   const reason = item.deletable.available ? null : item.deletable.reason;
   // Conversation ids are opaque ids (letters, digits, hyphens), safe in an id.

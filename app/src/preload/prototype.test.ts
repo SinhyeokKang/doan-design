@@ -322,7 +322,6 @@ test("terminal work, composer settings and the target root's entry arrive from t
   expect(entry.mock.calls).toEqual([[{ path: "/r", kind: "loading" }]]);
 });
 
-// The drawing and promotion relays are gone: the window's API offers neither.
 test("offers no drawing or promoted conversation", () => {
   for (const name of ["readDrawing", "onDrawing", "readPromoted", "onPromoted"]) expect(api, name).not.toHaveProperty(name);
 });

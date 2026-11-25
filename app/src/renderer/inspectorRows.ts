@@ -1,23 +1,20 @@
 import type { InspectGroup, InspectRow, InspectSide } from "../main/inspect";
 
-// What the inspector panel shows for the resolver's rows, and which `inspect:get` request and reply it acts on.
 // Pure: the panel and the canvas page hold the state and pass it in.
 
 export const NO_STYLES = "The canvas sets no styles here.";
 
-// One row as the panel shows it. `token` is set when the row shows a token chip (then the value is only in the
-// tooltip); otherwise `text` is shown as is. `swatch` is a color row's swatch, inside the chip when there is one.
+// With `token` the value is only in the tooltip; `swatch` sits inside the chip when there is one.
 export interface RowView {
   key: string;
   label: string;
   text: string;
   token?: string;
   swatch?: string;
-  // The tooltip's lines below a cut name or value: the computed value of a token row, the alias chain, each side's
-  // value, where it is inherited from.
+  // Below a cut name or value: a token row's computed value, the alias chain, each side's value, where it is inherited
+  // from.
   tip: string[];
   copy: string;
-  // The row's accessible name: what it shows, read in order.
   spoken: string;
 }
 
@@ -27,14 +24,12 @@ export interface GroupView {
   rows: RowView[];
 }
 
-// `empty` is the panel's line when the canvas sets none of the listed properties.
 export interface RowsView {
   groups: GroupView[];
   empty?: string;
 }
 
-// The order a person asks about: groups, then the rows inside each. A row the list does not name follows in the
-// resolver's order.
+// A row the list does not name follows in the resolver's order.
 const GROUPS: readonly (readonly [InspectGroup, string])[] = [["box", "Box"], ["typography", "Typography"], ["colors", "Colors"], ["radius", "Radius"], ["shadow", "Shadow"], ["layout", "Layout"]];
 const ROW_ORDER: Partial<Record<InspectGroup, readonly string[]>> = {
   box: ["Padding", "Gap", "Margin", "Width", "Height"],
@@ -48,7 +43,7 @@ export function rowKey(row: Pick<InspectRow, "group" | "label">): string {
   return `${row.group}:${row.label.toLowerCase().replace(/\s+/g, "-")}`;
 }
 
-// What the row shows is what it copies: the token name, else the value as shown.
+// What the row shows is what it copies.
 export function rowCopyText(row: InspectRow): string {
   return rowView(row).copy;
 }
@@ -64,14 +59,12 @@ export function rowDisplay(rows: readonly InspectRow[]): RowsView {
   return groups.length ? { groups } : { groups, empty: NO_STYLES };
 }
 
-// The row's tooltip lines; a cut name or value puts its full text first (the app's NameTip rule). `cut` is measured
-// after drawing, so it is the caller's.
+// A cut name or value puts its full text first (the app's NameTip rule). `cut` is measured after drawing.
 export function rowTooltip(row: RowView, cut: boolean): string[] {
   return cut ? [row.token ?? row.text, ...row.tip] : row.tip;
 }
 
-// The rows main splits by side or corner (its resolver's ROWS with `sides`; a test ties the two); `sides` is read on
-// these only.
+// main's resolver ROWS with `sides` (a test ties the two); `sides` is read on these only.
 export const SPLIT_ROWS = new Set(["box:padding", "box:margin", "radius:radius"]);
 
 function rowView(row: InspectRow): RowView {
@@ -92,9 +85,8 @@ function rowView(row: InspectRow): RowView {
   return view;
 }
 
-// A chip stands for the whole value, so a split row is a token only when every side names the same one: a chip on a
-// partly tokenized padding would give a wrong answer to "what is the padding?". A split row without its sides cannot
-// show that, so it is never a chip. Space-joined tokens are never one token either.
+// A chip stands for the whole value, so a split row is a token only when every side names the same one; a split row
+// without its sides is never a chip, and neither are space-joined tokens.
 function chipToken(token: string | undefined, split: boolean, sides: readonly InspectSide[] | undefined): string | undefined {
   if (token === undefined || token === "" || /\s/.test(token)) return undefined;
   if (!split) return token;
@@ -103,7 +95,7 @@ function chipToken(token: string | undefined, split: boolean, sides: readonly In
 
 const ZERO = /^0[a-z%]*$/i;
 
-// A split value set on one side only reads by that side ("Top 8px"); any other shorthand stays as the resolver wrote it.
+// Any other shorthand stays as the resolver wrote it.
 function oneSide(sides: readonly InspectSide[] | undefined): string | undefined {
   if (sides === undefined || sides.length < 2) return undefined;
   const set = sides.filter(side => !ZERO.test(side.value));
@@ -115,8 +107,8 @@ function uniform(sides: readonly InspectSide[]): boolean {
   return sides.every(side => side.value === sides[0]?.value && side.token === sides[0].token);
 }
 
-// Each side's value, a side's token in parentheses. A two-value shorthand (opposite sides equal) pairs them as the
-// draft words it: "Top and bottom 20px, left and right 24px"; anything else lists the sides in order.
+// A two-value shorthand pairs them: "Top and bottom 20px, left and right 24px"; anything else lists the sides in
+// order.
 function sideList(sides: readonly InspectSide[]): string {
   const part = (names: string, side: InspectSide) => `${names} ${side.value}${side.token === undefined ? "" : ` (${side.token})`}`;
   const same = (a: InspectSide | undefined, b: InspectSide | undefined) => a !== undefined && b !== undefined && a.value === b.value && a.token === b.token;
@@ -127,7 +119,7 @@ function sideList(sides: readonly InspectSide[]): string {
   return capitalized(parts.join(", "));
 }
 
-// The draft names the horizontal pair "left and right", not in the resolver's right-before-left order.
+// "left and right", not the resolver's right-before-left order.
 function pairName(b: InspectSide, d: InspectSide): string {
   return b.side === "right" && d.side === "left" ? "left and right" : `${sideName(b.side)} and ${sideName(d.side)}`;
 }
@@ -140,8 +132,8 @@ function capitalized(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-// Colors arrive as hex or `transparent`; anything else gets no swatch, so a canvas string never reaches a style
-// property unchecked.
+// Anything other than hex or `transparent` gets no swatch, so a canvas string never reaches a style property
+// unchecked.
 function swatchColor(row: InspectRow): string | undefined {
   if (row.group !== "colors") return undefined;
   return /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(row.value) || row.value === "transparent" ? row.value : undefined;
@@ -152,15 +144,13 @@ export interface InspectCanvas {
   path: string;
 }
 
-// An accepted selection: the anchor main's collector looks up in the shown canvas.
 export interface InspectTarget {
   canvas: InspectCanvas;
   selector: string;
 }
 
-// The request in flight or last answered. `seq` only grows; `target` is null when nothing is asked (hidden, no
-// selection), so any reply still on its way is dropped. `same`: a read of the selection already shown, whose rows stay
-// until the reply. `notShown`: the last reply for this target was not-shown, carried to the one re-ask with `again`.
+// `target` is null when nothing is asked, so any reply still on its way is dropped. `same`: a read of the selection
+// already shown, whose rows stay until the reply.
 export interface InspectFlight {
   seq: number;
   target: InspectTarget | null;
@@ -171,14 +161,13 @@ export interface InspectFlight {
 export interface InspectRequestInput {
   // Open and not yielding to a narrow window.
   visible: boolean;
-  // The selection the canvas page applied, never one only sent to the canvas.
+  // Never one only sent to the canvas.
   accepted: InspectTarget | null;
   flight: InspectFlight;
-  // The same selection asked again: found again after a reload, the same canvas id at a new path, or Retry.
+  // Found again after a reload, the same canvas id at a new path, or Retry.
   again: boolean;
 }
 
-// `send` is the request to make now, if any; `flight` replaces the caller's.
 export function inspectRequestFor({ visible, accepted, flight, again }: InspectRequestInput): { flight: InspectFlight; send: InspectFlight | null } {
   if (!visible || accepted === null) return { flight: flight.target === null ? flight : { seq: flight.seq, target: null, same: false }, send: null };
   if (!again && flight.target !== null && sameTarget(flight.target, accepted)) return { flight, send: null };
@@ -194,23 +183,18 @@ function sameTarget(a: InspectTarget, b: InspectTarget): boolean {
 
 export type InspectFailure = "not-shown" | "not-found" | "unavailable";
 
-// Main's answer beside the request it echoes (`{selector, canvas, seq}`). A request main refuses outright gets a bare
-// `{ok: false, reason: "unavailable"}` with no echo.
+// A request main refuses outright gets a bare `{ok: false, reason: "unavailable"}` with no echo.
 export type InspectReply = Partial<{ seq: number; canvas: InspectCanvas; selector: string }> & ({ ok: true; rows: InspectRow[] } | { ok: false; reason: InspectFailure });
 
 export type InspectPanel =
   | { kind: "empty" }
-  // `rows`: the previous rows, kept while the same selection is read again.
+  // Kept while the same selection is read again.
   | { kind: "reading"; rows: InspectRow[] | null }
   | { kind: "failed" }
   | { kind: "rows"; rows: InspectRow[] };
 
-// null: a late reply (an older seq, another selection or another canvas), or a bare refusal that echoes no request,
-// changes nothing. `flight` replaces the caller's.
-// `again` (after a not-shown): ask once more without showing a failure, but not from this reply. Main answers
-// not-shown until the requested canvas is its shown document again (a switch or reload in progress, or a debugger
-// that detached), so asking straight back would loop. The caller asks on the next accepted-selection apply or
-// shown-document change; a second not-shown in a row for the same selection and canvas is a failure with Retry.
+// null: a late reply or a bare refusal changes nothing. `again`: main answers not-shown until the canvas is its shown
+// document again, so the caller asks once more on the next change; a second not-shown in a row is a failure.
 export function acceptInspect(panel: InspectPanel, flight: InspectFlight, reply: InspectReply): { panel: InspectPanel; again: boolean; flight: InspectFlight } | null {
   if (flight.target === null || reply.seq !== flight.seq || reply.canvas === undefined || reply.selector === undefined || !sameTarget(flight.target, { canvas: reply.canvas, selector: reply.selector })) return null;
   const answered: InspectFlight = { seq: flight.seq, target: flight.target, same: flight.same };

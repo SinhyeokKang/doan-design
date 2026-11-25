@@ -1,6 +1,5 @@
-// Capture queue for the hidden thumbnail window. One
-// job runs at a time; a new job starts when `active` goes from null to a key.
-// The caller reports each capture with `done` or `fail`.
+// One job runs at a time; a new job starts when `active` goes from null to a key. The caller reports each capture with
+// `done` or `fail`.
 
 export interface ThumbnailJob {
   key: string;
@@ -25,9 +24,8 @@ export type ThumbnailQueueEvent =
   | { type: "visible"; key: string; visible: boolean }
   | { type: "done"; key: string }
   | { type: "fail"; key: string }
-  // The canvas changed or was removed: drop a pending job or a failure. A
-  // running capture cannot be aborted; it still reports, and that result is
-  // ignored. A `request` after `forget` queues a fresh capture behind it.
+  // A running capture cannot be aborted; it still reports, and that result is ignored. A `request` after `forget` queues a
+  // fresh capture behind it.
   | { type: "forget"; key: string }
   | { type: "pause" }
   | { type: "resume" };
@@ -64,9 +62,7 @@ function setVisible(state: ThumbnailQueue, key: string, visible: boolean): Thumb
   return { ...state, pending: state.pending.map((candidate) => (candidate === job ? { ...candidate, visible } : candidate)) };
 }
 
-// Picks the next job when nothing runs and the queue is not paused. Visibility
-// is read at pick time, so a card that scrolled out falls back to its place in
-// request order.
+// Visibility is read at pick time, so a card that scrolled out falls back to its place in request order.
 function start(state: ThumbnailQueue): ThumbnailQueue {
   if (state.active !== null || state.paused) return state;
   const next = state.pending.find((job) => job.visible) ?? state.pending[0];

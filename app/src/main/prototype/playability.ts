@@ -37,9 +37,8 @@ export interface PlayInput {
 // `frame` and `broken` are indexes into the input's frames. `broken` is a selected frame whose mark cannot play.
 export type Playability = { kind: "play"; frame: number } | { kind: "drawer"; broken?: number } | { kind: "disabled"; reason: string };
 
-// Per frame, whether the prototype window can play it as far as the board can tell; also the frame drawers' Prototype
-// mark. The window refuses a shared id rather than pick one, so the board must not offer it either. A cut id is not the
-// frame's own, so it neither plays nor shares another frame's genuine 200-unit id.
+// Per frame, whether the prototype window can play it as far as the board can tell. The window refuses a shared id, so
+// the board must not offer it; a cut id neither plays nor shares another frame's genuine 200-unit id.
 export function playableFrames(frames: readonly PlayFrame[]): boolean[] {
   const counts = new Map<string, number>();
   for (const frame of frames) if (frame.cut === undefined) counts.set(frame.id, (counts.get(frame.id) ?? 0) + 1);

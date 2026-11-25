@@ -241,15 +241,14 @@ describe("sign-in", () => {
     await acpRequest("authenticate"); status.reply("authenticate", {});
     await run.done;
   };
-  // An Antigravity sign-in failure left nothing in the app's log (2026-11-01). Its log now says why the exchange ended and
-  // which server events led there, as Doan's own categories only: the server's messages, RPC error text, payloads and
-  // traceback lines can hold the sign-in link, the account and tokens, and are never printed.
+  // An ACP sign-in's log says why the exchange ended and which server events led there, in Doan's own categories only: server
+  // messages, RPC error text, payloads and traceback lines can hold the sign-in link, account and tokens.
   describe("ACP sign-in diagnostics", () => {
     let errors: ReturnType<typeof vi.spyOn>;
     beforeEach(() => { errors = vi.spyOn(console, "error").mockImplementation(() => {}); });
     afterEach(() => errors.mockRestore());
     const logged = () => errors.mock.calls.map((call: unknown[]) => call.map(String).join(" ")).join("\n");
-    // A server log line as the 1.3.0 server writes it (absl: level+date, time, thread, file:line]).
+    // A server log line in absl format (level+date, time, thread, file:line]).
     const glog = (level: string, at: string, text: string) => `${level}1101 17:21:04.433963 8505041280 ${at}] ${text}\n`;
     const SENTINELS = ["SENT_A", "SENT_B", "SENT_C", "SENT_D", "SENT_E", "SENT_F", "SENT_G", "SENT_H", "SENT_I", "SENT_J", "SENT_K", "SENT_L", "SENT_M", "SENT_N",
       "accounts.google.com", "example.com", "Onboarding failed", "client_secret", "Traceback"];
@@ -449,8 +448,8 @@ describe("sign-in", () => {
     });
   });
   it("counts the status check's time limit from the server's initialize answer, not from its start", async () => {
-    // Under heavy load (load average ~120 to ~190 on 8 cores) the 278 MB server took about 30 s to answer initialize, so a
-    // status check whose limit also covered the server's start failed a sign-in the user had just approved (2026-11-01).
+    // Under heavy load the server can take about 30 s to answer initialize, so a status check whose limit also covered the
+    // start would fail a sign-in the user had just approved.
     const m = manager({ adapters: withAcp(), statusTimeoutMs: 30 }); await m.load();
     const run = started(await m.signIn("antigravity", 7));
     const login = await acpRequest("initialize"); login.reply("initialize", INIT);
@@ -527,7 +526,7 @@ describe("sign-in", () => {
     expect(login.env.BROWSER).toBe(hook);
     // The printed link would need a pasted code, which doan cannot take.
     login.print("If the browser didn't open, visit: https://login.example/manual?code=true\nPaste code here if prompted > ");
-    // claude 2.1.312 runs $BROWSER with the link as its only argument and discards the hook's output.
+    // claude runs $BROWSER with the link as its only argument and discards the hook's output.
     execFileSync(hook, ["https://evil.example/authorize"], { env: login.env, stdio: "ignore" });
     execFileSync(hook, ["https://login.example/authorize?redirect_uri=localhost"], { env: login.env, stdio: "ignore" });
     await vi.waitFor(() => expect(prompts).toEqual([{ provider: "claude", attemptId: run.attemptId, owner: 7, url: "https://login.example/authorize?redirect_uri=localhost" }]));
@@ -696,7 +695,7 @@ describe("sign-in", () => {
   });
 });
 
-// V defect 2 (2026-10-29): a cancelled replacement sign-in unverified every connection it was tried on.
+// A cancelled replacement sign-in must not unverify the connection it was tried on.
 describe("a replacement that does not finish", () => {
   const vaultU1 = { "creds/token.json": Buffer.from(JSON.stringify({ id: "u1" })) };
   it("leaves a vault provider's connection, vault and metadata as they were when the owner cancels", async () => {
@@ -1604,8 +1603,8 @@ describe("owned auth process", () => {
   });
 });
 
-// Every Codex process loads <CODEX_HOME>/.env into its environment (codex-cli 0.169.0, probe); one a turn planted before
-// the fence closed it would still set PATH for the harness's unsandboxed children, so it goes before any Codex process.
+// Every Codex process loads <CODEX_HOME>/.env into its environment; one a turn planted before the fence closed it would
+// still set PATH for the harness's unsandboxed children, so it goes before any Codex process.
 describe("a planted Codex .env", () => {
   it("is removed before a Codex sign-in, check and run starts, a link without touching its target", async () => {
     const m = manager(); await m.load();
@@ -2185,9 +2184,8 @@ describe("MCP connector steps", () => {
     await finish("status", 0);
     expect(await out.done).toMatchObject({ phase: "disconnected" });
   });
-  // Every Copilot process imports the JavaScript in its profile's package cache, and every Cursor process runs Node with
-  // a compile cache in its profile, both of which a fenced turn can rewrite, so their sign-in and check run in the outer
-  // fence; the other providers' do not.
+  // Every Copilot process imports its profile's package cache and every Cursor process runs Node with a compile cache in
+  // its profile, both writable by a fenced turn, so their sign-in and check run in the outer fence.
   it("runs Copilot's and Cursor's sign-in and check in the outer fence", async () => {
     const userData = join(root, "ud"); storage = new AuthStorage(join(userData, "agent-auth"), cipher);
     const m = manager({ fence: { userData, exec: "/fence/sandbox-exec" } }); await m.load();
@@ -2287,7 +2285,7 @@ describe("MCP connector steps", () => {
     expect(m.settling("claude")).toBe(false);
     expect(changes.length).toBeGreaterThan(before);
     expect(published.at(-1)).toMatchObject({ phase: "connected", connection: { account: { id: "a2" } } });
-    // No longer busy (this fixture's Claude account has no organization, so it reads as needing a new sign-in).
+    // Not busy any more (this fixture's Claude account has no organization, so it reads as needing a new sign-in).
     expect(m.status("claude", { cli: "found", version: "supported", tools: "ready" }).readiness).not.toMatchObject({ cause: "busy" });
     await (await m.acquire("claude", "run")).release();
   });
@@ -2351,7 +2349,7 @@ describe("the sign-in link file", () => {
   });
 });
 
-// POSTMORTEM 2026-10-30: a usage read is not a conversation the person would be asked to stop.
+// A usage read is not a conversation the person would be asked to stop (POSTMORTEM 2026-10-30).
 describe("usage leases", () => {
   it("lets a sign-out stop a usage read without stop_required, waiting for its lease", async () => {
     const leases: Awaited<ReturnType<AuthManager["acquire"]>>[] = [];

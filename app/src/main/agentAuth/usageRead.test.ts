@@ -172,7 +172,7 @@ describe("Claude usage read", () => {
     expect(entries.some(m => m.type === "user")).toBe(false);
     await vi.waitFor(() => expect(gone(Number(start.pid))).toBe(true));
   }, 20_000);
-  // review-B 🟢2: pinned as a Doan Claude run is (runners.ts), so a device's managed apiKeyHelper cannot answer for the login.
+  // Pinned as a Doan Claude run is (runners.ts), so a device's managed apiKeyHelper cannot answer for the login.
   it("pins the read to the login's organization when the connection has one", async () => {
     for (const organization of ["org-uuid-1", undefined]) {
       await readUsage("claude", { ...lease(claude()), ...(organization ? { organization } : {}) }, options({ readMs: 5000 }));

@@ -1,13 +1,12 @@
-// Whether a Codex turn may start, from the thread's mcpServer/startupStatus/updated params (already filtered to that
-// thread by the runner, and cleared for the reloaded names after config/mcpServer/reload). A turn that starts before
-// its servers are ready runs without them (PoC: "omitting pending optional MCP server").
+// From the thread's mcpServer/startupStatus/updated params, already filtered to the thread by the runner. A turn that
+// starts before its servers are ready runs without them.
 export type StartupGate =
   | { kind: "wait" }
   | { kind: "wait_notice"; names: string[] }
   | { kind: "start" }
   | { kind: "start_without"; names: string[] };
 
-// Remote servers were ready 1-1.6 s after thread/start in the PoC.
+// Remote servers are ready about 1-1.6 s after thread/start.
 export const STARTUP_NOTICE_MS = 1000;
 export const STARTUP_LIMIT_MS = 10_000;
 const STATUSES = new Set(["starting", "ready", "failed", "cancelled"]);

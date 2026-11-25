@@ -4,8 +4,8 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 
-// a chip in an agent's reply, pressed in the canvas panel or the Overview.
-// Driven with hooks as plain state and a stub controller, as App.conversationPanel.test.tsx is.
+// A chip in an agent's reply, pressed in the canvas panel or the Overview. Hooks run as plain state with a stub
+// controller.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -213,8 +213,8 @@ test("a canvas that cannot load after the chip opened it says so as Quick Open d
   expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(unavailableCanvasMessage(listA(), C, "a"));
 });
 
-// the Overview covers the canvas it came from, so a chip into that canvas opens it again instead of
-// locating in a canvas nobody sees.
+// The Overview covers the canvas it came from, so a chip into that canvas opens it again instead of locating in
+// a canvas nobody sees.
 test("the Overview's chips open their canvas, the one it last showed included", async () => {
   await onDrafts();
   // The canvas page's way back to the Overview; the controller then publishes no open canvas.
@@ -286,8 +286,8 @@ test("a chip looks only in its conversation's root: another worktree's canvas wi
   expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(expect.stringMatching(/^Couldn’t open checkout\. The canvas isn’t in /));
 });
 
-// POSTMORTEM 2026-11-01: two worktrees share the canvas id `drafts`. Another root's chip is never located in the canvas
-// on screen; it opens that root's own row.
+// POSTMORTEM 2026-11-01: two worktrees share the canvas id `drafts`; another root's chip is never located in the
+// canvas on screen, it opens that root's own row.
 test("with two roots sharing a canvas id, a chip locates only in its own root's canvas and opens the other root's own row", async () => {
   const draftsB: CanvasRow = { ...drafts, url: "u-d-b" };
   await overview([{ path: "/w/b", kind: "list", servedRev: 0, canvases: [draftsB] }]);
@@ -333,8 +333,8 @@ test("during first run another canvas's chip moves nowhere and shows nothing", a
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-// the waiting element goes when the person picks what the panel shows before the first
-// layout; the panel's own switch to the opened canvas's conversation keeps it.
+// The waiting element goes when the person picks what the panel shows before the first layout; the panel's own
+// switch to the opened canvas's conversation keeps it.
 test("a person's conversation choice drops the waiting element; the panel following the opened canvas does not", async () => {
   await onDrafts();
   clearController();

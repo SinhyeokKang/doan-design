@@ -1,7 +1,5 @@
-// Keep evaluation behavior aligned with docs/ARCHITECTURE.md §14 (agent evaluation)
-// and the procedure in .agents/skills/agent-eval/SKILL.md so rounds stay comparable.
-//   node eval/run.ts [--scenarios W1,R2] [--agents claude,codex] [--repeat N] [--round <name>] [--no-judge]
-//   node eval/run.ts --self-test [--scenarios ...]
+// Keep aligned with docs/ARCHITECTURE.md §14 and .agents/skills/agent-eval/SKILL.md so rounds stay comparable.
+// node eval/run.ts [--scenarios W1,R2] [--agents claude,codex] [--repeat N] [--round <name>] [--no-judge] | --self-test [--scenarios <ids>]
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
@@ -111,10 +109,8 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
   }
 }
 
-// The fake agent: lays a fixture over the seed, prints the fixture's transcript
-// file when there is one (`fixtures/<kind>.transcript.txt`), and runs the CLI
-// argument lists in `fixtures/<kind>.commands.json` against the fake app, with
-// `{{repo}}` replaced, so onboarding checks read a real request log.
+// Fake agent: overlays a fixture, prints its `<kind>.transcript.txt` and runs `<kind>.commands.json` ({{repo}}
+// replaced) against the fake app, so onboarding checks read a real request log.
 export async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, kind: "pass" | "fail"): Promise<{ record: RunRecord; problems: string[] }> {
   const name = `${scenario.id}-fixture-${kind}`;
   const dir = join(setup.out, name);
@@ -166,7 +162,7 @@ export async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, ki
   }
 }
 
-// Also for a failed or broken run; a copy error must not hide the run's own error.
+// Evidence is kept for a failed or broken run too; a copy error must not hide the run's own error.
 function keepEvidence(ws: Workspace, dir: string): void {
   try { keepOnboardingLog(ws, dir); } catch (error) { writeFileSync(join(dir, "onboarding-log-error.txt"), `${(error as Error).stack}\n`); }
   try { keepCodexSessions(ws, dir); } catch (error) { writeFileSync(join(dir, "codex-sessions-error.txt"), `${(error as Error).stack}\n`); }
@@ -249,7 +245,7 @@ async function main(): Promise<number> {
     return 0;
   } finally {
     if (cliDir) rmSync(cliDir, { recursive: true, force: true });
-    // Also on a failed round: a run must never have touched the user's own doan setup.
+    // Checked on a failed round too: a run must never have touched the user's own doan setup.
     await assertRealState(before);
   }
 }

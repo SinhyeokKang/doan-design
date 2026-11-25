@@ -9,9 +9,8 @@ import type { VisibleCalls } from "../visibleClock";
 import type { PrototypeConversationCalls } from "./conversationRun";
 import type { PrototypeApi } from "./PrototypeWindow";
 
-// The one place the preload and the panel's call objects meet: the prototype window's preload
-// must stand in for `window.doan` wherever the panel body, its store, its run and its docked support take a call
-// object. A member renamed or reshaped on either side fails typecheck here.
+// The prototype preload must stand in for `window.doan` wherever the panel takes a call object;
+// a renamed or reshaped member fails typecheck here.
 test("window.doanPrototype is every call object the prototype window's panel hands on", () => {
   expectTypeOf<DoanPrototypeApi>().toExtend<ConversationCalls>();
   expectTypeOf<DoanPrototypeApi>().toExtend<StoreCalls>();

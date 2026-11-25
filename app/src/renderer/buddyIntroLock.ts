@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 
-// The existing-user buddy screen main decided at launch. While it is open App holds first run's lock (links, `doan
-// open`, notifications, the menu through its modal flag); close() lifts it here at once and tells main, which
-// re-enables Settings…, ⌘B and the open-Settings command.
+// While it is open App holds first run's lock; close() lifts it here at once and tells main, which re-enables
+// Settings…, ⌘B and the open-Settings command.
 export interface BuddyIntroLock { open: boolean; close(): void }
 
 export function useBuddyIntroLock(): BuddyIntroLock {

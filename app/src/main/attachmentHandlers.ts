@@ -1,11 +1,5 @@
-// The composer attachment requests of both windows (index.ts registers them behind the sender guard). Each draft is a
-// window's own (PRODUCT §5 item 2 'Prototype window'), so an attachment id in a draft belongs to the window that holds
-// it now: the one it was issued to, or the one that took it back (a returned queue's ids go to the window that took the
-// draft, and a recheck makes a sent id that window's draft again). Once main accepts a start, send or queue carrying
-// it, the id is the conversation's (a queue the service reclaims and sends later, a send under way) and no window's
-// close touches it. A window may use only its own ids; the prototype window also none main never gave it, while the
-// main window keeps the ids main issues outside these handlers (a canvas capture, the service's reissue). A closed
-// prototype window's close forgets only the drafts it still holds. Electron-free: the Attach dialog is the caller's.
+// An attachment id belongs to the window holding its draft until main accepts it into a conversation. Ids issued
+// outside these handlers (a canvas capture, a reissue) are the main window's only. Electron-free.
 import type { AttachmentResult, AttachmentStore, RecheckResult } from "./attachments";
 
 // The window that asked: "main", or the prototype window by its webContents id, so a closed window's late reply is

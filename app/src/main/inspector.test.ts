@@ -135,7 +135,7 @@ test("inspects the shown canvas through its frame's session and returns the rows
 });
 
 test("DOM and CSS are on only during a request", async () => {
-  // Left on, a canvas that mutates its DOM sent ~6,300 events/s to main (measured).
+  // Left on, a canvas that mutates its DOM sends thousands of events a second to main.
   const { dbg, docs, inspector } = setup();
   show(dbg, docs, "S1", "loader");
   await inspector.inspect(request());

@@ -91,7 +91,6 @@ test("the target goes when the window loses focus, and a drag without files is n
   expect(text.preventDefault).not.toHaveBeenCalled();
 });
 
-// The card's two buttons: Choose folder, then New folder, each running its own command.
 test("Choose folder and New folder each run their own command", () => {
   const choose = vi.fn(), newFolder = vi.fn();
   const buttons: { props: { children?: unknown; onClick?: () => void } }[] = [];

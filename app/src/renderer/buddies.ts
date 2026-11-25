@@ -1,18 +1,17 @@
-// The buddy registry: the one list of buddies every screen reads (Buddy step, buddy screen, Settings > General,
-// Home, the working notice). A screen branches on what the registry says, never on a buddy's id. Pure, so main
-// (preferences) reads it by value too.
+// A screen branches on what the registry says, never on a buddy's id. Pure, so main (preferences) reads it by value
+// too.
 
 export type BuddyId = "doany" | "puri" | "dungdung" | "popo" | "dori";
-// The default order, used everywhere but first run's Cover Flow row.
+// The default order; first run's Cover Flow uses FIRST_RUN_ORDER.
 export const BUDDY_IDS: readonly BuddyId[] = ["doany", "puri", "dungdung", "popo", "dori"];
-// First run's row puts Doany, the default, in the middle so all five show on the first visit.
+// Doany, the default, sits in the middle so all five show on the first visit.
 export const FIRST_RUN_ORDER: readonly BuddyId[] = ["popo", "puri", "doany", "dungdung", "dori"];
 
-// Paths are relative to the renderer's public folder. Doany's motion assets stay in doany/: its golden trace records
-// their file names, and canvases and the serve config read them there.
+// Doany's motion assets stay in doany/: its golden trace records their file names, and canvases and the serve config
+// read them there.
 export interface BuddyAssets { still: string; body: string; accessory: string; shadow: string; card: string }
-// UV of the 1254² layers. Values the shader source takes are strings in the draft's own notation (".10", not "0.1"),
-// so a buddy's compiled source matches .doan/assets/buddies/motion-preview.js byte for byte.
+// Shader values are strings in the asset's own notation (".10", not "0.1"), so a compiled source matches
+// .doan/assets/buddies/motion-preview.js byte for byte.
 export interface BuddyRig {
   eyes: readonly [string, string];
   radius: readonly [string, string];
@@ -23,16 +22,16 @@ export interface BuddyRig {
   scale: string;
   neutral: string;
   padding: string;
-  // Radians; a scarf or headphones wrap the body, so they swing less, and glasses would leave the eyes when tilted.
+  // A scarf or headphones wrap the body, so they swing less, and glasses would leave the eyes when tilted.
   accessoryTilt: readonly [number, number];
   liftScale: number;
-  // The ground contact the floor shadow shrinks about during a hop: centre x and alpha bottom y.
+  // Centre x and alpha bottom y.
   contact: readonly [number, number];
 }
 export interface ArtistVariant { gif: string; rest: string }
 export interface Buddy { id: BuddyId; name: string; line: string; assets: BuddyAssets; rig: BuddyRig; artists: readonly ArtistVariant[] }
 
-// One eye for every buddy, cut from Puri's still.
+// Cut from Puri's still.
 export const EYE_TEXTURE = "buddies/eye.png";
 
 const SHARED = { gaze: ".018,.014", skew: ".018", bodyPivot: ".5,.60", scale: "1.34", neutral: ".10", padding: "16.5%" } as const;
@@ -43,7 +42,7 @@ const friendArtists = (id: BuddyId): readonly ArtistVariant[] => [
   { gif: `buddies/${id}/artist-reading.gif`, rest: `buddies/${id}/artist-reading-rest.png` },
 ];
 
-// Rig numbers: Doany's from .doan/assets/doany/v2/README.md, the friends' from .doan/assets/buddies/README.md.
+// Doany's from .doan/assets/doany/v2/README.md, the friends' from .doan/assets/buddies/README.md.
 const REGISTRY: Record<BuddyId, Buddy> = {
   doany: {
     id: "doany", name: "Doany", line: "A little artist in a beret who just loves to draw.",
@@ -83,8 +82,7 @@ export function parseBuddyId(value: unknown): BuddyId { return knownBuddyId(valu
 export function buddy(id: BuddyId): Buddy { return REGISTRY[id]; }
 
 export interface PickedArtist { buddy: BuddyId; variant: ArtistVariant }
-// The working notice holds its variant while the buddy stays, so working, stopping and waiting keep one picture;
-// a change of buddy picks again.
+// Held while the buddy stays, so working, stopping and waiting keep one picture.
 export function pickArtist(id: BuddyId, previous: PickedArtist | null, random: () => number): PickedArtist {
   if (previous?.buddy === id) return previous;
   const artists = REGISTRY[id].artists;

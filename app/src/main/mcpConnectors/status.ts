@@ -1,7 +1,6 @@
 import type { McpFacts } from "./state";
 
-// Status outputs as of Claude Code 2.1.318 and Codex 0.166.0. null: unreadable,
-// shown as Couldn’t check rather than guessed.
+// null: unreadable, shown as Couldn’t check rather than guessed.
 
 // `claude mcp get <name>` has no JSON option. An unknown name exits 1; a registered one prints a block headed
 // `<name>:` whose Status line says whether its sign-in works (the command also health-checks the server).
@@ -41,9 +40,8 @@ export function parseCodexMcpList(text: string): { name: string; authenticated: 
 // is null when its status says neither signed in nor signed out.
 export interface ListedServer { name: string; url: string | null; authenticated: boolean | null }
 
-// `claude mcp list` (it health-checks every server first). Only doan- lines are read: the list also holds claude.ai
-// connectors and the person's own servers. A doan- line in another shape makes the whole list unreadable, so a
-// sign-out or replacement never skips one of Doan's servers silently.
+// `claude mcp list` also holds claude.ai connectors and the person's own servers, so only doan- lines are read. A doan-
+// line in another shape makes the whole list unreadable, so a sign-out never skips one of Doan's servers silently.
 export function parseClaudeMcpList(output: string, exitCode: number): ListedServer[] | null {
   if (exitCode !== 0) return null;
   const servers: ListedServer[] = [];

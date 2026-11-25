@@ -3,13 +3,11 @@ import type { CanvasRow } from "../main/view";
 import { bannerWatchKey, cardBanners, watchBanners } from "./ConversationThread";
 import type { ThreadItem } from "./threadItems";
 
-// The thread reports which card banners are on screen, so the root's shared requests ask for their images. A canvas a
-// later turn draws again gets a second card with the same path; its banner must be watched too.
+// A canvas a later turn draws again gets a second card with the same path; its banner must be watched too.
 const X = { path: ".doan/canvases/x.html", id: "x" }, Y = { path: ".doan/canvases/y.html", id: "y" };
 const ROWS: CanvasRow[] = [{ ...X, url: "", width: 390 }, { ...Y, url: "", width: 390 }];
 const card = (key: string, canvas = X): ThreadItem => ({ kind: "canvasCard", key, canvas, drawing: false, drawn: true });
 const listed = () => true;
-// Whether a card spins (Drawing): the thread asks canvasCardText.
 const still = () => false;
 
 describe("cardBanners", () => {
@@ -65,7 +63,6 @@ describe("watchBanners", () => {
     observer.callback([{ target: older, isIntersecting: true }, { target: newer, isIntersecting: false }, { target: other, isIntersecting: false }]);
     expect(reports.at(-1)).toEqual([X.path]);
     observer.callback([{ target: older, isIntersecting: false }, { target: newer, isIntersecting: true }]);
-    // Still x alone: nothing new to report.
     expect(reports).toHaveLength(1);
     observer.callback([{ target: newer, isIntersecting: false }, { target: other, isIntersecting: true }]);
     expect(reports.at(-1)).toEqual([Y.path]);

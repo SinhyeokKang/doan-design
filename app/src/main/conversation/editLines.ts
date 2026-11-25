@@ -1,6 +1,6 @@
 import type { EditLines } from "./types";
 
-// Counting runs synchronously in main; past these caps the count is unknown (ARCHITECTURE 'Edit line counts').
+// Counting runs synchronously in main; past these caps the count is unknown (ARCHITECTURE §7 'Edit line counts').
 export const EDIT_LINES_MAX = 20_000;
 export const EDIT_DISTANCE_MAX = 1_000;
 

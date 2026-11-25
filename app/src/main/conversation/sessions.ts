@@ -7,9 +7,8 @@ export { MINIMUM_VERSIONS };
 
 export const SESSION_TAIL_BYTES = 1024 * 1024;
 export type VersionedProvider = keyof typeof MINIMUM_VERSIONS;
-// Stored sessions keep the version that wrote them: the oldest Codex doan supports, and the Claude version of every
-// terminal sharing a registry. A floor follows a lowered minimum, but never rises with one: raising it abandons the
-// sessions the older versions made.
+// Stored sessions keep the version that wrote them. A floor follows a lowered minimum but never rises with one: raising
+// it would abandon the sessions the older versions made.
 export const CODEX_ROLLOUT_FLOOR = "0.158.0";
 export const CLAUDE_REGISTRY_FLOOR = "2.1.284";
 const CLI_VERSION = /(\d+)\.(\d+)\.(\d+)((?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)/;
@@ -63,16 +62,14 @@ export function parseSessionRecords(tail: string, startsMidLine = false): Sessio
   }
   return records;
 }
-// A Claude registry record (<config>/sessions/<pid>.json) names the session one Claude process is using. Liveness is
-// read first: a record whose process ended blocks nothing, whatever its other fields, so a crashed process's leftovers
-// never hide a resume. Only a record that may hold the target session still blocks.
+// A Claude registry record (<config>/sessions/<pid>.json) names the session one Claude process uses. Liveness is read
+// first, so a crashed process's leftovers never hide a resume; only a record that may hold the target blocks.
 export type RegistryVerdict = "skip" | "occupied" | "unknown";
-// procStart: the process's start as ps prints it, which tells a reused pid apart. Claude Code 2.1.323 writes none; the
-// pid alone then says whether the process is there (io.ts claudeRecordVerdict).
+// procStart: the process's start as ps prints it, which tells a reused pid apart. Without it the pid alone says whether
+// the process is there (io.ts claudeRecordVerdict).
 export interface RegistryIdentity { pid: number; procStart?: string; host: boolean }
-// null when liveness cannot even be asked. Claude Code writes pidDomain "darwin" on macOS and a machine-id/PID-namespace
-// value on Linux and WSL, so any other string is a process the host's ps cannot see. A procStart that is there but
-// unreadable is not dropped: the record is then in a shape this reader does not know.
+// null when liveness cannot be asked. Claude Code writes pidDomain "darwin" on macOS, so any other value is a process the
+// host's ps cannot see. A procStart that is there but unreadable also gives null, never a pid-only check: the shape is unknown.
 export function registryIdentity(name: string, raw: unknown): RegistryIdentity | null {
   if (!object(raw) || typeof raw.pid !== "number" || !Number.isSafeInteger(raw.pid) || raw.pid !== Number(name.slice(0, -5))) return null;
   if (raw.procStart !== undefined && (typeof raw.procStart !== "string" || !Number.isFinite(Date.parse(raw.procStart)))) return null;

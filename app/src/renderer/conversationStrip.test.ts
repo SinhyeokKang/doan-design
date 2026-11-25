@@ -64,7 +64,6 @@ test("every turn.failed row has its draft wording and offers Edit on Home", () =
     ["rate_limited", "Claude Code reached a usage limit", "Send again from Home after it resets."],
     ["session_unavailable", "Claude Code couldn’t continue", "Edit your request on Home and send it again."],
     ["session_in_use", "Claude Code couldn’t continue", "Edit your request on Home and send it again."],
-    // Draft frame prompt-unread (choice 4): the thread's title with the strip's own recovery body.
     ["prompt_unread", "Claude Code didn’t pick up your message", "Edit your request on Home and send it again."],
   ];
   for (const [code, title, body] of rows) expect(failure(code)).toEqual({ title, body, live: "status", alertKey: null, actions: recover });
@@ -107,8 +106,7 @@ test("each provider names itself", () => {
 });
 
 
-// BV1 defect (2026-10-30): a Copilot Deny ended the turn ~300 ms after the answer, Stop went away with focus on it and
-// focus fell to the page. After an answer focus stays on Stop while the turn runs; once Stop is gone it goes to Dismiss.
+// A Deny can end the turn right after the answer; focus must not fall to the page when Stop goes.
 test("focus stays on Stop while it is drawn; once a finished turn takes it away, focus goes to Dismiss", () => {
   const view = (state: StripState) => stripView(state, CTX).actions;
   expect(focusAfterStop(view({ kind: "working", activity: null }))).toBe("stop");
@@ -161,8 +159,6 @@ test("the strip's error line names the refused Skip or answer while its request 
   }
 });
 
-// The thread's rules: any refusal or rejection of a permission answer; a stale Skip means main settled the question
-// already (it folds by itself), so it is no failure.
 test("a refusal fails the send, except a stale Skip", () => {
   expect(stripSendFailed("answer", null)).toBe(false);
   expect(stripSendFailed("skip", null)).toBe(false);

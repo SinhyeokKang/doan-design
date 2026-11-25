@@ -181,7 +181,7 @@ describe("createInstallOpener", () => {
     expect(readdirSync(t.dir)).toEqual([expect.stringMatching(/^codex-/)]);
   });
 
-  // openPath resolves before Terminal's shell reads the file (T1 race probe): Terminal is a late reader.
+  // openPath resolves before Terminal's shell reads the file: Terminal is a late reader.
   it("leaves an earlier script for its window to read after a later open completed", async () => {
     const t = opener();
     expect(await t.open("codex", missing)).toBe("terminal");

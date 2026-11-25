@@ -9,7 +9,7 @@ import {
   parseSpctl,
 } from "./releaseChecks.mjs";
 
-// Real `codesign -dv --verbose=4` output of a notarized tester build (2026-11-06).
+// Real `codesign -dv --verbose=4` output of a notarized tester build.
 const signedApp = `Executable=/Applications/Doan.app/Contents/MacOS/Doan
 Identifier=design.doan.app
 Format=app bundle with Mach-O thin (arm64)

@@ -13,9 +13,8 @@ export const validSize = (value: string) => /^[1-9][0-9]{0,4}x[1-9][0-9]{0,4}$/.
 type Mark = { frame: string | null; value: string };
 type Parsed = { nodes: unknown[]; marks: Mark[] };
 
-// Each document as tag, attribute and whitespace-collapsed text nodes with every data-doan-prototype attribute
-// dropped, and the marks those attributes carried outside <template>, each with the element's own frame id
-// (null when the element is not a frame).
+// Compared nodes drop every data-doan-prototype attribute; marks are read outside <template> with the element's
+// own frame id (null when it is not a frame).
 function parse(ctx: Parameters<Checks>[0], documents: string[]): Parsed[] | null {
   const result = ctx.run("python3.12", ["-I", "-c", `
 import json, sys

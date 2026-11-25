@@ -111,8 +111,7 @@ describe("openFolderStore", () => {
   });
 });
 
-// BACKLOG 'A project registered through a symlinked path': a run starts only on a root that is its own real path, so
-// a root saved through a symlink is read as its real path.
+// A run starts only on a root that is its own real path, so a root saved through a symlink is read as its real path.
 describe("roots saved through a symlink", () => {
   const linked = () => {
     const real = realpathSync(dir()), parent = dir(), link = join(parent, "repo");
@@ -264,7 +263,7 @@ describe("auto-registered marks", () => {
     expect(readJson(autoFile(file))).toEqual(["/w1"]);
   });
 
-  // POSTMORTEM 2026-10-26: an unreadable folders.json starts an empty list, which must not erase the marks.
+  // An unreadable folders.json starts an empty list, which must not erase the marks.
   test("an unreadable folders.json never prunes the marks", async () => {
     const file = join(dir(), "folders.json");
     writeFileSync(file, "{not json");
@@ -278,7 +277,7 @@ describe("auto-registered marks", () => {
     expect(store.auto()).toEqual(["/w2"]);
   });
 
-  // An earlier write finishing late must not rename an older state over a newer one (POSTMORTEM 2026-10-25).
+  // An earlier write finishing late must not rename an older state over a newer one.
   test("writes keep their start order across both files", async () => {
     const file = join(dir(), "folders.json");
     const store = await openFolderStore(file);

@@ -11,14 +11,14 @@ import type { UsageReading } from "./usageTypes";
 import type { Provider } from "./types";
 
 export type UsageProvider = Exclude<Provider, "antigravity">;
-// A provider process may take tens of seconds to answer initialize under heavy load (POSTMORTEM 2026-11-01), so the
-// start has its own bound and the read's limit starts at that answer. Reads answered in 0.2-1 s in the PoC.
+// A provider may take tens of seconds to answer initialize under heavy load (POSTMORTEM 2026-11-01), so the start has
+// its own bound and the read's limit starts at that answer.
 export const USAGE_OPEN_MS = 60_000;
 export const USAGE_READ_MS = 15_000;
 // The one address the Cursor read may reach (ARCHITECTURE §7 'Agent usage'): fixed host, no redirect.
 export const CURSOR_USAGE_URL = "https://cursor.com/api/usage-summary";
 const CURSOR_ORIGIN = "https://cursor.com";
-// The PoC answer was 590 bytes; the credential file is a few hundred.
+// The summary is under 1 KB and the credential file a few hundred bytes.
 const CURSOR_BODY_LIMIT = 64 * 1024;
 const CURSOR_FILE_LIMIT = 64 * 1024;
 const OUTPUT_LIMIT = 4 * 1024 * 1024;
@@ -53,8 +53,8 @@ export async function readUsage(provider: UsageProvider, lease: Pick<Lease, "com
         read: ["account/rateLimits/read", undefined],
       })
       : provider === "copilot" ? await rpcRead(lease, options, signal, {
-        // The SDK's server mode: Doan's ACP mode answers account.getQuota with Method not found (PoC). It imports the
-        // profile's package-cache JavaScript like every Copilot process, so it runs in the outer fence (fencedEverywhere).
+        // The SDK's server mode: the ACP mode answers account.getQuota with Method not found. It loads the profile's package
+        // cache like every Copilot process, so it runs in the outer fence (fencedEverywhere).
         args: [...PROVIDER_AUTH.copilot.args, "--headless", "--no-auto-update", "--stdio"], cwd: lease.profileDir, framed: true, fenced: "copilot",
         open: ["connect", { supportedTaskKinds: ["agent", "client", "shell"] }], initialized: false,
         read: ["account.getQuota", {}],
@@ -168,10 +168,8 @@ async function rpcRead(lease: Pick<Lease, "command" | "env" | "profileDir">, opt
   finally { stop.dispose(); rpc.close(); child.stop(); await child.gone; }
 }
 
-// The SDK's Query on a session that sends no prompt: initialize, then the usage control request, then close. The cwd
-// is Doan's own folder, not a repo, whose settings (an apiKeyHelper) could replace the login. The CLI still starts the
-// MCP servers the profile's .claude.json and any .mcp.json from its folder up name, which an agent can write, so the
-// read runs in the outer fence, with Claude's own sandbox off as in a fenced run.
+// The SDK's Query on a session that sends no prompt. The cwd is Doan's own folder, not a repo, whose settings could
+// replace the login; the CLI still starts agent-writable MCP servers, so the read runs in the outer fence.
 async function claudeRead(lease: Pick<Lease, "command" | "env" | "profileDir"> & { organization?: string }, options: UsageReadOptions, signal: AbortSignal | undefined): Promise<unknown> {
   const fence = options.fence;
   // Checked before the SDK starts anything: a fence that cannot be built starts no process.
@@ -226,9 +224,8 @@ function cursorCookie(profileDir: string): string {
   if (typeof token !== "string" || typeof sub !== "string" || !sub) throw new ReadFailure("the credential file is not one Doan reads");
   return `WorkosCursorSessionToken=${encodeURIComponent(sub)}%3A%3A${token}`;
 }
-// The usage summary for a Doan-account Cursor run's own profile (agentAuth/usageService.ts withTurnUsage). The credential
-// is read synchronously, before the first await: the run's lease, and with it the credential copy, goes once its
-// stopped process group is gone (conversation/acpRunner.ts). Throws in Doan's own words.
+// The usage summary for a Doan-account Cursor run's own profile. The credential is read before the first await: the run's
+// lease, and the credential copy with it, goes once its stopped process group is gone (acpRunner.ts).
 export function readCursorSummary(profileDir: string, options: Pick<UsageReadOptions, "fetch" | "readMs"> = {}): Promise<unknown> {
   return cursorRead({ profileDir }, options, undefined);
 }
@@ -241,7 +238,7 @@ async function cursorRead(lease: Pick<Lease, "profileDir">, options: Pick<UsageR
   try {
     const fetch = options.fetch ?? globalThis.fetch;
     let reply: Response;
-    // Headers as Orca 1.4.240 sends them and the PoC answered with.
+    // The headers this private endpoint is known to answer to.
     try { reply = await fetch(CURSOR_USAGE_URL, { method: "GET", headers: { Cookie: cookie, Accept: "application/json", Origin: CURSOR_ORIGIN, Referer: `${CURSOR_ORIGIN}/dashboard` }, redirect: "error", credentials: "omit", signal: controller.signal }); }
     catch { throw signal?.aborted ? new Stopped() : new ReadFailure(controller.signal.aborted ? `no answer within ${limit} ms` : "the request could not be completed"); }
     if (reply.redirected || (reply.url && new URL(reply.url).origin !== CURSOR_ORIGIN)) throw new ReadFailure("the answer came from another address");

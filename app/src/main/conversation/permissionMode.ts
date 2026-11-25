@@ -1,9 +1,7 @@
 import type { Provider } from "../agentAuth/types";
 
-// The permission modes a person can pick for a conversation, the same for every provider, and how each provider
-// receives them (ARCHITECTURE §7 'Permission modes'). The renderer imports this module by value, so it must import
-// nothing but types: a value import of the validators or a Node module leaves the built app's window blank
-// (rendererImports.test.ts, POSTMORTEM 2026-10-30).
+// The permission modes a person can pick, the same for every provider (ARCHITECTURE §7 'Permission modes'). The
+// renderer imports this module by value, so it imports only types (rendererImports.test.ts, POSTMORTEM 2026-10-30).
 
 export const PERMISSION_MODES = ["default", "acceptEdits", "plan", "bypass"] as const;
 export type PermissionModeId = typeof PERMISSION_MODES[number];
@@ -43,7 +41,7 @@ export function permissionOptions(provider: Provider, acp?: AcpModes): Permissio
   return offered.includes("default") ? offered : [];
 }
 
-// Agent SDK query() options (0.3.312 sdk.d.ts). Default passes nothing, so the profile's and project's settings apply.
+// Agent SDK query() options. Default passes nothing, so the profile's and project's settings apply.
 export function claudePermission(mode: PermissionModeId): { permissionMode?: "acceptEdits" | "plan" | "bypassPermissions"; allowDangerouslySkipPermissions?: true } {
   switch (mode) {
     case "default": return {};
@@ -53,16 +51,14 @@ export function claudePermission(mode: PermissionModeId): { permissionMode?: "ac
   }
 }
 
-// The modes Claude Code's own settings can run an Ask first turn in that Doan names on the trigger, in Claude's own
-// ids: auto and dontAsk have no common id. Claude's default is Ask first itself, so none seen is no value, never
-// "default" (POSTMORTEM 2026-11-06).
+// The modes Claude Code's own settings can run an Ask first turn in, in Claude's ids (auto and dontAsk have no common
+// id). Claude's default is Ask first itself, so none seen is no value, never "default" (POSTMORTEM 2026-11-06).
 export const CLAUDE_RUN_MODES = ["auto", "dontAsk", "acceptEdits", "plan", "bypassPermissions"] as const;
 export type ClaudeRunMode = typeof CLAUDE_RUN_MODES[number];
 export function claudeRunModeId(value: unknown): value is ClaudeRunMode { return CLAUDE_RUN_MODES.some(mode => mode === value); }
 
-// The mode a Claude status message reports once a plan was approved; a mode with no common id (auto, dontAsk) reads
-// as Default. So does bypassPermissions: Full access is only the person's pick, and following it would have Doan pass
-// allowDangerouslySkipPermissions on later turns that no one chose.
+// The mode a Claude status reports once a plan was approved; auto, dontAsk and bypassPermissions read as Default: Full
+// access is only the person's pick, and following it would pass allowDangerouslySkipPermissions on later turns.
 export function claudeModeAfterPlan(sdkMode: unknown): PermissionModeId {
   switch (sdkMode) {
     case "acceptEdits": return "acceptEdits";
@@ -97,23 +93,20 @@ export function codexWorkspace(reply: unknown): CodexWorkspace {
     ...(Array.isArray(roots) && roots.every(root => typeof root === "string") ? { writableRoots: [...roots] as string[] } : {}),
   };
 }
-// Every MCP server name config/read reports, so the Default probe can turn each off: the ephemeral thread would
-// otherwise start them all once more. Only these names: an override for a server the config lacks fails thread/start
-// ("invalid transport"), and an empty mcp_servers table merges into the config and turns nothing off (0.171.0).
+// Every MCP server name config/read reports, so the Default probe can turn each off. Only these: an override for a
+// missing server fails thread/start, and an empty mcp_servers table turns nothing off.
 export function codexServerNames(reply: unknown): string[] {
   const servers = record(reply) && record(reply.config) ? reply.config.mcp_servers : undefined;
   return record(servers) ? Object.keys(servers) : [];
 }
-// Every plugin key config/read reports (`<plugin>@<marketplace>`): a plugin's own MCP servers are not in
-// mcp_servers, and naming one there fails thread/start ("invalid transport"), so the probe turns the plugin off
-// instead; a key for a plugin that is not installed starts nothing and fails nothing (PoC, 0.171.0).
+// Every plugin key config/read reports (`<plugin>@<marketplace>`): a plugin's MCP servers are not in mcp_servers, so
+// the probe turns the plugin off instead; a key for a plugin that is not installed changes nothing.
 export function codexPluginNames(reply: unknown): string[] {
   const plugins = record(reply) && record(reply.config) ? reply.config.plugins : undefined;
   return record(plugins) ? Object.keys(plugins) : [];
 }
-// Every Codex turn states its values, Default included: an override holds for later turns and across thread/resume,
-// and null does not clear it (0.163.0). A bare workspaceWrite would turn the user's network access off, so Accept
-// edits carries the configured network access and roots.
+// Every Codex turn states its values, Default included: an override holds for later turns and across thread/resume, and
+// null does not clear it. Accept edits carries the configured network access and roots a bare workspaceWrite drops.
 export function codexPermission(mode: PermissionModeId, defaults: CodexDefaults, workspace: CodexWorkspace): CodexTurnPermission {
   switch (mode) {
     case "default": return { approvalPolicy: defaults.approvalPolicy, sandboxPolicy: defaults.sandbox };

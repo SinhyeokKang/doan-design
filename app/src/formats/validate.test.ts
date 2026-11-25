@@ -221,8 +221,8 @@ describe("app-socket v5 text limit", () => {
   });
 });
 
-// A reply to a request without storage must stay readable by a client from before the storage field: its schema
-// rejects unknown properties, so such a reply may carry no storage key and no .git/info/exclude label.
+// A reply to a request without storage must stay readable by older clients, whose schema rejects unknown
+// properties: no storage key and no .git/info/exclude label.
 describe("app-socket v2 storage-less inspection replies stay readable by older clients", () => {
   const files = fixtureFiles("app-socket-v2/response", "valid").filter((file) => file.endsWith("-storageless.json"));
   const olderChanges = [".doan/config.json", ".doan/canvases/", ".gitattributes"];

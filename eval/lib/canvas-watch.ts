@@ -9,12 +9,8 @@ const CANVAS_DIRS = [".doan/canvases/", ".doan/ds/"];
 const MARK_TIMEOUT_MS = 10_000;
 const MARK_RETRY_MS = 200;
 
-// Records every repo-relative name the OS reports under the canvas directories while the agent runs, one JSON value
-// per line (null: an event without a name; {error}: the watch failed). A file that comes and goes before the checks,
-// such as a copy made to render a variant, leaves no other trace, yet the app lists it as it lands.
-// Each watch runs in a process of its own: libuv on macOS serves every recursive watch of a process from one FSEvents
-// stream that it rebuilds whenever a watch opens or closes, and a watch opened in-process after another had closed
-// missed its first report. The runner's two lanes open and close watches side by side.
+// Logs names the OS reports under the canvas dirs (null: unnamed; {error}: failed), as a transient file leaves no
+// other trace. One process per watch: libuv rebuilds its shared FSEvents stream and a new watch loses reports.
 export async function watchCanvasDirs(repo: string, log: string): Promise<{ stop(): Promise<void> }> {
   writeFileSync(log, "", { mode: 0o600 });
   const child = spawn(process.execPath, [fileURLToPath(import.meta.url), repo, log], { stdio: ["pipe", "pipe", "inherit"] });
@@ -35,10 +31,8 @@ export async function watchCanvasDirs(repo: string, log: string): Promise<{ stop
   };
 }
 
-// The child: reports arrive late and in order (macOS reports even writes made just before the watch started, and a
-// write just before the agent exits arrives after its process does), so it writes a marker file at the repo root at
-// each end and keeps only the reports between the two markers' own. It stops when its stdin closes, also when the
-// runner dies.
+// Reports arrive late (even for writes before the watch) but in order, so only those between a start and an end marker
+// file are kept. Stops when stdin closes, also when the runner dies.
 async function child(repo: string, log: string): Promise<void> {
   const record = (value: unknown) => appendFileSync(log, `${JSON.stringify(value)}\n`);
   let recording = false;

@@ -1,16 +1,14 @@
 import type { Provider } from "../main/agentAuth/types";
 import type { EffortView, ModelsState } from "./homeComposer";
 
-// Settings > Agents > New conversations' Model and Effort words.
-// Nothing fixed reads "Default" and, when known, the value it stands for, so it
-// never reads as a fixed choice.
+// Nothing fixed reads "Default" and, when known, the value it stands for, so it never reads as a fixed choice.
 
-// value: the row's menu value. A model id can be any string, an ACP agent's "default" included, so the top row's value
-// and the model rows' values live apart (by kind) and never collide; settingsModelPick reads one back.
+// A model id can be any string, an ACP agent's "default" included, so the top row's value and the model rows' values
+// live apart (by kind) and never collide.
 export type SettingsModelRow =
   | { kind: "unset"; value: string; label: "Default"; description: string | null; selected: boolean }
   | { kind: "model"; value: string; id: string; label: string; selected: boolean; older?: true };
-// pinned: the fixed model this project lists, else null (nothing fixed). value: the checked row's value.
+// pinned: null when nothing is fixed.
 export interface SettingsModelMenu { label: string; pinned: string | null; value: string; rows: SettingsModelRow[] }
 
 const UNSET_VALUE = "unset";
@@ -37,21 +35,20 @@ export function settingsModelMenu(provider: Provider, state: ModelsState, model:
   };
 }
 
-// The model id to store for a picked row's value; null unfixes (the top row, or a value no row carries).
+// null unfixes (the top row, or a value no row carries).
 export function settingsModelPick(menu: SettingsModelMenu, value: string): string | null {
   const row = menu.rows.find(item => item.value === value);
   return row?.kind === "model" ? row.id : null;
 }
 
-// effort: the composer's view for the fixed model, or the default one. Its label is the level alone; a placeholder
-// label ("Effort") means the level is unknown.
+// A placeholder label ("Effort") means the level is unknown.
 export function settingsEffortLabel(effort: EffortView): string {
   if (!effort.unset.selected) return effort.label;
   return effort.placeholder ? "Default" : `Default · ${effort.label}`;
 }
 
-// The Effort menu's rows, kept apart by kind as the Model menu's are (POSTMORTEM 2026-11-06): a level a provider names
-// "default" is a level of its own, never the Default row that stores no effort. value: the checked row's value.
+// Kept apart by kind as the Model menu's are: a level a provider names "default" is a level of its own, never the
+// Default row that stores no effort.
 export type SettingsEffortRow =
   | { kind: "unset"; value: string; label: "Default"; selected: boolean }
   | { kind: "level"; value: string; id: string; label: string; selected: boolean };
@@ -69,7 +66,7 @@ export function settingsEffortMenu(effort: EffortView): SettingsEffortMenu {
   };
 }
 
-// The level to store for a picked row's value; null stores none (the Default row, or a value no row carries).
+// null stores none (the Default row, or a value no row carries).
 export function settingsEffortPick(menu: SettingsEffortMenu, value: string): string | null {
   const row = menu.rows.find(item => item.value === value);
   return row?.kind === "level" ? row.id : null;

@@ -1,9 +1,7 @@
 import type { CanvasState } from "./CanvasController";
 
-// The "Couldn’t load the canvas" Retry (DESIGN 'Busy action'). The reload it starts turns the status to loading at once,
-// so the failure line and the Retry stay drawn from this state, the Retry busy, until the reload answers: a failure
-// keeps them, a load that succeeds or another canvas clears them. `key` is the canvas it was pressed on; `failures`
-// counts Retries that failed in a row, so the line can be announced again.
+// The reload turns the status to loading at once, so the failure line and the busy Retry are drawn from this state
+// until the reload answers (DESIGN 'Busy action'). `failures` lets the line be announced again.
 export interface CanvasRetry { key: string | null; running: boolean; failures: number }
 export const CANVAS_RETRY_IDLE: CanvasRetry = { key: null, running: false, failures: 0 };
 type Status = CanvasState["status"];

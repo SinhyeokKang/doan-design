@@ -86,9 +86,8 @@ test("document observer enables parent and child domains, joins cross-session ev
   expect(docs.current("FRAME", CANVAS)).toBeNull();
 });
 
-// The canvas agent notice's dot field runs a dedicated Worker in the main window, which auto-attach reports too. A
-// worker has no Page domain: Chromium answers Page.enable with "'Page.enable' wasn't found". Clearing the bindings
-// there dropped the shown canvas's proof, and every inspector read answered unavailable until the canvas loaded again.
+// Auto-attach also reports a dedicated Worker in the main window, which has no Page domain; clearing the bindings on
+// its failed setup would drop the shown canvas's proof until the canvas loaded again.
 for (const failing of ["Page.enable", "Runtime.runIfWaitingForDebugger"]) {
   test(`a worker target whose ${failing} fails keeps the shown canvas's proof and is still resumed`, async () => {
     const docs = new DocumentBindings();
@@ -225,9 +224,8 @@ test("mainFrame reads the window's main frame once, follows its commits and forg
   expect(await debuggerOf.mainFrame()).toBe("MAIN");
 });
 
-// While a window closes, Electron's attach succeeds and detaches again at once ("target closed"). The read state reads
-// the main frame on every document change and runs one more pass for a change during a pass; if that failed attach woke
-// it again, the passes would chain in microtasks and starve the close, so quit never finished.
+// While a window closes, Electron's attach succeeds and detaches at once. If that failed attach woke the read state's
+// passes again, they would chain in microtasks and starve the close, so quit never finished.
 test("a closing window's failed re-attach does not wake document listeners again", async () => {
   const docs = new DocumentBindings();
   const dbg = new FakeDebugger();

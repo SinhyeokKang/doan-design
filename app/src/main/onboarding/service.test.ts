@@ -551,9 +551,8 @@ describe("project selection", () => {
     expect(state(await t.ask({ op: "status", sessionId: id })).project).toEqual({ root: "/Users/ada/studio" });
   });
 
-  // The CLI's message may name paths and OS text. The socket answer keeps the fixed message and has no detail: the v2
-  // schema refuses the field (`ask` validates every answer), so a leak would make the CLI refuse the answer. The
-  // window's answers and published states carry it as detail.
+  // The CLI's message may name paths and OS text. The v2 socket schema refuses a detail field, so a leak would make the CLI
+  // refuse the answer; the window's answers and published states carry it.
   it("a project_unreadable failure gives the CLI's message to the window only", async () => {
     const t = setup();
     const { id, inspectionId } = await inspected(t);
@@ -608,9 +607,8 @@ describe("project selection", () => {
   });
 });
 
-// ARCHITECTURE §4 'Storage in onboarding': the inspection plans for the requested storage, a reply speaks of storage
-// only to a request that did (older clients reject unknown properties), and select or clone must restate the storage
-// the reply showed.
+// ARCHITECTURE §4 'Storage in onboarding': a reply speaks of storage only to a request that did, and select or clone must
+// restate the storage the reply showed.
 describe("storage mode", () => {
   const LOCAL = [".doan/canvases/", ".doan/config.json", ".git/info/exclude"];
   const KEPT = [".doan/canvases/", ".doan/config.json"];

@@ -4,9 +4,8 @@ import { DEFAULT_PREFERENCES } from "../preferences";
 import { createComposerSettings } from "./composerSettings";
 import type { PrototypeComposerSettings } from "./ipc";
 
-// The composer settings main pushes the prototype window: a read of ui-state.json that finishes late never publishes
-// what the main window's newer save already replaced (POSTMORTEM 2026-10-26: an earlier read can land after a newer
-// value).
+// A read of ui-state.json that finishes late never publishes what the main window's newer save already replaced
+// (POSTMORTEM 2026-10-26).
 const ui = (provider: "claude" | "codex"): UiState => ({ screen: "home", expanded: {}, lastByRoot: {}, home: { lastProvider: provider } });
 
 function setup() {

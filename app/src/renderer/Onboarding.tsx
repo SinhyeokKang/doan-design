@@ -25,8 +25,7 @@ import { BuddyFailureNotice, BuddyFlow, focusChecked } from "./BuddyPicker";
 import { preferencesNotice } from "./SettingsNotifications";
 
 const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])';
-// Local copies of the draft's marks; sources are in public/provider-logos/README.md. Relative, so the packaged
-// file:// renderer resolves them next to index.html.
+// Sources are in public/provider-logos/README.md. Relative, so the packaged file:// renderer resolves them next to index.html.
 const LOGOS: Record<Provider, string> = { claude: "claude.png", codex: "codex.png", cursor: "cursor.svg", antigravity: "antigravity.svg", copilot: "copilot.svg" };
 
 // Antigravity has no install command or page: Doan downloads its sign-in server itself.
@@ -37,9 +36,8 @@ function openInstallPage(provider: Provider): Promise<boolean> {
   return provider === "antigravity" ? Promise.resolve(false) : window.doan.openInstallPage(provider);
 }
 
-// Welcome (.doan/canvases/buddy-welcome.html): the words on top and the five buddies' group photo running off the
-// bottom edge, the same whatever buddy is saved: no Doany, no WebGL and no accent. A photo that can't be read hides
-// and leaves the words as they are.
+// The words on top and the buddies' group photo running off the bottom edge, the same whatever buddy is saved. A photo that
+// can't be read hides and leaves the words as they are.
 export function Welcome({ start }: { start: () => void }) {
   const [photo, setPhoto] = useState(true);
   return <div className="ob-welcome-main">
@@ -71,12 +69,8 @@ function ActionButton<C extends string>({ button, run, data, variant = button.va
   </>;
 }
 
-// A notice takes the white panel surface only where the backdrop is first run's transparent overlay; on a white surface
-// (a card, the provider list, Settings) the panel fill would vanish, so it keeps the inset notice.
-// live: false keeps the notice's look without its live role, for a page whose one live region announces changes
-// (Settings > MCP Connectors).
-// Its actions sit inside it (DESIGN 'Notices'): one beside the text, two or more stacked on their own row. A subtle
-// action takes panel on the inset fill, where subtle would have no fill of its own (projectNoticeActions' rule).
+// On first run's transparent overlay a notice takes the white panel surface; on a white surface it keeps the inset notice.
+// live: false drops its live role for a page whose one live region announces changes (Settings > MCP Connectors).
 export function NoticeView<C extends string = AuthCommand>({ notice, run, panel = false, live = true }: { notice: Notice<C>; run: (command: C) => void; panel?: boolean; live?: boolean }) {
   const stacked = notice.actions.length > 1;
   return <>
@@ -120,9 +114,8 @@ export function dialogKeys(close: () => void) {
   };
 }
 export const openModal = (node: HTMLDialogElement | null) => { if (node && !node.open) node.showModal(); };
-// showModal() focuses the dialog's first control (Get started on Welcome, the checked buddy on the buddy screen), and
-// the scene effect reaches the heading only a frame later; focusing the heading in the same task leaves no frame in
-// which that control's focus ring can paint.
+// showModal() focuses the dialog's first control and the scene effect reaches the heading only a frame later; focusing the
+// heading in the same task leaves no frame in which that control's focus ring can paint.
 export function openOverlay(node: Pick<HTMLDialogElement, "open" | "showModal"> | null, heading: { focus(): void } | null) {
   if (!node || node.open) return;
   node.showModal();
@@ -162,9 +155,8 @@ export function StopDialog({ view, busy, confirm, close }: { view: ReturnType<ty
   </dialog>;
 }
 
-// Where focus goes when the control the user just used is removed or disabled: the
-// row's first usable control in DOM order (row button, notice actions, paste), else its notice, else the step heading.
-// Sign out acts at once, so recovery never lands on it.
+// Where focus goes when the control just used is removed or disabled: the row's first usable control in DOM order, else its
+// notice, else the step heading. Sign out acts at once, so recovery never lands on it.
 export function firstUsable(view: ProviderView): AuthCommand | "notice" | null {
   const usable = [view.button, ...(view.notice?.actions ?? []), view.paste?.button].find(button => button && !button.disabled && button.command !== "signOut");
   return usable ? usable.command : view.notice ? "notice" : null;
@@ -245,8 +237,8 @@ export function AgentStep({ session, heading, back, next }: { session: AgentStep
   </>;
 }
 
-// Leaving the Agent step goes through the session first: forward cancels this window's own sign-ins (Continue and
-// the Project pill alike, 2026-10-28 user), and a move whose scene changed while it waited is dropped.
+// Leaving the Agent step goes through the session first: forward cancels this window's own sign-ins (Continue and the Project
+// pill alike), and a move whose scene changed while it waited is dropped.
 export function sceneMover(agents: Pick<AgentStepSession, "continue" | "back">, move: (event: SceneEvent) => void, generation: () => number) {
   return {
     forward(): void { const at = generation(); void agents.continue().then(advanced => { if (advanced && generation() === at) move({ type: "continue" }); }); },
@@ -265,9 +257,8 @@ export function ProjectThumbnail({ path }: { path: string }) {
 export function ChosenProject({ path, home }: { path: string; home: string | null }) {
   return <div className="doan-panel ob-chosen"><ProjectThumbnail path={path} /><div><strong>{nameOf(path)}</strong><p className="ob-path selectable">{shown(path, home)}</p></div><Check aria-hidden="true" /></div>;
 }
-// (2026-10-29 user): each choice is a card like the chosen project. A visible radio at the start shows the choice
-// (the shared choice card); the native radio under it keeps arrow keys and Space,
-// and Enter picks too.
+// Each choice is a card like the chosen project. A visible radio at the start shows the choice; the native radio under it keeps
+// arrow keys and Space, and Enter picks too.
 export function ProjectChoice({ paths, choice, home, pick, name }: {
   paths: readonly string[]; choice: string | null; home: string | null; pick: (path: string) => void; name: string;
 }) {
@@ -284,12 +275,8 @@ type ProjectAction = "chooseFolder" | "chooseExisting" | "edit" | "retry" | "cha
 // status: a state, not a failure (a cancelled clone); it has no error tone and is announced politely.
 interface ProjectNotice { title?: string; body: string; detail?: string; note?: string; status?: true; actions: { command: ProjectAction; label: string }[] }
 const action = (command: ProjectAction, label: string) => ({ command, label });
-// Copy from the approved draft's Project states tiles; the newer-version marker's notice is not in the draft: it offers no Retry and says to open the project with that version or update Doan.
-// fromUrl: the screen belongs to a GitHub URL, so a folder chosen there must be that repository's.
-// insideProject: the name of the doan project a clone destination sits in (main refuses it as path_unavailable).
-// folder: the chosen folder a mismatch is about; on the clone screen "This folder" would read as the destination.
-// detail: main's window-only account of the failure (the CLI's message for project_unreadable).
-// home: shortens the location New folder's existing name is in; directory: that name is a folder, so it can be used.
+// fromUrl: a chosen folder must be that repository's. folder: named in a mismatch, as "This folder" would read as the clone
+// destination. home shortens New folder's location; directory: that existing name is usable.
 export function projectNotice(error: ProjectError, message: string | undefined, destination: string | null, fromUrl = false, insideProject: string | null = null, folder: string | null = null, detail: string | null = null, home: string | null = null, directory = true): ProjectNotice {
   // Every folder chosen from a URL screen is checked against that repository.
   const choose: ProjectAction = fromUrl ? "chooseExisting" : "chooseFolder";
@@ -323,9 +310,8 @@ export function projectNotice(error: ProjectError, message: string | undefined, 
     // A setup that could not remove the .git it created names it in main's words; a clone's leftovers keep the default.
     case "cleanup_failed": if (destination === null && message !== undefined) return { body: message, actions: [action(choose, "Choose another folder"), action("retry", "Retry")] };
       return { body: message ?? "Something changed while Doan was checking. Try again.", actions: [action("retry", "Retry")] };
-    // New folder's notices (draft new-project-folder.html). "Doan didn’t replace it" stays true after macOS's own
-    // Replace prompt: main never replaces anything. Change location reopens at the default location, not the one that
-    // failed.
+    // "Doan didn’t replace it" stays true after macOS's own Replace prompt: main never replaces anything. Change location reopens at
+    // the default location, not the one that failed.
     case "folder_exists": {
       const name = folder !== null ? nameOf(folder) : "";
       const where = shown(folder !== null ? folder.replace(/\/+$/, "").split("/").slice(0, -1).join("/") || "/" : "", home);
@@ -349,9 +335,8 @@ export function cancelledNotice(use: ProjectUse): ProjectNotice {
   const choose = action("chooseExisting", "Choose local folder");
   return { status: true, body: "Cloning was cancelled. Choose a folder or try again.", actions: use === "addPage" ? [choose] : [choose, action("retry", "Retry")] };
 }
-// A notice holds the actions it offers: one beside its text, two or more stacked on their own row at its end. They
-// share one weight, set by the surface: panel on the inset fill, subtle on first run's white notice (doan-panel), where
-// panel would lose its fill. The main action stays the footer's. Retry repeats a write, so it is marked as consent.
+// Actions share one weight set by the surface: panel on the inset fill, subtle on first run's white notice, where panel would
+// lose its fill. The main action stays the footer's; Retry repeats a write, so it is marked as consent.
 export function projectNoticeActions(notice: ProjectNotice, panel: boolean) {
   const variant: "panel" | "subtle" = panel ? "subtle" : "panel";
   return { stacked: notice.actions.length > 1, buttons: notice.actions.map(({ command, label }) => ({ command, label, variant, consent: command === "retry" })) };
@@ -374,8 +359,8 @@ function ProjectNoticeView({ notice, run, id, panel = false, paths = [] }: { not
 function Progress({ title, body, panel = false }: { title: string; body?: string; panel?: boolean }) {
   return <div className={panel ? "doan-notice doan-panel ob-project-notice" : "doan-notice ob-project-notice"} role="status" tabIndex={-1}><span className="doan-spinner doan-alert-icon" aria-hidden="true" /><span className="selectable"><strong className="ob-notice-title">{title}</strong>{body && <span className="ob-notice-body">{body}</span>}</span></div>;
 }
-// First run's Back carries its arrow; the page's Cancel leaves the page and has none (draft footers).
-// describedBy: the git init line, when the primary is the setup consent and the plan creates a repository.
+// First run's Back carries its arrow; the page's Cancel leaves the page and has none. describedBy: the git init line, when the
+// primary is the setup consent and the plan creates a repository.
 function Footer({ use, footer, back, next, describedBy }: { use: ProjectUse; footer: NonNullable<ReturnType<typeof projectFooter>>; back: () => void; next: () => void; describedBy?: string | undefined }) {
   return <div className={use === "addPage" ? "ob-footer add-footer" : "ob-footer"}>
     <button type="button" className="doan-button" data-ui-variant="subtle" disabled={footer.back.disabled} onClick={back}>{use === "onboarding" && <ArrowLeft aria-hidden="true" />}{footer.back.label}</button>
@@ -439,9 +424,8 @@ export function LocalFolderCard({ busy, choose, newFolder, drop }: { busy: boole
   </div>;
 }
 
-// Where the Project step puts focus that its own change removed or disabled: the error,
-// else the progress, else the first usable action. Focus the user still holds is never moved.
-// urlRequested: the user just chose Edit repository URL (or left a clone for its URL), so the field is where they go.
+// The error, else the progress, else the first usable action; focus the user still holds is never moved. urlRequested: the user
+// just chose Edit repository URL (or left a clone for its URL), so the field is where they go.
 export function projectFocusTarget(state: ProjectStepState, agentReady: boolean, urlRequested = false): "url" | "alert" | "status" | "action" {
   if (urlRequested && state.phase.kind === "choose") return "url";
   if (state.error || (!agentReady && state.phase.kind === "ready")) return "alert";
@@ -450,13 +434,8 @@ export function projectFocusTarget(state: ProjectStepState, agentReady: boolean,
 
 type FocusTarget = FocusNode & { focus(): void };
 interface ScopeNode { querySelector(selector: string): FocusTarget | null }
-// The node the Project step's focus goes to after a change: the button that opened a folder sheet
-// that closed on the same screen with no new failure, the URL field when it was asked for, else projectFocusTarget's,
-// else the heading. A failure after the sheet goes to its notice. A sheet opened from a notice's own button returns
-// to it while that notice stays (opened.error is the failure on screen when the sheet opened); if the button went
-// with its notice, the choose screen's place is the card's button that leads there: New folder for New folder's
-// notices, else Choose folder.
-// null: the person holds focus somewhere usable, which is never moved.
+// A sheet that closed on the same screen with no new failure returns focus to its button (a notice's button while that notice
+// stays); a failure goes to its notice. null: the person holds focus somewhere usable, which is never moved.
 export function projectFocusNode(input: {
   opened: { node: FocusTarget; phase: string; error: ProjectStepState["error"] } | null; asked: boolean; root: ScopeNode | null; active: FocusTarget | null; body: unknown;
   heading: FocusTarget | null; state: ProjectStepState; agentReady: boolean; busy: boolean;
@@ -510,8 +489,7 @@ export function useProjectFocus(session: ProjectStepSession, scope: RefObject<Sc
       picker.current = node instanceof HTMLElement ? { node, phase: session.state.phase.kind, error: session.state.error } : null;
       open();
     },
-    // A radio whose change plans the folder again gets focus back once the plan is made: the plan disables the radios
-    // meanwhile, which drops focus, and an arrow key would otherwise leave the person on the heading. A change made with
+    // The plan disables the radios meanwhile, which drops focus, so the radio gets it back once the plan is made. A change with
     // nothing focused (a screen reader's virtual cursor) leaves <body> active, which is not a place to restore.
     keepFocus: (change: () => boolean) => {
       const node = document.activeElement;
@@ -544,9 +522,8 @@ export interface ProjectScreenProps {
     newFolder(): void; chooseAnotherName(): void; useExistingFolder(): void; newFolderElsewhere(): void;
   };
 }
-// One screen per phase (draft frames project, project-local, repository-found, repository-clone, repository-error and
-// the Project states tiles). Errors sit above the footer; first run's Back returns to the Agent step, the page's Cancel
-// to the screen it was opened from.
+// One screen per phase. Errors sit above the footer; first run's Back returns to the Agent step, the page's Cancel to the screen
+// it was opened from.
 export function ProjectScreen({ state, busy, agentReady, projects, home, urlValid, heading, on, use = "onboarding", headingId, drop }: ProjectScreenProps) {
   const p = state.phase, error = state.error;
   // First run paints the scene on its transparent overlay; the page paints it on the white home panel.
@@ -591,7 +568,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
     const urlNotice = error && (error.code === "invalid_url" || error.code === "access_failed");
     const changed = state.inspectedUrl !== null && state.url.trim() !== state.inspectedUrl && !error;
     body = <>
-      {/* An unreachable repository keeps the screen to the URL and its recovery (draft frame 'repository-error'). */}
+      {/* An unreachable repository keeps the screen to the URL and its recovery. */}
       {error?.code !== "access_failed" && <>
       {use === "onboarding" && projects.length > 0 && <div className="ob-projects">
         <div className="ob-field-label">Your projects</div>
@@ -649,15 +626,14 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         <p>Doan will add its project configuration and a design folder. Existing files stay in place.</p>
         <ChosenProject path={p.path} home={home} />
         <StorageCard id="ob-setup-storage" value={state.storage ?? "repo"} kept={keptLocal(p)} disabled={busy} change={on.setStorage} />
-        {/* The panel has no change list, so the new repository a plan outside Git creates is told here; it follows the
-            radio. */}
+        {/* The panel has no change list, so the new repository a plan outside Git creates is told here; it follows the radio. */}
         {gitInitShown && <p className="ob-provider-help storage-git-init" id={GIT_INIT_ID}>Doan will run <code>git init</code> here to create a Git repository.</p>}
-        {/* The page consents through its footer's Add project; first run keeps its shipped button in the panel. */}
+        {/* The page consents through its footer's Add project; first run keeps its own button in the panel. */}
         {notice ? <ProjectNoticeView notice={notice} run={run} paths={[`${p.path}/.git`]} />
           : use === "onboarding" && <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy} data-consent="" aria-describedby={gitInitShown ? GIT_INIT_ID : undefined} onClick={() => on.setUp(p.inspectionId)}>Set up and continue</button></div>}
       </section>}
       {p.kind === "setup" && p.url !== null && smallActions(["Choose another folder", "chooseExisting"], ["Edit repository URL", "edit"])}
-      {/* The page offers another folder under its panel, as drawn; first run keeps its shipped panel. */}
+      {/* The page offers another folder under its panel; first run keeps its own panel. */}
       {p.kind === "setup" && p.url === null && use === "addPage" && smallActions(["Choose another folder", "chooseFolder"])}
       {p.kind === "selecting" && <Progress panel={panel} title="Setting up your project" body={shown(p.path, home)} />}
     </>;
@@ -718,10 +694,8 @@ export function SceneScroll({ children, className }: { children: React.ReactNode
   return <div className="ob-scroll doan-scroll"><div className={className ? `ob-scene ${className}` : "ob-scene"}>{children}</div></div>;
 }
 
-// First run's Buddy step and the existing-user buddy screen: the same heading, notices and row; only the footer
-// differs. A pick saves at once (App's buddy selection); a failure returns the row to the saved buddy and shows the
-// notice under it, read once by the live region. Retry saves the failed pick again: when it saves, focus goes to the
-// checked radio, and when it fails, focus stays on Retry.
+// A pick saves at once (App's buddy selection); a failure returns the row to the saved buddy with a notice read once by the
+// live region. Retry: on save focus goes to the checked radio, on failure it stays on Retry.
 export function BuddyScene({ selection, preferences, heading, footer }: {
   selection: BuddySelection; preferences: PreferencesSnapshot | null; heading: (node: HTMLHeadingElement | null) => void; footer: React.ReactNode;
 }) {
@@ -737,10 +711,8 @@ export function BuddyScene({ selection, preferences, heading, footer }: {
   </>;
 }
 
-// Keys for a full-window overlay, on the window in capture: a button that turns disabled while it runs drops focus to
-// <body>, and keys from there must still reach the overlay (POSTMORTEM 2026-10-24). Capture also runs before the
-// canvas's own Escape (selection clear) listener. Tab cycles inside the overlay and enters a buddy row only at its
-// checked radio, as a radio group does.
+// On the window in capture: a button that turns disabled drops focus to <body>, and keys from there must still reach the
+// overlay (POSTMORTEM 2026-10-24); capture also runs before the canvas's Escape listener.
 function useOverlayKeys(overlay: RefObject<HTMLDialogElement | null>, stacked: RefObject<boolean>) {
   useEffect(() => {
     const keydown = (event: globalThis.KeyboardEvent) => {
@@ -762,8 +734,7 @@ function useOverlayKeys(overlay: RefObject<HTMLDialogElement | null>, stacked: R
   }, [overlay, stacked]);
 }
 
-// The buddy screen for someone who finished first run without a buddy saved (main decides at launch). It covers the
-// window as first run does, with no stepper and no Back. Continue saves the buddy on screen (Doany at first) unless a
+// The buddy screen for someone who finished first run without a buddy saved (main decides at launch). Continue saves the buddy on screen unless a
 // pick already saved, then closes; a failed save keeps the screen with its notice.
 export function BuddyIntro({ selection, preferences, onClose }: { selection: BuddySelection; preferences: PreferencesSnapshot | null; onClose: () => void }) {
   const heading = useRef<HTMLHeadingElement | null>(null);
@@ -780,9 +751,8 @@ export function BuddyIntro({ selection, preferences, onClose }: { selection: Bud
   </dialog>;
 }
 
-// The full-window first run: Welcome → Buddy → Agent → Project → Home, mounted once per main onboarding session. The
-// CLI may drive the same session; its completion closes this window too. `buddy` is App's buddy selection, so a save
-// that answers after first run closed still applies.
+// Mounted once per main onboarding session; the CLI may drive the same session, and its completion closes this window too.
+// `buddy` is App's buddy selection, so a save that answers after first run closed still applies.
 export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout, buddy, preferences }: {
   session: string; projects: readonly string[]; homeDirectory: string | null; onClose: (root: string | null) => void; mainCheckout: (path: string) => boolean;
   buddy: BuddySelection; preferences: PreferencesSnapshot | null;

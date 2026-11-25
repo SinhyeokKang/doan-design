@@ -5,25 +5,20 @@ import type { DoanApi } from "../preload";
 import { draftKey } from "./dockedRules";
 import type { ModelsState, PresetListReply } from "./homeComposer";
 
-// What the Overview's docked composer reads from main besides the conversation: accounts, design presets and model lists, read once for the run as Home's are, and the person's model
-// picks per draft key. App owns one, so leaving and coming back does not read them again or lose a pick.
+// Accounts, presets, model lists and picks: App owns one, so leaving does not re-read them or lose a pick.
 
-// provider: a new conversation's agent; model and effort: what the person changed, sent only then. permissionMode: a
-// new conversation's pick for its provider (a provider switch drops it: modes are remembered per provider,
-// and Full access never carries to another; fast likewise); in an existing one, a pick main has not yet reported back in
-// the conversation's summary, with permissionFrom, the stored mode it was picked over (when the summary was known).
-// fast: the Fast switch the person changed, sent with the next turn as model and effort are.
+// A provider switch drops permissionMode and fast: modes are remembered per provider, and Full access never carries.
+// permissionFrom: the stored mode a pick in an existing conversation was made over, until main reports it back.
 export interface DockedPick { provider?: Provider; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; permissionFrom?: PermissionModeId }
 
-// A list belongs to the provider's connection it was read under (its auth generation): main lists a new connection
-// again, and a Codex replacement can keep the provider and the email shown, so nothing else tells the window.
+// main lists a new connection again, and a Codex replacement can keep the provider and the email shown, so nothing
+// else tells the window.
 export const modelsKey = (root: string, provider: Provider, generation: number) => `${root}\n${provider}\n${generation}`;
 export function generationOf(auth: AuthSnapshot | null | undefined, provider: Provider): number {
   return auth?.providers.find(status => status.provider === provider)?.generation ?? 0;
 }
 
-// What it reads from main: `window.doan` in the main window, the same members of `window.doanPrototype` in the prototype
-// window.
+// The prototype window has the same members on `window.doanPrototype`.
 export type DockedSupportCalls = Pick<DoanApi, "designSkills" | "listConversationModels" | "setConversationPermissionMode">;
 
 export class DockedSupport {
@@ -31,10 +26,10 @@ export class DockedSupport {
   presets: PresetListReply | undefined = undefined;
   models: Record<string, ModelsState> = {};
   picks: Record<string, DockedPick> = {};
-  // The mode a conversation started here was started in, by its key, until its summary arrives: the list read lags
-  // the start, and the stored mode would read as Default meanwhile. Not the person's pick, so never sent or remembered.
+  // The list read lags the start, and the stored mode would read as Default meanwhile. Not the person's pick, so never
+  // sent or remembered.
   started: Record<string, PermissionModeId> = {};
-  // Object URLs of image chips by attachment key.
+  // By attachment key.
   thumbnails: Record<string, string> = {};
 
   constructor(private changed: () => void, private calls: DockedSupportCalls) {}
@@ -46,7 +41,7 @@ export class DockedSupport {
     this.changed();
     void this.retryPresets();
   }
-  // Retry keeps the failed reply, its line and itself, until the answer (DESIGN 'Busy action'); resolves whether it read.
+  // Retry keeps the failed reply, its line and itself, until the answer (DESIGN 'Busy action').
   retryPresets(): Promise<boolean> {
     return this.calls.designSkills.list().catch(() => undefined).then(reply => {
       this.presets = reply ?? { v: 1, ok: false, error: { code: "cli_error", reason: "failed", message: "" } } as PresetListReply;
@@ -73,10 +68,8 @@ export class DockedSupport {
     this.picks = { ...this.picks, [key]: next as DockedPick };
     this.changed();
   }
-  // An existing conversation's mode is stored by main at once, so
-  // a running turn's queue goes out in it. The pick shows until the conversation's summary reports it
-  // (settlePermission), or until the stored mode moves off the one it was picked over (`from`): main changed it
-  // (a plan approval) and the list read may have skipped the pick. A refused one is dropped, back to the stored mode.
+  // main stores an existing conversation's mode at once, so a running turn's queue goes out in it. The pick shows until
+  // the summary reports it or the stored mode moves off `from` (main changed it, as a plan approval does).
   pickPermission(key: string, conversationId: string | null, mode: PermissionModeId, from?: PermissionModeId): void {
     this.pick(key, { permissionMode: mode, permissionFrom: from });
     if (!conversationId) return;
@@ -84,14 +77,14 @@ export class DockedSupport {
       if (reply && "error" in reply && this.picks[key]?.permissionMode === mode) this.pick(key, { permissionMode: undefined, permissionFrom: undefined });
     });
   }
-  // Fast turned itself off in this conversation: a switch still held here would send it again.
+  // A switch still held here would send it again.
   fastTurnedOff(conversationId: string): void {
     // An existing conversation's draft key is its id alone; the provider does not enter it.
     const key = draftKey({ kind: "existing", conversationId, provider: "claude" });
     if (this.picks[key]?.fast !== undefined) this.pick(key, { fast: undefined });
   }
   startedIn(key: string, mode: PermissionModeId): void { this.started = { ...this.started, [key]: mode }; this.changed(); }
-  // stored: the conversation's summary's mode, null before the list names it.
+  // stored: null before the list names it.
   settlePermission(key: string, stored: PermissionModeId | null): void {
     if (stored === null) return;
     if (key in this.started) {
@@ -103,7 +96,7 @@ export class DockedSupport {
     if (pick?.permissionMode === undefined) return;
     if (pick.permissionMode === stored || (pick.permissionFrom !== undefined && pick.permissionFrom !== stored)) this.pick(key, { permissionMode: undefined, permissionFrom: undefined });
   }
-  // A start sends the new conversation's picks; the next one starts from the defaults again, as Home's does.
+  // The next start begins from the defaults again, as Home's does.
   clearPick(key: string): void {
     if (!(key in this.picks)) return;
     const { [key]: _gone, ...rest } = this.picks;

@@ -16,22 +16,8 @@ export function agentEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return child;
 }
 
-// The user's own instruction files steer every run that loads them (pac-full D7b-codex waited for an approval phrase
-// from the user's $CODEX_HOME/AGENTS.md), so an agent or judge gets none, while it still signs in as the user and keeps
-// the user's model settings. The runner writes, moves or copies nothing in the user's homes.
-// Codex 0.167 reads $CODEX_HOME/AGENTS.override.md or AGENTS.md with no setting to skip them (--ignore-user-config skips
-// only config.toml), so a Codex process gets its own CODEX_HOME at `dir` holding links to the user's auth.json and its
-// lock files, and a copy of config.toml. Links, not copies: Codex writes refreshed tokens through auth.json in place and
-// takes auth.lock and auth.json.lock to coordinate with the user's other Codex processes, so a copy could leave the
-// user's sign-in on a spent refresh token. Codex creates the locks only at a sign-in or refresh (codex-cli 0.169.0), so
-// they are linked whenever auth.json is, dangling or not: a run then takes them at the user's path, as the user's own
-// Codex would. config.toml is copied because the run's copy also trusts the `trusted` folders: Codex 0.169.0 loads a
-// project's .codex/ layer (the eval's doan rule) only for a project trusted there, and a `-c projects.…` override does
-// not count; a link would put that trust, and anything else Codex saves there, into the user's config.
-// Everything else Codex keeps there (sessions, logs, skills, rules, hooks.json, .env) stays out of the run.
-// Claude Code 2.1.325 loads ~/.claude/CLAUDE.md (or $CLAUDE_CONFIG_DIR/CLAUDE.md) and user rules with user settings,
-// which also carry the model, so only CLAUDE_CODE_DISABLE_CLAUDE_MDS is set; it hides project memory files too, which no
-// scenario seed has (agent.test.ts).
+// Runs get none of the user's instruction files yet sign in as the user: Codex through its own CODEX_HOME (auth and
+// lock links, config.toml copy), Claude through CLAUDE_CODE_DISABLE_CLAUDE_MDS (ARCHITECTURE §14 'Isolation').
 export function isolateUserInstructions(agent: Agent, env: NodeJS.ProcessEnv, dir: string, trusted: readonly string[] = []): NodeJS.ProcessEnv {
   if (agent === "claude") return { ...env, CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1" };
   const user = env.CODEX_HOME || join(env.HOME || homedir(), ".codex");
@@ -49,18 +35,10 @@ export function isolateUserInstructions(agent: Agent, env: NodeJS.ProcessEnv, di
 // `codexServers` are the MCP servers the machine's Codex config registers (registeredCodexMcpServers).
 // `git` is the scenario's: false when the agent's folder is in no Git repository.
 export function agentCommand(agent: Agent, prompt: string, codexServers: readonly string[] = [], git = true): { cmd: string; args: string[] } {
-  // Claude: --strict-mcp-config ignores every MCP server in the machine's config.
-  // Codex: no equivalent, and `-c mcp_servers={}` merges instead of clearing, so only a doan
-  // server left registered there is switched off by name; other configured servers still load.
-  // The override is added only when that server exists: Codex 0.166 turns it into a table
-  // without a transport otherwise and exits at startup ("invalid transport in mcp_servers.doan").
-  // --allowedTools is variadic, so `--` separates the prompt from tool names.
-  // Codex's approval policy is pinned so a run does not depend on the machine's own config.
-  // allow_login_shell=false: a login shell re-reads the user's profile, which puts an installed
-  // ~/.local/bin ahead of the run's bin directory and drops the run's PATH entries (Codex 0.166,
-  // snapshots already off), so the agent would run the installed doan, not the measured package.
-  // --skip-git-repo-check: Codex exec refuses an untrusted folder outside Git (0.167), and a run's folder is never trusted.
+  // Pinned flags keep machine config and profiles out of a run: MCP servers, approvals and the login shell, which would
+  // put an installed doan ahead of the run's (ARCHITECTURE §14 'Agent commands').
   if (agent === "claude") {
+    // --allowedTools is variadic, so `--` separates the prompt from tool names.
     return { cmd: "claude", args: ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", "--allowedTools", "Bash Read Write Edit Glob Grep", "--", prompt] };
   }
   const doan = codexServers.includes("doan") ? ["-c", "mcp_servers.doan.enabled=false"] : [];
@@ -133,9 +111,8 @@ export function killRunning(): void {
 
 export interface ProcessResult { code: number | null; signal: string | null; timedOut: boolean; durationSec: number }
 
-// stdin is /dev/null: a character device is not necessarily a terminal, and an
-// agent that waits on stdin would hang (POSTMORTEM 2026-10-21). Output goes to
-// files, not pipes, so nothing here can fill up and stall the child.
+// stdin is /dev/null so an agent waiting on it cannot hang (POSTMORTEM 2026-10-21); output goes to files, not
+// pipes, so nothing fills up and stalls the child.
 export function runProcess(o: { cmd: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; timeoutSec: number; stdoutPath: string; stderrPath: string }): Promise<ProcessResult> {
   const out = openSync(o.stdoutPath, "w");
   const err = openSync(o.stderrPath, "w");
@@ -151,7 +128,7 @@ export function runProcess(o: { cmd: string; args: string[]; cwd: string; env: N
     const settle = (code: number | null, signal: string | null) => {
       if (settled) return;
       settled = true;
-      // Also after a normal exit: a dev server or watcher the agent started must not outlive its run.
+      // The group is killed after a normal exit too: a dev server or watcher the agent started must not outlive its run.
       if (pid !== undefined) {
         try { process.kill(-pid, "SIGKILL"); } catch { /* already gone */ }
         running.delete(pid);

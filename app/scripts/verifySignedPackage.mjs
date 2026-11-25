@@ -1,7 +1,5 @@
-// Usage: node app/scripts/verifySignedPackage.mjs <dmg> [<zip>]
-// Checks a Developer ID signed, notarized and stapled Doan package the way a tester's Mac will see
-// it. With a zip, also checks the app inside it and the latest-mac.yml next to it. Prints one line
-// per check; exits 1 if any check fails.
+// Usage: verifySignedPackage.mjs <dmg> [<zip>]. Checks a signed, notarized, stapled package (with a zip, its app
+// and latest-mac.yml too). Prints one line per check; exits 1 if any fails.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { closeSync, copyFileSync, existsSync, lstatSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync } from "node:fs";

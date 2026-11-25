@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 import { mcpAuthLink } from "./authLink";
 
-// Links `claude mcp login` handed to the BROWSER hook in the PoC: Notion (CIMD), Atlassian and Figma (DCR). state,
+// Links `claude mcp login` handed to the BROWSER hook: Notion (CIMD), Atlassian and Figma (DCR). state,
 // code_challenge and the DCR client ids are placeholders.
 const link = (name: string) => readFileSync(new URL(`./fixtures/link-${name}.txt`, import.meta.url), "utf8");
 

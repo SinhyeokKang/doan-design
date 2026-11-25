@@ -1,8 +1,5 @@
-// The prototype window's preload: its host page drives its own run, and its conversation panel calls main the way the
-// main window's panel does, on the same channels with the same payloads. Main scopes every conversation request to the
-// playing canvas and checks the window role on every channel again, so its delete reaches only a conversation of that
-// canvas; the window has no canvas deletion (Move to Trash), no capture and no full account, settings or terminal work
-// read.
+// The prototype window's preload; conversation calls use the main window's channels, where main re-checks the window
+// role and scopes them to the playing canvas. No canvas Trash, capture or full account, settings or work reads.
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
@@ -27,9 +24,8 @@ import type { WorkItem } from "../main/workState";
 import type { ComposerChoice } from "../renderer/rememberChoice";
 import type { DoanApi } from "./index";
 
-// The members the panel's body shares with `window.doan`: same names and signatures, so the renderer passes either
-// preload as its calls object. onAgentAuth, getWork and onWorkChanged keep the main preload's shape over narrower data:
-// readiness without the account's identity, and only the terminal work of the session the playing canvas would resume.
+// Same names and signatures as `window.doan`, so the renderer passes either preload as the panel's calls object.
+// onAgentAuth and work calls carry less: no account identity, only the playing canvas's resumable session.
 export type SharedWithMain =
   | "conversationResumeTarget" | "startConversation" | "sendConversation" | "scheduledMessages" | "queueConversation"
   | "setConversationPermissionMode" | "removeQueuedMessage" | "sendQueuedNow" | "takeConversationDraft" | "markConversationSeen"

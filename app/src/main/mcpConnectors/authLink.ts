@@ -1,7 +1,5 @@
-// The authorization link `claude mcp login` hands to the BROWSER hook. Main fixes every URL it opens (ARCHITECTURE §7),
-// but each MCP server authorizes on its own host (mcp.notion.com, mcp.atlassian.com, www.figma.com), so the host is
-// not checked: the link must be an https PKCE code request that returns to the CLI's own loopback listener.
-// The same checks as agentAuth/providers.ts claudeLink, without its fixed origin.
+// Each MCP server authorizes on its own host, so unlike claudeLink the host is not checked: the link must be an https
+// PKCE code request that returns to the CLI's own loopback listener.
 export function mcpAuthLink(raw: string): string | null {
   if (raw.length > 16384 || /\s/.test(raw) || !URL.canParse(raw)) return null;
   const url = new URL(raw);

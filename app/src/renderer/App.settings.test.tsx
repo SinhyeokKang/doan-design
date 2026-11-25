@@ -7,8 +7,8 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 
-// App's Settings page — entry, return, lock, the incoming-target queue and notification clicks —
-// driven with hooks as plain state so App's own navigation functions run (App.addProjects.test.tsx).
+// App's Settings page (entry, return, lock, the incoming-target queue, notification clicks) with hooks as plain
+// state so App's own navigation functions run.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -298,8 +298,8 @@ test("entering the page cancels a pending startup restore and a workspace still 
   expect(doan.saveUiState!.mock.lastCall?.[0]).toMatchObject({ screen: "home" });
 });
 
-// a target on the page is a navigation too, so a move still in flight must not land after it
-// (POSTMORTEM 2026-10-27 no-op path rule); the same for Add Projects' own re-entry.
+// A target on the page is a navigation too, so a move still in flight must not land after it (POSTMORTEM
+// 2026-10-27); the same for Add Projects' own re-entry.
 test("on a page, ⌘, or the page's own tab cancels a navigation still in flight", () => {
   for (const reenter of ["cmdComma", "toast"] as const) {
     reset();
@@ -331,7 +331,6 @@ test("on a page, ⌘, or the page's own tab cancels a navigation still in flight
   }
 });
 
-// the Settings tab is a control the lock shows unavailable; only targets from outside wait.
 test("while the page is locked a click on the Settings tab is ignored, not queued", () => {
   openFromWorkspace();
   lock();
@@ -387,9 +386,8 @@ test("the header's update button is unavailable while a page is locked or a moda
   expect(usageOf(settings()!.props.header).update!.props.disabled).toBe(false);
 });
 
-// The open usage popover is a Radix Popover, which closes on Escape at the document's
-// capture phase and prevents the default (react-use-escape-keydown). Its content is a role="dialog" div the page's
-// overlay check does not see, so the page must honour defaultPrevented and stay; the next Escape leaves.
+// The usage popover (Radix) closes on Escape at the document's capture phase and prevents the default; its
+// content is a div the page's overlay check misses, so the page honours defaultPrevented and stays.
 test("Escape that the open usage popover took keeps Settings, Add Projects and Project Settings; the next Escape leaves", () => {
   const popoverEscape = () => { windowListeners.keydown!({ key: "Escape", target: { tagName: "UL" }, isComposing: false, keyCode: 27, defaultPrevented: true, preventDefault: vi.fn() } as never); render(); };
   const pages: [string, () => void, () => boolean][] = [
@@ -408,10 +406,8 @@ test("Escape that the open usage popover took keeps Settings, Add Projects and P
   }
 });
 
-// Escape on Settings > Agents' open Agent picker (a Radix DropdownMenu) closed the menu and also left
-// Settings. The menu's DismissableLayer answers Escape at the document's capture phase, prevents the default and
-// removes the menu, so by the window's keydown no menu is in the DOM; the page must stay because the event was
-// handled, and only an Escape with no menu leaves. The installed Radix order is pinned below the App check.
+// Radix DropdownMenu answers Escape at the document's capture phase, prevents the default and removes the menu, so
+// the window's keydown sees no menu; the page stays because the event was handled.
 test("Escape that closes the open Agent picker keeps Settings; with no menu open Escape leaves", () => {
   openFromWorkspace();
   expect(settings()!.props.section).toBe("agents");
@@ -489,8 +485,8 @@ test("App reads preferences once; Home starts from the saved default and Setting
   expect(doan.readPreferences).toHaveBeenCalledTimes(1);
 });
 
-// the Settings page shares the main window's preload, so only this convention keeps it
-// from starting or sending a conversation.
+// The Settings page shares the main window's preload, so only this convention keeps it from starting or sending a
+// conversation.
 test("Settings components never start or send a conversation", () => {
   const dir = new URL(".", import.meta.url);
   const files = readdirSync(dir).filter(name => /^Settings.*\.tsx$/.test(name) && !name.includes(".test."));
@@ -498,8 +494,8 @@ test("Settings components never start or send a conversation", () => {
   for (const name of files) expect(readFileSync(new URL(name, dir), "utf8"), name).not.toMatch(/startConversation|sendConversation/);
 });
 
-// Project Settings is a page now. App opens it from the project menus,
-// keeps the origin it shares with Add Projects and Settings, holds the page's lock and leaves when its worktree goes.
+// App opens Project Settings from the project menus, keeps the origin it shares with Add Projects and Settings,
+// holds the page's lock and leaves when its worktree goes.
 type ProjectPage = ReactElement<{ root: string; origin: unknown; arrival: { seq: number } | null; header: ReactElement; sidebar: Sidebar & { props: { home?: boolean } };
   onState(report: { locked: boolean }): void; onGone(): void; onRerooted(root: string, origin: unknown): void;
   onAction(action: string, root: string, notice: (text: string) => void): void; onRemove(): void }>;
@@ -736,9 +732,8 @@ test("Locate or Set Up moving the worktree keeps the page and its origin on the 
   expect(topBar(workspaceHeader()).projects.props["aria-current"]).toBe("page");
 });
 
-// main reports a located project as a re-root focus (shell.replace), like Set Up. From Home, Add Projects or the Project
-// Settings page the Locate does not open the new root, so the loaded root must not follow it (the controller never
-// opened it); only the workspace Locate, which opens the new root itself, keeps working as before.
+// main reports a located project as a re-root focus (shell.replace); from Home or a page the Locate does not open
+// the new root, so the loaded root must not follow it; only the workspace Locate does.
 const locating = () => { let finish: (value: unknown) => void = () => {}; doan.locateProject = vi.fn(() => new Promise(resolve => { finish = resolve; })); return (value: unknown) => finish(value); };
 const loadedOf = (sidebar: ReactElement) => (sidebar.props as { loaded?: unknown }).loaded;
 const settleLocate = async () => { await Promise.resolve(); await Promise.resolve(); render(); };
@@ -805,7 +800,7 @@ test("Locate from the workspace still opens the located root", async () => {
   expect(harness.controller!.openWorkspace).toHaveBeenCalledWith("/w/moved", expect.any(Function));
 });
 
-// Locate now produces re-roots too, and one is never consumed: a later in-place Set Up of a root equal to an old
+// Locate produces re-roots too, and one is never consumed: a later in-place Set Up of a root equal to an old
 // re-root's `from` must not follow that old move.
 test("Set Up chooses the re-root made after it started, not an older one from the same root", () => {
   render();
@@ -856,7 +851,6 @@ test("Set Up opens its dialog over the page; closed from outside, focus returns 
   expect(focused).toEqual(["title"]);
 });
 
-// every Remove from Doan asks first in one alert dialog, found by its role and title.
 const removalDialog = () => all(tree).find(element => element.type === "dialog" && element.props.role === "alertdialog" && element.props["aria-labelledby"] === "project-remove-title");
 const removalTitle = () => { const dialog = removalDialog(); return dialog && all(dialog).find(element => element.props.id === "project-remove-title")?.props.children; };
 const dialogButton = (label: string) => all(removalDialog()!).find(element => element.type === "button" && element.props.children === label)!;
@@ -968,8 +962,8 @@ const problemEntries: FolderEntry[] = [
   { path: "/w/a", kind: "error", message: "Invalid config", config: "/w/a/.doan/config.json" },
 ];
 
-// PRODUCT §5 item 3 'Problem states': a problem or reading root shows its Overview, whether it was open when the problem
-// came or is entered while it lasts; the overlay replaces the composer's reason line.
+// PRODUCT §5 item 3 'Problem states': a problem or reading root shows its Overview, whether it was open when the
+// problem came or is entered while it lasts; the overlay replaces the composer's reason line.
 test("the Overview's panel replaces the conversation panel, and a problem root keeps or enters its Overview", () => {
   render(); folders([listed("/w/a")]);
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
@@ -1009,8 +1003,8 @@ test("a problem or reading root shows the conversation strip, over its Overview 
   vi.useRealTimers();
 });
 
-// a worktree picked from the Overview's branch chip lands focus on the new Overview's chip;
-// the runtime test found it on the sidebar's project row, where the workspace's default focus put it after the chip.
+// A worktree picked from the Overview's branch chip lands focus on the new Overview's chip, not the sidebar's
+// project row where the workspace's default focus would put it.
 test("a worktree picked from the branch chip focuses the new Overview's chip, not the sidebar row", () => {
   render(); folders([listed("/w/a"), listed("/w/b")]);
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
@@ -1021,7 +1015,6 @@ test("a worktree picked from the branch chip focuses the new Overview's chip, no
   expect(focused).toEqual([".workspace .ov-main .wt-chip"]);
 });
 
-// what the sidebar does around the page, as Home does.
 test("entering the page leaves the sidebar's expansion as it was", () => {
   render();
   folders([listed("/w/a"), listed("/w/b")]);
@@ -1041,8 +1034,8 @@ test("another project's row opens its Overview from the page, as from Home, neve
   expect(projectPage()).toBeUndefined();
 });
 
-// the loaded workspace's project leaving the list (Remove from Doan) goes Home; a
-// reroot (Locate, Set Up) or another project's removal keeps the workspace.
+// The loaded workspace's project leaving the list (Remove from Doan) goes Home; a reroot (Locate, Set Up) or
+// another project's removal keeps the workspace.
 const workspaceMain = () => all(tree).find(element => element.type === "main" && String(element.props.className).includes("workspace"))!;
 const workspaceShown = () => (workspaceMain().props.style as { visibility: string }).visibility === "visible" && workspaceMain().props.inert === false;
 
@@ -1142,8 +1135,8 @@ test("while the category is hidden, a target or a saved section of MCP Connector
   }
 });
 
-// a toast's Open from Settings lands the conversation's entry focus on its waiting question or
-// permission; the runtime test saw the workspace's default focus take it to the sidebar row a moment later.
+// A toast's Open from Settings lands the entry focus on the waiting question or permission; the workspace's
+// default focus must not take it to the sidebar row a moment later.
 test("an entry from Settings keeps the focus the conversation's waiting request took", () => {
   render(); folders([listed("/w/a")]);
   cmdComma(); expect(onSettings()).toBe(true);

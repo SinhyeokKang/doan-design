@@ -4,9 +4,8 @@ import { connectionLine, PROVIDER_NAMES } from "./agentAuthView";
 
 const MIN = 60_000;
 const passed = (w: UsageWindow, now: number) => w.resetsAt !== undefined && w.resetsAt <= now;
-// The ring follows one window class (PRODUCT §5 item 0 'Agent usage'): the provider's overall weekly window, else its
-// longest windows. A window without a period ranks below any with one; Cursor and Copilot give none, so all of theirs
-// tie. Other windows never move the ring, not even a reported limit.
+// One window class (PRODUCT §5 item 0 'Agent usage'): the overall weekly window, else the longest. Cursor and Copilot
+// give no period, so all of theirs tie.
 function ringWindows(windows: readonly UsageWindow[]): UsageWindow[] {
   const weekly = windows.filter(w => w.label === "Weekly");
   if (weekly.length > 0) return weekly;
@@ -15,9 +14,8 @@ function ringWindows(windows: readonly UsageWindow[]): UsageWindow[] {
 }
 const active = (entry: Pick<UsageEntry, "reading">, now: number) => entry.reading?.status === "ok" ? ringWindows(entry.reading.windows).filter(w => !passed(w, now)) : [];
 
-// Among the ring's windows the fullest one that has not reset yet counts; a passed window's value is stale until the
-// next read, and the ring does not fall back to another class meanwhile.
-// True when a window that has not reset yet is limited. The 70% danger threshold belongs to the ring's caller.
+// A passed window's value is stale until the next read, and the ring does not fall back to another class meanwhile.
+// The 70% danger threshold belongs to the ring's caller.
 export function ringLimited(entry: Pick<UsageEntry, "reading" | "blocked">, now: number): boolean {
   return entry.blocked === undefined && active(entry, now).some(w => w.limited);
 }
@@ -45,14 +43,13 @@ export function usageText(window: UsageWindow, now: number): string {
   return window.resetsAt === undefined ? head : `${head} · resets in ${duration(window.resetsAt - now)}`;
 }
 
-// A connection that can't be used reads as its Settings › Agents row (ARCHITECTURE §7 'Agent usage'), as a sentence: the popover
-// row under the provider's name.
+// Reads as its Settings › Agents row (ARCHITECTURE §7 'Agent usage').
 export function blockedNote(provider: Provider, block: UsageBlock): string {
   const line = connectionLine(provider, block);
   return line.endsWith(".") ? line : `${line}.`;
 }
-// The button's description lists every provider, so a row sentence that doesn't name its provider is led by the name.
-// Without its last full stop: the description adds one per provider.
+// The description lists every provider, so a sentence that doesn't name its provider is led by the name. No last full
+// stop: the description adds one per provider.
 export function blockedText(provider: Provider, block: UsageBlock): string {
   const line = connectionLine(provider, block).replace(/\.$/, ""), name = PROVIDER_NAMES[provider];
   return line.includes(name) ? line : `${name}: ${line}`;
@@ -69,7 +66,7 @@ function state(entry: UsageEntry, now: number): string {
   return value !== null ? `${name} ${Math.round(value)}% used` : `${name} usage resetting`;
 }
 
-// The usage button's description (aria-describedby); its name stays "Agent usage". Antigravity is never shown.
+// The usage button's description; its name stays "Agent usage". Antigravity is never shown.
 export function usageDescription(entries: readonly UsageEntry[], now: number): string {
   return entries.filter(entry => entry.provider !== "antigravity")
     .sort((a, b) => PROVIDERS.indexOf(a.provider) - PROVIDERS.indexOf(b.provider))

@@ -4,8 +4,8 @@ import type { ConversationEvent } from "../main/conversation/types";
 import { commandCard, STALE_MODE_CARD } from "./commandView";
 import { ConversationStore, type ListView } from "./conversationStore";
 
-// A conversation's boundaries come from its read (rebuilt by main from Doan's command turns, so they outlive a restart)
-// and from conversation:boundary in this run; the two may name the same turn. Cards live by draft key for this run only.
+// Boundaries come from the read (main rebuilds them from Doan's command turns) and from conversation:boundary;
+// both may name one turn. Cards live by draft key for this run only.
 
 const ROOT = "/code/doan", A = "aaaaaaaa-0000-4000-8000-000000000001";
 let seq = 0;

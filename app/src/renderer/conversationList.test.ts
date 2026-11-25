@@ -164,8 +164,8 @@ describe("withTerminalSlots", () => {
   });
 });
 
-// A conversation whose messages wait for the usage limit's reset: after an answer request, working and a terminal agent's
-// spinner, before an unseen ending (usage-limit-resume.html sidebar-slot).
+// A conversation waiting for the usage limit's reset ranks after an answer request, working and a terminal
+// spinner, and before an unseen ending.
 describe("the scheduled slot", () => {
   const scheduled: Slot = { kind: "scheduled", label: "Queued — sends when the limit resets at 3:00\u202fPM" };
 
@@ -206,8 +206,8 @@ describe("scheduledOf", () => {
   });
 });
 
-// main's `working` (a turn waiting for its promotion judgment, a queue about to go out) is the same state Delete reads
-// (deleteAvailability), so no row reads finished while its Delete says the agent is working.
+// `working` is the state Delete reads too (deleteAvailability), so no row reads finished while its
+// Delete says the agent is working.
 describe("conversationWork reads main's working", () => {
   test("an ended turn main still works on shows as working, not as an unseen ending", () => {
     expect(conversationWork(summary({ phase: "ended", working: true, unseen: true }), none)).toEqual({ kind: "working", label: "Claude Code is working" });

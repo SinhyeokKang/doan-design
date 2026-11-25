@@ -140,8 +140,7 @@ test("a settling action never touches a toast that replaced it", () => {
   expect(state.toast).toEqual({ id: "two", message: "b" });
 });
 
-// useToast ticks every 100 ms for the life of App; a new state object on each idle tick re-rendered all of App ten
-// times a second while no toast was shown.
+// A new state per idle tick would re-render all of App ten times a second.
 test("an idle tick keeps the same state, so nothing re-renders; a tick still clears a finished toast's ending", () => {
   expect(toastState(initialToastState, { type: "tick", elapsedMs: 100 })).toBe(initialToastState);
   const hidden = run([{ type: "hidden", on: true }]);
@@ -154,15 +153,14 @@ test("an idle tick keeps the same state, so nothing re-renders; a tick still cle
   expect(toastState(after, { type: "tick", elapsedMs: 100 })).toBe(after);
 });
 
-// A toast left up while the window is closed or hidden never expires, and the clock keeps ticking (a closed window
-// keeps document.hidden false, so Chromium does not throttle it): a new object per tick re-rendered all of App.
+// A hidden window's toast never expires while the clock keeps ticking (a closed window keeps document.hidden
+// false), so an unchanged state must keep identity.
 test("a tick while the window is hidden keeps the same state; one drawn in a dialog still re-renders to see the dialog go", () => {
   const hidden = run([{ type: "show", toast: one }, { type: "hidden", on: true }]);
   expect(toastState(hidden, { type: "tick", elapsedMs: 100 })).toBe(hidden);
   const dialog = { isConnected: true, open: true } as unknown as HTMLDialogElement;
   const inDialog = run([{ type: "show", toast: { ...one, dialog } }, { type: "hidden", on: true }]);
   expect(toastState(inDialog, { type: "tick", elapsedMs: 100 })).not.toBe(inDialog);
-  // Hovered or focused, the toast is on screen and re-renders as before.
   const hovered = run([{ type: "show", toast: one }, { type: "hover", on: true }]);
   expect(toastState(hovered, { type: "tick", elapsedMs: 100 })).not.toBe(hovered);
 });

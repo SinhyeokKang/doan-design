@@ -8,9 +8,8 @@ import { rcFileFor, type SetupItem, type SetupTarget } from "./notice";
 import { swapFile, swapLink, type SwapResult } from "./swap";
 import { classifyTarget, decide, installEligibility, mergeClaudeAllow, needsSystemLink, plannedTargets, record, writeFailure, type Eligibility, type Observation, type Outcome, type PlannedTarget, type ProviderDir, type Step } from "./plan";
 
-// Agent setup's thin I/O shell: reads each target right before deciding, writes only
-// Doan's own links and rule file plus its allow rules merged into ~/.claude/settings.json, and never creates a
-// provider folder.
+// Reads each target right before deciding, writes only Doan's own links and rule file plus its merged Claude allow
+// rules, and never creates a provider folder.
 
 export type AdminResult = { kind: "ok" } | { kind: "cancelled" } | { kind: "failed"; message: string };
 export interface AgentSetupOptions {
@@ -177,10 +176,8 @@ function write(target: PlannedTarget, action: "create" | "replace", before: Seen
 }
 
 function quote(value: string): string { return `'${value.replaceAll("'", "'\\''")}'`; }
-// When the dialog is needed, /usr/local/bin is root-owned (or absent under a root-owned /usr/local), so no process
-// running as the person can create an entry there while it is open. `ln` without -f refuses an existing file or link
-// and -h refuses to follow a link; a folder already there was classified foreign and never reaches this command. Only
-// SIP-protected system binaries run, with a cleared environment, so nothing the person can replace runs as root.
+// Runs as root: only SIP-protected binaries, cleared env; the dialog's folder is root-owned, so the person cannot race it.
+// `ln -h` without -f refuses a file or link, not a folder: classifyTarget must keep a folder (foreign) from reaching it.
 export function adminCommand(target: Pick<PlannedTarget, "path" | "want">): string {
   const run = "/usr/bin/env -i PATH=/usr/bin:/bin";
   return `${run} /bin/mkdir -p ${quote(dirname(target.path))} && ${run} /bin/ln -s -h ${quote(target.want)} ${quote(target.path)}`;
@@ -253,7 +250,7 @@ export async function runAgentSetup(options: AgentSetupOptions): Promise<AgentSe
 }
 
 function appleScriptString(value: string): string { return `"${value.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`; }
-// The macOS administrator dialog, as ego lite does. No timeout: the dialog waits for the person.
+// No timeout: the dialog waits for the person.
 export function osascriptAdmin(command: string): Promise<AdminResult> {
   return new Promise(resolve => {
     execFile("/usr/bin/osascript", ["-e", `do shell script ${appleScriptString(command)} with administrator privileges`], (error, _stdout, stderr) => {

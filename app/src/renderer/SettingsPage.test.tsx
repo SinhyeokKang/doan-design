@@ -106,7 +106,6 @@ test("an arrival focuses the category title once; a provider arrival goes to Age
   expect(focus).toHaveBeenCalledTimes(1);
 });
 
-// .doan/canvases/buddy-choice.html 'settings-general', 'settings-general-failed'.
 describe("Settings > General", () => {
   const snapshot = (notice: "broken" | "newer" | null) => ({ preferences: { v: 1 as const, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: null, updates: { autoCheck: true } }, notice });
   const general = (patch: Partial<PageProps["buddy"]> = {}, notice: "broken" | "newer" | null = null) => {
@@ -238,7 +237,7 @@ test("while the page is locked the other categories and Search show as unavailab
   expect(side.find(element => element.props.className === "shell-search")!.props["aria-disabled"]).toBe(true);
 });
 
-// design-sync against .doan/canvases/doan-settings.html: values a jsdom render cannot show.
+// Values a jsdom render cannot show.
 test("the current category takes the pressed fill with standard ink, and a locked category's icon dims with its label", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain('.shell-side .shell-settings-row[aria-current="page"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }');

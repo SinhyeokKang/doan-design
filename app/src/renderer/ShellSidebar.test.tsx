@@ -37,7 +37,7 @@ it("shows an unreadable canvas's sentence and Details under its row", () => {
   expect(html).toContain('aria-label="Details"');
 });
 
-// Comment counts are no longer part of a canvas row's description.
+// Comment counts are not part of a canvas row's description.
 it("does not describe a canvas row by its open comments", () => {
   expect(render("/repo")).not.toContain("open comment");
 });
@@ -55,8 +55,7 @@ it("draws every project hue as a light tint with dark ink, shared with onboardin
   expect(render("/repo")).toContain('<span class="shell-thumbnail hue-');
 });
 
-// Rules for classes no component renders any more (the first shell's section heads, counts, hints,
-// breadcrumbs, branch button and two-line rows) are gone.
+// No rules stay for classes no component renders (section heads, counts, hints, breadcrumbs, branch button, two-line rows).
 it("keeps no rules for the first shell's unrendered classes", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -108,7 +107,7 @@ test("on Home no row is current; the slot shows a permission hand, a spinner or 
   const props = { cards: [{ key: "a", name: "alpha", rows: [entries[0]!] }, { key: "b", name: "beta", rows: [entries[1]!] }], projects: { a: { roots: ["/a"], expanded: true } }, loaded: "/a", canvas: canvas.path, homeDirectory: null, search: () => {}, toggle: () => {}, disclose: () => {}, toggleGroup: () => {}, worktree: () => {}, open: () => {}, overview: () => {}, action: () => {}, remove: async () => {}, projectSettings: () => {}, canvasMenu: NO_CANVAS_MENU };
   const slots = new Map([["/a\n.doan/canvases/a.html", { kind: "working" as const, label: "Claude Code is working" }], ["/b", { kind: "permission" as const, label: "Codex needs your answer" }]]);
   const home = renderToStaticMarkup(<Sidebar {...props} home homeCurrent slots={slots} highlight={["/b"]} />);
-  // Only the Home row is current on Home (dogfooding #2); no project or canvas row is.
+  // Only the Home row is current on Home; no project or canvas row is.
   expect(home.replace(/<button type="button" class="shell-home-row row" aria-current="page">/, "")).not.toContain("aria-current");
   expect(home).toContain('<span data-state="closed" data-slot="tooltip-trigger">a</span><span class="row-slot working" role="img" aria-label="Claude Code is working"><span class="doan-spinner" aria-hidden="true"></span></span>');
   expect(home).toMatch(/class="shell-project-row row flash"[^>]*aria-label="beta"/);
@@ -331,8 +330,8 @@ test("a locked page's closed head keeps its slot and its own colour class; the h
   expect(heads(html)[0]).toContain('<span class="row-slot permission" role="img" aria-label="Codex needs your answer">');
 });
 
-// The head's chevron rules once matched every svg in the head: a slot's hand, clock or bubble would turn −90° with a
-// closed group and take the metadata or disabled ink instead of its own colour.
+// A slot's hand, clock or bubble must not turn −90° with a closed group or take the metadata or disabled ink instead of its own
+// colour.
 it("CSS: the group head's chevron rules reach only the chevron, never the slot's icon", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -343,7 +342,6 @@ it("CSS: the group head's chevron rules reach only the chevron, never the slot's
   expect(css).not.toMatch(/\.shell-group-head[^{]*\.row-slot[^{]*\{[^}]*(clip-path|display: none|visibility: hidden)/);
 });
 
-// Dogfooding #2: a Home row above the projects, current on Home.
 it("puts a Home row above the projects, current only on Home", () => {
   const html = render("/repo");
   expect(html).toMatch(/<button[^>]*class="shell-home-row row"[^>]*>.*Home<\/span><\/button>.*shell-projects-heading/s);
@@ -355,8 +353,7 @@ it("puts a Home row above the projects, current only on Home", () => {
   expect(onPage).not.toContain("aria-current");
 });
 
-// Dogfooding: the sidebar list scrolled with the classic 15px scrollbar and grey track while the panels use the thin,
-// quiet one. Both sidebar views take the shared `.doan-scroll`.
+// Both sidebar views take the shared thin `.doan-scroll`, as the panels do.
 it("scrolls the project list and the Settings categories with the shared thin scrollbar", () => {
   expect(render("/repo")).toContain('<div class="shell-projects doan-scroll">');
   const settings = renderToStaticMarkup(<ShellSidebar cards={[]} projects={{}} loaded={null} canvas={undefined} homeDirectory={null} search={vi.fn()} toggle={vi.fn()} disclose={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={vi.fn()} projectSettings={vi.fn()} canvasMenu={NO_CANVAS_MENU} settings={{ section: "agents", select: vi.fn() }} />);
@@ -444,7 +441,7 @@ test("CSS: the sidebar column is the resizable width and its handle sits in the 
   expect(css).toContain('.doan-panel-handle:is([data-ui-state="hover"], [data-ui-state="drag"], :focus-visible)::after { opacity: 0.7; }');
 });
 
-// A canvas row's button and menu (draft row-button, confirmed by the user).
+// A canvas row's button and menu.
 function canvasMarkup(extra: Record<string, unknown> = {}, slot?: Slot) {
   const slots = slot ? { slots: new Map([[`/repo\n${row.path}`, slot]]) } : {};
   return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [entry] }]} projects={{ common: { roots: ["/repo"], expanded: true } }} loaded={null} canvas={undefined} homeDirectory={null}
@@ -503,10 +500,8 @@ it("judges an open canvas menu by its own row, so the project menu's rule never 
 it("shows a canvas row's button only under the pointer, with keyboard focus in the row or an open menu, in place of the status spot", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  // The idle button is hidden visually only. A display: none (or visibility: hidden) button cannot take the
-  // focus Radix returns when its menu closes (Esc, Export…) or App when the Move to Trash dialog does: it fell to <body>.
-  // A mouse click focuses the row (a treeitem), so :focus-within kept the button after the pointer left; only
-  // focus-visible focus may show it (as the project row's chevron).
+  // Hidden visually only: a display: none or visibility: hidden button cannot take the focus Radix or App returns when its menu or
+  // dialog closes. A click focuses the row (a treeitem), so only focus-visible focus may show it.
   const idle = css.match(/\.shell-canvas-row:not\(:hover, :focus-visible, :has\(:focus-visible\)\):not\(:has\(> \.shell-more\[aria-expanded="true"\]\)\) > \.shell-more \{([^}]*)\}/)![1]!;
   expect(idle).toContain("position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);");
   expect(idle).not.toMatch(/display|visibility/);
@@ -522,12 +517,12 @@ it("shows a canvas row's button only under the pointer, with keyboard focus in t
   expect(css).toContain("* { box-sizing: border-box;");
   expect(css).toContain(".shell-side .row { display: flex; align-items: center; gap: 8px; height: 32px; min-height: 32px; padding: 0 8px;");
   expect(css).toContain(".shell-more.doan-icon-button { width: 32px; height: 32px; flex: none;");
-  // The canvas menu is not a project menu (link 1 user decision): it keeps the opaque sidebar fill.
+  // The canvas menu is not a project menu: it keeps the opaque sidebar fill.
   expect(css).toContain(".shell-canvas-menu { width: 204px;");
 });
 
-// A locked canvas button has the disabled ink and no hover or pressed fill (user-confirmed draft). The shared
-// button's hover rule weighs (0,4,0) and its pressed rule (0,5,0), so the reset must weigh more.
+// A locked canvas button has the disabled ink and no hover or pressed fill. The shared button's hover rule weighs (0,4,0) and its
+// pressed rule (0,5,0), so the reset must weigh more.
 it("gives a locked canvas row button no hover or pressed fill, outweighing the shared button rules", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -564,8 +559,7 @@ test("a scheduled conversation's slot is the clock with its label", () => {
   expect(out).toMatch(new RegExp(`<span data-state="closed" data-slot="tooltip-trigger">a</span><span class="row-slot scheduled" role="img" aria-label="${label}"><svg[^>]*lucide-clock`));
 });
 
-// sidebar-canvas-conversations: the viewed canvas's conversations under its row (draft
-// .doan/canvases/sidebar-canvas-conversations.html).
+// The viewed canvas's conversations under its row.
 describe("the viewed canvas's conversation list", () => {
   const A = { path: ".doan/canvases/checkout.html", id: "checkout", url: "u-a" }, B = { path: ".doan/canvases/billing.html", id: "billing", url: "u-b" };
   const listedEntry: FolderEntry = { path: "/w", kind: "list", servedRev: 0, canvases: [A, B] };
@@ -707,10 +701,10 @@ it("CSS: the conversation list's chevron, Delete and status follow the canvas ro
   const spot = css.match(/\.shell-conv-row:is\(:hover, :focus-visible, :has\(:focus-visible\)\) > \.row-slot \{([^}]*)\}/)![1]!;
   expect(spot).toContain("clip-path: inset(50%)");
   expect(spot).not.toMatch(/display|visibility/);
-  // The draft's indent: the title starts under the canvas name (10 + 16 + 8 + 16 + 8 = 58 px), the check in the gutter.
+  // The indent: the title starts under the canvas name (10 + 16 + 8 + 16 + 8 = 58 px), the check in the gutter.
   expect(css).toContain(".shell-side .shell-conv-row { position: relative; padding-left: calc(10px + 2 * (var(--size-icon) + var(--space-2)));");
   expect(css).toContain(".shell-conv-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }");
-  // The shown conversation's row takes the pressed fill under the pointer (draft frame hover-delete), the others the hover fill.
+  // The shown conversation's row takes the pressed fill under the pointer, the others the hover fill.
   expect(css).toContain('.shell-side .shell-conv-row[aria-current="true"]:hover { background: var(--affordance-backdrop-pressed); }');
 });
 

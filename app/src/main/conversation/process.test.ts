@@ -53,9 +53,8 @@ it("a stop and a kill during it both settle when the child's exit shows the grou
   alive = false; group.childExited(); await Promise.resolve(); await Promise.resolve();
   expect([stopped, killed]).toEqual([true, true]);
 });
-// An ACP server (Antigravity) runs its tool commands in process groups of their own, which a signal to the server's group
-// never reaches. They are found among the server's descendants before the server is signalled, since its exit hands them
-// to launchd, and get the same SIGTERM and later SIGKILL; an unrelated group is never signalled.
+// An ACP server (Antigravity) runs tool commands in process groups of their own; they are found among its descendants
+// before it is signalled (its exit hands them to launchd) and get the same signals. An unrelated group never does.
 const TABLE = [
   { pid: 100, ppid: 50, pgid: 100 }, { pid: 101, ppid: 100, pgid: 100 },
   { pid: 200, ppid: 101, pgid: 200 }, { pid: 201, ppid: 200, pgid: 200 }, { pid: 400, ppid: 201, pgid: 400 },
@@ -74,8 +73,8 @@ it("also ends the process groups the owned group's descendants started, and no o
   live.delete(200); await vi.advanceTimersByTimeAsync(100); expect(settled).toBe(true);
   expect(signal.mock.calls.flat()).not.toContain(300); expect(signal.mock.calls.flat()).not.toContain(301);
 });
-// A kill ends a Claude turn's process with nothing left in the background, ahead of the model call the CLI makes 16 ms
-// after the set empties; a table read takes about as long, so the kill never waits for one.
+// A kill ends a Claude turn's process with nothing left in the background ahead of the CLI's next model call; a table
+// read takes about as long, so the kill never waits for one.
 it("kill signals the owned group at once without reading the process table", () => {
   const signal = vi.fn(); const processes = vi.fn(() => Promise.resolve(TABLE));
   const group = new OwnedGroup(100, signal, () => true, vi.fn(), processes);

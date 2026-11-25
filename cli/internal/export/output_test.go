@@ -54,9 +54,7 @@ func pageDigest(b []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// The page bytes are part of the contract: cutting copies out of Inline and
-// Assemble must not change a byte. These digests were taken before that work;
-// change one only when the output is meant to change.
+// The page bytes are part of the contract: change a digest only when the output is meant to change.
 func TestExportOutputIsPinned(t *testing.T) {
 	seed := exporttest.Seed(t)
 	linked := exporttest.SeedLinkedAssets(t)
@@ -82,10 +80,8 @@ func TestExportOutputIsPinned(t *testing.T) {
 
 const mixedCanvas = ".doan/canvases/mixed.html"
 
-// mixedRepo reaches what the large stylesheet does not: text the srcdoc
-// escapes, a base that does not move, percent-encoded and
-// empty files, an identifier before an @import, url()s in a style attribute
-// and in a custom property, and characters cssEscape rewrites.
+// mixedRepo reaches what the large stylesheet does not: srcdoc-escaped text, a non-moving base, percent-encoded and empty
+// files, an identifier before an @import, url()s in a style attribute and a custom property, and cssEscape's characters.
 var mixedRepo = map[string]string{
 	".doan/config.json":       "{\"v\":1}\n",
 	".doan/assets/a.css":      "@import\"b.css\";.a{background:url(\"q\\\"uote.svg\")}:root{--i:url(e.png)}",

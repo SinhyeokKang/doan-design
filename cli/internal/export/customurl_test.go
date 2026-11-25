@@ -9,18 +9,12 @@ import (
 	"github.com/SinhyeokKang/doan-design/cli/internal/export/exporttest"
 )
 
-// The refusal detail for a custom property url() that resolves to different
-// paths from the stylesheets that use it, whether or not those files exist.
-// The app parses refusal lines as `- <item>: <detail>`, so the detail must
-// not contain ": ".
+// The refusal detail for a custom property url() that resolves to different paths from its users. The app parses
+// refusal lines as `- <item>: <detail>`, so the detail must not contain ": ".
 const wantAmbiguous = "resolves to different paths from the stylesheets that use it"
 
-// customURLCase is one layout of the Electron probe in
-// .scratch/export-var-url (Chromium 156, Electron 45): a relative url() in an
-// unregistered custom property resolves from the stylesheet whose var()
-// puts it into a real property, not from where the property is declared.
-// Folders: the canvas is in .doan/canvases/, a linked CSS in styles/, an
-// imported CSS in styles/sub/, and a CSS in another folder in .doan/assets/b/.
+// customURLCase is one layout where a relative url() in an unregistered custom property resolves from the stylesheet
+// whose var() uses it. Canvas in .doan/canvases/, CSS in styles/, imported in styles/sub/, another in .doan/assets/b/.
 type customURLCase struct {
 	name   string
 	files  map[string]string

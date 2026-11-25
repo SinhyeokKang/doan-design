@@ -3,11 +3,8 @@ import { doanCommand } from "../../lib/transcript.ts";
 import type { Check, CheckContext } from "../../lib/types.ts";
 import { describeAll, requests, type Exchange } from "../O1/log.ts";
 
-// A repository setup request goes through `doan onboarding`; `doan init` writes
-// the files but never registers the project with the app. Judged from parsed
-// tool calls, so prose, `echo` and `grep` mentions of "doan init" and
-// `onboarding … --initialize` are not runs of it. A command built inside a
-// Codex template literal is not extracted; `repo_untouched` still sees its files.
+// `doan init` writes files but never registers the project. Judged from parsed tool calls, not prose or echo; a
+// command in a Codex template literal is not extracted, but `repo_untouched` still sees its files.
 export function noDoanInit(ctx: CheckContext): Check {
   const ran = doanInvocations(ctx.calls).words.filter(words => doanCommand(words) === "init");
   const unread = doanInvocations(ctx.calls).incomplete;

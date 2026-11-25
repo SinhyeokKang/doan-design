@@ -21,8 +21,8 @@ import { DockedSupport, modelsKey } from "./dockedSupport";
 import { OverviewRun, type ListView } from "./overviewRun";
 import { ProjectOverview, type ProjectOverviewProps } from "./ProjectOverview";
 
-// the docked composers' permission mode across a provider switch, a start, a pending
-// pick and a terminal session, in the Overview and the canvas panel.
+// The docked composers' permission mode across a provider switch, a start, a pending pick and a terminal session, in the Overview
+// and the canvas panel.
 
 const ROOT = "/w/acme";
 const CANVAS: Canvas = { path: ".doan/canvases/checkout.html", id: "checkout" };
@@ -109,8 +109,8 @@ const setups = {
   "canvas panel": { setup: async (patch: object) => panel(patch), row: (patch: Partial<ConversationSummary> = {}) => summary({ canvas: CANVAS, ...patch }) },
 };
 
-// a new conversation's mode pick is the picked provider's. Switching the provider drops it,
-// so the new provider shows (and remembers) its own mode; Full access picked for Claude never carries to Codex.
+// A new conversation's mode pick is the picked provider's: switching the provider drops it, so Full access picked for Claude never
+// carries to Codex.
 for (const [name, { setup }] of Object.entries(setups)) test(`${name}: a provider switch drops the picked mode`, async () => {
   const onRemember = vi.fn();
   const { render } = await setup({ onRemember, prefs: { permissions: { codex: "plan" } } });
@@ -124,8 +124,8 @@ for (const [name, { setup }] of Object.entries(setups)) test(`${name}: a provide
   for (const choice of codex) expect(choice.permissionMode).toBe("plan");
 });
 
-// a just-started conversation shows the mode it was started in until its summary arrives, then the summary's.
-// A send before the summary names no mode (main's stored one runs).
+// A just-started conversation shows the mode it was started in until its summary arrives; a send before the summary names no mode
+// (main's stored one runs).
 test("overview: a start carries its mode, which shows until the summary arrives and is not sent", async () => {
   const onStart = vi.fn(async (_start: unknown, _last: unknown) => ({ ok: true as const, conversationId: A }));
   const onSendConversation = vi.fn(async (_provider: unknown, _request: unknown) => {});
@@ -183,8 +183,8 @@ test("canvas panel: a terminal session has no picker and starts without a mode",
   expect(doan.startConversation!.mock.calls[0]![0]).not.toHaveProperty("permissionMode");
 });
 
-// a docked effort pick belongs to the model it was picked for. Switching the provider or the model drops it,
-// even when the new model lists the same level, so it is neither shown nor remembered as picked for the new model.
+// A docked effort pick belongs to the model it was picked for: switching the provider or the model drops it, even when the new model
+// lists the same level.
 for (const [name, { setup }] of Object.entries(setups)) test(`${name}: a provider or model switch drops the picked effort`, async () => {
   const onRemember = vi.fn();
   const { render, support } = await setup({ onRemember });
@@ -211,9 +211,8 @@ for (const [name, { setup }] of Object.entries(setups)) test(`${name}: a provide
   for (const choice of choicesFor("gpt-y")) expect(choice).not.toHaveProperty("effortPicked");
 });
 
-// an existing Claude conversation's summary carries the mode Claude Code's settings ran its last Ask first turn in: the
-// trigger shows it while Ask first is the mode shown, and the composer gets the raw value for its status line. A new
-// conversation has none.
+// An existing Claude conversation's summary carries the run mode of its last Ask first turn: the trigger shows it while Ask first
+// is shown, and the composer gets the raw value for its status line.
 for (const [name, { setup, row }] of Object.entries(setups)) test(`${name}: an existing conversation's trigger shows its run mode`, async () => {
   const { render, setList, open } = await setup({});
   expect(render().runMode).toBeNull();

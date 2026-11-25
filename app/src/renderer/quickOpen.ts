@@ -34,8 +34,8 @@ interface CanvasTarget {
   label: string;
 }
 
-// A project conversation has no canvas, so a conversation is not a CanvasTarget. `canvas` is a canvas conversation's
-// listed row, and `lastActivityAt` is "" when its history could not be read.
+// A project conversation has no canvas, so a conversation is not a CanvasTarget. `lastActivityAt` is "" when its
+// history could not be read.
 export interface ConversationResult {
   kind: "conversation";
   root: string;
@@ -58,7 +58,6 @@ type ConversationEntry = ConversationResult & { fields: readonly string[] };
 
 export type SearchKind = "all" | SearchResult["kind"];
 
-// HomeRun's conversation list per registered root (listState).
 export type ConversationLists = ReadonlyMap<string, readonly ConversationSummary[] | "loading" | "error">;
 
 function searchResult({ fields: _fields, ...result }: SearchEntry): SearchResult {
@@ -86,9 +85,8 @@ export function searchIndex(entries: readonly SearchFolder[], rendered?: Rendere
   return index;
 }
 
-// Conversations go after the folders' canvases and frames in the index, so at equal score and proximity they follow
-// them. A root whose folder is not read (rowsOf gives null) or whose list is not read adds none: they arrive later.
-// A canvas conversation is left out unless its canvas is exactly one listed row, the Overview's openable rule.
+// After the canvases and frames in the index, so at equal score they follow them. A canvas conversation is left out
+// unless its canvas is exactly one listed row, the Overview's openable rule.
 export function conversationEntries(lists: ConversationLists, rowsOf: (root: string) => readonly CanvasRow[] | null): ConversationEntry[] {
   const index: ConversationEntry[] = [];
   for (const [root, list] of lists) {
@@ -135,7 +133,6 @@ export function markRuns(label: string, positions: readonly number[]): { text: s
   return runs;
 }
 
-// An index of canvases and frames alone gives their results only.
 export function searchMatch(index: readonly CanvasEntry[], query: string, currentRoot: string | null, commonOf: (root: string) => string | undefined, kind?: SearchKind, open?: { root: string; path: string }): CanvasResult[];
 export function searchMatch(index: readonly SearchEntry[], query: string, currentRoot: string | null, commonOf: (root: string) => string | undefined, kind?: SearchKind, open?: { root: string; path: string }): SearchResult[];
 export function searchMatch(
@@ -148,8 +145,7 @@ export function searchMatch(
     const shown = kind === "frame" || kind === "conversation" ? kind : "canvas";
     const scoped = index.filter((entry) => entry.kind === shown && (currentRoot === null || entry.root === currentRoot));
     if (kind === "conversation") {
-      // The Conversation menu's order (byActivity): ISO times compare as strings, an unreadable history's "" sorts last,
-      // and the id breaks ties.
+      // ISO times compare as strings, an unreadable history's "" sorts last, and the id breaks ties.
       const key = (entry: SearchEntry) => entry.kind === "conversation" ? [entry.lastActivityAt, entry.conversationId] as const : ["", ""] as const;
       return scoped.sort((a, b) => {
         const [ta, ia] = key(a), [tb, ib] = key(b);
@@ -184,8 +180,7 @@ export function searchMatch(
       rank = entry.root === currentRoot ? 0 : common !== undefined && commonOf(entry.root) === common ? 1 : 2;
       proximity.set(entry.root, rank);
     }
-    // Keep only the visible candidates; broad queries otherwise allocate and
-    // sort tens of thousands of matches that are immediately discarded.
+    // Broad queries would otherwise allocate and sort tens of thousands of matches that are immediately discarded.
     const last = matches[49];
     if (last && (score < last.score || (score === last.score && rank >= last.proximity))) continue;
     const before = matches.findIndex((match) => score > match.score || (score === match.score && rank < match.proximity));
@@ -204,10 +199,8 @@ export function countMatches(index: readonly SearchEntry[], query: string, kind:
   return count;
 }
 
-// A reading project stays out of the index until it is read, so its canvases may still arrive: the projects searched
-// are every project with a query, and without one the workspace's own (searchMatch's scope). A read project whose
-// conversation list is still loading counts too where conversations can show: Conversations, and All with a query.
-// A failed list is not counted; it adds nothing until its Overview's Retry.
+// A reading project's canvases may still arrive. A failed conversation list is not counted; it adds nothing until its
+// Overview's Retry.
 export function readingCount(entries: readonly FolderEntry[], lists: ConversationLists, currentRoot: string | null, query: string, kind: SearchKind): number {
   const searched = query.trim() || currentRoot === null ? entries : entries.filter(entry => entry.path === currentRoot);
   const conversations = kind === "conversation" || (kind === "all" && query.trim() !== "");
@@ -220,9 +213,7 @@ export function readingText(count: number): string {
 
 const NO_MATCH: Record<Exclude<SearchKind, "all">, string> = { canvas: "No canvases match", frame: "No frames match", conversation: "No conversations match" };
 
-// Null while a reading project may still fill the list: the reading row says so, and "No canvases to show" would be
-// premature. On Conversations a conversation list still loading holds the text back the same way. otherCount is the
-// number of matches of every other kind together.
+// Null while a reading project may still fill the list, so "No canvases to show" would be premature.
 export function emptyText(kind: SearchKind, query: string, scope: readonly FolderEntry[], otherCount: number, lists: ConversationLists = new Map()): string | null {
   if (query.trim()) {
     if (kind === "all") return "No canvases, frames or conversations match";
@@ -244,9 +235,7 @@ export interface ResultGroup {
   rows: SearchResult[];
 }
 
-// searchMatch's order is stable, so a root's first row is its best match and
-// grouping by first appearance keeps the overall best row on top. An empty Conversations query comes most recent first,
-// so its groups follow each root's most recent conversation.
+// searchMatch's order is stable, so grouping by first appearance keeps the overall best row on top.
 export function groupResults(results: readonly SearchResult[], names: ReadonlyMap<string, { name: string; title: string }>): ResultGroup[] {
   const groups = new Map<string, ResultGroup>();
   for (const result of results) {
@@ -260,15 +249,13 @@ export function groupResults(results: readonly SearchResult[], names: ReadonlyMa
   return [...groups.values()];
 }
 
-// A conversation keeps its key through a rename or new activity; roots are absolute paths, so no canvas key starts
-// with "conversation".
+// Roots are absolute paths, so no canvas key starts with "conversation".
 export function resultKey(result: SearchResult): string {
   if (result.kind === "conversation") return JSON.stringify(["conversation", result.conversationId]);
   return JSON.stringify(result.kind === "frame" ? [result.root, result.path, result.frameId, result.frameIndex] : [result.root, result.path]);
 }
 
-// A conversation's detail is where it lives and the Conversation menu's short time; its accessible name spells the time
-// out as the menu's label does.
+// A conversation result's accessible name spells the time out as the Conversation menu's label does.
 export function resultParts(result: SearchResult, title: string | undefined, now: number = Date.now()): { icon: SearchResult["kind"]; name: string; detail: string; accessibleName: string } {
   const where = title ? ` · ${title}` : "";
   if (result.kind === "conversation") {
@@ -283,22 +270,20 @@ export function resultParts(result: SearchResult, title: string | undefined, now
   return { icon: result.kind, name: result.label, detail, accessibleName: `${result.label} — ${detail}${where}` };
 }
 
-// What the workspace shows now: the Overview's main conversation, or the open canvas with its panel's conversation
-// (null when the panel is folded); null on Home and the other pages.
+// null when the panel is folded, and on Home and the other pages.
 export type ShownConversation =
   | { kind: "overview"; root: string; conversationId: string | null }
   | { kind: "canvas"; root: string; path: string; conversationId: string | null }
   | null;
 
-// A pick of the conversation already on screen moves focus only: no move and no visit.
+// Focus only: no move and no visit.
 export function sameShownConversation(result: ConversationResult, shown: ShownConversation): boolean {
   if (shown === null || shown.root !== result.root || shown.conversationId !== result.conversationId) return false;
   return shown.kind === "overview" ? result.canvas === undefined : result.canvas?.path === shown.path;
 }
 
-// A native modal reports its own element for backdrop and padding clicks, so only geometry tells them apart.
-// The header strip never closes it: its drag region takes real clicks before the page, but its no-drag controls
-// (the mode capsule, the history buttons) reach the backdrop under them.
+// A native modal reports its own element for backdrop and padding clicks, so only geometry tells them apart. The header
+// strip's no-drag controls reach the backdrop under them, so it never closes.
 export function outsideDialog(
   rect: Pick<DOMRect, "left" | "top" | "right" | "bottom">,
   down: { x: number; y: number; button: number }, up: { x: number; y: number },
@@ -309,7 +294,6 @@ export function outsideDialog(
   return down.button === 0 && outside(down) && outside(up);
 }
 
-// The directory a listed canvas was in: `.doan/ds/`, or else `.doan/canvases/`.
 const listedIn = (path: string) => (canvasDir(path) === "ds" ? ".doan/ds/" : ".doan/canvases/");
 
 export function missingCanvasMessage(path: string): string {
@@ -328,8 +312,7 @@ export function unavailableCanvasMessage(entry: FolderEntry | undefined, path: s
   return projectUnavailableLine(project);
 }
 
-// A doan:// link main refused (ARCHITECTURE §7 'Deep links'): one toast without an action, since a
-// link only moves. `project` is the sidebar's project name, which main sends.
+// One toast without an action, since a link only moves (ARCHITECTURE §7 'Deep links').
 export function openLinkRefusal(result: Exclude<OpenLinkResult, { kind: "navigate" }>): string {
   if (result.kind === "malformed") return "Couldn’t open the link. It isn’t a Doan canvas link.";
   if (result.kind === "unregistered-root") return "Couldn’t open the link. Its project isn’t in Doan. Add it from Add Projects, then open the link again.";

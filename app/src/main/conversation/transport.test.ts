@@ -54,15 +54,14 @@ describe("transport normalization", () => {
     expect(transportError("Thread already has an active writer")).toBe("session_in_use");
     expect(transportError("Not logged in")).toBe("not_logged_in");
     expect(transportError("rate limit exceeded")).toBe("rate_limited");
-    // Codex 0.144.2's own words for a reached usage limit (a session rollout on this Mac).
+    // Codex's own words for a reached usage limit.
     expect(transportError("You've hit your usage limit. Upgrade to Plus to continue using Codex (https://chatgpt.com/explore/plus), or try again at Jul 25th, 2026 1:02 PM.")).toBe("rate_limited");
     expect(transportError("unfamiliar error")).toBe("unknown");
     expect(collect("claude", [{ type: "result", subtype: "error_during_execution", is_error: true, errors: ["Not logged in"] }]).events).toContainEqual({ type: "turn.failed", code: "not_logged_in", detail: "Not logged in" });
   });
 });
 // Claude Code answers a limited account with a made-up assistant message (model "<synthetic>", an `error` field, the
-// limit text) and then an error result carrying the same text. Shape: Claude Code transcripts under ~/.claude/projects
-// and SDKAssistantMessage.error in SDK 0.3.312; the result frame's exact fields are as for any is_error result.
+// limit text), then an error result carrying the same text.
 describe("a Claude turn that Claude Code ends with its own error message", () => {
   const LIMIT = "You've hit your weekly limit · resets Nov 11 at 2pm (Asia/Seoul)";
   const synthetic = (error: string, body: string) => ({ type: "assistant", parent_tool_use_id: null, error, message: { id: "synthetic-1", model: "<synthetic>", role: "assistant", content: [{ type: "text", text: body }] } });
@@ -185,7 +184,7 @@ describe("approval card content", () => {
     expect(codexCommand({ command: "/bin/zsh -lc 'cd sub && ls'", commandActions: [{ type: "listFiles", command: "ls", path: "sub" }] })?.summary).toBe("cd sub && ls");
   });
   it("takes off only Codex's own login-shell wrapper, decoding its quoting, and shows any other command as sent", () => {
-    // Codex quotes the script as one word, switching to single quotes around $, ` and ! (as recorded from 0.169.0).
+    // Codex quotes the script as one word, switching to single quotes around $, ` and !.
     expect(codexCommand({ command: `/bin/zsh -lc "echo \\"it's\\" "'$HOME \`id\` "a'"\\\\b\\" "'! > a.txt'` })?.summary).toBe("echo \"it's\" $HOME `id` \"a\\b\" ! > a.txt");
     expect(codexCommand({ command: "/bin/bash -c 'ls\nwc -l a.txt'" })?.summary).toBe("ls\nwc -l a.txt");
     expect(codexCommand({ command: "/bin/zsh -lc ls" })?.summary).toBe("ls");
@@ -390,8 +389,8 @@ it("forwards Codex additional-permission profiles without adding auto-review pol
   expect(permissionAnswer(request, "deny")?.response).toEqual({ id: 7, result: { permissions: {}, scope: "turn" } });
   expect(permissionAnswer(request, "always")?.response).toEqual({ id: 7, result: { permissions, scope: "session" } });
 });
-// Without a reason, the summary names each permission kind in a readable line (Codex app-server 0.169.0's
-// RequestPermissionProfile), capped like the other permission summaries.
+// Without a reason, the summary names each permission kind in a readable line (RequestPermissionProfile), capped like
+// the other permission summaries.
 describe("Codex permission profile summary", () => {
   const summaryOf = (permissions: unknown, reason: string | null = null) => {
     const request = codexPermission({ id: 7, method: "item/permissions/requestApproval", params: { threadId: "session-1", turnId: "turn-1", itemId: "p", cwd: "/repo", reason, permissions } });
@@ -425,7 +424,7 @@ describe("Codex permission profile summary", () => {
     expect(cut.endsWith("…")).toBe(true);
   });
 });
-// One reader for the mode Claude reports, in Claude's own ids (frames: claude-run-mode.json, PoC, Claude Code 2.1.312).
+// One reader for the mode Claude reports, in Claude's own ids (frames: claude-run-mode.json).
 describe("Claude mode reader", () => {
   it("reads the mode an Ask first turn's top-level system/init reports, as Claude's own id", () => {
     const read = Object.fromEntries(Object.entries(runMode.init).map(([name, frame]) => [name, claudeModeReport(frame)]));
@@ -448,7 +447,7 @@ describe("Claude mode reader", () => {
       { source: "init", mode: "default" }, undefined, { source: "status", mode: "acceptEdits" }, undefined, { source: "init", mode: "acceptEdits" }, undefined, undefined,
     ]);
   });
-  // The PoC saw no subagent init or status; the two system frames are synthetic, shaped like the top-level ones.
+  // No recorded subagent init or status exists; the two system frames are synthetic, shaped like the top-level ones.
   it("ignores a subagent's frames and every other message", () => {
     for (const frame of runMode.subagent) expect(claudeModeReport(frame)).toBeUndefined();
     const parent = runMode.subagent[0]!.parent_tool_use_id;
@@ -460,8 +459,7 @@ describe("Claude mode reader", () => {
   });
 });
 
-// A message steered into the running turn. Frame shapes and ids are a PoC run's (Claude Code 2.1.317/2.1.312,
-// Codex 0.166.0/0.164.0).
+// A message steered into the running turn. Frame shapes and ids are a recorded run's.
 describe("steered message consumption", () => {
   const FIRST = "6b793a86-9a1c-40e9-8855-84984dff4f8a", STEERED = "008d3a33-94cc-41f0-ad00-4b370be622d2";
   type Step = unknown | { steer: string };
@@ -573,7 +571,7 @@ describe("steered message consumption", () => {
     expect(run("codex", [{ steer: STEERED }, { method: "turn/completed", params: { threadId: "session-1", turn: { id: "turn-1", status: "completed" } } }]).seen).toEqual([{ type: "turn.done" }]);
   });
 });
-// Claude's AskUserQuestion, as a probe recorded it (fixtures/claude-ask-user-question.json).
+// Claude's AskUserQuestion, as recorded (fixtures/claude-ask-user-question.json).
 describe("Claude AskUserQuestion", () => {
   const single = askFixture.canUseTool.single.input, multi = askFixture.canUseTool.multi.input;
   const color = "Which color do you prefer?";
@@ -657,8 +655,8 @@ describe("Claude AskUserQuestion", () => {
   });
 });
 
-// A Claude turn that asked for Fast and did not get it, judged from its result (Agent SDK 0.3.312
-// fast_mode_state, fast_mode_disabled_reason). Reasons that go on (plan, extra usage, model, policy) turn Fast off.
+// A Claude turn that asked for Fast and did not get it, judged from its result (fast_mode_state,
+// fast_mode_disabled_reason). Reasons that go on (plan, extra usage, model, policy) turn Fast off.
 describe("Fast outcome", () => {
   const result = (fast: Record<string, unknown> = {}, subtype = "success") => ({ type: "result", subtype, is_error: subtype !== "success", result: "", ...fast });
   it("is nothing for a turn that did not ask, that got Fast, or whose result carries no state", () => {

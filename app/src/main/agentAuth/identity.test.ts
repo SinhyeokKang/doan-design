@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { codexAccountEmail, googleAccessToken, googleEmail, googleRefreshRequest, withIdentity } from "./identity";
 
-// Shapes from Codex 0.164.0 app-server `account/read` (v2/GetAccountResponse.json; personal values replaced).
+// Shapes of the Codex app-server `account/read` (v2/GetAccountResponse.json; personal values replaced).
 const chatgpt = { account: { type: "chatgpt", email: "ada@example.com", planType: "free" }, requiresOpenaiAuth: true };
-// acp_token.json as the 1.3.0 server's _save_credentials writes it (values replaced).
+// acp_token.json as the server's _save_credentials writes it (values replaced).
 const tokenFile = {
   client_id: "client.apps.googleusercontent.com", client_secret: "secret", refresh_token: "1//refresh", token_uri: "https://oauth2.googleapis.com/token",
   scopes: ["https://www.googleapis.com/auth/cloud-platform", "https://www.googleapis.com/auth/userinfo.email", "openid"], project_id: "p-1",

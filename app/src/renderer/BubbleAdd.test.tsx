@@ -5,8 +5,7 @@ import { INSPECTOR_PANEL_ID } from "./InspectorPanel";
 import { BubbleAddButton, BubbleInspectButton } from "./BubbleAdd";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 
-// The size bubble's Add to message, as App portals it into the controller's host. There is no DOM in these tests: the
-// element tree is walked as the toolbar's tests walk CanvasTools.
+// There is no DOM in these tests: the element tree is walked as the toolbar's tests walk CanvasTools.
 function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(all);
   if (!isValidElement<Record<string, unknown>>(node)) return [];
@@ -30,7 +29,6 @@ describe("BubbleAddButton", () => {
     expect(text(content(nodes).props.children as ReactNode)).toBe("Add to message");
   });
 
-  // aria-disabled, not disabled: the button keeps focus and its tooltip, and its reason is read while the tooltip is closed.
   test("unavailable, it is aria-disabled and its reason is both the tooltip and its description", () => {
     const reason = "Finish or cancel the capture first.";
     const nodes = tree({ enabled: false, reason });
@@ -58,7 +56,7 @@ describe("BubbleAddButton", () => {
   });
 
   // POSTMORTEM 2026-11-13: a control that turns unavailable while focused must stay the same element, or focus falls to
-  // the page. The button sits at the same place in the same tree in both states.
+  // the page.
   test("the button is the same element whether it is available or not", () => {
     const path = (nodes: ReactElement<Record<string, unknown>>[]) => nodes.slice(0, nodes.indexOf(button(nodes)) + 1).map(node => node.type);
     expect(path(tree({ enabled: false, reason: "Only frames and what’s in them can go in a message." }))).toEqual(path(tree()));

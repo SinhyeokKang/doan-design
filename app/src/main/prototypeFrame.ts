@@ -1,9 +1,5 @@
-// The prototype window's `will-frame-navigate` decision. Kept Electron-free beside `canvasFrame.ts`.
-//
-// The board's `frameNavigationAllowed` lets a canvas move to another document of its own folder; a prototype must not
-// leave its frame, so its direct child frame may only be (re)loaded by the host, and only to the current run's URL.
-// Links, `location` changes, reloads, native form submits and download links all arrive here as the canvas's own
-// moves and are refused. Same-document moves (hash, pushState) never reach this event.
+// A prototype must not leave its frame: its direct child frame may only be (re)loaded by the host, to the current
+// run's URL. Every other move arrives here as the canvas's own and is refused; same-document moves never reach this.
 import { isTopFrame, navigationGate, startedByApp, type FrameLike } from "./canvasFrame";
 
 function normalized(url: string): string | null {

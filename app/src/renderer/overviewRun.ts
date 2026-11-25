@@ -11,11 +11,8 @@ import { waitsForPerson, type SendingMessage, type ThreadItem } from "./threadIt
 
 export { draftFrom, type ListView, type QueuedMessage, type Thread } from "./conversationStore";
 
-// The project Overview's main conversation. App owns one
-// for the run, so each root keeps what it showed, its new-conversation draft and its threads across worktree switches
-// and visits. Everything is decided here so it can be driven without a DOM; the list reads, seen marks, memory and
-// navigation are the host's (HomeRun and App). Threads, drafts and queues live in the ConversationStore it shares with
-// the canvas panel (`store`).
+// App owns one for the run, so each root keeps what it showed, its draft and its threads across worktree switches and
+// visits. Decided here without a DOM; list reads, seen marks, memory and navigation are the host's.
 
 export interface OverviewRunHost {
   list(root: string): ListView;
@@ -23,38 +20,33 @@ export interface OverviewRunHost {
   readsStarted(root: string): number;
   readsApplied(root: string): number;
   reread(root: string): void;
-  // ui-state's conversationByRoot; null until ui-state was read, so a pick never runs ahead of the memory.
+  // null until ui-state was read, so a pick never runs ahead of the memory.
   remembered(): Readonly<Record<string, string>> | null;
   remember(root: string, conversationId: string | null): void;
   markSeen(conversationId: string, seq: number): void;
-  // Conversations this run marked seen that a list read has not shown as seen yet (HomeRun's seenPending); none when
-  // absent.
+  // HomeRun's seenPending; none when absent.
   seen?(): ReadonlySet<string>;
   focused(): boolean;
-  // A requested conversation bound to a canvas opens that canvas with its conversation in the panel.
   openCanvas(root: string, canvas: Canvas, conversationId: string, scroll: ScrollTo | null): void;
   toast(message: string, action: string, run: () => void): void;
-  // A notice without an action (a returned draft's), shown as the Overview's attachment notices are.
+  // A notice without an action (a returned draft's).
   notice?(text: string): void;
   label(root: string): string;
   changed(): void;
 }
 
-// Where the thread scrolls once it draws a requested conversation: its pending permission request.
 export type ScrollTo = "permission";
 export type OverviewView = { kind: "wait" } | { kind: "new" } | { kind: "conversation"; conversationId: string };
 
 interface RootState {
-  // undefined until a pick; a null conversation is the new conversation state. listed: seen in a list read.
+  // undefined until a pick; a null conversation is the new conversation state.
   current?: { conversationId: string | null; listed: boolean };
-  // Moves with every change of what the root shows, so a reply that lands after a newer choice leaves it alone;
-  // intent moves only with the person's or an entry's choice (a pick, New, a request, a start), not with what a list
-  // read did; leftAt: the intent when its Overview was last left.
+  // Moves with what the root shows, so a later reply leaves a newer choice alone. intent moves only with the person's
+  // or an entry's choice, not with what a list read did.
   revision: number;
   intent: number;
   leftAt?: number;
-  // The first automatic pick: undefined until it runs; true while the new conversation state it showed for a fresh
-  // start holds (until the person's or an entry's choice moves intent), so a return from a canvas keeps it.
+  // true while the new conversation state shown for a fresh start holds, so a return from a canvas keeps it.
   fresh?: boolean;
   // asked: the list was read again for it once; after: reads started before the request.
   request: { conversationId: string; after: number; asked: boolean; scroll: ScrollTo | null } | null;
@@ -65,8 +57,7 @@ export function lastTurnSeq(events: readonly ConversationEvent[]): number | null
   for (let i = events.length - 1; i >= 0; i--) if (toSee(events[i]!)) return events[i]!.seq;
   return null;
 }
-// The seq through which an ended turn can be seen: its end event is the last one. null while a turn runs or a new
-// request waits for its turn; a turn nothing is live for anymore was cut by a quit or crash, and main counts it ended.
+// A turn nothing is live for anymore was cut by a quit or crash, and main counts it ended.
 const TERMINAL: ReadonlySet<ConversationEvent["type"]> = new Set(["turn.done", "turn.failed", "interrupted"]);
 export function endSeq(events: readonly ConversationEvent[], live: boolean): number | null {
   const last = [...events].reverse().find(toSee);
@@ -74,8 +65,8 @@ export function endSeq(events: readonly ConversationEvent[], live: boolean): num
   return TERMINAL.has(last.type) || !live ? last.seq : null;
 }
 
-// Where a requested scroll goes once the thread draws: the newest pending permission request or question; wait while the list says the
-// conversation waits but its event has not arrived; otherwise the request has nothing left to show.
+// Wait while the list says the conversation waits but its event has not arrived; otherwise the request has nothing
+// left to show.
 export function scrollTarget(items: readonly ThreadItem[], waiting: boolean): { kind: "item"; key: string } | { kind: "wait" } | { kind: "drop" } {
   const ask = [...items].reverse().find(waitsForPerson);
   if (ask) return { kind: "item", key: ask.key };
@@ -83,18 +74,16 @@ export function scrollTarget(items: readonly ThreadItem[], waiting: boolean): { 
 }
 
 export class OverviewRun {
-  // Threads, drafts and queues, shared with the canvas panel's run.
   readonly store: ConversationStore;
   private roots = new Map<string, RootState>();
   private visible: string | null = null;
-  // The turn end the person saw per conversation (shown in the main column with the window focused), as a seq.
+  // Seen: shown in the main column with the window focused.
   private seenEnd = new Map<string, number>();
   // Waiting conversations already toasted, by the request they wait on (the list's preview names it).
   private asked = new Map<string, string>();
   private scroll: { conversationId: string; to: ScrollTo; seq: number } | null = null;
   private scrolls = 0;
 
-  // `calls` go to the store it shares with the canvas panel's run.
   constructor(private host: OverviewRunHost, calls: StoreCalls) {
     this.store = new ConversationStore({
       list: root => host.list(root), readsStarted: root => host.readsStarted(root), readsApplied: root => host.readsApplied(root),
@@ -109,8 +98,7 @@ export class OverviewRun {
 
   get drafts(): ReadonlyMap<string, DockedDraft> { return this.store.drafts; }
   view(root: string): OverviewView {
-    // A request held for the list keeps what shows; with nothing shown yet the column waits rather than flashing a
-    // new conversation that then changes.
+    // With nothing shown yet the column waits rather than flashing a new conversation that then changes.
     const s = this.roots.get(root);
     if (!s?.current) return { kind: "wait" };
     return s.current.conversationId === null ? { kind: "new" } : { kind: "conversation", conversationId: s.current.conversationId };
@@ -128,7 +116,6 @@ export class OverviewRun {
   }
   revision(root: string): number { return this.state(root).revision; }
 
-  // The root whose Overview is on screen, or null.
   show(root: string | null): void {
     if (root === this.visible) return;
     const left = this.visible ? this.roots.get(this.visible) : undefined;
@@ -136,8 +123,8 @@ export class OverviewRun {
     this.visible = root;
     if (root) {
       const s = this.state(root);
-      // Reopened with nothing asked for it meanwhile: the conversation is picked again; the drafts by key stay.
-      // A fresh start's new conversation state is kept: picking again would reopen the conversation it set aside.
+      // Reopened with nothing asked meanwhile: picked again. A fresh start's new conversation state is kept: picking again
+      // would reopen the conversation it set aside.
       if (s.leftAt !== undefined && s.leftAt === s.intent && !s.request && !(s.fresh === true && s.intent === 0)) delete s.current;
       this.resolve(root, s);
     }
@@ -146,7 +133,7 @@ export class OverviewRun {
   }
   focusChanged(): void { this.checkSeen(); }
 
-  // The person's choice in the dropdown, New and ⌘N. A conversation switch does not enter Back/Forward (App's).
+  // A conversation switch does not enter Back/Forward (App's).
   select(root: string, conversationId: string | null): void {
     const s = this.state(root);
     s.request = null;
@@ -156,18 +143,16 @@ export class OverviewRun {
     } else this.setCurrent(root, s, conversationId, true);
     this.host.changed();
   }
-  // An entry point asks for a conversation (Home Send, a notification or toast, the busy line's Open): a canvas
-  // conversation opens its canvas, a project conversation becomes the root's main conversation once listed.
+  // A project conversation becomes the root's main conversation once listed.
   request(root: string, conversationId: string, scroll: ScrollTo | null): void {
     const s = this.state(root);
-    // Accepted, it is a newer choice than a start or send still waiting for its reply, even while it waits for the list.
+    // Accepted, it is a newer choice than a start or send still waiting for its reply.
     s.revision++; s.intent++;
     s.request = { conversationId, after: this.host.readsStarted(root), asked: false, scroll };
     this.resolve(root, s);
     this.host.changed();
   }
-  // A start from the new conversation state: shown at once, before any list has it. `revision` is the root's when the
-  // start was sent; a newer choice (another conversation, New, an entry) keeps what it chose.
+  // A newer choice than the start's `revision` keeps what it chose.
   started(root: string, conversationId: string, provider?: Provider, revision?: number): void {
     if (provider) this.store.started(conversationId, provider);
     const s = this.state(root);
@@ -187,20 +172,19 @@ export class OverviewRun {
   unqueued(conversationId: string, itemId: string): void { this.store.unqueued(conversationId, itemId); }
   setDrafts(update: (drafts: ReadonlyMap<string, DockedDraft>) => ReadonlyMap<string, DockedDraft>): void { this.store.setDrafts(update); }
   retryThread(conversationId: string): void { this.store.retryThread(conversationId); }
-  // A removed project keeps no memory in this run either.
   forgetRoots(roots: readonly string[]): void {
     for (const root of roots) {
       this.roots.delete(root);
       if (this.visible === root) this.visible = null;
     }
-    // The root's own draft and its canvases' (draftKey: `canvas:` then the JSON array that starts with the root).
+    // draftKey: `canvas:` then the JSON array that starts with the root.
     this.store.dropDrafts(key => roots.some(root => key === `root:${root}` || key.startsWith(`canvas:${JSON.stringify([root]).slice(0, -1)},`)));
     this.host.changed();
   }
   settleAttachments(keys: readonly string[], results: readonly (AttachmentResult | null)[]): { notices: string[]; images: { key: string; thumbnail: Uint8Array }[] } {
     return this.store.settleAttachments(keys, results);
   }
-  // Edit and resend: true when the field should take focus, the same conversation still showing.
+  // true when the field should take focus, the same conversation still showing.
   async editAndResend(root: string, conversationId: string): Promise<boolean> {
     const revision = this.state(root).revision;
     if (!await this.store.editAndResend(conversationId)) return false;
@@ -208,10 +192,8 @@ export class OverviewRun {
     return this.visible === root && s?.revision === revision && s.current?.conversationId === conversationId;
   }
   live(root: string, conversationId: string): boolean { return this.store.live(root, conversationId); }
-  // main deleted it, in whichever root. A root that showed it shows the new
-  // conversation state with a newer revision, so a start or send reply sent before cannot replace that; a request
-  // still waiting for it is dropped, so the list is not read again for it. The memory goes too. The store's records go
-  // through its own deleted, which App calls as well.
+  // A root that showed it gets the new state at a newer revision, so an earlier reply cannot replace that; waiting
+  // requests are dropped. The store's records go through its own deleted.
   deleted(conversationId: string): void {
     for (const s of this.roots.values()) {
       if (s.request?.conversationId === conversationId) s.request = null;
@@ -224,14 +206,12 @@ export class OverviewRun {
     this.host.changed();
   }
 
-  // conversation:event, subscribed at App mount so nothing is lost before a read.
+  // Subscribed at App mount so nothing is lost before a read.
   event(event: ConversationEvent): void { this.store.event(event); }
 
-  // After every list read HomeRun applied (and any change of the memory): picks waiting for the list, a gone main
-  // conversation, the waiting toast and queues.
   sync(): void {
-    // The host's calls (a reread, a seen mark) report back through HomeRun, which asks for another sync: that one
-    // runs after this one instead of inside it.
+    // The host's calls report back through HomeRun, which asks for another sync: that one runs after this one instead of
+    // inside it.
     if (this.syncing) { this.again = true; return; }
     this.syncing = true;
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- syncOnce() can re-enter sync(), which sets again
@@ -248,9 +228,9 @@ export class OverviewRun {
       if (root === this.visible) this.toastWaiting(root, s, list);
       const shown = s.current?.conversationId;
       if (shown && this.store.thread(shown)?.read === "ready") this.store.takeDraft(root, shown);
-      // A first message a quit stopped waits in the root's new conversation draft (once a run; main hands it over once).
+      // Once a run; main hands it over once.
       if (root === this.visible) this.store.takeStartDraft(root);
-      // Only the shown root's, as the canvas panel; the store forgets a schedule the list moved past on every read.
+      // The store forgets a schedule the list moved past on every read.
       if (shown && root === this.visible) this.store.readScheduled(root, shown);
     }
     this.store.syncQueues();
@@ -272,8 +252,7 @@ export class OverviewRun {
     if (this.store.track(conversationId)) this.store.takeDraft(root, conversationId);
     this.checkSeen();
   }
-  // The pick goes through pickOverviewConversation. Only the first pick of a root reads the memory: after it the
-  // person's choices hold, so a list read that lands later never replaces one (POSTMORTEM 2026-10-25).
+  // Only the first pick of a root reads the memory, so a list read that lands later never replaces a person's choice.
   private resolve(root: string, s: RootState): void {
     const list = this.host.list(root);
     const read = Array.isArray(list) ? this.store.withoutDeleted(list) : null;
@@ -300,7 +279,7 @@ export class OverviewRun {
     }
     const remembered = this.host.remembered();
     if (s.current !== undefined || !read || remembered === null) return;
-    // Fresh only for the root's first pick of the run and before any choice (a request or start moves intent).
+    // A request or start moves intent.
     const first = s.fresh === undefined && s.intent === 0;
     const pick = pickOverviewConversation(read, remembered[root], null, first ? this.host.seen?.() ?? new Set() : null);
     s.fresh = pick.kind === "new" && pick.fresh === true;
@@ -311,13 +290,11 @@ export class OverviewRun {
       if (pick.forget) this.host.remember(root, null);
     }
   }
-  // A gone main conversation leaves the root in the new conversation state.
   private afterList(root: string, s: RootState, list: readonly ConversationSummary[]): void {
     const current = s.current;
     if (!current || current.conversationId === null) return;
     const id = current.conversationId;
-    // Deleting: deleted() resets the root once main answers. Read as gone now, its draft would move over the new
-    // conversation's.
+    // deleted() resets the root once main answers. Read as gone now, its draft would move over the new conversation's.
     if (this.store.deleting(id)) return;
     const change = overviewAfterListChange({ root, conversationId: id, listed: current.listed }, { root, list });
     if (change.kind === "keep") {
@@ -330,7 +307,6 @@ export class OverviewRun {
     this.host.remember(root, null);
   }
   private moveDraft({ from, to }: DraftMove): void { this.store.moveDraft(from, to); }
-  // Another project conversation of the shown root waits while the main column shows something else.
   private toastWaiting(root: string, s: RootState, list: readonly ConversationSummary[]): void {
     const shown = s.current?.conversationId ?? null;
     for (const c of list) {
@@ -340,7 +316,7 @@ export class OverviewRun {
       this.host.toast(`${PROVIDER_NAMES[c.provider]} needs your answer in ${this.host.label(root)}.`, "Open", () => this.request(root, c.conversationId, "permission"));
     }
   }
-  // Seen only while it shows in the main column with the window focused; scrolled up or not.
+  // Scrolled up or not.
   private checkSeen(): void {
     const root = this.visible;
     const id = root ? this.roots.get(root)?.current?.conversationId : null;

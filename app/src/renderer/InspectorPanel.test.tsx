@@ -8,7 +8,6 @@ import type { InspectorReadState } from "./inspectorReads";
 import type { SelectionView } from "./selection";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-// .doan/canvases/canvas-inspector-panel.html panel-states: the panel's states and rows as markup.
 const html = (node: ReactElement) => renderToStaticMarkup(<TooltipProvider>{node}</TooltipProvider>);
 const body = (read: InspectorReadState) => html(<InspectorBody read={read} onRetry={vi.fn()} onNotice={vi.fn()} onEscape={vi.fn()} />);
 const read = (panel: InspectorReadState["panel"], retrying = false): InspectorReadState => ({ panel, retrying, seq: 1 });
@@ -130,7 +129,7 @@ describe("styles", () => {
   const controls = readFileSync(new URL("./ds/controls.css", import.meta.url), "utf8");
   const surfaces = readFileSync(new URL("./ds/surfaces.css", import.meta.url), "utf8");
 
-  // design.md 'Grid': a fourth column, placed by number, for every rule the third column used to answer.
+  // A fourth column, placed by number, for every rule the third column answered.
   test("the inspector is the shell's third column; the conversation and the Overview's list take the fourth", () => {
     expect(css).toContain(".workspace.app-shell { grid-template-columns: var(--doan-sidebar-width) minmax(0, 1fr) var(--doan-inspector-width) var(--doan-right-width);");
     expect(css).toContain(':root[data-sidebar="hidden"] .workspace.app-shell { grid-template-columns: 0px minmax(0, 1fr) var(--doan-inspector-width) var(--doan-right-width); }');
@@ -153,9 +152,8 @@ describe("styles", () => {
     expect(css).toContain("  .workspace[data-panel-motion] > .doan-insp-column[data-collapsed] { transition: none; }");
   });
 
-  // canvas-inspector-panel panel-states, measured in the built app: the reading, failed and no-styles lines are body-sm
-  // like the rest of the panel (they inherited the app's 13px body); the fixed "Inspector" title has no ellipsis, and
-  // a token chip keeps proportional figures, as the draft computes them.
+  // The reading, failed and no-styles lines are body-sm like the rest of the panel (they would inherit the app's 13px body); the
+  // "Inspector" title has no ellipsis, and a token chip keeps proportional figures.
   test("the panel's lines set their own type; the title and chips follow the draft", () => {
     const bodySm = /font-size: var\(--type-body-sm-size\); line-height: var\(--type-body-sm-line-height\); letter-spacing: var\(--type-body-sm-letter-spacing\);/;
     for (const selector of [".doan-insp-loading", ".doan-insp-failed", ".doan-insp-none"]) expect(css.match(new RegExp(`\\n\\${selector} \\{[^}]*\\}`))?.[0], selector).toMatch(bodySm);
@@ -163,9 +161,8 @@ describe("styles", () => {
     expect(css).not.toContain(".doan-insp-value .doan-code { font-variant-numeric: tabular-nums; }");
   });
 
-  // Measured against canvas-inspector-panel: the element menu and the row tooltip draw proportional figures, as the
-  // conversation's title menu does (the app body's tabular figures are reset at the call site, not in the shared
-  // tooltip); the menu follows the panel's width, above the shared menu cap of 320, as the confirmed draft does.
+  // The element menu and the row tooltip draw proportional figures (the app body's tabular figures are reset at the call site,
+  // not in the shared tooltip); the menu follows the panel's width, above the shared menu cap of 320.
   test("the element menu and the row tooltip use proportional figures; the menu is not capped below the panel", () => {
     expect(css).toMatch(/\n\.ov-main, \.right\.ov-right, \.conv-menu, \.wt-menu, \.doan-insp-menu, \.doan-insp-tip \{ font-variant-numeric: normal; \}/);
     expect(css).toContain(".doan-floating.doan-insp-menu { width: calc(var(--doan-insp-panel-width) - 2 * var(--space-2)); max-width: none; }");

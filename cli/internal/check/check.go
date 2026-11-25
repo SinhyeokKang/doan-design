@@ -32,8 +32,7 @@ type Input struct {
 	Unparsable map[string]string
 	Reach      map[string][]CSSRef
 	CSS        map[string]canvas.Scan
-	// CustomCSS holds, by real path, what each reached stylesheet does with
-	// custom properties. It is apart from CSS so canvas.Scan stays as it is.
+	// CustomCSS holds, by real path, what each reached stylesheet does with custom properties.
 	CustomCSS  map[string]canvas.CustomText
 	TokenCSS   TokenCSS
 	Served     func(string) bool
@@ -393,10 +392,8 @@ func Run(in Input) []Finding {
 	return findings
 }
 
-// ambiguousURLs reports each url() in a custom property that the folders
-// using the property, among the canvas and every stylesheet it reaches,
-// resolve to different paths. export refuses the same url()s with the same
-// canvas functions; check reaches every stylesheet export reads.
+// ambiguousURLs reports each custom-property url() its users' folders resolve to different paths. check reaches every stylesheet
+// export reads (ARCHITECTURE §3 'Custom property `url()`s resolve from their user'), and export refuses the same url()s.
 func ambiguousURLs(c canvas.Canvas, in Input, add func(Finding), cssSeen map[[3]string]bool) {
 	users := canvas.CustomUsers{Elements: c.Elements}
 	users.Add(path.Dir(c.Path), c.Custom.Uses)

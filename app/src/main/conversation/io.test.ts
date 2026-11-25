@@ -124,7 +124,7 @@ describe("conversation disk boundaries", () => {
     expect(await claudeOccupancy(config, "s", inspect)).toBe("occupied");
     writeFileSync(join(config, "sessions", "12.json"), JSON.stringify({ pid: 12, sessionId: "s", cwd: "/other", kind: "interactive", version: "2.1.312", procStart: "Mon Oct 26 12:00:00 2026" }));
     expect(await claudeOccupancy(config, "s", inspect)).toBe("free");
-    // 2.1.312 writes a per-process key file beside each record; it is skipped, never parsed.
+    // Claude Code writes a per-process key file beside each record; it is skipped, never parsed.
     writeFileSync(join(config, "sessions", `12.${"a".repeat(64)}.key`), "not json", { mode: 0o600 });
     expect(await claudeOccupancy(config, "s", inspect)).toBe("free");
     writeFileSync(join(config, "sessions", "12.json"), JSON.stringify({ pid: 12, sessionId: "s", cwd: "/other", kind: "interactive", version: "2.1.283", procStart: start }));
@@ -147,9 +147,8 @@ describe("conversation disk boundaries", () => {
     // The same records with no live process behind them block nothing.
     write(12, "x", "2.1.400"); expect(await claudeOccupancy(config, "s", async () => null)).toBe("free");
   });
-  // Claude Code 2.1.323 writes its record without procStart, and a CLI killed before its own cleanup leaves one behind
-  // (POSTMORTEM 2026-11-13). Without procStart the pid decides: no process is an ended one's record; a live pid is judged
-  // by its sessionId, so another session's record no longer refuses every resume in the profile.
+  // A record without procStart, as one a killed CLI leaves behind (POSTMORTEM 2026-11-13), is judged by its pid: no
+  // process means an ended one's record; a live pid is judged by its sessionId.
   describe("records without procStart (Claude Code 2.1.323)", () => {
     const start = "Fri Nov 13 01:00:00 2026";
     const record = (pid: number, sessionId: string, extra: object = {}) => ({ pid, sessionId, cwd: "/other", startedAt: 1, version: "2.1.323", kind: "interactive", entrypoint: "sdk-ts", pidDomain: "darwin", status: "idle", ...extra });
@@ -251,7 +250,7 @@ describe("conversation disk boundaries", () => {
     expect(await claudeOccupancy(config, "s", async () => start)).toBe("unknown");
   });
   it("lets one doan Claude conversation resume while another runs in the same dedicated profile", async () => {
-    // The record shape a running doan SDK turn left in the dedicated profile (live, CLI 2.1.312): interactive, sdk-ts.
+    // The record shape a running doan SDK turn leaves in the dedicated profile: interactive, sdk-ts.
     const config = temp(); const start = "Wed Oct 28 10:40:00 2026"; mkdirSync(join(config, "sessions"));
     const running = { pid: 55058, sessionId: "running-y", cwd: "/repo-y", kind: "interactive", entrypoint: "sdk-ts", version: "2.1.312", procStart: start };
     writeFileSync(join(config, "sessions", "55058.json"), JSON.stringify(running));
@@ -262,8 +261,8 @@ describe("conversation disk boundaries", () => {
     // A record left by a killed run of the same version is dead and does not block.
     expect(await claudeOccupancy(config, "running-y", async () => null)).toBe("free");
   });
-  // codex 0.166.0 live (PoC): the thread's writer holds <CODEX_HOME>/thread-writer-locks/<id>.lock with an
-  // exclusive flock and deletes it on a clean exit; a SIGKILL leaves the file behind with nobody holding it.
+  // The thread's writer holds <CODEX_HOME>/thread-writer-locks/<id>.lock with an exclusive flock and deletes it on a
+  // clean exit; a SIGKILL leaves the file behind with nobody holding it.
   it("reads a Codex thread writer lock and fails closed on anything it cannot read", async () => {
     const config = realpathSync(temp()), id = "01a1a1f0-3466-7691-96f0-37f5415d3cb9", locks = join(config, "thread-writer-locks"), lock = join(locks, `${id}.lock`);
     const inspect = vi.fn(async (_path: string): Promise<FileHolder[]> => [{ pid: 900, pgid: 900, ppid: 1 }]);

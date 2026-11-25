@@ -7,7 +7,7 @@ import {
   type AuthButton, type InstallState, type ProviderView,
 } from "./agentAuthView";
 
-// DTOs come from agent-auth's own authStatus, so readiness, actions and error shapes are the backend's.
+// DTOs come from agent-auth's own authStatus, so shapes are the backend's.
 const FACTS: ToolFacts = { cli: "found", version: "supported", tools: "ready" };
 const ACCOUNT: AccountIdentity = { id: "acct-1", workspace: "org-1", email: "ada@example.com", displayName: "Ada" };
 interface Fixture { phase?: AuthPhase; account?: AccountIdentity | null; verified?: boolean; expired?: boolean; attempt?: Partial<AuthAttempt> & { kind: AuthAttempt["kind"] } | null; error?: AuthErrorCode | null; facts?: Partial<ToolFacts> }
@@ -174,7 +174,7 @@ test("only reply not_owner shows where to finish a sign-in started in another wi
   const view = providerView(status, { reply: "not_owner" });
   expect(only(view)).toEqual({ detail: "Finish this sign-in in the window that started it.", button: "prominent-disabled:Sign in:signIn", notice: null, helper: null });
   expect(view.detailRole).toBe("status");
-  // After a reload or for a CLI-started sign-in the window cannot prove ownership but may still own it: Cancel stays usable.
+  // After a reload or a CLI-started sign-in the window cannot prove ownership but may own it: Cancel stays usable.
   expect(only(providerView(status)).notice).toMatchObject({ title: "Preparing Claude Code sign-in", actions: ["subtle:Cancel:cancel", "subtle-disabled:Open browser:openLink"] });
   expect(providerView(status).detailRole).toBeNull();
 });
@@ -210,7 +210,6 @@ test("every reply reason has a fixed effect", () => {
     stale: "reread", invalid: "reread", not_connected: "reread", sign_out_failed: "reread",
   };
   for (const [reason, effect] of Object.entries(effects)) expect(replyEffect(reason as AuthReason), reason).toBe(effect);
-  // A reread reply leaves the row as the snapshot shows it.
   for (const reason of ["stale", "invalid", "not_connected", "sign_out_failed"] as const) expect(only(providerView(dto("codex"), { reply: reason }))).toEqual(only(providerView(dto("codex"))));
 });
 
@@ -244,7 +243,6 @@ test("every agent-auth error code maps to its alert and next action", () => {
   }
   // A version Retry only re-reads tool facts: no cost anywhere.
   expect(providerView(dto("copilot", { account: ACCOUNT, verified: true, facts: { version: "unknown" } })).notice?.actions[0]?.note).toBeUndefined();
-  // account_mismatch and sign_out_failed are covered by the reauth and signOut rows.
   const codes: AuthErrorCode[] = ["sign_in_failed", "network", "storage_failed", "check_failed", "account_mismatch", "sign_out_failed", "cli_install_failed"];
   for (const code of codes) expect(providerView(dto("codex", { account: ACCOUNT, error: code })).notice?.role, code).toBe("alert");
 });
@@ -338,7 +336,6 @@ test("the short status leaves the onboarding row copy unchanged", () => {
   expect(only(providerView(status)).notice?.body).toBe("Your Codex sign-in expired. Sign in again.");
 });
 
-// the Settings page reuses the same rows with a Settings context.
 const S = { settings: true } as const;
 const signOutOf = (view: ProviderView) => view.signOut && labels([view.signOut])[0];
 
@@ -348,7 +345,6 @@ test("settings context: a ready connection shows its account and Sign out only",
   expect(signOutOf(view)).toBe("subtle:Sign out:signOut");
   expect(view.signOut?.ariaLabel).toBe("Sign out of Claude Code");
   expect(providerView(ready("codex", { id: null, workspace: null }), S).detail).toBeNull();
-  // First run keeps its disabled Connected and no row Sign out.
   expect(providerView(ready("claude")).signOut).toBeNull();
 });
 
@@ -378,7 +374,6 @@ test("settings context: Sign out stays on every connected row unless the row alr
   expect(providerView(dto("codex", { account: ACCOUNT, verified: true, expired: true, attempt: { kind: "signIn" } }), S).signOut).toBeNull();
   // A running check disables the row, Sign out included.
   expect(signOutOf(providerView(dto("codex", { account: ACCOUNT, attempt: { kind: "check" } }), S))).toBe("subtle-disabled:Sign out:signOut");
-  // Not connected rows have nothing to sign out of.
   expect(providerView(dto("cursor"), S).signOut).toBeNull();
 });
 
@@ -439,11 +434,9 @@ test("settings context: a connected row refused as busy keeps its account and a 
   expect(view.detail).toBe("Finish or cancel the Codex sign-in first.");
   expect(view.button).toBeNull();
   expect(signOutOf(view)).toBe("subtle-disabled:Sign out:signOut");
-  // A row without a connection keeps first run's disabled Sign in.
   expect(only(providerView(dto("cursor"), { ...S, reply: "busy", busyWith: "codex" })).button).toBe("prominent-disabled:Sign in:signIn");
 });
 
-// the Install or Update row after its button was used.
 test("installRowView: every install result before and after the return check, for Install and Update", () => {
   const row = (cause: "cli_missing" | "version_unsupported", install: Omit<InstallState, "provider" | "action"> | null) => {
     const action = cause === "cli_missing" ? "install" : "update";
@@ -477,7 +470,6 @@ test("a row shows its install state through its context; another action's state 
   const copilot = providerView(dto("copilot", { facts: { cli: "missing" } }), { install: install("copilot", "install", "page", true), settings: true });
   expect(only(copilot)).toMatchObject({ detail: "Not installed", button: "prominent:Check again:check" });
   expect(copilot.button?.note).toBeUndefined();
-  // A ready row has nothing to install, whatever state is left.
   expect(only(providerView(ready("codex"), { install: install("codex", "update", "failed") })).notice).toBeNull();
 });
 

@@ -2,8 +2,8 @@ import { expect, test } from "vitest";
 import request from "../conversation/fixtures/codex-mcp-elicitation.json";
 import { codexMcpApproval } from "./codexApproval";
 
-// The mcpServer/elicitation/request Codex 0.166.0 sent before a tool without a read-only hint (a probe, a local echo
-// server named doan-echo-poc). The JSON-RPC id is not in the probe log and is set here.
+// The mcpServer/elicitation/request Codex sends before a tool without a read-only hint, from a local echo server named
+// doan-echo-poc. The JSON-RPC id is set here.
 const LABELS = { "doan-echo-poc": "Echo", "doan-notion": "Notion" };
 const withParams = (patch: Record<string, unknown>) => ({ ...request, params: { ...request.params, ...patch } });
 const withMeta = (patch: Record<string, unknown>) => withParams({ _meta: { ...request.params._meta, ...patch } });

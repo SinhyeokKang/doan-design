@@ -81,8 +81,8 @@ describe("trashBusy", () => {
     expect(trashBusy({ root: "/repo", path: target.path }, [summary({ phase: "running", canvas: { path: target.path } })], [])).toBe(true);
   });
 
-  // The first conversation of a canvas is in no list until main accepts it, yet it is preparing (PRODUCT §5 'Canvas
-  // row menu'): main's starts not accepted yet count, matched as the list's conversations are.
+  // The first conversation of a canvas is in no list until main accepts it, yet it is preparing: main's starts not
+  // accepted yet count, matched as the list's conversations are.
   test("a start not accepted yet blocks on its own canvas only, matched by id when either side has one", () => {
     expect(trashBusy(target, [], [], [{ path: target.path, id: "a" }])).toBe(true);
     expect(trashBusy(target, [], [], [{ path: ".doan/canvases/old.html", id: "a" }])).toBe(true);
@@ -108,8 +108,8 @@ const tmp = realpathSync(mkdtempSync(join(tmpdir(), "doan-trash-test-")));
 let count = 0;
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
-// A repo with `.doan/canvases/a.html` and a leftover `.doan/comments/a.jsonl` from before comments were removed, named
-// after the canvas id: Move to Trash must leave it byte for byte.
+// A repo with `.doan/canvases/a.html` and a leftover `.doan/comments/a.jsonl` file, which Doan ignores, named after
+// the canvas id: Move to Trash must leave it byte for byte.
 const LEFTOVER = '{"v":1,"comment":"c1"}\n';
 function repo(): string {
   const root = join(tmp, `r${count++}`);

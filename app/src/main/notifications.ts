@@ -1,15 +1,12 @@
 import type { ConversationEvent } from "./conversation/types";
 import type { NotificationPreferences } from "./preferences";
 
-// macOS notification rules (PRODUCT §5 item 0 'Notifications'). Main decides whether and what to show; the
-// renderer interprets a click with notificationTarget, the one function the conversation panel replaces.
-// No Electron here: the renderer imports this file.
+// Main decides whether and what to notify (PRODUCT §5 item 0 'Notifications'); the renderer interprets a click with
+// notificationTarget. No Electron here: the renderer imports this file.
 
 export type NotificationKind = "approval" | "finished" | "failed";
 // Composed rather than trusting focus alone: a hidden or minimized window, or a hidden app, is not in front even if
-// Electron still reports it focused.
-// prototypeShows: the conversation the prototype window shows in its open panel while that window is focused, visible
-// and in front; the person sees it there.
+// Electron reports it focused. prototypeShows: the conversation the focused prototype window shows in its open panel.
 export interface WindowVisibility { focused: boolean; shown: boolean; minimized: boolean; appHidden: boolean; prototypeShows?: string | null }
 export interface ConversationNames { provider: string; root: string; project: string; branch: string | null }
 // What main sends the renderer on a click.
@@ -17,15 +14,13 @@ export interface NotificationTarget { conversationId: string; root: string }
 export interface PlannedNotification { kind: NotificationKind; title: string; body: string; target: NotificationTarget; requestId?: string }
 export type ClickDestination = { kind: "conversation"; conversationId: string; root: string } | { kind: "overview"; root: string } | { kind: "window" };
 
-// The design names no copy for it; it says only that a notification looks like this.
 export const TEST_NOTIFICATION = { title: "Test notification", body: "Doan notifies you like this when an agent needs you." } as const;
 
 const TITLES: Record<NotificationKind, string> = { approval: "needs your answer", finished: "finished", failed: "couldn’t finish" };
 const SWITCH: Record<NotificationKind, keyof NotificationPreferences> = { approval: "approval", finished: "finished", failed: "failed" };
 
-// A turn the person stopped is `interrupted`, never `turn.failed`, so it never notifies. The permission summary is
-// left out until PRODUCT §6 settles its format, and so is a question's sentence. Both follow the Approval requests
-// switch and say they need an answer, as the thread and the sidebar do.
+// A turn the person stopped is `interrupted`, never `turn.failed`, so it never notifies. The permission summary and a
+// question's sentence are left out until PRODUCT §6 settles their format.
 export function notificationFor(event: ConversationEvent, preferences: NotificationPreferences, visibility: WindowVisibility, names: ConversationNames | null): PlannedNotification | null {
   const asks = event.type === "permission.request" || event.type === "question.request";
   const kind: NotificationKind | null = asks ? "approval" : event.type === "turn.done" ? "finished" : event.type === "turn.failed" ? "failed" : null;

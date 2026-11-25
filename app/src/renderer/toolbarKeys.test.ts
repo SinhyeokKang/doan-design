@@ -1,7 +1,6 @@
 import { expect, it, vi } from "vitest";
 import { moveBetweenTools } from "./toolbarKeys";
 
-// ←/→ move focus along enabled buttons only: no wrap at either end, and any other key is left alone.
 function press(key: string, buttons: string[], active: number | object) {
   const focused: string[] = [];
   const nodes = buttons.map(name => ({ name, focus: () => focused.push(name) }));

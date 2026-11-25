@@ -199,8 +199,7 @@ ${changed ? "await assert.rejects(assertRealState(state), /real onboarding state
   }
 }
 
-// A probe that launches another copy of the app (a PoC build, an unisolated dev run) creates its own userData folder
-// beside Doan's.
+// Another copy of the app (an unisolated dev run, say) creates its own userData folder beside Doan's.
 test("real-state detects a sibling Application Support/doan* folder appearing", async () => {
   const home = await mkdtemp(join(tmpdir(), "doan-state-fixture-"));
   try {
@@ -228,9 +227,8 @@ await assert.rejects(assertRealState(before), /real onboarding state changed/);
   } finally { await rm(home, { recursive: true, force: true }); }
 });
 
-// A new userData file must join the snapshot in the same change. Names joined to userData through another directory
-// variable (folders.json's auto-folders.json sibling, the MCP connector store's files, sessions.jsonl) are not visible
-// to this scan and stay in the list by hand.
+// A new userData file must join the snapshot in the same change. Names joined through another directory variable
+// (auto-folders.json, MCP connector store files, sessions.jsonl) escape this scan and stay listed by hand.
 test("real-state fingerprints every userData entry main names", async () => {
   const main = new URL("../src/main/", import.meta.url);
   const files = (await readdir(main, { recursive: true })).filter(name => name.endsWith(".ts") && !/\.(test|fixture)\.ts$/.test(name));

@@ -6,10 +6,8 @@ import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
-// Google's Antigravity ACP server, as distributed for the Zed and JetBrains extensions
-// (https://antigravity.google/docs/ide/extensions). The release URL and hashes are not published by Google; they were
-// read from Orca 1.4.240 and re-verified on download. The user accepted the download as an exception to
-// "no CLI auto-install", and the undocumented AGY_ACP_FORCE_FILE_STORAGE switch.
+// Google's Antigravity ACP server, as distributed for its IDE extensions. Google publishes no release URL or hashes,
+// so both are pinned here and re-verified on download; AGY_ACP_FORCE_FILE_STORAGE is an undocumented switch.
 export const ANTIGRAVITY_SERVER = {
   version: "1.3.0",
   url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.3.0-darwin-arm64.zip",
@@ -20,16 +18,12 @@ export const ANTIGRAVITY_SERVER = {
   ],
 } as const;
 export const ANTIGRAVITY_COMMAND = "agy_acp_server.par";
-// The server passes the sign-in link to $BROWSER (Python webbrowser). A command line with arguments is split only by
-// some webbrowser paths (GenericBrowser(name) runs it as one executable name and fails), and a hook that fails makes
-// webbrowser fall through to the user's default browser. An executable path runs as [path, url] on every path, may
-// hold spaces (Application Support) but never ":" (the variable's separator), and the script always exits 0, so main
-// alone decides where the link goes (user decision 2026-10-28). Claude runs $BROWSER without its output, so a process
-// given AUTH_LINK_FILE also gets the link appended to that file (claude 2.1.312).
+// $BROWSER is an executable path, never a command line: some webbrowser paths do not split arguments, and a failing hook
+// falls through to the default browser. Claude drops the hook's output, so AUTH_LINK_FILE also receives the link.
 export const AUTH_LINK_MARKER = "__DOAN_AUTH_URL__";
 export const AUTH_LINK_FILE = "DOAN_AUTH_LINK";
 export const BROWSER_HOOK = { name: "browser-hook", script: `#!/bin/sh\nprintf '%s%s\\n' '${AUTH_LINK_MARKER}' "$1" >&2\n[ -z "$${AUTH_LINK_FILE}" ] || printf '%s\\n' "$1" >> "$${AUTH_LINK_FILE}"\nexit 0\n` } as const;
-// Without a usable $BROWSER the server prints this line itself (credential_manager.py, 1.3.0).
+// Without a usable $BROWSER the server prints this line itself.
 const LINK_LINE = "Open the following link to authenticate the ACP server: ";
 
 export interface SignInLink { url: string; redirect: URL; state: string }
@@ -96,9 +90,8 @@ const STALL_MS = 30_000;
 export interface InstallOptions { signal?: AbortSignal; download?: Download; stallMs?: number }
 interface Install { promise: Promise<string>; controller: AbortController; waiters: number }
 const installs = new Map<string, Install>();
-// Returns the server's path under root/<version>, downloading and checking it first when needed. The archive and both
-// members are verified by size and SHA-256 before the directory is renamed into place, and once per process after that.
-// Callers share one install; a caller's signal ends only its wait, and the install stops when no caller is left.
+// Returns the server's path under root/<version>, downloading and verifying archive and members by size and SHA-256
+// first. Callers share one install; a caller's signal ends only its wait, and the install stops when no caller is left.
 export function antigravityServer(root: string, options: InstallOptions = {}): Promise<string> {
   const target = join(root, ANTIGRAVITY_SERVER.version);
   let install = installs.get(target);

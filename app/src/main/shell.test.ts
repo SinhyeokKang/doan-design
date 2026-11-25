@@ -642,9 +642,8 @@ describe("project setup and upward refresh", () => {
     expect(existsSync(join(sub, ".doan"))).toBe(false);
   });
 
-  // The chosen mode is not used on a re-root, so the notice says the target project's
-  // mode from the CLI's listing. Outside Git, with an unknown mode, or from an older CLI it says nothing more. The temp
-  // folders are no Git repositories, so the real listing is repo with not_git; the other modes are rewritten into it.
+  // A re-root's notice says the target project's mode from the CLI's listing, nothing more outside Git, with an unknown
+  // mode or from an older CLI. The temp folders are no Git repositories, so the other modes are rewritten in.
   const keep = (storage: string) => ` | sed -e 's/"storage":"[a-z]*"/"storage":"${storage}"/' -e 's/,"storageReason":"[a-z_]*"//'`;
   const drop = ` | sed -e 's/,"storageReason":"[a-z_]*"//' -e 's/"storageReason":"[a-z_]*",//' -e 's/,"storage":"[a-z]*"//' -e 's/"storage":"[a-z]*",//'`;
   test.each([
@@ -719,9 +718,8 @@ describe("project setup and upward refresh", () => {
     expect(readFileSync(args, "utf8").trim()).toBe(`init --json --repo ${root} --storage local`);
   });
 
-  // The watcher's read of init's own writes can start after the post-init read and finish after it, which dropped
-  // that read as stale; setup then answered success while the row was still "Not set up". The post-init read is
-  // repeated (a bounded number of times) until it is the newest.
+  // The watcher's read of init's own writes can overtake the post-init read and drop it as stale, so the post-init read
+  // is repeated (a bounded number of times) until it is the newest.
   test("setup answers only once the row is listed, even when the watcher's read overtakes the post-init read", async () => {
     const root = dir(); const wrapper = join(dir(), "doan"); const marker = join(dir(), "inited"); const count = join(dir(), "count");
     writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = init ]; then '${cli}' "$@"; code=$?; : > '${marker}'; exit $code; fi\nif [ "$1" = ls ] && [ -f '${marker}' ]; then n=$(cat '${count}' 2>/dev/null || echo 0); n=$((n+1)); echo $n > '${count}'; if [ $n = 1 ]; then sleep 0.5; elif [ $n = 2 ]; then sleep 1.2; fi; fi\nexec '${cli}' "$@"\n`); chmodSync(wrapper, 0o755);
@@ -788,9 +786,8 @@ exit 9
       message: "Doan doesn’t create a Git repository in your home folder.", guidance: "Choose Include in Git, or choose a folder inside it." });
   });
 
-  // The real CLI creates the repository with --git-init: Set Up kept out of Git creates it once; a later Set Up of the
-  // same folder finds it a repository, plans no .git/ and leaves it as it is. git runs under a temporary HOME so the
-  // developer's own Git configuration plays no part.
+  // A later Set Up of the folder a Keep-out-of-Git setup made a repository of plans no .git/ and leaves it as it is. git
+  // runs under a temporary HOME so the developer's own Git configuration plays no part.
   test("setting up the same folder again keeps the repository the first setup created", async () => {
     const root = dir();
     const home = process.env.HOME;
@@ -841,9 +838,8 @@ describe("canvas mtimes", () => {
   });
 });
 
-// Answers every `--repo` read from a mode file: `git` lists the folder with a
-// git field, `unreadable` fails for a reason other than a config file (no `config`), anything else fails with a
-// config error naming the folder's config.
+// Answers every `--repo` read from a mode file: `git` lists with a git field, `unreadable` fails without a `config`,
+// anything else fails with a config error naming the folder's config.
 function gitCli(): { path: string; mode: (value: string) => void } {
   const base = dir();
   const modeFile = join(base, "mode");
@@ -929,8 +925,8 @@ describe("storing, removing and restoring", () => {
     expect(saved(foldersFile)).toEqual([a, c]);
   });
 
-  // The Project Settings page and a loaded workspace follow a located project only through this focus (POSTMORTEM
-  // 2026-10-25 'Locating a project kept the old root's selection'); without it the old root just vanishes from the list.
+  // The Project Settings page and a loaded workspace follow a located project only through this focus; without it the
+  // old root just vanishes from the list.
   test("replace reports the move as a re-root focus, and only a real move", async () => {
     const [a, b, moved] = [writeRepo(dir()), writeRepo(dir()), writeRepo(dir())];
     const file = join(dir(), "folders.json");
@@ -1114,8 +1110,8 @@ exit 2
     await vi.waitFor(() => expect(listed(shell.entries(), w)).toMatchObject({ autoRegistered: true }), until);
   });
 
-  // POSTMORTEM 2026-10-27: no Missing row ever shows for a vanished auto-registered root, from the
-  // watcher or a re-read alike, and the same clean-up as Remove runs.
+  // No Missing row ever shows for a vanished auto-registered root, from the watcher or a re-read alike, and the same
+  // clean-up as Remove runs.
   test("a vanished worktree leaves the list without ever being missing", async () => {
     const { shell, changes, removed, main, w, file, checkpoint } = await adopted();
     rmSync(w, { recursive: true, force: true });
@@ -1183,8 +1179,8 @@ exit 2
     expect(removed).not.toHaveBeenCalled();
   });
 
-  // POSTMORTEM 2026-11-03: an uninitialized auto-registered root never takes the upward re-root, so a
-  // parent the person never added does not become hand-added and no focus moves to it.
+  // An uninitialized auto-registered root never takes the upward re-root, so a parent the person never added does not
+  // become hand-added and no focus moves to it.
   test("an uninitialized worktree is not re-rooted upward", async () => {
     const { shell, changes, removed, main, w, file, git, checkpoint } = await adopted();
     // Only W is in this mode: the hand-added main would itself take the upward re-root, and its watcher can re-read it.

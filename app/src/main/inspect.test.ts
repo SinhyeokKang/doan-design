@@ -2,11 +2,8 @@ import { expect, test } from "vitest";
 import { collapseBox, colorHex, inspectRows, longhandSource, type CdpProperty, type InspectInput, type InspectRow } from "./inspect";
 import fixture from "./inspect.fixture.json";
 
-// inspect.fixture.json is real CDP output (Electron 45, Chrome 156) for the
-// PoC cases page (`cases.html` and
-// `cases.css`), trimmed to the inspected properties. The expected states below
-// are the PoC's hand-written ground truth (`cases.mjs` EXPECT); "#c9:hover" and
-// "#c9c:hover" were captured with the pointer over the element.
+// inspect.fixture.json is real CDP output (Electron 45, Chrome 156) for a cases page, trimmed to the inspected
+// properties; the expected states are hand-written. "#c9:hover" and "#c9c:hover" had the pointer over the element.
 const cases = fixture as unknown as Record<string, InspectInput>;
 const source = (id: string, prop: string) => {
   const input = cases[id];
@@ -78,7 +75,7 @@ test("token chains follow custom properties that point at other tokens", () => {
   expect(longhandSource(plain, "background-color").chain).toBeUndefined();
 });
 
-// Synthetic CDP-shaped input for cases the PoC page does not cover.
+// Synthetic CDP-shaped input for cases the fixture page does not cover.
 type Decl = { name: string; value: string; important?: boolean };
 function rule(selector: string, decls: Decl[], options: { origin?: string; layers?: string[] } = {}) {
   const authored = options.origin === "user-agent"

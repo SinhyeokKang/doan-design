@@ -33,7 +33,7 @@ describe("prototypeExportName", () => {
 });
 
 describe("interpretExport", () => {
-  // POSTMORTEM 2026-11-03: the renderer's toasts rely on these fields, so they are pinned here.
+  // The renderer's toasts rely on these fields.
   test("an exported file reports how many internet URLs it still loads", () => {
     expect(interpretExport(ok(result()), OUT)).toEqual({ kind: "exported", external: 0 });
     expect(interpretExport(ok(result({ external: ["https://cdn.example/x.css", "//fonts.example/f.woff2"] })), OUT)).toEqual({ kind: "exported", external: 2 });
@@ -120,7 +120,7 @@ describe("createCanvasExport", () => {
     expect(h.run).toHaveBeenCalledExactlyOnceWith("/repo", ".doan/canvases/sub/b.html", OUT);
   });
 
-  // POSTMORTEM 2026-11-03: the window's progress toast and disabled item start from this event.
+  // The window's progress toast and disabled item start from this event.
   test("tells the window the export is running with the listed root and path, after a chosen file and before the CLI", async () => {
     const h = harness();
     h.run.mockImplementationOnce(async () => {

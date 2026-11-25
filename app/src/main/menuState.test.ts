@@ -25,7 +25,7 @@ describe("menuState", () => {
     expect(menuState("workspace", false, { wizardOpen: false, overview: true, locked: true }).newConversation).toBe(false);
   });
 
-  // Settings… is a page move now, so a modal disables it too.
+  // Settings… is a page move, so a modal disables it too.
   test("an open modal disables everything, Settings… included", () => {
     for (const screen of ["home", "workspace", "canvas"] as const) {
       expect(menuState(screen, true)).toEqual({ addProject: false, home: false, canvasView: false, quickOpen: false, settings: false, newConversation: false, pickFromCanvas: false, toggleSidebar: false });

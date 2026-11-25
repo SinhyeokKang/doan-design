@@ -1,12 +1,5 @@
-// A real Chromium DOM for the app's Vitest tests, never bundled. The scripts Doan injects into canvas documents read
-// what only a browser's HTML parser and event dispatch decide (character references, attribute name case, the first of
-// a repeated attribute, `<template/>`, shadow retargeting, `defaultPrevented` after a timer), so their drift tests run
-// against the shared fixtures in the app's own Electron, the engine the prototype window ships, instead of a fake DOM.
-//
-// One launch serves a whole test file: each `load` replaces a single srcdoc iframe in a hidden window, and the
-// messages that iframe posts to its parent (the top page) are collected. A srcdoc iframe is the direct child of the
-// top window, at `about:srcdoc`, as the scripts' own guards expect of a canvas run. The Electron main script is our
-// own minimal one, not Doan's, with a temporary user data folder and every network request cancelled.
+// A real Chromium DOM (the app's Electron) for Vitest, never bundled: our own main script, temp userData, no network.
+// Each load is one srcdoc iframe, the top window's direct child at about:srcdoc, as injected scripts' guards expect.
 import type { ChildProcess } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -46,11 +39,8 @@ function electronBinary(): string {
 
 interface AppProcess { process(): ChildProcess; close(): Promise<void> }
 
-// Closes the app (killing it when a close fails or hangs) and removes `dir` only once the process has exited; when the
-// exit cannot be confirmed the folder stays, since the process may still write to it, and the close throws, so a
-// test's afterAll fails rather than passing over a stray Electron. A close that had to be forced only warns once the
-// kill is confirmed and the folder is gone: nothing is left behind, and a slow quit says nothing about the scripts
-// under test. Any other unclean exit still throws.
+// `dir` is removed only once the process has exited; if that cannot be confirmed it stays and close throws.
+// A forced close only warns once the kill is confirmed and `dir` is gone; any other unclean exit throws.
 export async function closeElectron(app: AppProcess | null, dir: string, ms = CLOSE_MS): Promise<void> {
   const child = app?.process();
   let failure: unknown;

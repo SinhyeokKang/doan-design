@@ -2,8 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { ConversationEvent, StageSignal, TurnStage } from "../main/conversation/types";
 import { ConversationStore } from "./conversationStore";
 
-// The store keeps each conversation's latest stage signal, whether it came pushed
-// (conversation:stage) or on a read's reply, by the rev rule; a deleted conversation's goes and later ones are dropped.
+// The latest stage signal, pushed (conversation:stage) or on a read's reply, is kept by the rev rule.
 
 const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "bbbbbbbb-0000-4000-8000-000000000002";
 let seq = 0;
@@ -76,7 +75,6 @@ test("a deleted conversation's stage goes, and one arriving late is dropped", as
   expect(host.changed).not.toHaveBeenCalled();
 });
 
-// Follow-up 1: readThread applies the reply's stage once the merged history is set (MC's `stage?` on the reply).
 test("a read reply's stage shows after a re-read, and a later lower-rev reply never overwrites a newer push", async () => {
   const { store } = harness();
   const read = window.doan.readConversation as ReturnType<typeof vi.fn>;

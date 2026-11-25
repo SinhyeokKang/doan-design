@@ -183,8 +183,7 @@ describe("threadItems", () => {
     expect(threadItems(events, ROOT, true).map(i => i.kind)).toEqual(["user", "activity", "noReply"]);
   });
 
-  // Conversations are no longer archived; an earlier build's archive and restore lines draw nothing, the rest of the
-  // history around them draws as before.
+  // Conversations are not archived; an earlier build's archive and restore lines draw nothing.
   test("a promotion marker, and nothing for an earlier build's archive and restore lines", () => {
     seq = 0;
     const events: ConversationEvent[] = [...turn("t1"), ev("t1", { type: "turn.done" }),
@@ -240,8 +239,8 @@ describe("threadItems with a message pushed into a running turn", () => {
   });
 });
 
-// Draft frame 11: main writes "Waiting for <X>" and then "<X> wasn’t ready…" as two
-// activities (history is append-only, mcpStartup.ts), and the thread shows one step that changed its text.
+// Main writes "Waiting for <X>" then "<X> wasn't ready…" as two activities (append-only history,
+// mcpStartup.ts); the thread shows one step.
 describe("threadItems with a Codex MCP server that was not ready", () => {
   const waiting = (text: string) => ev("t1", { type: "activity", kind: "other", summary: text });
 
@@ -337,7 +336,6 @@ describe("threadItems with a Codex MCP server that was not ready", () => {
   });
 });
 
-// Messages Send now has in flight, as the person's messages at the thread's end.
 describe("withSending", () => {
   const CTA = { element: { doanId: "hero-cta", selector: "[data-doan-id=\"hero-cta\"]" } };
   const sending = [
@@ -444,9 +442,8 @@ describe("questions", () => {
   });
 });
 
-// A turn's canvases are cards at its end, one per path in the order each first appeared: a canvas it drew
-// (canvas.drawn), a handoff it asked for, a missed handoff. A handoff's result settles its card. The receiving
-// conversation's first message is the handoff card, its text never read for {{n}} markers.
+// One card per path at the turn's end, in first-appearance order. The receiving conversation's first
+// message is the handoff card, never read for {{n}} markers.
 describe("threadItems canvas cards", () => {
   const CHECKOUT = ".doan/canvases/checkout-flow.html", PAYMENT = ".doan/canvases/payment.html", RECEIPT = ".doan/canvases/receipt.html";
   const drew = (turnId: string, path: string, id?: string) => ev(turnId, { type: "canvas.drawn", canvas: id ? { path, id } : { path } });
@@ -615,7 +612,6 @@ describe("threadItems canvas cards", () => {
     const text = "/Polish\nThe person wrote “{{1}}” as a placeholder.";
     const items = threadItems([...turn("t1", text, { origin }), ev("t1", { type: "turn.done" }), ...turn("t2", "Use {{1}}")], ROOT, true);
     expect(items[0]).toEqual({ kind: "handoffCard", key: "u1", seq: 1, origin, text, at: "2026-11-01T00:00:00Z" });
-    // A later message of the person's is a bubble as before.
     expect(items.at(-1)).toMatchObject({ kind: "user" });
   });
 });

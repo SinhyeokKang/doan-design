@@ -75,10 +75,8 @@ readline.createInterface({input:process.stdin}).on('line', line => {
   return command;
 }
 const CLAUDE_OWNER = { kind: "doan" as const, provider: "claude" as const, connectionId: "c1", accountId: "a1", workspaceId: "org-1", profile: "claude" };
-// Every fenced Claude turn and list read runs inside sandbox-exec, so the code the CLI starts beside the model (hooks,
-// MCP servers, helpers) is held too. Claude's own sandbox cannot start inside it, so the flag tier turns it off whatever
-// the profile or the repository says, Fast or not. Auto memory is off too: its files sit under projects/, which the CLI
-// writes its transcripts to, so a fenced turn could leave memory every later turn in the profile would read.
+// Every fenced Claude turn and list read runs inside sandbox-exec, where Claude's own sandbox cannot start, so it is
+// turned off; auto memory too, since its files under projects/ would carry into every later turn in the profile.
 it("wraps every fenced Claude turn and list read in sandbox-exec and passes sandbox.enabled false and auto memory off", async () => {
   const root = temp(), exec = fakeExec(root), command = fakeClaude(root);
   const base = { command, runtime: "claude" as const, owner: CLAUDE_OWNER, cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, fence: { paths: paths("claude"), exec } };

@@ -93,13 +93,8 @@ function accountCode(cause: string): string {
   if (["not_connected", "reauth_required", "unverified", "account_mismatch", "sign_out_failed"].includes(cause)) return "not_logged_in";
   return ["busy", "cli_missing", "cli_install_failed", "session_in_use"].includes(cause) ? cause : "session_unavailable";
 }
-// A conversation another sign-in owns never runs on the current one, so neither a retry nor another agent helps.
-// account_changed: another account, or a workspace change other than a known Claude organization, which signing in to
-// that account again brings back (the resume rebinds).
-// workspace_changed: a Claude Code conversation whose organization differs while both organizations are known, so
-// the notice can name the organization instead of the account.
-// sign_in_changed: a sign-in that cannot be proven the same (no stable account ID, and every sign-in mints a new
-// connection) or another Doan profile, which no sign-in brings back.
+// A conversation another sign-in owns never runs on the current one. account_changed: another account (signing in again
+// brings it back); workspace_changed: a known Claude organization differs; sign_in_changed: unprovable or another profile.
 export function judgmentCode(judgment: Exclude<ConnectionJudgment, { decision: "resume" }>, provider: Provider): string {
   if (judgment.decision === "reauth") return "not_logged_in";
   if (judgment.decision === "legacy") return "session_unavailable";
@@ -108,11 +103,11 @@ export function judgmentCode(judgment: Exclude<ConnectionJudgment, { decision: "
   if (judgment.cause === "account_unverifiable" || judgment.cause === "profile_mismatch") return "sign_in_changed";
   return ["busy", "session_in_use"].includes(judgment.cause) ? judgment.cause : ["sign_out_failed", "unverified"].includes(judgment.cause) ? "not_logged_in" : "session_unavailable";
 }
-// Codex runs tool commands through a login shell by default, whose profile puts the user's own doan back first on
-// PATH (live 2026-10-28); allow_login_shell=false (official config key) keeps the PATH prepared below.
+// Codex runs tool commands through a login shell whose profile puts the user's own doan first on PATH again;
+// allow_login_shell=false (official config key) keeps the PATH prepared below.
 const RUN_ARGS: Record<"claude" | "codex", string[]> = { claude: [], codex: ["-c", "allow_login_shell=false"] };
 // A stored ACP session is a directory or <id>.<ext> file in the provider's sessions directory; session/load is the
-// final admission. Cursor .cursor/acp-sessions/<id>/, Copilot .copilot/session-state/<id>/ (live check).
+// final admission. Cursor .cursor/acp-sessions/<id>/, Copilot .copilot/session-state/<id>/.
 export function acpSessionExists(profileDir: string, sessions: string, id: string): boolean {
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(id)) return false;
   try {
@@ -126,16 +121,8 @@ export function acpSessionExists(profileDir: string, sessions: string, id: strin
 export interface VersionRecords {
   versionRead(provider: Provider, installed: string): void; incompatible(provider: Provider, installed: string): void; compatible(provider: Provider, installed: string): void;
 }
-// cli is the bundled doan executable; its directory goes first on PATH so the agent runs that doan, not whatever
-// another install put on the login shell's PATH. toolsFailed: the provider CLI was not found or its version is below
-// the minimum or unreadable, so the readiness facts read at launch may be stale (an install, removal or downgrade since).
-// The Antigravity server has no version run: it is the sha-pinned download (agentAuth/antigravity.ts) and its
-// initialize reply names its version.
-// What a Claude or Codex run needs from the MCP connectors: the
-// provider's connector generation, which a successful Connect, Disconnect or Remove raises, and the connector names by
-// doan- name. Both are read when the run asks, so a reused Codex server sees later changes. A replacement sign-in does
-// not raise the generation: a Codex replacement moves to a new staging profile, so its runners are new, and Claude
-// starts the SDK afresh for every turn.
+// What a Claude or Codex run needs from the MCP connectors, read when the run asks so a reused Codex server sees later
+// changes: the generation a Connect, Disconnect or Remove raises, and the connector names by doan- name.
 export interface McpConnectorFacts { generation(provider: McpProvider): number; labels(): Readonly<Record<string, string>> }
 // Before the connectors service is wired in: nothing changes, and the presets are the only connectors.
 const NO_CONNECTORS: McpConnectorFacts = { generation: () => 0, labels: () => connectorLabels([]) };
@@ -144,9 +131,8 @@ const NO_CONNECTORS: McpConnectorFacts = { generation: () => 0, labels: () => co
 export function connectorFacts(current: () => McpConnectorFacts | undefined): McpConnectorFacts {
   return { generation: provider => (current() ?? NO_CONNECTORS).generation(provider), labels: () => (current() ?? NO_CONNECTORS).labels() };
 }
-// Where a Doan-connection run's fence comes from: the app's userData, and for tests another sandbox-exec. Without it no
-// run is fenced, which only tests that predate the fence rely on. socket: the app socket's path, whose directory a Codex
-// permission profile allows.
+// Where a Doan-connection run's fence comes from: the app's userData, and for tests another sandbox-exec; without it no
+// run is fenced. socket: the app socket's path, whose directory a Codex permission profile allows.
 export interface FenceSetup { userData: string; socket: () => string | undefined; exec?: string }
 // The userData entries Codex's permission profiles deny, listed now; an unreadable directory is left out of the
 // listing, which refuses the run.
@@ -181,12 +167,13 @@ function runFence(setup: FenceSetup, provider: Provider, profileDir: string, att
   // app socket's resolved directory. The other providers always run in the outer fence.
   return provider === "codex" ? { paths, denied: listDenied(paths), ...appSocket(setup), ...exec } : { paths, ...exec };
 }
-// The Doan-account side of routePrepare as main wires it: every argument reaches the account prepare (reusing included,
-// so a reused Codex server's send builds no fence), an unopened sign-in store refuses every run, and a run (never a
-// list read) gets the turn-end usage hook.
+// The Doan-account side of routePrepare as main wires it: every argument reaches the account prepare, an unopened
+// sign-in store refuses every run, and a run (never a list read) gets the turn-end usage hook.
 export function wireAccountPrepare(account: AccountPrepare, ready: () => boolean, withUsage: (prepared: Prepared) => Prepared): AccountPrepare {
   return (request, stored, use, reusing) => ready() ? account(request, stored, use, reusing).then(prepared => use === "listing" ? prepared : withUsage(prepared)) : Promise.reject(new Error("not_logged_in"));
 }
+// cli: the bundled doan, first on PATH so the agent runs it, not another install's. toolsFailed: the provider CLI was
+// missing, too old or unreadable, so launch readiness facts may be stale. Antigravity has no version run.
 export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFailed: (provider: Provider) => void = () => {}, versions?: VersionRecords, connectors: McpConnectorFacts = NO_CONNECTORS, fence?: FenceSetup): AccountPrepare {
   return async (request, stored, use = "run", reusing = false) => {
     const provider = stored ? stored.session.runtime : request.runtime;
@@ -253,13 +240,11 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         const judgment = judgeConnection(stored.owner, adapter.verifyByRun && !current.error ? { ...current, verified: true } : current, { exists, occupancy });
         if (judgment.decision !== "resume") throw new Error(judgmentCode(judgment, provider));
       }
-      // Every conversation run, Claude's per turn: this turn's pasted files may differ. Every list read but Codex's too:
-      // Claude's starts the repository's hooks and MCP servers, and an ACP server's session/new those its profile names
-      // (Copilot, Cursor; probe), which the provider's own fenced turn can write. Codex reads neither: its profile's
-      // settings are closed to its turns and an untrusted project's .codex/ is not loaded.
+      // Fenced: every run (pasted files differ per turn) and every list read but Codex's. Claude's starts repo hooks and MCP
+      // servers, an ACP one those its turn-writable profile names; Codex's loads neither (closed settings, untrusted .codex/).
       const fenced = fence && !reusing && (use === "run" || provider !== "codex") ? runFence(fence, provider, configDir, request.attachments ?? []) : undefined;
       // The fence keeps a Cursor process from making its worker socket folder inside .cursor (cursorWorkerDir), so Doan
-      // makes it, empty, first. One Doan cannot make fails the start as before, with the CLI's own mkdir error logged.
+      // makes it, empty, first; if Doan cannot, the start fails with the CLI's own mkdir error logged.
       if (fenced && provider === "cursor") {
         const home = lease.env.HOME ?? lease.profileDir, dir = cursorWorkerDir({ home, cwd, tmpdir: lease.env.TMPDIR });
         if (dir.startsWith(`${join(home, ".cursor")}/`)) try { mkdirSync(dir, { recursive: true, mode: 0o700 }); } catch { /* reported by the CLI */ }

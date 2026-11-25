@@ -22,11 +22,8 @@ function limited(rows: SkillSummary[]): SkillSummary[] {
   const seen = new Set<string>();
   return rows.filter(r => !seen.has(r.name) && !!seen.add(r.name)).slice(0, ROWS);
 }
-// Agent SDK initializationResult().commands: {name, description, argumentHint, builtin?, aliases?}, with no source
-// field. Claude Code 2.1.284 and 2.1.318 end each description with its source: " (project)", " (user)" (the Doan stub),
-// " (claude.ai sync)", " (MCP)" (MCP prompts and claude.ai connectors, which only supportedCommands() lists after the
-// servers connect). Only the project tail is kept, so a change to that tail empties the list instead of leaking others.
-// A project skill named doan is left out with the stub, which the name alone tells apart.
+// Agent SDK initializationResult().commands has no source field; each description ends with its source, so only the
+// " (project)" tail is kept (a changed tail empties the list rather than leaking others). A skill named doan is dropped.
 const PROJECT = " (project)";
 export function parseClaudeSkills(commands: unknown): SkillSummary[] {
   if (!Array.isArray(commands)) throw new Error("session_unavailable");
@@ -34,10 +31,8 @@ export function parseClaudeSkills(commands: unknown): SkillSummary[] {
     typeof c.description === "string" && c.description.endsWith(PROJECT))
     .map(c => ({ kind: "skill" as const, name: c.name as string, description: firstLine((c.description as string).slice(0, -PROJECT.length)) })));
 }
-// Codex app-server skills/list (0.158.0, 0.166.0): {data: [{cwd, skills: [{name, description, path, scope, enabled,
-// pluginId, ...}], errors}]}. Only the repository's own skills: scope "user" includes the person's real ~/.agents/skills
-// and the Doan stubs, "system" the profile's bundled skills, and a pluginId marks a marketplace plugin's skill. errors
-// lists SKILL.md files Codex could not read; those are simply not offered.
+// Codex app-server skills/list: {data: [{cwd, skills: [{name, description, path, scope, enabled, pluginId}], errors}]}.
+// Only repository skills: "user" holds ~/.agents/skills and the Doan stubs, "system" bundled ones, pluginId a plugin's.
 export function parseCodexSkills(result: unknown): SkillSummary[] {
   if (!record(result) || !Array.isArray(result.data)) throw new Error("session_unavailable");
   // A folder without its skills list is a broken answer; only single rows that do not fit are dropped.
@@ -47,10 +42,8 @@ export function parseCodexSkills(result: unknown): SkillSummary[] {
     .map(s => ({ kind: "skill" as const, name: s.name as string, description: typeof s.description === "string" ? firstLine(s.description) : "" })));
 }
 
-// The provider's built-in commands Doan runs (providerCommands.ts): only at the version the PoC confirmed or later, so a
-// CLI whose version no run has read lists none. Claude and Codex list the whole table (Claude's SDK list lacks /review,
-// which runs), and `reported` only lends a description; an ACP server lists what it runs, so a row needs it there.
-// A reported description wins unless it is empty or Claude's placeholder.
+// The provider's built-in commands Doan runs (providerCommands.ts), only from the confirmed version on. Claude and Codex
+// list the whole table, with `reported` lending descriptions; an ACP row needs the server to report it.
 const PLACEHOLDER = "Built-in command.";
 export function allowedCommands(provider: Provider, installed: string | undefined, reported?: ReadonlyMap<string, string>): SkillSummary[] {
   const table = COMMAND_ALLOWLIST[provider];
@@ -69,7 +62,7 @@ export function parseClaudeCommands(commands: unknown, installed: string | undef
   return allowedCommands("claude", installed, reported);
 }
 // An ACP session/update's update {sessionUpdate: "available_commands_update", availableCommands: [{name, description,
-// input?}]} (Cursor 2026.10.22, Copilot 1.0.105, Antigravity 1.3.0). Names come without the slash.
+// input?}]}. Names come without the slash.
 export function parseAcpCommands(provider: Provider, update: unknown, installed: string | undefined): SkillSummary[] {
   if (!record(update) || update.sessionUpdate !== "available_commands_update" || !Array.isArray(update.availableCommands)) throw new Error("session_unavailable");
   const rows = update.availableCommands.filter(record).filter(c => name(c.name));
@@ -81,10 +74,8 @@ export function acpReportedNames(update: unknown): string[] | null {
   if (!record(update) || update.sessionUpdate !== "available_commands_update" || !Array.isArray(update.availableCommands)) return null;
   return [...new Set(update.availableCommands.filter(record).map(c => c.name).filter(name))].slice(0, ROWS);
 }
-// The commands an ACP conversation's connection last reported. Servers push updates at their own times (Copilot even
-// before session/new answers), so the runner keeps the last one. One it cannot read keeps the list, as a failed skill
-// read does; a list belongs to the connection that sent it, so another connection never shows it (POSTMORTEM
-// 2026-11-06, the Codex model list that stayed the previous account's).
+// The commands an ACP conversation's connection last reported, pushed at the server's own times. An unreadable update
+// keeps the list; another connection never shows it (POSTMORTEM 2026-11-06).
 export interface AcpCommandList { connectionId: string; commands: SkillSummary[] }
 export function acpCommandsAfter(previous: AcpCommandList | null, connectionId: string, provider: Provider, update: unknown, installed: string | undefined): AcpCommandList | null {
   const kept = previous?.connectionId === connectionId ? previous : null;
@@ -98,13 +89,8 @@ function free(input: Prepared): void {
 // Skills change in the repository while the app runs, so unlike ModelCatalog this keeps a list only briefly: a key is
 // read at most once in this window, and every list opening asks again after it.
 const FRESH_MS = 30_000;
-// Lists for Claude and Codex; the other providers answer an empty list without opening anything. As in ModelCatalog,
-// every request prepares under its own lease, which reads the connection and installed version that key the list
-// (POSTMORTEM 2026-11-06): a sign-out fails the request and a reconnection reads again inside the window, and a read
-// begun under the previous connection fills only that connection's key. A request served from a list or from a read in
-// flight frees its lease at once; the shared read keeps the lease of the request that started it. A failure passes its
-// error on (the ipc maps it to a start code) and records no time, so the next request reads again; the host keeps
-// showing the last list it received.
+// Lists for Claude and Codex; other providers get an empty list. Every request prepares under its own lease, keying the
+// list by connection and version (POSTMORTEM 2026-11-06); a failure records no time, so the next request reads again.
 export class SkillCatalog {
   private last = new Map<string, { skills: SkillSummary[]; at: number }>();
   private reading = new Map<string, Promise<SkillSummary[]>>();

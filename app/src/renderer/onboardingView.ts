@@ -4,9 +4,8 @@ export function tilde(path: string, home: string): string {
   return path === home ? "~" : path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
 }
 
-// Tab is left to the browser except where it would leave the wizard. `before` counts the controls that precede a
-// focused element that is not one of them (a tabindex=-1 heading), so it moves in DOM order from there; null means
-// focus is outside the wizard (on <body> after a control disabled itself) and enters at either end.
+// `before` counts the controls preceding a focused non-control (a tabindex=-1 heading), so Tab moves in DOM order
+// from there; null means focus is outside the wizard and enters at either end.
 export function nextFocusIndex(count: number, index: number, shift: boolean, before: number | null): number | null {
   if (count === 0) return null;
   if (index >= 0) {

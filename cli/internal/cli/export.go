@@ -21,10 +21,8 @@ import (
 	"github.com/SinhyeokKang/doan-design/cli/internal/repo"
 )
 
-// Export writes one canvas as a single HTML file that opens without Doan, the
-// repository or a network. The order of the checks is the order of the error
-// codes in the docs: arguments, repository, canvas, frame (with --prototype),
-// references, size, output.
+// Export writes one canvas as a single HTML file that opens without Doan, the repository or a network. Checks run in
+// the documented error-code order: arguments, repository, canvas, frame (--prototype), references, size, output.
 func Export(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	arg, frame, failure := exportInput(args, f.Output, f.Frames, f.Prototype)
 	if failure != nil {
@@ -273,7 +271,7 @@ func writeExportWith(ctx Context, output string, force bool, data []byte, write 
 				owned = false
 				return nil
 			}
-			// A volume without hard links (exFAT, some network shares) keeps the check-then-rename it had.
+			// A volume without hard links (exFAT, some network shares) falls back to check-then-rename.
 			if _, statErr := os.Lstat(output); statErr == nil {
 				os.Remove(temp)
 				owned = false

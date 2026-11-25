@@ -71,7 +71,7 @@ func TestSeedWidthAndFrameCases(t *testing.T) {
 	}
 }
 
-// POSTMORTEM 2026-10-31: a linked default directory is not served by default.
+// A linked default directory is not served by default.
 func TestSeedLinkedAssetsIsOutOfScopeUntilConfigured(t *testing.T) {
 	root := SeedLinkedAssets(t)
 	got, err := repo.Canvases(root)

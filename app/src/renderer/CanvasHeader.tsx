@@ -24,15 +24,8 @@ export interface CanvasHeaderNavigation {
   worktree(root: string, canvasPath: string): void;
 }
 
-// The canvas page's header above the board: project, worktree, canvas and frame drawer on the left,
-// the zoom controller and Reload on the right. It reuses the Overview header box (.ov-head), so the two headers line up.
-// `canvasKey` names the open canvas: an open menu closes when it changes. `fallbackFocus` takes focus a closing menu
-// cannot hand back to its trigger (the canvas region). `panel`: the conversation panel, whose open button sits last in
-// the header only while it is folded, with a dot and a longer name while this canvas's
-// conversation needs an answer or has an unseen ending. `inspector`: the inspector column, whose open button comes
-// before it while folded, or while it yields to a narrow window (then unavailable, saying why). Each Show button names
-// its panel in `data-panel-target`, which App's focus return reads.
-// `view`: the zoom and current frame, which change without an App render; `state` may hold older ones.
+// Show buttons name their panel in `data-panel-target`, which App's focus return reads. An open menu closes when `canvasKey`
+// changes; `fallbackFocus` takes focus a closing menu cannot return. `state` may lag `view`, which changes without an App render.
 export function CanvasHeader({ navigation, state, view, canvasKey = null, command, zoomTo, selectFrame, fallbackFocus = () => {}, panel, inspector }: {
   navigation: CanvasHeaderNavigation | null; state: CanvasState; view: CanvasViewStore; canvasKey?: string | null; command(name: ViewCommand): void; zoomTo(scale: number): void; selectFrame(index: number, id: string): void;
   fallbackFocus?: () => void; panel?: { open: boolean; show(): void; badge?: Pick<CanvasSignal, "kind" | "label"> | null };
@@ -70,7 +63,7 @@ export function CanvasHeader({ navigation, state, view, canvasKey = null, comman
         // The badged name is the tooltip too, so a pointer reads the dot's meaning as a screen reader does.
         : panel && <IconTip key={target} label={panel.badge?.label ?? "Show conversation"}><button type="button" className="doan-icon-button doan-panel-show" data-panel-target="conversation" aria-label={panel.badge?.label ?? "Show conversation"} aria-expanded={false} aria-controls={CONVERSATION_PANEL_ID}
           data-badge={panel.badge ? (panel.badge.kind === "permission" ? "true" : panel.badge.kind) : undefined} onClick={panel.show}><MessageSquare aria-hidden="true" />
-          {/* The prototype window's working spinner, reused (draft canvas-concurrent-conversations frame badge). */}
+          {/* The prototype window's working spinner, reused. */}
           {panel.badge?.kind === "working" && <span className="badge-working" aria-hidden="true"><span className="doan-spinner" /></span>}</button></IconTip>)}
     </div>
   </header>;
@@ -93,9 +86,8 @@ function IconTip({ label, shortcut, children }: { label: string; shortcut?: stri
       : <TooltipContent className="has-key">{label}<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">{shortcut}</span></TooltipContent>}</Tooltip>;
 }
 
-// A popover list rather than a Radix menu: the rows keep focus by frame id across a reload, mark the viewed frame with
-// its Eye, without a fill and share the sidebar tree's 500 ms typeahead. Radix still closes it on Esc
-// (preventing the default, so the canvas selection stays) and returns focus to the trigger.
+// A popover list rather than a Radix menu: rows keep focus by frame id across a reload and share the sidebar tree's
+// 500 ms typeahead. Radix still closes it on Esc (preventing the default) and returns focus to the trigger.
 function FrameDrawer({ view, label, canvasKey, fallbackFocus, select }: { view: FrameDrawerView; label: string; canvasKey: string | null; fallbackFocus(): void; select(index: number, id: string): void }) {
   const [open, setOpen] = useState(false);
   const { trigger, onCloseAutoFocus } = useMenuFocus(canvasKey, open, view.enabled, () => setOpen(false), fallbackFocus);

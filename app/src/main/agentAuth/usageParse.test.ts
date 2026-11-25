@@ -82,7 +82,7 @@ describe("codexUsage", () => {
       { id: "primary", label: "5-hour", periodMins: 300, usedPercent: 100, limited: true }, { id: "secondary", label: "Weekly", periodMins: 10080, usedPercent: 5 },
     ] });
   });
-  // As a Codex 0.144.2 rollout recorded a held account (conversation/fixtures/codex-rate-limits-session.json).
+  // As a Codex rollout recorded a held account (conversation/fixtures/codex-rate-limits-session.json).
   it("marks a full window limited without a reached type, and not one short of full", () => {
     const reading = codexUsage({ rateLimits: { rateLimitReachedType: null, primary: { usedPercent: 100, windowDurationMins: 43200, resetsAt: 1784952156 }, secondary: { usedPercent: 99.9, windowDurationMins: 300 } } }, AT);
     expect(reading.status === "ok" && reading.windows.map(w => [w.id, w.limited])).toEqual([["primary", true], ["secondary", undefined]]);

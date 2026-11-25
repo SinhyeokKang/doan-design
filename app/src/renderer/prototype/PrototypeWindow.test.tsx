@@ -930,10 +930,7 @@ describe("the conversation panel", () => {
   });
 });
 
-// Each press decides from the state main's view shows, so a request main never answered (or refused) cannot turn the
-// next press into the opposite one; focus moves once main's view shows what this window last asked for.
-// Spec: the head menu's Delete in this window asks first, as the main window's does; afterwards focus goes to the head's
-// menu button, whatever the panel shows next.
+// The head menu's Delete asks first; afterwards focus goes to the head's menu button, whatever the panel shows next.
 describe("Delete from the head menu", () => {
   type Head = ReactElement<{ onDelete(target: unknown, trigger: HTMLElement | null): boolean }>;
   type Dialog = ReactElement<{ view: { title: string }; pending: boolean; confirm(): void; cancel(): void }>;

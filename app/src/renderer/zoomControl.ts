@@ -24,14 +24,12 @@ const ITEMS: ZoomMenuItem[] = [
   { id: "200", label: "200%", scale: 2 },
 ];
 
-// The factor for `zoomAt(view, factor, center, ZOOM_LIMITS)` that lands on `target` while keeping the view center
-// fixed, like `actualSize`.
+// Keeps the view center fixed, like `actualSize`.
 export function scaleFactor(target: number, view: View): number {
   return target / view.scale;
 }
 
-// `scale` is the exact view scale: the step limits are the zoom limits themselves, and only the shown value is a
-// rounded percent (a scale of 0.052 shows 5% but can still zoom out).
+// Only the shown value is a rounded percent: a scale of 0.052 shows 5% but can still zoom out.
 export function zoomControlView(state: BoardState & { scale: number }): ZoomControlView {
   const on = renderedBoard(state);
   const percent = Math.round(state.scale * 100);

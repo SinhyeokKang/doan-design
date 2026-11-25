@@ -466,7 +466,7 @@ describe("a project conversation's handoff", () => {
     await vi.waitFor(() => expect(h.resolutions(id)).toHaveLength(2));
     expect(h.notices).toEqual([{ root: "/repo", source: { conversationId: id }, targets: [{ conversationId: h.on(b)!.conversationId, canvas: b }, { conversationId: h.on(c)!.conversationId, canvas: c }] }]);
   });
-  // No promotion: a turn's canvases never move the conversation, whatever it made or edited.
+  // A turn's canvases never move the conversation, whatever it made or edited.
   it.each([
     ["one new canvas without a request", [c], [] as Canvas[]],
     ["an existing canvas it edited", [a], [a]],

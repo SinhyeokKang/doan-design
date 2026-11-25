@@ -42,7 +42,7 @@ describe("applyConversationWork", () => {
     const state: readonly ConversationWork[] = [{ conversationId: "c1", root: "/other", path, touched: 0, turnId: "t0" }];
     expect(applyConversationWork(state, update({ frame: "a" }), turns, 5)).toBe(state);
   });
-  // POSTMORTEM 2026-10-27: a late update after the turn ended, before the next is accepted, is dropped.
+  // A late update after the turn ended, before the next is accepted, is dropped.
   test("a late update between the end of a turn and the acceptance of the next is dropped", () => {
     let state = applyConversationWork(none, update({ frame: "a" }), live({ c1: running("t1") }), 1);
     state = endConversationWork(state, "c1");
@@ -50,8 +50,8 @@ describe("applyConversationWork", () => {
     const between = applyConversationWork(state, update({ frame: "late" }), live({ c1: { root, turnId: "t1", running: false, provider: "claude" } }), 2);
     expect(between).toBe(state);
   });
-  // Accepted by the person: the request names no turn, so once the next turn is accepted the
-  // previous turn's late update cannot be told apart and counts for the new turn.
+  // The request names no turn, so once the next turn is accepted the previous turn's late update cannot be told apart
+  // and counts for the new turn.
   test("a previous turn's update arriving after the next turn was accepted counts for the new turn", () => {
     const state = endConversationWork(applyConversationWork(none, update({ frame: "a" }), live({ c1: running("t1") }), 1), "c1");
     expect(applyConversationWork(state, update({ frame: "late" }), live({ c1: running("t2") }), 3))

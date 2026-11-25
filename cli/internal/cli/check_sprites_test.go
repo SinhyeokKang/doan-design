@@ -31,10 +31,8 @@ func trimmedSet(items []string) []string {
 	return out
 }
 
-// checkAndExport runs the real check input and rules and the real export on
-// one canvas of the export seed. It returns the svg_use_not_inline targets
-// and the ambiguous_custom_url "path value" pairs check reports for that
-// canvas and the files it reaches, and the matching export refusals.
+// checkAndExport runs the real check and export on one seed canvas and returns check's svg_use_not_inline targets and
+// ambiguous_custom_url "path value" pairs for it and the files it reaches, with the matching export refusals.
 func checkAndExport(t *testing.T, root, canvasPath string) (checkUses, exportUses, checkAmbiguous, exportAmbiguous []string) {
 	t.Helper()
 	r, e := repo.Find(root, "")
@@ -78,10 +76,8 @@ func checkAndExport(t *testing.T, root, canvasPath string) (checkUses, exportUse
 	return trimmedSet(uses), trimmedSet(refusedUses), trimmedSet(ambiguous), trimmedSet(refusedAmbiguous)
 }
 
-// check and export judge <use> references and custom property url()s with the
-// same canvas functions. check reaches every stylesheet export reads, so a
-// canvas check is quiet about is never refused for these reasons; where their
-// reach is the same, they agree exactly.
+// check and export judge <use> and custom property url()s with the same canvas functions. check reaches every stylesheet export
+// reads, so export never refuses for these a canvas check is quiet about; with the same reach they agree exactly.
 func TestCheckAndExportAgreeOnSpritesAndCustomURLs(t *testing.T) {
 	for _, tt := range []struct {
 		name       string

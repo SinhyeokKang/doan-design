@@ -39,8 +39,7 @@ test("leaving the overview demotes pending cards even before replies arrive", ()
   expect(queue.pending).toEqual([{ key: "b", visible: false }]);
 });
 
-// The Overview list and the canvas panel can show one root at once and share its requests: each viewer reports only
-// its own visible set, and main hears a canvas leave the screen only when no viewer shows it.
+// Each viewer reports only its own visible set; main hears a canvas leave only when no viewer shows it.
 test("two viewers sharing one root's requests do not overwrite each other's visibility", () => {
   const reports: [string, boolean][] = [];
   const requests = new ThumbnailRequests("/repo", () => new Promise(() => {}), () => {}, (_root, path, visible) => { reports.push([path, visible]); });

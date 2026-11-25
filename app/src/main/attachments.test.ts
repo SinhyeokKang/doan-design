@@ -190,8 +190,7 @@ it("decodes the thumbnail from the bytes it checked, never by opening the path a
   expect(opened.filter(p => p === image)).toHaveLength(1);
 });
 
-// 2026-10-29 user: Edit on Home brings the last request's attachments back and checks them
-// again at once, with the acceptance checks, on the paths main recorded for those ids only.
+// Edit on Home brings the last request's attachments back and checks them again at once, on the paths main recorded.
 it("rechecks restored ids, including ones an accepted start consumed, and names the moved ones", () => {
   const f = fixture();
   const a = join(f.files, "a.txt"), b = join(f.files, "b.txt"); writeFileSync(a, "a"); writeFileSync(b, "b");
@@ -485,8 +484,8 @@ it("never changes or deletes a folder or its files on remove, a refused start, q
   expect(listing()).toEqual([["a.txt"], "a"]);
   expect(existsSync(join(f.folder, "sent"))).toBe(false);
 });
-// POSTMORTEM 2026-10-21: every path the person gives is tried with ENOTDIR, a NUL byte, an over-long name, a symlink
-// loop and a dangling link; none of them attaches, and none ends the whole request.
+// Every path is tried with ENOTDIR, a NUL byte, an over-long name, a symlink loop and a dangling link; none attaches,
+// and none ends the whole request.
 it("refuses broken folder paths one by one and still takes the folder beside them", () => {
   const f = folderFixture();
   const file = join(f.files, "a.txt"), loop = join(f.files, "loop"), dangling = join(f.files, "dangling");

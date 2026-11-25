@@ -2,9 +2,6 @@ import { describe, expect, test } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import { DELETE_TOOLTIP, deleteAvailability, deleteDialogView, deleteItemLabel, deleteRefusalText } from "./conversationDelete";
 
-// Whether a conversation can be deleted, the confirm alert's words and the
-// refusal toast.
-
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   conversationId: "c1", title: "Ideas", owner: "doan", provider: "claude", fromHome: true,
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "", ...patch,
@@ -107,7 +104,6 @@ describe("deleteRefusalText", () => {
   });
 });
 
-// The row Delete's accessible name quotes the title as the alert and the toast do.
 describe("deleteItemLabel", () => {
   test("names the conversation by its quoted title", () => {
     expect(deleteItemLabel("Ideas")).toBe("Delete “Ideas”");

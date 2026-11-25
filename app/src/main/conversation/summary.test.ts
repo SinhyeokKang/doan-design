@@ -83,8 +83,8 @@ describe("conversationSummary", () => {
     expect(conversationSummary({ ...doan, seenSeq: 3 }, { ok: true, events: bound }, restarted).unseen).toBe(false);
     expect(conversationSummary({ ...doan, seenSeq: 2 }, { ok: true, events: bound }, restarted).unseen).toBe(true);
   });
-  // Nothing is archived any more: an end counts by the seen marker alone. A conversation an earlier build archived lost
-  // its marker when the index was migrated (store.ts), so the interruption recorded at the archive is seen.
+  // An end counts by the seen marker alone. A conversation an earlier build archived lost its marker in the index
+  // migration (store.ts), so the interruption recorded at the archive is seen.
   it("counts an end by the seen marker alone", () => {
     const replaced = history(...started, { type: "interrupted", reason: "user" }, { type: "conversation.archived" });
     const { seenSeq: _seen, ...migrated } = doan;

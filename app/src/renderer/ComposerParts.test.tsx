@@ -34,7 +34,7 @@ vi.mock("react", async original => {
   };
 });
 
-// Dogfooding: a preset row showed its title and group; it now reads as a card, the title over its one-line description.
+// A preset row reads as a card: the title over its one-line description.
 test("a preset row is its title over its description", () => {
   const view = { kind: "list" as const, tabs: [], summary: "1 preset", sections: [{ title: null, rows: [{ kind: "preset" as const, key: "preset:shape", icon: "compass", id: "shape", title: "Shape a feature", description: "Work out a feature's purpose and flow.", scope: "feature brief", tooltip: "Work out a feature's purpose and flow. (/shape)", group: "Start" }] }] };
   const html = renderToStaticMarkup(<TooltipProvider><SlashPresets view={view} query="" listId="l" highlight={0} onHighlight={() => {}} onChoose={() => {}} retry={IDLE_RETRY} onRetry={async () => false} /></TooltipProvider>);
@@ -44,8 +44,7 @@ test("a preset row is its title over its description", () => {
   expect(html).toContain('<div class="popover-list doan-scroll" role="listbox"');
 });
 
-// Full access shows its name, a warning icon and the warning ink (data-mode), never
-// colour alone.
+// Full access shows its name, a warning icon and the warning ink (data-mode), never colour alone.
 test("the permission trigger shows the mode's icon and label; Full access warns", () => {
   const html = (mode: "default" | "bypass", size?: "xs") => renderToStaticMarkup(<TooltipProvider><PermissionPicker view={permissionPickerView("codex", undefined, mode)!} disabled={false} onPick={() => {}} {...(size ? { size } : {})} /></TooltipProvider>);
   expect(html("default")).toMatch(/<button type="button" class="composer-permission doan-button" data-ui-size="sm" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Ask first"[^>]*><svg[^>]*lucide-shield[^-][^>]*>.*?<\/svg><span class="label">Ask first<\/span><svg[^>]*chev/);
@@ -66,9 +65,8 @@ test("a trigger whose run mode is Full access warns through data-warning", () =>
   expect(html(permissionPickerView("claude", undefined, "default", "dontAsk")!)).not.toContain("data-warning");
 });
 
-// The popover's rows are listbox options, not Radix items, so `data-highlighted` never reaches them by itself. The pointer moves
-// the one highlight: in the `/` list through its highlight, in the popover through focus (the frame list does the same).
-// A preset row is the option inside its description tooltip (Tooltip > TooltipTrigger > option).
+// The popover's rows are listbox options, not Radix items, so `data-highlighted` never reaches them; the pointer moves the
+// one highlight. A preset row is the option inside its description tooltip.
 function optionOf(row: ReactElement<Record<string, unknown>>): ReactElement<Record<string, unknown>> {
   const [trigger] = row.props.children as ReactElement<Record<string, unknown>>[];
   return trigger!.props.children as ReactElement<Record<string, unknown>>;
@@ -129,9 +127,8 @@ function propsOf(node: ReactNode, found: { type: unknown; props: Record<string, 
   return found;
 }
 
-// A press in the canvas iframe never reaches the app's document, so the canvas's own press signal
-// closes the Presets popover. Radix returns focus to the trigger after a close it did not see as an outside press; the
-// press went to the canvas, so focus must stay there.
+// A press in the canvas iframe never reaches the app's document, so the canvas's press signal closes the popover; Radix
+// would return focus to the trigger, but the press went to the canvas, so focus stays there.
 test("the canvas's press signal closes an open Presets popover without returning focus to the Presets button", () => {
   hooks.on = true; hooks.states = []; hooks.refs = []; hooks.effects = [];
   try {
@@ -163,7 +160,7 @@ test("the canvas's press signal closes an open Presets popover without returning
     expect(autoFocus.preventDefault).toHaveBeenCalled();
     expect(picked).not.toHaveBeenCalled();
 
-    // A later close Radix makes itself (Escape) returns focus as before.
+    // A later close Radix makes itself (Escape) returns focus to the trigger.
     (draw().root.onOpenChange as (open: boolean) => void)(true);
     (draw().root.onOpenChange as (open: boolean) => void)(false);
     const escape = { preventDefault: vi.fn() };
@@ -172,7 +169,7 @@ test("the canvas's press signal closes an open Presets popover without returning
   } finally { hooks.on = false; }
 });
 
-// the Fast row under the Effort levels and the trigger's Fast icon.
+// The Fast row under the Effort levels and the trigger's Fast icon.
 type EffortView = NonNullable<ModelPickerView["effort"]>;
 const effortView = (fast: EffortView["fast"], ariaLabel = "Effort: High"): EffortView => ({
   label: "High", ariaLabel, placeholder: false, menuLabel: "Effort for GPT-6.1 Sol", title: "Effort · GPT-6.1 Sol",
@@ -194,7 +191,7 @@ test("Fast on puts the accent Fast icon on the trigger at both sizes, with its n
   const off = effortView({ on: false, description: "2x speed, increased usage" }, "Effort: High, Fast off");
   expect(renderToStaticMarkup(<TooltipProvider><EffortPicker view={off} effort="high" disabled={false} onPick={() => {}} /></TooltipProvider>)).not.toContain("lucide-zap");
   expect(effortTree(off).find(item => item.type === IconTip)?.props.label).toBe("Effort: High, Fast off");
-  // Without Fast, Home's trigger keeps no tooltip, as before; the docked one keeps its own.
+  // Without Fast, Home's trigger keeps no tooltip; the docked one keeps its own.
   expect(effortTree(effortView(null)).some(item => item.type === IconTip)).toBe(false);
   expect(effortTree(effortView(null), vi.fn(), vi.fn(), "xs").find(item => item.type === IconTip)?.props.label).toBe("Effort: High");
 });
@@ -233,8 +230,7 @@ test("an unavailable Fast row is disabled and says why; without Fast the menu st
   expect(none.filter(item => item.type === DropdownMenu.Separator)).toHaveLength(1);
 });
 
-// the menu opens with a Default row that goes back to
-// sending no level, checked while nothing is chosen.
+// The menu opens with a Default row that goes back to sending no level, checked while nothing is chosen.
 test("the effort menu opens with a Default row over its line; picking it passes an empty level", () => {
   const onPick = vi.fn();
   const unset = { ...effortView(null), label: "Medium", ariaLabel: "Effort: Medium, default", unset: { label: "Default" as const, description: "Medium for this model", selected: true },
@@ -274,8 +270,7 @@ function agentTree(p: { picker: ModelPickerView; onPick(provider: string, value:
   try { return propsOf(AgentPicker({ picker: p.picker, auth: undefined, disabled: false, onOpen: () => {}, onPick: p.onPick, onSettings: () => {}, ...(p.size ? { size: p.size } : {}) })); } finally { hooks.on = false; }
 }
 
-// the default row carries a small Default after its name; a trigger with no
-// model names its drawer in the placeholder ink.
+// The default row carries a small Default after its name; a trigger with no model names its drawer in the placeholder ink.
 const agentPicker = (trigger: ModelPickerView["trigger"]): ModelPickerView => ({
   trigger, effort: null,
   groups: [{ provider: "codex", name: "Codex", selectable: true, cause: null, note: null, read: false, rows: [
@@ -295,11 +290,8 @@ test("the model menu marks the default row, and an unchosen trigger reads Model 
   expect(label(draw({ provider: "codex", label: "Model", ariaLabel: "Agent: Codex, model not chosen", placeholder: true, isDefault: false }))).toContain('<span class="label placeholder">Model</span>');
 });
 
-// the app's Vitest has no DOM (ARCHITECTURE §7 'Home tests without a DOM' adds no jsdom), so a mounted
-// Radix menu cannot be driven here; the real-app probe (/design-sync, /runtime-test) checks open state and focus.
-// What the row relies on is pinned against the installed Radix menu instead: a click, Enter or Space all reach the
-// item's select, which closes the menu only when the select event is not prevented, and a checkbox item still toggles
-// when it is. Nothing in that path moves focus, so focus stays on the row while the menu stays open.
+// The app's Vitest has no DOM (ARCHITECTURE §7 'Home tests without a DOM'), so the installed Radix menu is pinned instead:
+// a select closes it only when not prevented, and a checkbox item still toggles when it is.
 test("the installed Radix menu keeps a prevented select open and still toggles a checkbox item", () => {
   const source = readFileSync(createRequire(import.meta.url).resolve("@radix-ui/react-menu"), "utf8");
   expect(source).toMatch(/SELECTION_KEYS = \["Enter", " "\]/);
@@ -309,8 +301,7 @@ test("the installed Radix menu keeps a prevented select open and still toggles a
   expect(source).toMatch(/role: "menuitemcheckbox"[\s\S]*?onSelect: \(0, import_primitive\.composeEventHandlers\)\(\s*checkboxItemProps\.onSelect,\s*\(\) => onCheckedChange\?\.\(isIndeterminate\(checked\) \? true : !checked\),\s*\{ checkForDefaultPrevented: false \}|role: "menuitemcheckbox"[\s\S]*?onSelect: composeEventHandlers\(\s*checkboxItemProps\.onSelect,\s*\(\) => onCheckedChange\?\.\(isIndeterminate\(checked\) \? true : !checked\),\s*\{ checkForDefaultPrevented: false \}/);
 });
 
-// the pre-list Default row passes null; a model row passes its id, even Claude Code's
-// "default".
+// The pre-list Default row passes null; a model row passes its id, even Claude Code's "default".
 test("the agent picker passes null for the pre-list Default row and a model row's own id", () => {
   const onPick = vi.fn();
   const picker: ModelPickerView = {
@@ -327,7 +318,7 @@ test("the agent picker passes null for the pre-list Default row and a model row'
   expect(onPick).toHaveBeenLastCalledWith("codex", null);
 });
 
-// a group's older models fold under an "Older models" line.
+// A group's older models fold under an "Older models" line.
 const OLDER_PICKER = (selected: string | null): ModelPickerView => ({
   trigger: { provider: "codex", label: "GPT-6.1-Sol", ariaLabel: "Agent: Codex, model GPT-6.1-Sol", placeholder: false, isDefault: true }, effort: null,
   groups: [
@@ -502,15 +493,13 @@ test("a checked older group waits for settled placement before unfolding, then r
   } finally { vi.unstubAllGlobals(); }
 });
 
-// At the usage limit the Queue button keeps its name; the reset time is its sr-only description, tied by
-// aria-describedby, never a native title (usage-limit-resume.html queue-button).
+// At the usage limit the Queue button keeps its name; the reset time is its sr-only description, never a native title.
 test("Queue's reset description is an sr-only span inside the button, not a title", () => {
   const out = renderToStaticMarkup(<TooltipProvider><SendButton action="queue" enabled sending={false} onSend={() => {}} description={"Sends when the limit resets at 3:00\u202fPM."} tip={"Queue — sends when the limit resets at 3:00\u202fPM"} /></TooltipProvider>);
   expect(out).toMatch(/<button[^>]*aria-label="Queue"[^>]*aria-describedby="([^"]+)"[^>]*>.*<span id="\1" class="sr-only">Sends when the limit resets at 3:00\u202fPM\.<\/span><\/button>/);
   expect(out).not.toContain("title=");
 });
-// Home, the Overview and the canvas panel draw this one button, so a fix to it (the Tooltip instead of a native title)
-// reaches all three.
+// Home, the Overview and the canvas panel draw this one button, so a fix to it reaches all three.
 test("a suggested prompt is one button: group icon, highlighted sentence and arrow, its sentence in the shared tooltip", () => {
   const prompt = {
     label: "Review the checkout canvas", text: "Review the checkout canvas.",
@@ -641,10 +630,8 @@ test("Ctrl+Tab and Ctrl+Shift+Tab always move focus, inside a list too", () => {
   expect(fieldTabKey({ key: "Tab", ctrlKey: false, metaKey: false, altKey: true })).toBeNull();
 });
 
-// A rule given to composers one at a time misses some of them (POSTMORTEM 2026-10, its 2026-11-17 recurrence in the
-// composers' confirmations), so the list rules live in the one field all four draw: Home and the docked composer draw
-// ComposerField, the Overview and the canvas panel the docked composer, and the prototype window the canvas panel's
-// conversation. None draws an editable field of its own.
+// A rule given to composers one at a time misses some of them (POSTMORTEM 2026-10, recurrence 2026-11-17), so the list
+// rules live in the one field all four composers draw. None draws an editable field of its own.
 test("the four composers draw the one ComposerField", () => {
   const source = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
   const files = { home: "./HomeComposerView.tsx", docked: "./DockedComposer.tsx", overview: "./ProjectOverview.tsx", canvas: "./CanvasConversationPanel.tsx", prototype: "./prototype/PrototypeConversation.tsx" };

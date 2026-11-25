@@ -78,9 +78,8 @@ function stableIsNewer(stable: string, prerelease: string): boolean {
   return true;
 }
 
-// electron-updater's GitHub provider shows a prerelease copy only releases of its own channel ("rc" takes rc tags; only
-// "alpha" and "beta" may move to a stable release), so a release candidate never sees the stable release it led to.
-// A prerelease copy therefore also reads the feed as a stable copy does, and takes the newer of the two releases.
+// electron-updater shows a prerelease copy only its own channel's releases, so a release candidate never sees the stable
+// release it led to; this also reads the feed as a stable copy does and takes the newer of the two.
 class StableAwareMacUpdater extends MacUpdater {
   protected override async getUpdateInfoAndProvider() {
     if (!this.allowPrerelease) return super.getUpdateInfoAndProvider();
@@ -89,7 +88,7 @@ class StableAwareMacUpdater extends MacUpdater {
     let prereleaseError: unknown;
     try { prerelease = await super.getUpdateInfoAndProvider(); } catch (error) {
       // Only a feed with no tag of this copy's channel left among its newest entries falls to the stable release. Any
-      // other failure stands as before, such as a tag pushed before its release is published.
+      // other failure stands, such as a tag pushed before its release is published.
       if ((error as { code?: unknown } | null)?.code !== "ERR_UPDATER_NO_PUBLISHED_VERSIONS") throw error;
       prereleaseError = error;
     }
@@ -185,9 +184,8 @@ export class UpdateService {
     this.tick();
   }
 
-  // Main calls this from the conversation service's callbacks, which run before the service has finished applying the
-  // change (a turn's end is published before the turn is marked ended, a send's turn.started before it is accepted),
-  // so the gate is read once the current task is done, once for a burst of events.
+  // Called from the conversation service's callbacks, which run before it finishes applying the change, so the gate is read
+  // once the current task is done, once for a burst of events.
   conversationsChanged(): void {
     if (this.gateQueued) return;
     this.gateQueued = true;

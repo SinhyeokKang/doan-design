@@ -4,10 +4,8 @@ import type { InspectRefused, InspectReply, InspectRequest } from "../main/inspe
 import type { SelectionView } from "./selection";
 import { InspectorReads, inspectTarget, type InspectorSelection } from "./inspectorReads";
 
-// The inspector's request timing and late replies (docs: PRODUCT §5 item 4 Inspector; the reply rules are
-// inspectorRows.ts). Each reply is checked only after the store's own reply callback has run to its end: the fake
-// call wraps the callback the store passes to `then` and marks the call settled once that callback returns
-// (POSTMORTEM 2026-10-25 'Runtime checks could finish before the evidence', UX C).
+// PRODUCT §5 item 4 'Inspector'; reply rules are inspectorRows.ts. Check a reply only after the store's own
+// callback ran to its end (POSTMORTEM 2026-10-25 'Runtime checks could finish before the evidence').
 
 const CANVAS = { root: "/repo", path: ".doan/canvases/pay.html" };
 const element = (selector: string, extra: Partial<SelectionView> = {}): SelectionView => ({ tag: "button", frame: { id: "pay", title: "Payment" }, element: { selector, html: "<button>" }, path: [{ label: "pay", selector: "section" }, { label: "button", selector }], ...extra });
@@ -23,7 +21,7 @@ function fakeInspect() {
     const real = new Promise<InspectReply | InspectRefused>((ok, fail) => { resolve = ok; reject = () => fail(new Error("ipc")); });
     const call: Call = { request, resolve, reject, settled: false };
     calls.push(call);
-    // A thenable around the real promise: the store's own callback runs, then the call is marked settled.
+    // A thenable around the real promise marks the call settled after the store's own callback.
     return { then: (ok: (reply: InspectReply | InspectRefused) => unknown, fail: (error: unknown) => unknown) => real.then(reply => { ok(reply); call.settled = true; }, error => { fail(error); call.settled = true; }) } as unknown as Promise<InspectReply | InspectRefused>;
   });
   return { calls, inspect };
@@ -147,7 +145,6 @@ describe("the same selection read again", () => {
     reads.update(true, at(before), "doc-2");
     expect(calls).toHaveLength(1);
     expect(reads.get().panel).toEqual({ kind: "rows", rows: rows("52px") });
-    // Found again: a new selection object with the same anchor.
     reads.update(true, at(element("#pay")), "doc-2");
     expect(calls).toHaveLength(2);
     expect(reads.get().panel).toEqual({ kind: "reading", rows: rows("52px") });
@@ -156,8 +153,7 @@ describe("the same selection read again", () => {
     expect(reads.get().panel).toEqual({ kind: "rows", rows: rows("56px") });
   });
 
-  // The same canvas id moved to a new path (CanvasController's same-id move): the open canvas's path changes at once
-  // while the old selection stays until the moved canvas has found it again.
+  // A same-id move changes the open path at once while the old selection stays until the canvas finds it again.
   test("a canvas moved to a new path keeps the rows until the selection is found there, then reads in place", async () => {
     const { calls, inspect } = fakeInspect();
     const reads = new InspectorReads(inspect);

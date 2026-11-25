@@ -1,6 +1,5 @@
-// Package designskill holds Doan's design presets: a catalog (catalog.json), one adapted Markdown body per preset
-// (presets/<id>.md) and the upstream notices, all embedded in the CLI. The data files are kept apart from this code so
-// presets can be edited without touching Go.
+// Package designskill holds Doan's design presets (catalog.json, presets/<id>.md, upstream notices), embedded in the
+// CLI. The data files are kept apart from this code so presets can be edited without touching Go.
 package designskill
 
 import (

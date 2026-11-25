@@ -50,9 +50,8 @@ it("passes a provider runtime install failure through as its own code", async ()
     expect(await handle(true, "start", { root: "/repo", mode: "new", runtime: "antigravity", canvas: { path: ".doan/canvases/a.html" }, text: "hello" })).toEqual({ error: "cli_install_failed" });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
-// The renderer words unknown and bad_request only as "Couldn't start the conversation", so main's log is the only
-// place a refused start says what refused it. A message that is not one of Doan's codes may carry provider text
-// (POSTMORTEM 2026-11-01 'A failed Antigravity sign-in left no evidence of why'), so only its error name and SDK class are logged.
+// The renderer words unknown and bad_request alike, so main's log is the only place a refused start says why. Other
+// messages may carry provider text (POSTMORTEM 2026-11-01), so only the error name and SDK class are logged.
 it("logs a start refused as unknown or bad_request, with the cause it came from in Doan's own words", async () => {
   const dir = mkdtempSync(join(tmpdir(), "doan-ipc-")); const log = vi.spyOn(console, "error").mockImplementation(() => {});
   const prepare = vi.fn<Prepare>(async () => { throw new Error("fence_unbuilt"); });
@@ -447,7 +446,7 @@ describe("conversation list, seen marker and send extras", () => {
       }
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
-  // Project conversations no longer hold their root, so project_busy is not a code a send answers any more.
+  // project_busy is not a code a send answers, so it reads as an unknown failure.
   it("refuses extras on a legacy external conversation, and answers an unknown failure for project_busy", async () => {
     const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
     try {
@@ -927,7 +926,7 @@ it("passes a Stop's turn on to the service and refuses a malformed one", async (
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 // While a Doan connection's usage limit holds, a send to its conversation waits in main and goes out after the reset
-// (service.ts schedule); a start is refused as before, with the reset time when main knows it.
+// (service.ts schedule); a start is refused, with the reset time when main knows it.
 describe("usage-limit schedule channels", () => {
   const NOW = Date.parse("2026-11-13T07:00:00.000Z"), RESET = NOW + 3_600_000;
   function limited(dir: string) {

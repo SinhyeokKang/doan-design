@@ -1,6 +1,5 @@
-// A reply chip's link, `doan:<canvas-id>/<frame|element>/<id>`. The renderer and
-// the eval both import this, so the file takes no value imports: a renderer value import of a main module that pulls
-// in Node or ajv leaves the built window blank (POSTMORTEM 2026-10-30, `rendererImports.test.ts`).
+// A reply chip's link, `doan:<canvas-id>/<frame|element>/<id>`. The renderer and the eval import this, so it takes no
+// value imports (POSTMORTEM 2026-10-30, `rendererImports.test.ts`).
 
 export interface ReplyAnchor { canvas: string; kind: "frame" | "element"; id: string }
 

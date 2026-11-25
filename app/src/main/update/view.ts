@@ -1,17 +1,14 @@
 import type { SettledUpdateState, UpdateErrorCode, UpdateSnapshot, UpdateState } from "./types";
 
-// What Settings > About's Version row, the automatic-check row, the header button and the Doan menu item show
-// (PRODUCT §5 item 0 'About'). The renderer imports this module, so it may import only types and other modules
-// like it: no validator, no Node built-in, no Electron (rendererImports.test.ts).
+// PRODUCT §5 item 0 'About'. The renderer imports this module, so it may import only types and modules like it: no
+// validator, no Node built-in, no Electron (rendererImports.test.ts).
 
-// `action` is what a press asks main for: a manual check, Restart to Update, or the release page. Retry is a manual
-// check, named for what it repeats. `busy`: the manual check it asked for is running; the button stays in place,
-// spinning, so focus stays on it.
+// `action` is what a press asks main for; Retry is a manual check. `busy`: the manual check it asked for is running; the
+// button stays in place, spinning, so focus stays on it.
 export interface UpdateButton { action: "check" | "restart" | "notes"; label: string; ariaLabel?: string; prominent: boolean; busy?: true }
 export interface UpdateNotice { title: string; text: string }
-// `busy` is the spinner's label in place of the buttons (Restarting); `progress` the download's whole percent. `notice` is the
-// reason Restart to Update cannot run now, `error` the line under the row. `announcement` is what the page's live
-// region reads when it changes; null for states nobody asked about (progress, an automatic check's answer).
+// `busy` is the spinner's label in place of the buttons; `progress` the download's percent; `notice` why Restart to
+// Update cannot run now. `announcement` is what the live region reads; null for states nobody asked about.
 export interface UpdateRowView {
   description: string;
   actions: UpdateButton[];
@@ -22,9 +19,8 @@ export interface UpdateRowView {
   announcement: string | null;
 }
 export interface UpdateAutoCheckView { label: string; description: string; checked: boolean }
-// The header button, shown while a downloaded update waits for Restart to Update. `popover` is what a press opens
-// instead of restarting; null when a press restarts. `opened` is what a popover already open says now, so it follows
-// the gate instead of keeping the words it opened with; null while restarting, when it closes.
+// `popover` is what a press opens instead of restarting, null when a press restarts. `opened` is what an open popover
+// says now, so it follows the gate; null while restarting.
 export interface UpdateHeaderView { label: string; busy: boolean; tooltip: string; popover: UpdateNotice | null; opened: UpdateNotice | null }
 // openAbout: a copy that doesn't update, where the item only opens About. check: opens About and checks.
 export interface UpdateMenuView { label: string; action: "check" | "openAbout" | "restart"; enabled: boolean }

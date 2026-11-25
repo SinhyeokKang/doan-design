@@ -44,7 +44,6 @@ describe("frameDrawerView", () => {
     const marked = (id: string, prototype?: string) => ({ ...frame(id), ...(prototype === undefined ? {} : { prototype }) });
     const view = frameDrawerView(board({ layout: { frames: [marked("a", "390x844"), marked("b"), marked("c", "390"), marked("d", "1x1"), marked("d", "1x1")], truncated: false }, currentFrame: 0 }));
     expect(view.rows.map(row => [row.id, row.prototype])).toEqual([["a", true], ["b", false], ["c", false], ["d", false], ["d", false]]);
-    // The Viewing marker is kept beside the caption.
     expect(view.rows[0]).toMatchObject({ current: true, prototype: true });
   });
 

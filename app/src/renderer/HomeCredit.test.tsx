@@ -54,7 +54,6 @@ test("the link opens main's fixed repository URL: the renderer sends no URL and 
   expect(openRepository).toHaveBeenCalledExactlyOnceWith();
 });
 
-// The user chose no failure line: the address is already on screen.
 test("a browser that did not open shows nothing and leaves no unhandled rejection", async () => {
   openRepository.mockRejectedValueOnce(new Error("refused"));
   link().props.onClick({ preventDefault: () => {} });

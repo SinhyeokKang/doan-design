@@ -5,15 +5,10 @@ import { fieldListItems } from "./composerLists";
 import { posFromUnit } from "./fieldDoc";
 import type { FieldRun } from "./skillWords";
 
-// What the composer field draws over its text (styles.css 'Composer field lists'). A list item's line is a block of
-// its own that wraps under its body: the line's padding puts wrapped rows at the body start and a negative text-indent
-// of the marker column brings the first row back to the marker. The marker keeps its characters: its column is
-// --space-3 or the marker's own width when wider, and the gap up to the body is letter-spacing on the marker's
-// characters (padding would leave the caret at the body start inside the padding). The space after the marker is plain
-// text, so a caret at the body start, and text composed there, stands outside every decoration. Depth spaces take no
-// width whatever was typed: the line's padding draws the depth.
+// Lists are decorations over typed text; the marker gap and the plain space after it keep a body-start caret and
+// composition outside them (ARCHITECTURE §7 'Chip field'; styles.css 'Composer field lists').
 
-// `measure` gives a string's drawn width in the field's font (ChipField measures once per string and caches).
+// ChipField measures once per string and caches.
 export type Measure = (text: string) => number;
 
 export interface FieldLineDraw { line: number; depth: number; markWidth: number }
@@ -33,7 +28,6 @@ export function fieldDraws(segments: readonly FieldSegment[], runs: readonly Fie
   const inlines: FieldInlineDraw[] = [];
   for (const run of runs) {
     if (run.kind === "skill") inlines.push({ kind: "skill", start: run.start, end: run.end });
-    // The marker's own characters; its one space stays plain text.
     else if (run.kind === "mark") inlines.push({ kind: "mark", start: run.start, end: run.end - 1, list: run.list });
     else inlines.push({ kind: "depth", start: run.start, end: run.end, spaceWidth: measure(" ") });
   }
@@ -42,7 +36,7 @@ export function fieldDraws(segments: readonly FieldSegment[], runs: readonly Fie
 
 export function fieldDecorations(doc: PMNode, segments: readonly FieldSegment[], runs: readonly FieldRun[], measure: Measure): DecorationSet {
   const { lines, inlines } = fieldDraws(segments, runs, measure);
-  // The marker's natural width, which its line's padding and its own letter-spacing read (styles.css).
+  // Marker widths: the line's padding and the marker's letter-spacing read them (styles.css).
   const marks = new Map(lines.map(line => [line.line, line.markWidth]));
   const starts: number[] = [];
   doc.forEach((_line, offset) => { starts.push(offset); });

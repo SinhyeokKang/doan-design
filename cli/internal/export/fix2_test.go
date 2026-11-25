@@ -22,9 +22,8 @@ func inlineInternal(t *testing.T, root, canvasPath string, limit int64) (Result,
 	return res, in
 }
 
-// the stop happens while building, not after. Without the
-// growth check the ladder builds about 131 MB of data URIs before the final
-// length check.
+// The stop happens while building, not after: without the growth check the ladder builds about 131 MB of data URIs
+// before the final length check.
 func TestInlineStopsBeforeBuildingTheLadder(t *testing.T) {
 	root := exporttest.Seed(t)
 	for i := 0; i < 18; i++ {

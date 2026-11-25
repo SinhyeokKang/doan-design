@@ -139,7 +139,7 @@ func writeAttributes(root string) (bool, error) {
 	if len(missing) == 0 {
 		return false, nil
 	}
-	// A rename would replace a file the team made read-only, which the write in place used to refuse.
+	// A rename would replace a file the team made read-only, which a write in place would refuse.
 	if info != nil && unix.Access(target, unix.W_OK) != nil {
 		return false, errors.New(".gitattributes is not writable")
 	}
@@ -181,10 +181,8 @@ func writeAttributes(root string) (bool, error) {
 	return true, nil
 }
 
-// gitInitDecision says whether --storage local first creates a repository: only with --git-init, the user's
-// agreement, and only in a folder in no repository below HOME (ReadStorage already ignores a .git at or above it).
-// At or above HOME the refusal holds with or without the flag, so the agent never asks for an agreement the flag
-// would then refuse.
+// gitInitDecision lets --storage local create a repository only with --git-init, in a folder in no repository below HOME.
+// At or above HOME it refuses with or without the flag, so the agent never asks for an agreement the flag would refuse.
 func gitInitDecision(s repo.StorageInfo, root, home string, f Flags) (bool, *Error) {
 	if f.GitInit && f.Storage != "local" {
 		return false, usageError("--git-init needs --storage local")

@@ -12,9 +12,8 @@ import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun"
 import { ProjectOverview, type ProjectOverviewProps } from "./ProjectOverview";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-// On the Overview: a queued message keeps its request, and Send now shows it in the
-// Overview's thread, above an open permission request, until main answers. Static markup has no clicks, so the
-// composer records its props for the test to queue and press Send now through.
+// A queued message keeps its request, and Send now shows it in the Overview's thread above an open permission request until
+// main answers. Static markup has no clicks, so the composer records its props.
 const composer = vi.hoisted(() => ({ props: null as DockedComposerProps | null }));
 vi.mock("./DockedComposer", async original => ({
   ...await original<typeof import("./DockedComposer")>(),

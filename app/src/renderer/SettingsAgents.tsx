@@ -44,9 +44,8 @@ function openInstallPage(provider: Provider): Promise<boolean> {
 const groupSelector = (provider: Provider) => `.doan-preference-row[role="group"][data-provider="${provider}"]`;
 const LAST_USED = "last";
 
-// Settings > Agents (PRODUCT §5 item 0 'Agents'): the provider rows over the renderer's sign-in controller, and the
-// new-conversation defaults. The rows reuse the first-run Agent step's session and copy; agentAuthView's Settings
-// context is the only difference. It never starts or sends a conversation; models are read with conversation:models.
+// Settings > Agents (PRODUCT §5 item 0 'Agents'). The rows reuse the first-run Agent step's session and copy (agentAuthView's
+// Settings context); it never starts or sends a conversation, and reads models with conversation:models.
 export function SettingsAgents({ signIn, arrival, onLock, preferences, save, project }: SettingsAgentsProps) {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
   const live = useRef({ onLock });
@@ -246,7 +245,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
   </DropdownMenu.Root>;
   const radio = (value: string, label: ReactNode, selected: boolean, onKeyDown?: ReturnType<typeof fold.olderKeyDown>) => <DropdownMenu.RadioItem key={value} value={value} className="doan-menu-item" {...(onKeyDown ? { onKeyDown } : {})}>
     {label}<span className="check-slot">{selected && <Check className="check" aria-hidden="true" />}</span></DropdownMenu.RadioItem>;
-  // The Model menu's Default row: its name over the model it stands for, the check on the name line (draft frame settings).
+  // The Model menu's Default row: its name over the model it stands for, the check on the name line.
   const unset = (value: string, label: string, description: string | null, selected: boolean) => <DropdownMenu.RadioItem key={value} value={value} className="doan-menu-item unset-item">
     <span className="unset-copy"><span className="model-name">{label}</span>{description && <span className="sub">{description}</span>}</span>
     <span className="check-slot">{selected && <Check className="check" aria-hidden="true" />}</span></DropdownMenu.RadioItem>;

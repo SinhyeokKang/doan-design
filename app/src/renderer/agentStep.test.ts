@@ -419,7 +419,6 @@ test("a ready change seen while the window has focus is not announced and does n
   expect(h.session.state.focus).toBeNull();
 });
 
-// POSTMORTEM 2026-10-25 'An older install failure replaced newer feedback': both completion orders, every result.
 const RESULTS: InstallResult[] = ["terminal", "page", "failed", "pageFailed"];
 const other = (result: InstallResult): InstallResult => result === "failed" ? "terminal" : "failed";
 test.each(RESULTS)("an older Install result landing after a newer %s never replaces it", async result => {
@@ -577,7 +576,7 @@ test("a resolved update says so, and moves focus to Continue when the step can a
   expect(h.session.state.focus).toMatchObject({ target: "continue" });
 });
 
-// a version that could not be read is not proof of an install or update; only the next state (Sign in,
+// A version that could not be read is not proof of an install or update; only the next state (Sign in,
 // Connected) is announced, and a cleared state cannot announce later.
 test.each([
   ["install", { cli: "missing" }, { version: "unknown" }],

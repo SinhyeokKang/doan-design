@@ -9,9 +9,8 @@ export function handoffCommands(ctx: Pick<CheckContext, "calls">): string[][] {
   return doanInvocations(ctx.calls).words.filter(words => doanCommand(words) === "handoff");
 }
 
-// For scenarios where nothing asks to continue on another canvas: the turn prompt still carries the handoff line, so
-// neither a `doan handoff` command nor a v5 request may show up. A command the reader could not follow may have run
-// one that the CLI refused before sending, so the absence is not established beside it.
+// For scenarios that ask for no other canvas (the turn prompt still names handoff): no command and no v5 request.
+// An unfollowable command may have run one the CLI refused, so absence is unproven beside it.
 export function noHandoff(ctx: Pick<CheckContext, "calls" | "handoff">): Check {
   const commands = handoffCommands(ctx), received = ctx.handoff();
   const incomplete = doanInvocations(ctx.calls).incomplete;

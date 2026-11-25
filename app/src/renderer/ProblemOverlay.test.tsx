@@ -5,7 +5,7 @@ import type { FolderEntry } from "../main/view";
 import { ProblemOverlay } from "./ProblemOverlay";
 import { problemView, type ProblemOverlayView } from "./problemView";
 
-// PRODUCT §5 item 3 'Problem states', ARCHITECTURE §7 'Problem overlay' and the confirmed draft (.doan/canvases/problem-project.html).
+// PRODUCT §5 item 3 'Problem states', ARCHITECTURE §7 'Problem overlay'.
 const view = (entry: FolderEntry, shown: Parameters<typeof problemView>[3]["shown"] = null, slow = false) => problemView(entry, "acme-web", "/Users/ada", { slow, shown })!;
 const draw = (overlayView: ProblemOverlayView, props: Partial<Parameters<typeof ProblemOverlay>[0]> = {}) =>
   renderToStaticMarkup(<ProblemOverlay view={overlayView} details={false} pressed={null} announcement="" onAction={vi.fn()} {...props} />);
@@ -120,8 +120,8 @@ test("overlay CSS: above the panel handles (4), under the toast (6); blur with a
   expect(block(".problem-scene .problem-icon")).toMatch(/width: 32px;[^}]*height: 32px;[^}]*stroke-width: 1\.5;/);
 });
 
-// The overlay takes the right column's cell in the content row, so the right column, which has no placement of its
-// own, was auto-placed into a new row under the sidebar and the content row shrank by its height (found by /design-sync).
+// The overlay takes the right column's cell in the content row, so the right column, which has no placement of its own, would
+// be auto-placed into a new row under the sidebar and shrink the content row.
 test("overlay CSS: the right column (Overview list or canvas conversations) keeps its cell under the overlay; the scene reads in the onboarding scene's body type", () => {
   expect(block(".workspace.overlaid > :is(.right-stack, .doan-conv-column)")).toMatch(/grid-column: 4;/);
   expect(block(".workspace.overlaid:not(.with-strip) > :is(.right-stack, .doan-conv-column)")).toMatch(/grid-row: -2;/);

@@ -2,15 +2,14 @@ import type { ReactNode, Ref } from "react";
 import { ROW_ACTION_LABELS, type RowAction } from "./homeCards";
 import type { ProblemOverlayView } from "./problemView";
 
-// The config file a Config error's line starts with, drawn as a code chip like Missing's path (confirmed draft
-// .doan/canvases/problem-project.html).
+// The config file a Config error's line starts with, drawn as a code chip like Missing's path.
 const CONFIG_FILE = ".doan/config.json";
 // The window draws one workspace, so one overlay at most.
 export const PROBLEM_HEADING_ID = "problem-overlay-heading";
 const LINE_ID = "problem-overlay-line";
 
-// The overlay over a problem project's content (PRODUCT §5 item 3 'Problem states'; ARCHITECTURE §7 'Problem overlay'). It draws `problemView`'s
-// result only; App owns the Details state per root, the busy action, focus and the live region's text.
+// PRODUCT §5 item 3 'Problem states'; ARCHITECTURE §7 'Problem overlay'. It draws `problemView`'s result only; App owns the
+// Details state per root, the busy action, focus and the live region's text.
 export function ProblemOverlay({ view, details, detail, pressed, announcement, onAction, headingRef }: {
   view: Extract<ProblemOverlayView, { kind: "reading" }> | Omit<Extract<ProblemOverlayView, { kind: "problem" }>, "entryKind">;
   headingRef?: Ref<HTMLHeadingElement>;

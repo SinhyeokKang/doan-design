@@ -17,9 +17,8 @@ const PERMISSION = {
 } as const;
 const SAVE_FAILED = "Couldn’t save your notification choices. Your last saved choices still apply.";
 
-// The read-stage notice over the categories that save preferences.json: an
-// unreadable file applies defaults until the next change moves it aside; a newer one is kept and nothing is saved.
-// className places it: first run's Buddy step shows the same copy as a panel notice over its row.
+// The preferences.json read notice: unreadable means defaults until the next change moves the file aside; newer is kept,
+// nothing saved. className places it (first run's Buddy step shows it as a panel notice).
 export function preferencesNotice(notice: PreferencesSnapshot["notice"] | undefined, className = "settings-notice"): ReactNode {
   if (notice === "broken") return <div className={`doan-notice error ${className}`} role="alert"><AlertIcon /><span className="selectable">Doan couldn’t read its saved settings, so defaults apply.</span></div>;
   if (notice === "newer") return <div className={`doan-notice ${className}`} role="status"><AlertIcon /><span className="selectable"><strong className="ob-notice-title">These settings were saved by a newer version of Doan</strong>
@@ -27,9 +26,8 @@ export function preferencesNotice(notice: PreferencesSnapshot["notice"] | undefi
   return null;
 }
 
-// Settings > Notifications (PRODUCT §5 item 0 'Notifications'). Main decides when to notify; this page only saves the choices and
-// asks main for a test notification or its fixed System Settings URL. A switch shows the saved choice, so a failed save
-// leaves it where it was.
+// PRODUCT §5 item 0 'Notifications'. Main decides when to notify; this page saves the choices and asks main for a test
+// notification or its fixed System Settings URL. A switch shows the saved choice, so a failed save leaves it where it was.
 export function SettingsNotifications({ preferences, save }: { preferences: PreferencesSnapshot | null; save(patch: PreferencesPatch): Promise<PreferencesWriteReply | null> }) {
   const [failed, setFailed] = useState<{ key: keyof NotificationPreferences; patch: PreferencesPatch } | null>(null);
   const [test, setTest] = useState<keyof typeof PERMISSION>("idle");

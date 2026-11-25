@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { claudeTranscript, readInTranscript, readTranscriptFrom, transcriptSize } from "./io";
 
-// Real session JSONL lines of Claude Code 2.1.284 and 2.1.322 (PoC), with paths, account ids and environment removed.
+// Real session JSONL lines of Claude Code, with paths, account ids and environment removed.
 const fixture = (version: string, kind: string) => ({
   text: readFileSync(new URL(`./fixtures/claude-transcript-${version}-${kind}.jsonl`, import.meta.url), "utf8"),
   ids: JSON.parse(readFileSync(new URL(`./fixtures/claude-transcript-${version}-${kind}.meta.json`, import.meta.url), "utf8")) as { promptUuid: string; steerUuid: string },

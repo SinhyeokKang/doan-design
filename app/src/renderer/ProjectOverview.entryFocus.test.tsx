@@ -5,9 +5,8 @@ import type { ConversationEvent } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import type { ConversationThreadHandle } from "./ConversationThread";
 
-// The Overview's entry on a waiting conversation (a Conversations row, a toast's Open), run with hooks as plain state
-// (the App tests' no-DOM style): it scrolls to the newest unanswered request and focuses its first choice, a permission
-// request's as a question's (PRODUCT §5 item 3 'Project Overview' Conversations, 'Questions').
+// The Overview's entry on a waiting conversation, hooks as plain state: it scrolls to the newest unanswered request and focuses
+// its first choice (PRODUCT §5 item 3 'Project Overview', 'Questions').
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,

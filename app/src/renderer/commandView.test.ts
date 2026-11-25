@@ -20,7 +20,7 @@ describe("commandLists", () => {
     expect(lists.commands).toEqual(new Set(["compact"]));
     expect(lists.unsupported.has("model")).toBe(false);
   });
-  // No rows yet (the list is being read, failed, or the provider is not connected): only cards are known.
+  // No rows: the list is being read, failed, or the provider is not connected.
   it("knows no commands without rows", () => {
     const lists = commandLists("codex", []);
     expect(lists.commands).toEqual(new Set());
@@ -94,8 +94,7 @@ describe("planSend", () => {
     expect(planSend("/Users/me/a.png", preset, [], 0, CLAUDE)).toEqual({ kind: "message", text: "Use the Doan design preset `polish` (Polish).\n\n/Users/me/a.png", sendsAttachments: true });
     expect(planSend("/deploy", null, ["deploy"], 0, CLAUDE)).toEqual({ kind: "message", text: "Use the project skill `deploy`.\n\n/deploy", sendsAttachments: true });
   });
-  // The shipped "/deploy /review" expectation (HomeComposerView.interaction.test.tsx): only the first word can be a
-  // command, and a skill of the command's name still wins.
+  // Only the first word can be a command (HomeComposerView.interaction.test.tsx expects it too).
   it("keeps a later command word as text and a same-name skill as a skill", () => {
     const lists = commandLists("claude", [skill("review"), command("review")]);
     expect(planSend("/deploy /review", null, ["review"], 0, lists)).toEqual({ kind: "message", text: "Use the project skill `review`.\n\n/deploy /review", sendsAttachments: true });
@@ -157,8 +156,8 @@ describe("boundaryLabel", () => {
   });
 });
 
-// A command the ACP server reported but no live check confirmed goes out as its own text (no preset or skill line, no
-// wrapping), with no card and no row; the server handles it. Only the conversation's current list counts.
+// An unconfirmed ACP command goes out as its own text (no preset, skill line or wrapping), with no card or row;
+// the server handles it. Only the conversation's current list counts.
 describe("unconfirmed ACP commands", () => {
   const COPILOT = commandLists("copilot", [command("compact")], ["compact", "model", "fleet", "plan", "deploy"]);
   it("passes on the server's names that are neither listed, a card, nor a skill", () => {
@@ -180,7 +179,6 @@ describe("unconfirmed ACP commands", () => {
   });
 });
 
-// Main refuses a Codex /review that would run under a permission mode the thread was not last told (command_mode_stale).
 describe("STALE_MODE_CARD", () => {
   it("asks for a message first, with no action", () => {
     expect(STALE_MODE_CARD).toEqual({ title: "/review can’t use the new permission mode yet", body: "Send a message first so Codex picks up the permission mode, then run /review again.", action: null });

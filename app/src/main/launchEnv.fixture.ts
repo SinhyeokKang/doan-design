@@ -1,6 +1,6 @@
 import { LAUNCHD_PATH } from "./launchEnv";
 
-// Keys recorded from a throwaway bundle opened through LaunchServices with an empty caller environment.
+// Keys a throwaway bundle opened through LaunchServices with an empty caller environment gets.
 export const DOCK = {
   HOME: "/Users/ada", USER: "ada", LOGNAME: "ada", SHELL: "/bin/zsh", TMPDIR: "/var/folders/x/T/", SSH_AUTH_SOCK: "/var/run/launchd/Listeners",
   COMMAND_MODE: "unix2003", XPC_FLAGS: "0x0", XPC_SERVICE_NAME: "0", OSLogRateLimit: "64", __CF_USER_TEXT_ENCODING: "0x1F5:0x3:0x33",

@@ -73,8 +73,7 @@ describe("selectedFromLayout", () => {
   });
 });
 
-// Window hiding never reaches the renderer (the selection
-// simply stays), and a renderer reload or crash is main's to clear.
+// Window hiding never reaches the renderer; a reload or crash is main's to clear.
 describe("selectionAfter", () => {
   test("a reload keeps the selection and hides the mark until the anchor answer", () => {
     expect(selectionAfter({ kind: "reload" })).toEqual({ keep: true, mark: false, notice: false });
@@ -155,7 +154,6 @@ describe("sizeLabel", () => {
   });
 });
 
-// The measurement labels round as the size label does.
 describe("canvasPx", () => {
   test("gives the size label's numbers for the size label's inputs", () => {
     expect([252, 32, 60.5, 18.333333].map(canvasPx)).toEqual(["252", "32", "60.5", "18.33"]);
@@ -182,8 +180,7 @@ describe("shouldGuardEscape", () => {
   });
 });
 
-// Dogfooding: the selection-lost line stayed on the board until the next selection and competed with the agent
-// notice for the top centre. It is an event, so it goes to a toast once, when it appears.
+// The selection-lost line is an event: one toast, once, so nothing lingers to compete with the agent notice.
 test("the selection-lost notice is shown as a toast once, when it appears", () => {
   expect(noticeToast("", SELECTION_LOST)).toBe(SELECTION_LOST);
   expect(noticeToast(SELECTION_LOST, SELECTION_LOST)).toBeNull();

@@ -2,8 +2,8 @@ import { afterEach, beforeEach, expect, test, vi, type Mock } from "vitest";
 import type { Provider } from "../main/agentAuth/types";
 import type { SkillsCalls } from "./useProjectSkills";
 
-// The hook run as plain state (useProjectSkills.test). An ACP agent's commands are its conversation's: main answers
-// them only for a conversationId, with the server's unconfirmed commands as `passthrough`.
+// An ACP agent's commands are its conversation's: main answers only for a conversationId,
+// with the server's unconfirmed commands as `passthrough`.
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as { deps: unknown[] }[], pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
@@ -53,7 +53,7 @@ test("an ACP agent without a conversation reads nothing and lists nothing", asyn
   expect(result.passthrough).toEqual([]);
 });
 
-// Their commands are the fixed allowlist of the folder's read, the same in every conversation of the root.
+// Claude Code's and Codex's commands are the fixed allowlist of the folder's read, the same in every conversation of the root.
 test("Claude Code and Codex read by the root alone, with or without a conversation", async () => {
   const result = await render("codex", "c2");
   expect(list).toHaveBeenCalledWith({ root: "/code/doan", provider: "codex" });

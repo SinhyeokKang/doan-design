@@ -7,9 +7,8 @@ import type { InstallGate, UpdateEligibility, UpdateSnapshot } from "./types";
 import type { Updater } from "./service";
 import { CHECK_INTERVAL_MS } from "./schedule";
 
-// electron-updater's MacUpdater and Electron's native autoUpdater, as electronUpdater wires them. The MacUpdater
-// stand-in asks electron-updater's real GitHubProvider, over a fake GitHub, which release the feed offers, the way
-// AppUpdater's checkForUpdates does through getUpdateInfoAndProvider.
+// The MacUpdater stand-in asks electron-updater's real GitHubProvider, over a fake GitHub, which release the feed offers,
+// the way checkForUpdates does through getUpdateInfoAndProvider.
 const electron = vi.hoisted(() => ({
   native: undefined as unknown as import("node:events").EventEmitter,
   created: 0,
@@ -587,9 +586,8 @@ describe("which release the feed offers", () => {
   });
 });
 
-// Main tells the service on every conversation event and every end of a turn's work. The conversation service calls
-// those before it has finished applying the change (a turn's end is published before the turn is marked ended; a send
-// publishes turn.started before it is accepted), so the gate must be read after, from the real service.
+// The conversation service calls main before it has finished applying a change, so the gate must be read after, from the
+// real service.
 describe("the gate follows the real conversation service", () => {
   beforeEach(() => { vi.useRealTimers(); });
   const prepared = { runtime: "codex" as const, configDir: "/profile", cwd: "/repo", sessionId: "same-session", command: "/fake", env: {} };

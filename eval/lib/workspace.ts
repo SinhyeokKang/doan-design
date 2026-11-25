@@ -53,17 +53,14 @@ function must(result: { code: number; stdout: string; stderr: string }, what: st
   return result.stdout;
 }
 
-// A new directory no Codex agent's shell can write: Codex's workspace-write sandbox opens the agent's folder, /tmp and
-// $TMPDIR to it (codex-cli 0.169.0 `codex sandbox -P :workspace`), but not /var/tmp. The two lanes run side by side, so
-// this covers every Codex home of a round, a judge's included. A short path, because Codex binds ipc/ipc.sock in it.
+// A new dir no Codex agent shell can write (workspace-write opens its folder, /tmp and $TMPDIR, not /var/tmp); every Codex
+// home, a judge's too, since the lanes run side by side. Short because Codex binds ipc/ipc.sock in it.
 export function outsideCodexSandbox(prefix: string): string {
   return realpathSync(mkdtempSync(`/var/tmp/${prefix}`));
 }
 
-// Builds the starting repo outside any checkout: seed, `doan init` when the
-// scenario asks and the seed has no .doan/config.json, the discovery stub at repo level
-// only, the Codex rule, then one baseline commit. init output, the stub and the rule
-// are in that commit so changedFiles() reports only what the agent did.
+// Builds the starting repo outside any checkout and commits init output, stub and Codex rule in the baseline,
+// so changedFiles() reports only what the agent did.
 export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Agent | "fixture"; cli: string; stub: string }): Promise<Workspace> {
   // /tmp keeps the socket path under macOS's 104-byte sun_path limit.
   const base = realpathSync(mkdtempSync(`/tmp/doan-eval-${o.scenario.id}-${o.agent}-`));
@@ -97,7 +94,7 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     // settings there, and the rollout read as evidence lives there, so the agent must not be able to rewrite it.
     if (o.agent === "codex") codexHome = outsideCodexSandbox("doan-eval-codex-");
     // Codex loads the run's project rule only in a trusted project. Trusting the first worktree also covers a second one
-    // (codex-cli 0.169.0 probe), so the repo is the only folder trusted.
+    // (codex-cli 0.169.0), so the repo is the only folder trusted.
     const env = o.agent === "fixture" ? shared : isolateUserInstructions(o.agent, shared, codexHome ?? join(base, "codex-home"), [repo]);
     const gitDir = o.scenario.git ? null : join(base, "seed.git");
     const git = (args: string[]) => must(sh("git", [...GIT, "-C", repo, ...(gitDir ? ["--git-dir", gitDir, "--work-tree", repo] : []), ...args], repo, env), `git ${args[0]}`);
@@ -127,9 +124,8 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
       cwd = join(base, "worktree");
       git(["worktree", "add", "-q", "-b", o.scenario.worktree.branch, cwd]);
     }
-    // A worktree scenario stands for an instruction copied from the running app,
-    // so the app is up even without a selection; `doan active` from the second
-    // worktree then gets project_not_open.
+    // A worktree scenario stands for an instruction copied from the running app, so the app is up even without a
+    // selection; `doan active` from the second worktree then gets project_not_open.
     const app = o.scenario.selectionValue || o.scenario.worktree || o.scenario.onboardingValue || handoff || o.scenario.workOthers
       ? await startFakeApp({ dir: join(base, "rt"), root: repo, selection: o.scenario.selectionValue ? { root: repo, ...o.scenario.selectionValue } : null, onboarding: o.scenario.onboardingValue, workOthers: o.scenario.workOthers, handoff })
       : null;
@@ -166,9 +162,8 @@ export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial
   keep(ws.canvasLog, "canvas-names.jsonl");
 }
 
-// A Codex run's own CODEX_HOME (isolateUserInstructions) goes with the workspace; when readAgentTranscript could not
-// copy the run's rollout, its sessions are kept so the rollout can still be found by hand. Only that home is copied:
-// any other CODEX_HOME may hold the user's own sessions.
+// Keeps a Codex run's sessions when its rollout was not copied. Only the run's own CODEX_HOME is copied:
+// any other may hold the user's own sessions.
 export function keepCodexSessions(ws: Pick<Workspace, "codexHome">, dir: string): void {
   if (!ws.codexHome) return;
   const sessions = join(ws.codexHome, "sessions");

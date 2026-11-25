@@ -6,8 +6,8 @@ import { HomeRun, type HomeRunHost } from "./homeRun";
 import type { StartInput } from "./HomeComposerView";
 import type { LastRequest } from "./homeConversations";
 
-// App's Home wiring runs through HomeRun; these drive it end to end with a
-// fake window.doan and a fake navigation that behaves like App's (arrival callback, draft guard, person moves).
+// App's Home wiring end to end, with a fake window.doan and a navigation behaving like App's
+// (arrival callback, draft guard, person moves).
 
 const ROOT = "/code/doan", OTHER = "/code/acme";
 const row = (name: string): CanvasRow => ({ path: `.doan/canvases/${name}.html`, id: name, url: "u" });
@@ -91,7 +91,6 @@ test("a refused start keeps Home: nothing is tracked and nothing moves", async (
 test("the person's move while the start is pending wins: the window stays and the send is toasted as Started in", async () => {
   const h = harness();
   const sending = h.run.start(REQUEST, LAST);
-  // Home → another workspace → back to Home, all before the reply.
   h.run.personNavigated(); h.view.screen = "workspace"; h.run.personNavigated(); h.view.screen = "home";
   start.resolve({ conversationId: "c1" });
   await sending;
@@ -167,7 +166,6 @@ test("removing a project asks; with a running Home conversation Cancel keeps bot
   await h.run.confirmRemove();
   expect(h.order).toEqual(["interrupt", "remove"]);
   expect(doan.interruptProjectTurn).toHaveBeenCalledWith({ conversationId: "c1", turnId: "turn-1" });
-  // Without a running conversation the removal still asks first, and removes only once confirmed.
   lists({});
   const idle = harness();
   await idle.run.remove([ROOT], "doan");
@@ -288,7 +286,6 @@ test("a plain removal that finds new work asks for Stop and remove before interr
   expect(h.host.removeNow).not.toHaveBeenCalled();
   expect(doan.interruptProjectTurn).not.toHaveBeenCalled();
   expect(h.run.removing?.confirm).toBe("Stop and remove");
-  // The work ended before the second press.
   lists({});
   await h.run.confirmRemove();
   expect(doan.interruptProjectTurn).not.toHaveBeenCalled();
@@ -315,8 +312,8 @@ test("Edit on Home sends the last request back to Home", async () => {
   expect(h.run.restore).toEqual({ request: { ...LAST, conversationId: "c1" }, seq: 1 });
 });
 
-// A Home conversation's new canvas is a handoff target like any other: the handoff's own move or toast says where the
-// work went (PRODUCT §5 item 2 'Handoff'), so the run opens nothing and offers nothing itself.
+// A Home conversation's new canvas is a handoff target: the handoff moves or toasts
+// (PRODUCT §5 item 2 'Handoff'), so the run opens and offers nothing itself.
 test("a new canvas a Home conversation's turn makes opens nothing and toasts nothing", async () => {
   const h = harness();
   const sending = h.run.start(REQUEST, LAST);
@@ -336,11 +333,9 @@ test("a new canvas a Home conversation's turn makes opens nothing and toasts not
 test("a move the person makes while the project is still being read cancels the wait; the late list commits nothing", async () => {
   const h = harness();
   const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c1" }); await sending;
-  // Quick Open, say: the person's own move.
   h.run.personNavigated();
   expect(h.host.cancelMove).toHaveBeenCalledTimes(1);
   const toasts = vi.mocked(h.host.toast).mock.calls.length;
-  // The project's read arrives afterwards.
   h.arrive();
   expect(h.view).toMatchObject({ screen: "home", loadedRoot: null });
   expect(h.history).toEqual([]);
@@ -382,7 +377,6 @@ test("list notices coalesce per root: one read in flight, and one more for any n
   expect(doan.listConversations).toHaveBeenCalledTimes(2);
   await flush();
   expect(doan.listConversations).toHaveBeenCalledTimes(2);
-  // A root that is not registered is never read.
   h.run.listChanged("/elsewhere");
   expect(doan.listConversations).toHaveBeenCalledTimes(2);
 });
@@ -491,8 +485,8 @@ test("a failed seen marker brings the slot back", async () => {
   expect(h.run.slots().get(ROOT)?.kind).toBe("unseen");
 });
 
-// A canvas conversation is seen only in its canvas's open panel, which marks
-// it through markSeenThrough; visiting its canvas row or its project marks nothing.
+// A canvas conversation is seen only in its canvas's open panel (markSeenThrough);
+// visiting its canvas row or project marks nothing.
 test("visiting the bound canvas or its project leaves a canvas conversation's ending unseen", async () => {
   lists({ [ROOT]: [summary({ conversationId: "u", unseen: true, canvas: { path: ".doan/canvases/a.html", id: "a" } })] });
   seq = 3;
@@ -526,8 +520,7 @@ test("an ending that arrives while the person is on its canvas row stays unseen 
   expect(doan.markConversationSeen).toHaveBeenCalledWith({ conversationId: "u", seq: 4 });
 });
 
-// A project conversation is seen only while it shows in the Overview's main column with
-// the window focused (the Overview marks it); opening the workspace or the Overview alone marks none.
+// A project conversation is seen only while it shows in the Overview's main column with the window focused.
 test("visiting the project row leaves project conversations unseen and marks only canvas ones whose canvas left", async () => {
   lists({ [ROOT]: [
     summary({ conversationId: "p", unseen: true }),
@@ -545,8 +538,7 @@ test("visiting the project row leaves project conversations unseen and marks onl
   expect(h.run.slots().get(ROOT)?.kind).toBe("unseen");
 });
 
-// A canvas-panel conversation's slot moves to the project row too once its canvas leaves, so the project row's visit
-// must clear it as it clears a Home one's.
+// A canvas-panel conversation's slot moves to the project row once its canvas leaves, so that visit clears it.
 test("visiting the project row marks a canvas-panel conversation's ending seen once its canvas left", async () => {
   lists({ [ROOT]: [summary({ conversationId: "panel", unseen: true, fromHome: false, canvas: { path: ".doan/canvases/gone.html", id: "gone" } })] });
   doan.readConversation!.mockResolvedValue({ events: [event("x", { type: "turn.done" })], lastSeq: 5, turn: "idle" });
@@ -600,7 +592,6 @@ test("a failed list's Retry runs until its read settles, and counts the Retries 
   const h = harness();
   doan.listConversations!.mockResolvedValueOnce({ error: "unknown" });
   h.run.entriesChanged();
-  // The first read is the loading state, not a retry.
   expect(h.run.listRetry(ROOT)).toEqual({ running: false, failures: 0 });
   await flush();
   expect(h.run.listRetry(ROOT)).toEqual({ running: false, failures: 0 });
@@ -696,8 +687,8 @@ test("the removal guard reads the list after a reload", async () => {
   expect(h.run.removing).toMatchObject({ conversations: ["p"], body: "A conversation in doan needs your answer. Doan stops it, then removes the project from the list. Files and Git worktrees stay on disk." });
 });
 
-// Only project conversations are stopped: nothing is promoted any more, so a working conversation with a canvas is a
-// canvas one, even one an earlier build's list still gives a project turn id.
+// Only project conversations are stopped: a working canvas conversation stays, even one an
+// earlier build's list still gives a project turn id.
 test("the removal guard leaves out a working canvas conversation, whatever project turn id it carries", async () => {
   lists({ [ROOT]: [summary({ conversationId: "canvas", phase: "running", fromHome: false, canvas: { path: ".doan/canvases/a.html", id: "a" }, projectTurnId: "turn-9" })] });
   const h = harness();
@@ -904,8 +895,8 @@ test("a send's permission request toasts once away from its project, whether it 
   }
 });
 
-// Main moves a conversation out of Plan after a Claude plan is
-// approved; the provider's last mode follows it, wherever the conversation is shown, by the same rule as a pick.
+// Main moves a conversation out of Plan after an approved Claude plan;
+// the provider's last mode follows, by the same rule as a pick.
 test("a conversation that leaves Plan in main's list tells App the mode it moved to", async () => {
   const h = harness();
   h.host.followedMode = vi.fn();
@@ -926,8 +917,7 @@ test("a conversation that leaves Plan in main's list tells App the mode it moved
   expect(h.host.followedMode).toHaveBeenLastCalledWith("claude", "default");
 });
 
-// A deleted conversation leaves the strip, Edit on Home and the run's
-// records, and late events or a list read started before the delete do not bring it back.
+// Late events or a list read started before the delete must not bring a deleted conversation back.
 test("a deleted conversation leaves the strip and Edit on Home", async () => {
   const h = harness();
   const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c1" }); await sending;
@@ -988,8 +978,8 @@ test("a claim whose history read lands after the delete registers nothing", asyn
   expect(h.run.strip(ROOT)).toBeNull();
 });
 
-// Late events of a deleted conversation are not buffered, so a burst of them cannot push another
-// conversation's early events (those that came before its start reply) out of the bounded buffer.
+// Late events of a deleted conversation are not buffered, so they cannot push another conversation's
+// pre-reply events out of the bounded buffer.
 test("late events of a deleted conversation do not crowd out another conversation's buffered events", async () => {
   const h = harness();
   h.run.event(event("c2", { type: "turn.started" }));
@@ -1012,9 +1002,8 @@ test("running providers are the agents with a Doan conversation running or waiti
   expect([...h.run.runningProviders()].sort()).toEqual(["codex", "copilot"]);
 });
 
-// POSTMORTEM 2026-11-05 'Send now': main drops a conversation's suggestion when
-// its next turn is accepted. A list read that started before that may still carry it and lands after the composer
-// emptied, so only reads started after the accepted message say whether a suggestion stands.
+// POSTMORTEM 2026-11-05 'Send now': main drops the suggestion when the next turn is accepted, but an earlier
+// read may still carry it, so only reads started after the accepted message say whether one stands.
 test("a stale list read does not bring back a cleared suggestion", async () => {
   const h = harness();
   const shown = () => { const listed = h.run.listState(ROOT); return Array.isArray(listed) ? listed.find(c => c.conversationId === "c1")?.suggestion : "unread"; };
@@ -1023,12 +1012,10 @@ test("a stale list read does not bring back a cleared suggestion", async () => {
   await flush();
   expect(shown()).toBe("Make the header lighter");
 
-  // A read in flight from before the send, answering with the old suggestion.
   const stale = deferred<ConversationSummary[]>();
   doan.listConversations!.mockImplementationOnce(() => stale.promise);
   h.run.listChanged(ROOT);
   h.run.event(event("c1", { type: "user.message", text: "Make the header lighter", anchors: [] }, "t2"));
-  // main accepted the turn: the suggestion is gone at once, before any read.
   expect(shown()).toBeUndefined();
   // The notice main sent with the accepted turn asks for one more read after the stale one.
   h.run.listChanged(ROOT);
@@ -1036,7 +1023,6 @@ test("a stale list read does not bring back a cleared suggestion", async () => {
   doan.listConversations!.mockImplementationOnce(() => fresh.promise);
   stale.resolve([summary({ suggestion: "Make the header lighter" })]);
   await flush();
-  // The stale read is applied (its other rows count) without the suggestion.
   expect(h.run.readsApplied(ROOT)).toBe(2);
   expect(shown()).toBeUndefined();
   expect(doan.listConversations).toHaveBeenCalledTimes(3);
@@ -1095,7 +1081,7 @@ test("a Quick Open pick that can no longer be opened goes nowhere and says why",
   expect(h.host.openOverview).not.toHaveBeenCalled();
 });
 
-// The notification and strip Open keep the shipped lookup: a shared id opens the first matching row, and a conversation
+// The notification and strip Open keep the plain lookup: a shared id opens the first matching row, and a conversation
 // bound without an id matches by path (Quick Open alone refuses those through conversationCanvasMatch).
 test("a notification Open of a canvas conversation whose id is shared opens the first matching row, and an id-less one opens by path", async () => {
   const twin: CanvasRow = { path: ".doan/canvases/copy.html", id: "a", url: "u" };

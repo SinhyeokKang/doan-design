@@ -194,11 +194,8 @@ func onboardingRequest(name string, cmd onboardingCommand, f Flags) (map[string]
 	return request, nil
 }
 
-// bootstrap sends a request through attempt and, when no app is listening, opens the app this CLI is bundled in
-// once and sends it again until the bootstrap cap. attempt returns the validated reply or a failure, and
-// launchable reports a failure that means no app is listening, which is the only thing that may open the app.
-// A not_ready failure means a running app is still starting: it is asked again within the same cap, with no launch.
-// background opens the app without activating it (see launchArgs).
+// bootstrap opens the app this CLI is bundled in once, only on a launchable failure (no app listening), and retries
+// until the bootstrap cap. A not_ready app is still starting: it is asked again within the cap, with no launch.
 func bootstrap(ctx Context, background bool, fail func(code, message string) *Error, attempt func(deadline time.Time) (map[string]any, *Error, bool)) (map[string]any, *Error) {
 	reply, failure, launchable := attempt(ctx.Now().Add(activeTimeout))
 	if failure == nil {
@@ -382,9 +379,8 @@ func readOnboardingReply(line []byte, op, token, runtimePath string) (map[string
 		e := obj["error"].(map[string]any)
 		switch code := e["code"].(string); code {
 		case "bad_token":
-			// The runtime file outlived the app that wrote it; a new app has another token. An app conversation's
-			// credential is refused here too, but its CLI refuses onboarding before dialling (conversation_refused), so
-			// this reads as a stale runtime file.
+			// The runtime file outlived the app that wrote it; a new app has another token. A conversation's CLI refuses
+			// onboarding before dialling (conversation_refused), so a refusal here reads as a stale runtime file.
 			return nil, onboardingFailure("app_not_running", "Doan rejected the token in its runtime file"), true
 		case "bad_request":
 			return nil, internal(errors.New("Doan rejected the request as malformed")), false
@@ -408,11 +404,8 @@ func readOnboardingReply(line []byte, op, token, runtimePath string) (map[string
 	return obj, nil, false
 }
 
-// ownBundle returns the Doan app that contains this CLI's real path, judged by
-// layout, the Info.plist bundle id and an executable contained in that bundle.
-// It is membership, not authenticity: the app is unsigned, and whoever controls
-// the bundle already controls what the user runs. No argument or environment
-// can point it at another program.
+// ownBundle finds the Doan app containing this CLI by layout, Info.plist bundle id and contained executable. It is membership,
+// not authenticity (no signature is checked); no argument or environment can point it elsewhere.
 func ownBundle(executable func() (string, error)) (string, bool) {
 	if executable == nil {
 		return "", false
@@ -509,10 +502,8 @@ func launchArgs(bundle string, background bool) []string {
 	return []string{bundle}
 }
 
-// launchEnv is the only environment /usr/bin/open gets. open hands its own environment to a newly launched app,
-// so inheriting the caller's would give the app that terminal's agent profile (CLAUDE_CONFIG_DIR, CODEX_HOME) and
-// hook variables, where a Dock or Finder launch gets the launchd environment. HOME, USER, LOGNAME and TMPDIR are
-// what the launchd environment also has; PATH is fixed because open needs none of the caller's.
+// launchEnv is the only environment open gets: open hands its own to a newly launched app, so the caller's would give it
+// that terminal's agent profile (CLAUDE_CONFIG_DIR, CODEX_HOME) and hooks. It keeps what launchd also has, with a fixed PATH.
 func launchEnv(getenv func(string) string) []string {
 	env := []string{"PATH=/usr/bin:/bin:/usr/sbin:/sbin"}
 	for _, key := range []string{"HOME", "USER", "LOGNAME", "TMPDIR"} {
