@@ -80,7 +80,7 @@ import { revealTarget, type FolderEntry } from "./view";
 import { createWindowDebugger, type WindowDebugger } from "./windowDebugger";
 import { createInspector, parseInspectRequest, type InspectRefused, type InspectReply, type Inspector } from "./inspector";
 import { CONVERSATION_RUNTIME, startRuntime, type Runtime } from "./runtime";
-import { menuState, updateMenu, type Screen } from "./menuState";
+import { menuState, SCREENS, updateMenu, type Screen } from "./menuState";
 import { electronUpdater, hasFeedConfig, releaseNotesUrl, UpdateService } from "./update/service";
 import { updateEligibility } from "./update/eligibility";
 import { installGate } from "./update/gate";
@@ -592,8 +592,9 @@ function parseMenuInputs(value: unknown): MenuInputs | null {
   const flags = MENU_FLAGS.filter(flag => flag in value);
   if (Object.keys(value).length !== 2 + flags.length || flags.some(flag => { const set: unknown = Reflect.get(value, flag); return set !== undefined && typeof set !== "boolean"; })) return null;
   const { screen, modal } = value;
-  if ((screen !== "home" && screen !== "workspace" && screen !== "canvas" && screen !== "addProjects" && screen !== "settings") || typeof modal !== "boolean") return null;
-  const inputs: MenuInputs = { screen, modal };
+  const known = SCREENS.find(item => item === screen);
+  if (known === undefined || typeof modal !== "boolean") return null;
+  const inputs: MenuInputs = { screen: known, modal };
   for (const flag of flags) if (Reflect.get(value, flag) === true) inputs[flag] = true;
   return inputs;
 }
