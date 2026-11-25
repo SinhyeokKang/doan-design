@@ -48,4 +48,5 @@ T0 → A, T1·T2 → B, T3 → C, T4 → 완료(결정 3), T5 → D, T6 → cond
 
 ## 검증 기록
 
+- `04121ce24`(A·B 통합)에서 `verify.mjs` PASS. 첫 실행은 이 worktree에 Electron 바이너리가 없어 app-test의 DOM 테스트 8개 파일이 실패했고, 바이너리를 받은 뒤 다시 통과했다.
 - A·B worktree는 정리했다(브랜치 `SinhyeokKang/tel-A` `69613e2a8`, `SinhyeokKang/tel-B` `16d92c4cb`는 남겼다). handoff와 리뷰, PoC 스크립트·원시 프레임은 conductor `.scratch/evidence/`, `.scratch/thread-edit-lines/`에 복사했다.
