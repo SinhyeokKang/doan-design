@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import claudeEdits from "./fixtures/claude-edit-results.json";
+import codexChanges from "./fixtures/codex-file-changes.json";
+import copilotEdits from "./fixtures/acp-copilot-edits.json";
 import { countStructuredPatch, countTextChange, countUnifiedDiff, EDIT_DISTANCE_MAX, EDIT_LINES_MAX } from "./editLines";
 
 // How an applied edit's added and removed lines are counted from what each provider reports: a unified diff (Codex), a
@@ -149,5 +152,72 @@ describe("countTextChange", () => {
       return performance.now() - start;
     });
     expect(Math.min(...runs)).toBeLessThan(50);
+  });
+});
+
+// Inputs taken from the providers' recorded edit turns (fixtures/README.md); each expected count is that turn's real
+// change, the probe repo's `git diff --numstat`.
+type Recorded = Record<string, Record<string, { frames: Record<string, any>[] }>>;
+const recorded = (fixture: unknown, version: string, kind: string) => (fixture as Recorded)[version]![kind]!.frames;
+const change = (added: number, removed: number) => ({ added, removed });
+
+describe("recorded Claude Code edit results", () => {
+  const results = (version: string, kind: string) =>
+    recorded(claudeEdits, version, kind).map(f => f.tool_use_result).filter(r => r && typeof r === "object" && Array.isArray(r.structuredPatch));
+  it.each(["2.1.284", "2.1.332"])("counts %s's structuredPatch for edit, replace_all, overwrite and two parallel edits", version => {
+    const count = (kind: string) => results(version, kind).map(r => countStructuredPatch(r.structuredPatch));
+    expect(count("edit")).toEqual([change(1, 1)]);
+    expect(count("replaceall")).toEqual([change(3, 3)]);
+    expect(count("overwrite")).toEqual([change(2, 4)]);
+    expect(count("parallel")).toEqual([change(1, 1), change(1, 1)]);
+  });
+  // A new file's Write comes with an empty patch: its lines are the content's.
+  it.each(["2.1.284", "2.1.332"])("counts %s's new-file Write from its content, its patch being empty", version => {
+    const [write] = results(version, "write");
+    expect(write).toMatchObject({ type: "create", structuredPatch: [] });
+    expect(countStructuredPatch(write.structuredPatch)).toEqual(change(0, 0));
+    expect(countTextChange("", write.content)).toEqual(change(3, 0));
+  });
+});
+
+describe("recorded Codex file changes", () => {
+  const changes = (version: string, kind: string) => recorded(codexChanges, version, kind)
+    .filter(f => f.method === "item/completed" && f.params.item.type === "fileChange" && f.params.item.status === "completed")
+    .flatMap(f => f.params.item.changes as { path: string; kind: { type: string }; diff: string }[]);
+  it.each(["0.158.0", "0.171.0"])("counts %s's update diffs, each path of a multi-path change on its own", version => {
+    const count = (kind: string) => changes(version, kind).map(c => ({ type: c.kind.type, path: c.path, lines: countUnifiedDiff(c.diff) }));
+    expect(count("edit")).toEqual([{ type: "update", path: "/repo/notes.txt", lines: change(1, 1) }]);
+    expect(count("overwrite")).toEqual([{ type: "update", path: "/repo/config.txt", lines: change(2, 4) }]);
+    expect(count("multipath")).toEqual([{ type: "update", path: "/repo/config.txt", lines: change(1, 1) }, { type: "update", path: "/repo/notes.txt", lines: change(1, 1) }]);
+  });
+  // add and delete carry the file's whole content, not a diff: read as a diff it is unknown, so the normalizer must
+  // switch on the kind and count the content's lines.
+  it.each(["0.158.0", "0.171.0"])("reads %s's add and delete as whole content, not as a diff", version => {
+    const [add] = changes(version, "write"), [del] = changes(version, "delete");
+    expect([add!.kind.type, del!.kind.type]).toEqual(["add", "delete"]);
+    expect(countUnifiedDiff(add!.diff)).toBeNull();
+    expect(countUnifiedDiff(del!.diff)).toBeNull();
+    expect(countTextChange("", add!.diff)).toEqual(change(3, 0));
+    expect(countTextChange(del!.diff, "")).toEqual(change(0, 3));
+  });
+});
+
+describe("recorded Copilot edits", () => {
+  // The diff content of each completed tool call update, in recorded order.
+  const diffs = (version: string, kind: string) => recorded(copilotEdits, version, kind)
+    .map(f => f.params?.update).filter(u => u?.sessionUpdate === "tool_call_update" && u.status === "completed" && Array.isArray(u.content))
+    .flatMap(u => (u.content as Record<string, any>[]).filter(c => c.type === "diff"))
+    .map(c => ({ path: c.path as string, lines: countTextChange(c.oldText ?? "", c.newText) }));
+  it("counts 1.0.89's edit, new file and overwrite", () => {
+    expect(diffs("1.0.89", "edit")).toEqual([{ path: "/repo/notes.txt", lines: change(1, 1) }]);
+    expect(diffs("1.0.89", "write")).toEqual([{ path: "/repo/hello.txt", lines: change(3, 0) }]);
+    expect(diffs("1.0.89", "overwrite")).toEqual([{ path: "/repo/config.txt", lines: change(2, 4) }]);
+  });
+  it("counts 1.0.114's edit, new file, overwrite as a removal and an addition, delete and each path of a multi-path patch", () => {
+    expect(diffs("1.0.114", "edit")).toEqual([{ path: "/repo/notes.txt", lines: change(1, 1) }]);
+    expect(diffs("1.0.114", "write")).toEqual([{ path: "/repo/hello.txt", lines: change(3, 0) }]);
+    expect(diffs("1.0.114", "overwrite")).toEqual([{ path: "/repo/config.txt", lines: change(0, 4) }, { path: "/repo/config.txt", lines: change(2, 0) }]);
+    expect(diffs("1.0.114", "delete")).toEqual([{ path: "/repo/old.txt", lines: change(0, 3) }]);
+    expect(diffs("1.0.114", "multipath")).toEqual([{ path: "/repo/notes.txt", lines: change(1, 1) }, { path: "/repo/config.txt", lines: change(1, 1) }]);
   });
 });
