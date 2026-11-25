@@ -347,8 +347,8 @@ test.each([["Add to message", "open"], ["Add to message", "folded"], ["Play", "o
     const viewport = (all(tree).find(element => "viewport" in (element.props as object))!.props as { viewport: { current: Record<string, unknown> } }).viewport;
     viewport.current.contains = (node: unknown) => node === picker || node === toolbarPlay;
     viewport.current.focus = vi.fn();
-    // A hidden button refuses focus.
-    const bubbleButton = { ...focusable(which, which === "Add to message"), focus: vi.fn() };
+    // A hidden button refuses focus; the cleared selection hides the bubble that holds Add to message.
+    const bubbleButton = { ...focusable(which, which === "Add to message"), focus: vi.fn(), closest: (selector: string) => selector === "[hidden]" ? {} : null };
     Object.setPrototypeOf(bubbleButton, (globalThis.HTMLElement as unknown as { prototype: object }).prototype);
     if (which === "Show inspector") {
       bubble()!.inspectButton.current = bubbleButton;

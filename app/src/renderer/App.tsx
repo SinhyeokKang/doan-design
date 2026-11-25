@@ -642,17 +642,24 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     instance.onPicked(result => live.current.pickEnded(result));
     instance.onCapture(rect => live.current.captured(rect));
     instance.linkedCanvas = root => live.current.completeNavigation(root);
+    // A reload can take the bubble while the prototype window is in front, so the hand-off is made again on activation,
+    // unless the selection came back with the bubble's own button meanwhile.
+    const bubbleShown = (button: HTMLElement | null | undefined) => !!button?.isConnected && button.closest("[hidden]") === null;
     instance.bubblePlay = {
       onPlay: () => sendPlay(playNext.current),
       // The bubble went while it had focus: the toolbar's Play is the visible control for the same action.
-      onFocusLost: () => { (playButton.current?.isConnected ? playButton.current : viewport.current)?.focus({ preventScroll: true }); },
+      onFocusLost: () => handFocus.current(() => {
+        if (!bubbleShown(instance.bubblePlayButton())) (playButton.current?.isConnected ? playButton.current : viewport.current)?.focus({ preventScroll: true });
+      }),
     };
     instance.bubbleAdd = {
       host: element => setBubbleHost(element),
       onAdd: () => live.current.addToMessage(),
       button: () => bubbleAddButton.current,
       // The bubble went while Add to message had focus: the toolbar's Picker is the visible control that adds a chip.
-      onFocusLost: () => { (pickerButton.current?.isConnected ? pickerButton.current : viewport.current)?.focus({ preventScroll: true }); },
+      onFocusLost: () => handFocus.current(() => {
+        if (!bubbleShown(bubbleAddButton.current)) (pickerButton.current?.isConnected ? pickerButton.current : viewport.current)?.focus({ preventScroll: true });
+      }),
     };
     instance.bubbleInspect = {
       onInspect: () => live.current.showBubbleInspector(),
@@ -1118,6 +1125,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     setShellProjects(previous => previous[key]?.groups?.[id] === false ? { ...previous, [key]: withGroups(previous[key]!, groups => openGroup(groups, id)) } : previous);
   }, [state.open?.folder, state.shown]);
   const search = () => { if (locked()) return; cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); };
+  // Quick Open closes its dialog before it calls this, so focus left inside it is in a closed dialog; a styling class
+  // would stop matching silently once removed (POSTMORTEM 2026-10-30).
+  const closeQuickOpen = () => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog:not([open])")) modalClosed(); };
 
 
   // The existing-user buddy screen holds first run's lock while it is open.
@@ -1145,9 +1155,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (modal || !focusAfterModal.current) return;
     focusAfterModal.current = false;
     const after = afterDelete.current;
-    const field = after && (document.querySelector<HTMLElement>(after.selector) ?? (after.fallback ? document.querySelector<HTMLElement>(after.fallback) : null));
+    const find = () => after && (document.querySelector<HTMLElement>(after.selector) ?? (after.fallback ? document.querySelector<HTMLElement>(after.fallback) : null));
     afterDelete.current = null;
-    if (field) { if (after.field) focusFieldEnd(field); else field.focus(); return; }
+    // Main's reply can come after the person left for another app; the replay finds the target as drawn then.
+    if (after && find()) {
+      handFocus.current(() => { const field = find(); if (field) { if (after.field) focusFieldEnd(field); else field.focus(); } });
+      return;
+    }
     const previous = beforeModal.current;
     // A Set Up (or other action) opened from the overlay that took the overlay with it lands where the overlay's going
     // sends focus (PRODUCT §5 item 3 'Problem states'), not on the screen's fallback.
@@ -2751,7 +2765,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       announcement={announcement ? `${announcement.text}${announcement.seq % 2 ? "" : "\u00a0"}` : ""} onAction={overlayAction} />}
   </main>
   {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} kept={projectKeepsLocal(allEntries, setup)} notGit={allEntries.some(entry => entry.path === setup && entry.kind === "uninitialized" && entry.notGit === true)} onClose={() => { pressEnded(setup, "setUp"); if (setupRef.current !== setup) return; setSetup(null); modalClosed(); }} onRerooted={(root, message) => { setHighlight([root]); toast.show(message); if (setupRef.current !== setup) return; choose(root); setSetup(null); modalClosed(); }} />}
-  {quickOpen && <QuickOpen entries={entries} conversations={conversationLists} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
+  {quickOpen && <QuickOpen entries={entries} conversations={conversationLists} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={closeQuickOpen} />}
   {run.removing && <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="project-remove-title" aria-describedby="project-remove-body" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); cancelRemove(); }}
     onKeyDown={event => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); cancelRemove(); } }}>
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="project-remove-title">{run.removing.title}</h3><p className="doan-dialog-description" id="project-remove-body">{run.removing.body}</p></div></div>

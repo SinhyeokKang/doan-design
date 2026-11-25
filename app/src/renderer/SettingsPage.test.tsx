@@ -187,8 +187,8 @@ describe("Settings > General", () => {
     const dismiss = vi.fn();
     general({ dismiss });
     effects();
-    const cleanup = hooks.effects.find(effect => effect?.cleanup)?.cleanup;
-    cleanup?.();
+    // Leaving unmounts the category: every effect cleans up.
+    for (const effect of hooks.effects) effect?.cleanup?.();
     expect(dismiss).toHaveBeenCalled();
   });
 });

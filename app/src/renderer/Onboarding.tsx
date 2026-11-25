@@ -470,6 +470,11 @@ export function useProjectFocus(session: ProjectStepSession, scope: RefObject<Sc
   const picker = useRef<{ node: FocusTarget; phase: string; error: ProjectStepState["error"] } | null>(null);
   // Edit repository URL (and Back from a cancelled or failed clone) lead to the URL field.
   const urlRequested = useRef(false);
+  // A clone or check can end while the window is in the background, so the focus is made again on activation, while
+  // the same phase shows.
+  const handFocus = useActivationFocus();
+  const shownPhase = useRef(phase);
+  shownPhase.current = phase;
   useEffect(() => {
     if (!active || session.picking()) return;
     requestAnimationFrame(() => {
@@ -478,10 +483,11 @@ export function useProjectFocus(session: ProjectStepSession, scope: RefObject<Sc
       const asked = urlRequested.current;
       urlRequested.current = false;
       const active = document.activeElement;
-      projectFocusNode({ opened, asked, root: scope.current, active: active instanceof HTMLElement ? active : null, body: document.body, heading: heading.current,
-        state: session.state, agentReady: agentReady(), busy: session.busy() })?.focus();
+      const node = projectFocusNode({ opened, asked, root: scope.current, active: active instanceof HTMLElement ? active : null, body: document.body, heading: heading.current,
+        state: session.state, agentReady: agentReady(), busy: session.busy() });
+      if (node) handFocus(() => { if (shownPhase.current === phase && node.isConnected) node.focus(); });
     });
-  }, [phase]);
+  }, [phase, handFocus]);
   return {
     toUrl: () => { urlRequested.current = true; session.restart(); },
     openPicker: (open: () => void) => {

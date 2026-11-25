@@ -120,7 +120,8 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
     if (!group) { if (state.auth === null) arrived.current = arrival.seq; return; }
     arrived.current = arrival.seq;
     const { provider } = arrival;
-    requestAnimationFrame(() => { group.focus(); watch.current = { provider, node: group }; });
+    // Sign in pressed in the prototype window arrives before this window is active.
+    requestAnimationFrame(() => { handFocus(() => document.querySelector<HTMLElement>(groupSelector(provider))?.focus()); watch.current = { provider, node: group }; });
     setFlash(provider);
   });
   useEffect(() => {
