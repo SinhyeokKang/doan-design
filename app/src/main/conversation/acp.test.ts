@@ -194,6 +194,14 @@ describe("ACP failure codes", () => {
     expect(acpFailureCode(detail, "prompt")).toBe(code);
     expect(acpPromptFailed(initialAcp("t"), detail).events.at(-1)).toMatchObject({ type: "turn.failed", code });
   });
+  // "sign in" inside another word is no sign-in.
+  it.each([
+    ["Could not apply the design in index.html", "session_unavailable", "unknown"],
+    ["Failed to assign in the current scope", "session_unavailable", "unknown"],
+  ] as const)("reads %j as no sign-in in both phases", (detail, open, prompt) => {
+    expect(acpFailureCode(detail, "open")).toBe(open);
+    expect(acpFailureCode(detail, "prompt")).toBe(prompt);
+  });
   // No ACP provider's answer is recorded for these, so opening keeps session_unavailable: a Cursor rate_limited refusal
   // comes only from its usage read (limitReached). A prompt reads them as Claude's and Codex's failures do.
   it.each([
