@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, onTestFinished, test, vi } from "vitest";
 import type { BrowserWindowConstructorOptions, MenuItemConstructorOptions } from "electron";
+import { SCREENS } from "./menuState";
 
 const OUTCOME = { added: ["/repo"], duplicate: null, messages: [], confirm: null };
 const DEFAULTS = { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: null, updates: { autoCheck: true } };
@@ -1153,6 +1154,14 @@ describe("menus", () => {
     expect(menuEnabled("Zoom In")).toBe(false);
   });
 
+  // The parser's screen list is menuState's, so a new screen cannot be refused while every test passes.
+  test.each(SCREENS)("accepts the %s screen", async (screen) => {
+    await invoke("menu:state", window().webContents, null, state(screen === "home" ? "canvas" : "home"));
+    const builds = mocks.menu.mock.calls.length;
+    await invoke("menu:state", window().webContents, null, state(screen));
+    expect(mocks.menu.mock.calls.length).toBeGreaterThan(builds);
+  });
+
   test.each(["did-navigate", "render-process-gone"])("a renderer that is replaced (%s) is back on Home", async (event) => {
     const contents = window().webContents;
     await invoke("menu:state", contents, null, state("canvas"));
@@ -1520,6 +1529,34 @@ describe("locate and reveal", () => {
     mocks.flow.judge.mockResolvedValueOnce({ refused: "Only folders can be added." });
     expect(await invoke("folders:locate", contents, null, { path: "/code/other" })).toEqual({ kind: "refused", message: "Only folders can be added." });
     expect(mocks.shell.replace).toHaveBeenCalledOnce();
+  });
+
+  // POSTMORTEM 2026-10-25, 2026-11-17: every path that drops a stored root clears what is keyed by it.
+  test.each([
+    ["a new folder", "/code/moved"],
+    ["a folder already stored", APP],
+  ])("locating %s clears the old root as Remove does, and leaves the new root alone", async (_name, picked) => {
+    const contents = window().webContents;
+    const stop = vi.spyOn(mocks.conversationService as unknown as { stopBackground(paths: string[]): void }, "stopBackground");
+    mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [picked] });
+    mocks.flow.judge.mockResolvedValueOnce({ root: picked });
+    mocks.shell.replace.mockImplementationOnce(async () => { mocks.shell.entries.mockReturnValue(entries.filter(entry => entry.path !== "/code/other")); });
+    expect(await invoke("folders:locate", contents, null, { path: "/code/other" })).toEqual({ kind: "located", root: picked });
+    expect(stop).toHaveBeenCalledExactlyOnceWith(["/code/other"]);
+    expect(mocks.prototypeRootsRemoved).toHaveBeenCalledExactlyOnceWith(["/code/other"]);
+    expect(mocks.discardRootStarts).toHaveBeenCalledExactlyOnceWith(["/code/other"]);
+    expect(mocks.thumbnails.removed).toHaveBeenCalledExactlyOnceWith(["/code/other"], entries);
+  });
+
+  test("locating a root to itself drops nothing", async () => {
+    const stop = vi.spyOn(mocks.conversationService as unknown as { stopBackground(paths: string[]): void }, "stopBackground");
+    mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ["/code/other"] });
+    mocks.flow.judge.mockResolvedValueOnce({ root: "/code/other" });
+    expect(await invoke("folders:locate", window().webContents, null, { path: "/code/other" })).toEqual({ kind: "located", root: "/code/other" });
+    expect(stop).not.toHaveBeenCalled();
+    expect(mocks.prototypeRootsRemoved).not.toHaveBeenCalled();
+    expect(mocks.discardRootStarts).not.toHaveBeenCalled();
+    expect(mocks.thumbnails.removed).not.toHaveBeenCalled();
   });
 
   test("a located folder removed from the list while the picker was open is not replaced", async () => {
