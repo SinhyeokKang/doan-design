@@ -21,7 +21,7 @@ vi.mock("react", async original => {
     },
   };
 });
-const { useProjectFocus } = await import("./Onboarding");
+const { useProjectFocus, useSceneHeadingFocus } = await import("./Onboarding");
 
 class Element { disabled = false; focused = 0; isConnected = true; matches(selector: string) { return selector === ":disabled" ? this.disabled : false; } focus() { this.focused++; doc.activeElement = this; } }
 const doc: { activeElement: Element | null; body: Element; hasFocus(): boolean; querySelectorAll(): unknown[] } = { activeElement: null, body: new Element(), hasFocus: () => true, querySelectorAll: () => [] };
@@ -184,4 +184,27 @@ test("a URL request whose phase changes again before its frame still lands on th
   for (const run of frames.splice(0)) run();
   expect(url.focused).toBe(1);
   expect(doc.activeElement === url).toBe(true);
+});
+
+// Continue on the Agent step waits for main to cancel the step's own sign-ins, and the person may go back to the browser
+// meanwhile; activation then restores the focus the window had before, on the step's gone Continue (POSTMORTEM
+// 2026-11-17 'Window activation put focus on Hide sidebar'), so the new scene's heading takes focus again on activation.
+test("a scene change with the window in the background focuses the new heading again on activation", () => {
+  const win = new EventTarget();
+  vi.stubGlobal("window", win);
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  doc.hasFocus = () => false;
+  const agent = new Element(), project = new Element(), redrawn = new Element();
+  const heading = { current: agent as Element | null };
+  const render = (generation: number) => { hooks.cursor = 0; useSceneHeadingFocus(generation, heading as never); };
+  render(1);
+  expect(agent.focused).toBe(1);
+  heading.current = project; render(2);
+  expect(project.focused).toBe(1);
+  // Activation focuses the heading as drawn then, once now and once after the platform's own restore.
+  heading.current = redrawn;
+  win.dispatchEvent(new Event("focus")); vi.runAllTimers();
+  expect(agent.focused).toBe(1);
+  expect(project.focused).toBe(1);
+  expect(redrawn.focused).toBe(2);
 });

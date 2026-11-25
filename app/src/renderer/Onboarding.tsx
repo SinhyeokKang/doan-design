@@ -462,6 +462,12 @@ export function projectFocusNode(input: {
     : notice(target);
   return node ?? input.heading;
 }
+// A scene change moves focus to its heading; Tab then enters the controls. Continue waits for main to cancel the
+// step's own sign-ins, which the person may leave the window during, so the focus is made again on activation.
+export function useSceneHeadingFocus(generation: number, heading: RefObject<{ focus(): void } | null>) {
+  const handFocus = useActivationFocus();
+  useEffect(() => { requestAnimationFrame(() => handFocus(() => heading.current?.focus())); }, [generation, handFocus, heading]);
+}
 // Within the Project step, a phase change that took the focused control away hands focus on, never to <body>; first
 // run and the page share it. `scope` holds the step's .ob-scene.
 export function useProjectFocus(session: ProjectStepSession, scope: RefObject<ScopeNode | null>, heading: RefObject<FocusTarget | null>, agentReady: () => boolean, active: boolean) {
@@ -801,8 +807,7 @@ export function Wizard({ session, projects, autoRegistered = [], homeDirectory, 
     void window.doan.readOnboardingSession({ sessionId: session }).then(reply => { if (reply.ok && "sessionId" in reply.result) done(reply.result); }, () => {});
     return () => { window.removeEventListener("focus", focused); stop(); agents.dispose(); project.dispose(); };
   }, []);
-  // A scene change moves focus to its heading; Tab then enters the controls.
-  useEffect(() => { requestAnimationFrame(() => heading.current?.focus()); }, [scene.generation]);
+  useSceneHeadingFocus(scene.generation, heading);
   const overlay = useRef<HTMLDialogElement | null>(null);
   const { toUrl, openPicker, keepFocus } = useProjectFocus(project, overlay, heading, () => canAdvance(agents.state.auth ?? null), scene.scene === "project");
   // Guarded with the session's auth at the time of the move, not of the click: a cancel wait can outlive a ready provider.
