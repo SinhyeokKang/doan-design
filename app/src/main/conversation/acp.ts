@@ -266,7 +266,7 @@ export function acpPromptDone(state: AcpTransport, result: unknown): TransportRe
   return finishAcp(state, { type: "turn.done" });
 }
 // One reading of a failure's text whether the session was opening or a prompt ran, so a provider's words give one code;
-// only text no pattern knows takes the phase's own fallback. Each pattern comes from a recorded message.
+// only text no pattern knows takes the phase's own fallback.
 export function acpFailureCode(detail: string, phase: "open" | "prompt"): FailureCode {
   // AcpConnection's own deadline for a request.
   if (/^\S+ timed out$/.test(detail)) return "process_exited";
