@@ -538,6 +538,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // Where focus goes once the panel shows what an entry asked for; a new seq per entry.
   // The seq only grows: the panel applies an arrival once by its seq, so a later entry must never reuse one.
   const [arrival, setArrival] = useState<PanelArrival | null>(null);
+  // Read by the screen entry: the panel applies an arrival in its own effect, which runs before App's in the same commit.
+  const arrivalShown = useRef(arrival);
+  arrivalShown.current = arrival;
+  const panelArrived = useRef(0);
   const panelArrivals = useRef(0);
   const support = useRef<DockedSupport | null>(null);
   if (!support.current) support.current = new DockedSupport(() => setRunTick(tick => tick + 1), window.doan);
@@ -743,6 +747,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       // would otherwise take the focus to the sidebar row right after.
       const active = document.activeElement;
       if (active instanceof HTMLElement && active.isConnected && active.closest(".workspace .conversation-thread")) return;
+      // The panel took this entry's arrival in the same commit; a composer fallback focuses in a microtask, after this.
+      if (arrivalShown.current !== null && panelArrived.current === arrivalShown.current.seq) return;
       const previous = workspaceFocus.current;
       hand(() => (previous?.isConnected && previous.closest(".workspace") ? previous : document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]'))?.focus());
     }
@@ -2753,7 +2759,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
         {panelTarget && entry?.kind === "list" && <CanvasConversation calls={window.doan} run={canvasRun.current!} support={support.current!} target={panelTarget} canvasName={panelCanvasName}
           project={panelProject} entry={entry} list={panelList} seen={run.seenPending()} prefs={homeMemory}
           defaults={preferences ? preferences.preferences.newConversation : undefined} now={clock} blocked={panelBlocked} onRemember={rememberPick}
-          frames={state.layout?.frames} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => setArrival(current => current?.seq === seq ? null : current)}
+          frames={state.layout?.frames} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => { panelArrived.current = seq; setArrival(current => current?.seq === seq ? null : current); }}
           onLocate={locateChip} onReplyChip={link => replyChip(panelTarget.root, link)} onChoose={() => controller.current?.dropPendingLocate()} pick={{ pressed: picking, enabled: pickerReady, reason: pickerView.reason, onToggle: togglePick }} composerLink={composerLink} canvasPress={controller.current?.canvasPress}
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
           onOpenHandoff={(canvas, id) => openConversationCanvas(panelTarget.root, canvas, id, { kind: "card" })}
