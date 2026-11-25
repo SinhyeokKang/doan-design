@@ -5,10 +5,10 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { readSessionTail, claudeOccupancy, claudeTranscript, codexOccupancy, codexSessionExists, fileHolders, type FileHolder } from "./io";
 import { ConversationStore } from "./store";
-const hooks = vi.hoisted(() => ({ open: undefined as undefined | ((path: unknown, flags: number) => void), truncate: false, beforeWrite: undefined as undefined | (() => void), oversizedList: false }));
+const hooks = vi.hoisted(() => ({ open: undefined as undefined | ((path: unknown, flags: number) => void), truncate: false, beforeWrite: undefined as undefined | (() => void), oversizedList: false, phantom: undefined as undefined | string }));
 vi.mock("node:fs", async original => {
   const fs = await original<typeof import("node:fs")>();
-  return { ...fs, readdirSync: (path: import("node:fs").PathLike) => hooks.oversizedList ? Array(65537).fill("2026") : fs.readdirSync(path),
+  return { ...fs, readdirSync: (path: import("node:fs").PathLike) => hooks.oversizedList ? Array(65537).fill("2026") : hooks.phantom !== undefined && String(path).endsWith("/projects") ? [hooks.phantom, ...fs.readdirSync(path)] : fs.readdirSync(path),
     writeSync: (fd: number, buffer: Uint8Array) => { hooks.beforeWrite?.(); return fs.writeSync(fd, buffer); }, openSync: (path: import("node:fs").PathLike, flags: number, mode?: number) => { hooks.open?.(path, flags); return fs.openSync(path, flags, mode); },
     ftruncateSync: (fd: number, length: number) => { if (hooks.truncate) throw new Error("rollback interrupted"); return fs.ftruncateSync(fd, length); } };
 });
@@ -24,7 +24,7 @@ vi.mock("node:child_process", async original => {
 });
 const roots: string[] = [];
 function temp() { const p = mkdtempSync(join(tmpdir(), "doan-conversation-")); roots.push(p); return p; }
-afterEach(() => { lsof.reply = undefined; hooks.open = undefined; hooks.truncate = false; hooks.beforeWrite = undefined; hooks.oversizedList = false; roots.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
+afterEach(() => { lsof.reply = undefined; hooks.open = undefined; hooks.truncate = false; hooks.beforeWrite = undefined; hooks.oversizedList = false; hooks.phantom = undefined; roots.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 describe("conversation disk boundaries", () => {
   it("reads only complete bounded session tail rows and rejects final links", () => {
     const root = temp(); const path = join(root, "sessions.jsonl");
@@ -409,4 +409,11 @@ it("finds a Claude transcript past plain files in projects/ but never through a 
   const elsewhere = realpathSync(temp()); writeFileSync(join(elsewhere, `${id}.jsonl`), "{}\n");
   symlinkSync(elsewhere, join(config, "projects", "linked"));
   expect(claudeTranscript(config, id)).toBeNull();
+});
+// A name listed and then removed before it is looked at (Finder rewriting .DS_Store) is skipped, not a failed lookup.
+it("finds a Claude transcript past a projects/ entry that disappeared after the listing", () => {
+  const config = realpathSync(temp()), id = "11111111-1111-4111-8111-111111111111", dir = join(config, "projects", "-repo");
+  mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, `${id}.jsonl`), "{}\n");
+  hooks.phantom = ".DS_Store";
+  expect(claudeTranscript(config, id)).toBe(join(dir, `${id}.jsonl`));
 });
