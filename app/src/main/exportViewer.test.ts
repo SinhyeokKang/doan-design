@@ -175,9 +175,18 @@ function extractConst(source: string, name: string): string {
 describe("measure.js frame walk and wheel hand-off", () => {
   const app = canvasScript.toString();
   const appConst = (name: string) => normalize(extractConst(app, name).replace(/\blib\./g, ""));
-  test.each(["bodyClips", "ancestors", "scrollsFurther"])("%s is the same as in canvasScript.ts", (name) => {
+  // The compiled app writes every string in double quotes.
+  const doubleQuoted = (text: string) => text.replace(/'([^'\\]*)'/g, (_, body: string) => JSON.stringify(body));
+  test.each(["bodyClips", "ancestors", "scrollsFurther", "stylesheetPending"])("%s is the same as in canvasScript.ts", (name) => {
     expect(appConst(name).length).toBeGreaterThan(40);
-    expect(normalize(extractConst(measure, name))).toBe(appConst(name));
+    expect(doubleQuoted(normalize(extractConst(measure, name)))).toBe(appConst(name));
+  });
+
+  // The app keeps the first layout's time for its anchor retry; the viewer only needs whether it happened.
+  const settledApp = () => appConst("stylesheetSettled").replace("firstLayoutAt!==null", "laidOut");
+  test("stylesheetSettled is the same as in canvasScript.ts", () => {
+    expect(settledApp()).toContain("laidOut");
+    expect(normalize(extractConst(measure, "stylesheetSettled"))).toBe(settledApp());
   });
 
   test("the comparison fails when a copy drifts", () => {
@@ -187,6 +196,10 @@ describe("measure.js frame walk and wheel hand-off", () => {
     expect(normalize(extractConst(walk, "ancestors"))).not.toBe(appConst("ancestors"));
     const wheel = measure.replace("node !== document.body;", "node !== null;");
     expect(normalize(extractConst(wheel, "scrollsFurther"))).not.toBe(appConst("scrollsFurther"));
+    const media = measure.replace(" && (!link.media || matchMedia(link.media).matches)", "");
+    expect(doubleQuoted(normalize(extractConst(media, "stylesheetPending")))).not.toBe(appConst("stylesheetPending"));
+    const settled = measure.replace('if (event.type === "error") failedSheets.add(event.target);', "");
+    expect(normalize(extractConst(settled, "stylesheetSettled"))).not.toBe(settledApp());
   });
 });
 
