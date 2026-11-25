@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
-import { codeToCopy, ConversationThread, FADE_MS, fadeOpacity, followResize, revealFrame, revealMode, revealStart, type ConversationThreadProps, type RevealState } from "./ConversationThread";
+import { codeToCopy, ConversationThread, entryTimes, FADE_MS, fadeOpacity, followResize, revealFrame, revealMode, revealStart, type ConversationThreadProps, type RevealState } from "./ConversationThread";
 import { TooltipProvider } from "./components/ui/tooltip";
 import type { ThreadItem } from "./threadItems";
 import { FINISH_MS, FOLLOW_START, MAX_LAG_MS, nextFollow } from "./threadMotion";
@@ -29,6 +29,21 @@ describe("entry", () => {
     expect(out.match(/class="msg-user thread-enter"/g)).toHaveLength(1);
     expect(out).toMatch(/<div class="msg-user thread-enter"><div class="bubble">Make the action say Add a card/);
     expect(html(items)).not.toContain("thread-enter");
+  });
+
+  test("the history's message that replaces an entering Send now or sending message carries on its entry, not a new one", () => {
+    const sending = user("qs1", null, "Use the 12 px gap", true);
+    const history = user("u5", 5, "Use the 12 px gap");
+    const before = [user("u1", 1, "Older")];
+    const first = entryTimes(before, [...before, sending], [], new Map(), 100);
+    expect([...first]).toEqual([["qs1", 100]]);
+    // Both drawn for a moment, then the history's alone: it takes the Sending message's start.
+    const both = entryTimes([...before, sending], [...before, history, sending], [{ text: "Use the 12 px gap", after: 4 }], first, 133);
+    expect(both.get("u5")).toBe(100);
+    const after = entryTimes([...before, history, sending], [...before, history], [], both, 150);
+    expect(after.get("u5")).toBe(100);
+    // A message from elsewhere with the same words never takes it.
+    expect(entryTimes([...before], [...before, user("u6", 6, "Use the 12 px gap")], [], new Map([["qs1", 100]]), 200).has("u6")).toBe(false);
   });
 
   test("the rise is translate and opacity over time-thread-enter with ease-enter; reduced motion fades in place", () => {
