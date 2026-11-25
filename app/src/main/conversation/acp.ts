@@ -265,15 +265,18 @@ export function acpPromptDone(state: AcpTransport, result: unknown): TransportRe
   if (typeof reason !== "string") return finishAcp(state, { type: "turn.failed", code: "unknown", detail: "ACP prompt returned no stopReason" });
   return finishAcp(state, { type: "turn.done" });
 }
-// One reading of a failure's text whether the session was opening or a prompt ran, so a provider's words give one code;
-// only text no pattern knows takes the phase's own fallback.
+// One reading of a failure's text whether the session was opening or a prompt ran, for the words a recorded provider
+// message or Doan itself backs. The rest of transportError's patterns have no recorded ACP answer, so opening keeps
+// its earlier reading of them: a Cursor rate_limited refusal comes only from its usage read (limitReached).
 export function acpFailureCode(detail: string, phase: "open" | "prompt"): FailureCode {
-  // AcpConnection's own deadline for a request.
-  if (/^\S+ timed out$/.test(detail)) return "process_exited";
-  // Copilot CLI: "Please sign in to view available models."
-  if (/sign in/i.test(detail)) return "not_logged_in";
-  const code = transportError(detail);
-  return code === "unknown" && phase === "open" ? "session_unavailable" : code;
+  // AcpConnection's own deadline for a request: "<method> timed out".
+  if (/^(?:initialize|authenticate|session\/[\w-]+) timed out$/.test(detail)) return "process_exited";
+  // Cursor's and Antigravity's "Authentication required", Copilot CLI's "Please sign in".
+  if (/authentication required|not logged in|unauthorized|sign in/i.test(detail)) return "not_logged_in";
+  // cursor-agent's session/load for a session it never saved: "Session not found".
+  if (/session.*(not found|unavailable)/i.test(detail)) return "session_unavailable";
+  if (phase === "prompt") return transportError(detail);
+  return /timed out/i.test(detail) ? "process_exited" : "session_unavailable";
 }
 export function acpPromptFailed(state: AcpTransport, detail: string): TransportResult & { state: AcpTransport } {
   return finishAcp(state, { type: "turn.failed", code: acpFailureCode(detail, "prompt"), ...(detail ? { detail: detail.slice(0, 4096) } : {}) });
