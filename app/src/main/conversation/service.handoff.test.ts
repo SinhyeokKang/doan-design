@@ -789,6 +789,27 @@ describe("a handoff a stop, a quit or a broken history meets", () => {
     await h.start({ text: "replace a's conversation" });
     expect(files.release).not.toHaveBeenCalled();
   });
+  it("gives a queued message that would not fit beside the next conversation's own queue back to the source, with its attachment ids", async () => {
+    const files = { reclaim: vi.fn((_ids: string[]) => ({ recheck: () => [], sent: () => {} })), consume: vi.fn(), discard: vi.fn(), release: vi.fn() };
+    const h = fixture({ files }); const id = await h.start();
+    h.ask(h.key(0), b.path); h.listed.push(b);
+    const record = { name: "a.png", size: 3, kind: "image" as const, path: "/Users/me/a.png" };
+    h.service.queue(id, { text: "see the files", anchors: [], attachments: Array(6).fill(record), ids: ["f1", "f2", "f3", "f4", "f5", "f6"] });
+    // The person queues into the next conversation between its start and the handoff's settling.
+    const real = h.service.start.bind(h.service);
+    const spy = vi.spyOn(h.service, "start").mockImplementation(async (request, attached, handoff) => {
+      const result = await real(request, attached, handoff);
+      if (handoff) { spy.mockRestore(); h.drafts.add(result.conversationId, { itemId: "mine", text: "mine", anchors: [], attachments: Array(6).fill(record) }); }
+      return result;
+    });
+    h.service.receive(id, { type: "turn.done" });
+    await h.settled();
+    const target = h.on(b)!.conversationId;
+    await vi.waitFor(() => expect(h.drafts.returned(id)).toMatchObject({ text: "see the files", reason: "queue_limit" }));
+    expect(h.drafts.queued(target).map(item => item.itemId)).toEqual(["mine"]);
+    expect(h.service.takeDraft(id)).toMatchObject({ text: "see the files", ids: ["f1", "f2", "f3", "f4", "f5", "f6"] });
+    expect(files.release).not.toHaveBeenCalled();
+  });
   it("writes no resolution when the app quits while the handoff waits; the next start reads it as cancelled", async () => {
     const h = fixture(); const id = await h.start();
     h.ask(h.key(0), b.path);
