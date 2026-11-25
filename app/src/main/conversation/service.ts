@@ -3,7 +3,7 @@ import { realpathSync } from "node:fs";
 import { ConversationStore, refusesForGood, type ConversationMetadata, type JournalWrite } from "./store";
 import { foldConversation } from "./state";
 import { promoteReservation, rekeyReservation, releaseReservation, reserveSession } from "./ownership";
-import { transportError, type ClaudeModeReport } from "./transport";
+import { storableText, transportError, type ClaudeModeReport } from "./transport";
 import { runModeAfterInit, runModeAfterStatus } from "./claudeRunMode";
 import { handoffPrompt, turnPrompt } from "./prompt";
 import { drawnCanvases } from "./drawn";
@@ -1936,7 +1936,7 @@ export class ConversationService {
       if (this.live.get(id) === live && live.turnId === turn) this.transportFailed(id, error);
     });
   }
-  private transportFailed(id: string, error: unknown): void { this.receive(id, { type: "turn.failed", code: transportError(error instanceof Error ? error.message : ""), detail: error instanceof Error ? error.message.slice(0, 4096) : "Transport failed" }); }
+  private transportFailed(id: string, error: unknown): void { this.receive(id, { type: "turn.failed", code: transportError(error instanceof Error ? error.message : ""), detail: error instanceof Error ? storableText(error.message).slice(0, 4096) : "Transport failed" }); }
 }
 
 // A command message carries nothing but its text (its argument included): no anchors, and no attachments, which stay in
