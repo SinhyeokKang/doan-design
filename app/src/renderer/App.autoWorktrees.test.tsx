@@ -447,3 +447,23 @@ test("the Add Projects page learns which listed roots are auto-registered", asyn
   expect(props.projects).toEqual([MAIN, OTHER, W]);
   expect(props.autoRegistered).toEqual([W]);
 });
+
+// POSTMORTEM 2026-11-01: what the person changed before the startup read wins over what the read holds.
+const readLater = async (state: unknown) => { readUiState(state); await flush(); render(); getWork([]); await flush(); render(); };
+test("a project the person folded before the startup read stays folded when the read had it unfolded", async () => {
+  render();
+  folders([main(), other(), wt()]);
+  enter(MAIN);
+  disclose(KEY);
+  await readLater({ screen: "home", expanded: {}, lastByRoot: {}, shellProjects: { [KEY]: { roots: [MAIN, OTHER, W], expanded: true } } });
+  expect(sidebar().projects[KEY]).toMatchObject({ expanded: false, collapsed: true });
+});
+
+test("a group the person closed before the startup read stays closed beside the read's closed groups", async () => {
+  render();
+  folders([main(), other(), wt()]);
+  enter(MAIN);
+  (sidebar() as unknown as { toggleGroup(key: string, id: string): void }).toggleGroup(KEY, "canvases"); render();
+  await readLater({ screen: "home", expanded: {}, lastByRoot: {}, shellProjects: { [KEY]: { roots: [MAIN, OTHER, W], expanded: false, groups: { ds: false } } } });
+  expect(sidebar().projects[KEY]?.groups).toEqual({ ds: false, canvases: false });
+});

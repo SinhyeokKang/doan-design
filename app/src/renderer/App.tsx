@@ -186,16 +186,26 @@ export function mergeCanvasMemory(saved: Readonly<Record<string, Readonly<Record
   return merged;
 }
 
-// The read sidebar projects under the run's: a project the run holds keeps its roots, selection, fold and groups, and
-// unfolds when either unfolded it, as reconcileProjects merges a rejoined group.
-export function mergeShellProjects(saved: Readonly<Record<string, ShellProject>>, current: Readonly<Record<string, ShellProject>>): Record<string, ShellProject> {
+// What the person folded, unfolded or opened and closed in the sidebar before ui-state was read, by project key.
+export interface ShellTouched { fold: ReadonlySet<string>; groups: ReadonlyMap<string, ReadonlySet<GroupId>> }
+
+// The read sidebar projects under the run's: a project the run holds keeps its roots and selection; its fold and each
+// group are the person's where they changed them before the read, else the read's.
+export function mergeShellProjects(saved: Readonly<Record<string, ShellProject>>, current: Readonly<Record<string, ShellProject>>, touched: ShellTouched): Record<string, ShellProject> {
   const merged = { ...saved };
   for (const [key, project] of Object.entries(current)) {
     const read = saved[key];
     if (!read) { merged[key] = project; continue; }
-    const { selectedRoot, selectedAt, ...rest } = read;
-    const selection = !project.selectedRoot && selectedRoot && project.roots.includes(selectedRoot) ? { selectedRoot, ...(selectedAt !== undefined ? { selectedAt } : {}) } : {};
-    merged[key] = { ...rest, ...project, ...selection, expanded: project.expanded || read.expanded };
+    const selection = project.selectedRoot ? { selectedRoot: project.selectedRoot, ...(project.selectedAt !== undefined ? { selectedAt: project.selectedAt } : {}) }
+      : read.selectedRoot && project.roots.includes(read.selectedRoot) ? { selectedRoot: read.selectedRoot, ...(read.selectedAt !== undefined ? { selectedAt: read.selectedAt } : {}) } : {};
+    const folded = touched.fold.has(key);
+    const changed = touched.groups.get(key);
+    const closed = (["ds", "canvases"] as const).filter(id => (changed?.has(id) ? project.groups : read.groups)?.[id] === false);
+    merged[key] = {
+      roots: project.roots, ...selection,
+      expanded: folded ? project.expanded : read.expanded, ...(folded && project.collapsed ? { collapsed: true } : {}),
+      ...(closed.length ? { groups: Object.fromEntries(closed.map(id => [id, false])) as NonNullable<ShellProject["groups"]> } : {}),
+    };
   }
   return merged;
 }
@@ -416,6 +426,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const conversationByCanvas = useRef<Record<string, Record<string, string>>>({});
   // Roots removed before that read: the read's memory for them is dropped by the merge.
   const canvasMemoryRemoved = useRef(new Set<string>());
+  const shellTouched = useRef({ fold: new Set<string>(), groups: new Map<string, Set<GroupId>>() });
+  const touchFold = (key: string) => { if (!memoryRead.current) shellTouched.current.fold.add(key); };
   // A canvas whose id another listed canvas shares has no memory: neither of the two can tell it is the one meant.
   const sharedCanvasId = (root: string, canvas: Canvas) => {
     const listed = entriesRef.current.find(entry => entry.path === root);
@@ -759,7 +771,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
         // Merged here, not in the restore, which a navigation before the read cancels.
         const read = afterRemoved({ shellProjects: state?.shellProjects ?? {}, expanded: state?.expanded ?? {}, history: emptyHistory() }, [...canvasMemoryRemoved.current]);
         setExpanded(previous => ({ ...read.expanded, ...previous }));
-        setShellProjects(previous => mergeShellProjects(read.shellProjects, previous));
+        setShellProjects(previous => mergeShellProjects(read.shellProjects, previous, shellTouched.current));
         const remembered = controller.current?.memory() ?? {};
         for (const [root, item] of Object.entries(state?.lastByRoot ?? {})) if (!(root in remembered) && !canvasMemoryRemoved.current.has(root)) controller.current?.remember(root, item);
         memoryRead.current = true; setMemoryTick(tick => tick + 1); overviewRun.current?.sync(); canvasRun.current?.sync();
@@ -1030,15 +1042,17 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     // A locked page ignores only the move to a workspace: the row still unfolds another project, and
     // never folds one, as unlocked; the chevron folds. The loaded project is already unfolded or folded by hand.
     if (locked()) {
-      if (!loadedRoot || !group.rows.some(row => row.path === loadedRoot))
+      if (!loadedRoot || !group.rows.some(row => row.path === loadedRoot)) {
+        touchFold(key);
         setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path), expanded: true } }));
+      }
       return;
     }
     const loaded = loadedRoot !== null && group.rows.some(row => row.path === loadedRoot);
     // Home and the Add Projects page show the sidebar without a current project: from Home its row opens the Overview,
     // from the page it goes back to the loaded workspace.
     if (loaded) {
-      if (shellRef.current[key]?.collapsed) setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path), expanded: true, collapsed: false } }));
+      if (shellRef.current[key]?.collapsed) { touchFold(key); setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path), expanded: true, collapsed: false } })); }
       const move = loadedProjectRow({ screen: currentScreen.current, overviewShown: shownOverviewRef.current === loadedRoot });
       if (move === "enter") enter(loadedRoot);
       // Over the covered Overview a changed conversation would not show: the row takes focus to the scene (PRODUCT §5 item 1).
@@ -1057,6 +1071,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     // Another project's row opens its Overview from anywhere, never its last canvas, and never folds it: only its
     // chevron does. A problem root's Overview shows under its overlay.
     controller.current?.openWorkspace(root, next => {
+      touchFold(key);
       setShellProjects(previous => ({ ...previous, [key]: { ...memory, expanded: true } }));
       askSlot(next);
       completeNavigation(next);
@@ -1065,6 +1080,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The project row's chevron: fold or unfold only, the loaded project included.
   const discloseProject = (key: string) => {
     const group = cards.find(card => card.key === key); if (!group) return;
+    touchFold(key);
     setShellProjects(previous => {
       const memory = { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) };
       const open = projectExpanded(memory, loadedRoot);
@@ -1081,6 +1097,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // A locked page keeps the disclosure, as project expansion does.
   const toggleShellGroup = (key: string, id: GroupId) => {
     const group = cards.find(card => card.key === key); if (!group) return;
+    if (!memoryRead.current) shellTouched.current.groups.set(key, new Set(shellTouched.current.groups.get(key)).add(id));
     setShellProjects(previous => ({ ...previous, [key]: withGroups({ ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) }, groups => toggleGroup(groups, id)) }));
   };
   // Whatever opened it, a newly shown canvas opens its group; a group closed while it stays shown stays closed.
