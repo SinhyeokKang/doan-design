@@ -742,3 +742,13 @@ func TestServeWithheld(t *testing.T) {
 		t.Fatalf("no entry: %+v", fs)
 	}
 }
+
+func TestImageSetStringExternalURL(t *testing.T) {
+	in := base()
+	in.CSS["shared.css"] = canvas.ScanCSS(`a{background:image-set("https://cdn/x.png" 1x, url(local.png) 2x)}`, canvas.Stylesheet)
+	in.Reach[in.Canvases[0].Path] = []CSSRef{{Href: "shared.css", RealPath: "shared.css", State: In, Direct: true}}
+	fs := codes(Run(in), "external_url")
+	if len(fs) != 1 || fs[0].Path != "shared.css" || fs[0].URL != "https://cdn/x.png" {
+		t.Fatalf("%+v", fs)
+	}
+}

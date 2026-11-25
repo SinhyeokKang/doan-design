@@ -1,7 +1,7 @@
 import type { Provider } from "../agentAuth/types";
 import { COMMAND_ALLOWLIST } from "./providerCommands";
 import type { Prepared } from "./service";
-import { storedVersionAtLeast } from "./sessions";
+import { parseCliVersion, storedVersionAtLeast } from "./sessions";
 import type { SkillSummary } from "./types";
 
 // Both lists carry repository text that anyone with push access wrote, and it crosses IPC into every composer.
@@ -47,7 +47,8 @@ export function parseCodexSkills(result: unknown): SkillSummary[] {
 const PLACEHOLDER = "Built-in command.";
 export function allowedCommands(provider: Provider, installed: string | undefined, reported?: ReadonlyMap<string, string>): SkillSummary[] {
   const table = COMMAND_ALLOWLIST[provider];
-  if (!storedVersionAtLeast(installed, table.version)) return [];
+  // `installed` keeps a +build suffix, which a stored version never has: only the core is compared.
+  if (!storedVersionAtLeast(installed && parseCliVersion(installed)?.core, table.version)) return [];
   const acp = provider !== "claude" && provider !== "codex";
   return table.commands.filter(c => !acp || reported?.has(c.name)).map(c => {
     const said = reported?.get(c.name);

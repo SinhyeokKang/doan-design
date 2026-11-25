@@ -979,3 +979,28 @@ func TestOnboardingInAnAppConversationIsRefusedBeforeTheApp(t *testing.T) {
 		t.Fatalf("%d requests sent", n)
 	}
 }
+
+// An attempt sent near the cap still gets the full answer budget: the app acts on any request it reads, so a
+// clipped read that times out would report busy for a canvas the app then opens.
+func TestBootstrapLastAttemptKeepsTheFullAnswerBudget(t *testing.T) {
+	const roundTrip, answer = 100 * time.Millisecond, 300 * time.Millisecond
+	h := newLaunchHarness(t)
+	acted := false
+	attempt := func(deadline time.Time) (map[string]any, *Error, bool) {
+		if h.elapsed < 14800*time.Millisecond {
+			h.elapsed += roundTrip
+			return notReadyStep()
+		}
+		acted = true
+		if deadline.Sub(h.ctx.Now()) < answer {
+			h.elapsed += deadline.Sub(h.ctx.Now())
+			return slowStep()
+		}
+		h.elapsed += answer
+		return openedStep()
+	}
+	reply, failure := bootstrap(h.ctx, false, openFailure, attempt)
+	if !acted || failure != nil || reply["opened"] != true {
+		t.Fatal(acted, reply, failure, h.elapsed)
+	}
+}

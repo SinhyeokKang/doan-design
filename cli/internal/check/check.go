@@ -2,7 +2,6 @@ package check
 
 import (
 	"path"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -80,9 +79,7 @@ func Summarize(findings []Finding, canvases int) Summary {
 // canvas uses it without defining it; nothing defines it on the board.
 const viewportHeightVar = "--doan-viewport-height"
 
-var idPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
-
-func validID(c canvas.Canvas) bool { return c.HasID && !c.IDDup && idPattern.MatchString(c.ID) }
+func validID(c canvas.Canvas) bool { return c.HasID && !c.IDDup && canvas.IDPattern.MatchString(c.ID) }
 func Run(in Input) []Finding {
 	findings := []Finding{}
 	seen := map[Finding]bool{}
@@ -332,7 +329,7 @@ func Run(in Input) []Finding {
 			if shared {
 				for _, u := range append(append([]string(nil), s.URLs...), s.Imports...) {
 					if canvas.IsExternal(u) {
-						output("external_url", trimURL(u))
+						output("external_url", canvas.TrimURL(u))
 					}
 				}
 			}
@@ -415,7 +412,7 @@ func ambiguousURLs(c canvas.Canvas, in Input, add func(Finding), cssSeen map[[3]
 			}
 			cssSeen[key] = true
 			f := Finding{Severity: "warning", Code: "ambiguous_custom_url", Path: file, Token: r.Custom, Value: r.Value,
-				Message: "Custom property " + r.Custom + " holds url(" + r.Value + "), which the stylesheets that use it resolve to different paths, so the app shows different files and export refuses it; use the property from stylesheets in one folder only."}
+				Message: "Custom property " + r.Custom + " holds the URL " + r.Value + ", which the stylesheets that use it resolve to different paths, so the app shows different files and export refuses it; use the property from stylesheets in one folder only."}
 			if !shared {
 				f.Canvas = c.ID
 			}
@@ -427,4 +424,3 @@ func ambiguousURLs(c canvas.Canvas, in Input, add func(Finding), cssSeen map[[3]
 		report(p, true, in.CustomCSS[p].URLs)
 	}
 }
-func trimURL(s string) string { return strings.TrimFunc(s, func(r rune) bool { return r <= 32 }) }

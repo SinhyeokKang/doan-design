@@ -64,6 +64,13 @@ describe("conversationSummary", () => {
     expect(conversationSummary(doan, { ok: true, events: history(...started, { type: "activity", kind: "read", summary: "Read a.html" }) }, live)).not.toHaveProperty("waitingSince");
     expect(conversationSummary(doan, { ok: true, events: history(...started, permission) }, restarted)).not.toHaveProperty("waitingSince");
   });
+  // A new Codex app-server numbers its requests from 0 again, so a history can hold one id in two turns.
+  it("waits since the current turn's request when an earlier turn's answered request had the same id", () => {
+    const zero: EventPayload = { ...permission, requestId: "number:0", summary: "Run ls" };
+    const events = history(...started, zero, { type: "permission.resolved", requestId: "number:0", optionId: "allow" }, { type: "turn.done" },
+      [{ type: "user.message", text: "Again", anchors: [] }, "t2"], [{ type: "turn.started" }, "t2"], [{ ...zero, summary: "Run npm test" }, "t2"]);
+    expect(conversationSummary(doan, { ok: true, events }, live)).toMatchObject({ phase: "waiting", waitingSince: at(8), preview: "Needs your answer: Run npm test" });
+  });
   it("folds an unfinished turn after a restart into an unseen end", () => {
     const s = conversationSummary(doan, { ok: true, events: history(...started, permission) }, restarted);
     expect(s).toMatchObject({ phase: "ended", unseen: true });

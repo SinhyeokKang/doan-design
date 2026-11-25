@@ -5,7 +5,7 @@ import { open, realpath } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
 import { signInLink } from "../agentAuth/antigravity";
-import { ACP_PROTOCOL_VERSION, AcpConnection, acpEnded, acpPermission, acpPromptDone, acpQuestion, acpPromptFailed, initialAcp, normalizeAcp, type AcpChoice, type AcpTransport } from "./acp";
+import { ACP_PROTOCOL_VERSION, AcpConnection, acpEnded, acpFailureCode, acpPermission, acpPromptDone, acpQuestion, acpPromptFailed, initialAcp, normalizeAcp, type AcpChoice, type AcpTransport } from "./acp";
 import { acpInitialize, acpSessionNew, type HandshakeVerdict } from "./handshake";
 import { listProcesses, ownProtocolProcess } from "./process";
 import { object } from "./sessions";
@@ -149,7 +149,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     acp.close(); void group?.stop();
     const detail = failure || (error instanceof Error ? error.message : "");
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the exit and failure callbacks set these while the session opens
-    const code = (dead || detail === "process_exited") && !failure ? "process_exited" : ["runtime_unsupported", "session_unavailable"].includes(detail) ? detail : transportCode(detail);
+    const code = (dead || detail === "process_exited") && !failure ? "process_exited" : ["runtime_unsupported", "session_unavailable"].includes(detail) ? detail : acpFailureCode(detail, "open");
     // An exit the server chose (a stop closes the connection first, so dead is not yet set) leaves only process_exited;
     // its stderr names the cause, such as a store the fence keeps closed. dead is set once stderr has drained.
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the exit callback sets this while the session opens
@@ -275,9 +275,4 @@ function acpCurrent(result: unknown, configId: "mode" | "allow_all"): unknown {
   const listed = acpOption(result, configId)?.currentValue;
   if (listed !== undefined || configId !== "mode") return listed;
   return object(result) && object(result.modes) ? result.modes.currentModeId : undefined;
-}
-function transportCode(detail: string): string {
-  if (/authentication required|not logged in|unauthorized|sign in/i.test(detail)) return "not_logged_in";
-  if (/session.*(not found|unavailable|exists)/i.test(detail)) return "session_unavailable";
-  return /timed out/i.test(detail) ? "process_exited" : "session_unavailable";
 }

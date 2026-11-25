@@ -6,7 +6,6 @@ import (
 	"github.com/SinhyeokKang/doan-design/cli/internal/repo"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 func checkState(s repo.State) check.State {
@@ -76,17 +75,7 @@ func checkInput(r repo.Repository, resolver *repo.Resolver, inspected func([]can
 	if e != nil {
 		return in, e
 	}
-	in.Served = func(p string) bool {
-		if repo.Withheld(p) {
-			return false
-		}
-		for _, s := range served {
-			if p == s || strings.HasPrefix(p, s+"/") {
-				return true
-			}
-		}
-		return false
-	}
+	in.Served = func(p string) bool { return repo.Served(p, served) }
 	for _, file := range files {
 		c := file.Model
 		if file.ParseError != nil {

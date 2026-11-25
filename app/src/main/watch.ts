@@ -255,19 +255,20 @@ function servedTargets(root: string, scope: readonly string[]): { targets: Targe
   const targets: Target[] = top.map((dir) => ({ path: join(root, dir), recursive: true, change: SERVED }));
   const rootNames = new Set<string>();
   const parents = new Map<string, Set<string>>();
-  const watchParent = (rel: string) => {
-    const parent = dirname(rel);
-    const names = parents.get(parent) ?? new Set<string>();
-    names.add(basename(rel));
-    parents.set(parent, names);
+  // Every ancestor below the root is watched too, for the next name down only: once a directory is deleted its own
+  // watcher is gone, and only the one above it sees it come back. The root watcher does this for the root's entries.
+  const watchAncestors = (rel: string) => {
+    for (let child = rel, parent = dirname(rel); parent !== "."; child = parent, parent = dirname(parent)) {
+      const names = parents.get(parent) ?? new Set<string>();
+      names.add(basename(child));
+      parents.set(parent, names);
+    }
   };
-  // A served directory's parent is watched too: once the directory is deleted its own watcher is gone, and the parent
-  // sees it come back. The root watcher already does this for directories at the root.
-  for (const dir of top) if (dirname(dir) !== ".") watchParent(dir);
+  for (const dir of top) watchAncestors(dir);
   for (const file of files) {
     if (covered(file)) continue;
     if (dirname(file) === ".") rootNames.add(file);
-    else watchParent(file);
+    else watchAncestors(file);
   }
   for (const [parent, names] of parents) targets.push({ path: join(root, parent), recursive: false, change: SERVED, names });
   return { targets, rootNames };

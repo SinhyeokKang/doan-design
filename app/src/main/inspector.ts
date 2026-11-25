@@ -1,3 +1,4 @@
+import { MAX_SELECTOR } from "../renderer/canvasMessage";
 import type { DocumentBindings, LoadedDocument } from "./document/bindings";
 import { inspectRows, type InspectResult, type MatchedStyles } from "./inspect";
 import { shownDocument } from "./seenProof";
@@ -7,8 +8,6 @@ import type { DebuggerLike, WindowDebugger } from "./windowDebugger";
 // The document must be the one the window shows (seenProof.ts), and commands go only to the session that owns its frame.
 
 const BUDGET_MS = 2000;
-// The cap is the selector cap of the canvas messages (UTF-16 units, as `String.length` counts).
-const SELECTOR_LIMIT = 1000;
 
 export interface InspectRequest {
   selector: string;
@@ -29,7 +28,7 @@ const text = (value: unknown): value is string => typeof value === "string" && v
 export function parseInspectRequest(value: unknown): InspectRequest | null {
   if (!exactKeys(value, ["selector", "canvas", "seq"])) return null;
   const { selector, canvas, seq } = value;
-  if (typeof selector !== "string" || selector.length < 1 || selector.length > SELECTOR_LIMIT) return null;
+  if (typeof selector !== "string" || selector.length < 1 || selector.length > MAX_SELECTOR) return null;
   if (!exactKeys(canvas, ["root", "path"]) || !text(canvas.root) || !text(canvas.path)) return null;
   if (typeof seq !== "number" || !Number.isSafeInteger(seq) || seq < 0) return null;
   return { selector, canvas: { root: canvas.root, path: canvas.path }, seq };
@@ -63,8 +62,8 @@ interface DomNode {
 }
 
 // An ancestor's name as the element menu names nodes (canvasScript.ts `nodeLabel`, canvasTree.ts `frameLabel`), without
-// the menu's quote of a tag's text.
-function ancestorLabel(node: Pick<DomNode, "localName" | "attributes">): string {
+// the menu's quote of a tag's text. The exported viewer's copy (cssomMatched.ts) must answer the same.
+export function ancestorLabel(node: Pick<DomNode, "localName" | "attributes">): string {
   const attributes = new Map<string, string>();
   const list = node.attributes ?? [];
   for (let i = 0; i + 1 < list.length; i += 2) attributes.set(list[i]!, list[i + 1]!);

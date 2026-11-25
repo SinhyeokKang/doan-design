@@ -205,7 +205,7 @@ descendant.once('message',()=>{
       }
       await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 2500 });
       expect(store.read(conversationId).filter(e => ["turn.done", "turn.failed", "interrupted"].includes(e.type))).toEqual((mode === "resend" ? [terminal, terminal] : [terminal]).map(e => expect.objectContaining(e)));
-      if (["exit", "signal", "eof"].includes(mode)) expect(store.read(conversationId)).toContainEqual(expect.objectContaining({ type: "permission.resolved", requestId: "number:7", optionId: "expired" }));
+      if (["exit", "signal", "eof"].includes(mode)) expect(store.read(conversationId)).toContainEqual(expect.objectContaining({ type: "permission.resolved", requestId: "t:number:7", optionId: "expired" }));
       expect(() => process.kill(-pids.server, 0)).toThrow();
     }
     await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 2500 });
@@ -1108,8 +1108,8 @@ it("asks before a Doan connector's MCP tool with the connector's name and sends 
   const runner = await openRunner({ command: h.command, runtime: "codex", cwd: h.root, configDir: h.root, env: process.env, owner: h.owner, mcp: MCP_RUN }, e => events.push(e), () => {}, () => {});
   try {
     await runner.send("hello", "t1");
-    await vi.waitFor(() => expect(events).toContainEqual(expect.objectContaining({ type: "permission.request", requestId: "number:7", tool: "mcpToolCall", summary: "Run search on example.com" })));
-    expect(runner.answer("number:7", "accept")).toBe(true);
+    await vi.waitFor(() => expect(events).toContainEqual(expect.objectContaining({ type: "permission.request", requestId: "native-turn:number:7", tool: "mcpToolCall", summary: "Run search on example.com" })));
+    expect(runner.answer("native-turn:number:7", "accept")).toBe(true);
     await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
     expect(h.lines().filter(t => t.startsWith('{"id":7'))).toEqual([JSON.stringify({ id: 7, result: { action: "accept", content: {} } })]);
   } finally { await runner.close(); h.cleanup(); }
@@ -1158,14 +1158,14 @@ it("after a Stop, a late answer is stale and a new MCP tool approval is declined
   const service = new ConversationService(new ConversationStore(h.root), async () => ({ command: h.command, runtime: "codex", cwd: h.root, configDir: h.root, env: process.env, owner: h.owner, mcp: MCP_RUN }), openRunner, () => {});
   try {
     const { conversationId: id } = await service.start({ root: h.root, mode: "new", runtime: "codex", text: "hello", anchors: [] });
-    await vi.waitFor(() => expect(service.read(id).events).toContainEqual(expect.objectContaining({ type: "permission.request", requestId: "number:7" })));
+    await vi.waitFor(() => expect(service.read(id).events).toContainEqual(expect.objectContaining({ type: "permission.request", requestId: "native-turn:number:7" })));
     await service.interrupt(id);
     await vi.waitFor(() => expect(h.at(t => t.startsWith('{"id":8'))).toBeGreaterThan(-1));
-    expect(() => service.answer(id, "number:7", "accept")).toThrow("stale");
+    expect(() => service.answer(id, "native-turn:number:7", "accept")).toThrow("stale");
     expect(h.lines().filter(t => t.startsWith('{"id":7'))).toEqual([JSON.stringify({ id: 7, error: { code: -32601, message: "Unsupported request or unavailable owner." } })]);
     expect(h.lines().filter(t => t.startsWith('{"id":8'))).toEqual([JSON.stringify({ id: 8, result: { action: "decline" } })]);
     const events = service.read(id).events;
-    expect(events.filter(e => e.type === "permission.request").map(e => e.type === "permission.request" && e.requestId)).toEqual(["number:7"]);
+    expect(events.filter(e => e.type === "permission.request").map(e => e.type === "permission.request" && e.requestId)).toEqual(["native-turn:number:7"]);
     expect(events.at(-1)).toMatchObject({ type: "interrupted", reason: "user" });
   } finally { service.quit(); h.cleanup(); }
 }, 15000);

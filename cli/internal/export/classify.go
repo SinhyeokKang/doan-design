@@ -1,10 +1,6 @@
 package export
 
-import (
-	"strings"
-
-	"github.com/SinhyeokKang/doan-design/cli/internal/canvas"
-)
+import "github.com/SinhyeokKang/doan-design/cli/internal/canvas"
 
 // refKind is what a reference does in the page.
 type refKind int
@@ -44,9 +40,4 @@ func classifyRef(kind refKind, href string) refClass {
 		return classRefuse
 	}
 	return classInline
-}
-
-// trimURL strips what the URL parser strips: leading and trailing C0 controls and spaces.
-func trimURL(s string) string {
-	return strings.TrimFunc(s, func(r rune) bool { return r <= 32 })
 }

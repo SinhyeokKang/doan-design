@@ -3,6 +3,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { PROVIDER_NAMES } from "../renderer/agentAuthView";
 import type { ToolFacts } from "./agentAuth/types";
 import { createInstallOpener, installChoice, terminalScript, type TerminalChoice } from "./installCommand";
 import { INSTALL_URLS } from "./settings";
@@ -29,6 +30,10 @@ describe("installChoice", () => {
     for (const installed of [at, over]) {
       expect(installChoice(provider, below(installed))).toEqual({ kind: "terminal", action: "update", command, title, url: INSTALL_URLS[provider] });
     }
+  });
+
+  it.each(["claude", "codex", "cursor", "copilot"] as const)("titles the %s Terminal window with the name the app shows", (provider) => {
+    expect(installChoice(provider, missing)).toMatchObject({ title: `Install ${PROVIDER_NAMES[provider]}` });
   });
 
   // copilot update can replace a package Doan's Copilot never runs (HOME=<profileDir>), so updating is the page's job.

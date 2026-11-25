@@ -14,6 +14,7 @@ import type { FolderState } from "./folderState";
 // Electron-free on purpose, like shell.ts: index.ts supplies the open projects
 // and the selection, and owns the app lifecycle around this.
 
+// The CLI's socketLineLimit; handoff_rules_test.go reads this line.
 const LINE_LIMIT = 64 * 1024;
 export const LINE_WAIT_MS = 2000;
 // The CLI's 2 s (`activeTimeout`) starts before it dials and LINE_WAIT_MS at the connection, so a registration
