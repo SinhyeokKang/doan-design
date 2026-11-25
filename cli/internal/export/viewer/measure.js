@@ -128,7 +128,17 @@ const frames = () => {
   return { list, total, bottom, gotos };
 };
 
+// The first layout waits for linked stylesheets (canvasScript.ts): a height measured unstyled sticks in
+// nextHeight once the iframe takes it (POSTMORTEM 2026-11-20).
+let laidOut = false;
+const failedSheets = new WeakSet();
 const send = () => {
+  if (!laidOut) {
+    if (document.readyState !== "complete" && Array.from(document.querySelectorAll('link[rel~="stylesheet" i][href]:not([rel~="alternate" i])')).some(
+      (link) => !link.sheet && !link.disabled && !failedSheets.has(link) && (!link.media || matchMedia(link.media).matches),
+    )) return;
+    laidOut = true;
+  }
   inspection.layout();
   const html = document.documentElement;
   const { list, total, bottom, gotos } = frames();
@@ -151,6 +161,13 @@ const schedule = () => {
 
 // The first layout and measure replies skip rAF: an iframe outside the viewport gets no animation
 // frames, so a batched reply would never come.
+const stylesheetSettled = (event) => {
+  if (laidOut || !(event.target instanceof HTMLLinkElement)) return;
+  if (event.type === "error") failedSheets.add(event.target);
+  if (started) send();
+};
+document.addEventListener("load", stylesheetSettled, true);
+document.addEventListener("error", stylesheetSettled, true);
 const start = () => {
   started = true;
   const resized = new ResizeObserver(schedule);
@@ -158,7 +175,7 @@ const start = () => {
   if (document.body) resized.observe(document.body);
   new MutationObserver(schedule).observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
   addEventListener("resize", schedule);
-  addEventListener("load", schedule);
+  addEventListener("load", () => { if (laidOut) schedule(); else send(); });
   // Inner scrollers move frames without resizing anything.
   addEventListener("scroll", schedule, { capture: true, passive: true });
   void document.fonts.ready.then(schedule);
