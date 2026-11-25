@@ -21,7 +21,7 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| A1 셸 상태 | M1, M10(제거 판정만), M11, M13, W2-shell-6 | `App.tsx`, `afterRemoved.ts`, `overviewRun.ts`, `projectStep.ts`, `projectRow.ts`(+test), 그 테스트 | 없음 | Opus high — ui-state 병합·제거 정리는 사용자 데이터 손실과 postmortem 재발 지점 | vitest 관련 테스트, typecheck, lint | 진행 중 (`ctx_284ccf17e460`) |
+| A1 셸 상태 | M1, M10(제거 판정만), M11, M13, W2-shell-6 | `App.tsx`, `afterRemoved.ts`, `overviewRun.ts`, `projectStep.ts`, `projectRow.ts`(+test), `AddProjectsPage.tsx`·`Onboarding.tsx`(M13 기본 위치 입력만), 그 테스트 | 없음 | Opus high — ui-state 병합·제거 정리는 사용자 데이터 손실과 postmortem 재발 지점 | vitest 관련 테스트, typecheck, lint | 진행 중 (`ctx_284ccf17e460`) |
 | A2 포커스·seen | M3, M12(`App.tsx`·`AgentUsageButton.tsx` 부분), M18, C-G3-4 | `App.tsx`, `homeRun.ts`, `canvasRun.ts`, `overviewRun.ts`, `ProjectSetupDialog.tsx`, `AgentUsageButton.tsx` | A1 통합(같은 `App.tsx`·`overviewRun.ts`) | Opus high — 활성화 포커스·seen 재전송은 비동기 경합 | 같음 | 대기 |
 | C 대화·컴포저 | M19, C-G3-3, M-G3-3+M-G2-6, M-G3-6, W2-renderer-conversation-1 | `ProjectOverview.tsx`, `HomeComposerView.tsx`, `homeComposer.ts`, `CanvasConversationPanel.tsx`, `conversationStrip.ts`, `SettingsAbout.tsx`, `canvasCapture.ts`, `DockedComposer.tsx`, `conversationList.ts`, `overviewConversation.ts`, `conversationStore.ts` | 없음 | Opus medium — main 모듈 import 경계 판단이 필요하나 범위가 좁다 | 같음 | 진행 중 (`ctx_d4658cfb6956`) |
 | D1 캔버스 | C-G3-7+W2-renderer-canvas-2, C-G3-8, C-G3-9, W2-renderer-canvas-1, W2-renderer-canvas-4 | `CanvasController.ts`, `canvasPicker.ts`, `frameDrawer.ts`, `dockedBuddyShell.ts`, `Doany.tsx`, 해당 DESIGN 문구 | 없음 | Opus high — 캔버스 로딩 경합과 GL 공유는 회귀 위험이 크다 | 같음 + `dockedBuddyGolden.mjs --check`, `doanyGolden.mjs --check` | 진행 중 (`ctx_59af175d7505`) |
