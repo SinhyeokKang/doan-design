@@ -1,5 +1,5 @@
 import type { Prepared } from "../conversation/service";
-import type { CheckStarted, Lease } from "./manager";
+import { QUIT_WAIT_MS, type CheckStarted, type Lease } from "./manager";
 import { PROVIDER_AUTH } from "./providers";
 import { PROVIDERS, type AuthState, type Provider, type Readiness } from "./types";
 import { usageNotSupported } from "./usageParse";
@@ -32,8 +32,6 @@ export interface UsageServiceOptions {
   now?(): number;
 }
 interface Read { connectionId: string; controller: AbortController; done?: Promise<void> }
-// Quit waits this long for stopped reads (as AuthManager.quit waits for its own work); it drops leftover holds itself.
-const QUIT_WAIT_MS = 5000;
 
 // Account usage in main memory: what the window shows (entries), when a provider is read (shouldRead's triggers, no
 // polling), and which reads a sign-out stops. Nothing here is written to disk.
@@ -86,7 +84,10 @@ export class UsageService {
   visibilityChanged(): void {
     const visible = this.options.visible(), again = visible && !this.shown;
     this.shown = visible;
-    if (again) { this.trigger({ kind: "start" }); for (const provider of this.signedIn) this.start(provider, { kind: "signIn" }); }
+    if (!again) return;
+    // Before main's first start (the tool facts probe still running), that start does the reads.
+    if (this.factsRead) this.trigger({ kind: "start" });
+    for (const provider of this.signedIn) this.start(provider, { kind: "signIn" });
   }
 
   // A Doan-account turn's end, read on the run's own connection (no lease, no process). limit: the usage limit stopped the
@@ -122,6 +123,7 @@ export class UsageService {
     read?.controller.abort();
     await read?.done;
   }
+  // Waits as long as AuthManager.quit, which drops leftover holds itself.
   async quit(): Promise<void> {
     this.closed = true;
     for (const read of this.reads.values()) read.controller.abort();

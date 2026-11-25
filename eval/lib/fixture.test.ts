@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { test } from "node:test";
-import { fixtureRun } from "../run.ts";
+import { fixtureRun, realRun } from "../run.ts";
 import { parseArgs } from "./args.ts";
 import { loadScenario } from "./scenario.ts";
 
@@ -87,6 +87,65 @@ test("a fixture workspace is disposed even when the evidence error cannot be wri
     assert.equal(existsSync(workspace), false);
   } finally {
     if (workspace) rmSync(workspace, { recursive: true, force: true });
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+// A signal ends the round only after the runner's own cleanup (POSTMORTEM 2026-11-20), with the signal's exit code.
+test("an interrupted self-test removes its workspace and CLI directory and exits 128 plus the signal", { timeout: 60_000 }, async () => {
+  const base = mkdtempSync("/tmp/doan-signal-test-");
+  const round = `signal-${basename(base)}`;
+  const out = join(import.meta.dirname, "../../.scratch/agent-eval", round + "-self-test");
+  const reached = join(base, "reached"), release = join(base, "release"), built = join(base, "built");
+  let workspace: string | undefined, cliDir: string | undefined;
+  try {
+    // A fake go "builds" a CLI that answers `skill` and holds its first other call (W3b's init) until released.
+    const fakeCli = `#!/bin/sh\nif [ "$1" = skill ]; then echo '{"ok":true,"result":{"version":"0.0.0-test"}}'; exit 0; fi\nif [ ! -e ${reached} ]; then pwd -P > ${reached}; while [ ! -e ${release} ]; do sleep 0.05; done; fi\necho '{}'\n`;
+    writeFileSync(join(base, "cli-source"), fakeCli);
+    writeFileSync(join(base, "go"), `#!/bin/sh\nprintf "%s" "$3" > ${built}\ncp ${join(base, "cli-source")} "$3" && chmod 700 "$3"\n`, { mode: 0o700 });
+    const child = spawn(process.execPath, [join(import.meta.dirname, "../run.ts"), "--self-test", "--scenarios", "W3b", "--round", round], {
+      env: { ...process.env, PATH: base + ":" + process.env.PATH }, stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.on("data", chunk => { stderr += chunk; });
+    const exited = new Promise<number | null>(resolve => child.once("exit", code => resolve(code)));
+    // Wait for the condition the run produces: the CLI call inside the workspace.
+    for (let i = 0; i < 600 && !existsSync(reached); i++) await new Promise(resolve => setTimeout(resolve, 50));
+    assert.ok(existsSync(reached), `the fake CLI was never reached: ${stderr}`);
+    workspace = dirname(readFileSync(reached, "utf8").trim());
+    cliDir = dirname(readFileSync(built, "utf8"));
+    child.kill("SIGTERM");
+    writeFileSync(release, "");
+    assert.equal(await exited, 143, stderr);
+    assert.equal(existsSync(workspace), false, "workspace left behind");
+    assert.equal(existsSync(cliDir), false, "CLI directory left behind");
+  } finally {
+    for (const dir of [workspace, cliDir]) if (dir) rmSync(dir, { recursive: true, force: true });
+    rmSync(out, { recursive: true, force: true });
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+// An unfinished call log fails the run (ARCHITECTURE §14 'CLI call evidence'); the record still says how the agent ended.
+test("a real run whose evidence cannot be read keeps the agent's exit facts", { timeout: 30_000 }, async () => {
+  const base = mkdtempSync("/tmp/doan-real-run-test-");
+  const saved = process.env.PATH;
+  try {
+    const bin = join(base, "bin");
+    mkdirSync(bin);
+    // A stand-in Claude whose doan call never completed, as when its group is killed mid-call.
+    writeFileSync(join(bin, "claude"), `#!/bin/sh\nprintf '{"id":"x","argv":["open"]}\\n' >> ../doan-calls.jsonl\nexit 3\n`, { mode: 0o700 });
+    process.env.PATH = `${bin}:${saved}`;
+    const scenario = { ...loadScenario(join(import.meta.dirname, "../scenarios"), "W3b"), init: null, selectionValue: null };
+    const setup = { options: parseArgs(["--no-judge", "--round", "real-run-test"], new Date()), cli: join(base, "cli"), stub: "stub\n", out: join(base, "out"), meta: { date: "", versions: {}, guideSha256: "", cliVersion: "" } };
+    const record = await realRun(setup, scenario, "claude", 1);
+    assert.deepEqual([record.result, record.exitCode, record.timedOut], ["fail", 3, false]);
+    assert.equal(typeof record.durationSec, "number");
+    assert.match(JSON.stringify(record.checks), /Incomplete doan call log/);
+    const meta = JSON.parse(readFileSync(join(base, "out/W3b-claude/meta.json"), "utf8"));
+    assert.deepEqual([meta.exitCode, meta.timedOut, meta.result], [3, false, "fail"]);
+  } finally {
+    process.env.PATH = saved;
     rmSync(base, { recursive: true, force: true });
   }
 });

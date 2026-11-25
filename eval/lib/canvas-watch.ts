@@ -8,6 +8,13 @@ const CANVAS_DIRS = [".doan/canvases/", ".doan/ds/"];
 // How long a marker's own report may take; past it the log records an error, so the checks treat the names as unknown.
 const MARK_TIMEOUT_MS = 10_000;
 const MARK_RETRY_MS = 200;
+const STOP_GRACE_MS = 2000;
+
+export async function settlesWithin(promise: Promise<void>, ms: number): Promise<boolean> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<boolean>(resolve => { timer = setTimeout(() => resolve(false), ms); });
+  try { return await Promise.race([promise.then(() => true), timeout]); } finally { clearTimeout(timer); }
+}
 
 // Logs names the OS reports under the canvas dirs (null: unnamed; {error}: failed), as a transient file leaves no
 // other trace. One process per watch: libuv rebuilds its shared FSEvents stream and a new watch loses reports.
@@ -15,6 +22,8 @@ export async function watchCanvasDirs(repo: string, log: string): Promise<{ stop
   writeFileSync(log, "", { mode: 0o600 });
   const child = spawn(process.execPath, [fileURLToPath(import.meta.url), repo, log], { stdio: ["pipe", "pipe", "inherit"] });
   const exited = new Promise<void>(resolve => child.once("exit", () => resolve()));
+  // Ending stdin of a child that is already gone fails with EPIPE.
+  child.stdin.on("error", () => undefined);
   const ready = await new Promise<boolean>(resolve => {
     child.stdout.once("data", () => resolve(true));
     void exited.then(() => resolve(false));
@@ -26,7 +35,12 @@ export async function watchCanvasDirs(repo: string, log: string): Promise<{ stop
       if (stopped) return;
       stopped = true;
       child.stdin.end();
-      await exited;
+      // The end marker may take MARK_TIMEOUT_MS; past that the child is stuck and the run's disposal must go on
+      // (POSTMORTEM 2026-10-23).
+      if (await settlesWithin(exited, MARK_TIMEOUT_MS + STOP_GRACE_MS)) return;
+      appendFileSync(log, `${JSON.stringify({ error: "the watch process did not stop" })}\n`);
+      child.kill("SIGKILL");
+      await settlesWithin(exited, STOP_GRACE_MS);
     },
   };
 }

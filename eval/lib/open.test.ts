@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { join } from "node:path";
-import { test } from "node:test";
+import { after, before, test } from "node:test";
 import { noOpen, openCalls, openChecks } from "./open.ts";
 import { startFakeApp, validOpenRequest, validOpenResponse } from "./socket.ts";
 import { toolCalls } from "./transcript.ts";
@@ -10,6 +11,11 @@ import { contentHash } from "./work.ts";
 import type { CheckContext, OpenExchange } from "./types.ts";
 
 const path = ".doan/canvases/profile.html";
+// The fake app reads frames through the CLI, as the app reads its canvas list.
+const cliDir = mkdtempSync("/tmp/doan-open-cli-");
+const cli = join(cliDir, "doan");
+before(() => execFileSync("go", ["build", "-o", cli, "./cli/cmd/doan"], { cwd: join(import.meta.dirname, "../..") }));
+after(() => rmSync(cliDir, { recursive: true, force: true }));
 const shell = (...commands: string[]) => toolCalls(commands.map(command => JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Bash", input: { command } }] } })).join("\n"));
 
 test("v4 validators decide all shared schema fixtures", () => {
@@ -92,8 +98,9 @@ test("the fake app answers v4 like the app's list check and logs token-free, has
   const dir = mkdtempSync("/tmp/doan-open-test-");
   const root = join(dir, "repo");
   mkdirSync(join(root, ".doan/canvases"), { recursive: true });
+  writeFileSync(join(root, ".doan/config.json"), '{"v":1}\n');
   writeFileSync(join(root, path), '<section data-doan-frame="profile-form" data-doan-title="Profile form"></section>');
-  const app = await startFakeApp({ dir, root, selection: null });
+  const app = await startFakeApp({ dir, root, selection: null, cli });
   try {
     const runtime = JSON.parse(readFileSync(app.runtimePath, "utf8"));
     const request = (args: Record<string, unknown>, line?: string) => new Promise<any>((resolve, reject) => {
@@ -136,4 +143,48 @@ test("openChecks read the canvas path as the CLI does", () => {
   for (const spelled of [`/repo/${path}`, `./${path}`, `.doan/../${path}`]) assert.equal(asked(`doan open ${spelled} --frame profile-form`), true, spelled);
   assert.equal(asked("doan open .doan/canvases/other.html --frame profile-form"), false);
   assert.equal(asked(`doan open ${path} --frame x --frame profile-form`), false);
+});
+
+// The app answers found or missing from the frames of its canvas list, which the CLI parses as HTML
+// (row.frames, app/src/renderer/App.tsx); any valid spelling of the attribute counts, a template's content does not.
+test("the fake app takes a v4 frame verdict from the CLI's frame list, not from one attribute spelling", async () => {
+  const dir = mkdtempSync("/tmp/doan-open-test-");
+  const root = join(dir, "repo");
+  mkdirSync(join(root, ".doan/canvases"), { recursive: true });
+  writeFileSync(join(root, ".doan/config.json"), '{"v":1}\n');
+  writeFileSync(join(root, path), `<!doctype html><meta name="doan:canvas" content="profile"><body>
+<section data-doan-frame='single'></section><section data-doan-frame=bare></section>
+<template><section data-doan-frame="templated"></section></template><!-- <section data-doan-frame="commented"></section> --></body>`);
+  const app = await startFakeApp({ dir, root, selection: null, cli });
+  try {
+    const runtime = JSON.parse(readFileSync(app.runtimePath, "utf8"));
+    const frame = (id: string) => new Promise<any>((resolve, reject) => {
+      const socket = connect(runtime.socket);
+      let reply = "";
+      socket.on("error", reject).on("data", bytes => { reply += bytes; }).on("end", () => resolve(JSON.parse(reply).frame));
+      socket.end(JSON.stringify({ v: 4, token: runtime.token, root, path, frame: id }) + "\n");
+    });
+    assert.deepEqual([await frame("single"), await frame("bare"), await frame("templated"), await frame("commented")], ["found", "found", "missing", "missing"]);
+  } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+// A fake that cannot read the list must not answer canvas_not_found, which would read as the agent's outcome.
+test("the fake app gives no v4 answer when it cannot read the canvas list", async () => {
+  const dir = mkdtempSync("/tmp/doan-open-test-");
+  const root = join(dir, "repo");
+  mkdirSync(join(root, ".doan/canvases"), { recursive: true });
+  writeFileSync(join(root, path), '<section data-doan-frame="profile-form"></section>');
+  const broken = join(dir, "broken-doan");
+  writeFileSync(broken, "#!/bin/sh\nexit 3\n", { mode: 0o700 });
+  const app = await startFakeApp({ dir, root, selection: null, cli: broken });
+  try {
+    const runtime = JSON.parse(readFileSync(app.runtimePath, "utf8"));
+    const reply = await new Promise<string>(resolve => {
+      const socket = connect(runtime.socket);
+      let text = "";
+      socket.on("error", () => resolve(text)).on("data", bytes => { text += bytes; }).on("close", () => resolve(text));
+      socket.end(JSON.stringify({ v: 4, token: runtime.token, root, path, frame: "profile-form" }) + "\n");
+    });
+    assert.equal(reply, "");
+  } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
 });

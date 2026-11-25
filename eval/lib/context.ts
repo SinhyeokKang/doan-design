@@ -46,9 +46,16 @@ export function sh(cmd: string, args: string[], cwd: string, env: NodeJS.Process
   return { code: result.status ?? -1, stdout: stdout ?? "", stderr: (stderr ?? "") + (result.error ? `\n${result.error.message}` : "") };
 }
 
+// The runner's own tools come from its PATH: the agent's leads with the run directory, which a sandboxed Codex agent
+// can write (POSTMORTEM 2026-10-25).
+function runnerTools(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return { ...env, PATH: process.env.PATH };
+}
+
 // Post-agent Git reads must not launch repository-configured helpers. Filters
 // also run during diff conversion and intent-to-add, independently of textconv.
-function checkedGit(repo: string, args: string[], env: NodeJS.ProcessEnv, gitDir?: string | null) {
+function checkedGit(repo: string, args: string[], agentEnv: NodeJS.ProcessEnv, gitDir?: string | null) {
+  const env = runnerTools(agentEnv);
   // An explicit Git directory also keeps a repository the agent created in `repo` out of the reads.
   const location = ["-C", repo, ...(gitDir ? ["--git-dir", gitDir, "--work-tree", repo] : [])];
   const config = sh("git", [...location, "config", "--null", "--get-regexp", "^filter\\..*\\.(clean|process|required)$"], repo, env);
@@ -153,7 +160,7 @@ export function createContext(o: ContextOptions): CheckContext {
       if (!o.handoffLog || !existsSync(o.handoffLog)) return [];
       return readArtifact(o.handoffLog, LOG_BYTES).toString("utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
     },
-    run: (cmd, args) => sh(cmd, args, o.repo, o.env),
+    run: (cmd, args) => sh(cmd, args, o.repo, runnerTools(o.env)),
     git: args => git(args),
   };
 }

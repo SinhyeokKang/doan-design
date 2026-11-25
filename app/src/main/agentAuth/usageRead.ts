@@ -68,9 +68,11 @@ export async function readUsage(provider: UsageProvider, lease: Pick<Lease, "com
   }
 }
 
-function within<T>(work: Promise<T>, ms: number, what: string): Promise<T> {
+// armed: the running deadline joins it, so a process exit can clear it.
+function within<T>(work: Promise<T>, ms: number, what: string, armed?: Set<ReturnType<typeof setTimeout>>): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  return Promise.race([work, new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new ReadFailure(`no answer to ${what} within ${ms} ms`)), ms); })]).finally(() => clearTimeout(timer));
+  return Promise.race([work, new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new ReadFailure(`no answer to ${what} within ${ms} ms`)), ms); armed?.add(timer); })])
+    .finally(() => { clearTimeout(timer); if (timer) armed?.delete(timer); });
 }
 function stopped(signal: AbortSignal | undefined): { promise: Promise<never>; dispose(): void } {
   let dispose = () => {};
@@ -157,14 +159,20 @@ async function rpcRead(lease: Pick<Lease, "command" | "env" | "profileDir">, opt
   if (!launch) throw new ReadFailure("the fence could not be built");
   const child = options.spawn(launch.command, launch.args, { cwd: plan.cwd, env: lease.env, input: true });
   const rpc = new StdioRpc(child, plan.framed), stop = stopped(signal);
+  // An answer written just before the exit can still be in the pipe: the exit ends the deadlines and starts group
+  // cleanup, and the read fails only once the group and its pipes are gone (POSTMORTEM 2026-11-16).
+  const armed = new Set<ReturnType<typeof setTimeout>>();
+  let exited = false;
+  void child.exit.then(() => { exited = true; for (const timer of armed) clearTimeout(timer); armed.clear(); child.stop(); });
+  const limit = <T>(work: Promise<T>, ms: number, what: string) => exited ? work : within(work, ms, what, armed);
   const exchange = async () => {
-    await within(rpc.request(...plan.open), options.openMs ?? USAGE_OPEN_MS, plan.open[0]);
+    await limit(rpc.request(...plan.open), options.openMs ?? USAGE_OPEN_MS, plan.open[0]);
     if (plan.initialized) rpc.notify("initialized");
-    return within(rpc.request(...plan.read), options.readMs ?? USAGE_READ_MS, plan.read[0]);
+    return limit(rpc.request(...plan.read), options.readMs ?? USAGE_READ_MS, plan.read[0]);
   };
-  const exited = child.exit.then(() => { throw new ReadFailure("the process exited before answering"); });
-  exited.catch(() => {});
-  try { return await Promise.race([exchange(), exited, stop.promise]); }
+  const gone = child.gone.then(() => { throw new ReadFailure("the process exited before answering"); });
+  gone.catch(() => {});
+  try { return await Promise.race([exchange(), gone, stop.promise]); }
   finally { stop.dispose(); rpc.close(); child.stop(); await child.gone; }
 }
 

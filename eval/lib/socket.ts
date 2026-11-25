@@ -1,11 +1,12 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer, type Socket } from "node:net";
 import { join, resolve } from "node:path";
 import { readRegularFileNoFollowSync } from "../../app/src/main/regularFile.ts";
 import { ATTRIBUTES_BYTES, CANVAS_BYTES, MANIFEST_BYTES, readArtifact, resolveOnDisk } from "./artifact.ts";
+import { settlesWithin } from "./canvas-watch.ts";
 import { contentHash } from "./work.ts";
 
 // Stand-in for the app side of `doan active` (runtime.v1 file, app-socket.v1 socket, as app/src/main/runtime.ts).
@@ -157,8 +158,9 @@ const v2error = (code: string, message: string) => ({ v: 2, ok: false, error: { 
 const ACTIVE = ["pending", "running", "awaiting_user"];
 
 // Operations move one step per status read, so an agent that never polls sees no result. `initialize` runs once
-// when a select that asked for setup succeeds; without it the fake only reports success.
-export function onboardingApp(script: OnboardingScript, root: string, initialize?: (changes: string[]) => void) {
+// when a select that asked for setup settles, and false fails it as the app's refused init does; without it the fake
+// only reports success.
+export function onboardingApp(script: OnboardingScript, root: string, initialize?: (changes: string[]) => boolean) {
   const keys = ["providers", "changes", "readyAfterCheck", "completed"];
   if (!isObj(script) || !only(script, keys, keys.slice(0, 3)) || !Array.isArray(script.providers) || !Array.isArray(script.changes) || !Array.isArray(script.readyAfterCheck))
     throw new Error("onboarding script must be { providers, changes, readyAfterCheck, completed? }");
@@ -220,8 +222,9 @@ export function onboardingApp(script: OnboardingScript, root: string, initialize
       o.inspection = { inspectionId: latestInspection, candidates: [{ path: root, changes: [...script.changes] }] };
     }
     if (o.kind === "project_select") {
-      project = o.project = { root };
-      if (o.initialize && script.changes.length > 0) initialize?.([...script.changes]);
+      if (o.initialize && script.changes.length > 0 && initialize?.([...script.changes]) === false)
+        Object.assign(o, { state: "failed", error: { code: "init_failed", message: "Doan could not set up the project." } });
+      else project = o.project = { root };
     }
     if (o.kind === "complete") { o.project = { root }; completed = true; }
   };
@@ -333,9 +336,16 @@ export function onboardingApp(script: OnboardingScript, root: string, initialize
 const ATTRIBUTE_LINES = [".doan/** linguist-documentation"];
 const INIT_CONFIG = JSON.stringify({ v: 1 }, null, 2) + "\n";
 
-// Sets `root` up as the real app would. Files written are recorded in `manifest`, which changedFiles() reads to
-// keep the app's writes apart from the agent's.
-export function initializeRepo(root: string, changes: string[], manifest: string): void {
+// Sets `root` up as the real app would, or returns false where its `doan init` refuses: a setup path that leaves the
+// folder or is a dangling link (cli/internal/cli/init.go). Files written are recorded in `manifest`, which changedFiles()
+// reads to keep the app's writes apart from the agent's.
+export function initializeRepo(root: string, changes: string[], manifest: string): boolean {
+  for (const path of [".doan/canvases", ".doan", ".doan/config.json", ".gitattributes"]) {
+    try { resolveOnDisk(root, path); } catch { return false; }
+    let link = false;
+    try { link = lstatSync(join(root, path)).isSymbolicLink(); } catch { /* missing */ }
+    if (link && !existsSync(join(root, path))) return false;
+  }
   const written: Record<string, string> = existsSync(manifest) ? JSON.parse(readArtifact(manifest, MANIFEST_BYTES).toString("utf8")) : {};
   if (changes.includes(".doan/canvases/")) mkdirSync(join(root, ".doan/canvases"), { recursive: true });
   if (changes.includes(".doan/config.json")) {
@@ -357,18 +367,27 @@ export function initializeRepo(root: string, changes: string[], manifest: string
     }
   }
   writeFileSync(manifest, JSON.stringify(written) + "\n", { mode: 0o600 });
+  return true;
 }
 
-// Whether the canvas draws a frame with this id. The app also lists frames a canvas script draws at runtime; the fake's
-// canvases declare theirs in markup.
-function hasFrame(canvas: Buffer, frame: string): boolean {
-  return [...canvas.toString("utf8").matchAll(/\bdata-doan-frame="([^"]*)"/g)].some(match => match[1] === frame);
+// The canvas's static frame ids as the CLI parses them for the app's canvas list, or null when the list does not have
+// the canvas. The app also lists frames a canvas script draws at runtime; the fake's canvases declare theirs in markup.
+// An unreadable list throws: answering canvas_not_found would charge the fake's failure to the agent.
+function listedFrames(cli: string, root: string, runtime: string, path: string): unknown[] | null {
+  const listed = spawnSync(cli, ["ls", "--json", "--repo", root], { env: { ...process.env, DOAN_RUNTIME: runtime }, encoding: "utf8", timeout: 30_000 });
+  let reply: unknown = null;
+  try { reply = JSON.parse(listed.stdout); } catch { /* reported below */ }
+  const canvases = isObj(reply) && isObj(reply.result) ? reply.result.canvases : null;
+  if (listed.status !== 0 || !Array.isArray(canvases)) throw new Error(`the eval fake app cannot read the canvas list: exit ${listed.status} ${listed.stderr}`);
+  const item: unknown = canvases.find(entry => isObj(entry) && entry.path === path);
+  return isObj(item) && Array.isArray(item.frames) ? item.frames.map(frame => isObj(frame) ? frame.id : null) : null;
 }
 
 export interface FakeApp { runtimePath: string; onboardingLog: string; workLog: string; openLog: string; handoffLog: string; prototypeLog: string; close(): Promise<void> }
 // Without workOthers the fake is an older app with no `others`; without handoff, one that does not know v5.
 // handoff.key is DOAN_HANDOFF; canvas null is a project conversation, which never meets same_canvas.
-interface FakeAppOptions { dir: string; root: string; selection: Obj | null; onboarding?: OnboardingScript | null; workOthers?: Obj[] | null; handoff?: { key: string; canvas: string | null } | null }
+// cli: the doan whose canvas list the fake reads frames from, as the app does; a v4 request with a frame needs it.
+interface FakeAppOptions { dir: string; root: string; selection: Obj | null; cli?: string; onboarding?: OnboardingScript | null; workOthers?: Obj[] | null; handoff?: { key: string; canvas: string | null } | null }
 
 // The manifest initializeRepo keeps beside the runtime file.
 export const APP_WRITES = "app-writes.json";
@@ -430,8 +449,14 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
         const path = parsed.path as string;
         const canvas = contents(path);
         if (!canvas) return fail("canvas_not_found", "The canvas is not in this project's list.");
+        let frame = "none";
+        if (parsed.frame !== undefined) {
+          if (o.cli === undefined) throw new Error("the eval fake app needs cli to answer a frame");
+          const frames = listedFrames(o.cli, o.root, runtimePath, path);
+          if (frames === null) return fail("canvas_not_found", "The canvas is not in this project's list.");
+          frame = frames.includes(parsed.frame) ? "found" : "missing";
+        }
         hashes[path] = contentHash(canvas);
-        const frame = parsed.frame === undefined ? "none" : hasFrame(canvas, parsed.frame as string) ? "found" : "missing";
         return { v: 4, ok: true, opened: true, frame };
       };
       const response = open();
@@ -544,12 +569,6 @@ export async function startFakeApp(o: FakeAppOptions): Promise<FakeApp> {
 }
 
 const CLOSE_GRACE_MS = 2000;
-
-async function settlesWithin(promise: Promise<void>, ms: number): Promise<boolean> {
-  let timer: NodeJS.Timeout | undefined;
-  const timeout = new Promise<boolean>(resolve => { timer = setTimeout(() => resolve(false), ms); });
-  try { return await Promise.race([promise.then(() => true), timeout]); } finally { clearTimeout(timer); }
-}
 
 // Child side. It exits when the runner closes stdin, including when the runner dies.
 if (import.meta.main) {

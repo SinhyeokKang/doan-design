@@ -157,6 +157,18 @@ describe("provider file bridge", () => {
     await expect(storage.absorb("cursor", files)).rejects.toThrow(expect.objectContaining({ code: "unreadable" }));
     expect(await storage.loadVault("cursor")).toBeNull();
   });
+  // A fenced agent can create a folder at a working file's path (it may write that file); it must not wedge the provider.
+  it("materializes over and scrubs a folder planted at a working file's path", async () => {
+    const storage = new AuthStorage(root, fakeCipher());
+    await storage.saveVault("cursor", { "config/auth.json": Buffer.from("{}") });
+    const path = join(storage.profileDir("cursor"), "config/auth.json");
+    mkdirSync(join(path, "nested"), { recursive: true }); writeFileSync(join(path, "nested/x"), "x");
+    await storage.materialize("cursor", files);
+    expect(readFileSync(path, "utf8")).toBe("{}");
+    rmSync(path); mkdirSync(join(path, "nested"), { recursive: true }); writeFileSync(join(path, "nested/x"), "x");
+    storage.scrub("cursor", files);
+    expect(existsSync(path)).toBe(false);
+  });
   it("reports a failed scrub so a sign-out cannot claim the file is gone", async () => {
     const storage = new AuthStorage(root, fakeCipher());
     plant(storage, "cursor", "config/auth.json", "left");
@@ -189,6 +201,13 @@ describe("owned profile settings", () => {
     expect(lstatSync(path).isFile()).toBe(true);
     expect(readFileSync(path, "utf8")).toBe(text);
     expect(readFileSync(elsewhere, "utf8")).toBe(text);
+  });
+  it("replaces a folder planted at the path, with whatever it holds", () => {
+    const storage = new AuthStorage(root, fakeCipher()), path = pathOf(storage);
+    mkdirSync(join(path, "nested"), { recursive: true }); writeFileSync(join(path, "nested/x"), "x");
+    storage.writeSetting("copilot", rel, text);
+    expect(lstatSync(path).isFile()).toBe(true);
+    expect(readFileSync(path, "utf8")).toBe(text);
   });
   it("replaces a file grown past the cap", () => {
     const storage = new AuthStorage(root, fakeCipher()), path = pathOf(storage);

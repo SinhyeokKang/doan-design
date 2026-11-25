@@ -3,7 +3,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSyn
 import { setTimeout as sleep } from "node:timers/promises";
 import { join } from "node:path";
 import { test } from "node:test";
-import { agentCommand, isolateUserInstructions, registeredCodexMcpServers, runProcess, readAgentTranscript } from "./agent.ts";
+import { agentCommand, agentEnvironment, isolateUserInstructions, registeredCodexMcpServers, runProcess, readAgentTranscript } from "./agent.ts";
 import { buildJudgePrompt } from "./judge.ts";
 import { createContext } from "./context.ts";
 
@@ -64,11 +64,18 @@ test("a run past its time limit is killed with its children and settles once", a
   const dir = mkdtempSync("/tmp/doan-eval-test-");
   try {
     const started = Date.now();
-    // The background sleep holds the output file open; only a group kill ends it.
-    const result = await runProcess({ cmd: "sh", args: ["-c", "echo hi; sleep 30 & sleep 30"], cwd: dir, env: process.env, timeoutSec: 1, stdoutPath: join(dir, "o"), stderrPath: join(dir, "e") });
+    // The background sleep holds the output file open; only a group kill ends it. The bound starts at spawn, so the
+    // test asserts nothing the child does before it (POSTMORTEM 2026-10-30).
+    const result = await runProcess({ cmd: "sh", args: ["-c", `sleep 30 & echo $! > ${dir}/pid; sleep 30`], cwd: dir, env: process.env, timeoutSec: 1, stdoutPath: join(dir, "o"), stderrPath: join(dir, "e") });
     assert.equal(result.timedOut, true);
     assert.ok(Date.now() - started < 10_000);
-    assert.equal(readFileSync(join(dir, "o"), "utf8"), "hi\n");
+    if (existsSync(join(dir, "pid"))) {
+      // The killed sleep is reaped asynchronously, so its pid can answer for a moment after the settle.
+      const pid = Number(readFileSync(join(dir, "pid"), "utf8"));
+      const gone = () => { try { process.kill(pid, 0); return false; } catch { return true; } };
+      for (let i = 0; i < 50 && !gone(); i++) await sleep(100);
+      assert.ok(gone(), `background child ${pid} survived the group kill`);
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -340,4 +347,16 @@ test("no scenario seed carries a project memory file the Claude isolation would 
     }
   }
   assert.deepEqual(found, []);
+});
+
+// A Doan conversation's shell carries its identity and the provider profile Doan signs the agent in with
+// (app/src/main/conversation/environment.ts, agentAuth/environment.ts); none of it is the runner's to pass on.
+test("agents get no Doan conversation identity, and a conversation's profile homes are not the user's", () => {
+  const ids = { CLAUDE_CODE_SESSION_ID: "s", CODEX_THREAD_ID: "t", CODEX_SESSION_ID: "c", DOAN_HANDOFF: "h", DOAN_CONVERSATION_ID: "conv" };
+  const homes = { CLAUDE_CONFIG_DIR: "/profiles/claude", CODEX_HOME: "/profiles/codex" };
+  assert.deepEqual(agentEnvironment({ PATH: "/bin", HOME: "/Users/u", DOAN_APP_CONVERSATION: "1", ...ids, ...homes }), { PATH: "/bin", HOME: "/Users/u" });
+  // Outside a Doan conversation the homes are the user's own configuration (an Orca or shell profile, say).
+  assert.deepEqual(agentEnvironment({ PATH: "/bin", ...ids, ...homes }), { PATH: "/bin", ...homes });
+  // The CLI counts only "1" as an app conversation (cli/internal/cli/run.go).
+  assert.deepEqual(agentEnvironment({ PATH: "/bin", DOAN_APP_CONVERSATION: "0", ...homes }), { PATH: "/bin", ...homes });
 });

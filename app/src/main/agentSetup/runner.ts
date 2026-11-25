@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { accessSync, chmodSync, constants, linkSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
+import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { PROVIDERS } from "../agentAuth/types";
 import { readRegularBytesSync, readRegularFileNoFollowSync } from "../regularFile";
 import { rcFileFor, type SetupItem, type SetupTarget } from "./notice";
@@ -41,6 +41,15 @@ function decode(bytes: Buffer): string | null { try { return UTF8.decode(bytes);
 
 function errorCode(error: unknown): string { return typeof error === "object" && error !== null && "code" in error ? String(error.code) : "UNKNOWN"; }
 function canonical(path: string): string | null { try { return realpathSync.native(path); } catch { return null; } }
+// The login shell spells PATH from its own $HOME, which can be a link to the canonical HOME (POSTMORTEM 2026-10-21):
+// an absolute entry that resolves to ~/.local/bin's real path, or starts with the HOME spelling, is respelled from home.
+function canonicalPath(loginPath: string | null, home: string, spelled: string): string | null {
+  if (loginPath === null) return null;
+  const localBin = `${home}/.local/bin`, realLocalBin = canonical(localBin);
+  return loginPath.split(":").map(entry => !isAbsolute(entry) ? entry
+    : realLocalBin !== null && canonical(entry) === realLocalBin ? localBin
+    : entry === spelled || entry.startsWith(`${spelled}/`) ? home + entry.slice(spelled.length) : entry).join(":");
+}
 function isDirectory(path: string): boolean { try { return statSync(path).isDirectory(); } catch { return false; } }
 function kindOf(path: string): Observation["kind"] | { error: string } {
   try { const s = lstatSync(path); return s.isSymbolicLink() ? "symlink" : s.isDirectory() ? "directory" : s.isFile() ? "file" : "other"; }
@@ -230,7 +239,7 @@ export async function runAgentSetup(options: AgentSetupOptions): Promise<AgentSe
     return { home, items: [{ target: "copy", path: bundle, providers: [...PROVIDERS], reason: "not-eligible", eligibility }], steps: [] };
   }
   const providerDirs = (["claude", "codex", "gemini"] as const satisfies readonly ProviderDir[]).filter(dir => isDirectory(join(home, `.${dir}`)));
-  const targets = plannedTargets(home, resources, providerDirs, needsSystemLink(options.loginPath, home), options.systemBin);
+  const targets = plannedTargets(home, resources, providerDirs, needsSystemLink(canonicalPath(options.loginPath, home, options.home), home), options.systemBin);
   const outcomes = new Map<SetupTarget, Outcome>(), items: SetupItem[] = [], steps: Step[] = [];
   for (const target of targets) {
     const before = observe(target);
