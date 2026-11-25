@@ -122,8 +122,7 @@ test("thumbnails: a rejected request leaves the card failed, not pending", async
   expect(thumbnailView(a, shown.get(a.path))).toEqual({ kind: "failed" });
 });
 
-// One root's requests shared by the Overview list and the canvas panel: an image stays while any viewer lists its
-// canvas, and goes when the last one stops listing it.
+// An image stays while any viewer lists its canvas.
 test("thumbnails: a canvas another viewer still lists keeps its image", async () => {
   const h = requests();
   const [a, b] = [rows[0]!, rows[1]!];
@@ -144,7 +143,6 @@ test("thumbnails: a canvas another viewer still lists keeps its image", async ()
   expect(h.shown().has(a.path)).toBe(false);
 });
 
-// The hub keeps one request set per root for every viewer of that root in a window.
 function hub() {
   // A root no viewer holds is disposed LEAVE_MS later.
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -239,9 +237,8 @@ test("thumbnail hub: a released viewer's late calls do nothing", async () => {
   expect(seen).toHaveLength(before);
 });
 
-// A thread remounts for each conversation it shows: its viewer leaves, and the next one takes the root once that
-// conversation's history is read. The root's images and main's visibility marks carry over instead of being dropped
-// and asked for again.
+// A thread remounts per conversation and the next viewer takes the root only after the history read, so
+// images and visibility marks carry over.
 test("thumbnail hub: a root left and taken again within LEAVE_MS keeps its images and its visibility", async () => {
   const h = hub();
   const a = rows[0]!;

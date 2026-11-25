@@ -97,12 +97,12 @@ describe("cardRow", () => {
     expect(row({ path: "/p", kind: "loading" })).toMatchObject({ chip: "Reading", actions: [] });
   });
 
-  // The project menus draw Retry and Details with icons like their other items (draft .doan/canvases/fixes-0-1-2.html, frame cli-error-elsewhere).
+  // Retry and Details carry icons like the other menu items.
   test("Retry and Details have menu icons", () => {
     expect(ROW_ACTION_ICONS).toEqual({ retry: RotateCw, details: Info });
   });
 
-  // docs/design/home.md 'Documented differences' (status chips in menus): Home's and the Overview's menus share the toned chip.
+  // docs/design/home.md 'Documented differences': both menus share the toned status chip.
   test("a problem chip takes the shipped status chip's tone", () => {
     expect(chipClass("Missing")).toBe("ob-chip warn");
     expect(chipClass("CLI error")).toBe("ob-chip warn");
@@ -148,8 +148,7 @@ describe("cardRow", () => {
 });
 
 
-// Recovery labels: the status line, the sidebar's project menu, the Overview's
-// recovery menu and the Project Settings page share one label table, with no trailing ellipsis.
+// One label table serves every recovery surface, without a trailing ellipsis.
 test("recovery labels drop the ellipsis, and Remove is Remove from Doan everywhere", () => {
   expect(ROW_ACTION_LABELS).toEqual({ setUp: "Set up", locate: "Locate", remove: "Remove from Doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" });
   for (const label of Object.values(ROW_ACTION_LABELS)) expect(label).not.toMatch(/…|\.\.\.$/);

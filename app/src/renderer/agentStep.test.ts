@@ -419,7 +419,6 @@ test("a ready change seen while the window has focus is not announced and does n
   expect(h.session.state.focus).toBeNull();
 });
 
-// POSTMORTEM 2026-10-25 'An older install failure replaced newer feedback': both completion orders, every result.
 const RESULTS: InstallResult[] = ["terminal", "page", "failed", "pageFailed"];
 const other = (result: InstallResult): InstallResult => result === "failed" ? "terminal" : "failed";
 test.each(RESULTS)("an older Install result landing after a newer %s never replaces it", async result => {

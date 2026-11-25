@@ -1,9 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { textCopy } from "./canvasTextCopy";
 
-// What the app document's copy listener puts on the clipboard for ⌘C and Edit > Copy: the canvas text, unless a
-// handler before it already copied (the composer's field, copyText), the canvas page is not on screen, or a menu or
-// dialog is open over it.
+// A handler that already copied (composer field, copyText), a hidden canvas page or an open menu or dialog wins.
 describe("textCopy", () => {
   const ready = { canvasText: "Copy me", defaultPrevented: false, onCanvasPage: true, overlayOpen: false };
 

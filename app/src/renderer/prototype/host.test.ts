@@ -19,7 +19,6 @@ describe("layersForView", () => {
   test("every new gen gets a new iframe, also for the same url (reload, Retry, restore)", () => {
     const layers = after(at(1, "loading"), at(1, "ready"), at(2, "loading"));
     expect(layers.frames.map(frame => frame.gen)).toEqual([1, 2]);
-    // The previous screen stays visible above the loading run.
     expect(layers.visible).toBe(1);
     expect(layersForView(layers, at(2, "ready"))).toEqual({ frames: [rf(2, A)], visible: 2, snapshot: null });
   });
@@ -34,7 +33,6 @@ describe("layersForView", () => {
       // Main captured the ready run as it left for the reload, before the loading view.
       const reloading = layersForSnapshot(after(at(1, "loading"), at(1, "ready")), still(2, "blob:1"), 1);
       const loading = layersForView(reloading, at(2, "loading"));
-      // While loading, the previous run stays on screen and live.
       expect(loading.visible, phase).toBe(1);
       expect(layersForView(loading, at(2, phase)), phase).toEqual({ frames: [], visible: null, snapshot: still(2, "blob:1") });
     }
@@ -47,7 +45,6 @@ describe("layersForView", () => {
     const resent = layersForSnapshot(hung, still(3, "blob:a3"), 2);
     const reloading = layersForView(resent, { ...at(3, "loading"), previousStopped: true });
     expect(reloading).toEqual({ frames: [rf(3, A)], visible: null, snapshot: still(3, "blob:a3") });
-    // The same view again changes nothing; the new run takes the screen once ready.
     expect(layersForView(reloading, { ...at(3, "loading"), previousStopped: true })).toBe(reloading);
     expect(layersForView(reloading, at(3, "ready"))).toEqual({ frames: [rf(3, A)], visible: 3, snapshot: null });
   });

@@ -4,7 +4,6 @@ import { defaultPermission, permissionChoices, permissionPickerView, permissionT
 
 const COPILOT = "https://agentclientprotocol.com/protocol/session-modes#";
 
-// The four labels, the aria-label, and Full access marked by more than colour.
 test("each mode's trigger names it, with its own icon; Full access also warns", () => {
   expect(PERMISSION_MODES.map(mode => permissionTrigger(mode))).toEqual([
     { label: "Ask first", ariaLabel: "Permission: Ask first", icon: "shield", warning: false },
@@ -29,7 +28,7 @@ test("an ACP provider offers what its server listed and the table maps, and noth
   expect(permissionChoices("cursor", { models: [] })).toEqual([]);
 });
 
-// Conductor decision (PM-B brief): a one-item picker offers no choice, so an ACP provider with only Default has none.
+// A one-item picker offers no choice, so an ACP provider with only Default has none.
 test("the picker shows only with a choice to make", () => {
   expect(permissionPickerView("cursor", { models: [], modes: { available: ["agent", "ask"], allowAll: false } }, "default")).toBeNull();
   expect(permissionPickerView("cursor", undefined, "default")).toBeNull();
@@ -49,8 +48,7 @@ test("the menu is titled for its provider and describes each mode; the chosen on
   expect(permissionPickerView("codex", undefined, "default")!.options[0]!.description).toBe("Asks before going outside its sandbox");
 });
 
-// The Default mode is named Ask first everywhere it shows, and
-// its line says when each provider asks. The stored id stays "default".
+// The stored id stays "default" though the mode is named Ask first.
 test("Ask first names the Default mode, with a line per provider", () => {
   const claude = permissionPickerView("claude", undefined, "default")!;
   expect(claude).toMatchObject({ mode: "default", trigger: { label: "Ask first", ariaLabel: "Permission: Ask first" } });
@@ -88,7 +86,6 @@ test("a pick, default or remembered mode the provider cannot offer is Default", 
   expect(defaultPermission([], undefined, "bypass", null)).toBe("default");
 });
 
-// The mode Claude Code's own settings ran the last Ask first turn in (claudeRunMode), named as the menu names modes.
 describe("the mode Claude Code settings run", () => {
   it("names it after Ask first on the trigger and says so in the aria-label", () => {
     expect(permissionTrigger("default", "auto")).toEqual({ label: "Ask first · Auto", ariaLabel: "Permission: Ask first, Claude Code settings run Auto mode", icon: "shield", warning: false });

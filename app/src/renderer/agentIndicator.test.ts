@@ -6,7 +6,6 @@ import type { BoardPresence } from "./agentPresence";
 import { agentNoticeView, canvasAgent, listForPresence, canvasWorkTarget, pickWork, workFrameTitle, siblingWork, workFrameRect, workingCanvas } from "./agentIndicator";
 import type { ConversationWork } from "../main/conversationWork";
 
-// which canvas the indicator reads and the notice's words and button.
 const row: CanvasRow = { path: ".doan/canvases/billing.html", id: "billing", url: "u" };
 const opened = { folder: "/w/a", canvas: row.path, row };
 const listed: FolderEntry = { path: "/w/a", kind: "list", servedRev: 0, canvases: [row] };
@@ -75,7 +74,6 @@ describe("canvasAgent", () => {
     expect(canvasAgent([summary({})], null, previous, [])).toBeNull();
     expect(canvasAgent(null, null, previous, [])).toBeNull();
   });
-  // The followed conversation: the shown one while it works or waits, else another waiting, else another working.
   test("follows the conversation the panel shows while it works, else another one waiting before another working", () => {
     const list = [summary({ conversationId: "c1", title: "First" }), summary({ conversationId: "c2", title: "Second", phase: "waiting" }), summary({ conversationId: "c3", title: "Third" })];
     expect(canvasAgent(list, target, null, [], [], "c3")).toMatchObject({ presence: { conversationId: "c3", kind: "working" } });
@@ -88,8 +86,8 @@ describe("canvasAgent", () => {
     const next = canvasAgent([summary({ conversationId: "c1" }), summary({ conversationId: "c2" })], target, first, [], [], null);
     expect(next?.presence?.conversationId).toBe("c2");
   });
-  // worktrees of one repository share canvas ids and paths, so a kept presence must not cross roots. Opening
-  // B's twin canvas while B's list is still loading or failed must not show A's conversation.
+  // POSTMORTEM 2026-11-01: worktrees share canvas ids and paths, so a kept presence must not cross roots,
+  // even while the twin canvas's list is loading or failed.
   describe("a kept presence stays in its project", () => {
     const b = { root: "/w/b", canvas: target.canvas };
     for (const [name, state] of [["loading", "loading"], ["failed", "error"]] as const) {
@@ -120,8 +118,7 @@ describe("canvasAgent", () => {
   });
 });
 
-// a terminal session's `doan work` on the open canvas shows the same
-// indicator; an app conversation on the canvas wins. Identity is root + path (POSTMORTEM 2026-11-01).
+// An app conversation on the canvas wins over a terminal session. Identity is root + path (POSTMORTEM 2026-11-01).
 describe("canvasAgent with terminal sessions", () => {
   const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
   const b = { root: "/w/b", canvas: target.canvas };
@@ -176,8 +173,8 @@ describe("canvasAgent with terminal sessions", () => {
   });
 });
 
-// docs/design/canvas.md 'Terminal work in another worktree': a terminal session on the open canvas's path in another worktree of the same
-// project (the sidebar's group) is named on the board with Open; identity stays root + path (POSTMORTEM 2026-11-01).
+// A sibling worktree's session on the same path is named on the board; identity stays root + path
+// (POSTMORTEM 2026-11-01).
 describe("siblingWork", () => {
   const COMMON = "/repo/.git";
   const git = (main: string, branch?: string) => ({ common: COMMON, main, worktrees: ["/w/a", "/w/b", "/w/c"], ...(branch === undefined ? {} : { branch }) });
@@ -222,8 +219,7 @@ describe("agentNoticeView", () => {
   test("nothing to show without a presence", () => {
     expect(agentNoticeView(null, false)).toBeNull();
   });
-  // The board has no Stop (user decision): with several conversations on one canvas it was ambiguous, so stopping is the
-  // composer's, tied to one conversation.
+  // No Stop on the board: with several conversations on one canvas it would be ambiguous.
   test("working: the moving dot and the label, no button", () => {
     expect(agentNoticeView(working, false)).toEqual({ text: "Agent is working", status: "Agent is working", steady: false, action: null });
   });
@@ -232,8 +228,7 @@ describe("agentNoticeView", () => {
   });
 });
 
-// which work content the open canvas shows, the notice's
-// words for it, and the frame its marker goes on. Identity is root + path (POSTMORTEM 2026-11-01).
+// Identity is root + path (POSTMORTEM 2026-11-01).
 describe("work content on the open canvas", () => {
   const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
   const b = { root: "/w/b", canvas: target.canvas };
@@ -335,7 +330,6 @@ describe("work content on the open canvas", () => {
   });
 });
 
-// what App hands the controller for the marker and following, from the notice's own pick.
 describe("canvasWorkTarget", () => {
   const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
   const term = (patch: Partial<WorkItem> = {}): WorkItem => ({ session: "s1", provider: "claude", root: "/w/a", path: row.path, touched: 10, turn: "claude:t1", ...patch });
@@ -356,7 +350,6 @@ describe("canvasWorkTarget", () => {
   });
 });
 
-// the frame title kept across a reload belongs to its root, canvas path and work turn.
 describe("workFrameTitle", () => {
   const a = { root: "/w/a", canvas: { path: ".doan/canvases/a.html" } };
   const picked = { source: "terminal:claude:s1", key: "terminal:claude:t1", touched: 1, frame: "plans", waiting: false };

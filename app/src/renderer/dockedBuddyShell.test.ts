@@ -3,8 +3,7 @@ import type { BuddyId } from "./buddies";
 import { dockedGeometry } from "./dockedBuddyCore";
 import { DockedBuddyShell, FLOATING } from "./dockedBuddyShell";
 
-// The shell against a small fake DOM, fake WebGL and fake observers: no browser, so real Chromium behaviour (context
-// limits, layout, Radix positions) is left to the real-app probes.
+// Real Chromium behaviour (context limits, layout, Radix positions) needs the real app.
 const flush = () => new Promise(resolve => setImmediate(resolve));
 type Listener = (event: Record<string, unknown>) => void;
 class Events {
@@ -39,7 +38,6 @@ let visibility: unknown[] = [];
 // A 4 × 4 still whose right half is opaque.
 const mask = Uint8ClampedArray.from({ length: 64 }, (_, i) => (i % 4 === 3 && (i >> 2) % 4 >= 2 ? 255 : 0));
 
-// Every context made, its draws and whether it was released (lost).
 const gl = {
   made: [] as { canvas: FakeNode; lost: boolean; draws: number; compileFails: boolean }[], compileFails: false, none: false,
   live() { return gl.made.filter(c => !c.lost).length; },
@@ -64,7 +62,6 @@ let frames: Map<number, (now: number) => void>, nextFrame = 0, clock = 0;
 let resizeObservers: { callback: () => void; nodes: Set<unknown> }[], mutationObservers: { callback: () => void; nodes: unknown[] }[], intersection: (entries: { isIntersecting: boolean }[]) => void;
 let page: FakeNode & { body: FakeNode; hidden: boolean; focused: boolean; floating: Rect[] };
 let win: Events & { doan: { onWindowVisible(listener: (visible: boolean) => void): () => void } }, media: Events & { matches: boolean };
-// The native window visibility listeners (closed with the app running, or the app hidden).
 let nativeVisible: Set<(visible: boolean) => void>;
 const created: FakeNode[] = [];
 
@@ -111,7 +108,6 @@ function setup(options: { buddy?: BuddyId } = {}) {
   const dock = slot("dock"), tools = slot("tools");
   const detach = { dock: shell.dockSlot(dock as unknown as HTMLElement), tools: shell.toolsSlot(tools as unknown as HTMLElement) };
   const start = () => shell.start(container as unknown as HTMLElement, () => 0, window.doan);
-  // Runs the pending frame, if any, at now ms.
   const frame = (now = clock) => { const first = [...frames][0]; if (!first) return false; frames.delete(first[0]); first[1](now); return true; };
   const run = (count: number, step = 16) => { for (let i = 0; i < count; i++) { clock += step; frame(clock); } };
   // This setup's own nodes: a test may start a second shell.
@@ -136,7 +132,6 @@ test("the ground is one node with the floor shadow and the 88px clip window arou
   // compositing layer of its own and no clip-path mask layer.
   expect(env.host().children.map(node => node.tag)).toEqual(["span", "img", "canvas"]);
   expect(env.hit().className).toBe("docked-buddy-hit");
-  // The first step stands it at rest on the dock, at x 16.
   expect(ground.parentElement).toBe(env.dock);
   expect(env.host().style.transform).toBe("translate(16px,0px)");
   expect(env.host().dataset.presence).toBe("shown");
@@ -164,7 +159,6 @@ test("a slot detached and attached again takes the same ground back without a ne
   (env.detach.dock as () => void)();
   env.dock.remove();
   env.run(3);
-  // A new composer mounts its own slot; the buddy moves there.
   const next = slot("dock");
   env.shell.dockSlot(next as unknown as HTMLElement);
   env.run(80);
@@ -247,9 +241,8 @@ test("the still image shows until the textures load, and again when they fail or
   expect([failed.still().hidden, failed.canvas().hidden, failed.host().dataset.state]).toEqual([false, true, "static"]);
 });
 
-// A GPU process reset (seen after a minimize and after an update's relaunch) loses the context; the buddy must not
-// stay on the still image for good. Right after the reset the GPU process is still coming back, so the rebuild waits
-// for it: the context restored, or a short delay when no restore comes.
+// A GPU process reset loses the context and the buddy must not stay on the still image; while the process
+// returns, the rebuild waits for the context to be restored, or a short delay.
 test("a context lost after it was ready rebuilds the rig once the context is restored, and the buddy moves again", async () => {
   const env = setup();
   env.start(); env.frame(); await env.load(); env.run(3);
@@ -271,7 +264,6 @@ test("a context lost after it was ready rebuilds the rig once the context is res
   env.run(3);
   expect(gl.made[1]!.draws).toBeGreaterThan(draws);
   expect(frames.size).toBe(1);
-  // The pending fallback went with the restore.
   expect(vi.getTimerCount()).toBe(0);
 });
 
@@ -299,12 +291,10 @@ test("a rebuild that fails while the GPU process restarts is tried again later w
   lost.dispatch("webglcontextrestored");
   env.frame();
   expect(env.host().dataset.state).toBe("static");
-  // No retry every frame.
   env.run(30);
   gl.none = false;
   env.run(3);
   expect(gl.made.length).toBe(1);
-  // Each later try waits twice as long as the one before.
   vi.advanceTimersByTime(1999); env.run(1);
   expect(gl.made.length).toBe(1);
   vi.advanceTimersByTime(1); env.frame();
@@ -347,7 +337,6 @@ test("when the GPU stays away the tries back off past two minutes, then stop and
   expect(tries).toEqual([1, 3, 7, 15, 31, 63, 127, 255]);
   expect(vi.getTimerCount()).toBe(0);
   expect(env.host().dataset.state).toBe("static");
-  // The next seen stretch still gets its one rebuild.
   gl.none = false;
   page.hidden = true; page.dispatch("visibilitychange"); env.run(1);
   page.hidden = false; page.dispatch("visibilitychange"); env.frame();
@@ -589,7 +578,6 @@ test("a buddy change rebuilds only the rig: surface, each surface's x and the hi
   expect(env.host().style.transform).toBe(transform);
   expect(env.still().src).toBe("buddies/puri/still.png");
   expect(env.host().style.top).toBe(`calc(100% + ${dockedGeometry("puri").hostTop}px)`);
-  // Back to the dock at its remembered x once the queue ends.
   env.dock.attributes.delete("data-queue");
   await env.load(); env.run(160);
   expect(env.ground().parentElement).toBe(env.dock);
@@ -650,7 +638,6 @@ test("floating elements are searched for only when one can have come or gone, th
   const portals = () => { for (const observer of mutationObservers.filter(o => o.nodes.includes(page.body))) observer.callback(); };
   env.start(); env.frame(); await env.load();
   env.run(20);
-  // Searched once, at the first frame with a surface; every later frame reuses the list.
   expect(find).toHaveBeenCalledTimes(1);
   // A tooltip opens far along (its wrapper joins body): found again, and the buddy stays.
   const tip = rect(600, 440, 40, 20);
@@ -784,8 +771,8 @@ test("an idle trip comes only after a rest: the person's thread scrolling and co
   expect(away.ground().parentElement).toBe(away.dock);
 });
 
-// Measured against the draft in the real app (docs/design/project.md 'Docked buddy'): each buddy's feet meet the floor and the
-// shadow's centre sits under them, from the registry's foot contact alone.
+// docs/design/project.md 'Docked buddy': each buddy's feet meet the floor and its shadow centres under them,
+// from the registry's foot contact alone.
 test("each buddy's host offset, pivot and shadow centre are the measured rest values", async () => {
   const measured = { doany: [-44.54632, 26.42], puri: [-41.01944, 27.92], dungdung: [-41.5072, 27.77], popo: [-41.43216, 27.77], dori: [-42.55776, 28.15] } as const;
   for (const [id, [top, shadow]] of Object.entries(measured) as [keyof typeof measured, readonly [number, number]][]) {

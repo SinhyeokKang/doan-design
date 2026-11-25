@@ -16,8 +16,6 @@ test("a healthy worktree shows its settings, a problem one its problem, and a lo
   expect(projectSettingsView(entry("/w/a", "loading"))).toBeNull();
 });
 
-// ── The page ────────────────────────────────────────────────────
-
 const home: AddPageOrigin = { screen: "home" };
 const wsA: AddPageOrigin = { screen: "workspace", root: "/w/a" };
 
@@ -67,7 +65,6 @@ test("page lock: a picker, a confirmation or a write holds the page", () => {
   expect(projectSettingsLocked({ picking: false, confirming: false, writing: true })).toBe(true);
 });
 
-// One row per state tile of the draft ('alt-2-page', 'alt-2-states', 'alt-2-page-problem', 'alt-2-states-problem').
 const ready: ReadState = { kind: "ready" };
 const NOT_FOUND = "Doan can’t find this folder, so its settings can’t be read or changed.";
 const NOT_SET_UP = "This folder isn’t set up for Doan yet, so it has no settings to change.";
@@ -153,8 +150,7 @@ test("the Share confirmation names a path inside the worktree repo-relative and 
   expect(sharedPathLabel("/w/a", "design/brand")).toBe("design/brand");
 });
 
-// ARCHITECTURE §7 'Settings IPC' 'Storage writes': the Doan files options are disabled while Saving, so focus goes to
-// the chosen radio; a failed mode write names no path, so its message is the CLI's as it is.
+// ARCHITECTURE §7 'Settings IPC' 'Storage writes'.
 describe("Doan files writes", () => {
   test("return focus to the chosen radio, whether or not the pressed one is still there", () => {
     expect(projectSettingsFocusAfter({ section: "storage", pressedAlive: true })).toEqual({ kind: "storageChosen" });

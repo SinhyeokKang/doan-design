@@ -759,7 +759,6 @@ test("first run's footer is Back and the step's action, as before the Add Projec
   expect(projectFooter("onboarding", footerState({ kind: "completing", root: "/w/a" }), { busy: true, agentReady: true })).toEqual({ back: back(true), primary: openDoan(true) });
 });
 
-// The page's one submit: "Add project" at the bottom right in every unlocked phase, enabled only when it can add.
 test("the Add Projects page footer is Cancel and Add project, enabled only when it can add, and none while locked", () => {
   const cancel = { label: "Cancel", disabled: false };
   const off = { back: cancel, primary: { label: "Add project", action: null, disabled: true } };
@@ -767,14 +766,12 @@ test("the Add Projects page footer is Cancel and Add project, enabled only when 
   expect(projectFooter("addPage", footerState({ kind: "choose" }), idle)).toEqual(off);
   for (const phase of [{ kind: "inspecting", url: "u" }, { kind: "checking", path: "/w/a" }] as const)
     expect(projectFooter("addPage", footerState(phase), { busy: true, agentReady: true })).toEqual(off);
-  // A candidate list always has a pick; a set-up folder or a found checkout is one candidate.
   expect(projectFooter("addPage", footerState(cand), idle)).toEqual({ back: cancel, primary: { label: "Add project", action: "select", disabled: false } });
   // The setup panel's press is the consent, for the inspection the screen was rendered with.
   expect(projectFooter("addPage", footerState(setup), idle)).toEqual({ back: cancel, primary: { label: "Add project", action: "setUp", inspectionId: "i", disabled: false } });
   expect(projectFooter("addPage", footerState(clonePlan), idle)).toEqual({ back: cancel, primary: { label: "Add project", action: "clone", disabled: false } });
   // A cancelled clone can still be cloned: its notice is a status, and the press clones again.
   expect(projectFooter("addPage", footerState(cancelled), idle)).toEqual({ back: cancel, primary: { label: "Add project", action: "clone", disabled: false } });
-  // Off while the clone is planned, while the step is busy, and while an error notice shows.
   expect(projectFooter("addPage", footerState(unplannedClone), idle)!.primary).toMatchObject({ action: "clone", disabled: true });
   expect(projectFooter("addPage", footerState(cand), { busy: true, agentReady: true })!.primary).toMatchObject({ action: "select", disabled: true });
   expect(projectFooter("addPage", footerState(setup), { busy: true, agentReady: true })!.primary).toMatchObject({ action: "setUp", disabled: true });
@@ -782,7 +779,6 @@ test("the Add Projects page footer is Cancel and Add project, enabled only when 
   expect(projectFooter("addPage", footerState(setup, { code: "init_failed" }), idle)!.primary).toMatchObject({ disabled: true });
   expect(projectFooter("addPage", footerState(clonePlan, { code: "destination_exists" }), idle)!.primary).toMatchObject({ disabled: true });
   expect(projectFooter("addPage", footerState({ kind: "choose" }, { code: "invalid_url", source: "url" }), idle)).toEqual(off);
-  // Writing the setup, cloning and stopping a clone lock the page: no footer.
   expect(projectFooter("addPage", footerState({ kind: "selecting", path: "/w/a" }), idle)).toBeNull();
   expect(projectFooter("addPage", footerState(cloning), idle)).toBeNull();
   expect(projectFooter("addPage", footerState({ ...cloning, cancelling: true }), idle)).toBeNull();
@@ -799,7 +795,6 @@ test("the no-agent notice belongs to first run only", () => {
   expect(projectNoticeCode("addPage", footerState(clonePlan, { code: "destination_exists" }), true)).toBe("destination_exists");
 });
 
-// The same session over the page's main instance.
 function pageHarness() {
   let listener: ((state: { sessionId: string; revision: number; project: null; operations: OnboardingOperation[] }) => void) | null = null;
   const queue: Record<string, Reply[]> = { inspect: [], select: [], clone: [], cancel: [] };
@@ -823,7 +818,6 @@ function pageHarness() {
 }
 const folder = (path: string) => ({ isDirectory: true, path });
 
-// The page adds nothing until Add project is pressed: a set-up folder waits on its candidate screen.
 test("the page session talks to the page instance, waits for Add project on a set-up folder, then hands the root over without a ready step", async () => {
   const h = pageHarness();
   h.doan.chooseOnboardingFolder.mockResolvedValueOnce("/code/app");
@@ -906,8 +900,8 @@ test("Find repository clears a refused drop's notice, on the page and in first r
   expect(first.session.dropNotice).toBeNull();
 });
 
-// PRODUCT §5 item 0 'Doan files': the choice is the screen's; a plan made for the other mode is made again before setup
-// or clone writes anything, and the choice outlives a refused setup.
+// PRODUCT §5 item 0 'Doan files': a plan made for the other mode is made again before setup or clone writes
+// anything, and the choice outlives a refused setup.
 const LOCAL = [".doan/canvases/", ".doan/config.json", ".git/info/exclude"];
 const REPO = [".doan/canvases/", ".doan/config.json", ".gitattributes"];
 test("setting up out of Git plans again for that mode and selects with the storage it showed", async () => {
@@ -975,9 +969,8 @@ test("a clone planned for one mode is planned again for the one chosen, and the 
   expect(phase(h)).toEqual({ kind: "ready", root: "/Users/ada/studio" });
 });
 
-// Outside Git the plan for Keep out of Git names .git/, which the panel shows as a line
-// under the card. The line follows the radio at once, so the choice plans again; the consent never covers a .git/ the
-// screen did not show; and a failed creation reads the folder again, since a .git it left makes it a repository.
+// Outside Git the choice plans again at once: consent never covers a .git/ the screen did not show, and a
+// failed creation re-reads the folder, since a .git it left makes it a repository.
 const CREATE = [".doan/canvases/", ".doan/config.json", ".git/", ".git/info/exclude"];
 const planOf = (id: string, changes: string[], storage?: "local") => ({ inspectionId: id, candidates: [{ path: "/code/new", changes: changes as never, ...(storage ? { storage } : {}) }] });
 async function onSetup(h: ReturnType<typeof harness>, changes: string[], storage?: "local") {
@@ -995,15 +988,13 @@ test("choosing another mode on the setup screen plans again for it, so the git i
   await flush(); await flush();
   expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ path: "/code/new", storage: "local" });
   expect(phase(h)).toMatchObject({ kind: "setup", inspectionId: "i-local", changes: CREATE, storage: "local" });
-  // Choosing the mode already planned plans nothing.
   expect(h.session.setStorage("local")).toBe(false);
   await flush(); await flush();
   expect(h.api.inspectOnboardingProject).toHaveBeenCalledTimes(2);
   expect(h.api.selectOnboardingProject).not.toHaveBeenCalled();
 });
 
-// The radio and Set up in the same task: Set up plans again before it writes, and a plan that now creates a repository
-// waits for another press.
+// Radio and Set up in one task: Set up plans again, and a plan that creates a repository waits for another press.
 test("Keep out of Git chosen and Set up pressed in one task plans again and stops before creating a repository", async () => {
   const h = harness();
   await onSetup(h, REPO);
@@ -1016,7 +1007,6 @@ test("Keep out of Git chosen and Set up pressed in one task plans again and stop
   expect(phase(h)).toMatchObject({ kind: "setup", inspectionId: "i-local", changes: CREATE, storage: "local" });
 });
 
-// A plan the radio asked for that cannot be made leaves the person on the setup screen, with Retry planning again.
 test("a plan the radio asked for that fails keeps the setup screen, and Retry plans again", async () => {
   const h = harness();
   await onSetup(h, REPO);
@@ -1070,13 +1060,11 @@ test("a failure records whether it came from a folder or a URL", async () => {
   dropped.queue.inspect!.push(ok(op("project_inspect", { state: "failed", error: { code: "config_invalid", message: "m" } })));
   await dropped.session.drop([folder("/code/broken")]);
   expect(dropped.session.state.error).toMatchObject({ code: "config_invalid", source: "folder" });
-  // First run's 'Your projects' pick is a folder too.
   const listed = harness(["/code/gone"]);
   listed.session.pickListed("/code/gone");
   listed.queue.inspect!.push(ok(op("project_inspect", { state: "failed", error: { code: "project_unavailable", message: "m" } })));
   await listed.session.useListed();
   expect(listed.session.state.error).toMatchObject({ code: "project_unavailable", source: "folder" });
-  // The same code from a URL lookup belongs to the URL.
   const url = pageHarness();
   url.session.setUrl("https://github.com/acme/studio");
   url.queue.inspect!.push(ok(op("project_inspect", { state: "failed", error: { code: "project_unavailable", message: "m" } })));
@@ -1115,7 +1103,6 @@ test("a refused drop and a folder's failure clear each other; a URL's failure is
   await h.session.drop([folder("/a"), folder("/b")]);
   expect(h.session.dropNotice).toBe("Drop one folder at a time.");
   expect(h.session.state.error).toBeNull();
-  // A folder that then fails replaces the drop notice.
   h.queue.inspect!.push(ok(op("project_inspect", { state: "failed", error: { code: "config_invalid", message: "m" } })));
   await h.session.drop([folder("/code/broken")]);
   expect(h.session.dropNotice).toBeNull();
@@ -1150,7 +1137,7 @@ test("the page: a candidate that needs setup takes two presses, the second carry
   expect(h.completed).toHaveBeenCalledWith("/work/a");
 });
 
-// First run keeps its shipped path: a set-up folder is selected at once.
+// First run selects a set-up folder at once.
 test("first run still selects a set-up folder at once", async () => {
   const h = harness();
   h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/app");
@@ -1161,8 +1148,7 @@ test("first run still selects a set-up folder at once", async () => {
   expect(phase(h)).toEqual({ kind: "ready", root: "/code/app" });
 });
 
-// The session side of a cancelled clone's Choose local folder: the folder is checked against the URL, and a failure
-// stays on the cancelled screen with its own error.
+// A folder failing the URL check stays on the cancelled screen with its own error.
 test("Choose local folder after a cancelled clone keeps that screen and records the folder's failure", async () => {
   const h = pageHarness();
   h.session.setUrl("https://github.com/acme/studio");
@@ -1297,8 +1283,8 @@ describe("New folder", () => {
     expect(h.session.state).toMatchObject({ phase: { kind: "setup", path: "/Users/ada/b" }, error: null });
   });
 
-  // A step that goes while its panel is open (the page left, first run closed) cancels its request, so main makes nothing
-  // when Create returns; a request already answered is not cancelled.
+  // A step that goes with its panel open cancels the request, so main makes nothing when Create returns;
+  // an answered request is not cancelled.
   test("a session disposed while its save panel is open cancels that request by its token, on the page and in first run", async () => {
     for (const make of [harness, pageHarness] as const) {
       const h = make();

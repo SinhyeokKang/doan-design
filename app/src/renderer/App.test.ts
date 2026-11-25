@@ -64,7 +64,6 @@ it("unsubscribes both preload bridges across StrictMode effect setup, cleanup an
   } finally { vi.unstubAllGlobals(); }
 });
 
-// a command App does not name runs no handler.
 it("routes each menu command to its own handler, and an unknown or removed command reaches none", () => {
   const to = { home: vi.fn(), quickOpen: vi.fn(), newConversation: vi.fn(), pickFromCanvas: vi.fn(), toggleSidebar: vi.fn() };
   for (const name of ["nextResolved", "previousResolved", "future"]) menuCommand(name as never, to);
@@ -72,15 +71,12 @@ it("routes each menu command to its own handler, and an unknown or removed comma
   menuCommand("home", to); menuCommand("quickOpen", to);
   expect(to.home).toHaveBeenCalledOnce();
   expect(to.quickOpen).toHaveBeenCalledOnce();
-  // File > New Conversation (⌘N).
   menuCommand("newConversation", to);
   expect(to.newConversation).toHaveBeenCalledOnce();
-  // Edit > Pick from Canvas (⌘L); the removed Add Selection command reaches nothing.
   menuCommand("addSelectionToConversation" as never, to);
   expect(to.pickFromCanvas).not.toHaveBeenCalled();
   menuCommand("pickFromCanvas", to);
   expect(to.pickFromCanvas).toHaveBeenCalledOnce();
-  // View > Hide/Show Sidebar (⌘B).
   menuCommand("toggleSidebar", to);
   expect(to.toggleSidebar).toHaveBeenCalledOnce();
 });
@@ -94,7 +90,7 @@ test("a Quick Open conversation that can no longer be opened names its quoted ti
   expect(conversationOpenRefusal("deleted", "  ", "acme-web")).toBe("Couldn’t open this conversation. It was deleted.");
 });
 
-// D12: a canvas that loads quickly never flashes its Loading line; a slow one shows it from 300 ms.
+// A canvas that loads quickly never flashes its Loading line.
 test("the canvas page's Loading line draws nothing first and waits 300 ms", () => {
   harness.effects.length = 0;
   expect(CanvasLoading()).toBeNull();

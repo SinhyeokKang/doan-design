@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { controlFocusLost, menuCloseFocus, menuCloseNow } from "./canvasFocus";
 
-// The decisions behind the header menus' and canvas controls' focus. Radix's own
-// focus return and real focus movement are checked in the runtime probe (ARCHITECTURE §7 'Home tests without a DOM').
+// Radix's own focus return and real focus movement need the real app (ARCHITECTURE §7 'Home tests without a DOM').
 describe("menuCloseNow", () => {
   it("closes an open menu whose trigger turned disabled, without marking a canvas move", () => {
     expect(menuCloseNow({ open: true, enabled: false, canvasChanged: false })).toEqual({ close: true, moved: false });

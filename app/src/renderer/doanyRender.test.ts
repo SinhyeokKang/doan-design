@@ -5,10 +5,8 @@ import { BUDDY_IDS, buddy, type BuddyId } from "./buddies";
 import { drawnPose, fragmentFor, vertexFor } from "./Doany";
 import { advance, hop, initialState, pointer, pose, typing, type Pose } from "./doanyMotion";
 
-// Checks each buddy's artwork against the shader that draws it. Doany's shader is read from doany.golden.json,
-// which Doany.test.tsx pins to Doany.tsx call for call; the friends' come from the exported templates, which
-// Doany.test.tsx checks the same way. Anchors are parsed out of the GLSL rather than restated here, so a moved
-// anchor or a new artwork export is checked for real.
+// Doany's shader comes from doany.golden.json (Doany.test.tsx pins it to Doany.tsx), the friends' from the exported
+// templates. Anchors are parsed from the GLSL, so a moved anchor or new artwork is checked for real.
 const golden = JSON.parse(readFileSync(new URL("./doany.golden.json", import.meta.url), "utf8")) as { scenarios: { name: string; trace?: unknown[][] }[] };
 const [doanyVertex, doanyFragment] = golden.scenarios.find(item => item.name === "idle")!.trace!.filter(call => call[0] === "shaderSource").map(call => call[2] as string);
 const number = "(-?\\d*\\.?\\d+)";
@@ -31,9 +29,8 @@ function anchors(id: BuddyId): Anchors & { vertex: string; fragment: string } {
   };
 }
 
-// The vertex shader's mapping from a texture coordinate to clip space, for one layer (0 body, 1 accessory), with the
-// pose's rotations worked out once for every point. It returns the same pair each call, so the canvas bound's
-// hundreds of millions of points allocate nothing.
+// The vertex shader's texture-to-clip mapping for one layer (0 body, 1 accessory). It returns the same pair
+// each call, so the bound's hundreds of millions of points allocate nothing.
 function mapping(p: Pose, layer: number, { hatPivot, bodyPivot, rise, scale }: Anchors): (u: number, v: number) => readonly [number, number] {
   const hc = Math.cos(p.hatTilt), hs = Math.sin(p.hatTilt), c = Math.cos(p.tilt), s = Math.sin(p.tilt);
   const [hu, hv] = hatPivot as [number, number], [bu, bv] = bodyPivot as [number, number];
@@ -153,8 +150,8 @@ test("no vertex shader has radial edge waves: each outline only squashes, stretc
   for (const id of BUDDY_IDS) expect(anchors(id).vertex, id).not.toMatch(/atan|angle|energy\*|time\*/);
 });
 
-// The visible outline's convex hull. The map is affine except the body's gaze shift (under .002 here),
-// and the body stays well inside the canvas; the hull gave the same worst value as every outline texel.
+// The outline's convex hull stands for every outline texel: the map is affine except the body's gaze shift
+// (under .002 here) and the body stays well inside the canvas.
 function outline(image: ReturnType<typeof png>): number[][] {
   const points: number[][] = [], seen = (x: number, y: number) => image.at(x, y, 3) > 0;
   for (let y = 0; y < image.height; y++) {
@@ -177,13 +174,8 @@ function outline(image: ReturnType<typeof png>): number[][] {
   return [...half(points), ...half([...points].reverse())];
 }
 
-// Presses only restart the body's hop curve, so its poses are those of single hops started at every
-// phase of the breath and the gaze; what presses pile up is the accessory spring. Each drawn pose is
-// therefore also checked with the accessory at both ends of its bound, which covers any press sequence,
-// and the sequences below (re-hops while settling, presses every 80 or 33 ms) check the spring itself.
-// The motion model is the same for every buddy, so the poses are made once. Over half the frames repeat
-// an earlier pose exactly in every field the mapping and drawnPose read, and those are kept once:
-// bounding a pose twice finds nothing new.
+// Presses only restart the hop curve, so hops at every phase cover the poses; the accessory is also checked at both
+// ends of its bound (any press sequence). Repeated poses are kept once: bounding one twice finds nothing.
 let made: { frames: number; poses: Pose[] } | null = null;
 function motionPoses(): { frames: number; poses: Pose[] } {
   if (made) return made;
@@ -220,7 +212,6 @@ test.each(BUDDY_IDS)("whatever the presses, %s's drawn body and accessory keep a
   expect(frames).toBeGreaterThan(100000);
   const { rig } = buddy(id), shader = anchors(id);
   const [body, hat] = [outline(layer(id, "body")), outline(layer(id, "accessory"))];
-  // The rest frame is the draft's: nothing to bound without lift or tilt.
   const rest: Pose = { time: 0, squash: 0, lift: 0, tilt: 0, hatTilt: 0, energy: 0, eyeOpen: 1, look: [0, 0], mode: "idle" };
   expect(drawnPose(rest, rig), id).toEqual(rest);
   let worst = 0;

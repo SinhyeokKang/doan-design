@@ -71,7 +71,6 @@ test("the first blink comes at 2 s, then after 4 s for random 0 and 8 s for rand
 });
 
 test("in the blink scenario the eyes close for 420 ms, and the next blink is 4 to 8 s away", () => {
-  // 17 ms frames: the eyes are below open from the frame after the blink starts to the last one before 0.42 s.
   const steps = scenario("blink").log.filter(step => step.op === "frame").map(step => motion(step.after!));
   const closed = steps.filter(state => state.eye! < 1);
   const start = closed[0]!.blinkAt!, last = closed.at(-1)!.time! - start;

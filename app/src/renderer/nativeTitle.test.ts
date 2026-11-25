@@ -29,6 +29,5 @@ test("no renderer element sets a native title, iframes aside", () => {
       if (/\.title\s*=[^=]|setAttribute\(\s*["']title["']/.test(line) && !/document\.title/.test(line)) found.push(`${file.path}:${index + 1} ${line.trim().slice(0, 60)}`);
     });
   }
-  // CanvasController names the canvas iframe; canvasMessage.ts edits frame data, not an element.
   expect(found.filter(entry => !/^(CanvasController\.ts|canvasMessage\.ts):/.test(entry))).toEqual([]);
 });

@@ -7,8 +7,8 @@ import type { McpProvider } from "../main/mcpConnectors/presets";
 import { addError, mcpAvailable, mcpChanges, mcpChangeText, mcpFailureText, mcpPageView, removeFocus, type McpRowView } from "./mcpConnectorsView";
 import { McpConnectorsWatch } from "./mcpConnectorsWatch";
 
-// The page's pure view over main's snapshot (service.ts McpSnapshot) and agent-auth, and the
-// App-level watch that tells changes, failures elsewhere and the running-turn notice.
+// The pure view over main's McpSnapshot and agent-auth, and the App-level watch for changes, failures
+// elsewhere and the running-turn notice.
 
 const URL_SERVER: McpServerDto = { name: "doan-mcp-example-com", label: "mcp.example.com", url: "https://mcp.example.com/v2/mcp", preset: false, removable: true, removeFailed: false };
 const PRESET_SERVERS: McpServerDto[] = [
@@ -102,7 +102,7 @@ test("status lines are present participles without an ellipsis; Checking, Discon
   const view = mcpPageView(snapshot({ claude: { "doan-notion": "checking", "doan-figma": "disconnecting", [URL_SERVER.name]: "removing" } }), AUTH, (provider, name) => provider === "claude" && name === URL_SERVER.name ? "disconnect" : null);
   expect(find(view, "claude", "doan-notion")).toMatchObject({ status: "Checking", button: { command: "connect", disabled: true } });
   expect(find(view, "claude", "doan-figma")).toMatchObject({ status: "Disconnecting", button: { command: "disconnect", label: "Disconnect", disabled: true } });
-  // Removing keeps the button the row had before, disabled, and its menu is disabled too (draft frame 7).
+  // Removing keeps the previous button, disabled, with its menu disabled too.
   expect(find(view, "claude", URL_SERVER.name)).toMatchObject({ status: "Removing", button: { command: "disconnect", disabled: true }, menu: { disabled: true } });
   const labels = ["not_connected", "connected", "reconnect_needed", "connecting"] as const;
   const all = mcpPageView(snapshot({ codex: Object.fromEntries(labels.map((value, i) => [[...PRESET_SERVERS, URL_SERVER][i]!.name, value])) }), AUTH).sections[1]!.rows.map(row => row.status);

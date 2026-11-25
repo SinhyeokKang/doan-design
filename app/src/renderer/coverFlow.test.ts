@@ -77,7 +77,6 @@ test("the snap is a short ease-out", () => {
   expect(snapPosition(2, 3, SNAP_MS / 2)).toBeGreaterThan(2.75);
 });
 
-// The same layout as the [data-o] rules in styles.css, at any fraction between them.
 test("a card's transform at a fractional offset interpolates the row's layout", () => {
   const wide = 992;
   expect(cardLayout(0, wide)).toEqual({ x: 0, rotate: 0, scale: 1, z: 5 });

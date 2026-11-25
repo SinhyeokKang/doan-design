@@ -1,4 +1,4 @@
-// Runs the hook's effects without a DOM (no jsdom here): React's hooks are stand-ins that keep refs and collect effects.
+// No jsdom here: React's hooks are stand-ins that keep refs and collect effects.
 import { afterEach, expect, test, vi } from "vitest";
 
 const hooks = vi.hoisted(() => ({
@@ -13,8 +13,8 @@ const { CanvasViewStore } = await import("./CanvasController");
 afterEach(() => { hooks.effects = []; vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 class Element {}
-// Zoom in at 320% with focus, then pressed to 400% (MAX_SCALE): the publish moves only the zoom, so only the header
-// redraws and the button turns disabled under focus without the pane rendering again.
+// A publish that moves only the zoom redraws only the header, so the button turns disabled under focus
+// without the pane rendering again.
 test("a zoom button that turns disabled under focus at a scale limit hands focus to the canvas area at once", () => {
   vi.useFakeTimers();
   vi.stubGlobal("HTMLElement", Element);

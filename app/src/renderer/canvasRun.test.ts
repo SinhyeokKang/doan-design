@@ -4,13 +4,11 @@ import type { Canvas, ConversationEvent, EventPayload } from "../main/conversati
 import { CanvasRun, canvasKey, type CanvasRunHost } from "./canvasRun";
 import { ConversationStore, type ListView } from "./conversationStore";
 
-// The canvas panel's conversation, driven without a DOM. The host stands in for App
-// and HomeRun (list reads and their counts, seen marks, focus and ui-state's conversation last seen on each canvas), or
-// for the prototype window's host, which only reads that memory.
+// Driven without a DOM: the host stands in for App and HomeRun,
+// or for the prototype window's host, which only reads the conversation memory.
 
 const ROOT = "/code/doan";
 const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "aaaaaaaa-0000-4000-8000-000000000002", P = "aaaaaaaa-0000-4000-8000-000000000003", D = "aaaaaaaa-0000-4000-8000-000000000004";
-// Later activity sorts first (byActivity).
 const at = (minute: number) => `2026-10-30T00:${String(minute).padStart(2, "0")}:00.000Z`;
 const CHECKOUT: Canvas = { path: ".doan/canvases/checkout.html", id: "checkout" };
 const CART: Canvas = { path: ".doan/canvases/cart.html", id: "cart" };
@@ -43,7 +41,6 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-// `prototype`: the prototype window's host, with no memory writes (it only reads).
 function harness({ prototype = false }: { prototype?: boolean } = {}) {
   const lists = new Map<string, ListView>();
   const started = new Map<string, number>(), applied = new Map<string, number>();
@@ -103,7 +100,6 @@ test("the person's choice shows any of the canvas's conversations, and the view 
   expect(h.run.composerKey()).toBe(`conversation:${B}`);
 });
 
-// The shared pick: request > waiting for an answer (the earliest waiting) > last seen here on this device > most recent > new.
 test("with nothing shown yet: a conversation waiting for an answer, else the one last seen here, else the most recent", () => {
   const waits = harness();
   waits.state.remembered = A;
@@ -117,7 +113,6 @@ test("with nothing shown yet: a conversation waiting for an answer, else the one
   seen.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { lastActivityAt: at(1) })]);
   expect(seen.run.view()).toMatchObject({ kind: "conversation", conversationId: B });
 
-  // A remembered conversation that is not on this canvas (deleted, moved) is ignored.
   const stale = harness();
   stale.state.remembered = P;
   stale.run.show(checkout);
@@ -221,7 +216,6 @@ test("a start reply that lands after the person chose another conversation, or a
   h.run.select(A);
   h.run.started(checkout, B, "codex", revision);
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
-  // The same start shows when nothing changed meanwhile.
   h.run.select(null);
   const again = h.run.revision();
   h.run.started(checkout, B, "codex", again);
@@ -380,7 +374,6 @@ for (const prototype of [false, true]) {
     resume[1]!.resolve({ available: false, reason: "no_record" });
     await flush();
     expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: false, offer: null, mode: "new" } });
-    // A read naming the same conversations asks nothing more.
     h.answer([summary(A)]);
     expect(doan.conversationResumeTarget).toHaveBeenCalledTimes(2);
     h.answer([]);
@@ -444,12 +437,10 @@ test("the conversation last seen on the canvas is remembered only while it is se
   expect(h.remember).toHaveBeenLastCalledWith(ROOT, CHECKOUT, A);
   h.run.select(B);
   expect(h.remember).toHaveBeenLastCalledWith(ROOT, CHECKOUT, B);
-  // The new conversation state and a start not listed yet are not remembered.
   const calls = h.remember.mock.calls.length;
   h.run.select(null);
   h.run.started(checkout, D, "claude", h.run.revision());
   expect(h.remember).toHaveBeenCalledTimes(calls);
-  // Folded: nothing.
   h.run.panel(false);
   h.run.select(A);
   expect(h.remember).toHaveBeenCalledTimes(calls);
@@ -479,7 +470,6 @@ test("a started conversation stays shown through list reads that do not name it 
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
   h.answer([summary(B), summary(A)]);
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
-  // Confirmed: from now on the list's own rules apply again.
   h.run.select(null);
   h.answer([summary(B), summary(A)]);
   expect(h.run.view()).toMatchObject({ kind: "new" });
@@ -511,8 +501,7 @@ test("what shows is identified by canvas, conversation and revision", () => {
   expect(h.run.stillShowing(shown!)).toBe(false);
 });
 
-// The wait held a new conversation back so it could not end the turn of a current conversation not listed yet; a new
-// conversation now runs beside the others. The terminal session's own wait stays.
+// A new conversation runs beside the others, so it does not wait for the list; a terminal session's wait stays.
 test("New chosen while the list loads sends once the terminal session answers, without waiting for the list", async () => {
   const h = harness();
   h.run.show(checkout);
@@ -525,8 +514,7 @@ test("New chosen while the list loads sends once the terminal session answers, w
   expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: false } });
 });
 
-// The state after a conversation is deleted. App marks the conversation
-// deleting before conversation:delete, then on success calls each run's deleted and the store's.
+// App marks the conversation deleting before conversation:delete, then on success calls each deleted.
 const confirmDelete = (h: ReturnType<typeof harness>, id: string) => { h.run.deleted(id); h.store.deleted(id); };
 
 test("deleting the shown conversation shows the next one by the shared rule; with none left, the new conversation state", () => {
@@ -617,7 +605,6 @@ test("every canvas state holding the deleted conversation is cleared: a duplicat
   h.store.startDelete(D);
   confirmDelete(h, D);
   expect(h.run.view()).toMatchObject({ kind: "new" });
-  // Two canvases sharing the ID share the state, so the other one shows the new conversation state too.
   h.run.show(copy);
   expect(h.run.view()).toMatchObject({ kind: "new" });
   // cart never showed D: it picks its own default, and the list is not read again for D.
@@ -647,7 +634,7 @@ test("other canvases and conversations keep what they show", () => {
   expect(h.run.revision()).toBe(revision);
 });
 
-// Until the list is read again, a pick from the list read before the delete must not choose it.
+// A pick from the list read before the delete must not choose it.
 test("a canvas that opens before the next list read does not pick the deleted conversation", async () => {
   const h = harness();
   h.run.show(checkout);
@@ -660,10 +647,8 @@ test("a canvas that opens before the next list read does not pick the deleted co
   expect(doan.readConversation).not.toHaveBeenCalledWith({ conversationId: B });
 });
 
-// POSTMORTEM 2026-11-14 'The main window's panel never showed…': the default new state (nothing existed) gives way to
-// a conversation the person newly started (in this window or another), and to a handoff's conversation while its draft
-// is empty; the person's New does not, and a draft never moves to a handoff's conversation. CanvasRun runs in the main
-// window and in the prototype window, each from its own state.
+// POSTMORTEM 2026-11-14 'The main window's panel never showed…': the default new state gives way to a conversation
+// the person starts, and to a handoff's while its draft is empty; a draft never moves to a handoff's.
 for (const prototype of [false, true]) {
   const where = prototype ? "the prototype window" : "the main window";
 
@@ -702,7 +687,6 @@ for (const prototype of [false, true]) {
     expect(h.run.view()).toMatchObject({ kind: "new" });
     expect(h.store.drafts.get(canvasKey(checkout))).toBe(draft);
     expect(h.store.drafts.has(`conversation:${A}`)).toBe(false);
-    // A person's start after it still moves the default state.
     h.answer([summary(A, { startedBy: "handoff", lastActivityAt: at(1) }), summary(B, { lastActivityAt: at(2) })]);
     expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: B });
   });
@@ -758,7 +742,7 @@ test("an empty new state draft is not carried to a conversation started elsewher
   expect(h.store.drafts.has(`conversation:${A}`)).toBe(false);
 });
 
-// In the app the root's list is read before the canvas opens: the canvas's state has no list of its own yet.
+// In the app the root's list is read before the canvas opens, so the canvas's state has none of its own yet.
 test("a canvas opened after its list was read still moves to a conversation started elsewhere", () => {
   const h = harness();
   h.answer([]);
@@ -768,7 +752,6 @@ test("a canvas opened after its list was read still moves to a conversation star
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
 });
 
-// After a delete leaves the default new state, a conversation listed before it does not take the panel back.
 test("the new state a delete leaves follows only a conversation that appears after it", () => {
   const h = harness();
   h.run.show(checkout);
@@ -781,8 +764,7 @@ test("the new state a delete leaves follows only a conversation that appears aft
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: D });
 });
 
-// POSTMORTEM 2026-11-17 'Removing a project or trashing a canvas left state keyed by it behind': a project added again
-// in the same run starts its canvases fresh, as the Overview does (OverviewRun.forgetRoots).
+// POSTMORTEM 2026-11-17 'Removing a project or trashing a canvas left state keyed by it behind'.
 test("a removed root's canvases keep nothing: added again, a canvas shows its default rather than the earlier choice", () => {
   const h = harness();
   h.run.show(checkout);
@@ -798,7 +780,7 @@ test("a removed root's canvases keep nothing: added again, a canvas shows its de
   expect(h.run.view()).toEqual({ kind: "conversation", conversationId: A });
 });
 
-// Move to Trash reads it (canvasRowMenu trashBlock): main lists a canvas's first conversation only once it accepts it.
+// canvasRowMenu trashBlock reads it: main lists a canvas's first conversation only once it accepts it.
 test("a start from the panel is in flight for its canvas only, until main answers", () => {
   const h = harness();
   expect(h.run.startingOn(checkout)).toBe(false);

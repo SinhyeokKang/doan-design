@@ -12,8 +12,7 @@ const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   provider: "claude", fromHome: false, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T12:00:00.000Z", preview: "", ...patch,
 });
 
-// The prototype window shows what its own canvas run picks (the main window's rule, its own instance), named by the
-// states its head and composer tell apart.
+// The main window's pick rule, in the prototype window's own instance.
 describe("prototypeShown", () => {
   const target = { root: ROOT, canvas: CHECKOUT };
   const start = { mode: "new" as const, offer: null, pending: false };
@@ -133,8 +132,7 @@ describe("playingFrameChip", () => {
   });
 });
 
-// The header's button shows only while the panel is closed (Hide conversation is in the panel's head), so it is
-// always Show conversation.
+// Hide conversation is in the panel's head, so this button is always Show conversation.
 describe("conversationButton", () => {
   test("takes no open state: Show conversation with its badge whatever the panel does", () => {
     expect(conversationButton(summary({ phase: "waiting", working: true, unseen: true }))).toEqual({ label: "Show conversation", badge: "permission", name: "Show conversation, needs your answer" });
@@ -174,8 +172,7 @@ describe("prototypeHeadTitle", () => {
     expect(prototypeHeadTitle({ kind: "blocked", reason: "duplicate" }, "Ideas")).toBe("Conversation");
   });
 
-  // A list never read is the new conversation state (the head's New is aria-disabled and New conversation is the
-  // pressed menu row), so the head names it as the main window does.
+  // A list never read is the new conversation state, named as the main window names it.
   test("a failed first list read reads New conversation, as the main window", () => {
     expect(prototypeHeadTitle({ kind: "list_error" }, "New conversation")).toBe("New conversation");
   });

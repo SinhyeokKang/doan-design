@@ -14,12 +14,10 @@ test("removing a project with a running conversation asks first and names the co
     body: "Doan will stop both conversations, then remove doan-design from your project list. Files and Git worktrees stay on disk.",
     cancel: "Cancel", confirm: "Stop and remove",
   });
-  // Every one waiting for an answer: the confirmation says so.
   expect(removalConfirm([{ conversationId: "c2", waiting: true }], "doan-design", 1).body)
     .toBe("A conversation in doan-design needs your answer. Doan stops it, then removes the project from the list. Files and Git worktrees stay on disk.");
 });
 
-// Without a running conversation the removal still asks first.
 test("removing a project without a running conversation asks first, naming one worktree or how many", () => {
   expect(removalConfirm([], "doan-design", 1)).toEqual({
     conversations: [],
@@ -45,9 +43,7 @@ test("the removal question names the card, and one worktree of several by its br
   expect(removalQuestionLabel(cards, ["/code/app-fix"], new Map())).toBe("app (fix)");
   expect(removalQuestionLabel(cards, ["/code/app-old"], new Map())).toBe("app (detached 0123456)");
   expect(removalQuestionLabel(cards, ["/code/app-gone"], new Map())).toBe("app");
-  // A card of one worktree: the name alone.
   expect(removalQuestionLabel([card([main])], ["/code/app"], new Map())).toBe("app");
-  // No card yet: the sidebar's project name.
   expect(removalQuestionLabel([], ["/code/plain"], new Map([["/code/plain", "plain"]]))).toBe("plain");
 });
 
@@ -64,8 +60,7 @@ test("the last request is kept per root, and a newer send replaces it", () => {
   expect(first.get("/r/malmoi")).toBeUndefined();
 });
 
-// The renderer has no check-by-path call; main checks every attachment again when the start is accepted and refuses
-// a moved one with attachment_missing, so the chips come back as they were sent.
+// main re-checks every attachment when the start is accepted, so the renderer needs no check-by-path call.
 test("Edit on Home fills an empty composer without asking; main checks the attachments again on send", () => {
   const result = restoreRequest({ text: "  ", preset: null, attachments: [] }, LAST, "doan-design");
   expect(result.confirm).toBeNull();
@@ -80,7 +75,7 @@ test("a different draft asks before it is replaced; the same request does not", 
   expect(restoreRequest({ text: LAST.text, preset: CRITIQUE, attachments: [file("a.png")] }, LAST, "doan-design").confirm).toBeNull();
 });
 
-// App wiring rules, pure so App's event handlers stay thin.
+// App wiring rules stay pure so App's event handlers stay thin.
 test("a permission request toasts once, and only when its project is not on screen", () => {
   const ask = { kind: "permission" as const, requestId: "r1", summary: "Edit x", options: [] };
   expect(permissionToastKey(ask, { kind: "working", activity: null }, false)).toBe("r1");

@@ -5,8 +5,6 @@ import { canvasCardMeta, canvasCardText, middleCut, newCanvasesText } from "./ca
 import { startErrorView } from "./homeComposer";
 import type { ThreadItem } from "./threadItems";
 
-// The card's copy is the confirmed draft's (.doan/canvases/canvas-drawing-cards.html): the head names the file, the status
-// never repeats it.
 type Card = Extract<ThreadItem, { kind: "canvasCard" }>;
 const CHECKOUT = { path: ".doan/canvases/checkout-flow.html", id: "checkout" }, HOME = { path: ".doan/canvases/home.html", id: "home" };
 const card = (patch: Partial<Card> = {}): Card => ({ kind: "canvasCard", key: `ct1:${CHECKOUT.path}`, canvas: CHECKOUT, drawing: false, drawn: true, ...patch });
@@ -99,7 +97,6 @@ describe("canvasCardText", () => {
   });
 });
 
-// The meta under a card's status line says what the canvas is now.
 describe("canvasCardMeta", () => {
   const ROOT = "/w/acme-web";
   // Local times, as the tooltip reads them.
@@ -209,7 +206,6 @@ describe("middleCut", () => {
   });
 });
 
-// The thread's status line adds this after the last turn's end title once the turn ended.
 describe("newCanvasesText", () => {
   const drawn = (path: string, patch: Partial<Card> = {}): ThreadItem => card({ key: `ct1:${path}`, canvas: { path }, ...patch });
   const end: ThreadItem = { kind: "end", key: "e5", seq: 5, end: { kind: "interrupted", reason: "user" } };

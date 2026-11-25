@@ -4,8 +4,7 @@ import { DockedSupport, modelsKey } from "./dockedSupport";
 afterEach(() => vi.unstubAllGlobals());
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
-// an existing conversation's pick is stored by main at once, shows
-// until the conversation's summary reports it, and a refused one falls back to the stored mode.
+// An existing conversation's pick is stored at once and shows until its summary reports it.
 test("an existing conversation's mode pick is stored at once and shows until the summary reports it", async () => {
   const set = vi.fn(async () => undefined);
   vi.stubGlobal("window", { doan: { setConversationPermissionMode: set } });
@@ -32,8 +31,7 @@ test("a refused pick goes back to the stored mode; a new conversation's pick cal
   expect(support.picks["new:/r"]).toEqual({ permissionMode: "plan" });
 });
 
-// a pending pick remembers the stored mode it was made from. When main moves the stored mode off that value
-// (a plan approval the list read caught only at its end), the pick is dropped and the stored mode shows.
+// A pending pick remembers its stored mode; if main moves that mode first (a plan approval), the pick is dropped.
 test("a pending pick is dropped when the stored mode changes from the one it was made from", async () => {
   vi.stubGlobal("window", { doan: { setConversationPermissionMode: vi.fn(async () => undefined) } });
   const support = new DockedSupport(() => {}, window.doan);
@@ -45,8 +43,7 @@ test("a pending pick is dropped when the stored mode changes from the one it was
   expect(support.picks["conversation:c1"]).toEqual({});
 });
 
-// a conversation started here shows the mode it was started in until its summary arrives; the summary then
-// speaks, whatever it says. It is no pick of the person's: it is not sent or remembered.
+// A just-started conversation's mode shows until its summary arrives; it is no pick, so it is not sent or remembered.
 test("a just-started conversation's mode shows until its summary arrives", () => {
   const support = new DockedSupport(() => {}, { designSkills: { list: vi.fn(), get: vi.fn() }, listConversationModels: vi.fn(), setConversationPermissionMode: vi.fn() });
   support.startedIn("conversation:c1", "bypass");
@@ -58,8 +55,7 @@ test("a just-started conversation's mode shows until its summary arrives", () =>
   expect(support.started["conversation:c1"]).toBeUndefined();
 });
 
-// A Codex account replacement mints a new connection; main lists for it again, and the window must ask instead of
-// keeping the list it read for the previous account.
+// A Codex account replacement mints a new connection, so the models list is read again for it.
 test("a provider's list is read again for its new connection, and the previous connection's list is not shown for it", async () => {
   const { authStatus } = await import("../main/agentAuth/state");
   const snapshot = (generation: number) => ({ revision: generation, providers: [authStatus({ provider: "codex", generation, verified: true, expired: false, connection: { provider: "codex", connectionId: `c${generation}`, profile: "codex", account: { id: null, workspace: null, email: "ada@example.com" } }, attempt: null, error: null, phase: "connected" }, { cli: "found", version: "supported", tools: "ready" }, generation)] });

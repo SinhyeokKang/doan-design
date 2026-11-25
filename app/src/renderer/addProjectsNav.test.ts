@@ -34,8 +34,7 @@ test("a finished add goes Home with that root chosen, new or already registered"
   expect(addPageReturn(home, { kind: "added", root: "/w/b" }, roots)).toEqual({ kind: "home", select: "/w/b" });
 });
 
-// A sidebar row and a Quick Open pick leave through the shell's own navigation, whose controller asks the draft guard
-// canvas by canvas; the page never decides that a move may skip it, so they are not events here.
+// The shell's own navigation asks the draft guard per canvas; the page never decides a move may skip it.
 test("the destination never carries a guard decision", () => {
   for (const event of [{ kind: "projectsTab" }, { kind: "back" }, { kind: "cancel" }, escape] as const)
     expect(Object.keys(addPageReturn(ws, event, roots)).sort()).toEqual(["kind", "root"]);
@@ -73,7 +72,6 @@ test("a radio, a checkbox or a select is not editing; text fields and textareas 
     expect(pageEscape({ target, isComposing: false, keyCode: 27 }, false)).toEqual({ ...escape, editing: true });
 });
 
-// Settings and Add Projects are both pages and share one origin.
 test("settings page: entering from Home or a workspace records it as the origin and cancels pending moves", () => {
   expect(pageEnter({ screen: "home" }, ws, "settings", false)).toEqual({ kind: "enter", origin: home, cancelPending: true });
   expect(pageEnter({ screen: "workspace", root: "/w/b" }, home, "settings", false)).toEqual({ kind: "enter", origin: { screen: "workspace", root: "/w/b" }, cancelPending: true });
@@ -109,7 +107,6 @@ test("settings page: every leaving move is ignored while the page is locked", ()
   expect(addPageReturn(ws, { kind: "added", root: "/w/new" }, roots, true)).toEqual({ kind: "home", select: "/w/new" });
 });
 
-// Project Settings is a third page that shares the origin.
 test("project settings page: entering from Home, a workspace or another page records or keeps the origin", () => {
   expect(pageEnter({ screen: "home" }, ws, "projectSettings", false)).toEqual({ kind: "enter", origin: home, cancelPending: true });
   expect(pageEnter({ screen: "workspace", root: "/w/b" }, home, "projectSettings", false)).toEqual({ kind: "enter", origin: { screen: "workspace", root: "/w/b" }, cancelPending: true });

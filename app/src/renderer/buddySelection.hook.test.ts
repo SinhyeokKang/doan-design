@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { PreferencesSnapshot, PreferencesWriteReply } from "../main/preferences";
 import type { BuddyId } from "./buddies";
 
-// useBuddySelection driven with hooks as plain state, as the App tests drive App.
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
@@ -19,7 +18,6 @@ const { useBuddySelection } = await import("./buddySelection");
 const snap = (buddy?: BuddyId): PreferencesSnapshot => ({ preferences: buddy ? { ...DEFAULT_PREFERENCES, buddy } : DEFAULT_PREFERENCES, notice: null });
 let replies: ((reply: PreferencesWriteReply | null) => void)[];
 let saved: PreferencesSnapshot | null;
-// App's savePreferences: takes a reply's snapshot as App's own.
 const save = vi.fn((_patch: unknown) => new Promise<PreferencesWriteReply | null>(resolve => { replies.push(reply => { if (reply) saved = reply.snapshot; resolve(reply); }); }));
 const render = () => { hooks.cursor = 0; hooks.refCursor = 0; return useBuddySelection(saved, save, "doany"); };
 const settle = async () => { for (let i = 0; i < 4; i++) await Promise.resolve(); };
@@ -106,7 +104,6 @@ test("B fails first, then A's older success lands: the notice for B stays and th
   expect(render()).toMatchObject({ shown: "popo", failure: { picked: "puri", kept: "dori" } });
 });
 
-// The existing-user buddy screen: Continue saves the buddy on screen when the file has none (Doany at first).
 test("commit with no saved buddy saves the shown buddy, Doany at first, and resolves with that save", async () => {
   saved = snap();
   const committing = render().commit();
@@ -151,8 +148,7 @@ test("commit with a saved buddy and nothing picked saves nothing", async () => {
   expect(save).not.toHaveBeenCalled();
 });
 
-// A failure that already answered is not a save to wait for: Continue goes on with the buddy that stays (draft frame
-// buddy-step-failed), and only a press while a save runs waits for it.
+// An already-answered failure is no save to wait for; only a press while a save runs waits.
 test("after a failed save has answered, Continue goes on; a press while a save runs still waits for it", async () => {
   void render().select("popo");
   replies[0]!({ ok: false, reason: "write_failed", snapshot: snap("dori") });
@@ -167,8 +163,7 @@ test("after a failed save has answered, Continue goes on; a press while a save r
   expect(await render().settled()).toBe(true);
 });
 
-// Settings > General's switch starts the 24-hour lock (PRODUCT §5 item 0 'General'); first run and the buddy screen do
-// not.
+// Only the Settings > General switch starts the 24-hour lock (PRODUCT §5 item 0 'General').
 describe("the buddy lock", () => {
   const H = 3_600_000;
   const NOW = Date.parse("2026-11-14T10:00:00.000Z");
@@ -182,7 +177,6 @@ describe("the buddy lock", () => {
     expect(save).toHaveBeenCalledExactlyOnceWith({ buddy: "popo", buddyChangedAt: AT });
   });
 
-  // Draft frame general-confirm-saving: the alert waits on the saved buddy's accent.
   test("a Settings switch shows only once it is saved; a failure keeps the saved buddy", async () => {
     void render().select("popo", AT);
     expect(render().shown).toBe("dori");
@@ -207,7 +201,7 @@ describe("the buddy lock", () => {
     expect(save).toHaveBeenLastCalledWith({ buddy: "doany" });
   });
 
-  // Retry then goes the same way: SettingsGeneral sends a fresh time only for a failure marked as a Settings switch.
+  // SettingsGeneral sends a fresh time on Retry only for a failure marked as a Settings switch.
   test("a failed Settings switch says so in its failure", async () => {
     void render().select("popo", AT);
     replies[0]!({ ok: false, reason: "write_failed", snapshot: snap("dori") });
@@ -239,7 +233,6 @@ describe("the buddy lock", () => {
     expect(render().lockedUntil).toBe(NOW + 24 * H);
     vi.setSystemTime(NOW + 3 * H);
     expect(render().lockedUntil).toBe(NOW + 24 * H);
-    // A new value is seen anew.
     saved = locked("puri", new Date(NOW + 200 * H).toISOString());
     expect(render().lockedUntil).toBe(NOW + 27 * H);
   });

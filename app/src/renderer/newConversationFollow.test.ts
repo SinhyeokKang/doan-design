@@ -20,9 +20,8 @@ describe("followNewConversation", () => {
     expect(followNewConversation(null, [old, summary({ conversationId: "new" })], billing)).toBeNull();
   });
 
-  // A handoff's conversation takes the panel only when the person neither chose New nor typed in it: the default state
-  // with an empty draft (PRODUCT §5 item 2 'Handoff'). Its origin, a canvas or the Overview, is only in its history, so
-  // both read the same here.
+  // PRODUCT §5 item 2 'Handoff': only the default new state with an empty draft is taken. The origin, a canvas
+  // or the Overview, is only in the handoff conversation's history, so both read the same here.
   test("a conversation a handoff started takes the default new state with an empty draft, from a canvas or the Overview", () => {
     expect(followNewConversation(KNOWN, [old, summary({ conversationId: "h", startedBy: "handoff" })], billing)).toBe("h");
     expect(followNewConversation(KNOWN, [old, summary({ conversationId: "h", startedBy: "handoff" })], billing, { draft: false })).toBe("h");
@@ -41,7 +40,7 @@ describe("followNewConversation", () => {
     expect(followNewConversation(KNOWN, [summary({ conversationId: "h", startedBy: "handoff", readError: true, lastActivityAt: "" })], billing)).toBeNull();
   });
 
-  // Nothing is promoted any more; an earlier build's promoted conversation was listed when the default state was taken.
+  // An earlier build's promoted conversation was already listed when the default state was taken.
   test("an earlier build's promoted conversation the default state's list named is not followed", () => {
     expect(followNewConversation(new Set(["old", "p"]), [old, summary({ conversationId: "p", startedBy: "promotion" })], billing)).toBeNull();
   });

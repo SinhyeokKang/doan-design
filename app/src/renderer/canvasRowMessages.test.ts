@@ -1,7 +1,6 @@
 import { expect, test } from "vitest";
 import { canvasStem, exportProgress, exportToast, trashToast } from "./canvasRowMessages";
 
-// The toasts' wording is pinned word for word.
 test("a canvas's name is its file stem, from any subdirectory", () => {
   expect(canvasStem(".doan/canvases/checkout.html")).toBe("checkout");
   expect(canvasStem(".doan/ds/flows/checkout.html")).toBe("checkout");
@@ -35,7 +34,7 @@ test("Export says its progress, its result with Show in Finder, and why it faile
   expect(text({ kind: "failed", reason: "tooLarge", largest: null })).toBe("Couldn’t export “checkout”. The file would be over 50 MB.");
   expect(text({ kind: "failed", reason: "insideDoan" })).toBe("Couldn’t export “checkout”. Choose a folder outside .doan.");
   expect(text({ kind: "failed", reason: "failed" })).toBe("Couldn’t export “checkout”. Try again.");
-  // Main's own refusals have no sentence of their own (C2 brief): any other failure.
+  // Main's own refusals read as any other failure.
   for (const reason of ["exporting", "notListed"] as const) expect(exportToast("checkout", { kind: "refused", reason })).toEqual({ text: "Couldn’t export “checkout”. Try again." });
   for (const reply of [{ kind: "failed", reason: "unreadable" }, { kind: "refused", reason: "notListed" }] as const) expect(exportToast("checkout", reply)?.reveal).toBeUndefined();
 });
@@ -46,7 +45,7 @@ test("a prototype export says the file also holds the rest of the canvas", () =>
   expect(exportToast("Checkout", { kind: "exported", external: 1, reveal: "r2" }, true)).toEqual({ text: "Exported “Checkout”. The file also contains the rest of the canvas. Parts of it load from the internet.", reveal: "r2" });
 });
 
-// The file holds the start frame's link group; the toast counts the frames besides it. No linked frame reads as before.
+// The file holds the start frame's link group; the toast counts the frames besides it.
 test("a prototype export with linked frames says how many came with it", () => {
   expect(exportToast("Checkout", { kind: "exported", external: 0, reveal: "r1", linkedFrames: 2 }, true)).toEqual({ text: "Exported “Checkout” and 2 linked frames. The file also contains the rest of the canvas.", reveal: "r1" });
   expect(exportToast("Checkout", { kind: "exported", external: 0, reveal: "r1", linkedFrames: 1 }, true)?.text).toBe("Exported “Checkout” and 1 linked frame. The file also contains the rest of the canvas.");

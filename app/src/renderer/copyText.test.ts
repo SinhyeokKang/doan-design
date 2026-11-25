@@ -1,9 +1,8 @@
 import { afterEach, expect, test, vi } from "vitest";
 import { copyText } from "./copyText";
 
-// main denies every permission check, so the thread's Copy writes through the document's own
-// copy command. No element takes focus or selection for it, so the person's field (an IME
-// composition may be in it) is never blurred; the copy event's clipboard data carries the text instead.
+// main denies every permission check, so Copy uses the document's copy command; no element takes focus,
+// which would blur the person's field mid IME composition.
 
 type Listener = (event: { clipboardData: { setData(type: string, value: string): void } | null; preventDefault(): void }) => void;
 let listeners: Map<string, Listener>;

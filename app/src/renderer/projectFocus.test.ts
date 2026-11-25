@@ -119,7 +119,7 @@ test("a cancelled save panel hands focus back to New folder, or to the notice bu
   open(again); again.isConnected = false; session.state = { ...session.state, error: null }; cancel(again);
   expect(doc.activeElement).toBe(newFolder);
   expect(choose.focused).toBe(0);
-  // A Choose folder notice's button that went keeps the shipped place, the card's Choose folder.
+  // A Choose folder notice's button that went goes to the card's Choose folder.
   const gone = new Element();
   session.state = { ...session.state, error: { ...exists, code: "project_unavailable" } };
   render();

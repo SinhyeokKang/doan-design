@@ -1,6 +1,5 @@
 import { beforeEach, expect, test, vi } from "vitest";
 
-// useBuddyIntroLock driven with hooks as plain state, as buddySelection.hook.test.ts drives its hook.
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], effects: [] as (() => unknown)[], cursor: 0 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),

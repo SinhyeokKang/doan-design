@@ -86,7 +86,7 @@ describe("scheduledSlot", () => {
     expect(scheduledSlot(at("2026-11-13T15:00:00"), NOW, SEOUL)).toEqual({ kind: "scheduled", label: `Queued — sends when the limit resets at 3:00${NNBSP}PM` });
   });
 
-  // Not drawn: the draft names only the waiting state, so the passed one says what the status line says.
+  // A passed reset says what the status line says, without a time.
   test("once the reset passed it reads as going out, without a time", () => {
     const reset = at("2026-11-13T15:00:00");
     expect(scheduledSlot(reset, Date.parse(reset) + 1, SEOUL)).toEqual({ kind: "scheduled", label: "Queued — sending" });

@@ -89,7 +89,7 @@ describe("drawerGroups", () => {
   });
 });
 
-// The renderer's half of a link click: judged by the view it shows (its gen and phase), before main judges again.
+// The renderer's half of a link click, judged by its own view before main judges again.
 describe("linkMove", () => {
   test("moves to a frame the run lists", () => {
     expect(linkMove(view(), { gen: 2, goto: "account" }, false)).toEqual({ kind: "move", frame: "account" });
@@ -139,7 +139,7 @@ describe("modeTooltip", () => {
   });
 });
 
-// The header's Export: available while the frame plays, loads or failed to start; otherwise the canvas toolbar's rule.
+// Unavailable states follow the canvas toolbar's rule.
 describe("exportAvailability", () => {
   test("is available while ready, loading or after a start failure", () => {
     for (const phase of ["ready", "loading", "init-failed"] as const) expect(exportAvailability(view({ phase }), false), phase).toEqual({ available: true });

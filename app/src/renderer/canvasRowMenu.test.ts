@@ -29,7 +29,6 @@ describe("trashBlock", () => {
     expect(trashBlock(target, [summary({ working: true, canvas: { path: target.path, id: "other" } })], [])).toBeNull();
   });
 
-  // The first conversation of a canvas is in main's list only once main accepted it, but it is already preparing.
   test("a start from the canvas panel main has not answered blocks it, before any list names the conversation", () => {
     const starting = (root: string, canvas: { path: string; id?: string }) => root === target.root && canvas.id === target.id;
     expect(trashBlock(target, [], [], starting)).toBe("conversation");

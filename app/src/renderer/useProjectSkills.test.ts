@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { ComposerTurn } from "./composerRules";
 
-// The hook run as plain state, its effects after each call (the App tests' no-DOM style).
+// The hook run as plain state, its effects after each call (no DOM).
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as { deps: unknown[] }[], pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),

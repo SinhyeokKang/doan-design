@@ -3,9 +3,8 @@ import type { PrototypeReveal } from "../main/prototype/ipc";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { REVEAL_DIALOG, revealDecision, revealName, type RevealState } from "./revealDecision";
 
-// What the main window does with a prototype window's chip, Sign in or Open (main already checked its scope and
-// brought this window forward). Nothing the main window holds is cancelled: a dialog, a page lock or first run turns
-// it into one toast.
+// Chip, Sign in or Open from a prototype window cancels nothing in the main window: a dialog, page lock
+// or first run turns it into one toast.
 
 const ROOT = "/w/a", OTHER = "/w/b";
 const checkout: CanvasRow = { path: ".doan/canvases/checkout.html", id: "checkout", url: "u-c", frames: [{ id: "payment", title: "Payment" }] };

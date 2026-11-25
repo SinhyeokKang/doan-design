@@ -2,14 +2,13 @@ import { describe, expect, test } from "vitest";
 import { escapeStep, OPEN_OVERLAY, overlayOpen, toolShortcut, type ShortcutEvent } from "./canvasTool";
 import { drawn, drawnDocument, NOTHING_OPEN, OPEN_SURFACES } from "./drawnTarget.test-support";
 
-// V, H and Space by key position, filtered before the canvas takes them.
 const press = (code: string, over: Partial<ShortcutEvent> = {}): ShortcutEvent => ({ type: "keydown", code, key: "", repeat: false, isComposing: false, keyCode: 0, defaultPrevented: false, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, target: null, ...over });
 const release = (code: string, over: Partial<ShortcutEvent> = {}) => press(code, { type: "keyup", ...over });
 const onPage = { canvasPage: true };
 const element = (tagName: string, attributes: Record<string, string> = {}) => ({ tagName, isContentEditable: false, getAttribute: (name: string) => attributes[name] ?? null, hasAttribute: (name: string) => name in attributes });
 
-// One rule for "a menu, list, popover or dialog is open" (PRODUCT §5 item 2 'Canvas header' for the tool keys,
-// 'Following' for the view): the tool keys ask it of the key's target, following and the star card of the document.
+// PRODUCT §5 item 2 'Canvas header' and 'Following' share overlayOpen: tool keys ask it of the key's target,
+// following and the star card of the document.
 describe("overlayOpen", () => {
   test.each(OPEN_SURFACES)("is true while %s is open", (_, chain) => {
     expect(overlayOpen(drawnDocument(chain))).toBe(true);
@@ -120,7 +119,6 @@ describe("escapeStep", () => {
     expect(escapeStep({ picking: false, capturing: false, hand: false, editable: true, canvasText: true })).toBeNull();
   });
 
-  // Capture mode ends at the pick's step, ahead of Hand and the selection.
   test("ends capture mode before Hand and the selection, wherever focus is", () => {
     for (const hand of [true, false]) {
       for (const editable of [true, false]) expect(escapeStep({ picking: false, capturing: true, hand, editable, canvasText: false })).toBe("cancelCapture");

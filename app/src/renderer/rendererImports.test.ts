@@ -5,16 +5,14 @@ import { fileURLToPath } from "node:url";
 import { parseSync } from "vite";
 import { describe, expect, it } from "vitest";
 
-// The renderer runs under a CSP without 'unsafe-eval', and ajv compiles its schemas with new Function when
-// formats/validate.ts loads. A renderer value import that reaches it (or any Node module) leaves the window blank in
-// the built app while every jsdom test still passes (POSTMORTEM 2026-10-30). Type-only imports are erased and safe.
+// The CSP has no 'unsafe-eval' and ajv compiles with new Function: a renderer value import reaching it or any
+// Node module blanks the built window while jsdom tests pass (POSTMORTEM 2026-10-30). Type imports are safe.
 const APP = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const SRC = join(APP, "src");
 const FORBIDDEN_FILES = [join(SRC, "formats/validate.ts")];
 const NODE = new Set(builtinModules.flatMap(name => [name, `node:${name}`]));
-// Modules the app does not import yet but a later screen will: the walk starts from them too, so a value import
-// added now cannot wait for that screen to fail (POSTMORTEM 2026-10-30; the project Overview places the thread and the
-// docked composer).
+// Walked as roots of their own, so each stays under the guard whether or not an entry reaches it
+// (POSTMORTEM 2026-10-30).
 const EXTRA_ROOTS = [
   // Fixed request lines are shared by main and renderer by value.
   join(SRC, "main/conversation/requestLines.ts"),
@@ -25,21 +23,19 @@ const EXTRA_ROOTS = [
   join(SRC, "main/conversation/permissionMode.ts"),
   // The provider table and the Send now rule the composer imports by value.
   join(SRC, "main/conversation/steerSupport.ts"),
-  // The presets and connector types MCP Connectors settings will import by value.
+  // The presets and connector types MCP Connectors settings import by value.
   join(SRC, "main/mcpConnectors/presets.ts"),
   // The question types and limits and the shared answer check the question card imports by value.
   join(SRC, "main/conversation/question.ts"), join(SRC, "main/conversation/questionAnswer.ts"),
   // Agent usage: the ring value, usage text and description the usage button imports by value.
   join(SRC, "renderer/agentUsage.ts"),
-  // The update rows, header button and menu item Settings > About and the header will import by value.
+  // The update rows, header button and menu item import by value.
   join(SRC, "main/update/view.ts"),
 ];
 
-// The HTML pages electron-vite builds as renderer entries: the main window and the prototype window.
 const PAGES = ["index.html", "prototype.html"];
 
 function entries(): string[] {
-  // Every renderer entry is an HTML file whose module script starts the closure.
   return PAGES.flatMap(page => {
     const html = readFileSync(join(SRC, "renderer", page), "utf8");
     return [...html.matchAll(/<script[^>]*type="module"[^>]*src="([^"]+)"/g)].map(match => resolve(join(SRC, "renderer"), match[1]!.replace(/^\//, "")));
@@ -55,9 +51,8 @@ function resolveImport(from: string, spec: string): string | null {
   throw new Error(`unresolved import ${spec} in ${relative(APP, from)}`);
 }
 
-// Value imports only, read from the syntax (oxc, the parser family of the renderer's bundler): an import or re-export
-// survives unless every specifier is `type`; `import type`, `export type` and type queries such as
-// `import("node:fs").Stats` are erased; a side-effect import and a literal dynamic `import()` are kept.
+// Value imports only, read from the syntax (oxc): all-`type` specifiers and type queries are erased;
+// side-effect and literal dynamic imports are kept.
 function valueImports(source: string, lang: "ts" | "tsx" = "ts"): string[] {
   const { module, errors } = parseSync(`module.${lang}`, source, { lang, sourceType: "module" });
   if (errors.length > 0) throw new Error(`cannot parse: ${errors[0]!.message}`);
@@ -71,8 +66,7 @@ function valueImports(source: string, lang: "ts" | "tsx" = "ts"): string[] {
   return [...new Set(found)];
 }
 
-// A module Worker the renderer starts (`new Worker(new URL(spec, import.meta.url))`) is bundled as its own chunk and
-// runs under the same CSP, so the walk follows it like an import and records it as a Worker entry.
+// A module Worker is its own chunk under the same CSP, so the walk follows it like an import.
 function workerImports(source: string): string[] {
   return [...source.matchAll(/new\s+Worker\(\s*new\s+URL\(\s*(["'])([^"'`$]+)\1\s*,\s*import\.meta\.url\s*\)/g)].map(match => match[2]!);
 }
@@ -104,8 +98,8 @@ function chain(files: Map<string, string | null>, file: string): string {
   return path.join(" -> ");
 }
 
-// The walker must read syntax, not spacing: a missed value import lets ajv or a Node module back into the renderer, and a
-// type query read as a value import fails the guard for nothing.
+// The walker must read syntax, not spacing: a miss lets ajv or Node into the renderer, and a type query
+// read as a value import fails the guard for nothing.
 describe("value imports the renderer bundle keeps", () => {
   it.each([
     ["import { validateCanvas } from \"../formats/validate\";", ["../formats/validate"]],
@@ -152,8 +146,7 @@ describe("renderer import closure", () => {
     expect(node).toEqual([]);
   });
 
-  // The Worker gets only the dot field's module: agentIndicator.ts and the rest import other modules by value, and a
-  // Worker has no document, so anything more in its chunk can fail where the page would not.
+  // A Worker has no document and other modules import by value, so only the dot field belongs in its chunk.
   it("follows the dot field Worker, whose bundle holds only dotField.ts", () => {
     const worker = join(SRC, "renderer/dotFieldWorker.ts");
     expect(closure().workers).toEqual([worker]);

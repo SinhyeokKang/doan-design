@@ -162,11 +162,8 @@ describe("quick open matching", () => {
   });
 
   it("searches 1000 canvases with 50 frames each within a small multiple of a linear scan", () => {
-    // Load hits the baseline and the measured call alike, so the judgment is a ratio of the fastest
-    // of several interleaved samples, not an absolute time. Each sample repeats its work SAMPLE_RUNS
-    // times so both take a few ms, long enough for a load spike to hit both alike. The baseline visits
-    // the same entries and fields but does not do the same work (no scoring or sorting). RATIO_LIMIT
-    // was calibrated on one machine: worst case 8.3x unloaded and 11.5x under 4 concurrent test runs.
+    // A ratio of the fastest interleaved samples (each repeated SAMPLE_RUNS times), so load spikes hit both alike. The
+    // baseline does no scoring or sorting; RATIO_LIMIT leaves headroom over about 12x seen under load.
     const index = searchIndex([folder("/repo", Array.from({ length: 1000 }, (_, i) => canvas(`.doan/canvases/card-${i}.html`, {
       frames: Array.from({ length: 50 }, (_, j) => ({ id: `card-${j}`, title: `Card payment ${j}` })),
     })))]);
@@ -560,7 +557,6 @@ describe("quick open outside click", () => {
     expect(outsideDialog(rect, press(620, 28), { x: 620, y: 28 }, strip)).toBe(false);
     expect(outsideDialog(rect, press(400, 28), { x: 400, y: 400 }, strip)).toBe(false);
     expect(outsideDialog(rect, press(50, 400), { x: 50, y: 20 }, strip)).toBe(false);
-    // The strip's bottom edge belongs to the strip.
     expect(outsideDialog(rect, press(50, 56), { x: 50, y: 56 }, strip)).toBe(false);
     expect(outsideDialog(rect, press(50, 57), { x: 50, y: 57 }, strip)).toBe(true);
     expect(outsideDialog(rect, press(50, 400), { x: 50, y: 400 }, strip)).toBe(true);

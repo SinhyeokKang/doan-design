@@ -4,9 +4,6 @@ import type { Anchor, ConversationEvent } from "../main/conversation/types";
 import { ConversationStore, draftFrom, type ListView } from "./conversationStore";
 import { threadItems, withSending } from "./threadItems";
 
-// Send now takes the row out of the queue at once and shows the message at the thread's end
-// until main answers. Read, it goes (the history's own message stays); refused or ended, it is back in its own place.
-
 const ROOT = "/code/doan", A = "aaaaaaaa-0000-4000-8000-000000000001";
 const CTA: Anchor = { element: { doanId: "hero-cta", selector: "[data-doan-id=\"hero-cta\"]" } };
 const summary = (extra: Partial<ConversationSummary> = {}): ConversationSummary => ({
@@ -293,8 +290,8 @@ test("a refusal says whether the turn still runs as the store reads it at the an
   expect(h.ids()).toEqual(["q1", "q2", "q3"]);
 });
 
-// The answer being chosen is kept by request in the store the canvas panel and the Overview
-// share, so it outlives the thread's redraw for another conversation; it goes once the question is settled.
+// The chosen answer is kept by request in the store the canvas panel and Overview share, so it outlives a
+// redraw for another conversation and goes once the question is settled.
 test("a question's chosen answer is kept by conversation and request until that question is resolved", async () => {
   const h = harness();
   const B = "bbbbbbbb-0000-4000-8000-000000000002";
@@ -309,7 +306,6 @@ test("a question's chosen answer is kept by conversation and request until that 
   // Another conversation's request with the same id is apart.
   expect(h.store.questionDraft(B, "q1").choices).toEqual({});
   expect(h.store.questionDraft(A, "q1").choices).toEqual({ "0": { selected: [1], other: false, text: "" } });
-  // Another request's resolution leaves it.
   h.store.event(event({ type: "question.resolved", requestId: "q9", outcome: "skipped" }));
   expect(h.store.questionDraft(A, "q1").choices).toEqual({ "0": { selected: [1], other: false, text: "" } });
   h.store.event(event({ type: "question.resolved", requestId: "q1", outcome: "answered", answers: { "0": { selected: ["Two rows"] } } }));
@@ -352,9 +348,8 @@ test("a capture main could not take leaves the draft with the capture notice", (
   expect(store.drafts.get("canvas:/code/doan:a")?.attachments).toEqual([]);
 });
 
-// Claude Code may read a Send now message only as its turn stops; main then finds it in the session transcript once the
-// process is gone and writes it into that turn before the end (POSTMORTEM 2026-11-05: the rows main counts again). The
-// message stays in the thread as the history's own, and neither its sending entry nor its row comes back.
+// POSTMORTEM 2026-11-05: Claude Code may read a Send now message only as its turn stops; main then writes it
+// from the transcript before the end. It stays once, and neither its sending entry nor its row returns.
 test("a Send now message the stopped turn's transcript shows stays in the thread once, with no sending entry or row", async () => {
   const h = harness();
   h.store.track(A);
@@ -393,8 +388,8 @@ test("a refused Send now row the transcript later shows as read goes with the ne
   expect(threadItems(h.store.thread(A)!.events, ROOT, true).filter(item => item.kind === "user").map(item => item.key)).toEqual(["u1", `u${message.seq}`]);
 });
 
-// A scheduled conversation's rows come from main (conversation `scheduled`): main schedules some by itself after a turn
-// the usage limit stopped, and a reschedule changes the time. They are read when the list's schedule appears or changes.
+// Scheduled rows come from main, which also schedules and reschedules by itself,
+// so they are read when the list's schedule appears or changes.
 describe("scheduled rows", () => {
   const AT = "2026-11-13T06:00:00.000Z", LATER = "2026-11-14T06:00:00.000Z";
   const item = (itemId: string, text: string, extra: Partial<{ anchors: Anchor[]; attachments: { name: string; size?: number; kind: "file" | "directory"; path: string }[] }> = {}) =>
@@ -505,7 +500,6 @@ test("a row without the failed turn's id leaves Edit and resend", async () => {
   expect(store.resendHidden(A)).toBe(false);
 });
 
-// Fix round 1 (independent review): the read cache follows every list read, and each read is its own request.
 describe("scheduled rows: request identity and retries", () => {
   const AT = "2026-11-13T06:00:00.000Z";
   const scheduled = (extra: Partial<ConversationSummary> = {}) => summary({ phase: "ended", working: false, queued: 1, scheduledAt: AT, ...extra });
@@ -562,7 +556,6 @@ describe("scheduled rows: request identity and retries", () => {
 });
 
 
-// A first message a quit stopped before main accepted it, in an earlier run, comes into its new conversation draft.
 describe("takeStartDraft", () => {
   const CANVAS = { path: ".doan/canvases/a.html", id: "a" };
   const record = { name: "brief.md", kind: "file", size: 1, path: "/files/brief.md" };

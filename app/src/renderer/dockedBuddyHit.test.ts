@@ -33,7 +33,7 @@ pixels[(1*4 + 1)*4 + 3] = 255;
 pixels[(1*4 + 2)*4 + 3] = 32;
 pixels[(2*4 + 1)*4 + 3] = 33;
 const mask = { data: pixels, width: 4, height: 4 };
-// A 100px host: the rig's 16.5% padding leaves a 67px square, so each mask pixel is 16.75px.
+// A 100px host with the rig's 16.5% padding leaves a 67px square: each mask pixel is 16.75px.
 const host = { left: 10, top: 20, width: 100, height: 100 };
 const at = (ix: number, iy: number): [number, number] => [host.left + 16.5 + 16.75*(ix + .5), host.top + 16.5 + 16.75*(iy + .5)];
 
@@ -71,7 +71,6 @@ test("silhouette path: one rectangle per run of opaque pixel centres, merged dow
   // The 100px host above: pixel (1, 1) covers x 33.25–50, y 33.25–50, so the centres 33.5…49.5 are in; (1, 2) below it
   // is opaque too (alpha 33), so the run continues down to y 66.75.
   expect(silhouettePath(mask, 100)).toBe('path("M33 33h17v34h-17Z")');
-  // Two runs on a row stay two rectangles; a run that changes width starts a new one.
   const two = new Uint8ClampedArray(2*2*4);
   two[3] = 255; two[(0*2 + 1)*4 + 3] = 255; two[(1*2 + 0)*4 + 3] = 255;
   expect(silhouettePath({ data: two, width: 2, height: 2 }, 10)).toBe('path("M2 2h6v3h-6ZM2 5h3v3h-3Z")');

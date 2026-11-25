@@ -6,8 +6,7 @@ import { ConversationStore, type ListView } from "./conversationStore";
 import { threadItems } from "./threadItems";
 import { entering } from "./threadMotion";
 
-// Local send marks: what this window sent, for the thread's entry motion. They draw nothing and outlive the queue rows
-// they were made from, until a thread spends them.
+// Local send marks drive the thread's entry motion; they outlive their queue rows until a thread spends them.
 
 const ROOT = "/code/doan", A = "aaaaaaaa-0000-4000-8000-000000000001";
 const CTA: Anchor = { element: { doanId: "hero-cta", selector: "[data-doan-id=\"hero-cta\"]" } };
