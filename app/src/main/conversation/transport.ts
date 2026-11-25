@@ -250,10 +250,11 @@ function withFileSummary(summaries: Record<string, string>, id: string, summary:
 }
 type ActivityEvent = Extract<EventPayload, { type: "activity" }>;
 function activity(kind: ActivityKind, path: string, line: string, root: string, callId?: string): ActivityEvent {
-  // Paths and tool names come from the agent unbounded; the strip shows one line and every event is stored.
-  const summary = line.slice(0, 512);
+  // Paths and tool names come from the agent unbounded; the strip shows one line and every event is stored. The store
+  // refuses U+0000 and one refused event fails the turn's whole write, so the summary escapes it and such a path goes.
+  const summary = visibleText(line).slice(0, 512);
   const id = callId ? { callId } : {};
-  if (!path) return { type: "activity", kind, summary, ...id };
+  if (!path || path.includes("\0")) return { type: "activity", kind, summary, ...id };
   const resolved = posix.resolve(root, path);
   return { type: "activity", kind, path, insideDesign: canvasDir(posix.relative(root, resolved)) !== null, summary, ...id };
 }
