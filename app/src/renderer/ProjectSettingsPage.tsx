@@ -263,15 +263,19 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
     const frame = requestAnimationFrame(() => {
       const origin = returnFocus.current; returnFocus.current = null;
       if (!origin || !live.current || document.querySelector('dialog[role="alertdialog"][open]') || (document.activeElement !== document.body && document.activeElement !== origin.button && document.activeElement !== null)) return;
-      const target = projectSettingsFocusAfter({
-        section: origin.section, pressedAlive: origin.button.isConnected && !origin.button.disabled,
-        ...(origin.removed ? { removed: { path: origin.removed.path, before: origin.removed.before, after: config$.current?.serve ?? [] } } : {}),
-      });
-      const chosen = target.kind === "storageChosen" && config$.current ? storageSectionView(config$.current, null)?.checked : null;
-      const node = target.kind === "storageChosen" ? (chosen ? storageInputs.current.get(chosen) : undefined)
-        : target.kind === "pressed" ? origin.button : target.kind === "tokenPrimary" ? tokenButton.current : target.kind === "sharedRemove" ? removeButtons.current.get(target.path) ?? addButton.current : addButton.current;
-      // A write can settle while the window is in the background, so the return is made again on activation.
-      if (node) handFocus(() => node.focus());
+      const find = () => {
+        const target = projectSettingsFocusAfter({
+          section: origin.section, pressedAlive: origin.button.isConnected && !origin.button.disabled,
+          ...(origin.removed ? { removed: { path: origin.removed.path, before: origin.removed.before, after: config$.current?.serve ?? [] } } : {}),
+        });
+        const chosen = target.kind === "storageChosen" && config$.current ? storageSectionView(config$.current, null)?.checked : null;
+        return target.kind === "storageChosen" ? (chosen ? storageInputs.current.get(chosen) : undefined)
+          : target.kind === "pressed" ? origin.button : target.kind === "tokenPrimary" ? tokenButton.current : target.kind === "sharedRemove" ? removeButtons.current.get(target.path) ?? addButton.current : addButton.current;
+      };
+      // A write can settle while the window is in the background, so the return is made again on activation, to the
+      // control as drawn then.
+      let now = true;
+      handFocus(() => { const node = find(); if (node && (now || node.isConnected)) node.focus(); now = false; });
     });
     return () => cancelAnimationFrame(frame);
   }, [waiting, handFocus]);

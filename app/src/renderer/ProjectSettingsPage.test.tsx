@@ -813,6 +813,26 @@ test("a write that settles with the window in the background returns focus again
   } finally { vi.useRealTimers(); unmount(); }
 });
 
+// A push can redraw the target row before activation; the replay finds the control as drawn then, not the one gone.
+test("a write that settles in the background returns focus on activation to the control as drawn then", async () => {
+  await open();
+  const add = node(); focusOn(add);
+  const ref = button("Add file or folder").props.ref as { current: unknown };
+  ref.current = add;
+  click("Add file or folder"); render(); await flush(); render();
+  focusOn(document.body);
+  const activate = inBackground();
+  try {
+    (confirmation()!.props.answer as (allow: boolean) => void)(true); render(); await flush(); render();
+    expect(add.focus).toHaveBeenCalledTimes(1);
+    const redrawn = node();
+    add.isConnected = false; ref.current = redrawn;
+    activate();
+    expect(add.focus).toHaveBeenCalledTimes(1);
+    expect(redrawn.focus).toHaveBeenCalledTimes(2);
+  } finally { vi.useRealTimers(); unmount(); }
+});
+
 test("a read in flight when the worktree turns into a config error leaves Retry usable", async () => {
   let answer: (value: unknown) => void = () => {};
   doan.readConfig!.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
