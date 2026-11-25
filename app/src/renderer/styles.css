@@ -481,6 +481,8 @@ body:has(.shell-top) { background: transparent; }
 .shell-modes button.current { background: var(--surface-panel); color: var(--text-standard); box-shadow: var(--shadow-panel); }
 .shell-modes button:hover { background: var(--affordance-backdrop-hover); }
 .shell-modes button.current:hover { background: var(--surface-panel); cursor: default; }
+/* Forced colours drop the fill and shadow that mark the current step or mode; a border leaves the focus outline free. */
+@media (forced-colors: active) { :is(.ob-steps .doan-button, .shell-modes button).current { border: 2px solid Highlight; } }
 /* The sidebar covers the shell's bottom margin so the list scrolls out at the window edge; its bottom padding keeps
    the last row in place at rest. */
 .shell-side.side { min-height: 0; display: flex; flex-direction: column; gap: 12px; margin-bottom: -8px; padding: 8px 8px 0; border: 0; background: transparent; overflow: hidden; }
@@ -643,6 +645,8 @@ body:has(.shell-top) { background: transparent; }
 .composer-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-xs), 0 0 0 1px var(--border-standard); }
 /* The border alone is under 3:1, so the caret and the stronger shadow carry the focus too. */
 .composer-card:focus-within { box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-field-focus); }
+/* Forced colours drop both shadows, which are the card's only edge and focus mark. */
+@media (forced-colors: active) { .composer-card { outline: 1px solid CanvasText; } .composer-card:focus-within { outline: 2px solid Highlight; } }
 .composer-chips { display: flex; flex-wrap: wrap; gap: var(--space-1h); }
 .composer-input { display: block; width: 100%; min-height: calc(2 * var(--type-label-line-height)); max-height: calc(8 * var(--type-label-line-height)); padding: 0 var(--space-1) 0 0; border: 0; outline: none; position: relative; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: transparent; font-family: var(--type-family); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); color: var(--text-standard); }
 /* A contenteditable has no placeholder: ChipField marks an empty field, and aria-placeholder is drawn over it. */
@@ -742,6 +746,14 @@ body:has(.shell-top) { background: transparent; }
 .fast-item[data-disabled] .fast-copy .sub { color: var(--text-metadata); }
 .fast-item[data-disabled] .fast-switch { border-color: transparent; background: var(--affordance-disabled); }
 .fast-item[data-disabled] .fast-switch::before { background: var(--surface-panel); box-shadow: none; }
+/* The knob is a background only, so forced colours need system colours for it; disabled comes after checked. */
+@media (forced-colors: active) {
+  .fast-switch::before { forced-color-adjust: none; background: CanvasText; }
+  .fast-item[aria-checked="true"] .fast-switch { border-color: Highlight; }
+  .fast-item[aria-checked="true"] .fast-switch::before { background: Highlight; }
+  .fast-item[data-disabled] .fast-switch { border-color: GrayText; }
+  .fast-item[data-disabled] .fast-switch::before { background: GrayText; }
+}
 /* Effort's 200px is too narrow for these descriptions. */
 .permission-popover { width: 280px; }
 .perm-item { display: flex; align-items: flex-start; gap: var(--space-2); padding-block: var(--space-1h); }
@@ -852,6 +864,8 @@ body:has(.shell-top) { background: transparent; }
 .queue { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-2); }
 /* Larger than a chip so queued messages read easily; the inset-shadow border keeps the row's height and padding. */
 .queue-item { display: flex; align-items: center; gap: var(--space-2); min-width: 0; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); border-radius: var(--radius-pill); background: var(--surface-panel); box-shadow: inset 0 0 0 1px var(--border-standard); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); }
+/* Forced colours drop the shadow border. */
+@media (forced-colors: active) { .queue-item { outline: 1px solid CanvasText; outline-offset: -1px; } }
 .queue-item > svg { flex: none; width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
 .queue-item .queue-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The row's text gives way; Send now never shrinks. */
@@ -922,6 +936,7 @@ body:has(.shell-top) { background: transparent; }
 /* Messages waiting for the usage limit's reset ask nothing of the person: no accent. */
 .row-slot.scheduled { color: var(--text-subtle); }
 .row-slot.unseen i { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--text-accent); }
+@media (forced-colors: active) { .row-slot.unseen i { forced-color-adjust: none; background: Highlight; } }
 .shell-side .shell-project-row.flash { box-shadow: inset 0 0 0 2px var(--border-focus); }
 
 .shell-settings-nav { display: flex; flex-direction: column; gap: var(--space-half); }
@@ -1023,6 +1038,7 @@ body:has(.shell-top) { background: transparent; }
 /* One line tall and top-aligned, so it never makes the last line taller and the reply does not shrink when it goes. */
 .conversation-thread .caret { display: inline-block; width: 1px; height: 1lh; margin: 0 1px; vertical-align: top; background: var(--text-standard); animation: thread-caret 1s steps(1) infinite; }
 @keyframes thread-caret { 50% { opacity: 0; } }
+@media (forced-colors: active) { .conversation-thread .caret { forced-color-adjust: none; background: CanvasText; } }
 .conversation-thread .msg-user { align-self: flex-end; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1h); max-width: 80%; min-width: 0; }
 /* Transform and opacity only, so the thread's height and follow never move. */
 @keyframes thread-enter { from { opacity: 0; transform: translateY(var(--space-4)); } }
@@ -1486,6 +1502,8 @@ button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-ba
 .doan-icon-button[data-badge="true"]::after { content: ""; position: absolute; top: var(--space-1); right: var(--space-1); width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--text-accent); box-shadow: 0 0 0 2px var(--surface-panel); }
 /* The canvas header and prototype window buttons share this unread dot; their names tell them apart. */
 :is(.doan-canvas-head .doan-panel-show, .pw-conv).doan-icon-button[data-badge="unseen"]::after { content: ""; position: absolute; top: var(--space-1); right: var(--space-1); width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--text-accent); box-shadow: 0 0 0 2px var(--surface-panel); }
+/* Opting the dot out of forced colours would bring back its panel-coloured ring, so the shadow goes. */
+@media (forced-colors: active) { :is(.doan-icon-button[data-badge="true"], :is(.doan-canvas-head .doan-panel-show, .pw-conv).doan-icon-button[data-badge="unseen"])::after { forced-color-adjust: none; background: Highlight; box-shadow: none; } }
 /* Flex items add line breaks to Chromium's copied selection, even inside an inline-flex chip. */
 .bubble .anchor-chip { display: inline-block; overflow: hidden; text-overflow: ellipsis; background: var(--surface-panel); }
 .bubble .anchor-chip svg { display: inline-block; vertical-align: -2px; margin-right: var(--space-1); }
@@ -1642,6 +1660,8 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-agent-measure { position: absolute; top: 0; left: 0; visibility: hidden; pointer-events: none; white-space: nowrap; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 /* A currentColor background drops out under forced colours. */
 @media (forced-colors: active) { .doan-agent-caret { forced-color-adjust: none; background: CanvasText; } }
+/* Forced colours drop the shadow, the capsule's only edge over the canvas. */
+@media (forced-colors: active) { .doan-agent { border: 1px solid CanvasText; } }
 @media (prefers-reduced-motion: reduce) {
   .doan-agent-caret { animation: none; }
   .doan-agent-glow { animation: none; }
@@ -1775,6 +1795,13 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-preference-row[data-disabled].storage-pref:has(> input:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }
 .doan-preference-row[data-disabled].storage-pref:has(> input:checked) .ob-radio::before { background: var(--text-disabled); }
 .doan-preference-row[data-disabled].storage-pref, .doan-preference-row[data-disabled].storage-pref > input { cursor: default; }
+/* Forced colours paint every radio's fill and dot as Canvas. A new radio row joins these lists; disabled comes last. */
+@media (forced-colors: active) {
+  :is(.ob-choice:has(input:checked), .buddy-row:has(input:checked), .conversation-thread .q-pref:has(> input:checked), .storage-option:has(> input:checked), .storage-row:has(> input:checked), .storage-pref:has(> input:checked)) .ob-radio { border-color: Highlight; }
+  :is(.ob-choice:has(input:checked), .buddy-row:has(input:checked), .conversation-thread .q-pref:has(> input:checked), .storage-option:has(> input:checked), .storage-row:has(> input:checked), .storage-pref:has(> input:checked)) .ob-radio::before { forced-color-adjust: none; background: Highlight; }
+  :is(.buddy-row[data-disabled]:has(input:checked), .storage-option:has(> input[aria-disabled="true"]:checked), .storage-row:has(> input[aria-disabled="true"]:checked), .doan-preference-row[data-disabled].storage-pref:has(> input:checked)) .ob-radio { border-color: GrayText; }
+  :is(.buddy-row[data-disabled]:has(input:checked), .storage-option:has(> input[aria-disabled="true"]:checked), .storage-row:has(> input[aria-disabled="true"]:checked), .doan-preference-row[data-disabled].storage-pref:has(> input:checked)) .ob-radio::before { background: GrayText; }
+}
 .doan-notice.storage-guidance code { background: var(--surface-panel); }
 .storage-guidance-body { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 .storage-command { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
