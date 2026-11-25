@@ -49,7 +49,12 @@ export type EventPayload =
   | { type: "turn.started" }
   | { type: "message.delta"; messageId: string; text: string }
   | { type: "message.done"; messageId: string; text: string }
-  | { type: "activity"; kind: "edit" | "read" | "command" | "other"; path?: string; insideDesign?: boolean; summary: string }
+  // callId: the provider's id for an edit's call, which its activity.result names; absent on other kinds and on an id the
+  // store would refuse.
+  | { type: "activity"; kind: "edit" | "read" | "command" | "other"; path?: string; insideDesign?: boolean; summary: string; callId?: string }
+  // The lines an applied edit added and removed, keyed by its activity's callId (and path, since one Codex call edits
+  // several files). An earlier build fails a whole history that holds one.
+  | { type: "activity.result"; callId: string; path?: string; lines: { added: number; removed: number } }
   | PermissionRequest
   | { type: "permission.resolved"; requestId: string; optionId: string }
   | QuestionRequest
