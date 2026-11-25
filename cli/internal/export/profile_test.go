@@ -22,10 +22,8 @@ import (
 // allocates gigabytes, so it does not run in the gate.
 const profileEnv = "DOAN_EXPORT_PROFILE"
 
-// Digests of the large-stylesheet repository: sha256 over the sorted
-// "<sha256(file)>  <path>\n" lines (the `shasum -a 256` format), and of the
-// stylesheet alone. They pin the generation rule, so measurements taken from
-// this test and from the CLI on a generated copy describe the same bytes.
+// Digests of the large-stylesheet repository (sha256 over sorted `shasum -a 256` lines) and of the stylesheet alone
+// pin the generation rule, so this test and the CLI on a generated copy measure the same bytes.
 const (
 	largeRepoDigest = "2a3cfcf21069ac06c0aecac9d04b5bd444ab5addf8f6a63beb39959eb877a741"
 	largeCSSDigest  = "b85ec1ecd2db1e6ca0be71f006695b177039a6d4d875fa20308a53bfec4e3857"
@@ -35,18 +33,14 @@ const (
 
 const largeCanvas = ".doan/canvases/big-css.html"
 
-// largeStylesheetRepo returns the files of a canvas that links one minified
-// stylesheet of exactly 24 MiB with 1,000 url()s to ten 1,024-byte SVGs. Its
-// bytes need no percent-encoding in a data: URI, so the export stays near
-// 24 MiB, under MaxBytes.
+// largeStylesheetRepo links one minified stylesheet of exactly 24 MiB with 1,000 url()s to ten 1,024-byte SVGs, whose
+// bytes need no percent-encoding, so the export stays near 24 MiB, under MaxBytes.
 func largeStylesheetRepo() map[string]string {
 	return stylesheetRepo(24<<20, 1000, 600)
 }
 
-// stylesheetRepo is the large-stylesheet rule at another size: a stylesheet
-// of exactly cssBytes whose rule i is `.r<7 digits>{color:rgb(1,2,3);padding:1px}`
-// or, every stride-th rule until urlCount, `.r<7 digits>{background:url(../big/i<2 digits>.svg)}`;
-// one /*xxx…*/ comment fills the rest.
+// stylesheetRepo is that rule at another size: rule i is `.r<7 digits>{color:rgb(1,2,3);padding:1px}` or, every stride-th
+// until urlCount, a url() to ../big/i<2 digits>.svg; one /*xxx…*/ comment fills the rest of cssBytes.
 func stylesheetRepo(cssBytes, urlCount, stride int) map[string]string {
 	const assets = 10
 	files := map[string]string{".doan/config.json": "{\"v\":1}\n"}
@@ -102,10 +96,8 @@ func repoDigest(files map[string]string) string {
 	return sha256Hex(lines.String())
 }
 
-// TestProfileLargeStylesheet runs Inline and Assemble on the large-stylesheet
-// canvas so `-memprofile` shows where an export of a big stylesheet allocates.
-// It logs the allocation total, GC count and sampled peak live heap of those
-// two calls only.
+// TestProfileLargeStylesheet runs Inline and Assemble on the large-stylesheet canvas for `-memprofile`, logging the
+// allocation total, GC count and sampled peak live heap of those two calls only.
 func TestProfileLargeStylesheet(t *testing.T) {
 	if os.Getenv(profileEnv) == "" {
 		t.Skip("set " + profileEnv + "=1 to profile a 24 MiB stylesheet export")

@@ -86,9 +86,8 @@ func openFailure(code, message string) *Error {
 	return &Error{Code: code, Message: message, NextSteps: steps}
 }
 
-// openReply turns one v4 reply line into the command result. not_ready comes back as a failure with that
-// code: it is the signal to ask again, and never reaches the caller of the command. launchable is true when
-// the reply means the runtime file outlived its app.
+// openReply turns one v4 reply line into the command result. not_ready comes back as a failure with that code, the signal
+// to ask again; launchable is true when the reply means the runtime file outlived its app.
 func openReply(line []byte, target openTarget, secrets []string) (map[string]any, *Error, bool) {
 	obj, mismatch, e := decodeOpenReply(line)
 	if e != nil {
@@ -142,9 +141,8 @@ func notOpenMessage(root string) string {
 	return "Doan does not have the folder " + quoteName(root) + " open"
 }
 
-// notOpenSteps is the project_not_open guidance doan open, open --prototype and handoff share; after is what follows
-// adding the folder. The second step is conditional because the CLI cannot tell a folder never added from another
-// checkout of an added one.
+// notOpenSteps is the project_not_open guidance open, open --prototype and handoff share; after follows adding the folder.
+// The second step is conditional: the CLI cannot tell a folder never added from another checkout of an added one.
 func notOpenSteps(after string) []string {
 	return []string{
 		"Tell the user Doan does not have the folder at the path in the message open and ask them to add that path in Doan (File > Add Projects…)" + after,

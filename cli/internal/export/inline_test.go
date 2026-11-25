@@ -291,8 +291,7 @@ func TestInlineRefusals(t *testing.T) {
 	}
 }
 
-// POSTMORTEM 2026-10-31 Prevention: check the scope and the export result
-// together for a linked default directory.
+// Check the scope and the export result together for a linked default directory.
 func TestInlineLinkedDefaultDirectory(t *testing.T) {
 	root := exporttest.SeedLinkedAssets(t)
 	scope, err := repo.Scope(root, repo.Config{V: 1})

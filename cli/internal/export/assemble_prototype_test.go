@@ -103,8 +103,7 @@ func isolateScript(t *testing.T, srcdoc string) string {
 var checkout = Proto{Frame: "checkout", Frames: []ProtoFrame{{ID: "checkout", Title: "Checkout"}}}
 
 // The page shape a recipient's browser and X2's markers rely on, checked on the page itself rather than against a
-// regenerated export (POSTMORTEM 2026-11-14 'An eval check that compared a prototype export only with a regenerated
-// one accepted the canvas viewer').
+// regenerated export.
 func TestAssemblePrototypePageShape(t *testing.T) {
 	proto := Proto{Frame: "cart", Frames: []ProtoFrame{{ID: "home", Title: "Home"}, {ID: "cart", Title: "Cart"}, {ID: "pay"}}}
 	page, err := AssemblePrototype(Meta{Name: "board", Width: 1280}, proto, []byte(simpleCanvas))
@@ -270,8 +269,7 @@ func TestAssemblePrototypeHoldsTheCanvasOnce(t *testing.T) {
 	}
 }
 
-// Markup that ends a script or a template in the canvas stays inside the attribute (POSTMORTEM 2026-11-09 'Export
-// inlined the wrong file after a nested self-closing `<template/>`').
+// Markup that ends a script or a template in the canvas stays inside the attribute.
 func TestAssemblePrototypeKeepsCanvasMarkupInsideTheAttribute(t *testing.T) {
 	for _, body := range []string{
 		`<script>const s = "</script" + ">";</script></script>`,

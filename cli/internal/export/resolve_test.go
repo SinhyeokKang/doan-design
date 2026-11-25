@@ -45,8 +45,7 @@ func TestResolveAsset(t *testing.T) {
 	}
 }
 
-// POSTMORTEM 2026-10-31: a linked default directory serves nothing until
-// `serve` names it, and export follows the same scope.
+// A linked default directory serves nothing until `serve` names it, and export follows the same scope.
 func TestResolveAssetInLinkedDefaultDirectory(t *testing.T) {
 	root := exporttest.SeedLinkedAssets(t)
 	scope, err := repo.Scope(root, repo.Config{V: 1})

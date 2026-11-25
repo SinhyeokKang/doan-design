@@ -44,9 +44,8 @@ func InsideRelative(root, abs string) (State, string, error) {
 	return Inside, filepath.ToSlash(rel), nil
 }
 
-// throughRootAlias decides a path that is lexically outside this spelling of the root. It is still inside when
-// it reaches the root through another spelling (a linked ancestor, or the root itself named through a link), so
-// the part of it that exists is resolved and the missing rest compared lexically.
+// throughRootAlias decides a path lexically outside this spelling of the root: it is still inside when it reaches the
+// root through another spelling, so its existing part is resolved and the missing rest compared lexically.
 func throughRootAlias(root, abs string) (State, error) {
 	realRoot, err := canonical(root)
 	if err != nil {

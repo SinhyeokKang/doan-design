@@ -17,9 +17,8 @@ type prototypeTarget struct {
 	root, path, frame string
 }
 
-// exportInput takes the positional arguments, -o and every --frame given. --frame and --prototype come
-// together: a frame alone has no meaning for a whole-canvas export, and refusing it keeps an agent from
-// believing it exported one frame.
+// exportInput takes the positional arguments, -o and every --frame. --frame needs --prototype: a frame alone means nothing
+// for a whole-canvas export, and refusing it keeps an agent from believing it exported one frame.
 func exportInput(args []string, output string, frames []string, prototype bool) (string, *string, *Error) {
 	if len(args) != 1 {
 		return "", nil, usageError("export takes one canvas path")

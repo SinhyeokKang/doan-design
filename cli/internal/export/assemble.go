@@ -22,9 +22,8 @@ import (
 //go:embed viewer/*
 var viewerFS embed.FS
 
-// Meta is the one source of the canvas name and width: the page title and
-// header, the CSS-only iframe width, and the JSON shell.js reads all come from
-// these two values.
+// Meta is the one source of the canvas name and width: the page title and header, the CSS-only
+// iframe width and the JSON shell.js reads all come from these values.
 type Meta struct {
 	Project string // project folder name (canvas viewer only)
 	Name    string // file stem
@@ -36,12 +35,8 @@ type Meta struct {
 
 var byteOrderMark = []byte("\xef\xbb\xbf")
 
-// Assemble wraps the rewritten canvas HTML in the viewer page. The canvas goes
-// into a sandboxed iframe's srcdoc, with the measure script injected into its
-// head. The placeholders in shell.html are replaced in one pass, so a canvas
-// (or a name) that contains one is never expanded. META also carries, judged
-// from c (the canvas file as parsed), what the viewer needs to write any
-// frame's prototype file by joining strings (prototypeExports).
+// Assemble puts the canvas into a sandboxed iframe's srcdoc with the measure script first in its head.
+// shell.html's placeholders are filled in one pass, so a canvas or name that contains one is never expanded.
 func Assemble(m Meta, c canvas.Canvas, canvasHTML []byte) ([]byte, error) {
 	if m.Width < 1 {
 		return nil, errors.New("canvas width must be a positive integer")
@@ -59,11 +54,8 @@ func Assemble(m Meta, c canvas.Canvas, canvasHTML []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Both scripts are wrapped in a function: lib.js and the other files declare
-	// top-level names that must not become globals of the canvas. In a player
-	// window (this file opened again by the board's Play, lib.js PLAY_HASH)
-	// player.js plays and the board's files, which share one function of their
-	// own, never run.
+	// Each script is wrapped in a function so the files' top-level names never become canvas globals. In a
+	// player window (lib.js PLAY_HASH) player.js plays and the board's own wrapped files never run.
 	board := files["inspectPanel.js"] + "\n" + files["inspectMessage.js"] + "\n" + files["inspectView.js"] + "\n" + shellJS
 	shellScript := "(function () {\n" + lib + "\n" + files["viewerApp.js"] + "\n" + files["player.js"] + "\nif (!startPlayer()) (function () {\n" + board + "\n})();\n})();"
 	measureScript := "<script>(function () {\n" + lib + "\n" + files["inspect.js"] + "\n" + files["inspectSelection.js"] + "\n" + measure + "\n})();</script>"
@@ -105,10 +97,8 @@ func Assemble(m Meta, c canvas.Canvas, canvasHTML []byte) ([]byte, error) {
 	return fillPage(shell, values, srcdoc), nil
 }
 
-// geistStyle is the FONT value of both pages: the app window's Geist (viewer/Geist.woff2 is a copy of
-// app/src/renderer/public/fonts/geist/Geist.woff2, which go:embed cannot reach) as a data: URL with the app's
-// @font-face values, after the font's license notice, which the OFL asks to travel with it. The viewer file holds
-// it once: the player copies this element's text into the prototype file it writes rather than META carrying it.
+// geistStyle is the FONT value of both pages: the app's Geist as a data: URL after its OFL notice
+// (ARCHITECTURE §3 'Geist.').
 func geistStyle() (string, error) {
 	woff2, err := viewerFS.ReadFile("viewer/Geist.woff2")
 	if err != nil {
@@ -122,27 +112,20 @@ func geistStyle() (string, error) {
 		base64.StdEncoding.EncodeToString(woff2) + ") format(\"woff2\");\n  font-style: normal;\n  font-weight: 100 900;\n  font-display: swap;\n}\n", nil
 }
 
-// ProtoFrame is one frame of an exported prototype's group.
 type ProtoFrame struct {
 	ID    string // data-doan-frame
 	Title string // data-doan-title, "" when the frame has none
 }
 
-// Proto names what an exported prototype plays: the frame it starts on and that frame's link group, the frames a
-// recipient can reach from it. The CLI judged both from the canvas file before assembling (each frame exists once and
-// is marked).
+// Proto is the start frame and its link group, which the CLI checked against the canvas file before
+// assembling (each frame exists once and is marked).
 type Proto struct {
 	Frame  string       // the start frame's id
 	Frames []ProtoFrame // the start frame's link group in document order, the start frame among them
 }
 
-// AssemblePrototype wraps the rewritten canvas HTML in the prototype page. The page holds the whole canvas once, with
-// isolate.js first in its head, in a hidden element's data-srcdoc attribute; prototype.js puts it into a new sandboxed
-// iframe for every frame it shows, naming the iframe after the frame, which isolate.js reads to hide everything else.
-// The group goes into the page as JSON, each frame with the name the page shows (its title, else its id). The static
-// tab title names the start frame. It shares Assemble's one-pass placeholder filling, srcdoc escaping, script placement
-// and byte order mark removal; only the shell differs. The page shows neither the canvas name nor its width, but takes
-// the same Meta as Assemble.
+// AssemblePrototype holds the canvas once in a hidden element's data-srcdoc; prototype.js makes an iframe per
+// frame named after it, and isolate.js, first in the head, reads that name to hide everything else.
 func AssemblePrototype(m Meta, p Proto, canvasHTML []byte) ([]byte, error) {
 	if p.Frame == "" {
 		return nil, errors.New("prototype frame id must not be empty")
@@ -179,7 +162,6 @@ func AssemblePrototype(m Meta, p Proto, canvasHTML []byte) ([]byte, error) {
 	return fillPage(shell, values, srcdoc), nil
 }
 
-// protoFrame is one frame of a prototype page's group JSON, named as the page shows it: its title, else its id.
 type protoFrame struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
@@ -197,8 +179,6 @@ func protoFrames(frames []ProtoFrame) []protoFrame {
 	return out
 }
 
-// prototypeFiles reads the prototype page: its shell, the STYLE and SCRIPT values, and the isolation script that
-// goes first in the canvas's head.
 func prototypeFiles() (shell string, values map[string]string, isolateScript string, err error) {
 	files := map[string]string{}
 	for _, name := range []string{"prototype.html", "prototype.css", "prototype.js", "isolate.js"} {
@@ -220,10 +200,8 @@ func prototypeFiles() (shell string, values map[string]string, isolateScript str
 	return files["prototype.html"], values, "<script>(function () {\n" + files["isolate.js"] + "\n})();</script>", nil
 }
 
-// ProtoGroup is what a prototype file plays from start: the start frame's link group as the file states it, uncut
-// (canvas.LinkGroups), each frame with its title. A playable start frame is in exactly one group, and each id in it
-// names one frame, so its title is not ambiguous. `doan export --prototype` and the general Export's prototype data
-// both judge the group here.
+// ProtoGroup is start's link group uncut (canvas.LinkGroups), with titles. `doan export --prototype` and the
+// general Export's prototype data both judge the group here.
 func ProtoGroup(c canvas.Canvas, start string) Proto {
 	proto := Proto{Frame: start}
 	for _, group := range canvas.LinkGroups(c) {
@@ -246,21 +224,13 @@ func groupFrames(c canvas.Canvas, ids []string) []ProtoFrame {
 	return frames
 }
 
-// frameExports is the "prototype" member of the general Export's META: what the viewer needs to write the
-// prototype file of a frame (the file `doan export --frame <id> --prototype` writes) by joining strings, so the
-// browser never re-implements this file's escaping or judgment. For a frame f of Frames the file is
-//
-//	Page[0] + f.Name + Page[1] + font + Page[2] + f.Start + Page[3] + Groups[f.Group] + Page[4] + escape(canvas) + Page[5]
-//
-// where font is the text of the viewer page's own <style id="doan-font"> (geistStyle), canvas is the board iframe's srcdoc as the browser reads it, with the Measure range replaced by Isolate,
-// and escape writes & as &amp; and " as &quot;. The result is byte-identical for an LF-only, valid UTF-8, NUL-free
-// canvas; otherwise the parser has normalized the srcdoc (CR LF, invalid UTF-8, NUL) and the file parses the same.
+// frameExports lets the browser write a frame's prototype file by joining strings, so it never re-implements
+// this file's escaping or judgment (ARCHITECTURE §3 'Prototype export data').
 type frameExports struct {
 	// Frames are the frames the file lets the CLI export (canvas.PrototypeTarget), in document order.
 	Frames []exportFrame `json:"frames"`
-	// Refused names the frames the file has but the CLI refuses, once per id in the order of first appearance. An
-	// id the file does not have at all is a frame a script made. An empty id and an id over 200 UTF-16 units are left
-	// out, since no running frame can play with one.
+	// Refused names frames the file has but the CLI refuses, once per id in first-appearance order. Empty ids and
+	// ids over 200 UTF-16 units are left out, since no running frame can play with one.
 	Refused []exportRefusal `json:"refused"`
 	// Groups holds each link group's "frames" JSON, in canvas.LinkGroups order.
 	Groups []string `json:"groups"`
@@ -270,8 +240,7 @@ type frameExports struct {
 	Isolate string `json:"isolate"`
 	// Measure is the measure script's place in the srcdoc string, in UTF-16 units.
 	Measure measureRange `json:"measure"`
-	// External is Meta.External: a prototype file holds the whole canvas, so it loads as many internet URLs. The
-	// player's download toast says so under the app's condition (more than none).
+	// External is Meta.External: a prototype file holds the whole canvas, so it loads as many internet URLs.
 	External int `json:"external"`
 }
 
@@ -367,9 +336,8 @@ func prototypeExports(c canvas.Canvas, before []byte, measureScript string) (fra
 	return out, nil
 }
 
-// browserUnits is the length, in UTF-16 units, of the string a browser reads for b inside an attribute value of a
-// UTF-8 page: the WHATWG UTF-8 decoder writes one U+FFFD for each maximal invalid subpart (Go's decoder writes one
-// per byte), and the input stream reads CR LF as one LF. A NUL becomes U+FFFD, which keeps the count.
+// browserUnits counts the UTF-16 units a browser reads for b in a UTF-8 attribute value: one U+FFFD per
+// maximal invalid subpart (Go writes one per byte), CR LF as one LF, NUL as U+FFFD.
 func browserUnits(b []byte) int {
 	n := 0
 	for i := 0; i < len(b); {
@@ -421,9 +389,8 @@ func browserUnits(b []byte) int {
 	return n
 }
 
-// fillPage writes shell into one buffer of its final size, with the srcdoc
-// parts escaped straight into it: an escaped copy of the canvas and a growing
-// buffer would each hold the whole page again.
+// fillPage escapes the srcdoc parts straight into one buffer of the final size: an escaped copy of the
+// canvas and a growing buffer would each hold the whole page again.
 func fillPage(shell string, values map[string]string, srcdoc [][]byte) []byte {
 	size := 0
 	fillShell(shell, func(s string) { size += len(s) }, func(key string) {
@@ -452,10 +419,8 @@ const srcdocKey = "{{SRCDOC}}"
 
 var placeholders = []string{"{{PROJECT}}", "{{INITIAL}}", "{{HUE}}", "{{NAME}}", "{{WIDTH}}", "{{META}}", "{{FONT}}", "{{STYLE}}", "{{SCRIPT}}", srcdocKey}
 
-// fillShell walks shell once, passing the text between placeholders to text
-// and each placeholder to value. Like a strings.Replacer, it never looks at
-// what replaces a placeholder, so a canvas (or a name) that contains one is
-// not expanded.
+// fillShell walks shell once and, like strings.Replacer, never rescans a value, so a canvas or name that
+// contains a placeholder is not expanded.
 func fillShell(shell string, text func(string), value func(key string)) {
 	for {
 		i := strings.Index(shell, "{{")
@@ -503,11 +468,8 @@ func writeEscaped(out *bytes.Buffer, b []byte) {
 	}
 }
 
-// measureOffset is where the measure script goes: the first thing in the head
-// the parser would build, so its font listener is in place before anything
-// loads. After an explicit <head>; without one, after <html>; without that,
-// after the doctype. Never before the doctype: a script first in the document
-// puts a standards-mode canvas into quirks mode.
+// measureOffset puts the measure script first in the head so its font listener is in place before anything
+// loads. Never before the doctype: a script first in the document puts the canvas into quirks mode.
 func measureOffset(src []byte) int {
 	z := nethtml.NewTokenizer(bytes.NewReader(src))
 	pos, after, sawHTML := 0, 0, false

@@ -109,9 +109,8 @@ var stitchCanvases = map[string]string{
 	"attributes": "<!DOCTYPE html>\n<html lang=\"ko\">\n<head lang=\"ko\">\n<title>x</title></head><body><div data-doan-frame=\"f\" data-doan-prototype=\"1x1\"></div></body></html>\n",
 }
 
-// The viewer's browser code only joins the fragments the general Export holds; the result must be the file
-// `doan export --frame <id> --prototype` writes. Every frame the file lets the CLI export is checked, found from
-// the canvas model rather than from the data under test.
+// The viewer only joins the general Export's fragments; the result must be the file `doan export --frame <id>
+// --prototype` writes, for every exportable frame, found from the canvas model rather than the data under test.
 func TestAssembleStitchedPrototypeIsAssemblePrototype(t *testing.T) {
 	for name, src := range stitchCanvases {
 		t.Run(name, func(t *testing.T) {
@@ -133,8 +132,7 @@ func TestAssembleStitchedPrototypeIsAssemblePrototype(t *testing.T) {
 				if string(got) != string(want) {
 					t.Fatalf("%q: stitched file differs from AssemblePrototype (%d bytes, want %d)", f.ID, len(got), len(want))
 				}
-				// Properties of a prototype file that do not come from the run under test (POSTMORTEM 2026-11-14 'An
-				// eval check that compared a prototype export only with a regenerated one accepted the canvas viewer').
+				// Properties a prototype file has whatever the run under test wrote, so the canvas viewer cannot pass as one.
 				p := parsePrototype(t, got)
 				label := f.ID
 				if f.Title != nil && *f.Title != "" {
@@ -241,9 +239,8 @@ func TestAssembleMeasureRangeCountsWhatTheBrowserDecodes(t *testing.T) {
 	}
 }
 
-// The prototype page's template, style and script, and the isolation script, are in the general Export once, as
-// JSON text; none of the prototype page's markup is in it as markup, so neither a browser nor a check that looks
-// for a prototype file's markers takes the general Export for one.
+// The prototype page's template, style and scripts are in the general Export once, as JSON text, so neither a
+// browser nor a check looking for a prototype file's markers takes the general Export for one.
 func TestAssembleHoldsThePrototypePageOnceAsData(t *testing.T) {
 	page, _ := general(t, doc(flowBody))
 	raw := string(page)
@@ -472,8 +469,7 @@ func contains(list []string, s string) bool {
 }
 
 // The file decides what can be exported: a shared id once with its reason, an unmarked or wrongly marked frame as
-// unmarked, a frame a script adds or one inside a template not at all (the viewer reads a missing id as a frame
-// that is not in the file), and an id past 200 UTF-16 units not at all, as no running frame can carry one.
+// unmarked, and script-made, template-held or over-200-unit ids not at all (the viewer reads those as script-made).
 func TestAssembleJudgesSharedLongAndScriptFramesFromTheFile(t *testing.T) {
 	at200 := strings.Repeat("\U0001F98A", 100)
 	at201 := strings.Repeat("\U0001F98A", 100) + "a"

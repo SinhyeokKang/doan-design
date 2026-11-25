@@ -1,6 +1,5 @@
-// Package exporttest builds seed repositories for export tests. It is a
-// regular package (imported only from tests) so the export package and the
-// CLI command tests share one fixture.
+// Package exporttest builds seed repositories for export tests, as a regular package so the export package and
+// the CLI command tests share one fixture.
 package exporttest
 
 import (
@@ -11,10 +10,8 @@ import (
 
 // Canvases in the repository Seed builds.
 const (
-	// Full reaches every inlined kind: token CSS with a diamond, a cycle and
-	// a missing @import, shared .doan/ds CSS, @font-face, images, srcset,
-	// an inline SVG sprite, a local script, external URLs, `//` URLs and local
-	// links.
+	// Full reaches every inlined kind: token CSS with a diamond, a cycle and a missing @import, shared .doan/ds CSS,
+	// @font-face, images, srcset, an inline SVG sprite, a local script, external and `//` URLs, and local links.
 	Full = ".doan/canvases/full.html"
 	// Empty has no frames.
 	Empty = ".doan/canvases/empty.html"
@@ -124,9 +121,8 @@ var seedFiles = map[string]string{
 	BadWidth:      "<!doctype html>\n<html><head><meta name=\"doan:canvas\" content=\"bad-width\"><meta name=\"doan:width\" content=\"wide\"></head><body><section data-doan-frame=\"a\"></section></body></html>\n",
 }
 
-// Seed builds the main export fixture in a temporary directory and returns the
-// repository root as a real path. Its parent holds outside.png and outside/,
-// which references from the repository must never reach.
+// Seed builds the main export fixture in a temporary directory and returns the repository root as a real path. Its
+// parent holds outside.png and outside/, which references from the repository must never reach.
 func Seed(t testing.TB) string {
 	t.Helper()
 	parent := realDir(t)
@@ -140,9 +136,8 @@ func Seed(t testing.TB) string {
 	return root
 }
 
-// SeedLinkedAssets builds a repository whose .doan/assets is a symlink to the
-// internal directory media/ (POSTMORTEM 2026-10-31): the default directory is
-// not served, so its files are served only when `serve` names it.
+// SeedLinkedAssets builds a repository whose .doan/assets is a symlink to the internal directory media/: the default
+// directory is not served, so its files are served only when `serve` names it.
 func SeedLinkedAssets(t testing.TB) string {
 	t.Helper()
 	root := filepath.Join(realDir(t), "repo")

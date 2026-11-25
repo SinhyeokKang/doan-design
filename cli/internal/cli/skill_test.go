@@ -186,7 +186,7 @@ func TestSkillGuideListErrors(t *testing.T) {
 	}
 }
 
-// Comments were removed from Doan: the guide names no comment command, file, field or rule.
+// Doan has no comments: the guide names no comment command, file, field or rule.
 func TestSkillGuideHasNoComments(t *testing.T) {
 	if strings.Contains(strings.ToLower(skillBody), "comment") || strings.Contains(skillBody, "orphans") || strings.Contains(skillBody, "merge=union") {
 		t.Error("guide still mentions comments")
@@ -242,12 +242,8 @@ func TestSkillGuideMatchesCLIRules(t *testing.T) {
 	}
 }
 
-// Codex's exec tool keeps at most 6,000 tokens of output and cuts the middle, which the end marker cannot detect.
-// It counted the guide that lost a preset (stderr 183 B + plain guide 24,528 B = 24,711 B) as 6,178 tokens,
-// 4.00 B/token, so the cap is about 24,000 B. The budget is 5,500 tokens × 4.00 B/token = 22,000 B, about 92% of
-// the cap: the rest absorbs a denser tokenization than the one measured, a longer bundle path and a release
-// version string. It covers the plain output and the --json envelope, each with the note the app's own CLI
-// appends for /Applications/Doan.app, and every design preset output.
+// Codex's exec tool keeps at most 6,000 tokens of output (about 24,000 B at 4 B/token) and cuts the middle, which the
+// end marker cannot detect. 22,000 B leaves room for denser tokenization, a longer bundle path and a release version.
 const skillOutputBudget = 22000
 
 func TestSkillGuideFitsToolOutputCap(t *testing.T) {
@@ -305,7 +301,7 @@ func TestSkillGuideWorkLifecycle(t *testing.T) {
 	if !strings.Contains(skillBody, "In an app conversation only `update` is sent, with the conversation's id.") || strings.Contains(skillBody, "or this is an app conversation") {
 		t.Error("guide does not separate app-conversation suppression of start and done from update")
 	}
-	// update renews the work, so the guide no longer asks to repeat start between edits.
+	// update renews the work, so the guide does not ask to repeat start between edits.
 	if strings.Contains(skillBody, "several minutes") {
 		t.Error("guide still asks to repeat start after several minutes")
 	}
@@ -393,8 +389,7 @@ func TestSkillGuideExportCommand(t *testing.T) {
 		"only if asked",
 		"PATH theirs, not in `.doan/`",
 		"Say `external` needs internet, `links` break",
-		// The prototype file still carries the whole canvas; the person must know before sending it.
-		// Agents named the other frames but not the canvas note (agent-eval X2, U-044).
+		// The prototype file carries the whole canvas, notes included; the person must know before sending it.
 		"`--prototype`: holds the whole canvas, other frames and notes too; say so.",
 	} {
 		if !strings.Contains(command[0], required) {
@@ -542,8 +537,8 @@ func TestSkillGuidePrototypeLayout(t *testing.T) {
 	}
 }
 
-// A frame often draws an action without its result (a print button, a link to an undrawn screen). Without a rule,
-// Codex built a print view with copy no canvas showed and presented it as part of the approved screen (agent-eval H3b).
+// A frame often draws an action without its result (a print button, a link to an undrawn screen); the agent must
+// not build that result and present it as part of the approved screen.
 func TestSkillGuideImplementsOnlyWhatTheFrameDraws(t *testing.T) {
 	const g = "G. Implementing a frame in code: build what it draws; for an action whose result it does not draw, invent no UI or copy and say so in your answer."
 	var found bool
@@ -555,8 +550,8 @@ func TestSkillGuideImplementsOnlyWhatTheFrameDraws(t *testing.T) {
 	}
 }
 
-// Codex's `doan` prefix rule, and Claude Code's allow rules, match only a command of literal words: `--path "$PWD"`
-// (agent-eval O3b) and calls joined with `;` (O2) or `&&` (W8) ran in Codex's sandbox and could not reach the app.
+// Codex's `doan` prefix rule and Claude Code's allow rules match only a command of literal words: `--path "$PWD"`
+// and calls joined with `;` or `&&` run in Codex's sandbox and cannot reach the app.
 func TestSkillGuideCallsAreLiteralCommands(t *testing.T) {
 	var syntax string
 	for _, l := range strings.Split(skillBody, "\n") {
@@ -569,10 +564,8 @@ func TestSkillGuideCallsAreLiteralCommands(t *testing.T) {
 	}
 }
 
-// A copy of a canvas written into a canvas folder, even for a moment, is listed as a second canvas with the same id:
-// the app blocks that canvas's conversation and loses a playing prototype's target, and a later doan check never
-// sees it. Agents checking their own work made such copies beside the original to keep its relative links, so the
-// rule names where a copy goes and how its links still resolve (a <base> after the links does not apply to them).
+// A canvas copy in a canvas folder, even briefly, is listed as a second canvas with the same id and blocks that
+// canvas's conversation, so the rule names where a copy goes and how its relative links still resolve.
 func TestSkillGuideKeepsCanvasCopiesOutOfCanvasFolders(t *testing.T) {
 	var rule string
 	for _, l := range strings.Split(skillBody, "\n") {

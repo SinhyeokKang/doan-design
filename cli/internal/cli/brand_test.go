@@ -17,10 +17,8 @@ import (
 	"unicode/utf8"
 )
 
-// brandCandidate mirrors app/src/brand/candidates.ts: the product name in
-// human-facing text, and whether a lowercase `doan` there is prose (written Doan)
-// or a command, path or identifier that stays lowercase. Both read
-// schema/fixtures/brand/cases.json.
+// brandCandidate mirrors app/src/brand/candidates.ts (both read schema/fixtures/brand/cases.json): the product name in
+// human-facing text, and whether a lowercase `doan` there is prose (written Doan) or a command, path or identifier.
 type brandCandidate struct {
 	Index int    `json:"index"`
 	Form  string `json:"form"`
@@ -112,8 +110,7 @@ func TestBrandCandidatesMatchSharedFixtures(t *testing.T) {
 	}
 }
 
-// Human-facing CLI text names the product Doan (user decision 2026-10-30):
-// messages, nextSteps and --help are string literals in cli/.
+// Human-facing CLI text names the product Doan: messages, nextSteps and --help are string literals in cli/.
 func TestCLIStringsNameTheProductDoan(t *testing.T) {
 	root := filepath.Join("..", "..")
 	var violations []string

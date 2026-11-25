@@ -29,9 +29,8 @@ func Resolve(root, base, p string) (State, string, error) {
 	return NewResolver(root).Resolve(base, p)
 }
 
-// Resolver resolves paths under one root for the length of one command,
-// reading each real directory at most once to find on-disk spellings. A file
-// created after its directory was read is Missing for that Resolver.
+// Resolver resolves paths under one root for one command, reading each real directory at most once for its on-disk
+// spellings. A file created after its directory was read is Missing for that Resolver.
 type Resolver struct {
 	root     string
 	realRoot string
@@ -106,9 +105,8 @@ func (r *Resolver) Resolve(base, p string) (State, string, error) {
 	return Inside, filepath.ToSlash(rel), nil
 }
 
-// rootAlias is resolved relative to the root when its leading segments name the root's own directory
-// in another spelling, or "" otherwise. It compares file identity, not names, so it reads no directory
-// outside the repo and a case-sensitive sibling such as repo beside Repo stays outside.
+// rootAlias rebases resolved on the root when its leading segments name the root in another spelling, else "". It
+// compares file identity, so it reads no directory outside the repo and a sibling such as repo beside Repo stays outside.
 func (r *Resolver) rootAlias(resolved string) (string, error) {
 	if r.rootInfo == nil {
 		info, err := os.Stat(r.realRoot)
@@ -147,10 +145,8 @@ func diskSpelling(root, rel string) (string, error) {
 	return spelling{readDir: os.ReadDir, dirs: map[string]dirIndex{}}.spell(root, rel)
 }
 
-// spelling finds on-disk spellings, keeping one index per directory read.
-// Keys are the real directories the walk reaches, never the caller's lexical
-// path: one lexical path can name another real directory once a link changes,
-// and identity is still decided by Lstat at each lookup.
+// spelling keeps one index per real directory the walk reads, never per lexical path, since a changed link can make
+// one lexical path name another directory; Lstat still decides identity at each lookup.
 type spelling struct {
 	readDir func(string) ([]os.DirEntry, error)
 	dirs    map[string]dirIndex
@@ -242,9 +238,8 @@ func (x dirIndex) match(part string) (bool, []string) {
 	return false, aliases
 }
 
-// foldKey maps each rune to the smallest rune of its unicode.SimpleFold orbit,
-// the equivalence strings.EqualFold uses rune by rune (ß and ẞ share a key, ß
-// and "ss" do not). Invalid bytes decode to U+FFFD on both sides, as in EqualFold.
+// foldKey maps each rune to the smallest rune of its unicode.SimpleFold orbit, as strings.EqualFold compares (ß and ẞ
+// share a key, ß and "ss" do not). Invalid bytes decode to U+FFFD on both sides, as in EqualFold.
 func foldKey(name string) string {
 	var b strings.Builder
 	for _, r := range norm.NFC.String(name) {

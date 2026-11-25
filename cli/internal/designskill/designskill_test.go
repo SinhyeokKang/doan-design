@@ -180,7 +180,7 @@ func TestEmbeddedCatalog(t *testing.T) {
 			t.Fatalf("body %s lacks marker", id)
 		}
 	}
-	// Later presets join the catalog; only the ones this batch wrote are pinned.
+	// Later presets join the catalog; only these are pinned.
 	if p, _ := c.Lookup("context"); p.Sources[0].Path != "skill/reference/init.md" {
 		t.Fatalf("context must adapt upstream init first: %v", p.Sources)
 	}
@@ -491,9 +491,8 @@ func TestEmbeddedCatalogGroups(t *testing.T) {
 	}
 }
 
-// Design-system canvases live in .doan/ds/; .doan/canvases/design-system.html is only a legacy location.
-// A preset that names the legacy file must name the new directory in the same sentence, so no reader
-// takes the old single canvas as the place to look or write.
+// Design-system canvases live in .doan/ds/; .doan/canvases/design-system.html is a legacy location, so a preset
+// that names it must name the new directory in the same sentence.
 func TestPresetsFindDesignSystemInDsDirectory(t *testing.T) {
 	entries, err := os.ReadDir("presets")
 	if err != nil || len(entries) == 0 {
@@ -554,29 +553,19 @@ func TestDocumentPresetSkipsOnlyNonvisualWrappers(t *testing.T) {
 	}
 }
 
-// The document preset's first eval tuning rounds and their review: these pin short concepts the tuning depends on, not whole sentences, so
-// rewording a rule without changing it keeps them green. Behavior is judged by the real-agent scenarios;
-// the output budget is checked in cli/internal/cli (skillOutputBudget).
+// These pin short concepts the document preset's tuning depends on, not whole sentences, so rewording a rule keeps
+// them green. Behavior is judged by the real-agent scenarios; the output budget by skillOutputBudget.
 func TestDocumentPresetKeepsTuningConcepts(t *testing.T) {
 	body := strings.ToLower(documentPreset(t))
 	for concept, phrases := range map[string][]string{
-		// Round 1/4: a dialog mounted once but opened from several screens was skipped.
 		"shared counts screens where a person sees a unit": {"seen on two or more screens", "not where the code mounts it", "seen on one screen only"},
-		// Round 1: an app shell showed tabs the code no longer renders.
-		"shared surfaces come from current code": {"render it now", "sections and controls"},
-		// Round 2: icons drawn from memory differed from the project's icons.
-		"icons come from the project's own source": {"icon source", "not from memory", "cannot be obtained or reproduced"},
-		// Round 2: a canvas overflowed because nobody looked at it rendered.
-		"rendered canvases are inspected": {"look at each canvas rendered", "could not render"},
-		// Round 3: a whole stylesheet was copied into assets and went stale.
-		"unserved stylesheets are restated partially": {"only the rules", "whole stylesheet", "preset's disclosed workaround", "convention 7"},
-		// Round 3: a shared component appeared only inside other canvases.
-		"shared components get their own canvas": {"keeps its own canvas", "has its own canvas", "default organization"},
-		// Round 4: only the first step of a multi-step unit was drawn.
-		"every step is drawn": {"steps or phases"},
-		// Round 1/3 and review: generic notes go to the document once, but a canvas keeps the
-		// disclosures needed to read it, even when other canvases carry the same one.
-		"generic notes once, disclosures per canvas": {"generic process notes", "once in the rules document", "even when other canvases", "top of the canvas"},
+		"shared surfaces come from current code":           {"render it now", "sections and controls"},
+		"icons come from the project's own source":         {"icon source", "not from memory", "cannot be obtained or reproduced"},
+		"rendered canvases are inspected":                  {"look at each canvas rendered", "could not render"},
+		"unserved stylesheets are restated partially":      {"only the rules", "whole stylesheet", "preset's disclosed workaround", "convention 7"},
+		"shared components get their own canvas":           {"keeps its own canvas", "has its own canvas", "default organization"},
+		"every step is drawn":                              {"steps or phases"},
+		"generic notes once, disclosures per canvas":       {"generic process notes", "once in the rules document", "even when other canvases", "top of the canvas"},
 	} {
 		for _, p := range phrases {
 			if !strings.Contains(body, p) {
@@ -595,14 +584,13 @@ func documentPreset(t *testing.T) string {
 	return string(b)
 }
 
-// Later eval rounds pin short concepts, like TestDocumentPresetKeepsTuningConcepts.
+// These pin short concepts too, like TestDocumentPresetKeepsTuningConcepts.
 func TestDocumentPresetKeepsEvalConcepts(t *testing.T) {
 	c, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	// U-018: asked to update a design-system reference after a code change, no agent chose document;
-	// its description named only recording, not maintaining. A plain setup request still does not fit (D12).
+	// The description must fit maintaining a design-system reference after a code change, not plain doan setup.
 	p, _ := c.Lookup("document")
 	desc := strings.ToLower(p.Description)
 	for _, s := range []string{"update", "code change", "not for plain doan setup"} {
@@ -610,9 +598,7 @@ func TestDocumentPresetKeepsEvalConcepts(t *testing.T) {
 			t.Errorf("document description lost maintenance fit: missing %q in %q", s, p.Description)
 		}
 	}
-	// U-019: canvases kept omitting open decisions that concern them, and answers claimed canvases showed
-	// them. User decision: open decisions live only in the rules document; a canvas still discloses what it
-	// draws that is not in code, and the answer never claims a decision is marked on a canvas.
+	// Open decisions live only in the rules document; a canvas still discloses what it draws that is not in code.
 	body := strings.ToLower(documentPreset(t))
 	for _, s := range []string{"open decisions live only in the rules document", "canvases do not repeat them", "proposed or unconfirmed value it draws", "never say a decision is marked on a canvas"} {
 		if !strings.Contains(body, s) {
@@ -626,17 +612,14 @@ func TestDocumentPresetKeepsEvalConcepts(t *testing.T) {
 	}
 }
 
-// Agent-eval issues fixed in preset wording pin short concepts, like TestDocumentPresetKeepsTuningConcepts.
+// Preset wording that fixes agent usability issues pins short concepts, like TestDocumentPresetKeepsTuningConcepts.
 func TestPresetsKeepAgentEvalFixes(t *testing.T) {
 	for _, c := range []struct {
 		preset, issue string
 		phrases       []string
 	}{
-		// U-042: a hover sample labelled only "Hover" kept the new token's name in its style attribute, out of sight.
 		{"document", "state samples name their tokens", []string{"labeled with its state and the token variables it uses"}},
-		// U-016: two toggles with the same trigger and effect were kept for a difference nothing in the design showed.
 		{"distill", "sameness comes from what is shown", []string{"do not assume a difference nothing shows"}},
-		// U-031: copy claimed a default plan, a duration and later plan changes that no supplied fact gave.
 		{"generate", "behavior claims come from supplied truth", []string{"product behavior (defaults, timing, what a user can change later)"}},
 	} {
 		b, err := os.ReadFile(filepath.Join("presets", c.preset+".md"))

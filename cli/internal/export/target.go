@@ -8,13 +8,8 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// MatchListed turns the canvas argument of `doan export` into the path `doan ls`
-// prints. arg is repo-relative or an absolute path into the repository; the
-// directory part may go through links, but the file itself is looked up in the
-// listing only, which never holds a link. Case and Unicode spelling may differ
-// from the disk (macOS file systems treat them as the same name); the listed
-// spelling is returned. An exact match wins, otherwise exactly one listed path
-// may match.
+// MatchListed turns `doan export`'s canvas argument into the path `doan ls` prints, looking the file up in the listing only
+// (never a link). Case and Unicode spelling may differ from the disk; an exact match wins, else exactly one may match.
 func MatchListed(root string, listed []string, arg string) (string, bool) {
 	if arg == "" || strings.HasSuffix(arg, "/") {
 		return "", false
@@ -71,10 +66,8 @@ func sameSpelling(a, b string) bool {
 	return strings.EqualFold(norm.NFC.String(a), norm.NFC.String(b))
 }
 
-// UnderDoan reports whether the output file would sit in a directory named
-// .doan, at any depth and in any repository, by its own path and by where its
-// directory really leads: a file written there is listed as a new canvas. A
-// relative output is read from the current directory.
+// UnderDoan reports whether output would sit in a directory named .doan, at any depth and in any repository, by its path
+// or where its directory really leads: a file written there is listed as a new canvas.
 func UnderDoan(output string) (bool, error) {
 	abs, err := filepath.Abs(output)
 	if err != nil {

@@ -363,7 +363,7 @@ func TestOpenAsksNothingWhenTheInputIsWrong(t *testing.T) {
 			t.Errorf("%s asked the app: %v %v", tt.name, app.received(), h.launches)
 		}
 	}
-	// A canvases directory that is a link to src: the resolved path leaves the canvas directories (POSTMORTEM 2026-10-31).
+	// A canvases directory that is a link to src: the resolved path leaves the canvas directories.
 	linked := realPath(t, initialized(t))
 	putFile(t, linked, "src/page.html", "canvas")
 	if err := os.RemoveAll(filepath.Join(linked, ".doan/canvases")); err != nil {
@@ -807,7 +807,7 @@ func TestHelpListsOpen(t *testing.T) {
 	}
 }
 
-// fakeAttempt replays one scripted outcome per call, so bootstrap is judged on the clock alone.
+// scriptedAttempt replays one scripted outcome per call, so bootstrap is judged on the clock alone.
 type scriptedAttempt struct {
 	steps []func() (map[string]any, *Error, bool)
 	calls int
@@ -862,7 +862,7 @@ func TestBootstrapAfterNotReadyStopsWhenTheAppIsGone(t *testing.T) {
 	}
 }
 
-// Without a not_ready first, a slow non-launchable answer is final, as `onboarding start` has always done.
+// Without a not_ready first, a slow non-launchable answer is final, as for `onboarding start`.
 func TestBootstrapSlowFirstAnswerIsFinal(t *testing.T) {
 	h := newLaunchHarness(t)
 	script := &scriptedAttempt{steps: []func() (map[string]any, *Error, bool){slowStep, openedStep}}

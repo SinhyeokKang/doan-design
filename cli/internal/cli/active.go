@@ -32,9 +32,8 @@ func appError(code, message string) *Error {
 	return &Error{Code: code, Message: message, NextSteps: steps}
 }
 
-// decodeVersioned reads exactly one JSON object and normalizes a numeric v,
-// so 1.0 reads as 1 (as config does) and any other number is a version mismatch
-// regardless of the rest of the shape.
+// decodeVersioned reads exactly one JSON object and normalizes a numeric v, so 1.0 reads as 1 (as config does) and any
+// other number is a version mismatch regardless of the rest of the shape.
 func decodeVersioned(data []byte) (map[string]any, bool, error) {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()

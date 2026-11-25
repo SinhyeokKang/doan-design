@@ -13,17 +13,12 @@ import (
 // The race detector turns off the compiler's zero-copy string and []byte
 // conversions, which the cap below relies on, so this file is not built with -race.
 
-// allocCSSBytes is the stylesheet size of the allocation test: large enough
-// that the full-size copies of the stylesheet and the page outweigh the fixed
-// cost of the viewer files, small enough to keep `go test` fast.
+// allocCSSBytes is large enough that full-size copies of the stylesheet and page outweigh the viewer files' fixed cost,
+// and small enough to keep `go test` fast.
 const allocCSSBytes = 4 << 20
 
-// allocLimit caps what one export of that stylesheet allocates: about 40 MB
-// (9.5 times the stylesheet) when it was set, with 10% headroom. Each
-// full-size copy of the stylesheet or the page that comes back adds about one
-// stylesheet and crosses it. TotalAlloc bounds the peak heap from above and
-// moves less with GC timing than the peak does; the process's RSS is measured
-// on the 24 MiB input instead.
+// allocLimit is about 9.5 times the stylesheet plus 10% headroom: each full-size copy of the stylesheet or page that comes
+// back adds about one stylesheet and crosses it. TotalAlloc moves less with GC timing than the peak heap does.
 const allocLimit = 21 * allocCSSBytes / 2
 
 // No t.Parallel: TotalAlloc counts every goroutine's allocations.

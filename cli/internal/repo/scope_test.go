@@ -161,9 +161,8 @@ func TestLegacyDesignIsNotInDefaultScope(t *testing.T) {
 	}
 }
 
-// A linked default directory must not put its real target in the default
-// scope: anything outside the default directories is served only when
-// configured (ARCHITECTURE §3), and the target may be source code.
+// A linked default directory must not put its real target in the default scope: outside the default directories only
+// configured paths are served (ARCHITECTURE §3), and the target may be source code.
 func TestScopeSkipsLinkedDefaultDirectory(t *testing.T) {
 	for _, dir := range []string{".doan/canvases", ".doan/ds", ".doan/assets"} {
 		t.Run(dir, func(t *testing.T) {

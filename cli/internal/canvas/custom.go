@@ -55,15 +55,8 @@ func (t *CustomText) merge(other CustomText) {
 	t.URLs = append(t.URLs, other.URLs...)
 }
 
-// CustomUsers records, over a canvas and the stylesheets it reaches, which
-// folders' style text puts each custom property into a real property.
-// Chromium (measured in Electron 45) resolves a relative url() held in an
-// unregistered custom property against the stylesheet whose var() does that,
-// not where the property is declared. A rule counts only when Elements can
-// match its rightmost compound selector: the app never applies a rule whose
-// element the canvas lacks. Beyond that the record ignores selectors and the
-// cascade, so it can list a folder whose rule never reaches an element that
-// has the property; doan check and export both count that folder.
+// CustomUsers records which folders put each custom property into a real property: Chromium resolves a relative
+// url() there, not where it is declared. Only rules Elements can match count; the cascade is ignored, so it may over-list.
 type CustomUsers struct {
 	// Elements is the canvas's (canvas.Elements); nil counts every rule.
 	Elements *Elements
@@ -76,9 +69,8 @@ type CustomUsers struct {
 	editable bool
 }
 
-// Add records what the style text in folder dir does with custom properties.
-// Which rules count is decided in Consumers, once every style text is in:
-// a user-modify declaration in a later stylesheet makes every rule count.
+// Add records what folder dir's style text does with custom properties. Consumers decides which rules count once
+// every text is in: a user-modify declaration in a later stylesheet makes every rule count.
 func (u *CustomUsers) Add(dir string, c CustomUse) {
 	if u.dirs == nil {
 		u.dirs, u.users, u.urlSyntax = map[string]map[string][][]string{}, map[string]map[string][][]string{}, map[string]bool{}
@@ -144,9 +136,8 @@ func (u *CustomUsers) Consumers(name string) []string {
 // accepts <url>; the browser resolves such a url() where it is declared.
 func (u *CustomUsers) Registered(name string) bool { return u.urlSyntax[name] }
 
-// CustomURLPaths returns the repo paths a relative url() resolves to from
-// each folder in dirs, sorted and unique. A leading "/", data:, external and
-// empty URLs resolve the same from every folder and give none.
+// CustomURLPaths returns, sorted and unique, the repo paths a relative url() resolves to from each folder in dirs.
+// A leading "/", data:, external and empty URLs resolve the same from every folder and give none.
 func CustomURLPaths(dirs []string, href string) []string {
 	p, ok := LocalPath(href)
 	if !ok || strings.HasPrefix(p, "/") || len(dirs) == 0 {
@@ -159,10 +150,8 @@ func CustomURLPaths(dirs []string, href string) []string {
 	return sortedKeys(paths)
 }
 
-// Ambiguous reports whether the url() href held in custom property name
-// resolves to two or more different repo paths from the folders that use it.
-// The app then shows a different file for each user, which one exported
-// data URL cannot, whether or not those files exist.
+// Ambiguous reports whether href in custom property name resolves to two or more repo paths from its users'
+// folders: the app then shows a different file per user, which one exported data URL cannot.
 func (u *CustomUsers) Ambiguous(name, href string) bool {
 	return !u.Registered(name) && len(CustomURLPaths(u.Consumers(name), href)) > 1
 }

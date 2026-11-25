@@ -53,7 +53,7 @@ func Work(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	if request, send := workRequest(action, r.Root, path, frame, note, id); send {
 		delivered, others := sendWork(ctx, request)
 		result["delivered"] = delivered
-		// done ends this session's work, so who else is on the file no longer matters to the agent.
+		// done ends this session's work, so who else is on the file does not matter to the agent.
 		if action != "done" && len(others) > 0 {
 			result["others"] = others
 		}

@@ -48,9 +48,8 @@ func Find(start, repoFlag string) (Repository, error) {
 		}
 		return Repository{}, &Error{Code: code, Message: err.Error(), Cause: err}
 	}
-	// EvalSymlinks keeps caller case and Unicode normalization, so one repo
-	// would get several roots. An unlistable ancestor keeps this best effort
-	// lookup from replacing the already resolved path.
+	// EvalSymlinks keeps caller case and Unicode normalization, so one repo would get several roots. An unlistable
+	// ancestor keeps this best-effort lookup from replacing the already resolved path.
 	if rel, err := diskSpelling(string(filepath.Separator), strings.TrimPrefix(dir, string(filepath.Separator))); err == nil {
 		dir = filepath.Join(string(filepath.Separator), rel)
 	}

@@ -50,8 +50,8 @@ func TestAttributesFailedWriteKeepsTheTeamsLines(t *testing.T) {
 	}
 }
 
-// Staging must not change what the write did in place: the file keeps its mode, and a linked .gitattributes stays a
-// link whose target gets the line.
+// A staged write behaves as a write in place: the file keeps its mode, and a linked .gitattributes stays a link whose
+// target gets the line.
 func TestAttributesWriteKeepsModeAndLink(t *testing.T) {
 	root, _ := filepath.EvalSymlinks(t.TempDir())
 	putFile(t, root, ".gitattributes", "*.txt text\n")

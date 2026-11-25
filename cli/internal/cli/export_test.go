@@ -103,9 +103,8 @@ func TestExportWritesTheViewerPageAndReportsTheResult(t *testing.T) {
 	if shell.title != "full" || !strings.Contains(shell.meta, `"width":1280`) || !strings.Contains(shell.meta, `"name":"full"`) {
 		t.Fatalf("title %q meta %q", shell.title, shell.meta)
 	}
-	// Nothing local is left except the links the result names and what CSS files name that do not exist.
-	// missing.css and gone.png sit inside the token CSS, behind a <link> data URI and its @import chain; they are
-	// found only if the scan descends there, and every other reference in that CSS has to be a data URI.
+	// Nothing local is left except the links the result names and missing files named in CSS. missing.css and
+	// gone.png sit behind a <link> data URI's @import chain, so they are found only if the scan descends there.
 	allowed := map[string]bool{"other.html#top": true, "submit.html": true, "missing.css": true, "gone.png": true}
 	reached := map[string]bool{}
 	for _, ref := range append(localReferences(t, page), localReferences(t, []byte(shell.srcdoc))...) {
@@ -1108,7 +1107,7 @@ func linkSeed(t *testing.T) string {
 }
 
 // The file holds the start frame's link group, in document order, and starts on that frame; linkedFrames counts the
-// others. A frame with no link exports as before, alone.
+// others. A frame with no link exports alone.
 func TestExportPrototypeHoldsTheStartFramesGroup(t *testing.T) {
 	root := linkSeed(t)
 	type frame struct{ ID, Title string }
@@ -1148,7 +1147,7 @@ func TestExportPrototypeHoldsTheStartFramesGroup(t *testing.T) {
 	}
 }
 
-// The human text output stays as it was: the frame and the file, not the group.
+// The human text output names the frame and the file, not the group.
 func TestExportPrototypeTextOutputNamesOnlyTheStartFrame(t *testing.T) {
 	root := linkSeed(t)
 	var stdout, stderr bytes.Buffer
@@ -1209,9 +1208,8 @@ func TestExportPrototypeGroupHoldsTheCanvasOnceUnderTheLimit(t *testing.T) {
 	}
 }
 
-// The general Export holds what the viewer needs to write each frame's prototype file in the browser, without a
-// change to the command's response: joining its fragments gives the very file `doan export --frame <id>
-// --prototype` writes from the same canvas, and the download is named from the canvas stem in its meta.
+// Joining the general Export's fragments gives the very file `doan export --frame <id> --prototype` writes from the
+// same canvas, and the download is named from the canvas stem in its meta.
 func TestExportGeneralPageStitchesToEachPrototypeExport(t *testing.T) {
 	root := linkSeed(t)
 	out := filepath.Join(exportOutput(t), "board.html")

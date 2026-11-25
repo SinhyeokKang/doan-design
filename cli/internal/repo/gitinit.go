@@ -53,9 +53,8 @@ func lookupEnv(environ []string, name string) (string, bool) {
 	return "", false
 }
 
-// LocateGit applies clone's rule (app onboarding locateGit): the first git on PATH, except that macOS's
-// /usr/bin/git shim counts only when the active developer directory has git. Otherwise the shim would open the
-// Command Line Tools installer.
+// LocateGit applies clone's rule (app onboarding locateGit): the first git on PATH, except that macOS's /usr/bin/git
+// shim counts only when the active developer directory has git; otherwise it would open the Command Line Tools installer.
 func LocateGit(path, developerDir string, executable func(string) bool, realpath func(string) (string, bool)) string {
 	if path == "" {
 		return ""
@@ -106,9 +105,8 @@ func GitEnv(base []string) []string {
 // GitInitArgs copies no template, so no hook samples; the user's init.defaultBranch and object format still apply.
 func GitInitArgs() []string { return []string{"init", "--quiet", "--template="} }
 
-// AtOrAboveHome mirrors ReadStorage ignoring a .git at or above HOME: Doan never makes a repository there either.
-// An unknown HOME (unset or empty) counts every folder as HOME, so a repository is never made at a HOME Doan
-// could not see.
+// AtOrAboveHome mirrors ReadStorage ignoring a .git at or above HOME: Doan never makes a repository there either. An
+// unknown HOME counts every folder as HOME, so a repository is never made at a HOME Doan could not see.
 func AtOrAboveHome(root, home string) bool {
 	if home == "" {
 		return true
