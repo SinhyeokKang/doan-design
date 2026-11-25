@@ -81,6 +81,11 @@ describe("drawerGroups", () => {
     expect(groups.map(group => [group.label, group.rows.map(row => row.id)])).toEqual([["Checkout and 1 more", ["checkout", "done"]], ["Frames without links", ["home"]]]);
   });
 
+  test("an empty or blank title names the row by its id, a padded one trimmed", () => {
+    const frames = [{ id: "a", title: "", size: "390x844", number: 1 }, { id: "b", title: "  ", size: "390x844", number: 2 }, { id: "c", title: " C ", size: "390x844", number: 3 }];
+    expect(drawerGroups(view({ frames })).flatMap(group => group.rows).map(row => row.name)).toEqual(["a", "b", "C"]);
+  });
+
   test("no row is current once the playing frame left the list", () => {
     expect(drawerGroups(view({ frame: "gone" })).flatMap(group => group.rows).some(row => row.current)).toBe(false);
   });

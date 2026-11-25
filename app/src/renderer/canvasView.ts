@@ -1,4 +1,4 @@
-import { canvasLabel } from "./canvasTree";
+import { canvasLabel, frameTitle } from "./canvasTree";
 import type { CanvasRow, FolderEntry } from "../main/view";
 
 // The folder key in the URL changes when a folder is closed and opened again.
@@ -139,5 +139,6 @@ export function layoutHeight(lastHref: string | null, current: number, layout: {
 }
 
 export function frameLabel(frame: { id: string; title?: string }): { id: string; title?: string } {
-  return { id: frame.id || "(no id)", ...(frame.title ? { title: frame.title } : {}) };
+  const title = frameTitle(frame.title);
+  return { id: frame.id || "(no id)", ...(title === undefined ? {} : { title }) };
 }

@@ -360,6 +360,11 @@ describe("workFrameTitle", () => {
     expect(workFrameTitle(first.cache, a, picked, null).title).toBe("Plans A");
     expect(workFrameTitle(first.cache, a, picked, []).title).toBe("Plans A");
   });
+  test("an empty or blank title names the frame by its id", () => {
+    for (const title of ["", "   "]) expect(workFrameTitle(null, a, picked, [{ ...frames[0]!, title }]).title).toBe("plans");
+    expect(agentNoticeView(working, false, { frame: "plans", title: "  ", note: "Drawing" })?.status).toBe("Drawing — plans");
+    expect(agentNoticeView(working, false, { frame: "plans", title: "" })?.text).toBe("Working on plans");
+  });
   test("another canvas path, another root or a new turn does not reuse it", () => {
     const { cache } = workFrameTitle(null, a, picked, frames);
     expect(workFrameTitle(cache, { root: "/w/a", canvas: { path: ".doan/canvases/b.html" } }, picked, null).title).toBeUndefined();

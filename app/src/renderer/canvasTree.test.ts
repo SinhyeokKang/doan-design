@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { CanvasRow } from "../main/view";
-import { canvasLabel, frameLabel, moveExpanded, rowProblem, typeaheadNext } from "./canvasTree";
+import { canvasLabel, frameLabel, frameName, frameTitle, moveExpanded, rowProblem, typeaheadNext } from "./canvasTree";
 
 const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, url: `http://127.0.0.1/${path}`, ...extra });
 
@@ -17,6 +17,16 @@ test("frameLabel numbers from 1 and prefers a trimmed title over the id", () => 
   expect(frameLabel({ id: "card-declined", title: "  Card declined  " }, 0)).toEqual({ number: 1, name: "Card declined" });
   expect(frameLabel({ id: "card-declined" }, 0).name).toBe("card-declined");
   expect(frameLabel({ id: "card-declined", title: "   " }, 0).name).toBe("card-declined");
+});
+
+// PRODUCT §5 item 2 'Play': a frame is named by its title, else its id; every screen uses this rule.
+test("frameName is the trimmed title, else the id; frameTitle is the trimmed title or nothing", () => {
+  expect(frameName({ id: "pay", title: " Pay " })).toBe("Pay");
+  for (const title of [undefined, "", "   "]) {
+    expect(frameName({ id: "pay", title })).toBe("pay");
+    expect(frameTitle(title)).toBeUndefined();
+  }
+  expect(frameTitle("\tPay\n")).toBe("Pay");
 });
 
 test("frameLabel names a frame with neither id nor title", () => {

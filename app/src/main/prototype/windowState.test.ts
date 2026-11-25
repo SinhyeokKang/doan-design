@@ -305,6 +305,18 @@ describe("the frame's title", () => {
     expect(prototypeView(listChanged(plain, w.resolve).state, w.resolve)?.title).toBe("phone");
   });
 
+  test("an empty or blank title names the window by the frame's id", () => {
+    for (const title of ["", "   "]) {
+      const w = world();
+      const shown = ready(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state).state;
+      w.set(A, w.present("http://h/t/tok/k1/proto.html", "s2", [{ id: "phone", title }]));
+      const reloading = listChanged(shown, w.resolve).state;
+      expect(prototypeView(reloading, w.resolve)?.title).toBe("phone");
+      const plain = report(reloading, { gen: reloading.gen, state: "ready", size: phone, frames: [{ id: "phone", title, size: "390x844", number: 1 }], gotos: [] }).state;
+      expect(prototypeView(plain, w.resolve)?.title).toBe("phone");
+    }
+  });
+
   test("a later frame list without the title drops it too", () => {
     const w = world();
     const shown = ready(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state).state;

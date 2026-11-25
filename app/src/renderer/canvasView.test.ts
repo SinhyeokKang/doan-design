@@ -395,6 +395,8 @@ describe("frameLabel", () => {
   test("keeps the id without a title", () => {
     expect(frameLabel({ id: "hero" })).toEqual({ id: "hero" });
     expect(frameLabel({ id: "hero", title: "" })).toEqual({ id: "hero" });
+    expect(frameLabel({ id: "hero", title: "   " })).toEqual({ id: "hero" });
+    expect(frameLabel({ id: "hero", title: " Hero " })).toEqual({ id: "hero", title: "Hero" });
   });
 
   test("names a frame without id", () => {

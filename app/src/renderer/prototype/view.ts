@@ -1,4 +1,5 @@
 import { PROTOTYPE_LOAD_TIMEOUT_MS, type GotoMessage, type PrototypeMode, type PrototypePhase, type PrototypeView } from "../../main/prototype/ipc";
+import { frameName } from "../canvasTree";
 import { groupDrawer, type DrawerGroup } from "../frameDrawerList";
 
 // Pure, so every state's copy and rule is tested without a window.
@@ -65,7 +66,7 @@ export function modeTooltip(mode: PrototypeMode, run: { markWidth: number; markH
 
 // The playing frame is current while it is still listed.
 export function drawerGroups(view: Pick<PrototypeView, "frames" | "frame" | "gotos">): DrawerGroup[] {
-  return groupDrawer(view.frames.map(frame => ({ key: frame.id, id: frame.id, number: frame.number, name: frame.title ?? frame.id, current: frame.id === view.frame, mark: frame.size })), view.gotos);
+  return groupDrawer(view.frames.map(frame => ({ key: frame.id, id: frame.id, number: frame.number, name: frameName(frame), current: frame.id === view.frame, mark: frame.size })), view.gotos);
 }
 
 export function drawerLabel(view: Pick<PrototypeView, "canvas">): string {

@@ -15,8 +15,18 @@ export function canvasStem(path: string): string {
   return stem === "" ? fileName : stem;
 }
 
+// A frame is named by its title, else its id (PRODUCT §5 item 2 'Play'); a blank title is no title. Every frame name the
+// app shows goes through these two.
+export function frameTitle(title: string | undefined): string | undefined {
+  return title?.trim() || undefined;
+}
+
+export function frameName(frame: { id: string; title?: string | undefined }): string {
+  return frameTitle(frame.title) ?? frame.id;
+}
+
 export function frameLabel(frame: { id: string; title?: string }, index: number): { number: number; name: string } {
-  return { number: index + 1, name: frame.title?.trim() || frame.id || "(no id)" };
+  return { number: index + 1, name: frameName(frame) || "(no id)" };
 }
 
 // WAI-ARIA APG Tree View. A longer buffer searches from the current row inclusive, so typing "ab" stays on "abacus"

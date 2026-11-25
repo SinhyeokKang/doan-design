@@ -1,5 +1,6 @@
 // Main owns one state, feeds it requests, list refreshes and run results, runs the returned effects in order and sends
 // the view whenever the state object changes. Main-window navigation and hiding are not events here.
+import { frameTitle } from "../../renderer/canvasTree";
 import { EMPTY_HISTORY, canStep, recordEntry, stepHistory, type Direction, type History } from "./history";
 import type { GotoMessage, PanelRequest, PrototypeFrame, PrototypeGoto, PrototypeMode, PrototypePanel, PrototypePhase, PrototypeView, RunReport } from "./ipc";
 import { parsePrototypeMark, type PrototypeSize } from "./mark";
@@ -99,7 +100,7 @@ type Present = Extract<Resolution, { kind: "present" }>;
 // one case where an earlier title still stands.
 function titleIn(frames: readonly { id: string; title?: string }[], frame: string): string | null | undefined {
   const listed = frames.find(candidate => candidate.id === frame);
-  return listed === undefined ? undefined : listed.title ?? null;
+  return listed === undefined ? undefined : frameTitle(listed.title) ?? null;
 }
 
 // A run's list names the target if it lists it; otherwise the last title stands.

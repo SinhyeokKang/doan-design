@@ -6,6 +6,7 @@ import type { ConversationWork } from "../main/conversationWork";
 import { boardPresence, type AgentPresence, type BoardPresence } from "./agentPresence";
 import type { CanvasState, CanvasWorkTarget } from "./CanvasController";
 import type { CanvasFrameRect, LayoutMessage } from "./canvasMessage";
+import { frameName, frameTitle } from "./canvasTree";
 import { groupProjects } from "./homeCards";
 import { followTurnKey } from "./workFollow";
 
@@ -62,7 +63,7 @@ export function workFrameTitle(cache: TitleCache | null, target: WorkingCanvas |
   if (!target || picked?.frame === undefined) return { title: undefined, cache: null };
   const frame = picked.frame;
   const key = JSON.stringify([target.root, target.canvas.path, picked.key, picked.source, frame]), found = frames?.find(item => item.id === frame);
-  const title = found ? found.title ?? found.id : cache?.key === key ? cache.title : undefined;
+  const title = found ? frameName(found) : cache?.key === key ? cache.title : undefined;
   return { title, cache: title === undefined ? null : { key, title } };
 }
 
@@ -119,7 +120,7 @@ export function agentNoticeView(presence: AgentPresence | null, terminal: boolea
   if (!presence && !terminal) return null;
   // The panel beside the board already says which agent this is.
   if (presence?.kind === "waiting") return { text: "Agent needs your answer", status: "Agent needs your answer", steady: true, action: { kind: "open", label: "Open", name: "Open the request" } };
-  const name = content?.frame === undefined ? undefined : content.title ?? content.frame;
+  const name = content?.frame === undefined ? undefined : frameTitle(content.title) ?? content.frame;
   const text = content?.note ?? (name === undefined ? "Agent is working" : `Working on ${name}`);
   const status = content?.note !== undefined && name !== undefined ? `${content.note} — ${name}` : text;
   return { text, status, steady: false, action: null };

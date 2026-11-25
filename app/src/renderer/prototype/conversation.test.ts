@@ -97,6 +97,11 @@ describe("playingFrameChip", () => {
     expect(playingFrameChip(view(), null)).toEqual({ frame: { id: "checkout", title: "Checkout" }, name: "Checkout", description: "Frame Checkout is sent with each message." });
   });
 
+  test("a blank title names the frame by its id", () => {
+    const frames = [{ id: "checkout", title: "  ", size: "390x844", number: 1 }];
+    expect(playingFrameChip(view({ frames }), null)).toMatchObject({ name: "checkout", description: "Frame checkout is sent with each message." });
+  });
+
   test("a frame without a title is named and anchored by its id; the view's title is not the anchor's", () => {
     const chip = playingFrameChip(view({ frame: "account", title: "account" }), null);
     expect(chip).toEqual({ frame: { id: "account" }, name: "account", description: "Frame account is sent with each message." });
