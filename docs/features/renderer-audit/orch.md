@@ -14,6 +14,7 @@
 - W3-leftovers-2의 `cli/internal/export/viewer/player.js` 변경은 cli-audit 소유와 겹친다. 손대면 리드에게 알린다. — 리드 지시
 - `threadItems.ts`, `ConversationThread.tsx`는 conversation-audit 소유라 어느 배치도 건드리지 않는다. — 리드 지시
 - 의심 표시 발견(M12, M18, C-G3-3, B-G3-1, W2-renderer-canvas-1)은 실패하는 테스트나 짧은 probe로 먼저 확인하고, 재현되지 않으면 고치지 않고 PR 본문에 적는다. — 리드 지시
+- `app/src/renderer/dockedSupport.test.ts:48` mock의 `get: vi.fn()`은 main-audit이 지운다. 이 run은 그 줄을 건드리지 않는다. — 리드 통지
 - 워커는 모두 Claude 계열이다.
 
 ## 배치
