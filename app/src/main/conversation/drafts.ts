@@ -133,18 +133,26 @@ export class DraftStore {
       } else this.file.starts[key] = { ...where, text, anchors, attachments };
     }
     this.file.sending = {};
-    for (const [id, items] of left) this.merge(id, joined(items), "restarted");
+    // add() keeps a queue within one message with its held send; an older build's file may not, and a draft past it
+    // would be unreadable at the start after this one, so an item that does not fit is dropped as a held one is.
+    for (const [id, items] of left) for (const { text, anchors, attachments } of items) {
+      const earlier = this.file.returned[id];
+      if (fits(joined([...earlier ? [earlier] : [], { text, anchors, attachments }]))) this.merge(id, { text, anchors, attachments }, "restarted");
+      else console.error("doan: a queued message does not fit its conversation's draft; dropped");
+    }
     this.file.queued = {};
     this.save();
   }
   // The messages still waiting, without those whose send has started.
   queued(id: string): readonly QueuedItem[] { return (this.file.queued[id] ?? []).filter(item => !item.sending); }
-  // Refused (queue_limit) before any change when draft, queue and item would not fit one message or the file limit; throws
+  // Refused (queue_limit) before any change when draft, held send, queue and item would not fit one message or the file limit; throws
   // when the queue cannot be saved. first: ahead of the waiting ones (a usage-limited turn's own message).
   add(id: string, item: QueuedItem, first = false): void {
     if (this.broken || id in this.unread.queued || id in this.unread.returned) throw new Error("Conversation drafts are damaged");
     const before = this.file.queued[id], earlier = this.file.returned[id];
-    if (!fits(joined([...(earlier ? [earlier] : []), ...before ?? [], item]))) throw new Error("queue_limit");
+    // A held send of this conversation joins the draft ahead of the queue at the next start (constructor).
+    const held = Object.values(this.file.sending).filter(message => "conversationId" in message && message.conversationId === id);
+    if (!fits(joined([...(earlier ? [earlier] : []), ...held, ...before ?? [], item]))) throw new Error("queue_limit");
     this.file.queued[id] = first ? [item, ...before ?? []] : [...before ?? [], item];
     try {
       if (this.bytes() > this.fileBytes) throw new Error("queue_limit");
