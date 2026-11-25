@@ -694,8 +694,8 @@ function createWindow(buddy: BuddyId): BrowserWindow {
   window.webContents.on("render-process-gone", () => { configBridge?.clear(); void agentAuth?.ownerClosed(owner); });
   // A reloaded renderer has no Project Settings page left to answer.
   window.webContents.on("did-navigate", () => { configBridge?.clear(); });
-  // `.git/HEAD` is not watched, so a branch switched elsewhere shows when the
-  // human comes back to the window.
+  // The watcher's git signal does not re-run `doan ls`, so a branch switched
+  // elsewhere shows when the human comes back to the window.
   const reread = createThrottle(60_000);
   window.on("focus", () => {
     if (reread()) shell?.rereadAll();
