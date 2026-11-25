@@ -874,8 +874,8 @@ async function start(): Promise<void> {
   // After the store, which made and checked the conversations directory.
   const conversationDrafts = new DraftStore(join(userData, "conversations"));
   conversationDraftStore = conversationDrafts;
-  // What main keeps for roots that left the list, by Remove or a vanished auto-registered worktree (shell.ts
-  // autoRemoved): one place, so a store keyed by root is wired into both at once. `before`: the list before.
+  // What main keeps for roots that left the list, by Remove, Locate or a vanished auto-registered worktree (shell.ts
+  // autoRemoved): one place, so a store keyed by root is wired into all of them at once. `before`: the list before.
   function rootsLeft(paths: string[], before: FolderEntry[]): void {
     if (selection && paths.includes(selection.root)) selection = null;
     // Background work a done turn left in a removed project stops without asking, as on sign-out.
@@ -1482,8 +1482,10 @@ async function start(): Promise<void> {
     // The row may have been removed while the picker was open.
     if (!fromWindow(event) || storedPath(value) === null) return { kind: "unavailable" };
     // The old row leaves the list, as on Remove.
+    const before = ready.entries();
     if (selection?.root === from) selection = null;
     await ready.replace(from, judged.root);
+    if (judged.root !== from) rootsLeft([from], before);
     return { kind: "located", root: judged.root };
   });
   // The renderer names the root only; the file a Config error selects is the one the CLI named (revealTarget), never a
