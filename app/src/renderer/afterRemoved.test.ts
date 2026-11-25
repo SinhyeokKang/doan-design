@@ -42,3 +42,8 @@ test("an empty history stays empty", () => {
   const empty: RemovedState = { shellProjects: {}, expanded: {}, history: { visits: [], cursor: -1 } };
   expect(afterRemoved(empty, ["/w/app"])).toBe(empty);
 });
+
+test("a project losing some roots keeps the person's hand fold", () => {
+  const folded: RemovedState = { ...state(), shellProjects: { app: { ...app, collapsed: true }, other } };
+  expect(afterRemoved(folded, ["/w/app-fix"]).shellProjects.app).toEqual({ roots: ["/w/app"], expanded: true, collapsed: true, groups: { ds: false } });
+});

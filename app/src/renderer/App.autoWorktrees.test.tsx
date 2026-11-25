@@ -420,3 +420,19 @@ test("hiding an auto-registered worktree keeps its per-root memory; leaving the 
   expect(savedState()?.expanded[W]).toBeUndefined();
   expect(savedState()?.conversationByRoot?.[W]).toBeUndefined();
 });
+
+// PRODUCT §5 item 1: the loaded project's hand fold lasts while it stays loaded, whatever moves inside it.
+const disclose = (key: string) => { (sidebar() as unknown as { disclose(key: string): void }).disclose(key); render(); };
+test("a project folded by its chevron stays folded through a move inside it and the removal of another of its roots", async () => {
+  await start();
+  enter(MAIN); show(MAIN, A);
+  disclose(KEY);
+  expect(sidebar().projects[KEY]?.collapsed).toBe(true);
+  enter(OTHER);
+  expect(sidebar().loaded).toBe(OTHER);
+  expect(sidebar().projects[KEY]?.collapsed).toBe(true);
+  folders([main(), other()]);
+  expect(sidebar().projects[KEY]?.collapsed).toBe(true);
+  folders([other()]);
+  expect(sidebar().projects[KEY]?.collapsed).toBe(true);
+});

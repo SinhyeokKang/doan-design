@@ -6,7 +6,7 @@ import { useBuddyIntroLock } from "./buddyIntroLock";
 import type { BuddyPaint } from "./buddyPaint";
 import type { BuddyId } from "./buddies";
 import { commitVisit, emptyHistory, fallbackWorktree, historyTarget, loadedProjectRow, projectExpanded, projectsTab, reconcileProjects, selectProjectRoot, shownFolders, type Visit } from "./shellNavigation";
-import { afterRemoved, type RemovedState } from "./afterRemoved";
+import { afterRemoved } from "./afterRemoved";
 import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } from "./sidebarGroups";
 import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
@@ -345,7 +345,6 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const overlayRetries = useRef(new Map<string, symbol>());
   const [, redrawRetry] = useState(0);
   const shellRef = useRef(shellProjects); shellRef.current = shellProjects;
-  const expandedRef = useRef(expanded); expandedRef.current = expanded;
   // Why the open canvas was closed (its ID now shared by another canvas), shown on its project's Overview until another
   // canvas opens or the Overview is left, so the person learns why the canvas page went away.
   const [overviewNotice, setOverviewNotice] = useState<{ root: string; text: string } | null>(null);
@@ -607,14 +606,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       // From main's whole list: a hidden auto-registered worktree is still registered and keeps its memory.
       const removed = allEntriesRef.current.filter(entry => !all.some(row => row.path === entry.path)).map(entry => entry.path);
       if (removed.length) {
-        setExpanded(previous => Object.fromEntries(Object.entries(previous).filter(([root]) => !removed.includes(root))));
-        setShellProjects(previous => Object.fromEntries(Object.entries(previous).flatMap(([key, project]) => {
-          const roots = project.roots.filter(root => !removed.includes(root));
-          return roots.length ? [[key, { roots, expanded: project.expanded, ...(project.selectedRoot && roots.includes(project.selectedRoot) ? { selectedRoot: project.selectedRoot, ...(project.selectedAt !== undefined ? { selectedAt: project.selectedAt } : {}) } : {}), ...(project.groups ? { groups: project.groups } : {}) }]] : [];
-        })));
-        const previous = historyRef.current;
-        const nextHistory = { visits: previous.visits.filter(visit => !removed.includes(visit.root)), cursor: previous.visits.slice(0, previous.cursor + 1).filter(visit => !removed.includes(visit.root)).length - 1 };
-        historyRef.current = nextHistory; setHistory(nextHistory);
+        forgetRemovedState(removed);
         forgetConversations(removed);
       }
       entriesRef.current = next;
@@ -846,7 +838,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const group = groups.find(group => group.rows.some(row => row.path === root));
     const selected = group && shellRef.current[group.key]?.selectedRoot;
     if (selected && selected !== root && entriesRef.current.find(entry => entry.path === root)?.autoRegistered) beforeAuto.current.set(root, selected);
-    if (group) setShellProjects(previous => { const groups = previous[group.key]?.groups; return { ...previous, [group.key]: { roots: group.rows.map(row => row.path), expanded: previous[group.key]?.expanded ?? false, selectedRoot: root, selectedAt: Date.now(), ...(groups ? { groups } : {}) } }; });
+    if (group) setShellProjects(previous => { const { collapsed, groups } = previous[group.key] ?? {}; return { ...previous, [group.key]: { roots: group.rows.map(row => row.path), expanded: previous[group.key]?.expanded ?? false, selectedRoot: root, selectedAt: Date.now(), ...(collapsed ? { collapsed } : {}), ...(groups ? { groups } : {}) } }; });
   };
   const enter = (root: string) => {
     if (locked()) return;
@@ -1484,13 +1476,19 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (result.kind === "removed") forgetRemoved(paths);
     return result;
   }
+  // The sidebar's part of a removal, also for roots main's list dropped. Refs and setters only: `onFolders` keeps the
+  // first render's copy.
+  function forgetRemovedState(paths: readonly string[]) {
+    const none = emptyHistory();
+    setShellProjects(previous => afterRemoved({ shellProjects: previous, expanded: {}, history: none }, paths).shellProjects);
+    setExpanded(previous => afterRemoved({ shellProjects: {}, expanded: previous, history: none }, paths).expanded);
+    const current = historyRef.current, next = afterRemoved({ shellProjects: {}, expanded: {}, history: current }, paths).history;
+    if (next !== current) { historyRef.current = next; setHistory(next); }
+  }
   // What the window forgets about roots it or `doan remove` (folders:removed) took out; going Home is the entries effect's.
   // A second pass for the same roots sets no state.
   function forgetRemoved(paths: readonly string[]) {
-    const current: RemovedState = { shellProjects: shellRef.current, expanded: expandedRef.current, history: historyRef.current };
-    const next = afterRemoved(current, paths);
-    setShellProjects(next.shellProjects); setExpanded(next.expanded);
-    if (next.history !== current.history) { historyRef.current = next.history; setHistory(next.history); }
+    forgetRemovedState(paths);
     for (const root of paths) controller.current?.remember(root, null);
     // Only while something is left to forget, so a second pass bumps no memory tick and saves nothing: before ui-state
     // is read every removal is marked (memoryTouched), and after it a root's conversation memory or Overview draft.
