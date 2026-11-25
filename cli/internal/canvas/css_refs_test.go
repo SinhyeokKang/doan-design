@@ -99,6 +99,10 @@ func TestImageSetStringsAreReferences(t *testing.T) {
 	if urls := ScanCSS(text, Stylesheet).URLs; !reflect.DeepEqual(urls, []string{"a.png", "b.png", "c.png", "d.png", "f.avif", "g.png", "h.png"}) {
 		t.Fatalf("ScanCSS URLs = %q", urls)
 	}
+	// A block boundary ends an unclosed call, so the next rule's strings stay strings.
+	if urls := ScanCSS(`a{b:image-set("a.png" 1x} c{content:"x"}`, Stylesheet).URLs; !reflect.DeepEqual(urls, []string{"a.png"}) {
+		t.Fatalf("after an unclosed call: %q", urls)
+	}
 }
 
 func TestImageSetExternalURL(t *testing.T) {
