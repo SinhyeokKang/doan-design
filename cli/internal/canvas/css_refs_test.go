@@ -71,3 +71,39 @@ func TestCSSRefsMatchesScanCSS(t *testing.T) {
 		}
 	}
 }
+
+// A string argument of image-set() is a <url> (CSS Images 4), so it is a reference like url().
+func TestImageSetStringsAreReferences(t *testing.T) {
+	text := `.a { background-image: image-set("a.png" 1x, 'b.png' 2x); }
+.b { background: -WEBKIT-Image-Set("c.png" 1x, url(d.png) 2x), linear-gradient(red, blue); }
+.c { content: "e.png"; mask: image-set("f.avif" type("image/avif")); --i: image-set("g.png" 1x); }
+.d { background: image-set(linear-gradient(red, blue) 1x, "h.png" 2x); x: image-set ("i.png"); }
+`
+	type ref struct{ Value, Custom, Raw string }
+	var have []ref
+	for _, r := range CSSRefs(text, Stylesheet) {
+		have = append(have, ref{r.Value, r.Custom, text[r.Start:r.End]})
+	}
+	want := []ref{
+		{"a.png", "", `"a.png"`},
+		{"b.png", "", `'b.png'`},
+		{"c.png", "", `"c.png"`},
+		{"d.png", "", `url(d.png)`},
+		{"f.avif", "", `"f.avif"`},
+		{"g.png", "--i", `"g.png"`},
+		{"h.png", "", `"h.png"`},
+	}
+	if !reflect.DeepEqual(have, want) {
+		t.Fatalf("CSSRefs =\n%+v\nwant\n%+v", have, want)
+	}
+	if urls := ScanCSS(text, Stylesheet).URLs; !reflect.DeepEqual(urls, []string{"a.png", "b.png", "c.png", "d.png", "f.avif", "g.png", "h.png"}) {
+		t.Fatalf("ScanCSS URLs = %q", urls)
+	}
+}
+
+func TestImageSetExternalURL(t *testing.T) {
+	c := mustParse(t, "x", []byte(`<style>a{background:image-set("https://cdn/x.png" 1x)}</style><div style="background:-webkit-image-set('//cdn/y.png' 1x)"></div>`))
+	if !reflect.DeepEqual(c.ExternalURLs, []string{"//cdn/y.png", "https://cdn/x.png"}) {
+		t.Fatal(c.ExternalURLs)
+	}
+}
