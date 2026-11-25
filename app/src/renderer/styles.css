@@ -481,8 +481,12 @@ body:has(.shell-top) { background: transparent; }
 .shell-modes button.current { background: var(--surface-panel); color: var(--text-standard); box-shadow: var(--shadow-panel); }
 .shell-modes button:hover { background: var(--affordance-backdrop-hover); }
 .shell-modes button.current:hover { background: var(--surface-panel); cursor: default; }
-/* Forced colours drop the fill and shadow that mark the current step or mode; a border leaves the focus outline free. */
-@media (forced-colors: active) { :is(.ob-steps .doan-button, .shell-modes button).current { border: 2px solid Highlight; } }
+/* Forced colours drop the current step's or mode's fill and shadow. A border leaves the focus outline free, and every
+   tab carries it so switching moves no sibling. */
+@media (forced-colors: active) {
+  :is(.ob-steps .doan-button, .shell-modes button) { border: 2px solid Canvas; }
+  :is(.ob-steps .doan-button, .shell-modes button).current { border-color: Highlight; }
+}
 /* The sidebar covers the shell's bottom margin so the list scrolls out at the window edge; its bottom padding keeps
    the last row in place at rest. */
 .shell-side.side { min-height: 0; display: flex; flex-direction: column; gap: 12px; margin-bottom: -8px; padding: 8px 8px 0; border: 0; background: transparent; overflow: hidden; }
@@ -1661,7 +1665,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* A currentColor background drops out under forced colours. */
 @media (forced-colors: active) { .doan-agent-caret { forced-color-adjust: none; background: CanvasText; } }
 /* Forced colours drop the shadow, the capsule's only edge over the canvas. */
-@media (forced-colors: active) { .doan-agent { border: 1px solid CanvasText; } }
+@media (forced-colors: active) { .doan-agent { outline: 1px solid CanvasText; outline-offset: -1px; } }
 @media (prefers-reduced-motion: reduce) {
   .doan-agent-caret { animation: none; }
   .doan-agent-glow { animation: none; }

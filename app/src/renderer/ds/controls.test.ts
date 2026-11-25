@@ -75,7 +75,7 @@ test("a notice's reason line is a caption in the metadata ink, the same on every
 test("screens set only outer margins on a notice: no per-screen padding, gap, type, ink or alignment", () => {
   const notice = /\.(doan-notice|composer-notice|settings-notice|ob-list-notice|ob-project-notice|ob-drop-notice|setup-notice|convo-strip)(?![\w-])/;
   const sources = [read("./surfaces.css"), read("../styles.css")].join("\n").replace(/\/\*[\s\S]*?\*\//g, "");
-  const shared = new Set([".doan-notice", ".doan-notice.warning", ".doan-notice.error", ".doan-notice.ok", ".doan-notice.doan-panel", ".doan-notice.stacked"]);
+  const shared = new Set([".doan-notice", ".doan-notice.warning", ".doan-notice.error", ".doan-notice.ok", ".doan-notice.doan-panel", ".doan-notice.doan-panel:focus-visible", ".doan-notice.stacked"]);
   const offenders: string[] = [];
   for (const [, selectors, body] of sources.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     for (const selector of selectors!.split(",").map(s => s.trim())) {

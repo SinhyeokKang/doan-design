@@ -17,6 +17,20 @@ function forced(css: string): string {
   return blocks.join("\n").replace(/\s+/g, " ");
 }
 
+// Every selector of every rule, split at the list's own commas, not at those inside :is() or :has().
+function selectors(css: string): string[] {
+  return [...css.matchAll(/([^{};]+)\{/g)].flatMap(match => {
+    const list = [""];
+    let depth = 0;
+    for (const char of match[1]!) {
+      depth += char === "(" ? 1 : char === ")" ? -1 : 0;
+      if (char === "," && depth === 0) list.push("");
+      else list[list.length - 1] += char;
+    }
+    return list.map(item => item.replace(/\s+/g, " ").trim());
+  });
+}
+
 const CHECKED_RADIOS = ":is(.ob-choice:has(input:checked), .buddy-row:has(input:checked), .conversation-thread .q-pref:has(> input:checked), .storage-option:has(> input:checked), .storage-row:has(> input:checked), .storage-pref:has(> input:checked))";
 const DISABLED_CHECKED_RADIOS = ":is(.buddy-row[data-disabled]:has(input:checked), .storage-option:has(> input[aria-disabled=\"true\"]:checked), .storage-row:has(> input[aria-disabled=\"true\"]:checked), .doan-preference-row[data-disabled].storage-pref:has(> input:checked))";
 
@@ -28,13 +42,15 @@ describe("under forced colours", () => {
     ["a disabled checked radio's dot", `${DISABLED_CHECKED_RADIOS} .ob-radio::before { background: GrayText; }`],
     ["the composer's edge", ".composer-card { outline: 1px solid CanvasText; }"],
     ["the composer's focus", ".composer-card:focus-within { outline: 2px solid Highlight; }"],
-    ["the current setup step and mode", ":is(.ob-steps .doan-button, .shell-modes button).current { border: 2px solid Highlight; }"],
+    // Every tab carries the border, so the current one is no wider than its siblings.
+    ["every setup step's and mode's border", ":is(.ob-steps .doan-button, .shell-modes button) { border: 2px solid Canvas; }"],
+    ["the current setup step and mode", ":is(.ob-steps .doan-button, .shell-modes button).current { border-color: Highlight; }"],
     ["the Fast switch knob", ".fast-switch::before { forced-color-adjust: none; background: CanvasText; }"],
     ["the checked Fast switch", ".fast-item[aria-checked=\"true\"] .fast-switch { border-color: Highlight; }"],
     ["the checked Fast knob", ".fast-item[aria-checked=\"true\"] .fast-switch::before { background: Highlight; }"],
     ["the disabled Fast switch", ".fast-item[data-disabled] .fast-switch { border-color: GrayText; }"],
     ["the disabled Fast knob", ".fast-item[data-disabled] .fast-switch::before { background: GrayText; }"],
-    ["the agent notice", ".doan-agent { border: 1px solid CanvasText; }"],
+    ["the agent notice", ".doan-agent { outline: 1px solid CanvasText; outline-offset: -1px; }"],
     ["a queued message", ".queue-item { outline: 1px solid CanvasText; outline-offset: -1px; }"],
     ["the row's unread dot", ".row-slot.unseen i { forced-color-adjust: none; background: Highlight; }"],
     ["the header buttons' unread dot", ":is(.doan-icon-button[data-badge=\"true\"], :is(.doan-canvas-head .doan-panel-show, .pw-conv).doan-icon-button[data-badge=\"unseen\"])::after { forced-color-adjust: none; background: Highlight; box-shadow: none; }"],
@@ -44,12 +60,18 @@ describe("under forced colours", () => {
   });
 
   test("a floating notice keeps an edge", () => {
-    expect(forced(surfaces)).toContain(".doan-notice.doan-panel { border: 1px solid CanvasText; }");
+    expect(forced(surfaces)).toContain(".doan-notice.doan-panel { outline: 1px solid CanvasText; outline-offset: -1px; }");
+  });
+
+  // The notice takes focus from code, and its edge's outline would replace the browser's focus ring.
+  test("a focused floating notice reads apart from an unfocused one", () => {
+    expect(forced(surfaces)).toContain(".doan-notice.doan-panel:focus-visible { outline: 2px solid Highlight; outline-offset: -2px; }");
   });
 
   // A new copy of the radio, or of its disabled look, needs its selector in the lists above.
   test("every row that draws a checked radio dot is covered", () => {
-    const rows = [...styles.matchAll(/^([^\n{}]*:checked[^\n{}]*) \.ob-radio::before \{/gm)].map(match => match[1]!.trim());
+    const dot = " .ob-radio::before";
+    const rows = selectors(styles).filter(item => item.includes(":checked") && item.endsWith(dot)).map(item => item.slice(0, -dot.length));
     expect(rows.length).toBeGreaterThanOrEqual(10);
     for (const row of rows) expect(`${CHECKED_RADIOS} ${DISABLED_CHECKED_RADIOS}`).toContain(row);
   });

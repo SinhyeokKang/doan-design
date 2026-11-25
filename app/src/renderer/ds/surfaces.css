@@ -194,7 +194,11 @@
 .doan-notice.stacked > :has(> .doan-button) { flex-basis: 100%; justify-content: flex-end; margin-block: 0; }
 /* On a backdrop that is not plain white, the notice takes the panel surface and doan-panel's shadow. */
 .doan-notice.doan-panel { background: var(--surface-panel); }
-@media (forced-colors: active) { .doan-notice.doan-panel { border: 1px solid CanvasText; } }
+/* An outline changes no size. A notice focused from code needs its own ring, which the edge would otherwise replace. */
+@media (forced-colors: active) {
+  .doan-notice.doan-panel { outline: 1px solid CanvasText; outline-offset: -1px; }
+  .doan-notice.doan-panel:focus-visible { outline: 2px solid Highlight; outline-offset: -2px; }
+}
 
 /* The group is the rows' query container: a narrow group puts a button control under its title, a switch stays beside it. */
 .doan-settings-group {
