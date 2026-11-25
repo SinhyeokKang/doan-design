@@ -121,6 +121,26 @@ test("writes the storage mode through doan config and has the group read again o
   expect(storageWritten).toHaveBeenCalledTimes(1);
 });
 
+// ARCHITECTURE §7 'Storage writes': the CLI wrote the mode even when the page closed meanwhile, so the group still
+// reads again; only the closed page gets no answer.
+test("a storage write that finishes after the session ended still has the group read again", async () => {
+  for (const [request, result] of [
+    [{ root: ROOT, op: "setStorage", storage: "local" }, ok({ repo: ROOT, serve: [], changed: true, storage: "local" })],
+    [{ root: ROOT, op: "setStorage", storage: "local", gitInit: true }, failed("cleanup_failed", "cli words")],
+  ] as const) {
+    storageWritten.mockClear();
+    const later = deferred<CliRun>();
+    run.mockReturnValueOnce(later.promise);
+    const reply = bridge.write(request);
+    await vi.waitFor(() => expect(run).toHaveBeenCalled());
+    bridge.clear();
+    later.resolve(result);
+    expect(await reply, JSON.stringify(request)).toEqual({ kind: "unavailable" });
+    expect(storageWritten, JSON.stringify(request)).toHaveBeenCalledExactlyOnceWith(ROOT);
+    run.mockClear();
+  }
+});
+
 // Only Keep out of Git carries the confirmation to create a repository, as `doan config --storage local --git-init`.
 // A created repository is told by `written`.
 test("a confirmed switch creates the repository through doan config and says so", async () => {

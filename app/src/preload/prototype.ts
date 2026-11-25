@@ -14,7 +14,7 @@ import type { QuestionAnswerInput } from "../main/conversation/question";
 import type { ConversationService, ScheduledItem, StartRequest, TakenDraft } from "../main/conversation/service";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Anchor, BoundarySignal, Canvas, ConversationEvent, Runtime, SkillSummary, StageSignal, UnavailableReason } from "../main/conversation/types";
-import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
+import type { DesignSkillList, DesignSkillReply } from "../main/designSkills";
 import type {
   ExportTarget, FramesMessage, GotoMessage, PanelRequest, PrototypeComposerSettings, PrototypeMode, PrototypeSnapshot, PrototypeView, PrototypeWindowApi, RevealPayload, RunMessage,
 } from "../main/prototype/ipc";
@@ -189,7 +189,6 @@ const api = {
   onConversationBoundary: (listener: (signal: BoundarySignal) => void): (() => void) => listen("conversation:boundary", listener),
   designSkills: {
     list: (): Promise<DesignSkillReply<DesignSkillList>> => ipcRenderer.invoke("design-skills:list"),
-    get: (id: string): Promise<DesignSkillReply<DesignSkillPreset>> => ipcRenderer.invoke("design-skills:get", { id }),
   },
   // Thread cards' thumbnails; main answers and sends changes for the playing root only.
   getThumbnail: (root: string, path: string, visible: boolean): Promise<ThumbnailReply> => ipcRenderer.invoke("thumbnails:get", { root, path, visible }),

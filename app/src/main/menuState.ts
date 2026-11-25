@@ -1,6 +1,7 @@
 import type { UpdateMenuView } from "./update/view";
 
-export type Screen = "home" | "workspace" | "canvas" | "addProjects" | "settings";
+export const SCREENS = ["home", "workspace", "canvas", "addProjects", "settings"] as const;
+export type Screen = (typeof SCREENS)[number];
 
 export interface MenuEnabled {
   settings: boolean;

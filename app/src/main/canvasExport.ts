@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { posix } from "node:path";
 import type { CliRun } from "./folderState";
 import { trashRequest, trashTarget } from "./canvasTrash";
@@ -45,9 +46,15 @@ function listed(message: string): string[] {
   });
 }
 
-// Case-insensitive, as the CLI's own check (`hasDoan`, cli/internal/export/target.go): on a case-insensitive
-// disk `.DOAN` is the same directory.
-const insideDoan = (output: string) => posix.dirname(output).split("/").some(segment => segment.toLowerCase() === ".doan");
+// Case-insensitive: on a case-insensitive disk `.DOAN` is the same directory.
+const hasDoan = (dir: string) => dir.split("/").some(segment => segment.toLowerCase() === ".doan");
+// As the CLI judges it (`UnderDoan`, cli/internal/export/target.go): by the output's folder as spelled or where it
+// really leads, and by the spelling alone when it cannot be resolved.
+function insideDoan(output: string): boolean {
+  const dir = posix.dirname(output);
+  if (hasDoan(dir)) return true;
+  try { return hasDoan(realpathSync.native(dir)); } catch { return false; }
+}
 
 // `prototype`: the run had `--prototype`, so only a result that says so is the file asked for. A `linkedFrames` that is
 // not a count reads as none: the file is written either way.
