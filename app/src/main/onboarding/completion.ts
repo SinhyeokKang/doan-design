@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
-// Device-local first-run record in userData. Only v1 with completed true ends onboarding; the legacy `{}` written by
-// markClosed meant only that the old wizard was closed once.
+// Device-local first-run record in userData. Only v1 with completed true ends onboarding; the legacy `{}` file does not
+// end onboarding.
 export const COMPLETION_FILE = "onboarding.json";
 export type CompletionRead =
   | { kind: "missing" }

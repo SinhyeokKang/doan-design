@@ -54,7 +54,7 @@ function underNamespace(value: string, home: string): boolean {
 }
 
 // An `allow` rule runs the command outside the sandbox unasked (Codex docs 'Rules'), which the app socket needs. Only
-// read and signal commands are allowed; every other `doan` command follows the person's Codex settings.
+// read and signal commands are allowed; every other `doan` command follows the person's Codex settings (ARCHITECTURE §7 'Agent setup').
 const CODEX_ALLOWED_COMMANDS = ["ls", "check", "active", "work", "open", "skill", "design-skill", "help"];
 export function codexRuleText(): string {
   return '# Written by Doan so Codex runs `doan ls`, `check`, `active`, `work`, `open`, `skill`, `design-skill` and `help` outside its sandbox without asking; every other `doan` command follows your Codex settings. If you edit this file, Doan leaves it alone.\n' +
@@ -68,8 +68,8 @@ export const EARLIER_CODEX_RULES: readonly string[] = [
     ["export", "config", "onboarding", "remove"].map(command => `prefix_rule(pattern=["doan", "${command}"], decision="prompt")\n`).join(""),
 ];
 
-// Claude Code Bash rules: a trailing ` *` matches any arguments and the bare command, and `&&`, `;`, `|` split a command.
-// `update` goes last so a file that has the earlier three gets only it.
+// Only work reporting and `doan open` run unasked; every other doan command must keep asking. `*` also matches the bare
+// command, and `&&`, `;`, `|` split commands. `update` goes last so a file with the earlier three gets only it.
 export const CLAUDE_ALLOW_RULES: readonly string[] = ["Bash(doan work start *)", "Bash(doan work done *)", "Bash(doan open *)", "Bash(doan work update *)"];
 export type ClaudeAllowMerge = { kind: "keep" } | { kind: "write"; text: string } | { kind: "refuse"; problem: "json" | "object" | "permissions" | "allow" };
 

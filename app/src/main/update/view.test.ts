@@ -3,7 +3,7 @@ import type { InstallGate, UpdateEligibility, UpdateSnapshot, UpdateState } from
 import { releaseNotesFailedLine, updateView } from "./view";
 
 // What Settings > About's Version row, the automatic-check row, the header button and the Doan menu item show for
-// each update state, as the draft canvas .doan/canvases/app-update.html words them.
+// each update state.
 
 // Local times, so the expectations hold in any time zone.
 const NOW = new Date(2026, 10, 8, 16, 5).getTime();

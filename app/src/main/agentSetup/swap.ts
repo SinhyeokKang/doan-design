@@ -23,12 +23,14 @@ function restore(fs: SwapFs, path: string, aside: string): SwapResult {
     const s = fs.lstatSync(aside);
     if (s.isSymbolicLink()) fs.symlinkSync(fs.readlinkSync(aside), path);
     else if (s.isFile()) fs.linkSync(aside, path);
+    // A folder stays aside: renaming it back could replace an empty folder that arrived meanwhile.
     else return { kind: "displaced", at: aside };
     fs.unlinkSync(aside);
     return { kind: "changed" };
   } catch { return { kind: "displaced", at: aside }; }
 }
 
+// Undefended same-user windows: replacing the aside entry before Doan unlinks it, or swapping the folder between checks.
 export function swapLink(fs: SwapFs, a: SwapArgs): SwapResult {
   if (a.parent !== null && parentId(fs, a.path) !== a.parent) return { kind: "changed" };
   try { fs.renameSync(a.path, a.aside); } catch (error) { return code(error) === "ENOENT" ? { kind: "changed" } : { kind: "failed", code: code(error) }; }

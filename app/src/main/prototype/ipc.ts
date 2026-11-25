@@ -12,8 +12,8 @@ import type { FolderEntry } from "../view";
 import type { Rect } from "./fit";
 import type { PrototypeSize } from "./mark";
 
-// `changed`, `snapshot`, `exportRunning` and `visible` are events to the prototype window, `closed` to the main window,
-// `play` the main window's request; every other channel is a request from the prototype window's main frame.
+// Events to the prototype window: `changed`, `snapshot`, `exportRunning`, `visible` (also its request for the first value);
+// `closed` goes to the main window and `play` is its request; every other channel is the prototype window's request.
 export const PROTOTYPE_CHANNELS = {
   play: "prototype:play",
   read: "prototype:read",
@@ -114,8 +114,8 @@ export interface PrototypeGoto {
   frames: string[];
 }
 
-// The prototype script posts one RunMessage, and one FramesMessage after the `load` handlers when that went out earlier.
-// The host accepts only its current iframe, origin "null" and the current `gen`; main validates it again.
+// Posted once, plus one FramesMessage after `load` handlers if later; the host tells them apart by `state`. It accepts only
+// its current iframe, origin "null" and current `gen`, forwards the data unchanged, and main validates it again.
 export type RunMessage =
   | { gen: number; state: "ready"; size: string; frames: PrototypeFrame[]; gotos: PrototypeGoto[] }
   | { gen: number; state: LostState; frames: PrototypeFrame[]; gotos: PrototypeGoto[] }

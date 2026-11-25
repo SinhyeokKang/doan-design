@@ -116,7 +116,7 @@ function codexStatus(run: StatusRun): CheckResult {
 // Claude reads <CLAUDE_CONFIG_DIR>/skills and Codex <CODEX_HOME>/skills (skills/list, scope "user").
 const SKILL_STUB = { "skills/doan/SKILL.md": stub };
 // The Doan-connected profiles get the terminal Agent setup's permission scope so an app conversation's `doan work
-// update` does not ask on every frame in Default mode. Claude Code writes this profile's settings.json too, so only the
+// update` does not ask on every frame in Ask first. Claude Code writes this profile's settings.json too, so only the
 // missing rules go in; a file that cannot be merged into (invalid JSON, wrong shapes) stays as it is, since nothing
 // shows the person an About item for a profile file.
 const CLAUDE_PROFILE_ALLOW: SettingMerge = current => {
@@ -128,7 +128,7 @@ const CLAUDE_PROFILE_ALLOW: SettingMerge = current => {
 const HOME_STUB = (dir: string) => ({ [`${dir}/skills/doan/SKILL.md`]: stub });
 // rules/doan.rules (codexRuleText) allows only the read and signal commands, so every other `doan` command follows the
 // mode's own sandbox: Full access runs `doan export` and `doan config`, which a `prompt` rule would refuse there. Only
-// `doan handoff` gets a `prompt` rule, so it asks in the asking modes, as the person chose for starting a conversation.
+// `doan handoff` gets a `prompt` rule, so starting a conversation asks in the asking modes.
 const CODEX_HANDOFF_RULE = '# Written by Doan so Codex asks before `doan handoff` starts another conversation.\nprefix_rule(pattern=["doan", "handoff"], decision="prompt")\n';
 const CLI_RUN = { acpAuth: null, acp: null, verifyByRun: false, hookLink: null, loginClears: false, identity: null };
 export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {
@@ -151,7 +151,7 @@ export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {
   antigravity: { command: ANTIGRAVITY_COMMAND, args: [], env: { AGY_ACP_FORCE_FILE_STORAGE: "1", PYTHONUNBUFFERED: "1" }, login: [], status: [], logout: null,
     vault: [".gemini/antigravity-acp/acp_token.json"], plaintext: [], settings: HOME_STUB(".gemini/config"), acpAuth: { method: "oauth-personal", agent: "antigravity-acp", version: ANTIGRAVITY_SERVER.version },
     acp: { args: [], authenticate: "oauth-personal", sessions: ".gemini/antigravity-acp/conversations" }, verifyByRun: false, hookLink: null, loginClears: false, identity: "google-userinfo", parseStatus: antigravityStatus },
-  // storeTokenPlaintext (official setting, changelog and settings schema) keeps the token in config.json, which
+  // storeTokenPlaintext (official setting) keeps the token in config.json, which
   // doan keeps in the vault; a dedicated HOME also keeps gh and the shared "copilot-cli" Keychain item out of reach.
   // There is no status command: a tool-free print request fails fast without a login and costs one request with one.
   // Conversations: official `copilot --acp --stdio` (https://docs.github.com/en/copilot/reference/copilot-cli-reference/acp-server).

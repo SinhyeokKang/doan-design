@@ -1,7 +1,7 @@
 import type { UpdateErrorCode, UpdateErrorSource } from "./types";
 
-// Shapes: electron-updater's string `code` and HttpError `statusCode`, Squirrel.Mac's NSError `code` and `domain`. Release
-// errors arrive wrapped twice with the whole feed appended after "\nXML:\n", so only the message before it is read.
+// GitHubProvider wraps release errors, so offline and rate-limit tests read the message before other codes, cut at
+// "\nXML:\n": the appended feed holds release notes anyone can write.
 
 // Electron's net errors and Node's system errors for a connection that never got an answer.
 const OFFLINE_MESSAGE = /net::ERR_(INTERNET_DISCONNECTED|NAME_NOT_RESOLVED|NAME_RESOLUTION_FAILED|NETWORK_CHANGED|NETWORK_IO_SUSPENDED|ADDRESS_UNREACHABLE|CONNECTION_(REFUSED|RESET|CLOSED|ABORTED|FAILED|TIMED_OUT)|TIMED_OUT|PROXY_CONNECTION_FAILED)\b|^Request timed out$/m;

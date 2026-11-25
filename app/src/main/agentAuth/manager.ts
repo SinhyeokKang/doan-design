@@ -30,8 +30,8 @@ export type Started = { ok: true; attemptId: string; done: Promise<AuthState> } 
 // A check's own result once its write-back is done; "replaced": a sign-in or sign-out took its place before the result.
 export type CheckOutcome = "ok" | "replaced" | "network" | "check_failed" | "cli_install_failed" | "account_mismatch" | "storage_failed";
 export type CheckStarted = (Extract<Started, { ok: true }> & { outcome: Promise<CheckOutcome> }) | Extract<Started, { ok: false }>;
-// The MCP connector step of a sign-out or replacement (ARCHITECTURE §7 'MCP connectors'): run executes the provider CLI in
-// the profile being left; staging is a staged replacement's new profile, which takes the servers still valid.
+// The MCP step of a sign-out or replacement (ARCHITECTURE §7 'MCP connectors'): run executes the provider CLI in the profile
+// being left and resolves only after its process group is gone; staging is a staged replacement's new profile.
 export interface McpLogoutRequest {
   kind: "signOut" | "replace"; previousAccountId: string | null; nextAccountId: string | null; staging: string | null; profileDir: string;
   run(args: string[]): Promise<{ code: number | null; stdout: string; stderr: string }>;
@@ -245,8 +245,8 @@ export class AuthManager {
           outcome = error instanceof Cancelled || this.cancelled(provider, attemptId) ? null
             : { status: "failed", code: error instanceof Failure ? error.code : "sign_in_failed", detail: message(error) };
         }
-        // The MCP step runs only after the commit, so an unfinished replacement leaves MCP registrations as they were, and before
-        // the replaced profile is logged out. Until it ends the provider admits nothing (POSTMORTEM 2026-10-29).
+        // After the commit (an unfinished replacement keeps MCP registrations) and before retiring the old profile, where
+        // logouts run. Nothing is admitted meanwhile: a run could use the old account's tokens (POSTMORTEM 2026-10-29).
         const settle = previous !== null && outcome?.status === "stored" && this.options.mcpLogout !== undefined;
         if (settle) this.settlings.add(provider);
         this.apply(provider, outcome ? { type: "signedIn", attemptId, result: outcome, kept: !touch.live } : { type: "settled", attemptId, kept: !touch.live });
@@ -792,7 +792,7 @@ export class AuthManager {
     let extra = { ...this.adapters[provider].env, ...added };
     if (this.adapters[provider].acpAuth || this.adapters[provider].hookLink) {
       // Every process of a browser sign-in server gets the hook, so neither a check nor an expired run can open a
-      // browser itself. Without a usable hook the CLI would open the default browser, so nothing starts.
+      // browser itself. Without a usable hook the CLI would open the default browser, so nothing starts; ":" is $BROWSER's separator.
       const hook = this.options.storage.ownedScript(BROWSER_HOOK.name, BROWSER_HOOK.script);
       if (hook.includes(":")) throw new Error("browser_hook_unusable");
       extra = { ...extra, BROWSER: hook };

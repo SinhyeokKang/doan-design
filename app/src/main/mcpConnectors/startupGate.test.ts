@@ -2,8 +2,8 @@ import { expect, test } from "vitest";
 import events from "../conversation/fixtures/codex-mcp-startup-status.json";
 import { codexStartupGate } from "./startupGate";
 
-// One thread's mcpServer/startupStatus/updated notifications: four servers start, the signed-out doan-notion fails about
-// 45 ms later, the remote servers are ready after 1-1.6 s. Server names are restored from redaction.
+// One thread's mcpServer/startupStatus/updated notifications: four servers start, the signed-out doan-notion fails before
+// the remote ones are ready.
 const params = events.map(event => event.params);
 const NAMES = ["doan-notion", "doan-atlassian", "doan-figma"];
 

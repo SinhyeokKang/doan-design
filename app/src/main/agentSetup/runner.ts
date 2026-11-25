@@ -176,8 +176,8 @@ function write(target: PlannedTarget, action: "create" | "replace", before: Seen
 }
 
 function quote(value: string): string { return `'${value.replaceAll("'", "'\\''")}'`; }
-// The dialog is needed only when /usr/local/bin is root-owned, so no process of the person's can race it. `ln -h`
-// without -f refuses existing entries and links, and only SIP-protected binaries run, with a cleared environment.
+// Runs as root: only SIP-protected binaries, cleared env; the dialog's folder is root-owned, so the person cannot race it.
+// `ln -h` without -f refuses a file or link, not a folder: classifyTarget must keep a folder (foreign) from reaching it.
 export function adminCommand(target: Pick<PlannedTarget, "path" | "want">): string {
   const run = "/usr/bin/env -i PATH=/usr/bin:/bin";
   return `${run} /bin/mkdir -p ${quote(dirname(target.path))} && ${run} /bin/ln -s -h ${quote(target.want)} ${quote(target.path)}`;

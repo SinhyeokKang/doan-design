@@ -416,8 +416,8 @@ export class McpService implements McpConversationFacts {
     if (!after.ok || !after.facts.registered || !after.facts.authenticated) throw new Failure("failed", after.exitCode);
   }
 
-  // `codex mcp add` starts the OAuth sign-in and opens the default browser itself, so Doan opens nothing for Codex
-  // (POSTMORTEM 2026-10-30). A registration left by a failed first attempt signs in with `codex mcp login`.
+  // `codex mcp add` opens the browser itself, so Doan opens nothing (POSTMORTEM 2026-10-30 'Doan opened a second Codex
+  // sign-in page'). A registration left by a failed first attempt signs in with `codex mcp login`.
   private async codexConnect(attempt: Attempt, lease: Lease, server: ConnectorServer): Promise<void> {
     const listed = await this.codexList(attempt, lease);
     if (attempt.stopped) return;

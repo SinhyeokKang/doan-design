@@ -40,12 +40,12 @@ const CLAUDE_REFRESH = `(let ((account-lock (string-append (param "AGENT_FOLDER"
 (allow file-write* (regex (string-append "^" (regex-quote (param "AGENT_FOLDER")) #"/mcp-refresh-doan_[a-z0-9]${"[a-z0-9_]?".repeat(15)}_${"[0-9a-f]".repeat(16)}\\.lock\\.lock$")))
 `;
 
-// The agent's own folder is closed to writes but for what the CLI writes itself, an allowlist per provider: later
-// processes load the rest as settings, skills and hooks (ARCHITECTURE §7 'Fence').
+// The agent's folder is closed but for this allowlist (ARCHITECTURE §7 'Fence'). dirs open whole subtrees; files are
+// PREFIX rules (lock, temp, backup, WAL names), so a short entry opens its siblings too. pattern: a regex inside the folder.
 interface AgentWrites { folder: string; dirs: readonly string[]; files: readonly string[]; pattern?: string }
 const AGENT_WRITES: Record<Provider, AgentWrites> = {
-  // MCP sign-in takes .storage-write.lock, and token renewal needs CLAUDE_REFRESH. Auto memory is off in fenced runs;
-  // session-env/ stays closed: hooks leave environment files there that the session sources again on resume.
+  // MCP sign-in takes .storage-write.lock; renewal needs CLAUDE_REFRESH. Auto memory is off (it would persist under the
+  // writable projects/). session-env/ stays closed: hooks leave env files there that a resume sources again.
   claude: { folder: "", dirs: ["projects", "sessions", "shell-snapshots", "file-history", "todos", "plans", "tasks", "backups", "cache", "statsig", "debug", "paste-cache", "image-cache", "telemetry"],
     files: [".claude.json", ".credentials.json", ".storage-write.lock", "history.jsonl", "stats-cache.json", "mcp-needs-auth-cache.json", ".last-cleanup"] },
   // Written by the Codex process itself, inside this fence only in Full access. Its login is in the keyring (providers.ts),
@@ -77,8 +77,8 @@ function agentParams(provider: Provider, profile: string): [string, string][] {
   const folder = name ? `${profile}/${name}` : profile;
   return [["AGENT_FOLDER", folder], ...(name ? HOME_STORES.map((store, i): [string, string] => [`HOME_STORE_${i + 1}`, `${profile}/${store}`]) : []), ...dirs.map((dir, i): [string, string] => [`AGENT_DIR_${i + 1}`, `${folder}/${dir}`]), ...files.map((file, i): [string, string] => [`AGENT_FILE_${i + 1}`, `${folder}/${file}`])];
 }
-// Seatbelt cannot tell a mkdir from a rename onto the same path, so Doan creates cursor-agent's worker socket folder
-// outside the fence (prepare.ts). The path rule mirrors the CLI's own, including its 83/91-character cut and hash.
+// The folder can sit under projects/, beside MCP approvals a later run reads, and Seatbelt cannot tell a mkdir from a
+// rename, so Doan creates it outside the fence (prepare.ts). The path rule mirrors the CLI's, 83/91 cut and hash included.
 export function cursorWorkerDir(at: { home: string; cwd: string; tmpdir: string | undefined }, exists: (path: string) => boolean = existsSync): string {
   const data = join(at.home, ".cursor"), tmp = (at.tmpdir || "/tmp").replace(/(.)\/$/, "$1");
   const base = [join(data, "projects"), data, join(tmp, ".cursor")].find(path => path.length <= 83) ?? "/tmp/.cursor";
@@ -125,8 +125,8 @@ export function fencedCommand(command: string, args: readonly string[], fence?: 
 // Copilot runs unsigned JavaScript from its profile package cache, and Cursor's Node runs any compile-cache entry with a
 // matching header; both CLIs write those caches, so every process Doan starts for them runs in the outer fence.
 export const fencedEverywhere = (provider: Provider) => provider === "copilot" || provider === "cursor";
-// Processes outside a conversation that start profile-named MCP servers (Claude's usage read, MCP commands, MCP logout),
-// and every Copilot and Cursor process. null: the fence cannot be built, and the process must not start.
+// Outside conversations: processes that start agent-writable MCP servers (.claude.json; for the usage read also any
+// .mcp.json above its cwd), and every Copilot and Cursor process. null: no fence can be built, so do not start.
 export function profileFencedCommand(provider: Provider, setup: { userData: string; exec?: string }, profileDir: string, command: string, args: readonly string[], realpath: (path: string) => string = path => realpathSync.native(path)): { command: string; args: string[] } | null {
   const paths = resolveFencePaths({ provider, userData: setup.userData, profileDir, attachments: [] }, realpath);
   return paths ? fencedCommand(command, args, fenceArgs(provider, paths), setup.exec) : null;
