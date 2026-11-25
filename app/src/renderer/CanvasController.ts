@@ -8,6 +8,7 @@ import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGH
 import { switchTarget } from "./switchTarget";
 import { bubbleAction, type BubbleAction } from "./bubbleItems";
 import { sizeBubblePlay } from "./prototypePlay";
+import { focusThroughActivation } from "./activationFocus";
 import { acceptSelectionMessage, anchorRequest, canvasPx, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, screenToBoard, elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { scaleFactor } from "./zoomControl";
@@ -379,6 +380,7 @@ export class CanvasController {
 
   dispose(): void {
     this.dropBubbleReturn();
+    this.bubbleActivation();
     clearTimeout(this.workSlideTimer);
     clearTimeout(this.followTimer);
     this.pickListener = null;
@@ -547,6 +549,7 @@ export class CanvasController {
   // Focus comes back to the same button once the selection is found again, unless focus left the holder meanwhile
   // (ARCHITECTURE §3, as `FocusIntent`).
   private bubbleReturn: { button: BubbleAction; holder: Element | null; moved: (event: FocusEvent) => void } | null = null;
+  private bubbleActivation: () => void = () => {};
   // For focus to come back to when the prototype window closes.
   bubblePlayButton(): HTMLButtonElement | null { return this.bubble?.playShown ? this.bubble.play : null; }
   currentView(): View { return { ...this.view }; }
@@ -2280,13 +2283,23 @@ export class CanvasController {
       if (this.reanchor !== null) this.awaitBubbleReturn(had, document.activeElement);
       return;
     }
-    if (had === "play" && !bubble.playShown) this.bubbleAdd?.button()?.focus({ preventScroll: true });
+    if (had === "play" && !bubble.playShown) this.handBubbleFocus(() => this.bubbleAdd?.button());
     const back = this.reanchor === null ? this.bubbleReturn : null;
     if (back === null) return;
     this.dropBubbleReturn();
     if (document.activeElement !== back.holder) return;
     if (back.button === "inspect") this.bubbleInspect?.restoreFocus();
-    else (back.button === "play" && bubble.playShown ? bubble.play : this.bubbleAdd?.button())?.focus({ preventScroll: true });
+    else this.handBubbleFocus(() => back.button === "play" && bubble.playShown ? bubble.play : this.bubbleAdd?.button());
+  }
+
+  // A reload can move this focus while the prototype window is in front, so it is made again on activation
+  // (POSTMORTEM 2026-11-17), only to a button the bubble still shows.
+  private handBubbleFocus(target: () => HTMLElement | null | undefined): void {
+    this.bubbleActivation();
+    this.bubbleActivation = focusThroughActivation(() => {
+      const button = target();
+      if (button?.isConnected && button.closest("[hidden]") === null) button.focus({ preventScroll: true });
+    });
   }
 
   private awaitBubbleReturn(button: BubbleAction, holder: Element | null): void {
