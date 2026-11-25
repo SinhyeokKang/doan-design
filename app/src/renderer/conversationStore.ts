@@ -66,7 +66,7 @@ export class ConversationStore {
   private taken = new Map<string, number>();
   // main hands a start message over once, so once a run is enough.
   private startsAsked = new Map<string, symbol>();
-  // Of conversations started here, until a list names them.
+  // Providers of conversations started here, used before a list names them.
   private providers = new Map<string, Provider>();
   private listeners = new Set<(conversationId: string, change: "read" | "event") => void>();
   // A streamed delta reaches the hosts only this way, since it leaves the store's host alone.

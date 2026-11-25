@@ -148,7 +148,7 @@ export class AgentSignIn {
     const auth = this.state.auth ?? null;
     await Promise.all(ownedSignIns(auth, this.ownedIds).map(({ provider, attemptId }) => this.settle(this.deps.api.cancelAgentSignIn(provider, attemptId))));
   }
-  // Told once, on the rows or in a toast.
+  // Ready changes seen while the window was in the background are told once, on the rows or in a toast.
   windowFocused(): void {
     if (!this.live || this.pending.length === 0) return;
     const pending = this.pending.splice(0), rows = this.rows();

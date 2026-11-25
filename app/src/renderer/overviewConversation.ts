@@ -53,7 +53,7 @@ export function conversationLine(c: ConversationSummary, now: number, seen: Read
   };
 }
 
-// One an earlier build promoted carries its canvas from then on.
+// A project conversation an earlier build promoted carries its canvas from then on.
 const isProject = (c: ConversationSummary) => c.canvas === undefined;
 
 // An unreadable history's empty time sorts last; the id breaks ties so the default pick and the dropdown agree

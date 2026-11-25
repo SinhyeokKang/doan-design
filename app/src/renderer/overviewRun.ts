@@ -79,7 +79,7 @@ export class OverviewRun {
   private visible: string | null = null;
   // Seen: shown in the main column with the window focused.
   private seenEnd = new Map<string, number>();
-  // By the request they wait on (the list's preview names it).
+  // Waiting conversations already toasted, by the request they wait on (the list's preview names it).
   private asked = new Map<string, string>();
   private scroll: { conversationId: string; to: ScrollTo; seq: number } | null = null;
   private scrolls = 0;

@@ -52,7 +52,7 @@ export class AgentStepSession {
   private seq = 0;
   private readonly signIn: AgentSignIn;
   private readonly owner: boolean;
-  // One landing after Back or Continue is dropped.
+  // A reply that opens a dialog is dropped when it lands after Back or Continue.
   private onStep = false;
   // Checked again when the window regains focus.
   private installs = new Set<Provider>();

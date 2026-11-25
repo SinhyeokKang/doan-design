@@ -292,8 +292,8 @@ export class HomeRun {
 
   entriesChanged(): void { this.syncRoots(); }
 
-  // Marks seen the endings of canvas conversations whose canvas left: their slot moved to the project row. Others are
-  // seen only where they show, through markSeenThrough.
+  // Marks seen, for a viewed project row, the endings of canvas conversations whose canvas left (their slot moved
+  // there). Others are seen only where they show, through markSeenThrough.
   visit(keys: readonly string[]): void {
     for (const [root, list] of this.lists) {
       for (const c of list) {
@@ -538,7 +538,7 @@ export class HomeRun {
       return path === undefined ? rest : { ...rest, canvas: path };
     });
     for (const id of this.claimed) this.refresh(id);
-    // Endings on the viewed row are marked seen before drawing, so the Dot does not flash. The rows come from the
+    // Marks orphaned endings on a viewed project row before drawing, so the Dot does not flash. The rows come from the
     // committed view: a switch may not have run App's effect yet.
     const view = this.host.view();
     if (view.screen === "workspace" && view.loadedRoot) this.visit([slotKey(view.loadedRoot), ...(view.canvas ? [slotKey(view.loadedRoot, view.canvas)] : [])]);
