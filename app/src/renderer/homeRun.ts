@@ -570,8 +570,11 @@ export class HomeRun {
   private history(conversationId: string): Promise<{ events: ConversationEvent[] } | null> {
     let read = this.histories.get(conversationId);
     if (!read) {
-      read = window.doan.readConversation({ conversationId }).then(reply => "error" in reply ? null : reply, () => null);
-      this.histories.set(conversationId, read);
+      const reading: Promise<{ events: ConversationEvent[] } | null> = window.doan.readConversation({ conversationId }).then(reply => "error" in reply ? null : reply, () => null);
+      // A failed read is not kept, so the next claim reads again.
+      void reading.then(result => { if (result === null && this.histories.get(conversationId) === reading) this.histories.delete(conversationId); });
+      this.histories.set(conversationId, reading);
+      read = reading;
     }
     return read;
   }

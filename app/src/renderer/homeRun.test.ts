@@ -431,6 +431,25 @@ test("after a reload the strip reads the conversation the list names; a turn the
   expect(h.run.knows("c1")).toBe(true);
 });
 
+test("a failed history read does not keep the conversation off the strip: the next list reads it again", async () => {
+  lists({ [ROOT]: [summary({ unseen: true })] });
+  doan.readConversation!.mockResolvedValueOnce({ error: "unknown" }).mockRejectedValueOnce(new Error("gone"))
+    .mockResolvedValue({ events: [event("c1", { type: "turn.done" })], lastSeq: 1, turn: "idle" });
+  const h = harness();
+  h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
+  h.run.entriesChanged();
+  await flush(); await flush();
+  expect(h.run.strip(ROOT)).toBeNull();
+  h.run.listChanged(ROOT);
+  await flush(); await flush();
+  expect(h.run.strip(ROOT)).toBeNull();
+  h.run.listChanged(ROOT);
+  await flush(); await flush();
+  expect(h.run.knows("c1")).toBe(true);
+  expect(h.run.strip(ROOT)).not.toBeNull();
+  expect(doan.readConversation).toHaveBeenCalledTimes(3);
+});
+
 test("a switch between projects never draws the previous project's strip (POSTMORTEM 2026-10-25)", async () => {
   lists({ [ROOT]: [summary({ conversationId: "a1", phase: "running" })], [OTHER]: [] });
   doan.readConversation!.mockResolvedValue({ events: [event("a1", { type: "turn.started" })], lastSeq: 1, turn: "starting" });
