@@ -1839,8 +1839,8 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .problem-heading h2 { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); }
 .problem-heading p code { padding: 0 var(--space-1); border-radius: var(--radius-inline); background: var(--surface-inset); color: var(--text-standard); }
 .problem-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
-/* A subtle button at rest on the glass takes the hover fill, as on onboarding's overlay. */
-.problem-overlay .doan-button[data-ui-variant="subtle"]:not(:hover, :active) { background: var(--affordance-backdrop-hover); }
+/* A subtle button at rest on the glass takes the hover fill, as on onboarding's overlay; a disabled one keeps it. */
+.problem-overlay .doan-button[data-ui-variant="subtle"]:is(:not(:hover, :active), [data-disabled]) { background: var(--affordance-backdrop-hover); }
 /* Every action is unavailable but focusable while rereading; the pressed filled one keeps its fill and spinner. */
 .problem-actions .doan-button[aria-disabled="true"]:not([data-ui-variant="prominent"]) { color: var(--text-disabled); }
 .problem-detail { width: 100%; margin-top: var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); white-space: pre-wrap; overflow-wrap: anywhere; text-align: start; }

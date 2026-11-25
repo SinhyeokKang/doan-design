@@ -69,9 +69,20 @@ test("busy: every action is aria-disabled and stays focusable; the pressed one s
   const busy = view({ path: "/Users/ada/code/acme-web", kind: "loading" }, { kind: "problem", entryKind: "error" });
   const html = draw(busy, { pressed: "retry", announcement: "Doan couldn’t read acme-web’s configuration" });
   expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" aria-disabled="true" aria-busy="true"><span class="doan-spinner" aria-hidden="true"></span>Retry</button>');
-  expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-disabled="true">Show in Finder</button>');
-  expect(html).not.toContain("disabled=\"\"");
+  expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-disabled="true" data-disabled="">Show in Finder</button>');
+  expect(html).not.toMatch(/\sdisabled=""/);
   expect(html).toContain('<p class="sr-only" role="status" aria-live="polite">Doan couldn’t read acme-web’s configuration</p>');
+});
+
+// A reread can start without a press (the folder came back); the shared fills skip only data-disabled and aria-busy.
+test("busy with no pressed action: every action takes the disabled look, the prominent one too, and the subtle one keeps its glass fill", () => {
+  const busy = view({ path: "/Users/ada/code/acme-web", kind: "loading" }, { kind: "problem", entryKind: "error" });
+  const html = draw(busy, { pressed: null });
+  expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" aria-disabled="true" data-disabled="">Retry</button>');
+  expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-disabled="true" data-disabled="">Show in Finder</button>');
+  expect(html).toMatch(/<button type="button" class="doan-button ghost" data-ui-size="sm" aria-disabled="true" data-disabled="" aria-expanded="false">Details/);
+  expect(html).not.toContain("aria-busy");
+  expect(css).toContain('.problem-overlay .doan-button[data-ui-variant="subtle"]:is(:not(:hover, :active), [data-disabled]) { background: var(--affordance-backdrop-hover); }');
 });
 
 test("reading: the opaque panel with a status line and no scene", () => {

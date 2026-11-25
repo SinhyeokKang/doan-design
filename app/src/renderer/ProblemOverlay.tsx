@@ -36,9 +36,10 @@ export function ProblemOverlay({ view, details, detail, pressed, announcement, o
       <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
       <div className="problem-actions">{view.actions.map(({ name, variant }) => {
         const spinning = view.busy && pressed === name;
-        // Busy actions stay focusable (aria-disabled, not disabled) so focus stays on the pressed one.
+        // Busy actions stay focusable (aria-disabled, not disabled) so focus stays on the pressed one; the others take
+        // the disabled look, which the shared hover and pressed fills skip.
         return <button key={name} type="button" className={`doan-button${variant === "ghost" ? " ghost" : ""}`}
-          data-ui-variant={variant === "ghost" ? undefined : variant} data-ui-size="sm" aria-disabled={view.busy || undefined} aria-busy={spinning || undefined}
+          data-ui-variant={variant === "ghost" ? undefined : variant} data-ui-size="sm" aria-disabled={view.busy || undefined} data-disabled={view.busy && !spinning ? "" : undefined} aria-busy={spinning || undefined}
           aria-expanded={name === "details" ? details : undefined} onClick={() => { if (!view.busy) onAction(name); }}>
           {spinning && <span className="doan-spinner" aria-hidden="true" />}{ROW_ACTION_LABELS[name]}{name === "details" && (details ? " ▾" : " ▸")}
         </button>;
