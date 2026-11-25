@@ -45,7 +45,7 @@ lead는 링크 1을 시작하기 전에 아래를 사용자와 한 번에 확인
 
 | 링크 | 세션·worktree | 시작 | PR·머지 | 상태 |
 |---|---|---|---|---|
-| handoff-card-emphasis | conductor `term_5911532b-fa28-4a97-bd15-c7f419c527c7` · `/Users/sinhyeok/orca/workspaces/doan-design/handoff-card-emphasis-orch` (`feat/handoff-card-emphasis`) | 2026-11-25 17:08 | — | 진행 중 |
+| handoff-card-emphasis | conductor `term_5911532b-fa28-4a97-bd15-c7f419c527c7` · `/Users/sinhyeok/orca/workspaces/doan-design/handoff-card-emphasis-orch` (`feat/handoff-card-emphasis`) | 2026-11-25 17:08 | PR #392 · 머지 `9d4559e59` | 완료 |
 | thread-motion | — | — | — | 대기 |
 
 ## 인계 기록
@@ -67,3 +67,8 @@ lead는 링크 1을 시작하기 전에 아래를 사용자와 한 번에 확인
   - 증거: main checkout의 `.scratch/lead-verify-261125/`.
   - 주의: 공유 provider 프로필(`.scratch/provider-profile/userData`)을 복사하면 Claude Code와 Codex는 로그인이 만료된 것으로 보인다. 자격 증명이 프로필 경로의 해시가 붙은 Keychain 항목에 있기 때문이다. 이 두 provider의 probe는 원본 경로에서 돌리고, 바뀌는 작은 상태 파일은 백업했다 되돌린다.
 - 2026-11-25 새 lead: 시작 점검을 사용자와 확인했고 사용자가 승인했다. 확인한 항목: thread-edit-lines 머지(`46f91b070`)와 미검증 항목 확인 완료, handoff-card-emphasis T2의 결정 지점(설계 범위를 넘는 새 캡처 경로나 채널이 필요하면 conductor가 멈추고 묻는다), thread-motion T5의 실제 provider 턴(실제 HOME 로그인을 임시 홈에 복제해 쓰고 지운다, 새 로그인 없음), 두 기능 문서에 '확인 필요' 항목 없음. 링크 1을 시작한다.
+- 2026-11-25 lead: 링크 1 handoff-card-emphasis PR #392를 develop에 머지했다(`9d4559e59`). gate 통과. conductor worktree를 지웠고, 브랜치 `feat/handoff-card-emphasis`와 배치 브랜치 `SinhyeokKang/hce-b1`~`b3`는 남겼다. 링크 2가 알아야 할 것은 PR #392 본문의 'For link 2'에 있다.
+  - 새 클래스는 `.card-surface`, `.card-layout`, `.card-head`, `.cc-banner`, `.cc-meta`다. `.cc-*`는 `.conversation-thread .card-head` 아래로 옮겼고, `.handoff-head`는 지웠다. `.handoff-card`는 ENTRY_FOCUS와 scrollIntoView가 기대므로 남겼다.
+  - `ConversationThread`는 `now`(필수)와 `thumbnails?: { hub, root }`를 받는다. `CardThumbnails`가 IntersectionObserver로 배너를 본다. 썸네일 hub는 뷰어가 없는 root의 이미지를 `LEAVE_MS`(2초) 동안 유지한다. 스레드를 다시 마운트하거나 늦추는 모션은 이 창을 고려해야 한다.
+  - T2 결정 지점: 새 채널이나 캡처 경로는 필요 없었다. 기존 `thumbnails:changed`를 프로토타입 창에도 보내는 것은 conductor가 승인 범위 안으로 판단했다.
+  - 실제 앱에서 확인하지 못한 항목(BACKLOG 'Not verified in the real app'): 캡처 실패 뒤 배너, 짧은 경로 폴더 메타, "No frames", 사라진 캔버스의 캔버스 카드, "Hands off when this turn ends" 카드, 347 프로토타입 창 패널, Open hover·pressed, reduced motion.
