@@ -171,7 +171,7 @@ describe("watchFolder re-reads within a second", () => {
   });
 });
 
-// `doan ls` does not read `.doan/comments/`; a repo may still hold a leftover `.doan/comments/` file, which Doan ignores.
+// `doan ls` does not read `.doan/comments/`; a repo may still hold a leftover `.doan/comments/`, which Doan ignores.
 describe("watchFolder ignores a leftover .doan/comments/", () => {
   test("gives it no watcher, and a file in it changing re-reads nothing", async () => {
     const root = repo();

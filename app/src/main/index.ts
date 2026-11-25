@@ -774,7 +774,7 @@ function revealForStart(window: BrowserWindow): void {
   }
 }
 
-// Resolves to the stored root so first run can show the project it opened.
+// Resolves to the stored root, or null when the dialog was cancelled or the folder refused.
 async function openProject(): Promise<string | null> {
   const window = win;
   const ready = shell;
