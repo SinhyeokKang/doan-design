@@ -722,6 +722,45 @@ describe("selection", () => {
       } finally { h.controller.dispose(); }
     });
 
+    // A loading iframe cannot hear the selection channel either: a command sent then would only move the app's seq
+    // past the new document's first clicks.
+    it("waits for the reloaded document's first layout, then picks the frame by id", () => {
+      const h = selectionHarness();
+      try {
+        h.layout({ document: "doc", frames: [frame("intro", 0), frame("hero", 20)] });
+        h.controller.command("reload");
+        h.controller.selectFrame(1, "hero");
+        expect(picks(h).filter(m => m.type === "pick-frame")).toEqual([]);
+        h.layout({ document: "doc2", frames: [frame("hero", 20), frame("intro", 0)] });
+        expect(picks(h).filter(m => m.type === "pick-frame")).toEqual([{ type: "pick-frame", seq: 1, index: 0, id: "hero" }]);
+        h.select(1, { target: { rect: { x: 0, y: 20, width: 10, height: 10 }, tag: "section", frame: { id: "hero" }, frameIndex: 0, path: [{ label: "hero", selector: '[data-doan-frame="hero"]' }] } });
+        expect(h.state().selection?.frame?.id).toBe("hero");
+      } finally { h.controller.dispose(); }
+    });
+
+    it("Esc while it loads cancels the waiting pick", () => {
+      const h = selectionHarness();
+      try {
+        h.layout({ document: "doc", frames: [frame("intro", 0), frame("hero", 20)] });
+        h.controller.command("reload");
+        h.controller.selectFrame(1, "hero");
+        h.key("Escape");
+        h.layout({ document: "doc2", frames: [frame("intro", 0), frame("hero", 20)] });
+        expect(picks(h).filter(m => m.type === "pick-frame")).toEqual([]);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("a frame gone from the reloaded document is not picked", () => {
+      const h = selectionHarness();
+      try {
+        h.layout({ document: "doc", frames: [frame("intro", 0), frame("hero", 20)] });
+        h.controller.command("reload");
+        h.controller.selectFrame(1, "hero");
+        h.layout({ document: "doc2", frames: [frame("intro", 0)] });
+        expect(picks(h).filter(m => m.type === "pick-frame")).toEqual([]);
+      } finally { h.controller.dispose(); }
+    });
+
     it("does nothing when the picked id is gone", () => {
       const h = selectionHarness();
       try {
@@ -2199,6 +2238,22 @@ describe("Escape and a blank click without a selection (L-17)", () => {
         expect(open.entered).not.toHaveBeenCalled();
       } finally { h.controller.dispose(); }
     }
+  });
+
+  // The new document's clicks count from seq 1, so a clear the loading iframe never hears must not move the app's seq.
+  it("sends no clear to the loading canvas, so the reloaded document's first click selects", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.controller.command("reload");
+      h.host.dispatchEvent(escapeKey());
+      h.controller.selectFrame(1, "hero");
+      expect(h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(m => m.type === "clear" || m.type === "pick-frame")).toEqual([]);
+      h.layout({ document: "doc2" });
+      const picked = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(m => m.type === "pick-frame");
+      h.select(picked.length + 1);
+      expect(h.state().selection).toMatchObject({ tag: "span" });
+    } finally { h.controller.dispose(); }
   });
 
   it("clears a selection the reloaded canvas looks for at once", () => {

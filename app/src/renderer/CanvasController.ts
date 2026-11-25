@@ -198,6 +198,8 @@ export class CanvasController {
   private pickEnded: PickResult | null = null;
   // To tell the Frames drawer's reply from a click.
   private pickFrameCommand: { seq: number; id: string } | null = null;
+  // A drawer pick made while the canvas loads, sent at its first layout unless the person acted since (intent).
+  private pickAfterLoad: { id: string; intent: number } | null = null;
   private locating: { anchor: Anchor; generation: number; request: number; settled: (result: LocateResult) => void; timer: ReturnType<typeof setTimeout> } | null = null;
   // The controller outlives the Overview and empty states, which rebuild `state`. A tool chosen mid-drag waits for its
   // end: lowering the layer first would drop the pointerup on the iframe, which selects.
@@ -822,6 +824,7 @@ export class CanvasController {
       this.state.status = "failed";
       this.pendingFrame?.found?.(false);
       this.pendingFrame = null;
+      this.pickAfterLoad = null;
       this.pendingLocate = null;
       this.applySelectionEffect({ kind: "loadFailed" });
       this.endPick({ kind: "cancelled" });
@@ -841,6 +844,7 @@ export class CanvasController {
     this.resetText();
     this.clearJump();
     this.pendingFrame = null;
+    this.pickAfterLoad = null;
     this.pendingLocate = null;
     this.state.currentFrame = null;
     this.resetAnchors();
@@ -980,7 +984,9 @@ export class CanvasController {
     this.frame?.contentWindow?.postMessage(message, "*");
   }
 
+  // Not to an iframe still loading, as for sendHoverCommand: the seq would run ahead of the new document's clicks.
   private sendCommand(message: object): void {
+    if (this.loading) return;
     this.seq += 1;
     this.post({ ...message, seq: this.seq });
   }
@@ -1701,6 +1707,12 @@ export class CanvasController {
       this.pendingFrame = null;
       target.found?.(index >= 0);
     }
+    if (first && this.pickAfterLoad !== null) {
+      const { id, intent } = this.pickAfterLoad;
+      this.pickAfterLoad = null;
+      const index = message.frames.findIndex(frame => frame.id === id);
+      if (intent === this.transitionIntent && index >= 0) this.pickFrame(index, id);
+    }
     if (this.jumpTo !== null) {
       const target = message.frames[this.jumpTo];
       if (target !== undefined) {
@@ -1763,10 +1775,19 @@ export class CanvasController {
     this.transition(() => {
       const at = resolve();
       if (at < 0) return;
+      if (this.loading) {
+        this.pendingFrame = { id };
+        this.pickAfterLoad = { id, intent: this.transitionIntent };
+        return;
+      }
       this.jump(at);
-      this.sendCommand({ type: "pick-frame", index: at, id });
-      this.pickFrameCommand = { seq: this.seq, id };
+      this.pickFrame(at, id);
     }, () => resolve() >= 0);
+  }
+
+  private pickFrame(index: number, id: string): void {
+    this.sendCommand({ type: "pick-frame", index, id });
+    this.pickFrameCommand = { seq: this.seq, id };
   }
 
   private clearJump(): void {
