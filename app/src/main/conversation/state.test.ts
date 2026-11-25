@@ -225,3 +225,18 @@ describe("handoff fold", () => {
     }
   });
 });
+
+describe("activity.result in the fold", () => {
+  const edit: EventPayload = { type: "activity", kind: "edit", path: "a.ts", summary: "a.ts", callId: "c1" };
+  const result: EventPayload = { type: "activity.result", callId: "c1", path: "a.ts", lines: { added: 2, removed: 1 } };
+  it("changes neither the turn's state, its requests nor its messages", () => {
+    const without = [event(1, { type: "turn.started" }), event(2, edit), event(3, permission)];
+    const withResult = [event(1, { type: "turn.started" }), event(2, edit), event(3, result), event(4, permission)];
+    expect(foldConversation(withResult, "a", false)).toEqual({ ...foldConversation(without, "a", false), lastSeq: 4 });
+    // A result alone after the turn started does not make it stream.
+    expect(foldConversation([event(1, { type: "turn.started" }), event(2, result)], "a", false).turn).toBe("starting");
+    // After a resolution, the turn goes on as it would without the result.
+    const resolved = [...withResult, event(5, { type: "permission.resolved", requestId: "r", optionId: "allow" }), event(6, result)];
+    expect(foldConversation(resolved, "a", false).turn).toBe(foldConversation(resolved.slice(0, -1), "a", false).turn);
+  });
+});

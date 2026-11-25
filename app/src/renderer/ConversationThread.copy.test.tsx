@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
-import { ConversationThread, type ConversationThreadProps } from "./ConversationThread";
+import { ConversationThread, Steps, type ConversationThreadProps } from "./ConversationThread";
 import { TooltipProvider } from "./components/ui/tooltip";
 
 let dom: ElectronDom;
@@ -31,3 +31,17 @@ for (const pressable of [false, true]) {
     expect(selected).toEqual(texts.map(text => text.replaceAll("{{1}}", "Hero")));
   });
 }
+
+test("a copied edit step gives its verb, path and counts on their own lines, without the counts' spoken name", async () => {
+  const markup = renderToStaticMarkup(<div className="conversation-thread"><Steps id="s" steps={[
+    { key: "s1", kind: "edit", verb: "Edited", path: "a.ts", lines: { added: 12, removed: 3 } },
+    { key: "s2", kind: "edit", verb: "Edited", path: "b.ts" },
+  ]} /></div>);
+  const frame = await dom.load(`<style>${css}</style>${markup}`);
+  const selected = await frame.evaluate(() => [...document.querySelectorAll(".activity-steps li")].map(step => {
+    const range = document.createRange(); range.selectNodeContents(step);
+    const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
+    return selection.toString();
+  }));
+  expect(selected).toEqual(["Edited\na.ts\n+12 −3", "Edited\nb.ts"]);
+});

@@ -677,3 +677,98 @@ describe("sameItem", () => {
     expect(sameItem(null, {})).toBe(false);
   });
 });
+
+describe("threadItems edit line counts", () => {
+  const edit = (turnId: string, path: string | undefined, callId?: string) => ev(turnId, { type: "activity", kind: "edit", ...(path ? { path } : {}), summary: path ?? "Edited a file", ...(callId ? { callId } : {}) });
+  // Main writes a result's path as exactly the path its activity stored, and none when the activity has none.
+  const result = (turnId: string, callId: string, path: string | undefined, added: number, removed: number) => ev(turnId, { type: "activity.result", callId, ...(path ? { path } : {}), lines: { added, removed } });
+  const rowOf = (events: ConversationEvent[], live = true) => threadItems(events, ROOT, live).find(item => item.kind === "activity") as Extract<ThreadItem, { kind: "activity" }>;
+
+  test("a result joins the edit step with its callId and stored path; the folded head adds the total", () => {
+    seq = 0;
+    const events = [...turn("t1"), edit("t1", `${ROOT}/src/a.ts`, "toolu_1"), result("t1", "toolu_1", `${ROOT}/src/a.ts`, 12, 3), ev("t1", { type: "turn.done" })];
+    expect(rowOf(events)).toEqual({ kind: "activity", key: "a3", running: false, head: "1 step", total: { added: 12, removed: 3 },
+      steps: [{ key: "s3", kind: "edit", verb: "Edited", path: "src/a.ts", lines: { added: 12, removed: 3 } }] });
+  });
+
+  test("a result does not split the activity row: the next activity joins the same row", () => {
+    seq = 0;
+    const events = [...turn("t1"), edit("t1", "a.ts", "c1"), result("t1", "c1", "a.ts", 1, 1), ev("t1", { type: "activity", kind: "read", path: "b.ts", summary: "b.ts" })];
+    const items = threadItems(events, ROOT, true);
+    expect(items.map(i => i.kind)).toEqual(["user", "activity"]);
+    expect(items[1]).toMatchObject({ head: "2 steps", total: { added: 1, removed: 1 } });
+  });
+
+  test("an edit step without a path takes a result without one; Copilot's path-less results on one call add up", () => {
+    seq = 0;
+    const events = [...turn("t1"), edit("t1", undefined, "c1"), result("t1", "c1", undefined, 1, 1), result("t1", "c1", undefined, 1, 1)];
+    expect(rowOf(events)).toMatchObject({ total: { added: 2, removed: 2 }, steps: [{ verb: "Edited a file", path: null, lines: { added: 2, removed: 2 } }] });
+  });
+
+  test("Codex: one call edits several files, and each result goes to the step of its own stored path", () => {
+    seq = 0;
+    // The results name the path the activity stored, not the root-relative one the step shows.
+    const events = [...turn("t1"), edit("t1", `${ROOT}/src/a.ts`, "fc_1"), edit("t1", `${ROOT}/src/b.ts`, "fc_1"),
+      result("t1", "fc_1", `${ROOT}/src/b.ts`, 2, 0), result("t1", "fc_1", `${ROOT}/src/a.ts`, 1, 5)];
+    expect(rowOf(events)).toMatchObject({ total: { added: 3, removed: 5 }, steps: [
+      { path: "src/a.ts", lines: { added: 1, removed: 5 } }, { path: "src/b.ts", lines: { added: 2, removed: 0 } }] });
+  });
+
+  test("the key is the callId and the exact path: the display path, another path, or a path-less side never matches", () => {
+    seq = 0;
+    const events = [...turn("t1"), edit("t1", `${ROOT}/src/a.ts`, "c1"), edit("t1", undefined, "c2"),
+      result("t1", "c1", "src/a.ts", 1, 1), result("t1", "c1", `${ROOT}/src/b.ts`, 1, 1), result("t1", "c1", undefined, 1, 1), result("t1", "c2", "a.ts", 1, 1)];
+    const row = rowOf(events);
+    expect(row).not.toHaveProperty("total");
+    expect(row.steps.every(step => step.lines === undefined)).toBe(true);
+  });
+
+  test("results with the same key add up: a Copilot overwrite is a delete and an add of one path", () => {
+    seq = 0;
+    const overwrite = [...turn("t1"), edit("t1", "a.ts", "call_1"), result("t1", "call_1", "a.ts", 0, 4), result("t1", "call_1", "a.ts", 2, 0)];
+    expect(rowOf(overwrite)).toMatchObject({ total: { added: 2, removed: 4 }, steps: [{ lines: { added: 2, removed: 4 } }] });
+  });
+
+  test("a result with no matching edit, one before its edit, or one of another turn is ignored", () => {
+    seq = 0;
+    const events = [...turn("t1"), result("t1", "c1", "a.ts", 9, 9), edit("t1", "a.ts", "c1"), ev("t1", { type: "activity", kind: "read", path: "c1", summary: "c1" }),
+      result("t1", "other", "a.ts", 5, 5), ev("t1", { type: "turn.done" }),
+      ...turn("t2"), edit("t2", "b.ts", "c2"), result("t2", "c1", "a.ts", 7, 7)];
+    const rows = threadItems(events, ROOT, true).filter(item => item.kind === "activity");
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row).not.toHaveProperty("total");
+      expect(row.steps.every(step => step.lines === undefined)).toBe(true);
+    }
+  });
+
+  test("a result after its turn's end is ignored, as in main's fold", () => {
+    seq = 0;
+    const events = [...turn("t1"), edit("t1", "a.ts", "c1"), ev("t1", { type: "interrupted", reason: "user" }), result("t1", "c1", "a.ts", 3, 1)];
+    expect(rowOf(events)).not.toHaveProperty("total");
+  });
+
+  test("an edit step without counts keeps its head; the total adds only the known counts; a zero is a known count", () => {
+    seq = 0;
+    const none = [...turn("t1"), edit("t1", "a.ts", "c1"), edit("t1", "b.ts"), ev("t1", { type: "activity", kind: "command", summary: "Running a command" })];
+    expect(rowOf(none)).toEqual({ kind: "activity", key: "a3", running: false, head: "3 steps", steps: [
+      { key: "s3", kind: "edit", verb: "Edited", path: "a.ts" }, { key: "s4", kind: "edit", verb: "Edited", path: "b.ts" }, { key: "s5", kind: "command", verb: "Ran a command", path: null }] });
+    seq = 0;
+    const partial = [...turn("t1"), edit("t1", "a.ts", "c1"), result("t1", "c1", "a.ts", 4, 4), edit("t1", "b.ts", "c2"), edit("t1", "c.ts", "c3"), result("t1", "c3", "c.ts", 0, 0)];
+    const row = rowOf(partial);
+    expect(row.total).toEqual({ added: 4, removed: 4 });
+    expect(row.steps.map(step => step.lines ?? null)).toEqual([{ added: 4, removed: 4 }, null, { added: 0, removed: 0 }]);
+  });
+
+  test("a result never joins a read step that shares its id", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "activity", kind: "read", path: "a.ts", summary: "a.ts", callId: "c1" }), result("t1", "c1", "a.ts", 1, 1)];
+    expect(rowOf(events)).not.toHaveProperty("total");
+  });
+
+  test("a row an earlier history wrote, without callIds, reads as before", () => {
+    seq = 0;
+    const events = [...turn("t1"), edit("t1", "a.ts"), ev("t1", { type: "turn.done" })];
+    expect(rowOf(events)).toEqual({ kind: "activity", key: "a3", running: false, head: "1 step", steps: [{ key: "s3", kind: "edit", verb: "Edited", path: "a.ts" }] });
+  });
+});

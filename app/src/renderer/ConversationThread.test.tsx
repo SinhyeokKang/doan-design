@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import type { Anchor } from "../main/conversation/types";
 import type { CanvasRow } from "../main/view";
 import { sameCanvas } from "./canvasConversationRows";
-import { answerReached, CanvasCard, ConversationThread, endView, HandoffCard, httpsUrl, openReplyLink, SentChip, type ConversationThreadProps } from "./ConversationThread";
+import { answerReached, CanvasCard, ConversationThread, endView, HandoffCard, httpsUrl, openReplyLink, SentChip, Steps, type ConversationThreadProps } from "./ConversationThread";
 import { threadItems, type ThreadItem } from "./threadItems";
 import type { ConversationEvent } from "../main/conversation/types";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -134,6 +134,37 @@ describe("thread items", () => {
     expect(out).not.toContain("activity-steps");
     // Without a turn indicator the row is its step count, even one drawn running.
     expect(html([{ ...row, running: true, head: "Editing a.html" }])).toMatch(/<button type="button" class="activity-head" aria-expanded="false"><span>1 step<\/span>/);
+  });
+
+  test("a folded head with known counts: the step count, a hidden separator and the total, named in words on the button", () => {
+    const row: ThreadItem = { kind: "activity", key: "a3", running: false, head: "2 steps", total: { added: 12, removed: 3 },
+      steps: [{ key: "s3", kind: "edit", verb: "Edited", path: "a.ts", lines: { added: 12, removed: 3 } }, { key: "s4", kind: "read", verb: "Read", path: "b.ts" }] };
+    expect(html([row])).toContain('<button type="button" class="activity-head" aria-expanded="false" aria-label="2 steps, 12 lines added, 3 removed"><span>2 steps</span>'
+      + '<span class="head-sep" aria-hidden="true">·</span><span class="lines" role="img" aria-label="12 lines added, 3 removed"><span class="add">+12</span> <span class="del">−3</span></span><svg');
+    // Singular and grouped thousands.
+    const one: ThreadItem = { ...row, head: "1 step", total: { added: 12345, removed: 1 }, steps: [{ key: "s3", kind: "edit", verb: "Edited", path: "a.ts", lines: { added: 12345, removed: 1 } }] };
+    expect(html([one])).toContain('aria-label="1 step, 12,345 lines added, 1 removed"><span>1 step</span><span class="head-sep" aria-hidden="true">·</span><span class="lines" role="img" aria-label="12,345 lines added, 1 removed"><span class="add">+12,345</span> <span class="del">−1</span></span>');
+  });
+
+  test("a head without known counts and a running head are as before: no name, no separator, no total", () => {
+    const plain: ThreadItem = { kind: "activity", key: "a3", running: false, head: "1 step", steps: [{ key: "s3", kind: "edit", verb: "Edited", path: "a.ts" }] };
+    expect(html([plain])).toMatch(/<button type="button" class="activity-head" aria-expanded="false"><span>1 step<\/span><svg/);
+    const counted: ThreadItem = { ...plain, total: { added: 1, removed: 1 }, steps: [{ key: "s3", kind: "edit", verb: "Edited", path: "a.ts", lines: { added: 1, removed: 1 } }] };
+    const running = html([counted], { turn: { turnId: "t1", status: { kind: "tool", activity: "edit", text: "Editing b.ts" }, at: "2026-11-06T10:00:00.000Z" } });
+    expect(running).toMatch(/<button type="button" class="activity-head" aria-expanded="false"><span class="doan-spinner" aria-hidden="true"><\/span><span>Editing b.ts<\/span><svg/);
+    expect(running).not.toContain("head-sep");
+  });
+
+  test("an edit step with counts ends in one named run with a real space; a step without them is as before", () => {
+    const out = renderToStaticMarkup(<Steps id="s" steps={[
+      { key: "s1", kind: "edit", verb: "Edited", path: "a.ts", lines: { added: 12, removed: 3 } },
+      { key: "s2", kind: "edit", verb: "Edited a file", path: null, lines: { added: 1, removed: 0 } },
+      { key: "s3", kind: "edit", verb: "Edited", path: "b.ts" },
+    ]} />);
+    expect(out).toContain('<li><svg');
+    expect(out).toMatch(/<span class="verb">Edited<\/span><span class="path">a.ts<\/span><span class="lines" role="img" aria-label="12 lines added, 3 removed"><span class="add">\+12<\/span> <span class="del">−3<\/span><\/span><\/li>/);
+    expect(out).toMatch(/<span class="verb">Edited a file<\/span><span class="lines" role="img" aria-label="1 line added, 0 removed"><span class="add">\+1<\/span> <span class="del">−0<\/span><\/span><\/li>/);
+    expect(out).toMatch(/<span class="verb">Edited<\/span><span class="path">b.ts<\/span><\/li>/);
   });
 
   test("a permission request that arrived live is an alert; one drawn from history is not; no choice is the default", () => {
