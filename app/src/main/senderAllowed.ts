@@ -75,7 +75,7 @@ const prototypeComposer = [
   "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:add-pasted-text", "attachments:remove", "attachments:recheck", "attachments:release", "attachments:fromPaths",
   "shell:openLink",
   "agent-usage:read",
-  // Thread cards' thumbnails; main answers the playing root only (prototype/thumbnailScope.ts).
+  // Main answers the playing root only (prototype/thumbnailScope.ts).
   "thumbnails:get", "thumbnails:visible",
 ];
 

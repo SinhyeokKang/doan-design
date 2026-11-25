@@ -27,8 +27,8 @@ export interface ThumbnailDeps {
 
 export interface Thumbnails {
   // `viewer` is the window asking; a canvas counts as visible while any window shows it.
-  get(root: string, path: string, visible: boolean, viewer?: WindowKind): Promise<ThumbnailReply>;
-  visible(root: string, path: string, visible: boolean, viewer?: WindowKind): void;
+  get(root: string, path: string, visible: boolean, viewer: WindowKind): Promise<ThumbnailReply>;
+  visible(root: string, path: string, visible: boolean, viewer: WindowKind): void;
   // A closed window reports nothing more, so what it showed stops counting as visible.
   viewerClosed(viewer: WindowKind): void;
   // Every folder update: forgets canvases that left the list, re-checks a
@@ -268,7 +268,7 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
   };
 
   return {
-    async get(root, path, visible, viewer = "main") {
+    async get(root, path, visible, viewer) {
       const target = { root, path };
       const row = listedRow(deps.entries(), target);
       if (row?.width === undefined) return { kind: "unavailable" };
@@ -289,7 +289,7 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
       dispatch({ type: "request", key, visible: visibility.has(key) });
       return { kind: "pending" };
     },
-    visible(root, path, visible, viewer = "main") {
+    visible(root, path, visible, viewer) {
       const key = thumbnailKey(root, path);
       if (!known.has(key) || listedRow(deps.entries(), { root, path }) === undefined) return;
       dispatch({ type: "visible", key, visible: see(key, viewer, visible) });
