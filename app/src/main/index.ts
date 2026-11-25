@@ -80,7 +80,7 @@ import { revealTarget, type FolderEntry } from "./view";
 import { createWindowDebugger, type WindowDebugger } from "./windowDebugger";
 import { createInspector, parseInspectRequest, type InspectRefused, type InspectReply, type Inspector } from "./inspector";
 import { CONVERSATION_RUNTIME, startRuntime, type Runtime } from "./runtime";
-import { menuState, updateMenu, type Screen } from "./menuState";
+import { menuState, SCREENS, updateMenu, type Screen } from "./menuState";
 import { electronUpdater, hasFeedConfig, releaseNotesUrl, UpdateService } from "./update/service";
 import { updateEligibility } from "./update/eligibility";
 import { installGate } from "./update/gate";
@@ -592,8 +592,9 @@ function parseMenuInputs(value: unknown): MenuInputs | null {
   const flags = MENU_FLAGS.filter(flag => flag in value);
   if (Object.keys(value).length !== 2 + flags.length || flags.some(flag => { const set: unknown = Reflect.get(value, flag); return set !== undefined && typeof set !== "boolean"; })) return null;
   const { screen, modal } = value;
-  if ((screen !== "home" && screen !== "workspace" && screen !== "canvas" && screen !== "addProjects" && screen !== "settings") || typeof modal !== "boolean") return null;
-  const inputs: MenuInputs = { screen, modal };
+  const known = SCREENS.find(item => item === screen);
+  if (known === undefined || typeof modal !== "boolean") return null;
+  const inputs: MenuInputs = { screen: known, modal };
   for (const flag of flags) if (Reflect.get(value, flag) === true) inputs[flag] = true;
   return inputs;
 }
@@ -693,8 +694,8 @@ function createWindow(buddy: BuddyId): BrowserWindow {
   window.webContents.on("render-process-gone", () => { configBridge?.clear(); void agentAuth?.ownerClosed(owner); });
   // A reloaded renderer has no Project Settings page left to answer.
   window.webContents.on("did-navigate", () => { configBridge?.clear(); });
-  // `.git/HEAD` is not watched, so a branch switched elsewhere shows when the
-  // human comes back to the window.
+  // The watcher's git signal does not re-run `doan ls`, so a branch switched
+  // elsewhere shows when the human comes back to the window.
   const reread = createThrottle(60_000);
   window.on("focus", () => {
     if (reread()) shell?.rereadAll();
@@ -874,8 +875,8 @@ async function start(): Promise<void> {
   // After the store, which made and checked the conversations directory.
   const conversationDrafts = new DraftStore(join(userData, "conversations"));
   conversationDraftStore = conversationDrafts;
-  // What main keeps for roots that left the list, by Remove or a vanished auto-registered worktree (shell.ts
-  // autoRemoved): one place, so a store keyed by root is wired into both at once. `before`: the list before.
+  // What main keeps for roots that left the list, by Remove, Locate or a vanished auto-registered worktree (shell.ts
+  // autoRemoved): one place, so a store keyed by root is wired into all of them at once. `before`: the list before.
   function rootsLeft(paths: string[], before: FolderEntry[]): void {
     if (selection && paths.includes(selection.root)) selection = null;
     // Background work a done turn left in a removed project stops without asking, as on sign-out.
@@ -1482,8 +1483,10 @@ async function start(): Promise<void> {
     // The row may have been removed while the picker was open.
     if (!fromWindow(event) || storedPath(value) === null) return { kind: "unavailable" };
     // The old row leaves the list, as on Remove.
+    const before = ready.entries();
     if (selection?.root === from) selection = null;
     await ready.replace(from, judged.root);
+    if (judged.root !== from) rootsLeft([from], before);
     return { kind: "located", root: judged.root };
   });
   // The renderer names the root only; the file a Config error selects is the one the CLI named (revealTarget), never a

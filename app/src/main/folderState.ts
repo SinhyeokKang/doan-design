@@ -1,5 +1,6 @@
 import { realpathSync } from "node:fs";
 import { validateEnvelope } from "../formats/validate";
+import { setupRefusal } from "./onboarding/operations";
 import { homeOrAbove, storageFacts, type StorageFacts } from "./storage";
 import type { GitInfo } from "./view";
 
@@ -105,15 +106,12 @@ export type InitOutcome =
 
 // The CLI's messages for these codes do not say that nothing was set up, so the dialog does. An exclude failure may be
 // a link, a permission or an unreadable Git directory, so its recovery covers all of them.
-const STORAGE_REFUSALS: Record<string, (folder: string) => { message: string; guidance: string }> = {
-  local_not_git: () => ({ message: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.", guidance: "Choose Include in Git, or run git init here first." }),
-  local_exclude_failed: () => ({ message: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up.", guidance: "Make sure the repository’s Git metadata and its exclude file can be read and written, then try again." }),
-  git_missing: () => ({ message: "Git isn’t installed, so Doan can’t create a repository here.", guidance: "Install the Command Line Tools with xcode-select --install, then try again, or choose Include in Git." }),
-  git_init_failed: () => ({ message: "Couldn’t create a Git repository here, so nothing was set up.", guidance: "" }),
-  cleanup_failed: (folder) => ({ message: `Setup failed, and Doan couldn’t remove the Git repository it created at ${folder}/.git.`, guidance: "Remove it or keep it, then try again." }),
+const STORAGE_REFUSALS: Record<string, { message: string; guidance: string }> = {
+  local_not_git: { message: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.", guidance: "Choose Include in Git, or run git init here first." },
+  local_exclude_failed: { message: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up.", guidance: "Make sure the repository’s Git metadata and its exclude file can be read and written, then try again." },
+  git_missing: { message: "Git isn’t installed, so Doan can’t create a repository here.", guidance: "Install the Command Line Tools with xcode-select --install, then try again, or choose Include in Git." },
+  git_init_failed: { message: "Couldn’t create a Git repository here, so nothing was set up.", guidance: "" },
 };
-// Doan never creates a repository there, so the app plans none and the CLI refuses Keep out of Git with local_not_git.
-const HOME_REFUSAL = { message: "Doan doesn’t create a Git repository in your home folder.", guidance: "Choose Include in Git, or choose a folder inside it." };
 
 // tokenCss: a token CSS was chosen, so a usage_error may be about it; otherwise CSS guidance would point elsewhere.
 // folder: the folder set up, which a .git left behind is named under. home: the person's home folder.
@@ -131,9 +129,10 @@ export function initOutcome(run: CliRun, request: { tokenCss?: boolean; folder?:
   if (!value.ok) {
     if (run.exitCode === 0) return cliError;
     const code = value.error.code;
-    if (code === "local_not_git" && request.folder !== undefined && homeOrAbove(request.folder, request.home ?? "")) return { kind: "error", code, ...HOME_REFUSAL };
+    const own = setupRefusal(code, request.folder, request.home ?? "");
+    if (own) return { kind: "error", ...own };
     const refusal = STORAGE_REFUSALS[code];
-    if (refusal) return { kind: "error", code, ...refusal(request.folder ?? "") };
+    if (refusal) return { kind: "error", code, ...refusal };
     const guidance = code === "invalid_config" ? "Fix the project configuration, then try again."
       : code === "usage_error" && request.tokenCss ? "Check the project and choose a CSS file inside it, then try again."
         : "Check the project, then try again.";
