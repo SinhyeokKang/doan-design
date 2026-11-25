@@ -472,6 +472,26 @@ test("a take of the picked project's start message that failed is asked again wh
   }
 });
 
+// A refused start can answer after the person switched away; activation then restores the element focused before
+// (POSTMORTEM 2026-11-17 'Window activation put focus on Hide sidebar'), so the field takes focus again.
+test("a start refused with the window in the background focuses the field again on activation", async () => {
+  const { start, render } = setup({ text: "Draw a pricing page." });
+  const reply = pending();
+  start.mockReturnValueOnce(reply.promise as never);
+  const focus = vi.fn();
+  render();
+  hooks.refs[0]!.current = { focus, composing: () => false };
+  const win = Object.assign(new EventTarget(), { doan });
+  vi.stubGlobal("window", win);
+  vi.stubGlobal("document", { hasFocus: () => false, querySelectorAll: () => [] });
+  call(field(render()), "onKeyDown", key("Enter"));
+  reply.resolve({ error: "unknown" });
+  await vi.waitFor(() => expect(focus).toHaveBeenCalledOnce());
+  win.dispatchEvent(new Event("focus"));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(focus).toHaveBeenCalledTimes(3);
+});
+
 test("a pending start keeps Home locked on a later visit, and a late reply clears only the draft it sent", async () => {
   const first = setup({ text: "Draw a pricing page." });
   const reply = pending();

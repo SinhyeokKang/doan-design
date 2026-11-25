@@ -147,6 +147,30 @@ test("an accepted send empties the field, returns it to a capsule and keeps focu
   expect(focus).toHaveBeenCalled();
 });
 
+// A reply can come back after the person switched away; activation then restores the element focused before (POSTMORTEM
+// 2026-11-17 'Window activation put focus on Hide sidebar'), so the field takes focus again, only while the same draft shows.
+test("a send answered with the window in the background focuses the field again on activation, only while its draft shows", async () => {
+  for (const [outcome, switched] of [[{ ok: true }, false], [{ error: "unknown" }, false], [{ ok: true }, true]] as const) {
+    hooks.states = []; hooks.refs = [];
+    let answer: (outcome: DockedOutcome) => void = () => {};
+    const { props, render } = setup({ onSend: vi.fn(() => new Promise<DockedOutcome>(resolve => { answer = resolve; })) }, [["conversation:a", draft("Make the header lighter")]]);
+    const focus = vi.fn();
+    render();
+    hooks.refs[2]!.current = { focus, composing: () => false };
+    const win = new EventTarget();
+    vi.stubGlobal("window", win);
+    vi.stubGlobal("document", { hasFocus: () => false, querySelectorAll: () => [] });
+    (field(render()).onKeyDown as (event: unknown) => void)(enter());
+    if (switched) { props.mode = B; render(); }
+    answer(outcome);
+    await flush();
+    expect(focus).toHaveBeenCalledTimes(switched ? 0 : 1);
+    win.dispatchEvent(new Event("focus"));
+    await flush();
+    expect(focus).toHaveBeenCalledTimes(switched ? 0 : 3);
+  }
+});
+
 test("while the turn runs, Enter on an empty field does nothing, Stop stops, and text queues", async () => {
   const { send, queue, props, render, store } = setup({ turn: "running" });
   (field(render()).onKeyDown as (event: unknown) => void)(enter());
