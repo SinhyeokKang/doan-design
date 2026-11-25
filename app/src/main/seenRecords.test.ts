@@ -26,7 +26,7 @@ test("the canvas id rule is the one the sessions schema and doan check use", () 
   const schema = JSON.parse(readFileSync(join(__dirname, "../../../schema/sessions.v1.schema.json"), "utf8")) as { properties: { canvas: { properties: { id: { pattern: string } } } } };
   const pattern = schema.properties.canvas.properties.id.pattern;
   expect(CANVAS_ID.source).toBe(pattern);
-  expect(readFileSync(join(__dirname, "../../../cli/internal/check/check.go"), "utf8")).toContain(`idPattern = regexp.MustCompile(\`${pattern}\`)`);
+  expect(readFileSync(join(__dirname, "../../../cli/internal/canvas/canvas.go"), "utf8")).toContain(`IDPattern = regexp.MustCompile(\`${pattern}\`)`);
 });
 
 test.each(["a", "a1-b2", "-a", "a-", "a--b", "A", "a_b", "a.b", "a b", "a\n", ""])("ui-state keeps the canvas id %j exactly when it is a canvas id", (canvasId) => {
