@@ -51,7 +51,7 @@ lead는 링크 1을 시작하기 전에 아래를 사용자와 한 번에 확인
 ## 인계 기록
 
 - 2026-11-25 lead: 체인 파일을 만들었다. 링크 1은 thread-edit-lines PR 머지 뒤 시작한다. 시작 점검은 아직 사용자와 확인하지 않았다.
-- 2026-11-25 lead 교대: 이 lead 세션(터미널 `term_d868ec4b-a8ad-4a84-9b19-e09bf10a6d6f`)은 컨텍스트가 부족해, thread-edit-lines PR의 리뷰·머지·worktree 정리까지만 맡고 물러난다. 이 체인은 새 lead가 시작한다(사용자 결정). 새 lead가 이어받을 것:
+- 2026-11-25 lead 교대: 이 lead 세션(터미널 `term_d868ec4b-a8ad-4a84-9b19-e09bf10a6d6f`)은 컨텍스트가 부족해, thread-edit-lines PR의 리뷰·머지·worktree 정리와, 이 lead가 머지한 PR들의 미검증 항목 확인까지 맡고 물러난다. 이 체인은 새 lead가 시작한다(사용자 결정). 새 lead가 이어받을 것:
   - thread-edit-lines: conductor 터미널 `term_e86cb4b9-296e-4f62-b7e9-2f9ebee31eb7`, worktree `/Users/sinhyeok/orca/workspaces/doan-design/thread-edit-lines`. 이 lead가 머지하면 여기 '인계 기록'에 머지 커밋과 PR 본문의 미검증 항목을 적는다. 머지 전에 이 lead가 물러나게 되면 새 lead가 리뷰와 머지를 이어받는다.
-  - scrollbar-hover(PR #390, 머지 `f138f4435`)의 미검증 항목은 아직 확인하지 않았다(`/ship` Lead 6단계): 일반 버튼을 마우스로 클릭해 연 대화상자에서 썸 숨김, 시스템 설정에서 바꾼 "스크롤 막대 항상 보기". 새 lead가 develop에서 확인하거나 BACKLOG로 옮긴다.
+  - scrollbar-hover(PR #390, 머지 `f138f4435`)의 미검증 항목(일반 버튼을 마우스로 클릭해 연 대화상자, 시스템 설정의 "스크롤 막대 항상 보기")은 이 lead가 맡는다(사용자 결정). thread-edit-lines를 머지한 뒤 그 PR의 미검증 항목과 묶어 develop에서 확인하고, 결과를 여기에 적는다.
   - 실제 Codex 로그인(`~/.codex`)은 thread-edit-lines의 T0 녹화 중 refresh로 끊겼다가 15:07에 다시 로그인했다.
