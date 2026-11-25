@@ -75,6 +75,7 @@ const { OverviewRun } = await import("./overviewRun");
 const { Home } = await import("./Home");
 const { Wizard } = await import("./Onboarding");
 const { initialCanvasState } = await import("./CanvasController");
+const { QuickOpen } = await import("./QuickOpenDialog");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
@@ -991,4 +992,48 @@ test("project Retry locks before the loading notification, and a late rejection 
   expect(overlay()?.view.busy).toBe(false);
   overlay()!.onAction("retry");
   expect(doan.reopenFolder).toHaveBeenCalledTimes(3);
+});
+
+// The dialog as the page renders it, minus styling classes: a guard that knows Quick Open by a class nothing styles
+// stops matching once the class goes (POSTMORTEM 2026-10-30 'Removing a shared dialog class'). Matches simple selectors
+// made of a tag, classes, attributes and :not([attribute]).
+function inClosedQuickOpen(name: string) {
+  const attributes: Record<string, string> = { "aria-label": "Quick Open", "data-ui-presentation": "search" };
+  const matchesDialog = (selector: string) => selector.split(",").some(part => {
+    const parsed = /^\s*(dialog)?((?:\.[\w-]+|\[[^\]]+\]|:not\(\[[^\]]+\]\))*)\s*$/.exec(part);
+    if (!parsed || (!parsed[1] && !parsed[2])) return false;
+    return (parsed[2]!.match(/\.[\w-]+|\[[^\]]+\]|:not\(\[[^\]]+\]\)/g) ?? []).every(token => {
+      if (token.startsWith(".")) return false;
+      const negated = token.startsWith(":not("), [, attribute, value] = /\[([\w-]+)(?:="([^"]*)")?\]/.exec(token)!;
+      const present = attribute! in attributes && (value === undefined || attributes[attribute!] === value);
+      return negated ? !present : present;
+    });
+  });
+  return { ...element(name), closest: (selector: string) => matchesDialog(selector) ? {} : null };
+}
+
+test("Quick Open closed with focus left in its dialog after the opener left recovers focus on the screen", () => {
+  render(); folders([listed("/w/a")]);
+  const opener = element("opener", ["home-shell"]), composer = element("homeComposer", ["home-shell"]);
+  dom(opener, {});
+  Object.assign(document, { querySelectorAll: (selector: string) => selector === ".home-shell .composer-input" ? [composer] : [] });
+  listeners.menu!("quickOpen" as never); render();
+  const close = find<{ close(): void }>(QuickOpen)[0]!.props.close;
+  opener.isConnected = false;
+  Object.assign(document, { activeElement: inClosedQuickOpen("result row") });
+  focused.length = 0;
+  close(); render();
+  expect(find(QuickOpen)).toHaveLength(0);
+  expect(focused).toEqual(["homeComposer"]);
+});
+
+test("Quick Open closed with focus on the opener it returned to leaves focus there", () => {
+  render(); folders([listed("/w/a")]);
+  const opener = element("opener", ["home-shell"]), composer = element("homeComposer", ["home-shell"]);
+  dom(opener, {});
+  Object.assign(document, { querySelectorAll: (selector: string) => selector === ".home-shell .composer-input" ? [composer] : [] });
+  listeners.menu!("quickOpen" as never); render();
+  focused.length = 0;
+  find<{ close(): void }>(QuickOpen)[0]!.props.close(); render();
+  expect(focused).toEqual([]);
 });

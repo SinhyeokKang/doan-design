@@ -20,6 +20,7 @@ import {
 import type { BuddyId } from "./buddies";
 import { Buddy, type BuddyHandle } from "./Doany";
 import { CLIPBOARD_TYPE } from "./chipField";
+import { useActivationFocus } from "./activationFocus";
 import { plainText, textSegments, typedText } from "./anchorField";
 import { dropAttachment, restoreStartDraft } from "./conversationStore";
 import { cardRow, chipClass, groupProjects } from "./homeCards";
@@ -476,6 +477,9 @@ export function HeroComposer(props: HeroComposerProps) {
     });
   };
 
+  // A refused start can answer after the person switched away, so the field takes focus again on activation (POSTMORTEM
+  // 2026-11-17), unless another send began.
+  const handFocus = useActivationFocus();
   // Send. The notice's Retry keeps its notice while the send it started is out (DESIGN 'Busy action'); the reply
   // decides what stays.
   const send = async (retry = false) => {
@@ -531,7 +535,7 @@ export function HeroComposer(props: HeroComposerProps) {
       setAnnouncement(`${STALE_MODE_CARD.title}. ${STALE_MODE_CARD.body}`);
     }
     else update({ sending: null, notice: startErrorView(outcome.error, provider, project, outcome.resetsAt ? resetTimeText(outcome.resetsAt, Date.now(), localClock()) : null) });
-    queueMicrotask(() => field.current?.focus());
+    handFocus(() => { if (memory.current.generation === mine.generation) queueMicrotask(() => field.current?.focus()); });
   };
 
   // A first message a quit stopped returns once, after what is typed, waiting out a start in progress. main hands it over

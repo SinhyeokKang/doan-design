@@ -43,9 +43,9 @@ const { ShellSidebar } = await import("./ShellSidebar");
 beforeEach(() => {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
   vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
-  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
+  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [], hasFocus: () => true });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(all);
@@ -104,6 +104,26 @@ test("an arrival focuses the category title once; a provider arrival goes to Age
   // A section picked in the sidebar keeps focus on its row: no new arrival, no focus.
   render({ section: "about", arrival: { focus: { kind: "provider", provider: "codex" }, seq: 2 } }); effects();
   expect(focus).toHaveBeenCalledTimes(1);
+});
+
+// Main shows a hidden window and then sends the arrival, and an MCP sign-out can turn the page into Agents from a push;
+// both can focus before the window is active, and activation then restores the focus it had before (POSTMORTEM
+// 2026-11-17 'Window activation put focus on Hide sidebar'), so the title focus is made again on activation.
+test("an arrival with the window in the background focuses the title again on activation, as it is drawn then", () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const win = new EventTarget();
+  vi.stubGlobal("window", win);
+  Object.assign(document, { hasFocus: () => false });
+  const first = vi.fn(), redrawn = vi.fn();
+  render({ arrival: { focus: { kind: "heading" }, seq: 1 } });
+  (heading().props.ref as (node: unknown) => void)({ focus: first });
+  effects();
+  expect(first).toHaveBeenCalledOnce();
+  (heading().props.ref as (node: unknown) => void)({ focus: redrawn });
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(first).toHaveBeenCalledOnce();
+  expect(redrawn).toHaveBeenCalledTimes(2);
 });
 
 describe("Settings > General", () => {
@@ -167,8 +187,8 @@ describe("Settings > General", () => {
     const dismiss = vi.fn();
     general({ dismiss });
     effects();
-    const cleanup = hooks.effects.find(effect => effect?.cleanup)?.cleanup;
-    cleanup?.();
+    // Leaving unmounts the category: every effect cleans up.
+    for (const effect of hooks.effects) effect?.cleanup?.();
     expect(dismiss).toHaveBeenCalled();
   });
 });

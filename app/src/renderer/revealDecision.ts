@@ -3,7 +3,7 @@ import type { Anchor, Canvas } from "../main/conversation/types";
 import type { PrototypeReveal } from "../main/prototype/ipc";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { sameCanvas } from "./canvasConversationRows";
-import { canvasLabel, canvasStem } from "./canvasTree";
+import { canvasLabel, canvasStem, frameName } from "./canvasTree";
 import { blockedReason, type LockedPage } from "./openDecision";
 
 // Nothing is cancelled: the person pressed something in another window, so a dialog, a locked page or first run here
@@ -53,8 +53,8 @@ export function revealName(request: PrototypeReveal, entries: readonly FolderEnt
     case "reply": {
       const entry = entries.find(candidate => candidate.path === request.root);
       const row = entry?.kind === "list" ? entry.canvases.find(candidate => candidate.id === request.link.canvas) : undefined;
-      const title = request.link.kind === "frame" ? row?.frames?.find(frame => frame.id === request.link.id)?.title : undefined;
-      return title || request.link.id;
+      const frame = request.link.kind === "frame" ? row?.frames?.find(candidate => candidate.id === request.link.id) : undefined;
+      return frame ? frameName(frame) : request.link.id;
     }
     case "settings": return "Settings";
     case "conversation": return "the conversation";

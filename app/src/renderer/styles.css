@@ -942,6 +942,7 @@ body:has(.shell-top) { background: transparent; }
 .row-slot.unseen i { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--text-accent); }
 @media (forced-colors: active) { .row-slot.unseen i { forced-color-adjust: none; background: Highlight; } }
 .shell-side .shell-project-row.flash { box-shadow: inset 0 0 0 2px var(--border-focus); }
+@media (forced-colors: active) { .shell-side .shell-project-row.flash { outline: 2px solid Highlight; outline-offset: -2px; } }
 
 .shell-settings-nav { display: flex; flex-direction: column; gap: var(--space-half); }
 .shell-side .shell-settings-row { width: 100%; padding-inline: 10px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); text-align: left; }
@@ -978,6 +979,7 @@ body:has(.shell-top) { background: transparent; }
 .doan-preference-row:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }
 /* The flash lasts as long as an added project's sidebar row flash (.shell-project-row.flash). */
 .doan-preference-row[data-flash] { margin-inline: calc(-1 * var(--space-2)); padding-inline: var(--space-2); border-radius: var(--radius-row); box-shadow: inset 0 0 0 2px var(--border-focus); }
+@media (forced-colors: active) { .doan-preference-row[data-flash] { outline: 2px solid Highlight; outline-offset: -2px; } }
 .settings-help { margin-top: var(--space-1); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .settings-select { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
 .settings-select .chev { color: var(--text-subtle); }
@@ -1609,6 +1611,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* A shell grid child, because .right-stack clips its rounded corner and would cut a handle inside it in half. */
 .doan-panel-handle.doan-overview-handle { grid-column: 4 / 5; grid-row: 2 / -1; }
 .doan-panel-handle:focus-visible { box-shadow: 0 0 0 2px var(--border-focus); }
+@media (forced-colors: active) { .doan-panel-handle:focus-visible { outline: 2px solid Highlight; } }
 /* Covers the window while dragging: the canvas iframe cannot take the pointer, and the cursor stays col-resize. */
 .doan-resize-cover { position: fixed; inset: 0; z-index: 1000; cursor: col-resize; }
 /* A hidden sidebar also drops its handle and gap. Only a toggle animates (data-sidebar-motion), never a drag or resize. */
@@ -1836,8 +1839,8 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .problem-heading h2 { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); }
 .problem-heading p code { padding: 0 var(--space-1); border-radius: var(--radius-inline); background: var(--surface-inset); color: var(--text-standard); }
 .problem-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
-/* A subtle button at rest on the glass takes the hover fill, as on onboarding's overlay. */
-.problem-overlay .doan-button[data-ui-variant="subtle"]:not(:hover, :active) { background: var(--affordance-backdrop-hover); }
+/* A subtle button at rest on the glass takes the hover fill, as on onboarding's overlay; a disabled one keeps it. */
+.problem-overlay .doan-button[data-ui-variant="subtle"]:is(:not(:hover, :active), [data-disabled]) { background: var(--affordance-backdrop-hover); }
 /* Every action is unavailable but focusable while rereading; the pressed filled one keeps its fill and spinner. */
 .problem-actions .doan-button[aria-disabled="true"]:not([data-ui-variant="prominent"]) { color: var(--text-disabled); }
 .problem-detail { width: 100%; margin-top: var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); white-space: pre-wrap; overflow-wrap: anywhere; text-align: start; }

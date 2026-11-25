@@ -101,6 +101,11 @@ describe("the name a held request's toast gives", () => {
     expect(revealName({ kind: "reply", root: ROOT, conversationId: "c", link: { canvas: "checkout", kind: "element", id: "pay-button" } }, entries)).toBe("pay-button");
   });
 
+  test("an answer's chip whose frame title is only spaces by its id, as the canvas names that frame", () => {
+    const blank: CanvasRow = { ...checkout, frames: [{ id: "payment", title: "  " }] };
+    expect(revealName({ kind: "reply", root: ROOT, conversationId: "c", link: { canvas: "checkout", kind: "frame", id: "payment" } }, [list(ROOT, [blank])])).toBe("payment");
+  });
+
   test("Settings, a conversation and a canvas by the words the main window uses", () => {
     expect(revealName({ kind: "settings", provider: "codex" }, [])).toBe("Settings");
     expect(revealName({ kind: "conversation", root: ROOT, conversationId: "c" }, [])).toBe("the conversation");

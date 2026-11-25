@@ -120,7 +120,8 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
     if (!group) { if (state.auth === null) arrived.current = arrival.seq; return; }
     arrived.current = arrival.seq;
     const { provider } = arrival;
-    requestAnimationFrame(() => { group.focus(); watch.current = { provider, node: group }; });
+    // Sign in pressed in the prototype window arrives before this window is active.
+    requestAnimationFrame(() => { handFocus(() => document.querySelector<HTMLElement>(groupSelector(provider))?.focus()); watch.current = { provider, node: group }; });
     setFlash(provider);
   });
   useEffect(() => {
@@ -141,16 +142,17 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
     {view.notice && <div className="doan-preference-row-extra"><NoticeView notice={view.notice} run={run(view.provider)} /></div>}
     {view.paste && <p className="doan-preference-row-extra ob-page-help">{view.paste.prompt} {action(view.provider, view.paste.button, { "data-paste": view.provider })}</p>}
   </div>;
-  // A paste modal that closed hands focus back to its line, else the row group.
+  // A paste modal that closed hands focus back to its line, else the row group. Main's answer to a pasted address can
+  // close it after the person went back to the browser, so the return is made again on activation.
   useEffect(() => {
     const focus = state.focus;
     if (focus?.target !== "paste" || !focus.provider) return;
     const provider = focus.provider;
-    requestAnimationFrame(() => {
+    requestAnimationFrame(() => handFocus(() => {
       const paste = document.querySelector<HTMLElement>(`[data-paste="${provider}"]`);
       (paste && !paste.matches(":disabled") ? paste : document.querySelector<HTMLElement>(groupSelector(provider)))?.focus();
-    });
-  }, [state.focus?.seq]);
+    }));
+  }, [state.focus?.seq, handFocus]);
 
   const stop = session.stopView(), paste = session.pasteView();
   return <>

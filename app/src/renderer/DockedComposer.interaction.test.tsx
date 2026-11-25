@@ -40,6 +40,8 @@ beforeEach(() => {
   hooks.states = []; hooks.refs = []; hooks.effects = [];
   vi.stubGlobal("queueMicrotask", (run: () => void) => run());
   vi.stubGlobal("getComputedStyle", () => ({ lineHeight: "20px" }));
+  // A focused window: the activation hand-off focuses once and waits for nothing.
+  vi.stubGlobal("document", { hasFocus: () => true, querySelectorAll: () => [] });
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -145,6 +147,30 @@ test("an accepted send empties the field, returns it to a capsule and keeps focu
   expect(send).toHaveBeenCalledWith({ text: "Make the header lighter", anchors: [], attachments: [] });
   expect(store.current.get("conversation:a")).toEqual(EMPTY_DRAFT);
   expect(focus).toHaveBeenCalled();
+});
+
+// A reply can come back after the person switched away; activation then restores the element focused before (POSTMORTEM
+// 2026-11-17 'Window activation put focus on Hide sidebar'), so the field takes focus again, only while the same draft shows.
+test("a send answered with the window in the background focuses the field again on activation, only while its draft shows", async () => {
+  for (const [outcome, switched] of [[{ ok: true }, false], [{ error: "unknown" }, false], [{ ok: true }, true]] as const) {
+    hooks.states = []; hooks.refs = [];
+    let answer: (outcome: DockedOutcome) => void = () => {};
+    const { props, render } = setup({ onSend: vi.fn(() => new Promise<DockedOutcome>(resolve => { answer = resolve; })) }, [["conversation:a", draft("Make the header lighter")]]);
+    const focus = vi.fn();
+    render();
+    hooks.refs[2]!.current = { focus, composing: () => false };
+    const win = new EventTarget();
+    vi.stubGlobal("window", win);
+    vi.stubGlobal("document", { hasFocus: () => false, querySelectorAll: () => [] });
+    (field(render()).onKeyDown as (event: unknown) => void)(enter());
+    if (switched) { props.mode = B; render(); }
+    answer(outcome);
+    await flush();
+    expect(focus).toHaveBeenCalledTimes(switched ? 0 : 1);
+    win.dispatchEvent(new Event("focus"));
+    await flush();
+    expect(focus).toHaveBeenCalledTimes(switched ? 0 : 3);
+  }
 });
 
 test("while the turn runs, Enter on an empty field does nothing, Stop stops, and text queues", async () => {
@@ -599,6 +625,7 @@ test("a repeated Send now refusal changes the composer's status text each time",
 function pressDocument() {
   const listeners: ((event: { target: unknown }) => void)[] = [];
   vi.stubGlobal("document", {
+    hasFocus: () => true, querySelectorAll: () => [],
     addEventListener: (type: string, listener: (event: { target: unknown }) => void, capture: boolean) => { if (type === "pointerdown" && capture) listeners.push(listener); },
     removeEventListener: (_type: string, listener: (event: { target: unknown }) => void) => { const at = listeners.indexOf(listener); if (at >= 0) listeners.splice(at, 1); },
   });
@@ -1280,7 +1307,7 @@ test("the same run mode text is announced again for another conversation", () =>
 
 const textPaste = (text = "Spec\r\n" + "x".repeat(1000), types = ["text/plain"]) => ({ preventDefault: vi.fn(), clipboardData: { files: [], types, getData: (type: string) => type === "text/plain" ? text : "chip" } });
 function mountedPaste(patch: Partial<DockedComposerProps> = {}, drafts: [string, DockedDraft][] = []) {
-  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   const result = setup(patch, drafts);
   result.render();
   for (const effect of hooks.effects) effect();

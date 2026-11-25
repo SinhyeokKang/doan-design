@@ -44,6 +44,8 @@ beforeEach(() => {
   hooks.states = []; hooks.refs = []; hooks.effects = [];
   vi.stubGlobal("queueMicrotask", (run: () => void) => run());
   vi.stubGlobal("getComputedStyle", () => ({ lineHeight: "20px" }));
+  // A focused window: the activation hand-off focuses once and waits for nothing.
+  vi.stubGlobal("document", { hasFocus: () => true, querySelectorAll: () => [] });
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -198,7 +200,7 @@ test("a queued command row has no Send now; the message rows keep theirs", () =>
 });
 
 test("Control+Enter sends the message rows now and leaves a command row queued", async () => {
-  vi.stubGlobal("document", { body: {}, activeElement: null });
+  vi.stubGlobal("document", { body: {}, activeElement: null, hasFocus: () => true, querySelectorAll: () => [] });
   const onSendQueuedNow = vi.fn(async () => {});
   const { render } = setup({ turn: "running", sendNow: true, onSendQueuedNow, queued: [{ id: "q1", text: "Also this" }, { id: "q2", text: "/compact" }] });
   const tree = render(true);
@@ -221,7 +223,7 @@ test("a list item or a skill that reads like a command keeps Send now; the real 
   expect(sendNow.map(props => props["aria-describedby"])).toEqual(["id-0", "id-2"]);
 });
 test("Control+Enter sends a list item or a skill that reads like a command and leaves the real command queued", async () => {
-  vi.stubGlobal("document", { body: {}, activeElement: null });
+  vi.stubGlobal("document", { body: {}, activeElement: null, hasFocus: () => true, querySelectorAll: () => [] });
   const onSendQueuedNow = vi.fn(async () => {});
   const { render } = setup({ turn: "running", sendNow: true, onSendQueuedNow, queued: LIST_ROWS });
   (input(render(true)).onSteerKey as () => void)();
@@ -259,7 +261,7 @@ test("a draft already in the started conversation stays; the leftover stays wher
 
 // Control+Enter queues the field and then steers its item; a command is never steered, so it only queues.
 test("Control+Enter on a command in the field queues it and does not send it now", async () => {
-  vi.stubGlobal("document", { body: {}, activeElement: null });
+  vi.stubGlobal("document", { body: {}, activeElement: null, hasFocus: () => true, querySelectorAll: () => [] });
   const onSendQueuedNow = vi.fn(async () => {});
   const queue = vi.fn(async (_request: unknown): Promise<DockedOutcome> => ({ ok: true, itemId: "q9" }));
   const { render } = setup({ turn: "running", sendNow: true, onSendQueuedNow, onQueue: queue }, [[KEY, draft("/compact")]]);

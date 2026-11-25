@@ -23,8 +23,8 @@ export interface CanvasConversationItem extends ConversationRowBase {
 export interface ProjectConversationItem extends ConversationRowBase { kind: "project" }
 export type CanvasConversationRow = CanvasConversationItem | ProjectConversationItem;
 
-// main's rule (`main/conversation/sessions.ts`), restated because the renderer must not import main's modules: an id on
-// either side matches by id only, else the path matches.
+// main's rule (`main/conversation/sessions.ts`), restated because that module pulls `node:path` and the validator: an
+// id on either side matches by id only, else the path matches.
 export function sameCanvas(a: Canvas, b: Canvas): boolean {
   return a.id !== undefined || b.id !== undefined ? a.id !== undefined && a.id === b.id : a.path === b.path;
 }

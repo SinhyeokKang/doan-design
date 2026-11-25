@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useActivationFocus } from "./activationFocus";
 import { SettingsAbout } from "./SettingsAbout";
 import { SettingsAgents, type SettingsAgentsProps } from "./SettingsAgents";
 import { SettingsMcpConnectors, type SettingsMcpConnectorsProps } from "./SettingsMcpConnectors";
@@ -36,12 +37,14 @@ export function SettingsPage({ header, sidebar, section, arrival, onState, agent
   const [actions, setActions] = useState<HTMLDivElement | null>(null);
   const onLock = (locked: boolean) => onState({ locked });
   // Arrival and ⌘, on the page focus the title; a category picked in the sidebar brings no arrival, so focus stays on
-  // its row. A frame later, after the menu or picker that led here has returned its own focus.
+  // its row. A frame later, after the menu or picker that led here has returned its own focus. Main shows a hidden
+  // window before the arrival, so the focus is made again on activation.
   const arrived = useRef(0);
+  const handFocus = useActivationFocus();
   useEffect(() => {
     if (!arrival || arrival.seq === arrived.current) return;
     arrived.current = arrival.seq;
-    if (arrival.focus.kind === "heading") requestAnimationFrame(() => heading.current?.focus());
+    if (arrival.focus.kind === "heading") requestAnimationFrame(() => handFocus(() => heading.current?.focus()));
   });
   const title = SETTINGS_SECTIONS.find(item => item.id === section)?.title ?? "";
   const provider = arrival?.focus.kind === "provider" ? { provider: arrival.focus.provider, seq: arrival.seq } : null;

@@ -55,6 +55,8 @@ beforeEach(() => {
   };
   vi.stubGlobal("window", { doan });
   vi.stubGlobal("queueMicrotask", (run: () => void) => run());
+  // A focused window: the activation hand-off focuses once and waits for nothing.
+  vi.stubGlobal("document", { hasFocus: () => true, querySelectorAll: () => [] });
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -470,6 +472,26 @@ test("a take of the picked project's start message that failed is asked again wh
     pick("/code/acme/.git", "/code/doan-design/.git");
     expect(doan.takeStartDraft.mock.calls.map(([request]) => (request as { root: string }).root)).toEqual(["/code/doan-design", "/code/acme", "/code/doan-design"]);
   }
+});
+
+// A refused start can answer after the person switched away; activation then restores the element focused before
+// (POSTMORTEM 2026-11-17 'Window activation put focus on Hide sidebar'), so the field takes focus again.
+test("a start refused with the window in the background focuses the field again on activation", async () => {
+  const { start, render } = setup({ text: "Draw a pricing page." });
+  const reply = pending();
+  start.mockReturnValueOnce(reply.promise as never);
+  const focus = vi.fn();
+  render();
+  hooks.refs[0]!.current = { focus, composing: () => false };
+  const win = Object.assign(new EventTarget(), { doan });
+  vi.stubGlobal("window", win);
+  vi.stubGlobal("document", { hasFocus: () => false, querySelectorAll: () => [] });
+  call(field(render()), "onKeyDown", key("Enter"));
+  reply.resolve({ error: "unknown" });
+  await vi.waitFor(() => expect(focus).toHaveBeenCalledOnce());
+  win.dispatchEvent(new Event("focus"));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(focus).toHaveBeenCalledTimes(3);
 });
 
 test("a pending start keeps Home locked on a later visit, and a late reply clears only the draft it sent", async () => {
@@ -890,6 +912,7 @@ test("an untouched composer remembers nothing; a pick does", () => {
 test("a press outside the / list closes it until the field is empty; a press in the list or the field keeps it", () => {
   const listeners: ((event: { target: unknown }) => void)[] = [];
   vi.stubGlobal("document", {
+    hasFocus: () => true, querySelectorAll: () => [],
     addEventListener: (type: string, listener: (event: { target: unknown }) => void, capture: boolean) => { if (type === "pointerdown" && capture) listeners.push(listener); },
     removeEventListener: (_type: string, listener: (event: { target: unknown }) => void) => { const at = listeners.indexOf(listener); if (at >= 0) listeners.splice(at, 1); },
   });
@@ -997,7 +1020,7 @@ test("re-picking the model or level Edit on Home restored remembers it as picked
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { resolve, promise }; }
 test.each([true, false])("skill replies remain with their root in either completion order (%s)", async oldFirst => {
-  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   const a = deferred<{ skills: { name: string; description: string }[] }>();
   const b = deferred<{ skills: { name: string; description: string }[] }>();
   doan.listConversationSkills!.mockImplementation(({ root }) => root === ENTRY.path ? a.promise : b.promise);
@@ -1013,7 +1036,7 @@ test.each([true, false])("skill replies remain with their root in either complet
   expect(input(render()).skillNames).toEqual(new Set(["deploy"]));
 });
 test("exact skill Enter sends the displayed word and refreshes after a turn ends", async () => {
-  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   doan.listConversationSkills!.mockResolvedValue({ skills: [{ name: "deploy", description: "Deploy" }] });
   const { render, start, props } = setup({ text: "/deploy" });
   render(); await runEffects(); await flush();
@@ -1028,7 +1051,7 @@ test("exact skill Enter sends the displayed word and refreshes after a turn ends
 });
 
 test("switching to Cursor removes skills from both the field and sent request", async () => {
-  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   doan.listConversationSkills!.mockResolvedValue({ skills: [{ name: "deploy", description: "Deploy" }] });
   const { render, box, start } = setup({ text: "/deploy", auth: { revision: 1, providers: [dto("claude"), dto("cursor")] } });
   render(); await runEffects(); await flush();
@@ -1040,7 +1063,7 @@ test("switching to Cursor removes skills from both the field and sent request", 
   expect(start.mock.calls[0]?.[0]).toMatchObject({ text: "/deploy" });
 });
 test("a refreshed list changes both highlighted names and fixed send lines", async () => {
-  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   doan.listConversationSkills!.mockResolvedValue({ skills: [{ name: "deploy", description: "Deploy" }] });
   const { render, start } = setup({ text: "/deploy /review" });
   render(); await runEffects(); await flush();
@@ -1138,7 +1161,7 @@ const pastedTextEvent = (text = "x".repeat(1000), types: string[] = ["text/plain
   preventDefault: vi.fn(), clipboardData: { files: [], types, getData: (type: string) => type === "text/plain" ? text : "chip data" },
 });
 function pasteHome(memory: Partial<ComposerMemory> = {}) {
-  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   const setupResult = setup(memory);
   return { ...setupResult, render: mount(setupResult.props, vi.fn()).tree };
 }

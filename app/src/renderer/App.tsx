@@ -538,6 +538,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // Where focus goes once the panel shows what an entry asked for; a new seq per entry.
   // The seq only grows: the panel applies an arrival once by its seq, so a later entry must never reuse one.
   const [arrival, setArrival] = useState<PanelArrival | null>(null);
+  // Read by the screen entry: the panel applies an arrival in its own effect, which runs before App's in the same commit.
+  const arrivalShown = useRef(arrival);
+  arrivalShown.current = arrival;
+  const panelArrived = useRef(0);
   const panelArrivals = useRef(0);
   const support = useRef<DockedSupport | null>(null);
   if (!support.current) support.current = new DockedSupport(() => setRunTick(tick => tick + 1), window.doan);
@@ -642,17 +646,24 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     instance.onPicked(result => live.current.pickEnded(result));
     instance.onCapture(rect => live.current.captured(rect));
     instance.linkedCanvas = root => live.current.completeNavigation(root);
+    // A reload can take the bubble while the prototype window is in front, so the hand-off is made again on activation,
+    // unless the controller returned focus to a bubble button meanwhile (the selection found again). A bubble shown again
+    // for another selection gets no focus back, so it does not end the hand-off.
+    const toolbarHandOff = (to: () => HTMLElement | null) => {
+      const returns = instance.bubbleReturns();
+      handFocus.current(() => { if (instance.bubbleReturns() === returns) to()?.focus({ preventScroll: true }); });
+    };
     instance.bubblePlay = {
       onPlay: () => sendPlay(playNext.current),
       // The bubble went while it had focus: the toolbar's Play is the visible control for the same action.
-      onFocusLost: () => { (playButton.current?.isConnected ? playButton.current : viewport.current)?.focus({ preventScroll: true }); },
+      onFocusLost: () => toolbarHandOff(() => playButton.current?.isConnected ? playButton.current : viewport.current),
     };
     instance.bubbleAdd = {
       host: element => setBubbleHost(element),
       onAdd: () => live.current.addToMessage(),
       button: () => bubbleAddButton.current,
       // The bubble went while Add to message had focus: the toolbar's Picker is the visible control that adds a chip.
-      onFocusLost: () => { (pickerButton.current?.isConnected ? pickerButton.current : viewport.current)?.focus({ preventScroll: true }); },
+      onFocusLost: () => toolbarHandOff(() => pickerButton.current?.isConnected ? pickerButton.current : viewport.current),
     };
     instance.bubbleInspect = {
       onInspect: () => live.current.showBubbleInspector(),
@@ -736,6 +747,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       // would otherwise take the focus to the sidebar row right after.
       const active = document.activeElement;
       if (active instanceof HTMLElement && active.isConnected && active.closest(".workspace .conversation-thread")) return;
+      // The panel took this entry's arrival in the same commit; a composer fallback focuses in a microtask, after this.
+      // An earlier App hand-off ends here too, so activation does not visit its target first.
+      if (arrivalShown.current !== null && panelArrived.current === arrivalShown.current.seq) { handFocus.current(() => {}); return; }
       const previous = workspaceFocus.current;
       hand(() => (previous?.isConnected && previous.closest(".workspace") ? previous : document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]'))?.focus());
     }
@@ -1118,6 +1132,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     setShellProjects(previous => previous[key]?.groups?.[id] === false ? { ...previous, [key]: withGroups(previous[key]!, groups => openGroup(groups, id)) } : previous);
   }, [state.open?.folder, state.shown]);
   const search = () => { if (locked()) return; cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); };
+  // Quick Open closes its dialog before it calls this, so focus left inside it is in a closed dialog; a styling class
+  // would stop matching silently once removed (POSTMORTEM 2026-10-30).
+  const closeQuickOpen = () => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog:not([open])")) modalClosed(); };
 
 
   // The existing-user buddy screen holds first run's lock while it is open.
@@ -1145,9 +1162,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (modal || !focusAfterModal.current) return;
     focusAfterModal.current = false;
     const after = afterDelete.current;
-    const field = after && (document.querySelector<HTMLElement>(after.selector) ?? (after.fallback ? document.querySelector<HTMLElement>(after.fallback) : null));
+    const find = () => after && (document.querySelector<HTMLElement>(after.selector) ?? (after.fallback ? document.querySelector<HTMLElement>(after.fallback) : null));
     afterDelete.current = null;
-    if (field) { if (after.field) focusFieldEnd(field); else field.focus(); return; }
+    // Main's reply can come after the person left for another app; the replay finds the target as drawn then.
+    if (after && find()) {
+      handFocus.current(() => { const field = find(); if (field) { if (after.field) focusFieldEnd(field); else field.focus(); } });
+      return;
+    }
     const previous = beforeModal.current;
     // A Set Up (or other action) opened from the overlay that took the overlay with it lands where the overlay's going
     // sends focus (PRODUCT §5 item 3 'Problem states'), not on the screen's fallback.
@@ -2739,7 +2760,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
         {panelTarget && entry?.kind === "list" && <CanvasConversation calls={window.doan} run={canvasRun.current!} support={support.current!} target={panelTarget} canvasName={panelCanvasName}
           project={panelProject} entry={entry} list={panelList} seen={run.seenPending()} prefs={homeMemory}
           defaults={preferences ? preferences.preferences.newConversation : undefined} now={clock} blocked={panelBlocked} onRemember={rememberPick}
-          frames={state.layout?.frames} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => setArrival(current => current?.seq === seq ? null : current)}
+          frames={state.layout?.frames} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => { panelArrived.current = seq; setArrival(current => current?.seq === seq ? null : current); }}
           onLocate={locateChip} onReplyChip={link => replyChip(panelTarget.root, link)} onChoose={() => controller.current?.dropPendingLocate()} pick={{ pressed: picking, enabled: pickerReady, reason: pickerView.reason, onToggle: togglePick }} composerLink={composerLink} canvasPress={controller.current?.canvasPress}
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
           onOpenHandoff={(canvas, id) => openConversationCanvas(panelTarget.root, canvas, id, { kind: "card" })}
@@ -2751,7 +2772,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       announcement={announcement ? `${announcement.text}${announcement.seq % 2 ? "" : "\u00a0"}` : ""} onAction={overlayAction} />}
   </main>
   {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} kept={projectKeepsLocal(allEntries, setup)} notGit={allEntries.some(entry => entry.path === setup && entry.kind === "uninitialized" && entry.notGit === true)} onClose={() => { pressEnded(setup, "setUp"); if (setupRef.current !== setup) return; setSetup(null); modalClosed(); }} onRerooted={(root, message) => { setHighlight([root]); toast.show(message); if (setupRef.current !== setup) return; choose(root); setSetup(null); modalClosed(); }} />}
-  {quickOpen && <QuickOpen entries={entries} conversations={conversationLists} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
+  {quickOpen && <QuickOpen entries={entries} conversations={conversationLists} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={closeQuickOpen} />}
   {run.removing && <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="project-remove-title" aria-describedby="project-remove-body" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); cancelRemove(); }}
     onKeyDown={event => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); cancelRemove(); } }}>
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="project-remove-title">{run.removing.title}</h3><p className="doan-dialog-description" id="project-remove-body">{run.removing.body}</p></div></div>

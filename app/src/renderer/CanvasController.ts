@@ -8,6 +8,7 @@ import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGH
 import { switchTarget } from "./switchTarget";
 import { bubbleAction, type BubbleAction } from "./bubbleItems";
 import { sizeBubblePlay } from "./prototypePlay";
+import { focusThroughActivation } from "./activationFocus";
 import { acceptSelectionMessage, anchorRequest, canvasPx, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, screenToBoard, elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { scaleFactor } from "./zoomControl";
@@ -379,6 +380,7 @@ export class CanvasController {
 
   dispose(): void {
     this.dropBubbleReturn();
+    this.bubbleActivation();
     clearTimeout(this.workSlideTimer);
     clearTimeout(this.followTimer);
     this.pickListener = null;
@@ -547,6 +549,11 @@ export class CanvasController {
   // Focus comes back to the same button once the selection is found again, unless focus left the holder meanwhile
   // (ARCHITECTURE §3, as `FocusIntent`).
   private bubbleReturn: { button: BubbleAction; holder: Element | null; moved: (event: FocusEvent) => void } | null = null;
+  private bubbleActivation: () => void = () => {};
+  // Counts the bubble's own focus moves, so App's toolbar hand-off can tell a return to the bubble from a bubble shown
+  // again for another selection.
+  private bubbleFocusMoves = 0;
+  bubbleReturns(): number { return this.bubbleFocusMoves; }
   // For focus to come back to when the prototype window closes.
   bubblePlayButton(): HTMLButtonElement | null { return this.bubble?.playShown ? this.bubble.play : null; }
   currentView(): View { return { ...this.view }; }
@@ -1439,6 +1446,8 @@ export class CanvasController {
 
   private pointerOnApp = (event: PointerEvent): void => {
     this.altHeld = event.altKey;
+    // ⌘ released inside a focused canvas never reaches the app as a keyup; a stale one would be resent to every reload.
+    this.metaHeld = event.metaKey;
     // Over the canvas itself the move arrives as its hover message.
     if (Object.is(event.target, this.viewport) || Object.is(event.target, this.layer)) this.personActive(false);
     // OOPIFs do not reliably receive pointerout when the pointer enters the app.
@@ -1636,6 +1645,8 @@ export class CanvasController {
     if (documentChanged) { this.resetAnchors(); this.anchorDocument = message.document ?? null; }
     // Another document, even the canvas's own location.reload() in the same iframe, ends the replaced one's pick
     // channel; the pick itself goes on below unless the page is another canvas.
+    // Not loading: the canvas replaced its own document, so load() reset nothing.
+    const replaced = message.document !== undefined && message.document !== this.pickDocument && this.pickDocument !== null && !this.loading;
     if (message.document !== undefined && message.document !== this.pickDocument) {
       this.pickDocument = message.document;
       this.resetPickChannel();
@@ -1653,6 +1664,13 @@ export class CanvasController {
     const previousPicking = this.state.picking;
     const previousCapturing = this.state.capturing;
     const newDocument = this.lastHref !== null && !sameDocument(this.lastHref, message.href);
+    // Its new script counts both channels from 0 and has no selection, so the selection is found again as after a reload.
+    if (replaced && !newDocument) {
+      this.resetChannels();
+      this.drawMarks();
+      this.applySelectionEffect({ kind: "reload" });
+      if (this.reanchor !== null) this.sendCommand({ type: "select-anchor", ...this.reanchor });
+    }
     // Against the height before this layout resizes the iframe, as layoutHeight does.
     const selected = selectedFromLayout({ ...this.expectation(), href: message.href }, message);
     this.setFrameHeight(layoutHeight(this.lastHref, this.frameHeight, message));
@@ -1671,12 +1689,7 @@ export class CanvasController {
     if (newDocument) {
       this.clearJump();
       this.jumpTo = null;
-      this.seq = 0;
-      this.pickFrameCommand = null;
-      this.hoverSeq = 0;
-      this.refindSeq = null;
-      this.hoverRect = null;
-      this.treeHover = null;
+      this.resetChannels();
       this.applySelectionEffect({ kind: "otherCanvas" });
       // Another page is another canvas, so the pick and capture mode end.
       this.resetPickChannel();
@@ -1731,6 +1744,15 @@ export class CanvasController {
     }
     this.state.currentFrame = this.state.unlisted ? null : currentFrame(message.frames, this.view, this.viewportSize());
     if (first || previousCurrent !== this.state.currentFrame || documentChanged || before !== this.layoutDisplayKey() || linked || beforeSelection !== this.state.selection || previousPicking !== this.state.picking || previousCapturing !== this.state.capturing) this.publish();
+  }
+
+  private resetChannels(): void {
+    this.seq = 0;
+    this.pickFrameCommand = null;
+    this.hoverSeq = 0;
+    this.refindSeq = null;
+    this.hoverRect = null;
+    this.treeHover = null;
   }
 
   // A new document has no hand, ⌥ or ⌘ of its own; Hand keeps the layer up through the canvas's own reload.
@@ -2259,19 +2281,32 @@ export class CanvasController {
     if (!shown) {
       // Gone for good (not a reload's wait): nothing to come back to.
       if (had === null) { if (this.reanchor === null) this.dropBubbleReturn(); return; }
+      // App takes the hand-off now; an earlier one to a bubble button is over.
+      this.bubbleActivation();
       (had === "play" ? this.bubblePlay : had === "inspect" ? this.bubbleInspect : this.bubbleAdd)?.onFocusLost();
       this.dropBubbleReturn();
       // Hidden while a reload looks for the same selection: focus may come back to this button.
       if (this.reanchor !== null) this.awaitBubbleReturn(had, document.activeElement);
       return;
     }
-    if (had === "play" && !bubble.playShown) this.bubbleAdd?.button()?.focus({ preventScroll: true });
+    if (had === "play" && !bubble.playShown) this.handBubbleFocus(() => this.bubbleAdd?.button());
     const back = this.reanchor === null ? this.bubbleReturn : null;
     if (back === null) return;
     this.dropBubbleReturn();
     if (document.activeElement !== back.holder) return;
     if (back.button === "inspect") this.bubbleInspect?.restoreFocus();
-    else (back.button === "play" && bubble.playShown ? bubble.play : this.bubbleAdd?.button())?.focus({ preventScroll: true });
+    else this.handBubbleFocus(() => back.button === "play" && bubble.playShown ? bubble.play : this.bubbleAdd?.button());
+  }
+
+  // A reload can move this focus while the prototype window is in front, so it is made again on activation
+  // (POSTMORTEM 2026-11-17), only to a button the bubble still shows.
+  private handBubbleFocus(target: () => HTMLElement | null | undefined): void {
+    this.bubbleFocusMoves++;
+    this.bubbleActivation();
+    this.bubbleActivation = focusThroughActivation(() => {
+      const button = target();
+      if (button?.isConnected && button.closest("[hidden]") === null) button.focus({ preventScroll: true });
+    });
   }
 
   private awaitBubbleReturn(button: BubbleAction, holder: Element | null): void {

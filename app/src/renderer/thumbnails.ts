@@ -38,6 +38,8 @@ export class ThumbnailRequests {
   setRows(rows: readonly CanvasRow[], viewer = ""): void {
     this.rowsBy.set(viewer, rows);
     this.listRows();
+    // A shown row that gains a width is reported visible by no one again, and main notifies only paths it knows.
+    this.showVisible();
   }
 
   onVisible(paths: readonly string[], viewer = ""): void {

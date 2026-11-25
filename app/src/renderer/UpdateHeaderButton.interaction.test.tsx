@@ -279,6 +279,37 @@ test("a popover a push closes with the window in the background focuses the butt
   } finally { vi.useRealTimers(); }
 });
 
+// Main shows the window and then sends the menu's popover, which can open before the window is active; activation then
+// restores the focus the window had before (POSTMORTEM 2026-11-17 'Window activation put focus on Hide sidebar'), so
+// the popover's focus is made again on activation, while it is open.
+test("the menu's popover opened before the window is active takes focus again on activation", () => {
+  const win = Object.assign(new EventTarget(), { doan });
+  vi.stubGlobal("window", win);
+  render(); push(snap(READY, GATE_BLOCKED)); render();
+  vi.stubGlobal("document", { activeElement: null, body: {}, hasFocus: () => false, querySelectorAll: () => [] });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    menuPopover();
+    const view = render();
+    expect(view.open).toBe(true);
+    const content = { focus: vi.fn() };
+    view.contentRef(content as unknown as HTMLDivElement);
+    const event = { preventDefault: vi.fn() };
+    view.onOpenAutoFocus(event as unknown as Event);
+    win.dispatchEvent(new Event("focus"));
+    vi.runAllTimers();
+    expect(content.focus).toHaveBeenCalledTimes(3);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    // Closed before activation: nothing to focus.
+    content.focus.mockClear();
+    menuPopover(); render().onOpenAutoFocus({ preventDefault: vi.fn() } as unknown as Event);
+    render().contentRef(null);
+    win.dispatchEvent(new Event("focus"));
+    vi.runAllTimers();
+    expect(content.focus).toHaveBeenCalledOnce();
+  } finally { vi.useRealTimers(); }
+});
+
 // The popover follows each push while open instead of keeping the words it opened with.
 test("a popover open on a blocked press says it can restart once nothing blocks it, and stays open", async () => {
   render(); push(snap(READY, GATE_BLOCKED)); let view = render();

@@ -55,12 +55,19 @@ describe("under forced colours", () => {
     ["the row's unread dot", ".row-slot.unseen i { forced-color-adjust: none; background: Highlight; }"],
     ["the header buttons' unread dot", ":is(.doan-icon-button[data-badge=\"true\"], :is(.doan-canvas-head .doan-panel-show, .pw-conv).doan-icon-button[data-badge=\"unseen\"])::after { forced-color-adjust: none; background: Highlight; box-shadow: none; }"],
     ["the thread's streaming caret", ".conversation-thread .caret { forced-color-adjust: none; background: CanvasText; }"],
+    ["the focused panel handle", ".doan-panel-handle:focus-visible { outline: 2px solid Highlight; }"],
+    ["an added project's flashed row", ".shell-side .shell-project-row.flash { outline: 2px solid Highlight; outline-offset: -2px; }"],
+    ["a flashed preference row", ".doan-preference-row[data-flash] { outline: 2px solid Highlight; outline-offset: -2px; }"],
   ])("%s stays visible", (_name, rule) => {
     expect(forced(styles)).toContain(rule);
   });
 
   test("a floating notice keeps an edge", () => {
     expect(forced(surfaces)).toContain(".doan-notice.doan-panel { outline: 1px solid CanvasText; outline-offset: -1px; }");
+  });
+
+  test("a tooltip keeps an edge", () => {
+    expect(forced(surfaces)).toContain(".doan-tooltip { outline: 1px solid CanvasText; outline-offset: -1px; }");
   });
 
   // The notice takes focus from code, and its edge's outline would replace the browser's focus ring.

@@ -1500,3 +1500,55 @@ describe("the Overview's Conversations list", () => {
     expect(run().view("/w/a")).toEqual({ kind: "conversation", conversationId: "p2" });
   });
 });
+
+// A notification's Open from Home enters the workspace and arms the panel's arrival in one commit; the panel applies it
+// first (child effects run first) and, with no item to focus, gives focus to its composer in a microtask. With the
+// window in the background App's screen entry would arm its own replay after the panel's, and activation would end on
+// the sidebar row (POSTMORTEM 2026-11-17 'Window activation put focus on Hide sidebar').
+describe("a screen entry that brings a panel arrival", () => {
+  const row = { focus: vi.fn(), isConnected: true, closest: () => ({}), matches: () => false, getClientRects: () => [{}] };
+  async function enterFromHome(applies: boolean, windowFocused: boolean) {
+    doan.listConversations!.mockResolvedValue([rowSummary()]);
+    render();
+    readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: true, width: 400 } }); await Promise.resolve(); await Promise.resolve(); render();
+    folders([listed("/w/a")]);
+    await flushAll();
+    probe.fields['.side [role="treeitem"][tabindex="0"]'] = row;
+    Object.assign(document, { hasFocus: () => windowFocused });
+    listeners.notificationClick!({ conversationId: "c1", root: "/w/a" } as never); render();
+    await flushAll();
+    const call = harness.controller!.openCanvas!.mock.lastCall as [string, CanvasRow, unknown, { opened(): void }] | undefined;
+    expect(call, "the notification opens the canvas").toBeDefined();
+    harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: rowA.path, row: rowA }, shown: rowA.path, status: null, message: "", layout: { frames: [], width: 800 } });
+    row.focus.mockClear();
+    call![3].opened();
+    // One commit: App renders, the panel's effect applies the arrival, then App's effects run.
+    hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = []; hooks.dirty = false;
+    tree = App();
+    const arrival = conversation()?.arrival;
+    expect(arrival).toMatchObject({ focus: "composer" });
+    if (applies) find<{ onArrived(seq: number): void }>(CanvasConversation)[0]!.props.onArrived(arrival!.seq);
+    for (const run of hooks.pending.splice(0)) run();
+    render();
+  }
+
+  test("in the background, the sidebar row takes no focus now or on activation", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await enterFromHome(true, false);
+      windowListeners.focus?.(new Event("focus") as never);
+      vi.runAllTimers();
+      expect(row.focus).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
+
+  test("with the window focused, focus is left to the panel without a stop on the sidebar row", async () => {
+    await enterFromHome(true, true);
+    expect(row.focus).not.toHaveBeenCalled();
+  });
+
+  test("an arrival the panel has not applied yet (its request still loading) leaves the entry's default as before", async () => {
+    await enterFromHome(false, true);
+    expect(row.focus).toHaveBeenCalledOnce();
+  });
+});

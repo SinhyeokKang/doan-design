@@ -80,8 +80,16 @@ export function forwardedMessage(event: { source: unknown; origin: string; data:
   if (run === null || event.source === null || event.source !== run.window || event.origin !== "null") return null;
   const data = event.data;
   if (typeof data !== "object" || data === null || Array.isArray(data) || (data as { gen?: unknown }).gen !== run.gen) return null;
-  if ("state" in data) return runReport(data) === null ? null : { kind: "result", message: data as RunMessage };
-  if (!("goto" in data)) return framesReport(data) === null ? null : { kind: "frames", message: data as FramesMessage };
+  // Forward the checked copy: the check reads a list's indices only, and a named property on it would ride along.
+  if ("state" in data) {
+    const report = runReport(data);
+    if (report === null) return null;
+    return { kind: "result", message: report.state === "ready" ? { ...report, size: (data as Record<string, unknown>).size as string } : report };
+  }
+  if (!("goto" in data)) {
+    const message = framesReport(data);
+    return message === null ? null : { kind: "frames", message };
+  }
   const message = gotoMessage(data);
   return message === null ? null : { kind: "goto", message };
 }

@@ -322,10 +322,15 @@ export function DockedComposer(props: DockedComposerProps) {
   }, [slash, rowKeys]);
   useEffect(() => { if (slashOpen) props.onSkillsWanted(); }, [slashOpen]);
 
+  // A send's reply or a turn's end can come with the window in the background, so their focus is made again on
+  // activation (POSTMORTEM 2026-11-17).
+  const handFocus = useActivationFocus();
   const focus = (after: FocusAction) => queueMicrotask(() => {
     const target = focusAfter(after, { pending: [] });
     if (target.kind === "field") field.current?.focus(target.caretAtEnd ? "end" : undefined);
   });
+  // Only while the same draft shows.
+  const focusSent = (at: string) => handFocus(() => { if (at === shown.current) focus({ kind: "sent" }); });
   const pickedSkill = useRef(false);
   const chooseRow = (id: string, kind: PresetRow["kind"], fromSlash: boolean) => {
     if (kind === "preset") { choosePreset(id, fromSlash); return; }
@@ -442,7 +447,7 @@ export function DockedComposer(props: DockedComposerProps) {
       const left = command ? { ...EMPTY_DRAFT, preset: sent.preset, attachments: sent.attachments } : EMPTY_DRAFT;
       const settled = { ...left, shape: composerShape("capsule", { empty: true, chips: chipCount(left, pinned), overflows: false }) };
       props.onDrafts(drafts => settleSent(drafts, at, sent, settled, outcome.conversationId ? `conversation:${outcome.conversationId}` : undefined));
-      if (at === shown.current) focus({ kind: "sent" });
+      focusSent(at);
       return outcome;
     }
     if (outcome.error === "attachment_missing") {
@@ -460,7 +465,7 @@ export function DockedComposer(props: DockedComposerProps) {
       const code = outcome.error;
       if (refused) setRefusals(previous => new Map(previous).set(at, { refusal: refused, draft: sent, code }));
     }
-    if (at === shown.current) focus({ kind: "sent" });
+    focusSent(at);
     return outcome;
   };
   // Each card is a new object (commandCard, a copy of STALE_MODE_CARD), so the same refusal again is said again.
@@ -525,9 +530,6 @@ export function DockedComposer(props: DockedComposerProps) {
   const slotAction = useRef<ComposerAction>(action);
   const slotNode = slotAction.current === "stop" && action === "send" && !availability.enabled ? root.current?.querySelector(".composer-send") ?? null : null;
   const stopLeft = slotNode !== null && typeof document !== "undefined" && document.activeElement === slotNode;
-  // A turn can end with the window in the background, so the field takes focus again on activation (POSTMORTEM
-  // 2026-11-17).
-  const handFocus = useActivationFocus();
   useLayoutEffect(() => {
     slotAction.current = action;
     if (stopLeft) handFocus(() => field.current?.focus());

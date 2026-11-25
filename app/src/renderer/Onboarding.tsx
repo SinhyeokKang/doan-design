@@ -462,6 +462,12 @@ export function projectFocusNode(input: {
     : notice(target);
   return node ?? input.heading;
 }
+// A scene change moves focus to its heading; Tab then enters the controls. Continue waits for main to cancel the
+// step's own sign-ins, which the person may leave the window during, so the focus is made again on activation.
+export function useSceneHeadingFocus(generation: number, heading: RefObject<{ focus(): void } | null>) {
+  const handFocus = useActivationFocus();
+  useEffect(() => { requestAnimationFrame(() => handFocus(() => heading.current?.focus())); }, [generation, handFocus, heading]);
+}
 // Within the Project step, a phase change that took the focused control away hands focus on, never to <body>; first
 // run and the page share it. `scope` holds the step's .ob-scene.
 export function useProjectFocus(session: ProjectStepSession, scope: RefObject<ScopeNode | null>, heading: RefObject<FocusTarget | null>, agentReady: () => boolean, active: boolean) {
@@ -470,6 +476,11 @@ export function useProjectFocus(session: ProjectStepSession, scope: RefObject<Sc
   const picker = useRef<{ node: FocusTarget; phase: string; error: ProjectStepState["error"] } | null>(null);
   // Edit repository URL (and Back from a cancelled or failed clone) lead to the URL field.
   const urlRequested = useRef(false);
+  // A clone or check can end while the window is in the background, so the focus is made again on activation, while
+  // the same phase shows.
+  const handFocus = useActivationFocus();
+  const shownPhase = useRef(phase);
+  shownPhase.current = phase;
   useEffect(() => {
     if (!active || session.picking()) return;
     requestAnimationFrame(() => {
@@ -478,10 +489,14 @@ export function useProjectFocus(session: ProjectStepSession, scope: RefObject<Sc
       const asked = urlRequested.current;
       urlRequested.current = false;
       const active = document.activeElement;
-      projectFocusNode({ opened, asked, root: scope.current, active: active instanceof HTMLElement ? active : null, body: document.body, heading: heading.current,
-        state: session.state, agentReady: agentReady(), busy: session.busy() })?.focus();
+      const node = projectFocusNode({ opened, asked, root: scope.current, active: active instanceof HTMLElement ? active : null, body: document.body, heading: heading.current,
+        state: session.state, agentReady: agentReady(), busy: session.busy() });
+      if (!node) return;
+      // The first call is the move itself, which `picker` and `urlRequested` were taken for; only a replay checks the phase.
+      let now = true;
+      handFocus(() => { if (now || (shownPhase.current === phase && node.isConnected)) node.focus(); now = false; });
     });
-  }, [phase]);
+  }, [phase, handFocus]);
   return {
     toUrl: () => { urlRequested.current = true; session.restart(); },
     openPicker: (open: () => void) => {
@@ -792,8 +807,7 @@ export function Wizard({ session, projects, autoRegistered = [], homeDirectory, 
     void window.doan.readOnboardingSession({ sessionId: session }).then(reply => { if (reply.ok && "sessionId" in reply.result) done(reply.result); }, () => {});
     return () => { window.removeEventListener("focus", focused); stop(); agents.dispose(); project.dispose(); };
   }, []);
-  // A scene change moves focus to its heading; Tab then enters the controls.
-  useEffect(() => { requestAnimationFrame(() => heading.current?.focus()); }, [scene.generation]);
+  useSceneHeadingFocus(scene.generation, heading);
   const overlay = useRef<HTMLDialogElement | null>(null);
   const { toUrl, openPicker, keepFocus } = useProjectFocus(project, overlay, heading, () => canAdvance(agents.state.auth ?? null), scene.scene === "project");
   // Guarded with the session's auth at the time of the move, not of the click: a cancel wait can outlive a ready provider.

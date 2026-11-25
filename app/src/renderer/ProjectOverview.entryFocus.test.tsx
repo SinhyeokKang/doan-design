@@ -53,7 +53,7 @@ const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve();
 
 beforeEach(() => {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
-  vi.stubGlobal("document", { querySelector: () => null });
+  vi.stubGlobal("document", { querySelector: () => null, hasFocus: () => true, querySelectorAll: () => [] });
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -108,4 +108,82 @@ test.each(["permission", "question"] as const)("a waiting %s entry scrolls to th
   render(overview);
   expect(handle.scrollToItem).toHaveBeenCalledOnce();
   expect(handle.focusItem).toHaveBeenCalledExactlyOnceWith(handle.scrollToItem.mock.calls[0]![0]);
+});
+
+// The props the Overview hands its ConversationThread.
+function threadProps(node: ReactNode): Record<string, unknown> | null {
+  if (Array.isArray(node)) { for (const child of node) { const found = threadProps(child); if (found) return found; } return null; }
+  if (!node || typeof node !== "object" || !("props" in node)) return null;
+  const element = node as { type: unknown; props: Record<string, unknown> & { children?: ReactNode } };
+  if ((element.type as { render?: { name?: string } } | null)?.render?.name === "ConversationThread") return element.props;
+  return threadProps(element.props.children);
+}
+
+// A notification's or the strip's entry lands in the renderer before main raises the window, and a reply can come back
+// after the person switched away; activation then restores the element focused before (POSTMORTEM 2026-11-17 'Window
+// activation put focus on Hide sidebar'). Each focus is made again on activation, only while the same conversation shows.
+function backgroundOverview(events: ConversationEvent[], list: ConversationSummary[]) {
+  const win = Object.assign(new EventTarget(), { doan: {
+    readConversation: vi.fn(async () => ({ events, lastSeq: events.length, turn: "idle" })),
+    takeConversationDraft: vi.fn(async () => null), onAgentAuth: vi.fn(() => () => {}), onAgentUsage: vi.fn(() => () => {}),
+    readAgentUsage: vi.fn(async () => []), listConversationSkills: vi.fn(async () => ({ skills: [] })),
+  } });
+  vi.stubGlobal("window", win);
+  const field = { focus: vi.fn() };
+  vi.stubGlobal("document", { querySelector: (selector: string) => selector === ".ov-main .composer-input" ? field : null, hasFocus: () => false, querySelectorAll: () => [] });
+  const run = new OverviewRun({
+    list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: () => {}, remembered: () => ({}), remember: () => {},
+    markSeen: () => {}, focused: () => true, openCanvas: () => {}, toast: () => {}, label: () => "doan", changed: () => {},
+  }, window.doan);
+  run.show(ROOT);
+  const support = Object.assign(new DockedSupport(() => {}, window.doan), { readPresets: vi.fn(), readModels: vi.fn() });
+  const overview = () => ProjectOverview({
+    run, support, root: ROOT, project: "doan", entry, worktrees: [entry], homeDirectory: "/code",
+    notice: null, unavailable: null, list, seen: new Set(), prefs: {}, defaults: null, now: Date.parse("2026-11-23T00:03:00.000Z"),
+    onWorktree: () => {}, onOpenCanvas: () => {}, onRetryList: () => {}, onStart: async () => ({ ok: true }), onSettings: () => {},
+    onSendConversation: async () => {}, onAction: () => {}, onProjectSettings: () => {},
+  });
+  const activate = async () => { win.dispatchEvent(new Event("focus")); await flush(); };
+  return { run, overview, field, activate };
+}
+
+// A conversation shown again after another (A, B, A) is a new showing: the earlier entry's replay does not act on it.
+test("a waiting entry with the window in the background focuses the request again on activation, only while it shows", async () => {
+  const B = "bbbbbbbb-0000-4000-8000-000000000002";
+  for (const switched of ["no", "away", "back"] as const) {
+    hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
+    const events = [at(1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(2, { type: "turn.started" }), asks.permission];
+    const { run, overview, activate } = backgroundOverview(events, [waiting, { ...waiting, conversationId: B, phase: "ended" }]);
+    run.request(ROOT, A, "permission");
+    run.store.track(A);
+    const ref = threadRef(render(overview));
+    const handle = { scrollToItem: vi.fn(), focusItem: vi.fn(() => true) };
+    ref!.current = handle;
+    await flush();
+    render(overview);
+    expect(handle.focusItem).toHaveBeenCalledOnce();
+    if (switched !== "no") { run.select(ROOT, B); render(overview); }
+    if (switched === "back") { run.select(ROOT, A); render(overview); }
+    await activate();
+    expect(handle.focusItem).toHaveBeenCalledTimes(switched === "no" ? 3 : 1);
+  }
+});
+
+test("Edit and resend answered with the window in the background focuses the field again on activation, only while it shows", async () => {
+  const B = "bbbbbbbb-0000-4000-8000-000000000002";
+  for (const switched of [false, true]) {
+    hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
+    const events = [at(1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(2, { type: "turn.started" }), at(3, { type: "turn.done" })];
+    const { run, overview, field, activate } = backgroundOverview(events, [{ ...waiting, phase: "ended" }, { ...waiting, conversationId: B, phase: "ended" }]);
+    run.request(ROOT, A, null);
+    run.store.track(A);
+    render(overview);
+    await flush();
+    (threadProps(render(overview))!.onEditAndResend as () => void)();
+    await flush();
+    expect(field.focus).toHaveBeenCalledOnce();
+    if (switched) { run.select(ROOT, B); render(overview); }
+    await activate();
+    expect(field.focus).toHaveBeenCalledTimes(switched ? 1 : 3);
+  }
 });

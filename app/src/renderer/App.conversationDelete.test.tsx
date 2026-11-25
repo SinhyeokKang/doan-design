@@ -668,3 +668,29 @@ test.each([
   check(); await flushAll();
   expect(doan.markConversationSeen).toHaveBeenCalledTimes(2);
 });
+
+// Main's reply can arrive after the person moved to another app; activation then restores the focus the window had
+// before (POSTMORTEM 2026-11-17 'Window activation put focus on Hide sidebar'), so the move is made again then, to the
+// field the selector finds at that time.
+test("a deletion that ends with the window in the background focuses the composer again on activation", async () => {
+  await openOverview();
+  const reply = deferred<undefined>();
+  doan.deleteConversation = vi.fn(() => reply.promise);
+  ask(target("c1"));
+  dialog()!.confirm(); render();
+  const win = Object.assign(new EventTarget(), { doan });
+  vi.stubGlobal("window", win);
+  Object.assign(document, { hasFocus: () => false });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    reply.resolve(undefined); await flushAll();
+    const composer = ".workspace .ov-main .composer-input", first = FIELDS[composer];
+    expect(focused.calls).toEqual([first]);
+    const redrawn = { field: "redrawn overview" };
+    FIELDS[composer] = redrawn;
+    win.dispatchEvent(new Event("focus"));
+    vi.runAllTimers();
+    expect(focused.calls).toEqual([first, redrawn, redrawn]);
+    FIELDS[composer] = first!;
+  } finally { vi.useRealTimers(); }
+});

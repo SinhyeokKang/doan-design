@@ -110,6 +110,18 @@ test("thumbnail requests accept valid width without an id and retain known frame
   h.thumbs.dispose();
 });
 
+test("thumbnails: a visible row that gains a width is asked once", () => {
+  const h = requests();
+  const { width: _width, ...noWidth } = row(".doan/canvases/later.html");
+  h.thumbs.setRows([noWidth]);
+  h.thumbs.onVisible([noWidth.path]);
+  expect(h.asks).toEqual([]);
+  h.thumbs.setRows([row(noWidth.path)]);
+  h.thumbs.setRows([row(noWidth.path)]);
+  expect(h.asks.map(ask => [ask.path, ask.onScreen])).toEqual([[noWidth.path, true]]);
+  h.thumbs.dispose();
+});
+
 // A rejected request is a failure like a failed reply, so the row reads "Preview unavailable", not "Preview loading".
 test("thumbnails: a rejected request leaves the card failed, not pending", async () => {
   vi.spyOn(console, "error").mockImplementation(() => {});
