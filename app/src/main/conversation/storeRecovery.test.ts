@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConversationStore, type ConversationMetadata, type JournalChange } from "./store";
 import { ConversationService } from "./service";
-import type { ConversationEvent, EventPayload } from "./types";
+import { FAILURE_CODES, FAST_UNUSED_REASONS, INTERRUPT_REASONS, type ConversationEvent, type EventPayload } from "./types";
 import { turnOf } from "../../renderer/turnStatus";
 const hooks = vi.hoisted(() => ({ limit: 256 * 1024 * 1024, opened: new Set<number>(), journal: "" }));
 vi.mock("./io", async original => {
@@ -385,6 +385,20 @@ describe("Fast unused history", () => {
     const f = setup();
     writeFileSync(f.path("c"), JSON.stringify({ type: "fast.unused", ...fields, v: 1, conversationId: "c", turnId: "t", seq: 1, at: "2026-11-06T00:00:00Z" }) + "\n");
     expect(() => new ConversationStore(f.root).read("c")).toThrow();
+  });
+});
+
+// The store reads every turn end the types allow, so a value added to a type alone cannot make a turn end unsavable.
+describe("turn end values", () => {
+  const line = (fields: object) => ({ ...fields, v: 1, conversationId: "c", turnId: "t", seq: 1, at: "2026-11-26T00:00:00Z" });
+  it.each([
+    ...FAILURE_CODES.map(code => ({ type: "turn.failed", code, ...(code === "model_unavailable" ? { model: "m" } : {}) })),
+    ...INTERRUPT_REASONS.map(reason => ({ type: "interrupted", reason })),
+    ...FAST_UNUSED_REASONS.map(reason => ({ type: "fast.unused", reason })),
+  ])("reads %j", fields => {
+    const f = setup();
+    writeFileSync(f.path("c"), JSON.stringify(line(fields)) + "\n");
+    expect(new ConversationStore(f.root).read("c")).toEqual([line(fields)]);
   });
 });
 
