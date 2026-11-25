@@ -288,3 +288,42 @@ postmortem이 재발한 항목: 2026-11-01(ui-state 병합), 2026-10-25·11-17(�
 - 2차 웨이브(파일 클러스터, 4관점): conv-core, conv-transport, auth-setup-update, mcp-onboarding-stores, proto-canvas-runtime, renderer-shell, renderer-canvas, renderer-conversation, cli-export-canvas, cli-repo-skill-eval — 10명
 - 3차 웨이브: renderer 소형 모듈·CSS — 1명
 - 리드가 소스에서 직접 다시 확인한 발견: M1, M4, M5, M6, M7, M8, M16, M17
+
+---
+
+## 라운드 1 처리 결과 (2026-11-26)
+
+| PR | 브랜치 | 처리 |
+|---|---|---|
+| #397 | feat/main-audit | M5, L-G2-3, L-G2-4, L-G2-8, M-G2-2, M-G2-3, M-G2-5, M-G2-10, M-G2-11, M-G2-13(일부), M-G2-14, M-G2-15, M-G3-5, W2-PCR-1. M-G2-12는 재현되지 않아 제외(기존 테스트가 이미 `storage.go`를 읽음). W2-PCR-2는 측정만 함 |
+| #398 | feat/conversation-audit | M4, M6, M7, L-G2-2, W2-conv-core-2, W2-conv-transport-2, W2-conv-transport-3(일부), M-G2-7, M-G2-8, M-G2-13(대화 부분), C-G2-1 |
+| #399 | feat/cli-audit | M14, M15, C-G1-1, B-G1-4, M-G1-3, M-G1-4, L-G1-3, M-G3-7, W2-cli-export-canvas-4, Go export 프레임 이름 trim |
+| #400 | fix/auth-audit | M8, M9, M20, W2-ASU-3, W2-ASU-4, M-G2-9, L-G2-7, M-G2-13(인증 부분), `QUIT_WAIT_MS` |
+| #401 | fix/eval-audit | M16, M17, L-G1-2, L-G1-4, L-G1-5, L-G1-6, M-G1-2, B-G1-1, B-G1-2, W2-cli-repo-skill-eval-1 |
+| #402 | feat/renderer-audit | M1, M3, M10(일부), M11, M12, M13(일부), M18, M19, C-G3-4, C-G3-7, C-G3-8, C-G3-9, M-G3-3, M-G2-6, M-G3-4, M-G3-6, L-G3-3, B-G3-1, W2-renderer-conversation-1, W2-shell-6, W2-renderer-canvas-1·2·3·4·5·6, W3-leftovers-1, W3-leftovers-2 |
+
+의심으로 분류한 발견은 모두 고치기 전에 실패하는 테스트나 probe로 재현했다. 재현되지 않은 것은 M-G2-12 하나다.
+
+### 사용자 결정으로 넘긴 것
+
+- BACKLOG에 올린 것: M2(터미널 resume 첨부 누락), W2-PCR-2(사이드바 프로젝트 클릭 시 main 정지), C-G3-3(Fast `bad_request`), M10 남은 부분(숨긴 auto worktree의 마지막 캔버스 기억).
+- 보고서에만 남긴 것(Low):
+  - W2-conv-transport-3 남은 부분: 기록된 provider 메시지가 없는 문구의 ACP 실패 코드가 열기 단계와 프롬프트 단계에서 다르다.
+  - C-G3-5: 설정 경로 거절마다 CLI 오류 코드를 따로 두는 문제로, CLI 계약을 바꿔야 한다.
+  - M13 남은 부분: 손으로 추가한 worktree를 "마지막으로 등록한 프로젝트"로 볼지.
+  - 위 '미결정 제품 질문' 표의 항목.
+
+### 각 PR이 남긴 후속 후보 (라운드 2 감사 대상)
+
+- `design-skills:get`과 `onboarding:check` main 핸들러를 호출하는 곳이 없다. `design-skills:get`을 지우면 ARCHITECTURE §7 'Design preset reads'가 바뀐다.
+- Locate에 busy 검사가 없다.
+- `message.delta`·`message.done`·`mcpStartup.ts` 요약의 U+0000.
+- `mcpConnectors/codexApproval.ts`가 아직 예전 request id 형식을 만든다.
+- 강제 색상 모드에서 채우기만으로 표시하는 상태가 더 있다: Settings 스위치, 메뉴 강조, Quick Open 선택, 캔버스 도구, composer pick 등.
+- `FAST_PROVIDERS`의 단일 출처, 예약 큐 행의 명령 표시, `nextQueued`·`combineQueued` 공유.
+- `@property` `<url>` 처방이 `image-set()` 값에는 맞지 않는다.
+- 펜스 안에 심어진 `chmod 000` 폴더가 여전히 provider를 막는다.
+
+### 실행 검증 상태
+
+공용 gate는 6개 PR 모두 로컬과 CI에서 통과했다. 실앱 probe를 한 PR과 결과는 다음과 같다: #397 4/4, #402 5/5, #400 Seatbelt probe 1건. 각 PR 본문이 실앱에서 확인하지 못했다고 적은 항목은 lead.md 6단계에 따라 라운드 2가 끝난 뒤 한꺼번에 확인한다.
