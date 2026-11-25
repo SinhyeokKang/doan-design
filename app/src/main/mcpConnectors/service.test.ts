@@ -682,6 +682,22 @@ describe("sign-out and replacement logout", () => {
     await s.idle();
   });
 
+  it("a Codex replacement still records a failed logout and registers the rest when another doan- registration has a URL Doan would not store", async () => {
+    cli.failing.add("codex logout doan-figma");
+    cli.registered.codex.set("doan-plain", { url: "http://example.com/mcp", auth: true });
+    const staging = join(dir, "agent-auth", "profiles", "codex-next");
+    mkdirSync(staging);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const s = service();
+      expect(await s.logoutForAuth("codex", request("codex", { kind: "replace", staging }))).toEqual({ failed: ["doan-figma"] });
+      expect(readFileSync(join(staging, "config.toml"), "utf8")).toBe('\n[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/mcp"\n');
+      expect(store.pending()).toEqual([{ provider: "codex", name: "doan-figma", url: "https://mcp.figma.com/mcp" }]);
+      expect(store.blocked("codex", "doan-figma")).toBe(true);
+      await s.idle();
+    } finally { errors.mockRestore(); }
+  });
+
   it("a Claude replacement logs out only when the account changed; a failed logout blocks that Claude Connect", async () => {
     cli.registered.claude.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
     cli.registered.claude.set("doan-figma", { url: "https://mcp.figma.com/mcp", auth: true });

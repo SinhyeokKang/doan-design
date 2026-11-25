@@ -58,7 +58,7 @@ export interface AuthManagerOptions {
 export interface WriteOptions { stop?: boolean }
 interface Run { code: number | null; stdout: string; stderr: string }
 const OUTPUT_LIMIT = 1024 * 1024;
-const QUIT_WAIT_MS = 5000;
+export const QUIT_WAIT_MS = 5000;
 const ACP_OPEN_MS = 60_000;
 const LINK_POLL_MS = 100;
 // The CLI launches the browser right after printing its link, so no accepted hook link this long after it means the CLI
@@ -520,7 +520,8 @@ export class AuthManager {
     if (connection) await this.mcpStep(provider, attemptId, connection.profile, { kind: "signOut", previousAccountId: connection.account.id, nextAccountId: null, staging: null });
     // The server's own logout clears its stored token. doan's copy goes either way, and only the fresh status below decides.
     if (auth.acpAuth && auth.vault) await this.acpLogout(provider, attemptId);
-    if (auth.vault) { storage.removeVault(provider); storage.scrub(provider, auth.vault); }
+    // The plaintext goes even when the vault copy cannot be removed (ARCHITECTURE §7 'Storage' 'Working copies').
+    if (auth.vault) { try { storage.removeVault(provider); } finally { storage.scrub(provider, auth.vault); } }
     else if (auth.logout) {
       const logout = await this.exec(provider, attemptId, auth.logout, this.options.statusTimeoutMs ?? 20_000);
       if (logout.code !== 0) throw new Error(`logout exited ${logout.code}: ${tail(logout.stderr) ?? ""}`);
@@ -599,7 +600,10 @@ export class AuthManager {
     }
   }
   private async acpLogout(provider: Provider, attemptId: string): Promise<void> {
-    await this.hold(provider);
+    // A stored login that cannot be put in the profile (an unreadable vault) leaves no token to log out with; Doan's
+    // copy still goes, and the status check decides.
+    try { await this.hold(provider); }
+    catch (error) { console.error(`doan: ${provider} server logout skipped; removing Doan's copy: the stored login could not be prepared`, message(error)); return; }
     try {
       await this.acpExec(provider, attemptId, this.options.statusTimeoutMs ?? 20_000, () => true, "logout", {});
     } catch (error) { console.error(`doan: ${provider} server logout failed; removing Doan's copy: ${exchangeReason(error)}${serverLog(error)}`); }

@@ -320,8 +320,13 @@ export class McpService implements McpConversationFacts {
         // The staging profile also takes the signed-out registrations, which have nothing to carry over.
         const register = [...outcome.register, ...listed.servers.filter(server => server.authenticated === false && CONNECTOR_NAME.test(server.name)).map(server => server.name)];
         if (request.staging && register.length) {
-          const blocks = register.flatMap(name => { const at = url(name); return at ? [codexServerToml(name, at)] : []; });
-          try { appendFileSync(join(request.staging, "config.toml"), `\n${blocks.join("\n")}`, { mode: 0o600 }); }
+          // A doan- registration Doan did not write (a URL it would not store) is left out, not fatal to the rest.
+          const blocks = register.flatMap(name => {
+            const at = url(name);
+            try { return at ? [codexServerToml(name, at)] : []; }
+            catch { console.error(`doan: ${provider} MCP server ${name} was not registered in the new profile: its URL is not one Doan writes`); return []; }
+          });
+          if (blocks.length) try { appendFileSync(join(request.staging, "config.toml"), `\n${blocks.join("\n")}`, { mode: 0o600 }); }
           catch (error) { console.error(`doan: ${provider} MCP servers could not be registered in the new profile`, message(error)); }
         }
         for (const name of outcome.unregister) {

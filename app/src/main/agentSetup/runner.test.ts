@@ -518,6 +518,27 @@ describe("the /usr/local/bin link", () => {
     expect(admin.calls).toEqual([]);
     expect(actions(result)["system-cli"]).toBeUndefined();
   });
+  // The login shell spells PATH from its own $HOME, which can be a link to the canonical HOME setup builds from.
+  it("is not asked for when the login PATH reaches ~/.local/bin through a link to HOME", async () => {
+    const alias = join(temp, "home-link");
+    symlinkSync(home, alias);
+    const viaAlias = await runAgentSetup(options({ home: alias, resources: join(alias, "Applications/Doan.app/Contents/Resources"), loginPath: `/usr/bin:/bin:${alias}/.local/bin`, runAdmin: shellAdmin() }));
+    expect(actions(viaAlias)["system-cli"]).toBeUndefined();
+    mkdirSync(join(home, ".local/bin"), { recursive: true });
+    const admin = shellAdmin();
+    const viaPath = await runAgentSetup(options({ loginPath: `/usr/bin:/bin:${alias}/.local/bin/`, runAdmin: admin }));
+    expect(admin.calls).toEqual([]);
+    expect(actions(viaPath)["system-cli"]).toBeUndefined();
+  });
+
+  it("is not asked for when ~/.local/bin itself is a link to another folder", async () => {
+    mkdirSync(join(temp, "dotfiles-bin")); mkdirSync(join(home, ".local"), { recursive: true });
+    symlinkSync(join(temp, "dotfiles-bin"), join(home, ".local/bin"));
+    const admin = shellAdmin();
+    const result = await runAgentSetup(options({ runAdmin: admin }));
+    expect(admin.calls).toEqual([]);
+    expect(actions(result)["system-cli"]).toBeUndefined();
+  });
 
   it("is created through the administrator shell when ~/.local/bin is not on PATH", async () => {
     const admin = shellAdmin();
