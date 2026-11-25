@@ -21,6 +21,7 @@
 | 8 | Copilot 범위 | T0에서 기존 파일 편집의 `oldText`/`newText`는 바뀐 범위의 조각이었지만, 센 줄 수는 실제 변화와 같았다. 그래서 범위에 둔다. 기준은 '조각을 비교한 줄 수가 실제 변화와 같다'로 고친다. | 사용자 |
 | 9 | Antigravity | 완료된 갱신에 diff가 없고, 제안 조각만 pending에 온다. tasks.md 규칙대로 범위에서 빼고 BACKLOG로 보낸다. | conductor 판단 — tasks.md T0 |
 | 10 | 결과 매칭 키 | `activity.result.path`는 그 결과가 붙을 activity에 저장된 `path`와 같게 만든다(activity에 없으면 생략). renderer는 'callId가 같고, path가 같거나 둘 다 없다'로 매칭한다. 그래서 Copilot 1.0.114 multipath는 경로 없는 결과 둘이 한 단계에서 더해진다. | conductor 판단 — design.md 키 규칙과 spec 완료 조건 2 |
+| 11 | Copilot 여러 파일 apply_patch | 단계가 보여주는 경로와 같은 diff 항목만 센다(단계에 경로가 없으면 모두 더한다). 그래서 1.0.114 multipath는 'Edited config.txt +1 −1'이고, 덮어쓰기(같은 경로의 삭제+추가)는 +2 −4 그대로다. 호출 하나가 단계 하나만 만드는 점은 BACKLOG로 보낸다. | 사용자 |
 | 4 | T6 승격 | conductor가 직접 한다(§4·§5 문서 커밋). | orchestrate 스킬 |
 
 ## 배치
