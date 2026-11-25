@@ -22,6 +22,9 @@
   - 공백이 없는 언어(중국어·일본어)도 단어 단위로 펼친다. `Intl.Segmenter`를 쓰고 의존성은 늘지 않는다. design의 "단어 경계"를 모든 언어에 적용한 것이다.
   - 큐가 나갈 때의 로컬 전송 표시는 main이 보내는 합친 메시지 하나와 같은 텍스트 하나다. UI 배치가 `combineQueued`(main의 순수 함수)로 만든다.
 - `scrollToItem` 뒤의 `held`는 사람의 입력 말고도, 스크롤해 간 카드가 더 이상 기다리지 않을 때(답함·사라짐) 풀린다. — conductor 판단(R2 🟡1), 근거: spec 완료 조건 5의 목적은 카드로 가는 스크롤을 지키는 것이고, 카드가 끝난 뒤에도 따라가지 않으면 바닥에 있는 사람이 Jump to latest를 보게 된다.
+- 실제 Codex 턴: Doan은 Codex 자격 증명을 `CODEX_HOME`에 묶인 Keychain 항목으로 읽으므로 `auth.json` 복사만으로는 부족했다(B3 질문). 그래서 실제 `~/.codex/auth.json`(읽기만)으로 임시 `CODEX_HOME`용 임시 Keychain 항목 하나를 만들고, Doan의 계정 기록은 임시 userData 안에서 앱의 상태 확인으로만 만든다. 끝나면 항목·임시 홈·userData를 지우고 삭제를 확인한다. 로그인 흐름이 필요하면 멈추고 묻는다. — conductor 판단, 근거: AGENTS.md 'Real agent sign-ins'(임시 홈용 임시 Keychain 항목 허용), 체인 시작 점검 승인.
+- `message.done` 없이 `turn.done`으로 끝난 답은 즉시가 아니라 150ms에 걸쳐 마저 보인다(spec 완료 조건 3과 다름). PRODUCT에 이 규칙으로 적는다. — conductor 판단(R3 결정 항목), 근거: 차이가 150ms 이하이고, UI가 두 끝을 구별하려면 히스토리 항목에 필드를 더해야 한다. 실패·interrupt·Stop은 즉시 보인다.
+- 사람이 Keychain 창을 보지 않도록, 이후의 실제 provider probe는 실제 login keychain 대신 임시 HOME 안의 일회용 keychain 파일을 기본 keychain으로 쓴다. — 사용자 요청. 이번 실제 Codex 턴은 그 전에 실제 keychain 링크로 끝났다(사용자가 창을 허용).
 
 ## 배치
 
