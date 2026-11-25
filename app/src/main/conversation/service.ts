@@ -1424,11 +1424,16 @@ export class ConversationService {
     clearTimeout(turn.timer); this.handoffTurns.delete(id);
     for (const wake of turn.waiters.splice(0)) wake();
   }
-  // The earlier conversation's queue follows the work: it goes out after the new conversation's first turn.
+  // The earlier conversation's queue follows the work: it goes out after the new conversation's first turn. What does not
+  // fit there is the source's draft, its attachment ids held for it as giveBack holds them.
   private moveQueue(from: string, to: string): void {
-    const moved = this.drafts.move(from, to);
+    const { moved, returned } = this.drafts.move(from, to);
     for (const item of moved) { const held = this.queuedExtras.get(item.itemId); if (held) held.owner = to; }
-    if (moved.length) this.changedOf(from);
+    if (returned.length) {
+      const held = this.forget(from, returned.map(item => item.itemId));
+      if (held.length) this.returnedHeld.set(from, [...this.returnedHeld.get(from) ?? [], ...held]);
+    }
+    if (moved.length || returned.length) this.changedOf(from);
   }
   // A deleted conversation's run: it is closed, a send waiting for its previous process is refused, and its queue comes
   // back as a draft before the deletion discards it.
