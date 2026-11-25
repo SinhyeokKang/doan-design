@@ -420,6 +420,29 @@ test("a provider arrival with the window in the background focuses its row group
   expect(shown.focus).toHaveBeenCalledTimes(2);
 });
 
+// A pasted address is answered by main after the person may have gone back to the browser; activation then restores the
+// focus the window had before, on the gone modal (POSTMORTEM 2026-11-17 'Window activation put focus on Hide sidebar'),
+// so the return to the paste line is made again on activation, to the line as drawn then.
+test("a paste modal that main's answer closes with the window in the background returns focus again on activation", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const win = Object.assign(new EventTarget(), { doan: api });
+  vi.stubGlobal("window", win);
+  const line = () => ({ focus: vi.fn(), matches: () => false });
+  let shown = line();
+  const first = shown;
+  vi.stubGlobal("document", { activeElement: null, body: {}, hasFocus: () => false, querySelectorAll: () => [], querySelector: (selector: string) => selector === '[data-paste="antigravity"]' ? shown : null });
+  await settle();
+  const session = hooks.states.find(value => typeof (value as { submitPaste?: unknown } | null)?.submitPaste === "function") as { focusOn(target: string, provider: string): void };
+  session.focusOn("paste", "antigravity");
+  render();
+  expect(first.focus).toHaveBeenCalledOnce();
+  shown = line();
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(first.focus).toHaveBeenCalledOnce();
+  expect(shown.focus).toHaveBeenCalledTimes(2);
+});
+
 // Click handlers return void; settle the session updates before checking install results, including stale failures.
 // Row notices and their buttons are components (NoticeView, ActionButton); drawn here as React would.
 const NOTICE_PARTS = new Set(["NoticeView", "ActionButton"]);
