@@ -22,7 +22,7 @@ function finish(state: TransportState, event: EventPayload, judged = true): Tran
   if (state.terminal) return unchanged(state);
   const terminal: EventPayload = state.stop ? { type: "interrupted", reason: state.stop } : event;
   const fast = judged && state.fastUnused && (terminal.type === "turn.done" || terminal.type === "turn.failed") ? [state.fastUnused] : [];
-  const { claudeFailure: _failure, ...ended } = withoutRunning(state);
+  const { claudeFailure: _failure, claudeEdits: _claude, codexEdits: _codex, ...ended } = withoutRunning(state);
   return { state: { ...ended, terminal: true, fileSummaries: {} }, events: [...fast, ...contextBefore(state, terminal), terminal] };
 }
 // The state with the given calls (all of them when none are named) no longer running; the field goes once it is empty.
@@ -296,11 +296,17 @@ function codexChangeLines(change: Record<string, unknown>): EditLines | null {
   if (kind === "delete") return { added: 0, removed: contentLines(change.diff) };
   return null;
 }
-// Only a completed item was applied: a declined one still carries its diff.
-function codexEditResults(item: Record<string, unknown>): EventPayload[] {
-  const callId = item.type === "fileChange" && item.status === "completed" ? callIdOf(text(item.id)) : undefined;
-  if (!callId || !Array.isArray(item.changes)) return [];
-  return item.changes.filter(object).flatMap(change => editResult(callId, text(change.path), codexChangeLines(change)));
+// Only a completed item was applied: a declined one still carries its diff. stored: the paths the item's activities
+// stored; each is matched by one change at most, and a change on any other path has no step to show it.
+function codexEditResults(item: Record<string, unknown>, callId: string, stored: readonly string[]): EventPayload[] {
+  if (item.status !== "completed" || !Array.isArray(item.changes)) return [];
+  const left = [...stored];
+  return item.changes.filter(object).flatMap(change => {
+    const path = text(change.path), at = left.indexOf(path);
+    if (at < 0) return [];
+    left.splice(at, 1);
+    return editResult(callId, path, codexChangeLines(change));
+  });
 }
 function claudeKind(tool: string): ActivityKind {
   return /^(Write|Edit|MultiEdit)$/.test(tool) ? "edit" : /^(Read|Glob|Grep)$/.test(tool) ? "read" : tool === "Bash" ? "command" : "other";
@@ -352,7 +358,7 @@ function codexReadStage(item: Record<string, unknown>, root: string): TurnStage 
   if (only.type === "listFiles" || only.type === "search") return { kind: "tool", activity: "read", summary: GENERIC_SUMMARY.read };
   return null;
 }
-function codexActivities(item: Record<string, unknown>, root: string, labels: Readonly<Record<string, string>>): { events: EventPayload[]; files: string } {
+function codexActivities(item: Record<string, unknown>, root: string, labels: Readonly<Record<string, string>>): { events: ActivityEvent[]; files: string } {
   if (item.type === "fileChange") {
     const paths = (Array.isArray(item.changes) ? item.changes.filter(object) : []).map(change => text(change.path));
     const callId = callIdOf(text(item.id));
@@ -623,14 +629,23 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
     if (tool && id) state = started ? withRunning(state, id) : withoutRunning(state, [id]);
     const read = started && item.type === "commandExecution" ? codexReadStage(item, context.root) : null;
     const stage = read ?? (tool && !started && !state.running ? GENERAL_STAGE : null);
-    const results = started ? [] : codexEditResults(item);
+    let events: EventPayload[] = [];
     if (id && !state.activities.includes(id) && tool) {
-      const { events, files } = codexActivities(item, context.root, context.labels ?? PRESET_LABELS);
+      const made = codexActivities(item, context.root, context.labels ?? PRESET_LABELS);
       // A file approval names only its itemId, so the paths seen when the item started are kept for it.
-      const fileSummaries = files && raw.method === "item/started" ? withFileSummary(state.fileSummaries, id, files) : state.fileSummaries;
-      return { state: { ...state, activities: [...state.activities, id], fileSummaries }, events: [...events, ...results], ...(stage ? { stage } : {}) };
+      const fileSummaries = made.files && raw.method === "item/started" ? withFileSummary(state.fileSummaries, id, made.files) : state.fileSummaries;
+      const edits = made.events[0]?.callId ? { codexEdits: { ...state.codexEdits, [id]: made.events.map(event => event.path ?? "") } } : {};
+      state = { ...state, activities: [...state.activities, id], fileSummaries, ...edits };
+      events = made.events;
     }
-    if (results.length || stage) return { state, events: results, ...(stage ? { stage } : {}) };
+    // An item completes once; its stored paths go with it.
+    if (!started && state.codexEdits && Object.hasOwn(state.codexEdits, id)) {
+      const { [id]: stored, ...rest } = state.codexEdits;
+      const { codexEdits: _, ...without } = state;
+      state = Object.keys(rest).length ? { ...without, codexEdits: rest } : without;
+      events = [...events, ...codexEditResults(item, id, stored ?? [])];
+    }
+    if (events.length || stage) return { state, events, ...(stage ? { stage } : {}) };
   }
   if (raw.method === "turn/completed" && object(params.turn)) {
     if (params.turn.status === "interrupted") return aborted(state);
