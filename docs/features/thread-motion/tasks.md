@@ -5,7 +5,7 @@
 ## T1. 드래프트와 모션 결정
 
 - `/design-draft thread-motion`으로 진입(A로 확정)과 점진 표시(B로 확정)를 재생 가능하게 그린다. 사용자가 앱에서 고른다. 고르지 않은 안은 지운다.
-- 검증: `doan check`가 통과하고, `doan ls`의 프레임이 `entry`, `stream`, `reduced`이고 각 프레임에 고른 안만 남아 있고, 사용자가 고른 안이 design.md에 적혀 있다.
+- 검증: `doan check`가 통과하고, `doan ls`의 프레임이 `entry`, `stream`, `scroll`, `reduced`이고 각 프레임에 고른 안만 남아 있고, 사용자가 고른 안이 design.md에 적혀 있다.
 - `[commit]` 드래프트(develop에서는 `/design-draft`가 직접 push한다)와 design.md.
 
 ## T2. PoC
