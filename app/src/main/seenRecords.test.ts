@@ -1,9 +1,9 @@
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, test } from "vitest";
 import { PROMPT_MS, withFifo } from "./fifo.fixture";
-import { parseMarker, parseRecord, readSeen, SEEN_DIR } from "./seenRecords";
+import { CANVAS_ID, parseMarker, parseRecord, readSeen, SEEN_DIR } from "./seenRecords";
 
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), "doan-seen-records-")));
 let count = 0;
@@ -20,6 +20,13 @@ const H = (c: string) => `sha256:${c.repeat(64)}`;
 const bytes = (text: string) => Buffer.from(text);
 // The record format an older Doan wrote, one line.
 const recordText = (value: { html: string } | { unseen: "migrated" } | null) => value === null ? `{"v":1}\n` : "html" in value ? `{"v":1,"html":"${value.html}"}\n` : `{"v":1,"unseen":"migrated"}\n`;
+
+test("the canvas id rule is the one the sessions schema and doan check use", () => {
+  const schema = JSON.parse(readFileSync(join(__dirname, "../../../schema/sessions.v1.schema.json"), "utf8")) as { properties: { canvas: { properties: { id: { pattern: string } } } } };
+  const pattern = schema.properties.canvas.properties.id.pattern;
+  expect(CANVAS_ID.source).toBe(pattern);
+  expect(readFileSync(join(__dirname, "../../../cli/internal/check/check.go"), "utf8")).toContain(`idPattern = regexp.MustCompile(\`${pattern}\`)`);
+});
 
 describe("format", () => {
   test("a record is v:1 with exactly one of html or unseen; the marker is {v:1}", () => {

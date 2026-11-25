@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { conversationCanvasKey, parseUiState } from "../../restore/uiState";
 import type { ConversationEvent, StageSignal } from "../conversation/types";
 import type { CanvasRow, FolderEntry } from "../view";
 import {
@@ -308,6 +309,24 @@ describe("prototypeRevealRequest", () => {
     expect(reveal({ kind: "conversation", conversationId: "c-project" }, null)).toBeNull();
     expect(reveal({ kind: "chip", conversationId: "c-proto", anchor: { frame: { id: "a" } } }, PLAYING, [list("/r", [row(LOOSE)])])).toBeNull();
     expect(reveal({ kind: "settings", provider: "claude" }, null)).toEqual({ kind: "settings", provider: "claude" });
+  });
+});
+
+// The window reads the raw saved file; these keep it to the id and key rules ui-state is written and parsed with.
+describe("prototypeRememberedConversation against ui-state", () => {
+  const ID = "0a1b2c3d-0000-4000-8000-000000000001";
+  const savedWith = (key: string, id: string) => ({ screen: "home", expanded: {}, lastByRoot: {}, conversationByCanvas: { "/r": { [key]: id } } });
+
+  test.each([
+    ID, "ffffffff-ffff-ffff-ffff-ffffffffffff", ID.toUpperCase(), ID.slice(1), `${ID}0`, `0${ID}`, `${ID}\n`, ID.replaceAll("-", ""), ID.replace("0a", "0g"), "not-an-id", "",
+  ])("accepts the id %j exactly when ui-state keeps it", (id) => {
+    const kept = parseUiState(JSON.stringify(savedWith("proto", id)), ["/r"])?.conversationByCanvas?.["/r"]?.["proto"] ?? null;
+    expect(prototypeRememberedConversation(savedWith("proto", id), PLAYING, ENTRIES)).toBe(kept);
+  });
+
+  test("looks a canvas up under ui-state's key, by id and by path", () => {
+    expect(prototypeRememberedConversation(savedWith(conversationCanvasKey({ path: PROTO, id: "proto" }), ID), PLAYING, ENTRIES)).toBe(ID);
+    expect(prototypeRememberedConversation(savedWith(conversationCanvasKey({ path: LOOSE }), ID), PLAYING_LOOSE, ENTRIES)).toBe(ID);
   });
 });
 

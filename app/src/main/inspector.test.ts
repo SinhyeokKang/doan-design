@@ -3,7 +3,9 @@ import { afterEach, expect, test, vi } from "vitest";
 import { DocumentBindings } from "./document/bindings";
 import { inspectRows, type InspectInput } from "./inspect";
 import fixture from "./inspect.fixture.json";
-import { createInspector, parseInspectRequest, type InspectRequest } from "./inspector";
+import { MAX_SELECTOR } from "../renderer/canvasMessage";
+import { ancestorLabel as exportedViewerLabel } from "./cssomMatched";
+import { ancestorLabel, createInspector, parseInspectRequest, type InspectRequest } from "./inspector";
 import { createWindowDebugger, type DebuggerLike } from "./windowDebugger";
 
 const CANVAS = { root: "/repo", path: ".doan/canvases/a.html" };
@@ -483,4 +485,23 @@ test("inheritedFrom names a frame by its title or id and an element by its data-
   expect(await named({ localName: "section", attributes: ["data-doan-frame", "payment", "data-doan-title", "  "] })).toBe("payment");
   expect(await named({ localName: "div", attributes: ["data-doan-id", "order-total", "data-doan-title", "ignored"] })).toBe("order-total");
   expect(await named({ localName: "div", attributes: ["class", "x"] })).toBe("div");
+});
+
+test("the selector cap is the canvas messages' cap", () => {
+  const request = (length: number) => parseInspectRequest({ selector: "a".repeat(length), canvas: CANVAS, seq: 0 });
+  expect(request(MAX_SELECTOR)).not.toBeNull();
+  expect(request(MAX_SELECTOR + 1)).toBeNull();
+});
+
+test.each([
+  ["section", { "data-doan-frame": "payment", "data-doan-title": " Payment " }],
+  ["section", { "data-doan-frame": "payment", "data-doan-title": "  " }],
+  ["section", { "data-doan-frame": "payment" }],
+  ["section", { "data-doan-frame": "" }],
+  ["div", { "data-doan-id": "order-total", "data-doan-title": "ignored" }],
+  ["div", { "data-doan-id": "" }],
+  ["div", {}],
+] as [string, Record<string, string>][])("the app and the exported viewer name an ancestor <%s %o> alike", (localName, attributes) => {
+  const element = { localName, getAttribute: (name: string) => attributes[name] ?? null } as unknown as Element;
+  expect(ancestorLabel({ localName, attributes: Object.entries(attributes).flat() })).toBe(exportedViewerLabel(element));
 });
