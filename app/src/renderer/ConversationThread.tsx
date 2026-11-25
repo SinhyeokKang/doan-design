@@ -651,8 +651,12 @@ function markColumn(block: BubbleList): number {
 
 // A sent message: its bubble, attachments and the chip locate note under the bubble (draft frame `chip-locate`). One
 // Send now has in flight ends with a Sending line and has no actions (canvas-composer-polish draft frame `sending`).
-function UserMessage({ entry, frames, disabled, onLocate, home, enter }: { entry: Extract<ThreadItem, { kind: "user" }>; frames: readonly FrameName[] | undefined; disabled: boolean; onLocate: ConversationThreadProps["onLocate"]; home: string | null; enter: boolean }) {
+function UserMessage({ entry, frames, disabled, onLocate, home, entryAge: age }: { entry: Extract<ThreadItem, { kind: "user" }>; frames: readonly FrameName[] | undefined; disabled: boolean; onLocate: ConversationThreadProps["onLocate"]; home: string | null; entryAge: number | null }) {
   const base = useId();
+  // How far its entry had run when this element mounted: a history message replacing the Sending one goes on from there.
+  // Under a frame is this render's own delay, not an entry already under way.
+  const [entryAge] = useState(() => age === null ? null : age < 16 ? 0 : Math.round(age));
+  const enter = entryAge !== null && entryAge < FADE_MS;
   const [shown, show] = useLocateNote();
   const [chip, setChip] = useState<string | null>(null);
   const shownFor = shown ? chip : null;
@@ -678,7 +682,7 @@ function UserMessage({ entry, frames, disabled, onLocate, home, enter }: { entry
     <span className="bubble-item-body" data-depth={depth} data-mark={mark}>{inline(item.parts)}</span>
     {item.children.map((child, n) => <Fragment key={n}>{list(child, depth + 1)}</Fragment>)}
   </div>)}</div>;
-  return <div className={enter ? "msg-user thread-enter" : "msg-user"}>
+  return <div className={enter ? "msg-user thread-enter" : "msg-user"} style={enter && entryAge ? { animationDelay: `-${entryAge}ms` } : undefined}>
     <div className="bubble">{entry.preset && <span className="bubble-preset"><PencilSparkles aria-hidden="true" />{entry.preset.title}</span>}{entry.preset && entry.parts.length > 0 && !listed && "\n"}
       {listed ? blocks.map((block, i) => block.kind === "list" ? <Fragment key={i}>{list(block, 0)}</Fragment>
         : <span key={i} className="bubble-text">{inline(block.parts)}{i < blocks.length - 1 && endsInBlankLine(block.parts) && "\n"}</span>)
@@ -959,6 +963,20 @@ function stacks(items: readonly ThreadItem[]): ThreadItem[][] {
 // The background line's thread item key, which no history item takes (their keys start with a kind letter and a seq).
 const BACKGROUND_KEY = "background";
 
+// When each user message this thread drew began its entry (entering), by key. A history message that replaces a
+// Sending one drawn in the previous render (same words and chips) takes that one's start, so the entry runs once.
+export function entryTimes(prev: readonly ThreadItem[], items: readonly ThreadItem[], localSends: readonly LocalSend[], times: ReadonlyMap<string, number>, now: number): ReadonlyMap<string, number> {
+  const fresh = entering(prev, items, localSends), drawn = new Set(prev.map(item => item.key));
+  const added: [string, number][] = [];
+  for (const key of fresh) if (!times.has(key)) added.push([key, now]);
+  for (const item of items) {
+    if (item.kind !== "user" || item.sending || drawn.has(item.key) || times.has(item.key) || fresh.has(item.key)) continue;
+    const from = prev.find(q => q.kind === "user" && q.sending === true && times.has(q.key) && sameItem(q.parts, item.parts) && sameItem(q.anchors, item.anchors));
+    if (from) added.push([item.key, times.get(from.key)!]);
+  }
+  return added.length ? new Map([...times, ...added]) : times;
+}
+
 // The thread item (its data-item key) holding focus, if focus is inside the thread.
 function focusedItem(scroller: HTMLElement | null): string | null {
   const active = typeof document === "undefined" ? null : document.activeElement;
@@ -1098,8 +1116,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current); }, []);
 
   // Messages this window sent enter once, in the render they first show; a remount starts with nothing entering.
-  const prevItems = useRef<readonly ThreadItem[]>([]), entered = useRef(new Set<string>());
-  if (Array.isArray(items)) for (const key of entering(prevItems.current, items, props.localSends ?? NO_SENDS)) entered.current.add(key);
+  const prevItems = useRef<readonly ThreadItem[]>([]), entered = useRef<ReadonlyMap<string, number>>(new Map());
+  const renderedAt = performance.now();
+  if (Array.isArray(items)) entered.current = entryTimes(prevItems.current, items, props.localSends ?? NO_SENDS, entered.current, renderedAt);
+  const entryAge = (key: string) => { const at = entered.current.get(key); return at === undefined ? null : renderedAt - at; };
   useLayoutEffect(() => {
     if (!Array.isArray(items)) return;
     prevItems.current = items;
@@ -1311,7 +1331,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   };
   const depsOf = (entry: ThreadItem): readonly unknown[] => {
     switch (entry.kind) {
-      case "user": return [props.frames, !!props.locateDisabled, !!props.onLocate, props.homeDirectory ?? null, entered.current.has(entry.key)];
+      case "user": return [props.frames, !!props.locateDisabled, !!props.onLocate, props.homeDirectory ?? null, entered.current.get(entry.key) ?? null];
       case "agent": return [flushes(entry)];
       case "activity": return [expanded.has(entry.key)];
       case "permission": return [provider, entry.seq > props.liveAfter, unanswered.has(entry.requestId)];
@@ -1334,7 +1354,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const toggle = (key: string) => setExpanded(current => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   const item = (entry: ThreadItem): ReactNode => {
     switch (entry.kind) {
-      case "user": return <UserMessage entry={entry} frames={props.frames} disabled={!!props.locateDisabled} onLocate={props.onLocate && locate} home={props.homeDirectory ?? null} enter={entered.current.has(entry.key)} />;
+      case "user": return <UserMessage entry={entry} frames={props.frames} disabled={!!props.locateDisabled} onLocate={props.onLocate && locate} home={props.homeDirectory ?? null} entryAge={entryAge(entry.key)} />;
       case "agent": return <AgentMessage text={entry.text} streaming={entry.streaming} flush={flushes(entry)} fresh={prevItems.current.length > 0 && !prevItems.current.some(item => item.key === entry.key)} />;
       case "noReply": return <div className="msg-agent"><p className="muted">No reply.</p></div>;
       case "fast": return <div className="activity"><div className="activity-head fast-note"><Zap aria-hidden="true" /><span>{entry.text}</span></div></div>;
