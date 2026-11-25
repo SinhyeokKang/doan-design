@@ -12,7 +12,11 @@
 - M-G2-5: 앱이 CLI 판정을 따르게 한다(리드 지시). ARCHITECTURE §7 "as the CLI judges it"과 맞는다.
 - M-G3-5: 세 adapter와 그것만 붙잡는 `onboarding:check` main 창 허용을 지운다(리드 지시). CLI는 소켓 v2로 check에 닿는다.
 - "의심" 발견(L-G2-3, L-G2-8의 두 번째 트리거 포함, W2-PCR-2, M-G2-10, M-G2-11, M-G2-12, M-G2-13, M-G2-15, M-G2-3): 실패 테스트나 격리 probe로 먼저 확인하고, 재현되지 않으면 버리고 PR 본문에 적는다.
-- 소유권 밖 파일: `app/src/main/conversation/`(conversation-audit), `agentAuth/`·`mcpConnectors/`(auth-audit), `cli/`(cli-audit, `storage.go`만 예외). M-G2-3과 M-G2-13의 해당 쌍(Claude plaintext 목록, 계정 label, conversation 안의 canvas id 정규식)은 리드와 조율한 뒤에만 손댄다. 조율 전에는 보류 항목으로 둔다.
+- 소유권 밖 파일: `app/src/main/conversation/`(conversation-audit), `agentAuth/`·`mcpConnectors/`(auth-audit), `cli/`(cli-audit, `storage.go`만 예외).
+- 리드 조율 결과: M-G2-3은 이 run이 맡아 `conversation/skills.ts`와 `conversation/skills.commands.test.ts`만 고친다. M-G2-13의 Claude plaintext 목록·계정 label 쌍은 auth-audit, conversation 안의 canvas id 정규식(`store.ts`, `replyAnchor.ts`)은 conversation-audit이 맡아 이 run에서 뺀다.
+
+- postmortem: 워커는 `docs/postmortem/2026-11.md`를 직접 고치지 않고 항목 초안을 handoff에 적는다. 같은 월 파일 맨 위에 여러 워커가 쓰면 통합 때 충돌하므로 conductor가 모아 한 번에 커밋한다. conductor's call.
+- 공유 게이트(`verify.mjs`)와 실앱 probe: 워커는 대상 테스트·typecheck·lint만 돌리고, 통합 HEAD에서 conductor가 공유 게이트를 한 번 돌린다. 실앱 확인이 필요한 동작은 워커가 handoff에 적고 conductor가 통합 뒤 판단한다. conductor's call — 병렬 워커 5개가 전체 게이트와 GUI probe를 겹쳐 돌리지 않게 한다.
 
 ## 배치
 
@@ -22,13 +26,12 @@
 | B | L-G2-3, L-G2-4, L-G2-8(두 트리거) | `main/watch.ts`, `main/configBridge.ts`, `main/thumbnails.ts`, `main/thumbnailQueue.ts` (+tests) | 없음 | Opus high — 파일 감시·비동기 경합 수정이라 틀리면 live reload와 썸네일이 멈춘다 | `npm --prefix app test`, typecheck, lint, L-G2-3 FSEvents probe | 대기 |
 | C | M-G2-2, M-G3-5 | `preload/index.ts`, `preload/index.test.ts`, `main/senderAllowed.ts`(+test) | 없음 | Sonnet medium — 테스트 고정과 미사용 코드 제거로 기계적이다 | `npm --prefix app test`, typecheck, lint | 대기 |
 | D | M-G2-5, M-G2-10, M-G2-11, M-G2-12 | `main/canvasExport.ts`, `main/deepLinks.ts`, `main/folderState.ts`, `main/onboarding/projects.ts`, `main/onboarding/operations.ts`, `cli/internal/cli/storage.go`(+test), 새 `schema/fixtures` 파일 (+tests) | 없음 | Sonnet high — 문구와 판정 규칙 통합으로 동작이 바뀌지 않게 해야 한다 | `npm --prefix app test`, typecheck, lint, `go test ./...`, `go vet ./...` | 대기 |
-| E | M-G2-13(메뉴 목록과 조율 대기 쌍 제외), M-G2-15, W2-PCR-1, (조율 후) M-G2-3 | `main/inspector.ts`, `main/installCommand.ts`, `main/prototype/conversationScope.ts`, `main/seenRecords.ts`, `app/scripts/verifySignedPackage.mjs`, `app/scripts/releaseChecks.mjs`, 새 고정 테스트 파일 (+tests) | 없음 | Sonnet medium — 상수 고정 테스트와 스크립트 종료 코드 확인으로 기계적이다 | `npm --prefix app test`, typecheck, lint | 대기 |
+| E | M-G2-13(메뉴 목록과 다른 conductor 몫 제외), M-G2-15, W2-PCR-1, M-G2-3 | `main/inspector.ts`, `main/installCommand.ts`, `main/prototype/conversationScope.ts`, `main/seenRecords.ts`, `main/conversation/skills.ts`, `main/conversation/skills.commands.test.ts`, `app/scripts/verifySignedPackage.mjs`, `app/scripts/releaseChecks.mjs`, 새 고정 테스트 파일 (+tests) | 없음 | Sonnet medium — 상수 고정 테스트와 스크립트 종료 코드 확인으로 기계적이다 | `npm --prefix app test`, typecheck, lint | 대기 |
 
 ## 파일 겹침과 순서
 
 - A–E는 파일이 겹치지 않아 병렬로 돌린다. M-G2-13 메뉴 화면 목록은 `index.ts`를 고치므로 A가 맡는다.
 - `restore/uiState.ts`는 renderer-audit이 고칠 수 있어 수정하지 않는다. M-G2-13의 uiState 쌍은 테스트에서 값을 import해 고정한다.
-- M-G2-3과 M-G2-13의 소유권 밖 쌍은 리드의 답을 받은 뒤 E에 새 Task로 보낸다.
 
 ## 리뷰·통합 기록
 
