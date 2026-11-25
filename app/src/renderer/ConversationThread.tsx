@@ -389,8 +389,8 @@ function fadeRuns(runs: readonly RevealRun[], now: number, source: string) {
   };
 }
 const NO_RUNS: readonly RevealRun[] = [];
-const MarkdownText = memo(function MarkdownText({ text, prefix, streaming, runs = NO_RUNS, now = 0, source = text }: { text: string; prefix: string; streaming: boolean; runs?: readonly RevealRun[]; now?: number; source?: string }) {
-  const plugins = [labelPrefix(prefix), ...runs.length ? [fadeRuns(runs, now, source)] : [], ...streaming ? [streamingCaret] : []];
+const MarkdownText = memo(function MarkdownText({ text, prefix, streaming, runs = NO_RUNS, now = 0 }: { text: string; prefix: string; streaming: boolean; runs?: readonly RevealRun[]; now?: number }) {
+  const plugins = [labelPrefix(prefix), ...runs.length ? [fadeRuns(runs, now, text)] : [], ...streaming ? [streamingCaret] : []];
   return <Markdown remarkPlugins={PLUGINS} rehypePlugins={plugins} remarkRehypeOptions={{ clobberPrefix: `${prefix}-` }} components={COMPONENTS} urlTransform={replyUrlTransform}>{text}</Markdown>;
 });
 
@@ -435,13 +435,15 @@ export function revealFrame(state: RevealState, text: string, mode: RevealMode, 
 const prefersReduced = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 // The thread's motion its replies share: a reply that revealed more this frame (the follow then sticks to the bottom
 // instead of easing), and whether motion is reduced.
-interface ThreadMotion { revealed(): void; reduced(): boolean }
+// revealed: the rAF time of the frame that showed more.
+interface ThreadMotion { revealed(at: number): void; reduced(): boolean }
 const Motion = createContext<ThreadMotion>({ revealed: () => {}, reduced: prefersReduced });
-// A reply mounts at the text it already has, so a remount never types it again. Each frame renders the whole reply
+// A reply mounts at the text it already has, so a remount never types it again; one that arrived while the thread was
+// open (fresh) reveals from its start. Each frame renders the whole reply
 // synchronously (flushSync), so the follow measures its new height before the frame paints.
-function useReveal(text: string, streaming: boolean, flush: boolean, host: RefObject<HTMLElement | null>): { length: number; runs: readonly RevealRun[]; now: number } | null {
+function useReveal(text: string, streaming: boolean, flush: boolean, fresh: boolean, host: RefObject<HTMLElement | null>): { length: number; runs: readonly RevealRun[]; now: number } | null {
   const motion = useContext(Motion);
-  const [state, setState] = useState(() => revealStart(text.length));
+  const [state, setState] = useState(() => revealStart(fresh ? 0 : text.length));
   const [selected, setSelected] = useState(false);
   const mode = revealMode(streaming, flush || selected), reduced = motion.reduced();
   // Shown whole now, so a later reveal goes on from the end instead of drawing less.
@@ -458,7 +460,7 @@ function useReveal(text: string, streaming: boolean, flush: boolean, host: RefOb
       const before = current.current, next = revealFrame(before, latest.current.text, latest.current.mode, now, motion.reduced());
       current.current = next;
       const young = next.runs.some(run => now - run.at < FADE_MS);
-      if (next.shown !== before.shown) motion.revealed();
+      if (next.shown !== before.shown) motion.revealed(now);
       if (next.shown !== before.shown || young || before.runs.length !== next.runs.length) flushSync(() => setState(next));
       frame = latest.current.mode === "streaming" || next.shown < latest.current.text.length || young ? requestAnimationFrame(tick) : 0;
     });
@@ -479,18 +481,18 @@ function useReveal(text: string, streaming: boolean, flush: boolean, host: RefOb
 }
 // A reply, and under it the "No longer in the canvas" note of a reply chip (draft frame `panel-missing`).
 // className: a handoff card's body is the same Markdown without the reply's own block. flush: show what arrived whole.
-function AgentMessage({ text, streaming, flush = false, className = "msg-agent md" }: { text: string; streaming: boolean; flush?: boolean; className?: string }) {
+function AgentMessage({ text, streaming, flush = false, fresh = false, className = "msg-agent md" }: { text: string; streaming: boolean; flush?: boolean; fresh?: boolean; className?: string }) {
   const host = useRef<HTMLDivElement | null>(null);
-  const reveal = useReveal(text, streaming, flush, host), prefix = useId();
+  const reveal = useReveal(text, streaming, flush, fresh, host), prefix = useId();
   const [noted, show] = useLocateNote();
   const [chip, setChip] = useState<string | null>(null);
   const shownFor = noted ? chip : null;
   const note = useMemo(() => ({ shownFor, show: (key: string) => { setChip(key); show(); } }), [shownFor]);
   const copyFailed = useContext(CopyFailed) === prefix;
   return <ReplyId.Provider value={prefix}><ReplyNote.Provider value={note}>
-    <div className={className} ref={host}>{reveal
-      ? <Received.Provider value={text}><MarkdownText text={text.slice(0, reveal.length)} prefix={prefix} streaming={streaming} runs={reveal.runs} now={reveal.now} /></Received.Provider>
-      : <MarkdownText text={text} prefix={prefix} streaming={streaming} />}</div>
+    {/* One tree whether or not it reveals: a changed parent would remount the Markdown and drop a selection in it. */}
+    <div className={className} ref={host}><Received.Provider value={reveal ? text : null}>
+      <MarkdownText text={reveal ? text.slice(0, reveal.length) : text} prefix={prefix} streaming={streaming} runs={reveal?.runs ?? NO_RUNS} now={reveal?.now ?? 0} /></Received.Provider></div>
     {shownFor && <span className="chip-missing" id={`${shownFor}-missing`} role="status">{LOCATE_MISSING_TEXT}</span>}
     {copyFailed && <p className="settings-msg error copy-failed" role="alert"><AlertIcon /><span>{COPY_FAILED_TEXT}</span></p>}
   </ReplyNote.Provider></ReplyId.Provider>;
@@ -974,8 +976,8 @@ export function followResize(state: FollowState, change: { reduced: boolean; rev
   if (!next.pinned) return { state: next, move: "none", behind: change.distance > FOLLOW_DISTANCE ? true : null };
   return { state: next, move: change.reduced || change.revealing ? "snap" : "ease", behind: false };
 }
-// How recently a reply revealed text for the follow to count its growth as the reveal's: one frame and a little.
-const REVEAL_FRAME_MS = 50;
+// The current frame's time, which a ResizeObserver callback shares with that frame's rAF callbacks.
+const frameTime = () => typeof document !== "undefined" ? document.timeline.currentTime : null;
 const NO_SENDS: readonly LocalSend[] = [];
 // Keys that edit text or press a control there rather than scroll the thread.
 const OWN_KEYS = "input, textarea, select, button, [contenteditable]";
@@ -1002,8 +1004,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   // wrote, so a scroll event of its own is told from the person's. heldKey: the waiting card scrollToItem went to.
   const follow = useRef<FollowState>(FOLLOW_START), easeTo = useRef<number | null>(null), wrote = useRef<number | null>(null);
   const loop = useRef(0), lastFrame = useRef<number | null>(null), revealedAt = useRef(-Infinity), heldKey = useRef<string | null>(null);
-  const motion = useRef<ThreadMotion>({ revealed: () => { revealedAt.current = performance.now(); }, reduced: prefersReduced }).current;
-  const [behind, setBehind] = useState(false);
+  const motion = useRef<ThreadMotion>({ revealed: at => { revealedAt.current = at; }, reduced: prefersReduced }).current;
+  // Set only on a change: the follow writes a scroll every frame, and a same-value set can still render the thread.
+  const [behind, setBehindState] = useState(false), behindNow = useRef(false);
+  const setBehind = (value: boolean) => { if (behindNow.current !== value) { behindNow.current = value; setBehindState(value); } };
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState<string | null>(null);
@@ -1132,7 +1136,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     }
     distance.current = bottomOf(node) - node.scrollTop;
     apply({ type: "frame", at: now, distance: distance.current });
-    if (easeTo.current !== null || (!follow.current.pinned && now - follow.current.wheelAt < WHEEL_HOLD_MS + REVEAL_FRAME_MS)) loop.current = requestAnimationFrame(tick);
+    if (easeTo.current !== null || (!follow.current.pinned && now - follow.current.wheelAt < WHEEL_HOLD_MS * 2)) loop.current = requestAnimationFrame(tick);
     else lastFrame.current = null;
   };
   const run = () => { if (loop.current === 0) loop.current = requestAnimationFrame(tick); };
@@ -1140,7 +1144,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     const node = scroller.current;
     if (!node || !opened.current) return;
     const now = performance.now();
-    const change = followResize(follow.current, { reduced: motion.reduced(), revealing: now - revealedAt.current < REVEAL_FRAME_MS, distance: distance.current, now });
+    const change = followResize(follow.current, { reduced: motion.reduced(), revealing: revealedAt.current === frameTime(), distance: distance.current, now });
     follow.current = change.state;
     if (change.move === "snap") { easeTo.current = null; write(node, bottomOf(node)); }
     else if (change.move === "ease") { easeTo.current = bottomOf(node); run(); }
@@ -1330,7 +1334,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const item = (entry: ThreadItem): ReactNode => {
     switch (entry.kind) {
       case "user": return <UserMessage entry={entry} frames={props.frames} disabled={!!props.locateDisabled} onLocate={props.onLocate && locate} home={props.homeDirectory ?? null} enter={entered.current.has(entry.key)} />;
-      case "agent": return <AgentMessage text={entry.text} streaming={entry.streaming} flush={flushes(entry)} />;
+      case "agent": return <AgentMessage text={entry.text} streaming={entry.streaming} flush={flushes(entry)} fresh={prevItems.current.length > 0 && !prevItems.current.some(item => item.key === entry.key)} />;
       case "noReply": return <div className="msg-agent"><p className="muted">No reply.</p></div>;
       case "fast": return <div className="activity"><div className="activity-head fast-note"><Zap aria-hidden="true" /><span>{entry.text}</span></div></div>;
       case "activity": {
