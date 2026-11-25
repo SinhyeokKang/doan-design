@@ -7,7 +7,9 @@ import { CONNECTOR_NAME_PATTERN } from "../mcpConnectors/names";
 import type { BoundaryKind } from "./commandRecords";
 import { clip, quoted, visibleText } from "./cardText";
 import { QUESTION_LIMITS, type Question, type QuestionAnswer, type StoredAnswer } from "./question";
-import type { EventPayload, FailureCode, FastUnused, FastUnusedReason, PendingPermission, PermissionChoice, TransportResult, TransportState, TurnStage } from "./types";
+import { LIMITS } from "./messageText";
+import { countStructuredPatch, countUnifiedDiff } from "./editLines";
+import type { EditLines, EventPayload, FailureCode, FastUnused, FastUnusedReason, PendingPermission, PermissionChoice, TransportResult, TransportState, TurnStage } from "./types";
 
 export function initialTransport(): TransportState {
   return { terminal: false, stop: null, messageId: "assistant", textBlock: null, completedMessages: [], activities: [], fileSummaries: {} };
@@ -256,12 +258,49 @@ function withFileSummary(summaries: Record<string, string>, id: string, summary:
   const kept = Object.entries(summaries).slice(-(FILE_SUMMARY_LIMIT - 1));
   return { ...Object.fromEntries(kept), [id]: summary };
 }
-function activity(kind: ActivityKind, path: string, line: string, root: string): EventPayload {
+type ActivityEvent = Extract<EventPayload, { type: "activity" }>;
+function activity(kind: ActivityKind, path: string, line: string, root: string, callId?: string): ActivityEvent {
   // Paths and tool names come from the agent unbounded; the strip shows one line and every event is stored.
   const summary = line.slice(0, 512);
-  if (!path) return { type: "activity", kind, summary };
+  const id = callId ? { callId } : {};
+  if (!path) return { type: "activity", kind, summary, ...id };
   const resolved = posix.resolve(root, path);
-  return { type: "activity", kind, path, insideDesign: canvasDir(posix.relative(root, resolved)) !== null, summary };
+  return { type: "activity", kind, path, insideDesign: canvasDir(posix.relative(root, resolved)) !== null, summary, ...id };
+}
+// A provider's call id as an edit's activity.callId, or undefined for one the store refuses (empty, past the label
+// limit, holding a NUL): a refused event ends the whole turn, while a missing id only leaves the step without numbers.
+export function callIdOf(id: string): string | undefined {
+  return id && id.length <= LIMITS.label && !id.includes("\0") ? id : undefined;
+}
+// A whole file's lines, as git counts them: a last line without a newline is still a line.
+function contentLines(text: string): number { return text ? text.split("\n").length - (text.endsWith("\n") ? 1 : 0) : 0; }
+// path is exactly the one the edit's activity stored ("" for none), so the thread matches a result to its step by the
+// call id and that path alone.
+export function editResult(callId: string, path: string, lines: EditLines | null): EventPayload[] {
+  return lines ? [{ type: "activity.result", callId, ...(path ? { path } : {}), lines }] : [];
+}
+// tool_use_result belongs to the whole frame, so the caller reads it only for a frame with one result. A denied or
+// failed edit brings an "Error: …" string instead of the object.
+function claudeEditLines(result: unknown): EditLines | null {
+  if (!object(result) || !Array.isArray(result.structuredPatch)) return null;
+  // A new file's patch is empty (Claude Code 2.1.284 and 2.1.332); its content is all added.
+  if (result.type === "create" && result.structuredPatch.length === 0 && typeof result.content === "string") return { added: contentLines(result.content), removed: 0 };
+  return countStructuredPatch(result.structuredPatch);
+}
+// A Codex change's diff is a hunk for an update but the whole file for an add or a delete.
+function codexChangeLines(change: Record<string, unknown>): EditLines | null {
+  const kind = object(change.kind) ? change.kind.type : undefined;
+  if (typeof change.diff !== "string") return null;
+  if (kind === "update") return countUnifiedDiff(change.diff);
+  if (kind === "add") return { added: contentLines(change.diff), removed: 0 };
+  if (kind === "delete") return { added: 0, removed: contentLines(change.diff) };
+  return null;
+}
+// Only a completed item was applied: a declined one still carries its diff.
+function codexEditResults(item: Record<string, unknown>): EventPayload[] {
+  const callId = item.type === "fileChange" && item.status === "completed" ? callIdOf(text(item.id)) : undefined;
+  if (!callId || !Array.isArray(item.changes)) return [];
+  return item.changes.filter(object).flatMap(change => editResult(callId, text(change.path), codexChangeLines(change)));
 }
 function claudeKind(tool: string): ActivityKind {
   return /^(Write|Edit|MultiEdit)$/.test(tool) ? "edit" : /^(Read|Glob|Grep)$/.test(tool) ? "read" : tool === "Bash" ? "command" : "other";
@@ -296,9 +335,9 @@ function claudeToolSummary(tool: string, input: Record<string, unknown>, root: s
 // Activity is stored and published for every call, so a shell command's text, description or arguments never go in it
 // (user decision 2026-10-30); only the permission request shows the command being approved.
 // A Doan connector's tool input is the connector's (a page id, a query), never a file of the repo, so it gives no path.
-function claudeActivity(tool: string, input: Record<string, unknown>, root: string, labels: Readonly<Record<string, string>> = PRESET_LABELS): EventPayload {
+function claudeActivity(tool: string, input: Record<string, unknown>, root: string, labels: Readonly<Record<string, string>>, id: string): ActivityEvent {
   const kind = claudeKind(tool);
-  return activity(kind, DOAN_MCP_TOOL.test(tool) ? "" : claudePath(input), kind === "command" ? GENERIC_SUMMARY.command : claudeToolSummary(tool, input, root, labels), root);
+  return activity(kind, DOAN_MCP_TOOL.test(tool) ? "" : claudePath(input), kind === "command" ? GENERIC_SUMMARY.command : claudeToolSummary(tool, input, root, labels), root, kind === "edit" ? callIdOf(id) : undefined);
 }
 // A command Codex parsed into one read-only action reads files; the turn indicator says so, while its activity stays a
 // command. Anything else (unknown, several actions, none) gives no stage. The command text never
@@ -316,7 +355,8 @@ function codexReadStage(item: Record<string, unknown>, root: string): TurnStage 
 function codexActivities(item: Record<string, unknown>, root: string, labels: Readonly<Record<string, string>>): { events: EventPayload[]; files: string } {
   if (item.type === "fileChange") {
     const paths = (Array.isArray(item.changes) ? item.changes.filter(object) : []).map(change => text(change.path));
-    const events = paths.length ? paths.map(path => activity("edit", path, path ? displayPath(path, root) : GENERIC_SUMMARY.edit, root)) : [activity("edit", "", GENERIC_SUMMARY.edit, root)];
+    const callId = callIdOf(text(item.id));
+    const events = paths.length ? paths.map(path => activity("edit", path, path ? displayPath(path, root) : GENERIC_SUMMARY.edit, root, callId)) : [activity("edit", "", GENERIC_SUMMARY.edit, root, callId)];
     return { events, files: filesSummary(paths.filter(Boolean), root) };
   }
   if (item.type === "commandExecution") return { events: [activity("command", "", GENERIC_SUMMARY.command, root)], files: "" };
@@ -370,6 +410,7 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
     const completedMessages = [...state.completedMessages];
     const activities = [...state.activities];
     const running = [...state.running ?? []];
+    let edits = state.claudeEdits;
     const call = claudeCall(raw.message);
     // The latest assistant frame decides: a later call that went through means the error did not end the turn.
     const { claudeFailure: _failure, ...kept } = state, failure = typeof raw.error === "string" && Object.hasOwn(CLAUDE_ERROR_CODE, raw.error) ? CLAUDE_ERROR_CODE[raw.error] : undefined;
@@ -382,10 +423,12 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
       // The question card stands for an AskUserQuestion call, so it shows no "Using a tool" line.
       if (object(content) && content.type === "tool_use" && content.name === CLAUDE_QUESTION_TOOL) continue;
       if (object(content) && content.type === "tool_use" && typeof content.id === "string" && !activities.includes(content.id)) {
-        events.push(claudeActivity(text(content.name), object(content.input) ? content.input : {}, root, labels)); activities.push(content.id); running.push(content.id);
+        const event = claudeActivity(text(content.name), object(content.input) ? content.input : {}, root, labels ?? PRESET_LABELS, content.id);
+        events.push(event); activities.push(content.id); running.push(content.id);
+        if (event.callId) edits = { ...edits, [event.callId]: event.path ?? "" };
       }
     }
-    return { state: { ...state, completedMessages, activities, ...(running.length ? { running } : {}), ...(call ? { claudeCall: call } : {}) }, events };
+    return { state: { ...state, completedMessages, activities, ...(running.length ? { running } : {}), ...(call ? { claudeCall: call } : {}), ...(edits ? { claudeEdits: edits } : {}) }, events };
   }
   if (raw.type === "result") {
     // A result ends every call of the turn it closes, including one that waits for a steered message: the continued
@@ -428,9 +471,16 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
     return { state: { ...state, completedMessages: [...state.completedMessages, messageId] }, events: [{ type: "message.done", messageId, text: output }] };
   }
   if (raw.type === "user" && object(raw.message) && Array.isArray(raw.message.content) && raw.message.content.some(c => object(c) && c.type === "tool_result")) {
-    const ended = raw.message.content.filter(object).filter(c => c.type === "tool_result").map(c => text(c.tool_use_id));
-    const next = withoutRunning(state, ended);
-    return { ...unchanged(next), ...(next.running ? {} : { stage: GENERAL_STAGE }) };
+    const results = raw.message.content.filter(object).filter(c => c.type === "tool_result");
+    const ended = results.map(c => text(c.tool_use_id));
+    const { claudeEdits: before, ...rest } = withoutRunning(state, ended);
+    const edits = Object.entries(before ?? {}).filter(([id]) => !ended.includes(id));
+    const next: TransportState = edits.length ? { ...rest, claudeEdits: Object.fromEntries(edits) } : rest;
+    // Only a frame with one result tells whose tool_use_result it carries.
+    const [only] = results, id = results.length === 1 && only ? text(only.tool_use_id) : "";
+    const path = id && before && Object.hasOwn(before, id) ? before[id] : undefined;
+    const events = path !== undefined && only?.is_error !== true ? editResult(id, path, claudeEditLines(raw.tool_use_result)) : [];
+    return { state: next, events, ...(next.running ? {} : { stage: GENERAL_STAGE }) };
   }
   return unchanged(state);
 }
@@ -573,13 +623,14 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
     if (tool && id) state = started ? withRunning(state, id) : withoutRunning(state, [id]);
     const read = started && item.type === "commandExecution" ? codexReadStage(item, context.root) : null;
     const stage = read ?? (tool && !started && !state.running ? GENERAL_STAGE : null);
+    const results = started ? [] : codexEditResults(item);
     if (id && !state.activities.includes(id) && tool) {
       const { events, files } = codexActivities(item, context.root, context.labels ?? PRESET_LABELS);
       // A file approval names only its itemId, so the paths seen when the item started are kept for it.
       const fileSummaries = files && raw.method === "item/started" ? withFileSummary(state.fileSummaries, id, files) : state.fileSummaries;
-      return { state: { ...state, activities: [...state.activities, id], fileSummaries }, events, ...(stage ? { stage } : {}) };
+      return { state: { ...state, activities: [...state.activities, id], fileSummaries }, events: [...events, ...results], ...(stage ? { stage } : {}) };
     }
-    if (stage) return { ...unchanged(state), stage };
+    if (results.length || stage) return { state, events: results, ...(stage ? { stage } : {}) };
   }
   if (raw.method === "turn/completed" && object(params.turn)) {
     if (params.turn.status === "interrupted") return aborted(state);

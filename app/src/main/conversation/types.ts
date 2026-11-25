@@ -113,6 +113,9 @@ export interface TransportState {
   fastUnused?: FastUnused;
   // Claude only: the failure code an assistant frame's `error` named (claudeFrame); a failed result takes it over its text.
   claudeFailure?: FailureCode;
+  // Claude only: the edit calls (Write, Edit, MultiEdit) whose result has not come yet, by tool_use id, each with the path
+  // its activity stored ("" for none). activities holds every tool's id, so only these results are counted.
+  claudeEdits?: Record<string, string>;
   // Claude only: the index of the thinking block now streaming, whose stop ends the thinking stage.
   thinkingBlock?: number;
   // Claude only: the turn compacted the context (a top-level compact_boundary), with the tokens it left when the CLI

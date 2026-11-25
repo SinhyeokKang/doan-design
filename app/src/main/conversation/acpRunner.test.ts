@@ -44,7 +44,7 @@ it("runs a recorded Cursor turn: streamed text, completed tool calls as activiti
   const request = events.find(e => e.type === "permission.request");
   expect(request).toMatchObject({ tool: "execute", options: [{ id: "allow", kind: "allow" }, { id: "always", kind: "allowAlways" }, { id: "deny", kind: "deny" }] });
   expect(events.filter(e => e.type === "activity")).toEqual([
-    { type: "activity", kind: "edit", path: "/repo/hello.txt", insideDesign: false, summary: "Edit `/repo/hello.txt`" },
+    { type: "activity", kind: "edit", path: "/repo/hello.txt", insideDesign: false, summary: "Edit `/repo/hello.txt`", callId: "call-564f938d-938d-4979-89e4-b78f6d606b62-1\nfc_16371e8d-cd73-9ea2-a824-02ba3c8d3b8b_1" },
     { type: "activity", kind: "command", summary: "Running a command" }]);
   expect(events).toContainEqual({ type: "permission.resolved", requestId: (request as { requestId: string }).requestId, optionId: "allow" });
   expect(events.at(-1)).toEqual({ type: "turn.done" });
@@ -157,7 +157,7 @@ it("marks canvas edits as inside the design and splits messages around tool call
   const result = acpPromptDone(state, { stopReason: "end_turn" }); events.push(...result.events);
   expect(events).toEqual([
     { type: "message.delta", messageId: "t:0", text: "Drafting" }, { type: "message.done", messageId: "t:0", text: "Drafting" },
-    { type: "activity", kind: "edit", path: ".doan/canvases/hero.html", insideDesign: true, summary: "Write" },
+    { type: "activity", kind: "edit", path: ".doan/canvases/hero.html", insideDesign: true, summary: "Write", callId: "c1" },
     { type: "message.delta", messageId: "t:1", text: "Done" }, { type: "message.done", messageId: "t:1", text: "Done" }, { type: "turn.done" }]);
   expect(acpPromptDone(initialAcp("t"), { stopReason: "cancelled" }).events).toEqual([{ type: "interrupted", reason: "user" }]);
 });
@@ -167,7 +167,7 @@ it("takes a tool call's path from a later update, such as the permission request
   for (const update of [{ sessionUpdate: "tool_call", toolCallId: "p", kind: "edit", title: "apply_patch", status: "pending", rawInput: "*** Begin Patch" },
     { sessionUpdate: "tool_call_update", toolCallId: "p", status: "pending", title: "Create file", rawInput: { fileName: "/repo/.doan/canvases/a.html" } }]) state = normalizeAcp(state, update, "/repo").state;
   expect(normalizeAcp(state, { sessionUpdate: "tool_call_update", toolCallId: "p", status: "completed" }, "/repo").events)
-    .toEqual([{ type: "activity", kind: "edit", path: "/repo/.doan/canvases/a.html", insideDesign: true, summary: "Create file" }]);
+    .toEqual([{ type: "activity", kind: "edit", path: "/repo/.doan/canvases/a.html", insideDesign: true, summary: "Create file", callId: "p" }]);
 });
 
 it.each([
@@ -179,7 +179,7 @@ it.each([
   let state = initialAcp("t");
   state = normalizeAcp(state, { sessionUpdate: "tool_call", toolCallId: "c", kind: "edit", title: "Write", status: "pending", locations: [{ path }] }, "/repo").state;
   expect(normalizeAcp(state, { sessionUpdate: "tool_call_update", toolCallId: "c", status: "completed" }, "/repo").events)
-    .toEqual([{ type: "activity", kind: "edit", path, insideDesign: inside, summary: "Write" }]);
+    .toEqual([{ type: "activity", kind: "edit", path, insideDesign: inside, summary: "Write", callId: "c" }]);
 });
 
 it("falls back to the path or a short phrase, not the raw ACP kind, when a tool call has no title", () => {
