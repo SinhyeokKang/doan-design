@@ -55,3 +55,6 @@ lead는 링크 1을 시작하기 전에 아래를 사용자와 한 번에 확인
   - thread-edit-lines: conductor 터미널 `term_e86cb4b9-296e-4f62-b7e9-2f9ebee31eb7`, worktree `/Users/sinhyeok/orca/workspaces/doan-design/thread-edit-lines`. 이 lead가 머지하면 여기 '인계 기록'에 머지 커밋과 PR 본문의 미검증 항목을 적는다. 머지 전에 이 lead가 물러나게 되면 새 lead가 리뷰와 머지를 이어받는다.
   - scrollbar-hover(PR #390, 머지 `f138f4435`)의 미검증 항목(일반 버튼을 마우스로 클릭해 연 대화상자, 시스템 설정의 "스크롤 막대 항상 보기")은 이 lead가 맡는다(사용자 결정). thread-edit-lines를 머지한 뒤 그 PR의 미검증 항목과 묶어 develop에서 확인하고, 결과를 여기에 적는다.
   - 실제 Codex 로그인(`~/.codex`)은 thread-edit-lines의 T0 녹화 중 refresh로 끊겼다가 15:07에 다시 로그인했다.
+- 2026-11-25 lead: 새 lead가 할 일을 정리한다(사용자 지시).
+  - 각 링크는 `/orchestrate` conductor로 띄운다(§3 'Lead'). 링크 1(handoff-card-emphasis)은 thread-edit-lines PR 머지 뒤 시작 점검을 거쳐 시작한다.
+  - 주석 정리 feature를 진행한다. AGENTS.md 'Commit conventions'의 주석 규칙을 조였다(`0ab8ac6bf`: 1~2줄, 비자명한 제약·함정만, 코드 반복·이력·드래프트 서사 금지, 긴 이유는 ARCHITECTURE로). 테스트를 뺀 소스의 약 26%(TS·Go), CSS의 약 29%가 주석이다. 새 lead가 `/feature`로 기준과 디렉터리별 배치를 잡고 `/feature-review`까지 마친다. 구현(`/orchestrate`)은 이 체인의 마지막 링크가 머지된 뒤 시작한다. 거의 모든 파일을 건드려서, 진행 중인 링크와 `ConversationThread.tsx`, `styles.css`에서 충돌하기 때문이다. 지울 수 없는 긴 제약을 ARCHITECTURE로 옮길지는 그 feature에서 정한다.
