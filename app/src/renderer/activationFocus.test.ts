@@ -1,5 +1,14 @@
-import { describe, expect, test, vi } from "vitest";
-import { focusThroughActivation, refocusOnActivation } from "./activationFocus";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { focusThroughActivation, refocusOnActivation, useActivationFocus } from "./activationFocus";
+
+// Hooks run as plain state: refs keep their slot, and a mount effect's cleanup runs at unmount.
+const hooks = vi.hoisted(() => ({ refs: [] as { current: unknown }[], cursor: 0, mounted: false, cleanups: [] as (() => void)[] }));
+vi.mock("react", async original => ({
+  ...await original<typeof import("react")>(),
+  useRef: (value: unknown) => { const index = hooks.cursor++; return hooks.refs[index] ??= { current: value }; },
+  useEffect: (run: () => unknown) => { if (hooks.mounted) return; const cleanup = run(); if (typeof cleanup === "function") hooks.cleanups.push(cleanup as () => void); },
+}));
+afterEach(() => vi.unstubAllGlobals());
 
 // Activating the window lets the platform restore focus to the first header control when the remembered row
 // is gone, so focus handed over in the background (`doan open`) is put back once the window gains focus.
@@ -103,6 +112,42 @@ describe("focusThroughActivation", () => {
     focusThroughActivation(focus, win, doc, defer)();
     win.dispatchEvent(new Event("focus"));
     deferred.forEach(run => run());
+    expect(focus).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Each caller's hand-off lives only as long as its component: one left behind would focus a screen no longer shown.
+describe("useActivationFocus", () => {
+  function mount() {
+    hooks.refs = []; hooks.cleanups = []; hooks.mounted = false;
+    const render = () => { hooks.cursor = 0; const hand = useActivationFocus(); hooks.mounted = true; return hand; };
+    const unmount = () => { for (const cleanup of hooks.cleanups) cleanup(); };
+    const win = new EventTarget();
+    vi.stubGlobal("window", win);
+    vi.stubGlobal("document", { hasFocus: () => false, querySelectorAll: () => [] });
+    return { render, unmount, win };
+  }
+
+  test("is the same function on every render, and a later hand-off replaces the earlier one", async () => {
+    const { render, win } = mount();
+    const hand = render();
+    expect(render()).toBe(hand);
+    const first = vi.fn(), second = vi.fn();
+    hand(first);
+    hand(second);
+    win.dispatchEvent(new Event("focus"));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(3);
+  });
+
+  test("unmounting drops a hand-off still waiting for activation", async () => {
+    const { render, unmount, win } = mount();
+    const focus = vi.fn();
+    render()(focus);
+    unmount();
+    win.dispatchEvent(new Event("focus"));
+    await new Promise(resolve => setTimeout(resolve, 0));
     expect(focus).toHaveBeenCalledTimes(1);
   });
 });
