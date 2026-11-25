@@ -110,7 +110,11 @@ export function UpdateHeaderButton({ disabled, canvasPress }: { disabled: boolea
     contentRef={node => { content.current = node; }}
     onPress={press}
     onOpenChange={next => { if (!next) setShown(null); }}
-    onOpenAutoFocus={event => { if (quiet.current) event.preventDefault(); }}
+    // Main shows the window before the menu's popover opens, so a focus made before activation is made again then.
+    onOpenAutoFocus={event => {
+      if (quiet.current) { event.preventDefault(); return; }
+      if (!document.hasFocus()) { event.preventDefault(); handFocus(() => content.current?.focus()); }
+    }}
     // Radix closes on any focus outside, also a move between two places outside a quietly opened popover: Agent usage's popover moves
     // focus to the page tab when its last provider leaves, and this one stays (PRODUCT §5 item 0 'Updates').
     onFocusOutside={event => {
