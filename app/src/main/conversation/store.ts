@@ -9,7 +9,7 @@ import { validAuthId, validOwner } from "../agentAuth/metadata";
 import { claudeRunModeId, permissionModeId, type ClaudeRunMode, type PermissionModeId } from "./permissionMode";
 import { QUESTION_LIMITS } from "./question";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
-import { FAILURE_CODES, FAST_UNUSED_REASONS, INTERRUPT_REASONS, type Canvas, type ConversationEvent, type EventPayload, type Runtime } from "./types";
+import { FAILURE_CODES, FAST_UNUSED_REASONS, INTERRUPT_REASONS, type AttachmentRecord, type Canvas, type ConversationEvent, type EventPayload, type Runtime } from "./types";
 interface SessionBinding<R> { runtime: R; origin: "resumed" | "new" | "newDesign"; sessionId: string; configDir: string; cwd: string }
 export type ExternalSession = SessionBinding<Runtime>;
 // canvasesAtStart: an earlier build's, still read, never written. fromHome: a Home newDesign whose turns carry Home's
@@ -107,7 +107,7 @@ function payload(value: Record<string, unknown>): value is Record<string, unknow
     // A handoff's first message holds the earlier agent's text as written, so its markers are not anchor tokens.
     case "user.message": return str(value.text) && Array.isArray(value.anchors) && [...value.anchors].every(validAnchor) &&
       (value.origin === undefined ? anchorTokens(value.text, value.anchors) !== null : origin(value.origin) && value.anchors.length === 0 && bounded(value.text, LIMITS.text)) &&
-      (value.attachments === undefined || (Array.isArray(value.attachments) && [...value.attachments].every(attachment)));
+      (value.attachments === undefined || (Array.isArray(value.attachments) && [...value.attachments].every(validAttachment)));
     case "handoff.requested": return object(value.canvas) && bounded(value.canvas.path, LIMITS.path) && bounded(value.text, LIMITS.text);
     case "handoff.resolved":
       if (value.canvas !== undefined && !(object(value.canvas) && bounded(value.canvas.path, LIMITS.path))) return false;
@@ -151,7 +151,8 @@ function storedAnswers(value: unknown): boolean {
   return object(value) && Object.keys(value).length <= L.questions && Object.values(value).every(a => object(a) &&
     Array.isArray(a.selected) && a.selected.length <= L.options && [...a.selected].every(s => bounded(s, L.label)) && (a.other === undefined || bounded(a.other, L.text)));
 }
-function attachment(value: unknown): boolean {
+// drafts.ts reads its attachments with this check too, so a draft keeps whatever a history keeps.
+export function validAttachment(value: unknown): value is AttachmentRecord {
   if (!object(value) || !label(value.name) || typeof value.path !== "string" || !absolutePath(value.path)) return false;
   if (value.kind === "directory") return !("size" in value);
   return typeof value.size === "number" && Number.isSafeInteger(value.size) && value.size >= 0 && (value.kind === "image" || value.kind === "file");
