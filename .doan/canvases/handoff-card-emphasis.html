@@ -85,14 +85,14 @@ body{padding:var(--space-8);background:var(--surface-inset)}
    .handoff-card or .canvas-cards. Open is the only target; the thumbnail is decorative. */
 .canvas-cards{display:flex;flex-direction:column;gap:var(--space-2);min-width:0}
 .card-surface{display:flex;flex-direction:column;min-width:0;border:1px solid var(--border-standard);border-radius:var(--radius-row);background:var(--surface-panel);overflow:hidden}
-.card-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:var(--space-3);padding:var(--space-3) var(--space-3) var(--space-3) var(--space-4);min-width:0}
-.card-head .cc-icon{display:inline-grid;place-items:center;width:var(--size-icon);height:var(--size-icon);color:var(--text-metadata)}
-.card-head .cc-icon svg,.card-head .cc-icon .doan-spinner{width:var(--size-icon);height:var(--size-icon)}
-.card-head .cc-text{display:flex;flex-direction:column;gap:var(--space-half);min-width:0}
-.card-head .cc-title{display:flex;align-items:center;gap:var(--space-1h);min-width:0}
-.card-head .cc-kind{flex:none;width:var(--size-icon);height:var(--size-icon);color:var(--text-standard)}
-.card-head .cc-name{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--text-standard);font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing);font-weight:var(--type-weight-medium)}
-.card-head .cc-status{color:var(--text-subtle);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing);overflow-wrap:anywhere}
+.card-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:var(--space-2);padding:var(--space-3) var(--space-3) var(--space-3) var(--space-4);min-width:0}
+.card-head .cc-icon{display:inline-grid;place-items:center;width:var(--size-icon-sm);height:var(--size-icon-sm);color:var(--text-metadata)}
+.card-head .cc-icon svg,.card-head .cc-icon .doan-spinner{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.card-head .cc-text{display:flex;flex-direction:column;min-width:0}
+.card-head .cc-title{display:flex;align-items:center;gap:var(--space-1);min-width:0}
+.card-head .cc-kind{flex:none;width:var(--size-icon-sm);height:var(--size-icon-sm);color:var(--text-standard)}
+.card-head .cc-name{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--text-standard);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing);font-weight:var(--type-weight-medium)}
+.card-head .cc-status{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);overflow-wrap:anywhere}
 .card-head .cc-meta{display:flex;flex-wrap:wrap;column-gap:var(--space-1h);color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
 .card-head .cc-meta time,.card-head .cc-meta span{white-space:nowrap}
 .card-head .cc-meta .sep{color:var(--text-disabled)}
@@ -109,7 +109,7 @@ body{padding:var(--space-8);background:var(--surface-inset)}
    banner keeps its height in every state, so a capture never moves the thread. */
 .thumb-empty{background:var(--surface-inset)}
 .thumb-wait{display:grid;place-items:center}
-.thumb-wait .doan-spinner{width:var(--size-icon);height:var(--size-icon);color:var(--text-metadata)}
+.thumb-wait .doan-spinner{width:var(--size-icon-sm);height:var(--size-icon-sm);color:var(--text-metadata)}
 /* The handoff card's body: the earlier agent's message under a divider, at the panel's Markdown type. */
 .handoff-card .handoff-body{padding:var(--space-3) var(--space-4) var(--space-4);border-top:1px solid var(--border-standard)}
 .handoff-card .md code{background:var(--surface-inset)}
