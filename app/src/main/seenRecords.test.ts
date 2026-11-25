@@ -2,8 +2,9 @@ import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathS
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, test } from "vitest";
+import { parseUiState } from "../restore/uiState";
 import { PROMPT_MS, withFifo } from "./fifo.fixture";
-import { CANVAS_ID, parseMarker, parseRecord, readSeen, SEEN_DIR } from "./seenRecords";
+import { CANVAS_ID, parseMarker, parseRecord, readSeen, SEEN_DIR, validCanvasId } from "./seenRecords";
 
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), "doan-seen-records-")));
 let count = 0;
@@ -26,6 +27,13 @@ test("the canvas id rule is the one the sessions schema and doan check use", () 
   const pattern = schema.properties.canvas.properties.id.pattern;
   expect(CANVAS_ID.source).toBe(pattern);
   expect(readFileSync(join(__dirname, "../../../cli/internal/check/check.go"), "utf8")).toContain(`idPattern = regexp.MustCompile(\`${pattern}\`)`);
+});
+
+test.each(["a", "a1-b2", "-a", "a-", "a--b", "A", "a_b", "a.b", "a b", "a\n", ""])("ui-state keeps the canvas id %j exactly when it is a canvas id", (canvasId) => {
+  const saved = { screen: "workspace", root: "/r", canvas: ".doan/canvases/a.html", canvasId, expanded: {}, lastByRoot: {} };
+  const state = parseUiState(JSON.stringify(saved), ["/r"]);
+  expect(state?.canvas).toBe(saved.canvas);
+  expect(state?.canvasId !== undefined).toBe(validCanvasId(canvasId));
 });
 
 describe("format", () => {
