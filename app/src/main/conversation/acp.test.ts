@@ -194,6 +194,11 @@ describe("ACP failure codes", () => {
     expect(acpFailureCode(detail, "prompt")).toBe(code);
     expect(acpPromptFailed(initialAcp("t"), detail).events.at(-1)).toMatchObject({ type: "turn.failed", code });
   });
+  // An error class name reads as its words do, in both phases alike.
+  it("reads \"UnauthorizedError: bad token\" as not_logged_in in both phases", () => {
+    expect(acpFailureCode("UnauthorizedError: bad token", "open")).toBe("not_logged_in");
+    expect(acpFailureCode("UnauthorizedError: bad token", "prompt")).toBe("not_logged_in");
+  });
   // "sign in" inside another word is no sign-in.
   it.each([
     ["Could not apply the design in index.html", "session_unavailable", "unknown"],

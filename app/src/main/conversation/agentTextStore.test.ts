@@ -51,11 +51,13 @@ it("stores a failed turn's detail holding U+0000 with its code", () => {
   const claude = normalizeClaude(initialTransport(), { type: "result", subtype: "error_during_execution", is_error: true, errors: ["Not logged in\0"] }, "/repo").events;
   const codexFailed = normalizeCodex(initialTransport(), { method: "turn/completed", params: { threadId: "s", turn: { id: "t", status: "failed", error: { message: "a\0b" } } } }, codex).events;
   const model = normalizeCodex(initialTransport(), { method: "turn/completed", params: { threadId: "s", turn: { id: "t", status: "failed", error: { message: "The 'gpt\0x' model is not supported", codexErrorInfo: "modelNotFound" } } } }, codex).events;
+  const limited = normalizeCodex(initialTransport(), { method: "turn/completed", params: { threadId: "s", turn: { id: "t", status: "failed", error: { message: "rate\0limit exceeded" } } } }, codex).events;
   const acp = acpPromptFailed(initialAcp("t"), "a\0b").events;
-  expect(of(stored([...claude, ...codexFailed, ...model, ...acp]), "turn.failed")).toEqual([
+  expect(of(stored([...claude, ...codexFailed, ...model, ...limited, ...acp]), "turn.failed")).toEqual([
     { type: "turn.failed", code: "not_logged_in", detail: "Not logged in<U+0000>" },
     { type: "turn.failed", code: "unknown", detail: "a<U+0000>b" },
     { type: "turn.failed", code: "model_unavailable", model: "gpt<U+0000>x", detail: "The 'gpt<U+0000>x' model is not supported" },
+    { type: "turn.failed", code: "rate_limited", detail: "rate<U+0000>limit exceeded" },
     { type: "turn.failed", code: "unknown", detail: "a<U+0000>b" },
   ]);
 });
