@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { hookLinks as fileHookLinks, type AuthProcess, type Lease, type McpLogoutRequest, type Spawn } from "../agentAuth/manager";
+import { dirname, join } from "node:path";
+import { hookLinks as fileHookLinks, QUIT_WAIT_MS, type AuthProcess, type Lease, type McpLogoutRequest, type Spawn } from "../agentAuth/manager";
 import { profileFencedCommand } from "../agentAuth/fence";
 import { PROVIDER_AUTH } from "../agentAuth/providers";
+import { removePlaintextFile } from "../agentAuth/storage";
 import type { AuthState, Provider, Readiness } from "../agentAuth/types";
 import { readRegularFileSync } from "../regularFile";
 import { mcpAuthLink } from "./authLink";
@@ -72,7 +73,6 @@ const LIMITS = {
   // How long the browser approval may take after the link; also Codex's hang guard.
   approvalMs: 5 * 60_000,
 };
-const QUIT_WAIT_MS = 5000;
 const OUTPUT_LIMIT = 256 * 1024;
 const CODEX_CALLBACK_TIMEOUT = /timed out waiting for OAuth callback/i;
 
@@ -719,13 +719,14 @@ export class McpService implements McpConversationFacts {
       .catch(error => console.error(`doan: ${provider} MCP background work failed: ${message(error)}`))
       .finally(() => { chores.delete(owner); if (!owner.stopped && !this.closed) then?.(); }));
   }
-  // Removes a plaintext credential file by path only, never reading it. true: one was there; null: unknown.
+  // true: a plaintext credential file was there; null: unknown. The auth root is the profile's grandparent
+  // (AuthStorage.profileDir).
   private scrubPlaintext(profileDir: string): boolean | null {
     let files: string[];
     try { files = readdirSync(profileDir); } catch { return null; }
-    const leftovers = plaintextLeftovers("claude", files);
-    for (const file of leftovers) rmSync(join(profileDir, file), { force: true });
-    return leftovers.length > 0;
+    let found = false;
+    for (const file of plaintextLeftovers("claude", files)) found = removePlaintextFile(join(profileDir, file), dirname(dirname(profileDir))) || found;
+    return found;
   }
 
   private begin(providers: McpProvider[], name: string, kind: Attempt["kind"]): Attempt {

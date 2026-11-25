@@ -1,4 +1,4 @@
-import { lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -87,6 +87,19 @@ describe("a folder planted at a Doan-written path", () => {
     expect(readFileSync(settings, "utf8")).toBe('{"doan":1}\n');
     expect(hooks.removedTrees).toHaveLength(3);
     for (const tree of hooks.removedTrees) expect(tree.startsWith(`${profile}/`)).toBe(false);
+    expect(readdirSync(root).filter(name => name.startsWith("."))).toEqual([]);
+  });
+  it("is moved out of the profile at a keychain provider's plaintext path too, and a file there is reported", () => {
+    const storage = new AuthStorage(root, fakeCipher());
+    const profile = storage.profileDir("claude"), plaintext = join(profile, ".credentials.json");
+    mkdirSync(join(plaintext, "nested"), { recursive: true }); writeFileSync(join(plaintext, "nested/x"), "x");
+    expect(storage.removePlaintext("claude", [".credentials.json"])).toBe(false);
+    expect(existsSync(plaintext)).toBe(false);
+    expect(hooks.removedTrees).toHaveLength(1);
+    expect(hooks.removedTrees[0]!.startsWith(`${profile}/`)).toBe(false);
+    writeFileSync(plaintext, "{}");
+    expect(storage.removePlaintext("claude", [".credentials.json"])).toBe(true);
+    expect(existsSync(plaintext)).toBe(false);
     expect(readdirSync(root).filter(name => name.startsWith("."))).toEqual([]);
   });
 });
