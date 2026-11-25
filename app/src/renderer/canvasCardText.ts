@@ -100,9 +100,8 @@ function folderOf(path: string, root: string): string | null {
   return relative.slice(0, Math.max(0, relative.lastIndexOf("/"))) || null;
 }
 
-// What either card says its canvas is now. row: undefined once the canvas is gone, and for an Overview source.
-// drawing: the card still draws, so its image and frame count wait. handedOffAt: the handoff card's message time,
-// which it shows in place of the modified time.
+// row: undefined once the canvas is gone, and for an Overview source. drawing: the image and frame count wait.
+// handedOffAt: the handoff card's message time, shown in place of the modified time.
 export function canvasCardMeta(row: CanvasRow | undefined, thumbnail: ThumbnailState | undefined, now: number, root: string,
   { drawing = false, handedOffAt }: { drawing?: boolean; handedOffAt?: string } = {}): CanvasCardMeta {
   const handedOff = handedOffAt === undefined ? null : cardTime("Handed off", Date.parse(handedOffAt), now);

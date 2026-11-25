@@ -99,7 +99,7 @@ describe("canvasCardText", () => {
   });
 });
 
-// The meta under a card's status line says what the canvas is now (draft frames handoff, canvas-cards and copy).
+// The meta under a card's status line says what the canvas is now.
 describe("canvasCardMeta", () => {
   const ROOT = "/w/acme-web";
   // Local times, as the tooltip reads them.
