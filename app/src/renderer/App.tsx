@@ -748,7 +748,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       const active = document.activeElement;
       if (active instanceof HTMLElement && active.isConnected && active.closest(".workspace .conversation-thread")) return;
       // The panel took this entry's arrival in the same commit; a composer fallback focuses in a microtask, after this.
-      if (arrivalShown.current !== null && panelArrived.current === arrivalShown.current.seq) return;
+      // An earlier App hand-off ends here too, so activation does not visit its target first.
+      if (arrivalShown.current !== null && panelArrived.current === arrivalShown.current.seq) { handFocus.current(() => {}); return; }
       const previous = workspaceFocus.current;
       hand(() => (previous?.isConnected && previous.closest(".workspace") ? previous : document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]'))?.focus());
     }
