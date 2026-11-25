@@ -6,9 +6,8 @@
 export const QUESTION_LIMITS = { questions: 4, options: 8, label: 512, text: 4_096 };
 
 export interface QuestionOption { label: string; description?: string }
-// id: the provider's question id (Codex) or doan's ordinal "0"…"3" (Claude, whose answers are keyed by text).
-// header may be empty (Antigravity has none). other: the person may type their own answer. secret: the answer is passed
-// on but never written to doan's history.
+// id: the provider's question id (Codex) or doan's ordinal "0"…"3" (Claude keys answers by text). header may be empty.
+// other: the person may type their own answer. secret: passed on but never written to doan's history.
 export interface Question { id: string; header: string; question: string; options: QuestionOption[]; multiSelect: boolean; other: boolean; secret?: true }
 export type QuestionOutcome = "answered" | "skipped" | "expired";
 // As stored: the chosen labels and the typed text apart, so a folded line can tell them apart.

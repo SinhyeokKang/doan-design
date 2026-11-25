@@ -72,8 +72,7 @@ describe("index version interpretation", () => {
   });
 });
 
-// v3 drops the state field: no conversation is archived any more. v1 and v2 are read into the v3 shape in memory and
-// the first save writes v3.
+// v3 drops the state field. v1 and v2 are read into the v3 shape in memory and the first save writes v3.
 describe("index v3 and migration", () => {
   const ids = (read: ReturnType<typeof parseIndex>) => { if (!read.ok) throw new Error(read.code); return read.entries; };
   it("reads the v3 fixture with every field and no state", () => {
@@ -483,9 +482,8 @@ describe("handoff events in event v1", () => {
       expect(() => new ConversationStore(f.root).read("c"), JSON.stringify(body)).toThrow("Invalid conversation event");
     }
   });
-  // A project conversation's handoff names no canvas: the new conversation came from the root's Overview. Its text is the
-  // agent's, so a leading command name or a marker never makes it a command turn or an anchored message (POSTMORTEM
-  // 2026-11 'A handoff's first message that starts with a command name was drawn as a command turn').
+  // A project conversation's handoff names no canvas. Its text is the agent's, so a leading command name or a marker never
+  // makes it a command turn or an anchored message (POSTMORTEM 2026-11).
   it("round-trips a project conversation's handoff, whose origin names no canvas", () => {
     const f = seed(); const store = new ConversationStore(f.root);
     const project = { kind: "handoff", conversationId: "p" } as const;

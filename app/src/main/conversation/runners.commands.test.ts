@@ -6,10 +6,8 @@ import { listSkills, openRunner } from "./runners";
 import type { Prepared } from "./service";
 import type { EventPayload } from "./types";
 
-// A fake Claude Code that answers each prompt by the FAKE_CLAUDE mode. "clear": /clear's frames as a PoC recorded them
-// (Claude Code 2.1.326): conversation_reset (its new_conversation_id is not the session id), then system/init and the
-// result under the new session id. "drift": a reply under another session id with no reset. "compact": /compact's
-// boundary and records.
+// A fake Claude Code answering each prompt by FAKE_CLAUDE. "clear": conversation_reset (its new_conversation_id is not the
+// session id), then system/init and the result under the new id; "drift": another id, no reset; "compact": its boundary.
 function fakeClaude(root: string): string {
   const command = join(root, "claude");
   writeFileSync(command, `#!/usr/bin/env node

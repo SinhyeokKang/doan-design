@@ -57,9 +57,8 @@ export function foldConversation(input: readonly ConversationEvent[], conversati
         ...(event.outcome === "started" ? { target: event.target } : event.outcome === "refused" ? { reason: event.reason } : {}) });
       continue;
     }
-    // An earlier build archived a conversation with this line, and its requests could no longer be answered. Nothing is
-    // archived any more, so the turn's later events fold as any others. A history whose archive ended the turn (the
-    // replacement wrote an interruption before it) reads the same as before.
+    // An earlier build archived a conversation with this line; it now only expires the open requests, so the turn's later
+    // events fold as any others.
     if (event.type === "conversation.archived") { expire(); continue; }
     if (event.type === "conversation.restored" || event.type === "conversation.bound") continue;
     if (event.type === "turn.started") {

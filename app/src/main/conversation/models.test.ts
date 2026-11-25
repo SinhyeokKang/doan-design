@@ -126,8 +126,7 @@ it("accepts only a model, and an effort of that model, from the list delivered f
   expect(c.models.accepts("/repo", "codex", "sonnet", undefined)).toBe(false);
 });
 
-// Codex's turn/start effort overrides "this turn and subsequent turns" (0.164.0 TurnStartParams),
-// so a model sent without effort needs the model's default said out loud.
+// Codex's turn/start effort holds for later turns too, so a model sent without effort needs its default said out loud.
 it("keeps a Codex model's default effort only when it is one of its levels", () => {
   expect(parseCodexModels({ data: [
     { id: "a", displayName: "A", isDefault: true, defaultReasoningEffort: "medium", supportedReasoningEfforts: [{ reasoningEffort: "low" }, { reasoningEffort: "medium" }] },

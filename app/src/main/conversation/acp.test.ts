@@ -5,8 +5,7 @@ import antigravityEdits from "./fixtures/acp-antigravity-edits.json";
 import cursor from "./fixtures/acp-cursor.json";
 import type { EventPayload } from "./types";
 
-// The shape Antigravity's ACP server 1.3.0 sent for a question: a standard permission request whose
-// options are the answers, all allow_once, with no reject option.
+// Antigravity's question: a standard permission request whose options are the answers, all allow_once, no reject.
 function asked(over: Record<string, unknown> = {}, options: { optionId: string; name?: string; kind: string }[] = [{ optionId: "1", name: "Red", kind: "allow_once" }, { optionId: "2", name: "Blue", kind: "allow_once" }]) {
   return { sessionId: "s", toolCall: { toolCallId: "interaction_1", title: "Which color should the header be?", rawInput: {} }, options, ...over };
 }

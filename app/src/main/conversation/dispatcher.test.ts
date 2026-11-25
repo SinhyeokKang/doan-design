@@ -152,8 +152,7 @@ describe("Codex steer path", () => {
   });
 });
 
-// POSTMORTEM 2026-10-27 'Codex ingress confused unowned requests and notification errors': every
-// MCP elicitation is answered exactly once with an explicit disposition, and none of them fails the turn.
+// Every MCP elicitation is answered exactly once with an explicit disposition, and none of them fails the turn.
 describe("Codex MCP elicitation wiring", () => {
   const thread = elicitation.params.threadId, turn = elicitation.params.turnId;
   function mcp() {

@@ -53,9 +53,8 @@ it("runs a recorded Cursor turn: streamed text, completed tool calls as activiti
   await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
 });
 
-// The recorded Cursor turn completes an edit with diff content; only a Copilot run records lines from it, since
-// Antigravity's diff is the proposal it asks about and Cursor's was never shown to be the applied change. The numbers
-// only show that the Copilot run counts that diff (its odd texts give +2 -1).
+// Only a Copilot run records lines from a completed edit's diff: Antigravity's diff is the proposal it asks about, and
+// Cursor's was never shown to be the applied change. The odd texts give +2 -1.
 it.each([["copilot", true], ["cursor", false], ["antigravity", false]] as const)("records edit lines from a completed diff for a %s run: %s", async (runtime, counts) => {
   const { runner, events, exited } = await open("cursor", "allow", { runtime });
   await runner.send("hi", "turn-1");
@@ -382,9 +381,8 @@ it("sets the chosen model after session/new and again after session/load, before
   await (await openAcp(input("cursor", { env: { ...env, FAKE_ACP_LOG: plain } }), () => {}, () => {}, () => {})).send("hi", "turn");
   expect(logged(plain).some(r => r.method === "session/set_config_option")).toBe(false);
 });
-// Cursor keeps a session/set_config_option model choice in cli-config.json, which the fence keeps closed (its permission
-// allow list), so the request fails in a fenced run. Its ACP server opens session/new and session/load on
-// acp-config.json's selectedModelVariantId (2026.10.22 and 2026.11.22, probe), which Doan writes before the start.
+// Cursor keeps a set_config_option model in cli-config.json, which the fence keeps closed, so that request fails in a
+// fenced run; its ACP server opens sessions on acp-config.json's selectedModelVariantId, which Doan writes first.
 it("gives Cursor the chosen model through acp-config.json before the start and sends no model request", async () => {
   const home = temp("doan-acp-home-"), config = join(home, ".cursor", "acp-config.json"), log = logFile();
   const env = { PATH: process.env.PATH ?? "", HOME: home, FAKE_ACP: "stop:end_turn", FAKE_ACP_LOG: log, FAKE_ACP_CONFIG: "1" };

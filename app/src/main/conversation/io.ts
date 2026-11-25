@@ -73,16 +73,15 @@ export async function claudeOccupancy(config: string, sessionId: string, inspect
   return mergeOccupancy(verdicts);
 }
 async function claudeRecordVerdict(directory: string, listed: Stats, name: string, sessionId: string, inspect: typeof processStart): Promise<RegistryVerdict> {
-  // Claude Code 2.1.312 keeps a per-process <pid>.<sha256>.key beside each record; it is not a registry record and is never read.
+  // Claude Code keeps a per-process <pid>.<sha256>.key beside each record; it is not a registry record and is never read.
   if (/^[1-9][0-9]*\.[0-9a-f]{64}\.key$/.test(name)) return "skip";
   // An unknown name may be a new record format that holds the target, so it is not skipped.
   if (!/^[1-9][0-9]*\.json$/.test(name)) return "unknown";
   const path = join(directory, name);
   try {
     let text: string;
-    // Claude Code deletes its record when the process ends, so a record gone since the listing is an ended process.
-    // A record ENOENT is skipped only while the listed sessions directory is still there (same dev/ino); a directory
-    // that is missing, no longer a directory or replaced since the listing leaves the record unreadable.
+    // Claude Code deletes its record when the process ends, so a record ENOENT is an ended process, but only while the
+    // listed sessions directory is unchanged (same dev/ino); otherwise the record is unreadable.
     try { text = readRegular(path, 65536); }
     catch (error) {
       if (!object(error) || error.code !== "ENOENT" || error.path !== path) throw error;
@@ -94,17 +93,15 @@ async function claudeRecordVerdict(directory: string, listed: Stats, name: strin
     const identity = registryIdentity(name, raw); if (!identity) return "unknown";
     if (!identity.host) return registryRecordVerdict(raw, sessionId, "foreign");
     const actual = await inspect(identity.pid);
-    // Without procStart (Claude Code 2.1.323) a reused pid cannot be told apart: a live one is judged by its sessionId,
-    // which only refuses the resume of the session it names.
+    // Without procStart a reused pid cannot be told apart: a live one is judged by its sessionId, which only refuses the
+    // resume of the session it names.
     const live = actual !== null && (identity.procStart === undefined || actual.replace(/\s+/g, " ").trim() === identity.procStart.replace(/\s+/g, " ").trim());
     return registryRecordVerdict(raw, sessionId, live ? "live" : "dead");
   } catch { return "unknown"; }
 }
 
-// The processes that have the file open, read with lsof: read-only, while Node has no flock call and probing with
-// lockf(1) would take the exclusive lock itself, so a Codex writer acquiring at that instant would be refused. It costs
-// ~100 ms, which is why callers run it only when a lock file exists. Exit 1 with no output means nobody has it open;
-// any other reply it cannot read rejects.
+// Holders read with lsof, read-only: Node has no flock call, and lockf(1) would take the lock itself and refuse a Codex
+// writer. It is slow, so callers run it only when a lock file exists. Exit 1 with no output: nobody has it open.
 export interface FileHolder { pid: number; pgid: number; ppid: number }
 export function fileHolders(path: string): Promise<FileHolder[]> {
   return new Promise((resolve, reject) => {
@@ -130,15 +127,8 @@ function parseHolders(stdout: string): FileHolder[] | null {
   if (!holders.length || holders.some(h => !h.pid || h.pgid === undefined || h.ppid === undefined)) return null;
   return holders as FileHolder[];
 }
-// Codex (0.158.0 and later) admits one writer per thread through an exclusive flock on
-// <CODEX_HOME>/thread-writer-locks/<id>.lock, the same lock thread/resume refuses on ("already has an active writer").
-// A plain `codex` TUI loads the thread in its managed app-server daemon, which keeps holding it for about a minute
-// after /exit. A clean exit deletes the file; a SIGKILL leaves it with nobody holding it, so the file alone is not
-// occupancy. A missing directory means no supported writer has run in this profile.
-// A Codex server Doan opened holds the lock of the thread it resumed; that is not a terminal holding the session, and
-// Doan's reservations already keep it to one runner. Runners spawn each provider detached, so it leads its own process
-// group as a direct child of this (main) process: holders in such a group are ignored. A holder whose group leader is
-// not among the holders cannot be traced to Doan and counts.
+// Codex admits one writer per thread by an exclusive flock on <CODEX_HOME>/thread-writer-locks/<id>.lock; a SIGKILL
+// leaves the file unheld, so only a holder is occupancy. Holders in a group Doan's runners lead are Doan's own.
 export async function codexOccupancy(config: string, threadId: string, inspect = fileHolders, self = process.pid): Promise<"free" | "occupied" | "unknown"> {
   if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(threadId)) return "unknown";
   try {
@@ -156,10 +146,8 @@ export async function codexOccupancy(config: string, threadId: string, inspect =
   } catch { return "unknown"; }
 }
 
-// The rollout header records the Codex version that created the session and is never rewritten: a resume appends
-// without touching the first session_meta, so a conversation started on 0.158.0 keeps that cli_version under a newer Codex.
-// Any version at or above the minimum may have created one, so the header is checked against a fixed floor, never
-// against the installed version.
+// The rollout header's cli_version is the version that created the session and a resume never rewrites it, so it is
+// checked against a fixed floor, never against the installed version.
 export function codexSessionExists(config: string, id: string, cwd: string): boolean {
   if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(id)) return false;
   try {
@@ -188,11 +176,8 @@ export function codexSessionExists(config: string, id: string, cwd: string): boo
   } catch { return false; }
 }
 
-// The client uuids a Claude session transcript holds among those asked, in the order asked. The CLI writes a message
-// with its uuid when it takes it off its queue: a turn's prompt and a steer it ran as its own turn as a user line's uuid,
-// a steer folded into the running turn as a queued_command attachment's source_uuid (PoC, 2.1.284 and 2.1.322). On
-// receipt it writes only a queue-operation without the uuid, so a message never read is not found. A cut first line
-// and broken lines are skipped.
+// The asked client uuids a Claude transcript holds, in asked order. The CLI writes a uuid when it takes the message off
+// its queue (a user line's uuid, or a folded steer's queued_command source_uuid), so an unread message is not found.
 export function readInTranscript(appended: string, uuids: readonly string[]): string[] {
   const found = new Set<string>();
   for (const line of appended.split("\n")) {
@@ -228,10 +213,8 @@ export function transcriptCwds(text: string, sessionId: string): string[] {
   }
   return cwds;
 }
-// The session a person's /clear moved a conversation to, proved by its own transcript: in the project folder that holds
-// the conversation's current session (another project's session of the same profile is not this conversation's), and
-// naming only the conversation's cwd. A transcript that names none proves nothing. Read whole and small: a new session's
-// file holds only its /clear lines yet.
+// The session a person's /clear moved a conversation to, proved by its own transcript in the current session's project
+// folder naming only the conversation's cwd. Read whole and small: a new session's file holds only its /clear lines yet.
 const CLEARED_TRANSCRIPT_BYTES = 8 * 1024 * 1024;
 export function claudeClearedSession(config: string, previous: string, next: string, cwd: string): boolean {
   if (!/^[a-zA-Z0-9_-]{1,128}$/.test(next) || next.startsWith("-")) return false;

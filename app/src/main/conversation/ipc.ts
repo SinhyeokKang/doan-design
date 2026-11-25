@@ -12,9 +12,8 @@ import { QUESTION_LIMITS, type QuestionAnswerInput } from "./question";
 import type { Anchor, AttachmentRecord, Canvas } from "./types";
 export const conversationMethods = ["resumeTarget", "start", "send", "interrupt", "answerPermission", "answerQuestion", "read", "models", "skills", "list", "markSeen", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "takeStartDraft", "setPermissionMode", "delete", "scheduled"] as const;
 export type ConversationMethod = typeof conversationMethods[number];
-// attachment_missing names the attachments that were moved, deleted or forgotten since they were added; replaced, the
-// ones among them that are folders now leading to another folder. resetsAt (ISO): with rate_limited, when the usage
-// limit of the refused start's or send's Doan connection resets, if main knows it.
+// attachment_missing: missing names attachments moved, deleted or forgotten since added; replaced, those now folders
+// leading elsewhere. resetsAt (ISO): with rate_limited, when the Doan connection's usage limit resets, if known.
 export interface ConversationError { error: string; missing?: string[]; replaced?: string[]; resetsAt?: string }
 // A send main took while its conversation's usage limit holds: the message waits as a queued item for the limit's reset
 // at `at` (ISO) and goes out shortly after it.
@@ -110,9 +109,8 @@ export function queueFiles(store: AttachmentStore): QueueFiles {
     consume: ids => store.consume(ids.map(id => ({ id }))),
     discard: ids => store.discard(ids),
     release: ids => { store.release({ ids }); },
-    // As Edit and resend's attachments:fromPaths, then held as a queued message's (consumed at once). Each must still
-    // be the kind it was sent as (ARCHITECTURE §7 'Attachments'): a file that became a folder would send the folder.
-    // Any refusal refuses the whole message and releases every id issued for it.
+    // As Edit and resend's attachments:fromPaths, then held as a queued message's. Each must still be the kind it was sent
+    // as (ARCHITECTURE §7 'Attachments'); any refusal refuses the whole message and releases every issued id.
     reissue: records => {
       // Display metadata from disk must not prevent a readable attachment from being reissued.
       const metadata = records.map(({ lines, excerpt }) => {
@@ -308,9 +306,8 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
       }
       if (code === "rate_limited" && error instanceof Error && "resetsAt" in error && typeof error.resetsAt === "string") return { error: code, resetsAt: error.resetsAt };
       const answered = code === "outside_root" ? "session_unavailable" : known.includes(code) ? code : "unknown";
-      // No composer explains these two beyond "Couldn't start", so the log keeps what refused the start; a cause that
-      // became unknown is otherwise lost. Only Doan's own code-shaped words are logged: an SDK or provider message can
-      // embed the provider's reply (POSTMORTEM 2026-11-01 'A failed Antigravity sign-in left no evidence of why').
+      // No composer explains these beyond "Couldn't start", so the log keeps what refused the start; only Doan's code-shaped
+      // words are logged, since an SDK or provider message can embed the provider's reply (POSTMORTEM 2026-11-01).
       if (method === "start" && (answered === "unknown" || answered === "bad_request")) console.error(`doan: conversation start refused: ${answered}${code !== answered ? ` (${startCause(error, code)})` : ""}`);
       return { error: answered };
     }

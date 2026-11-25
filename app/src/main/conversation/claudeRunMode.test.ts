@@ -5,7 +5,7 @@ import { claudeModeReport } from "./transport";
 import type { ConversationOwner } from "../agentAuth/types";
 
 // When the mode Claude Code's own settings run an Ask first turn in is kept with the conversation (claudeRunMode).
-// Reported values are Claude's own ids, read from the PoC frames (claude-run-mode.json) where the case was observed.
+// Reported values are Claude's own ids, from the recorded frames in claude-run-mode.json.
 const CLAUDE: ConversationOwner = { kind: "doan", provider: "claude", connectionId: "conn-1", accountId: "acct-1", workspaceId: null, profile: "claude" };
 const askFirst = (claudeRunMode?: RunModeEntry["claudeRunMode"]): RunModeEntry => ({ owner: CLAUDE, ...(claudeRunMode ? { claudeRunMode } : {}) });
 const reported = (frame: unknown): string => claudeModeReport(frame)!.mode;
@@ -19,7 +19,7 @@ describe("the first top-level system/init of a turn sent with Ask first", () => 
     expect(init(askFirst(), reported(runMode.init["profile-acceptEdits"]))).toEqual({ permissionMode: "default", claudeRunMode: "acceptEdits" });
     expect(init(askFirst(), reported(runMode.init["project-plan"]))).toEqual({ permissionMode: "default", claudeRunMode: "plan" });
     expect(init(askFirst("dontAsk"), reported(runMode.init["profile-bypassPermissions"]))).toEqual({ permissionMode: "default", claudeRunMode: "bypassPermissions" });
-    // Project-level auto and bypassPermissions start as default (PoC): the earlier value goes.
+    // Project-level auto and bypassPermissions start as default: the earlier value goes.
     expect(init(askFirst("auto"), reported(runMode.init["project-auto"]))).toEqual({ permissionMode: "default", claudeRunMode: undefined });
     expect(init(askFirst("bypassPermissions"), reported(runMode.init["project-bypassPermissions"]))).toEqual({ permissionMode: "default", claudeRunMode: undefined });
   });
@@ -68,8 +68,7 @@ describe("a status message that reports a mode", () => {
     for (const frame of Object.values(runMode.approval)) expect(status(inPlan("auto"), reported(frame))).toEqual({ permissionMode: "default", claudeRunMode: undefined });
     expect(status(inPlan(), reported(runMode.approval["plan-profile-auto"]))).toEqual({ permissionMode: "default", claudeRunMode: undefined });
   });
-  // Not observed in the PoC (approval always reported default); the rule stays general: Ask first that the settings run in
-  // another shown mode shows it.
+  // The rule stays general: Ask first that the settings run in another shown mode shows it.
   it("keeps a shown mode the approval switched Ask first into", () => {
     expect(status(inPlan(), "auto")).toEqual({ permissionMode: "default", claudeRunMode: "auto" });
     expect(status(inPlan("auto"), "dontAsk")).toEqual({ permissionMode: "default", claudeRunMode: "dontAsk" });
@@ -87,13 +86,13 @@ describe("a status message that reports a mode", () => {
     expect(status(askFirst("auto"), "default")).toBeNull();
     expect(status(inPlan(), "default", { current: false })).toBeNull();
   });
-  // A legacy-external conversation keeps today's approval (the stored mode follows) but never gains a run mode.
+  // A legacy-external conversation's stored mode follows the approval, but it never gains a run mode.
   it("moves a legacy-external conversation's stored mode without a run mode", () => {
     expect(status({ owner: { kind: "legacy-external" }, permissionMode: "plan" }, "auto")).toEqual({ permissionMode: "default", claudeRunMode: undefined });
     expect(status({ owner: { kind: "legacy-external" }, permissionMode: "plan" }, "acceptEdits")).toEqual({ permissionMode: "acceptEdits", claudeRunMode: undefined });
   });
-  // Ask first with settings that run plan: the approval changes the run mode only (PoC: it reports default). The turn's
-  // own first init says so (turnInit), never the stored key, which an earlier turn may have left.
+  // Ask first with settings that run plan: the approval changes the run mode only. The turn's own first init says so
+  // (turnInit), never the stored key, which an earlier turn may have left.
   it("follows the approval of an Ask first turn whose settings ran plan, changing only the run mode", () => {
     const plan = { sent: "default" as const, turnInit: "plan", previous: "plan" };
     expect(status(askFirst("plan"), reported(runMode.approval["askFirst-project-plan"]), plan)).toEqual({ permissionMode: "default", claudeRunMode: undefined });

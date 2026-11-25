@@ -32,16 +32,14 @@ export interface QuestionResolved { type: "question.resolved"; requestId: string
 // A file or folder the person attached by local path; doan sends the path, not the bytes. A folder has no size: main
 // never walks it to count one.
 export type AttachmentRecord = ({ name: string; size: number; kind: "image" | "file"; path: string } | { name: string; kind: "directory"; path: string }) & { lines?: number; excerpt?: string };
-// The first message of a conversation a handoff started: the earlier conversation and its canvas, absent when that was
-// a project conversation (the root's Overview). Its text is that agent's handoff, kept as written and never read for
-// {{n}} markers (anchors stay empty). An earlier build reads only an origin with a canvas.
+// A handoff-started conversation's first message: the earlier conversation and its canvas (absent for a project one).
+// Its text is that agent's handoff, never read for {{n}} markers. An earlier build reads only an origin with a canvas.
 export interface HandoffOrigin { kind: "handoff"; conversationId: string; canvas?: Canvas }
 // reason: a judgement's reason (handoff.ts HandoffReason) or the refused start's code. target sits in its own object
 // because the event's envelope already has a conversationId, the history's own.
 export type HandoffResolution = { outcome: "started"; target: { conversationId: string; canvas: Canvas } } | { outcome: "refused"; reason: string } | { outcome: "cancelled" };
-// A row of the conversation "skills" method: a project skill the conversation's provider loads for a folder, or one of
-// the provider's built-in commands Doan runs (providerCommands.ts). Type-only here, since the renderer imports it: the
-// parsers live in skills.ts.
+// A row of the conversation "skills" method: a project skill or a built-in command Doan runs (providerCommands.ts).
+// Type-only here, since the renderer imports it; the parsers live in skills.ts.
 export interface SkillSummary { kind: "skill" | "command"; name: string; description: string }
 export interface EditLines { added: number; removed: number }
 export type FastUnusedReason = "plan" | "extra_usage" | "model" | "policy" | "cooldown";
@@ -50,7 +48,7 @@ export type EventPayload =
   | { type: "turn.started" }
   | { type: "message.delta"; messageId: string; text: string }
   | { type: "message.done"; messageId: string; text: string }
-  // callId: edits only; the key of their activity.result (ARCHITECTURE 'Edit line counts').
+  // callId: edits only; the key of their activity.result (ARCHITECTURE §7 'Edit line counts').
   | { type: "activity"; kind: "edit" | "read" | "command" | "other"; path?: string; insideDesign?: boolean; summary: string; callId?: string }
   // An older Doan cannot read a history that holds one.
   | { type: "activity.result"; callId: string; path?: string; lines: EditLines }
@@ -125,9 +123,8 @@ export interface TransportState {
   running?: string[];
 }
 export type FastUnused = Extract<EventPayload, { type: "fast.unused" }>;
-// What a live turn is doing now, read from provider frames beside the events. It is never
-// stored: it only means something while the turn runs. A tool stage follows the activity rules: a path, a summary of at
-// most 512 characters, no shell command text and no Doan connector tool input.
+// What a live turn is doing now, read from provider frames beside the events and never stored. A tool stage follows the
+// activity rules: a path, a summary of at most 512 characters, no shell command text, no connector tool input.
 export type TurnStage =
   | { kind: "thinking" }
   | { kind: "tool"; activity: "read" | "edit" | "command" | "other"; path?: string; summary: string }

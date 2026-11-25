@@ -116,9 +116,8 @@ describe("Codex MCP elicitation", () => {
   });
 });
 
-// Codex 0.166.0 sends item/tool/requestUserInput in no Doan mode, so
-// every one of this thread is answered at once with no answers and the turn goes on; another owner's is routed as today.
-// Params from the generated 0.166.0 ToolRequestUserInputParams schema (synthetic values).
+// Codex sends item/tool/requestUserInput in no Doan mode, so each of this thread's is answered at once with no answers
+// and the turn goes on; another owner's is routed as usual. Params follow ToolRequestUserInputParams (synthetic values).
 describe("Codex requestUserInput", () => {
   const ask = { threadId: "s", turnId: "t", itemId: "i", isBlocking: true, questions: [{ id: "color", header: "Color", question: "Which color?", isOther: true, isSecret: false, options: [{ label: "Red", description: "Warm" }] }] };
   const raw = (patch: Record<string, unknown> = {}, id: string | number = 9) => ({ id, method: "item/tool/requestUserInput", params: { ...ask, ...patch } });

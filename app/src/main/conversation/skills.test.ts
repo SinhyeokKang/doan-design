@@ -2,9 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { parseClaudeSkills, parseCodexSkills, SkillCatalog } from "./skills";
 import type { Prepared } from "./service";
 import type { SkillSummary } from "./types";
-// Recorded answers from a probe repository (.claude/skills, .claude/commands, .agents/skills, a symlinked skill and odd
-// names), with the person's own rows replaced by generic rows of the same shape: Claude initializationResult().commands
-// and Codex skills/list {cwds: [root], forceReload: true} for an untrusted project.
+// Recorded answers from a probe repository, with generic rows: Claude initializationResult().commands and Codex
+// skills/list {cwds: [root], forceReload: true} for an untrusted project.
 import claude318 from "./fixtures/skills-claude-2.1.318.json";
 import claude284 from "./fixtures/skills-claude-2.1.284.json";
 import codex166 from "./fixtures/skills-codex-0.166.0.json";

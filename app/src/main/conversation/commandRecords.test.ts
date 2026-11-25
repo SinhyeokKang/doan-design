@@ -2,8 +2,7 @@ import { describe, expect, it } from "vitest";
 import { claudeBoundary, copilotCompacted } from "./commandRecords";
 import context from "./fixtures/claude-context.json";
 
-// Shapes from a live PoC, 2026-11-17 (Claude Code 2.1.326, Codex 0.167.1, Copilot 1.0.105) and the session lines
-// Claude Code writes (`type: "system", subtype: "local_command"`).
+// Recorded provider shapes and the session lines Claude Code writes (`type: "system", subtype: "local_command"`).
 const clearLine = { type: "system", subtype: "local_command", content: "<command-name>/clear</command-name>\n<command-message>clear</command-message>\n<command-args></command-args>", level: "info" };
 
 describe("claudeBoundary", () => {

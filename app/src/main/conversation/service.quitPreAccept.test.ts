@@ -6,9 +6,8 @@ import { ConversationStore } from "./store";
 import { DraftStore } from "./drafts";
 import { ConversationService, type OpenRunner, type Prepare, type Runner } from "./service";
 
-// A send or start sets its turn busy before main accepts it (its message and turn.started are written only after the
-// runner opens). Restart to Update must wait for it like a running turn, and a quit in that window must not lose the
-// message: it comes back as a draft after the restart.
+// A send or start sets its turn busy before main accepts it, so Restart to Update waits for it like a running turn,
+// and a quit in that window returns its message as a draft after the restart.
 const paths: string[] = [];
 afterEach(() => { vi.restoreAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 

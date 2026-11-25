@@ -304,7 +304,7 @@ describe("DraftStore discard", () => {
 });
 
 // A send's or start's message from when main takes it until main accepts or refuses it (`sending`), and the starts a
-// quit stopped (`starts`). Both keys are written only when they hold something, so the file reads as before otherwise.
+// quit stopped (`starts`). Both keys are written only when they hold something, so the file is unchanged otherwise.
 describe("DraftStore held messages", () => {
   const C = "33333333-3333-4333-8333-333333333333", D = "44444444-4444-4444-8444-444444444444";
   it("writes a held message at once and removes it on release, leaving the file as before", () => {
@@ -365,7 +365,7 @@ describe("DraftStore held messages", () => {
 });
 
 // A start a quit stopped waits for a composer of its root and canvas; one whose canvas went to the Trash or whose project
-// was removed from Doan is never taken, so those go with it (PRODUCT §5 items 1 and 10, Move to Trash).
+// was removed from Doan is never taken, so those go with it.
 describe("DraftStore discarded starts", () => {
   const C = "33333333-3333-4333-8333-333333333333", D = "44444444-4444-4444-8444-444444444444";
   const E = "55555555-5555-4555-8555-555555555555", F = "66666666-6666-4666-8666-666666666666";

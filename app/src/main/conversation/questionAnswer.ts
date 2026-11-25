@@ -1,8 +1,7 @@
 import { QUESTION_LIMITS, type Question, type QuestionAnswer } from "./question";
 
-// Whether an answer fits the pending questions, and its checked form; null when it does not. main checks a sent answer
-// with it and the renderer's Send button uses the same rule, so it imports only question.ts, which imports nothing
-// (rendererImports.test.ts).
+// Whether an answer fits the pending questions, and its checked form; null when not. The renderer's Send button uses the
+// same rule, so this imports only question.ts, which imports nothing (rendererImports.test.ts).
 export function questionAnswer(questions: readonly Question[], input: { outcome: string; answers?: unknown }): QuestionAnswer | null {
   if (input.outcome === "skipped") return input.answers === undefined ? { outcome: "skipped" } : null;
   if (input.outcome !== "answered" || !record(input.answers)) return null;

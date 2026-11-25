@@ -77,9 +77,8 @@ export function plainTitle(text: string): string {
   return text.split("\n").map(line => line.replace(LIST_MARKER, "")).join("\n");
 }
 
-// The one-line form of a message for titles, previews, the queue and notifications: list markers go (plainTitle),
-// each chip marker reads as its chip's name, and line breaks and runs of spaces, in the text or in a frame's name,
-// read as one space. A marker without an anchor stays as typed.
+// The one-line form of a message for titles, previews, the queue and notifications: list markers go, each chip marker
+// reads as its chip's name, and line breaks and space runs read as one space. A marker without an anchor stays.
 export function messageLine(text: string, anchors: readonly Anchor[], frames: readonly FrameName[] = []): string {
   const line = splitMarkers(plainTitle(text), anchors.length).map(part => ("n" in part ? chipLabel(anchors[part.n - 1]!, frames).label : part.text)).join("");
   return oneLine(line).slice(0, LIMITS.label);

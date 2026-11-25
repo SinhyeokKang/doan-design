@@ -49,7 +49,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
 }, 15000);
 it("pins a doan-account Claude run to its login's organization so a repo API key cannot replace the login", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-pinned-claude-")), command = join(root, "claude");
-  // The SDK hands the parent policy to the CLI as --managed-settings <json> (0.3.312); the fake records its argv.
+  // The SDK hands the parent policy to the CLI as --managed-settings <json>; the fake records its argv.
   writeFileSync(command, `#!/usr/bin/env node
 const fs = require('node:fs'); const readline = require('node:readline');
 fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, JSON.stringify(process.argv.slice(2)) + '\\n');
@@ -73,7 +73,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
 }, 15000);
 it("refuses an unpinned doan Claude run and names the pin's refusal of a repo-supplied credential", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-pin-claude-")), command = join(root, "claude");
-  // Claude Code 2.1.312's refusal when a repo's settings supply an API key under forceLoginOrgUUID (live check).
+  // Claude Code's refusal when a repo's settings supply an API key under forceLoginOrgUUID.
   writeFileSync(command, `#!/bin/sh
 echo started >> ${JSON.stringify(join(root, "seen"))}
 echo "This machine's managed settings require a first-party login: they pin Anthropic sign-ins to your organization (forceLoginOrgUUID), and this session is configured with an API key from ANTHROPIC_API_KEY, set in the env block of /repo/.claude/settings.json, which cannot be checked against that policy." >&2
@@ -302,7 +302,7 @@ it("never records on a Codex resume and clears once its initialize passes", asyn
 // Model lists without a prompt, and the conversation's model and effort on every run.
 function listingClaude(root: string): string {
   const command = join(root, "claude");
-  // Answers initialize with the supportedModels rows a PoC recorded; records argv and stdin lines.
+  // Answers initialize with recorded supportedModels rows; records argv and stdin lines.
   writeFileSync(command, `#!/usr/bin/env node
 const fs = require('node:fs'); const readline = require('node:readline');
 fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, JSON.stringify(process.argv.slice(2)) + '\\n');
@@ -464,9 +464,8 @@ it("passes each mode to a doan-owned Claude run, with the dangerous skip only fo
     expect(flags).toEqual([[null, false], [null, false], ["acceptEdits", false], ["plan", false], ["bypassPermissions", true], [null, false]]);
   } finally { rmSync(root, { recursive: true, force: true }); }
 }, 30000);
-// Answers initialize; a prompt reports a top-level system/init for each mode in FAKE_INITS (comma-separated, with a
-// subagent's init after the first), then a status message for each mode in FAKE_STATUS (comma-separated), before its
-// result.
+// Answers initialize; a prompt reports a top-level system/init per mode in FAKE_INITS (a subagent's init after the
+// first), then a status per mode in FAKE_STATUS (both comma-separated), before its result.
 function statusClaude(root: string): string {
   const command = join(root, "claude");
   writeFileSync(command, `#!/usr/bin/env node
@@ -488,9 +487,8 @@ readline.createInterface({input:process.stdin}).on('line', line => {
 `, { mode: 0o700 });
   return command;
 }
-// The service decides what to keep (claudeRunMode.ts); the runner forwards what it may: a status on a turn sent with Plan
-// or Ask first, and a top-level init only on a turn sent with Ask first, each with the mode the turn's first top-level init
-// reported and the mode the process reported last, both as they were before this frame (undefined while none came).
+// The service decides what to keep (claudeRunMode.ts). The runner forwards a status on a Plan or Ask first turn and a
+// top-level init only on an Ask first turn, each with the turn's first init mode and the last reported mode before it.
 it("forwards the modes Claude reports in its own ids, init only on a turn sent with Ask first", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-claude-plan-")), command = statusClaude(root);
   const run = async (permissionMode: "plan" | "default" | "acceptEdits" | "bypass" | undefined, env: { FAKE_STATUS?: string; FAKE_INITS?: string }) => {
@@ -521,9 +519,8 @@ it("forwards the modes Claude reports in its own ids, init only on a turn sent w
 }, 60000);
 
 const CODEX_OWNER = { kind: "doan" as const, provider: "codex" as const, connectionId: "c1", accountId: "a1", workspaceId: null, profile: "codex" };
-// A Codex app-server that records every line. FAKE_PROBE picks the ephemeral thread/start reply: "" the trusted
-// project's values, "error" an error, "bare" no values, "exit" a server exit; FAKE_CONFIG "error" fails config/read,
-// "plugins" reports plugins and no MCP servers.
+// A Codex app-server that records every line. FAKE_PROBE: "" the trusted project's values, "error", "bare" (no values),
+// "exit"; FAKE_CONFIG: "error" fails config/read, "plugins" reports plugins and no MCP servers.
 function modeCodex(root: string): string {
   const command = join(root, "codex");
   writeFileSync(command, `#!/usr/bin/env node
@@ -549,9 +546,8 @@ readline.createInterface({input:process.stdin}).on('line', line => {
 `, { mode: 0o700 });
   return command;
 }
-// The probe turns off every server and every plugin config/read named, so it starts none of their MCP servers
-// (Codex 0.171.0: an empty mcp_servers table merges into the config and disables nothing, and a plugin's servers are
-// not in mcp_servers). It always turns off the apps feature too, whose codex_apps connection config/read names nowhere.
+// The probe turns off every server and plugin config/read named (an empty mcp_servers table disables nothing, and a
+// plugin's servers are not in mcp_servers), and always the apps feature, whose codex_apps connection it never names.
 const PROBE_APPS = { features: { apps: false } };
 const PROBE_PLUGINS = { "computer-use@openai-bundled": { enabled: false }, "off.plug@local": { enabled: false } };
 const PROBE_CONFIG = { mcp_servers: { "doan-notion": { enabled: false }, "own.tool": { enabled: false } }, plugins: PROBE_PLUGINS, ...PROBE_APPS };
@@ -641,7 +637,7 @@ it("releases a Codex conversation's reservation when its server dies during the 
   } finally { await service.quit(); rmSync(root, { recursive: true, force: true }); }
 });
 // A terminal session runs on the person's own Codex profile and takes no mode: whatever override its thread carries
-// from the terminal stays, as before (spec non-goal).
+// from the terminal stays.
 it("sends no probe and no approval or sandbox for a Codex run on an external profile", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-codex-external-")), command = modeCodex(root);
   const events: EventPayload[] = [];
@@ -655,13 +651,8 @@ it("sends no probe and no approval or sandbox for a Codex run on an external pro
   } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
-// Steer on the Codex and Claude runners. The fakes follow the PoC's wire shapes (Claude Code 2.1.317, Codex 0.166.0).
-// FAKE_STEER: "echo" accepts and echoes the clientUserMessageId in the same turn, then completes; "error" answers the
-// steer with the server's after-completion error and completes; "refused" answers with an error and then echoes it anyway;
-// "early" echoes the message before its steer reply and completes later; "silent" never answers the steer, echoes it
-// and completes later;
-// "complete" completes the turn with turn/start; "slow" answers turn/start late; "die" exits on the steer without an
-// answer, leaving a descendant that ignores SIGTERM on its stdout, so the server's end waits for the output drain.
+// Steer on the Codex runner. FAKE_STEER: "echo" (in the same turn), "error", "refused" (error, then echo), "early" (echo
+// before reply), "silent" (no reply), "complete", "slow" (late turn/start), "die" (exits; a descendant ignores SIGTERM).
 function steerCodex(root: string): string {
   const command = join(root, "codex");
   writeFileSync(command, `#!/usr/bin/env node
@@ -790,13 +781,8 @@ it("refuses a Codex steer before the turn has its native id, after it ended, and
     expect(seenLines(root).filter(r => r.method === "turn/steer")).toEqual([]);
   });
 });
-// A Claude CLI that, like the real one in streaming-input mode, exits only once its stdin ends. FAKE_STEER: "fold" runs
-// a tool and folds a steered message into the turn at its status frame; "continued" answers without tools and goes on
-// to another turn for the steered message, after a result with queued_turn_count 0; "single" ends the first turn
-// at once; "failed" and "aborted" end it with an error or an aborted result; "hold" never ends it; "hidden" runs a tool,
-// answers the steered message's line with a failed result and then goes on to a turn for it that ignores stdin's end;
-// "late" answers the steered message's line with a success result that leaves it unread, echoes it in a follow-up turn
-// only once the file "go" exists, and ignores stdin's end until then.
+// A Claude CLI that exits only once its stdin ends. FAKE_STEER: "fold", "continued", "single", "failed", "aborted", "hold",
+// "hidden" (failed result, then a stdin-ignoring turn), "late" (an unread success result; echoes once "go" exists).
 function steerClaude(root: string): string {
   const command = join(root, "claude");
   writeFileSync(command, `#!/usr/bin/env node
@@ -903,8 +889,8 @@ it("stops the Claude CLI when a failed result leaves a steered message unread, s
     await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
   });
 }, 15000);
-// A success result that leaves a steered uuid unread waits at most STEER_READ_WAIT_MS (30 s) for its echo. The CLI's own
-// timers run in real time; only setTimeout is faked, from just before the steer, so a group stop's 2 s ceiling must be advanced.
+// A success result that leaves a steered uuid unread waits at most STEER_READ_WAIT_MS for its echo. CLI timers run in
+// real time; only setTimeout is faked, from just before the steer, so a group stop's 2 s ceiling must be advanced.
 async function lateSteer(runner: { send(prompt: string, turnId: string): Promise<void>; steer?: (prompt: string, turnId: string, messageId: string) => Promise<void> }, seq: unknown[], root: string) {
   const sending = runner.send("hello", "turn-1").then(() => "resolved", (e: unknown) => e);
   await vi.waitFor(() => expect(seq).toContainEqual({ type: "message.done", messageId: "a1", text: "40 facts" }));
@@ -1004,14 +990,8 @@ it("accepts a Claude send issued on turn.done, before the first CLI has exited",
   } finally { await service.quit(); rmSync(root, { recursive: true, force: true }); }
 }, 15000);
 
-// A Codex app-server started a thread's MCP servers at thread/start; a turn waits until the
-// profile's doan- servers settle, so their tools are there from the first turn. The fake records every line it reads and
-// marks when it sent a status, so the order of a status and turn/start is read from one file.
-// holdReload: the reload reply waits until the test writes <root>/release. reloadError: the first reload is refused.
-// interruptElicit: turn/interrupt is answered after an MCP tool approval request for the stopped turn. holdTurnStart: the
-// turn/start reply waits for <root>/release too, and turn/interrupt of the native turn then succeeds. uniqueTurns: each
-// held turn/start answers with its own native id (native-1, native-2, ...). completeWithReply: the held reply comes in
-// one chunk with that turn's completion.
+// A Codex app-server whose thread/start starts the profile's MCP servers; it records every line and when it sent a
+// status. holdReload and holdTurnStart wait for <root>/release; uniqueTurns answers native-1, native-2, ...
 function mcpCodex(plan: { readyMs?: number | null; elicit?: boolean; holdReload?: boolean; reloadError?: boolean; interruptElicit?: boolean; holdTurnStart?: boolean; uniqueTurns?: boolean; completeWithReply?: boolean }) {
   const root = mkdtempSync(join(tmpdir(), "doan-mcp-codex-")), command = join(root, "codex"), seen = join(root, "seen"), release = join(root, "release");
   writeFileSync(join(root, "config.toml"), 'model = "gpt-6"\n[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/mcp"\n');
@@ -1205,9 +1185,8 @@ it("a Stop while turn/start is unanswered interrupts the native turn once it exi
     expect(exited).not.toHaveBeenCalled();
   } finally { await runner.close(); h.cleanup(); }
 }, 15000);
-// A Stop while turn/start is unanswered belongs to that send. A send that follows waits until the stopped
-// start settled (its native turn interrupted once), so it neither erases that Stop nor lets the late reply become its
-// own turn's id.
+// A Stop while turn/start is unanswered belongs to that send. A following send waits until the stopped start settled,
+// so it neither erases that Stop nor adopts the late reply as its own turn's id.
 it("a send after a Stop of an unanswered turn/start waits for it to settle and never adopts its native id", async () => {
   const h = mcpCodex({ readyMs: 0, holdTurnStart: true, uniqueTurns: true }); const events: EventPayload[] = []; const exited = vi.fn();
   const runner = await openRunner({ command: h.command, runtime: "codex", cwd: h.root, configDir: h.root, env: process.env, owner: h.owner, mcp: MCP_RUN }, e => events.push(e), exited, () => {});
@@ -1537,9 +1516,8 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
       } finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
     }
   }, 30000);
-  // The next send waits for this process (service.ts EXIT_WAIT_MS 10 s) while the read keeps its input
-  // open. A CLI that never answers, then takes the observed 2.1 s to exit, must still leave a send right after
-  // turn.done and a queue flushed at turn.done going out, not refused as busy.
+  // The next send waits for this process (service.ts EXIT_WAIT_MS) while the read keeps its input open. A CLI that never
+  // answers and exits slowly must still let a send right after turn.done, and a queue flushed then, go out.
   describe("with a CLI that never answers the usage request", () => {
     function serviceOn(root: string) {
       const command = fakeClaude(root), store = new ConversationStore(root);
@@ -1626,10 +1604,8 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
     } finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
   }, 15000);
 });
-// Every Claude run asks for suggestions; the first prompt_suggestion after a
-// done turn's terminal reaches the run's suggested hook once. The fake sends it after its input closes, as Claude Code
-// 2.1.318 does: FAKE_MODE "done" (one), "twice", "none", "early" (one before the result, none after), "failed"
-// and "hold" (no result); FAKE_SUGGEST_MS delays it.
+// Every Claude run asks for suggestions; the first prompt_suggestion after a done turn's terminal reaches the suggested
+// hook once. The fake sends it after its input closes; FAKE_MODE picks how many and when, FAKE_SUGGEST_MS delays it.
 describe("prompt suggestions", () => {
   const usageReply = { rate_limits_available: true, rate_limits: {} };
   function suggestClaude(root: string): string {
@@ -1807,8 +1783,8 @@ describe("fast on the wire", () => {
   });
 });
 
-// Pins for paths that keep a run's Fast. The SDK hands Options.settings to the CLI as
-// `--settings <json>` (0.3.312), so the argv value is read, not only searched for.
+// Pins for paths that keep a run's Fast. The SDK hands Options.settings to the CLI as `--settings <json>`, so the argv
+// value is read, not only searched for.
 const settingsOf = (argv: string[]) => { const at = argv.indexOf("--settings"); return at < 0 ? undefined : JSON.parse(argv[at + 1]!) as unknown; };
 describe("fast kept", () => {
   it("resumes a Claude session with Fast: --resume and settings fastMode true on the same run", async () => {
