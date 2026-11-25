@@ -64,7 +64,7 @@ Flags (gate later steps):
 - Postmortem candidate: none / <non-obvious pitfall hit>
 ```
 
-Do not omit the flags. `/ship` reads them to turn on later steps.
+Do not omit the flags. `/deliver` reads them to turn on later steps.
 
 ## Prohibited
 

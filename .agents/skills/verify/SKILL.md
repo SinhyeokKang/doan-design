@@ -5,7 +5,7 @@ description: Run doan's shared sequential verification command for a change or i
 
 # Shared verification
 
-Read [AGENTS.md](../../../AGENTS.md), especially Commands and 'Commit conventions', and the worktree ownership gate in [/ship](../ship/SKILL.md) §0. This is the common executable gate for `/verify`, `/ship`, and `/orchestrate`; individual focused tests during implementation remain useful.
+Read [AGENTS.md](../../../AGENTS.md), especially Commands and 'Commit conventions', and the worktree ownership gate in [/deliver](../deliver/SKILL.md) §0. This is the common executable gate for `/verify`, `/deliver`, and `/orchestrate`; individual focused tests during implementation remain useful.
 
 ## Select the checks
 
@@ -41,7 +41,7 @@ Cancellation sends a termination signal to the active process group and returns 
 
 ## Use in a workflow
 
-- `/ship`: run the focused affected-behavior runtime check before review, then use this runner for the final static/unit/build gate. Cite reusable runtime evidence and its scope; rerun only affected behavior when implementation changes.
+- `/deliver`: run the focused affected-behavior runtime check before review, then use this runner for the final static/unit/build gate. Cite reusable runtime evidence and its scope; rerun only affected behavior when implementation changes.
 - `/orchestrate`: run at the combined integration HEAD, with flags selected from the union of integrated changes. Worker passes alone do not verify their combination.
 - A change after verification invalidates evidence for affected checks. Context records the starting HEAD and dirty paths, not an immutable snapshot. Record the verified state and do not claim a different revision passed.
 

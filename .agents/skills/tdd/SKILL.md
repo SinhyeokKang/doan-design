@@ -65,11 +65,11 @@ POSTMORTEM recalled: <items or none/no file>
 Next: /implement
 ```
 
-If invoked inside `/ship`, do not end the turn at the "Next:" line. `/ship` continues in the same turn.
+If invoked inside `/deliver`, do not end the turn at the "Next:" line. `/deliver` continues in the same turn.
 
 ## Prohibited
 
 - Do not create or edit production code.
-- Do not commit (`/ship` handles commit #0).
+- Do not commit (`/deliver` handles commit #0).
 - Do not try to make the tests green.
 - Do not proceed if you could not confirm red.

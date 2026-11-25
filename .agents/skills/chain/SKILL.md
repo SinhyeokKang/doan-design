@@ -40,9 +40,9 @@ Only when the user asks to start. Run the start check with the user in one batch
 
 ### Lead
 
-- **Start a link.** Follow `/ship` 'Lead' (`.agents/skills/ship/lead.md`) step 1 with `feat/<slug>` from the freshly fetched `origin/develop`: worktree name `<slug>-orch`, branch `feat/<slug>`, `<runtime>` being the conductor runtime the chain file names. The brief points to the chain file, the link's feature directory and anything not yet written down (decisions or unverified items from earlier links the link must know), and says to run `/orchestrate docs/features/<slug>/`. One session per link; a session never conducts two links. Record the session and worktree in `링크 상태` and push it.
-- **Parallel groups.** Start every link of a group together, each in its own worktree. Merge their PRs in link order; contention between them follows `/ship` 'Lead' step 4.
-- **Merge a link.** Review and merge as in `/ship` 'Lead' steps 3–5. Then record the result in the chain file (merge commit, PR, unverified items and decisions the next link must know, from the PR body and the conductor), push it, and start the next link once every link it waits on has merged.
+- **Start a link.** Follow `/deliver` 'Lead' (`.agents/skills/deliver/lead.md`) step 1 with `feat/<slug>` from the freshly fetched `origin/develop`: worktree name `<slug>-orch`, branch `feat/<slug>`, `<runtime>` being the conductor runtime the chain file names. The brief points to the chain file, the link's feature directory and anything not yet written down (decisions or unverified items from earlier links the link must know), and says to run `/orchestrate docs/features/<slug>/`. One session per link; a session never conducts two links. Record the session and worktree in `링크 상태` and push it.
+- **Parallel groups.** Start every link of a group together, each in its own worktree. Merge their PRs in link order; contention between them follows `/deliver` 'Lead' step 4.
+- **Merge a link.** Review and merge as in `/deliver` 'Lead' steps 3–5. Then record the result in the chain file (merge commit, PR, unverified items and decisions the next link must know, from the PR body and the conductor), push it, and start the next link once every link it waits on has merged.
 - **After the last merge,** delete the chain directory (`docs(chain): remove chain-<YYMMDD>-<n>`), with the login cleanup done before that merge if the chain had one.
 
 ### Conductor

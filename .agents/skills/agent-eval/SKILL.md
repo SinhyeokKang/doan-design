@@ -1,6 +1,6 @@
 ---
 name: agent-eval
-description: Use to measure how well real coding agents (Claude Code and Codex) write and read doan designs, by running the fixed scenarios in eval/ against the packaged CLI, scoring them, and recording rounds in docs/usability-eval/ and usability issues in docs/USABILITY-EVAL.md. Reports and records only; fixes go through /ship or /feature.
+description: Use to measure how well real coding agents (Claude Code and Codex) write and read doan designs, by running the fixed scenarios in eval/ against the packaged CLI, scoring them, and recording rounds in docs/usability-eval/ and usability issues in docs/USABILITY-EVAL.md. Reports and records only; fixes go through /deliver or /feature.
 ---
 
 The discovery half of doan's usability loop: we find where agents struggle with doan, fix the cause, and re-measure with the same scenarios. The loop itself and the issue list live in `docs/USABILITY-EVAL.md`.
@@ -44,7 +44,7 @@ A full round runs Claude Code and Codex for real and has the other family's mode
    - The round: one row in the month's results table (date, agents and versions, guide hash, CLI version, per-scenario results with every fail and partial, the runner's exit code, round id, command and packaged build). A write-up below the table only when the row cannot carry it: what changed against the previous measure, whether the agents actually read the changed guide or preset text (from their transcripts), what is not verified, any state-guard failure, and the evidence paths. A runner exit 1 is not a pass even when every run passed.
    - Issues: one issue row per new problem in `docs/USABILITY-EVAL.md`, or a note on an existing issue.
    - A correction to an earlier round goes under 'Documentation corrections' in `docs/USABILITY-EVAL.md`, in a `### YYYY-MM-DD` subsection for the day it is made; the round's own record stays unchanged.
-5. **Report** to the user: results table, new and recurring issues, and a recommended next step per issue (`/ship` for guide or output wording, `/feature` for product changes, a new scenario when a fixed issue needs a regression check).
+5. **Report** to the user: results table, new and recurring issues, and a recommended next step per issue (`/deliver` for guide or output wording, `/feature` for product changes, a new scenario when a fixed issue needs a regression check).
 
 ## Prohibited
 

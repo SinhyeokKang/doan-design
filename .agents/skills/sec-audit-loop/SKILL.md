@@ -1,6 +1,6 @@
 ---
 name: sec-audit-loop
-description: Use to run repeated /sec-audit rounds that fix what they find without asking the user — the lead runs the security audit, keeps findings local, starts /ship and /orchestrate conductors for fixes that change no decision or usability, merges their PRs into develop, and audits again. Invoked by the user in the lead session; reports per round at the end.
+description: Use to run repeated /sec-audit rounds that fix what they find without asking the user — the lead runs the security audit, keeps findings local, starts /deliver and /orchestrate conductors for fixes that change no decision or usability, merges their PRs into develop, and audits again. Invoked by the user in the lead session; reports per round at the end.
 ---
 
 # Security audit loop
