@@ -483,7 +483,7 @@ describe("handoff events in event v1", () => {
     }
   });
   // A project conversation's handoff names no canvas. Its text is the agent's, so a leading command name or a marker never
-  // makes it a command turn or an anchored message (POSTMORTEM 2026-11).
+  // makes it a command turn or an anchored message (POSTMORTEM 2026-11-18).
   it("round-trips a project conversation's handoff, whose origin names no canvas", () => {
     const f = seed(); const store = new ConversationStore(f.root);
     const project = { kind: "handoff", conversationId: "p" } as const;

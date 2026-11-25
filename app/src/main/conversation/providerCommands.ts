@@ -1,11 +1,10 @@
 import type { Provider } from "../agentAuth/types";
 import type { BoundaryKind } from "./commandRecords";
 
-// Provider built-in commands Doan runs: the oldest CLI version that ran each provider's commands, then the commands;
-// moving either is a decision backed by a live check. Own module: the renderer reads it and must not load sessions.ts.
-
 // description: Doan's copy, shown when the provider reports none. An ACP row takes the server's own description.
 export interface CommandEntry { name: string; description: string }
+// Provider built-in commands Doan runs: the oldest CLI version that ran each provider's commands, then the commands;
+// moving either is a decision backed by a live check. Own module: the renderer reads it and must not load sessions.ts.
 export const COMMAND_ALLOWLIST: Record<Provider, { version: string; commands: readonly CommandEntry[] }> = {
   claude: { version: "2.1.326", commands: [
     { name: "clear", description: "Clear conversation history and free up context." },

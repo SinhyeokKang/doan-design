@@ -493,7 +493,7 @@ export function claudeQuestion(input: unknown): ClaudeQuestion | null {
   return { questions, textById };
 }
 // The PermissionResult for a checked answer: choices and Other as one comma-joined string, as the CLI's card answers. A
-// skip sends no text and marks questions unanswered only where system/init advertises it; elsewhere it is a denial.
+// skip sends no text (the model reads any as the answer), and marks questions unanswered only where advertised, else denies.
 export type ClaudeQuestionResult = { behavior: "allow"; updatedInput: Record<string, unknown> } | { behavior: "deny"; message: string };
 export function claudeQuestionResult(input: Record<string, unknown>, read: ClaudeQuestion, answer: QuestionAnswer, unanswered: boolean): ClaudeQuestionResult {
   if (answer.outcome === "skipped") {

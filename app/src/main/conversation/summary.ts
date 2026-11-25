@@ -45,8 +45,8 @@ export interface ConversationSummary {
 // Long enough for one line of a canvas row or conversation menu; the renderer still truncates to its width.
 export const PREVIEW_CHARS = 140;
 const COMMAND = "Running a command";
-// live: this run holds the conversation, so an unfinished turn is still running rather than crashed. returned,
-// suggestion, background, stopping, limitResetsAt and scheduledAt are memory-only facts main holds (service.ts list).
+// live: this run holds the conversation, so an unfinished turn is still running rather than crashed. returned: a draft in
+// drafts.ts waits. suggestion, background, stopping, limitResetsAt, scheduledAt: memory-only (service.ts list).
 export function conversationSummary(m: ConversationMetadata, read: { ok: true; events: readonly ConversationEvent[] } | { ok: false }, live: { live: boolean; queued: number; working: boolean; projectTurnId?: string; returned?: boolean; suggestion?: string; background?: { turnId: string; stopping?: true }; stopping?: true; limitResetsAt?: string; scheduledAt?: string }): ConversationSummary {
   const base = {
     conversationId: m.conversationId, ...(m.canvas ? { canvas: m.canvas } : {}), title: m.title,

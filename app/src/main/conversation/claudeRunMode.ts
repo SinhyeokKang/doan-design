@@ -23,8 +23,8 @@ export function runModeAfterInit(report: RunModeReport & { counted: boolean }): 
   return next === entry.claudeRunMode ? null : { permissionMode: "default", claudeRunMode: next };
 }
 
-// A Plan turn's approval moves the stored mode (claudeModeAfterPlan) and, into Ask first, sets the run mode; an Ask first
-// turn whose settings ran plan changes the run mode only, when turnInit and previous are both plan. Other statuses hold.
+// A Plan approval moves the stored mode and, into Ask first, sets the run mode. An Ask first turn changes only the run mode,
+// if turnInit and previous are plan, so a later setMode is no approval (ARCHITECTURE §7 'Permission modes').
 export function runModeAfterStatus(report: RunModeReport & { turnInit: string | undefined; previous: string | undefined }): RunModeUpdate | null {
   const { entry, sent, current, reported, turnInit, previous } = report;
   if (!current || reported === "plan") return null;

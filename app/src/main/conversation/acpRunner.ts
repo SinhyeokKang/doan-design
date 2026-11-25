@@ -215,7 +215,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
   };
 }
 // Cursor's set_config_option writes cli-config.json, which the fence keeps closed (it holds the permission allow list), so
-// Doan writes the choice to acp-config.json's selectedModelVariantId from outside; no choice removes the file.
+// Doan writes acp-config.json's selectedModelVariantId from outside; no choice removes it (ARCHITECTURE §7 'Agent authentication').
 function chooseCursorModel(home: string, model: string | undefined): void {
   const dir = join(home, ".cursor"), file = join(dir, "acp-config.json"), temp = `${file}.${randomUUID()}.tmp`;
   if (!model) { try { rmSync(file, { force: true }); } catch { /* the server then opens on the earlier choice */ } return; }

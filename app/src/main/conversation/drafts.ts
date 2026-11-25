@@ -108,8 +108,8 @@ function startOn(start: ReturnedStart, root: string, canvas: Canvas | undefined)
   return start.canvas.id !== undefined && canvas.id !== undefined ? start.canvas.id === canvas.id : start.canvas.path === canvas.path;
 }
 
-// The input queue and returned drafts per conversation, in <userData>/conversations/drafts.json, written at every change;
-// queued messages become drafts at the next start. A non-drafts file is kept for diagnosis. directory null: memory only.
+// The queue and returned drafts per conversation in <userData>/conversations/drafts.json; queued messages become drafts at
+// the next start. A non-drafts file is kept: nothing more is queued, drafts stay in memory. directory null: memory only.
 export class DraftStore {
   private file: DraftsFile = { queued: {}, returned: {}, sending: {}, starts: {} };
   private unread: { queued: Record<string, unknown>; returned: Record<string, unknown> } = { queued: {}, returned: {} };

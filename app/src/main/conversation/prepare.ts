@@ -240,8 +240,8 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         const judgment = judgeConnection(stored.owner, adapter.verifyByRun && !current.error ? { ...current, verified: true } : current, { exists, occupancy });
         if (judgment.decision !== "resume") throw new Error(judgmentCode(judgment, provider));
       }
-      // Every conversation run is fenced (Claude's per turn: pasted files may differ), and every list read but Codex's, which
-      // can start repo hooks and MCP servers; Codex's profile settings are closed and an untrusted .codex/ is not loaded.
+      // Fenced: every run (pasted files differ per turn) and every list read but Codex's. Claude's starts repo hooks and MCP
+      // servers, an ACP one those its turn-writable profile names; Codex's loads neither (closed settings, untrusted .codex/).
       const fenced = fence && !reusing && (use === "run" || provider !== "codex") ? runFence(fence, provider, configDir, request.attachments ?? []) : undefined;
       // The fence keeps a Cursor process from making its worker socket folder inside .cursor (cursorWorkerDir), so Doan
       // makes it, empty, first; if Doan cannot, the start fails with the CLI's own mkdir error logged.

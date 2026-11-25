@@ -69,7 +69,7 @@ export type RegistryVerdict = "skip" | "occupied" | "unknown";
 // the process is there (io.ts claudeRecordVerdict).
 export interface RegistryIdentity { pid: number; procStart?: string; host: boolean }
 // null when liveness cannot be asked. Claude Code writes pidDomain "darwin" on macOS, so any other value is a process the
-// host's ps cannot see. A procStart that is there but unreadable keeps the record: its shape is unknown here.
+// host's ps cannot see. A procStart that is there but unreadable also gives null, never a pid-only check: the shape is unknown.
 export function registryIdentity(name: string, raw: unknown): RegistryIdentity | null {
   if (!object(raw) || typeof raw.pid !== "number" || !Number.isSafeInteger(raw.pid) || raw.pid !== Number(name.slice(0, -5))) return null;
   if (raw.procStart !== undefined && (typeof raw.procStart !== "string" || !Number.isFinite(Date.parse(raw.procStart)))) return null;

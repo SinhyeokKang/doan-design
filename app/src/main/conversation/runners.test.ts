@@ -990,8 +990,8 @@ it("accepts a Claude send issued on turn.done, before the first CLI has exited",
   } finally { await service.quit(); rmSync(root, { recursive: true, force: true }); }
 }, 15000);
 
-// A Codex app-server whose thread/start starts the profile's MCP servers; it records every line and when it sent a
-// status. holdReload and holdTurnStart wait for <root>/release; uniqueTurns answers native-1, native-2, ...
+// A Codex app-server that logs lines and statuses. hold*: wait for <root>/release; reloadError: first reload refused;
+// interruptElicit: approval before the interrupt reply; completeWithReply: one chunk; uniqueTurns: native-1, native-2, ...
 function mcpCodex(plan: { readyMs?: number | null; elicit?: boolean; holdReload?: boolean; reloadError?: boolean; interruptElicit?: boolean; holdTurnStart?: boolean; uniqueTurns?: boolean; completeWithReply?: boolean }) {
   const root = mkdtempSync(join(tmpdir(), "doan-mcp-codex-")), command = join(root, "codex"), seen = join(root, "seen"), release = join(root, "release");
   writeFileSync(join(root, "config.toml"), 'model = "gpt-6"\n[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/mcp"\n');
@@ -1604,8 +1604,8 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
     } finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
   }, 15000);
 });
-// Every Claude run asks for suggestions; the first prompt_suggestion after a done turn's terminal reaches the suggested
-// hook once. The fake sends it after its input closes; FAKE_MODE picks how many and when, FAKE_SUGGEST_MS delays it.
+// A done turn's first prompt_suggestion reaches the suggested hook once; sent after input closes. FAKE_MODE: done, twice,
+// none, early (before the result), failed, hold (no result). FAKE_SUGGEST_MS delays it.
 describe("prompt suggestions", () => {
   const usageReply = { rate_limits_available: true, rate_limits: {} };
   function suggestClaude(root: string): string {

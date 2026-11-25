@@ -82,8 +82,8 @@ export interface Prepared {
   // The turn's stage after a frame, called right after that frame's events. It names no turn:
   // a reused Codex server keeps the callback it opened with, and the service takes the live turn of that moment.
   stage?: (stage: TurnStage) => void;
-  // Doan-account conversation runs and Claude list reads only: what keeps the run out of the rest of userData
-  // (agentAuth/fence.ts). denied: Codex profile entries. exec: a test sandbox-exec. socket: a Codex profile server's.
+  // Doan-account conversation runs and list reads (not Codex's): what keeps the run out of the rest of userData
+  // (agentAuth/fence.ts). denied: Codex profile entries. exec: for tests. socket: a Codex profile allows its directory.
   fence?: { paths: FencePaths; denied?: FenceEntry[]; socket?: string; exec?: string };
 }
 // generation: the provider's connector generation now. labels: connector names by doan- name, for permission
@@ -133,8 +133,7 @@ function startComposer(request: { root: string; canvas?: Canvas }): string { ret
 function freeLease(input: Prepared | undefined): void {
   void input?.release?.().catch(error => console.error("doan: account lease release failed", error));
 }
-// A Claude turn's reservation can hold for seconds after turn.done until its group is gone; this allows twice the
-// slowest seen.
+// ARCHITECTURE §7 'Send after a finished turn'.
 const EXIT_WAIT_MS = 10_000;
 // How long a Claude turn's end waits for its group to go before its unreported steers are looked for in the transcript;
 // past it they go back to the queue without the lookup.
@@ -150,8 +149,8 @@ const CLOCK: ScheduleClock = {
 // A scheduled send (usage limit): its queued messages go out together at `at`, after the reset, on the connection it was
 // scheduled for. retried: it goes once more for a reset that already stopped it. due: its time came while working.
 interface Schedule { at: number; reset: number; provider: Provider; connectionId: string; retried: boolean; timer?: unknown; due?: true }
-// holding: each hold is its own object, so a late flush never lets go of a later turn's. asking: keyed by kind and id so
-// one kind's resolution never settles the other. stageRev orders stages sharing a seq. held: the end waits for the group.
+// holding: one object per hold, so a late flush never frees a later turn's. asking: by kind and id, so one kind never
+// settles the other. closed: never reused. held: the end waits for the group; unheld: being written, not held again.
 interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; closed?: boolean; holding?: object; mcpGeneration?: number | undefined; asking?: Set<string>; done?: boolean; handoffKey?: string; lastSeq?: number; stage?: StageSignal; stageRev?: number; pastedStore?: string;
   exitedAt?: number; cleaned?: boolean; background?: { turnId: string; stopping?: true }; stopping?: true; quiet?: (on: boolean) => void;
   transcript?: { configDir: string; sessionId: string; size?: number }; held?: { event: EventPayload; timer: ReturnType<typeof setTimeout> };

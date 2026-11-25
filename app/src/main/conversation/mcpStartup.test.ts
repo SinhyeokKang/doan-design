@@ -4,8 +4,7 @@ import statuses from "./fixtures/codex-mcp-startup-status.json";
 import { CodexStartupWatch, codexProfileServers, notReadyLine, waitingLine } from "./mcpStartup";
 import type { EventPayload } from "./types";
 
-// One thread's mcpServer/startupStatus/updated notifications: four servers start, the signed-out doan-notion fails,
-// and the remote servers are ready after 1-1.6 s.
+// One thread's mcpServer/startupStatus/updated notifications: four servers start and the signed-out doan-notion fails.
 const THREAD = "thread-1014";
 const NAMES = ["doan-notion", "doan-atlassian", "doan-figma"];
 const LABELS = { "doan-notion": "Notion", "doan-atlassian": "Atlassian", "doan-figma": "Figma" };

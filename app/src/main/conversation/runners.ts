@@ -196,8 +196,8 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     if (ending()) throw new Error("process_exited");
   // oxlint-disable-next-line typescript/no-unnecessary-condition -- the child exit callback sets this while the thread opens
   } catch (error) { dispatcher.close(); void group?.stop(); throw new Error(dead || (error instanceof Error && error.message === "process_exited") ? "process_exited" : transportError(error instanceof Error ? error.message : "")); }
-  // A turn that starts before its servers are ready runs without their tools, so a doan run waits for the profile's doan-
-  // servers; a reload forgets their statuses first and is awaited even after a Stop. False: a Stop ended the phase.
+  // A turn before its servers are ready runs without their tools, so a doan run waits. A reload forgets statuses before it
+  // is sent (new ones can follow its reply at once) and is awaited past a Stop to set reloadOwed. False: Stop ended it.
   const serversReady = async (phase: Start, reload: boolean, labels: Readonly<Record<string, string>>): Promise<boolean> => {
     if (!input.owner) return true;
     const names = profileServers(input.configDir);
