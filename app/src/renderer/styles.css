@@ -1285,6 +1285,18 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .activity-steps li:has(> .mcp-step) svg { margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon-sm)) / 2); }
 .conversation-thread .activity-steps .verb.mcp-step { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .conversation-thread .activity-steps .path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--type-family-mono); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+/* An edit's line counts (draft thread-edit-lines.html). They never shrink or wrap and use tabular figures, so counts that
+   arrive after their step change neither the line count nor the thread's height; the path ellipsizes first. */
+.conversation-thread .lines { flex: none; display: inline; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.conversation-thread .lines .add { color: var(--text-diff-added); }
+.conversation-thread .lines .del { color: var(--text-diff-removed); }
+/* On a step the counts take the path's caption size in the sans face. */
+.conversation-thread .activity-steps .lines { font-family: var(--type-family); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+/* On the folded head the step count may ellipsize; the separator and the total keep their width. The separator's
+   narrower gap reads like the thread's text dots ("Denied · Edit"). */
+.conversation-thread .activity-head .head-sep { flex: none; margin-inline: calc(-1 * var(--space-1)); color: var(--text-metadata); }
+.conversation-thread .activity-head .lines { overflow: visible; }
+.conversation-thread .activity-head .lines span { overflow: visible; }
 .conversation-thread .ask-answered { color: var(--text-subtle); }
 /* Thread notices put their actions on a row under the text, starting at the text's left edge (draft round 2). */
 .conversation-thread .thread-notice, :is(.cp-scroll, .ov-new) > .thread-notice { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-1h); row-gap: var(--space-3); }
