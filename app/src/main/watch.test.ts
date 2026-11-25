@@ -528,7 +528,7 @@ describe("watchFolder classifies changes", () => {
     await expectChange(w, () => atomicSave(join(root, "src", "styles", "tokens.css"), "c{}"), SERVED);
   });
 
-  test("a sibling of a served path's ancestor is ignored", async () => {
+  test("a sibling of a served file or of its ancestors is ignored", async () => {
     const root = repo();
     mkdirSync(join(root, "src", "styles"), { recursive: true });
     writeFileSync(join(root, "src", "styles", "tokens.css"), "a{}");
@@ -536,6 +536,7 @@ describe("watchFolder classifies changes", () => {
     await expectQuiet(w, () => {
       writeFileSync(join(root, "src", "main.ts"), "x");
       mkdirSync(join(root, "src", "other"));
+      writeFileSync(join(root, "src", "styles", "other.css"), "x{}");
     });
   });
 
