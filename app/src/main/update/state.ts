@@ -51,9 +51,8 @@ function failed(prev: UpdateState, code: UpdateErrorCode, source: UpdateErrorSou
     case "checking": return prev.manual ? { kind: "failed", code, stage: "check" } : prev.last;
     // A download is shown however it started.
     case "downloading": return { kind: "failed", code, stage: "download", version: prev.version };
-    // Squirrel.Mac stages the update after electron-updater reports it downloaded, and quitAndInstall waits for that,
-    // so a native error here means nothing is staged: download again, unless the install itself failed. An
-    // electron-updater error here comes from a later check and must not take the update away.
+    // Squirrel.Mac stages after electron-updater reports the download, so a native error here means nothing is staged:
+    // download again, unless the install itself failed. A js error comes from a later check and keeps the update.
     case "ready":
     case "restartAborted":
     case "restarting":

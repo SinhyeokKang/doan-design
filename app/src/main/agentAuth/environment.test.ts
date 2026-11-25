@@ -12,7 +12,7 @@ const inherited = {
   CLAUDE_CODE_SESSION_ID: "s", CODEX_THREAD_ID: "t", CODEX_SESSION_ID: "u", UNSET: undefined,
   SSH_AUTH_SOCK: "/tmp/ssh-agent.sock", GIT_CONFIG_GLOBAL: "/Users/ada/other.gitconfig", GEMINI_HOME: "/Users/ada/.gemini", GOOGLE_API_KEY: "g-x", AGY_ACP_ENABLE_OAUTH: "1",
 };
-// A dedicated HOME gets back only the user's ssh agent and real git config (user decision 2026-10-28).
+// A dedicated HOME gets back only the user's ssh agent and real git config.
 const dedicated = { SSH_AUTH_SOCK: "/tmp/ssh-agent.sock", GIT_CONFIG_GLOBAL: "/Users/ada/.gitconfig" };
 const input = (provider: Provider, over: Record<string, unknown> = {}) => ({ provider, inherited, path: "/verified/bin:/usr/bin", profileDir: "/data/profiles/" + provider, appRuntime: "/data/runtime.json", ...over });
 const kept = { USER: "ada", LOGNAME: "ada", SHELL: "/bin/zsh", TMPDIR: "/tmp/ada", LANG: "ko_KR.UTF-8", LC_ALL: "ko_KR.UTF-8",

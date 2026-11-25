@@ -2,8 +2,7 @@ import { posix } from "node:path";
 import { PROVIDERS, type Provider } from "../agentAuth/types";
 import type { Ineligible, SetupItem, SetupTarget } from "./notice";
 
-// What agent setup should look like on this machine and what to do about each target. Pure: the
-// runner reads the file system and writes; these only decide.
+// Pure: the runner reads the file system and writes; these only decide.
 
 export type Eligibility = "eligible" | Ineligible;
 export type ProviderDir = "claude" | "codex" | "gemini";
@@ -54,30 +53,23 @@ function underNamespace(value: string, home: string): boolean {
   return posix.isAbsolute(value) && posix.normalize(value) === value && value.startsWith(`${home}/.local/share/doan/`);
 }
 
-// Codex runs a command an `allow` rule matches outside the sandbox without asking (Codex docs 'Rules'); the app socket
-// needs that. Only the read and signal commands the guide has agents run unasked are allowed; every other `doan`
-// command (export, config, init, onboarding, remove, handoff) matches no rule here and follows the person's Codex
-// settings, so a writing command never leaves the sandbox unasked. Codex compares a rule's tokens with argv in order,
-// which is why the CLI refuses any argument before the command. Doan's own file, not default.rules, where the Codex
-// TUI saves the person's approvals.
+// An `allow` rule runs the command outside the sandbox unasked (Codex docs 'Rules'), which the app socket needs. Only
+// read and signal commands are allowed; every other `doan` command follows the person's Codex settings.
 const CODEX_ALLOWED_COMMANDS = ["ls", "check", "active", "work", "open", "skill", "design-skill", "help"];
 export function codexRuleText(): string {
   return '# Written by Doan so Codex runs `doan ls`, `check`, `active`, `work`, `open`, `skill`, `design-skill` and `help` outside its sandbox without asking; every other `doan` command follows your Codex settings. If you edit this file, Doan leaves it alone.\n' +
     CODEX_ALLOWED_COMMANDS.map(command => `prefix_rule(pattern=["doan", "${command}"], decision="allow")\n`).join("");
 }
-// Every text an earlier release wrote as doan.rules, matched exactly like the current one. Without them a release that
-// changes the text would leave each machine's earlier file as someone else's and never update it; plan.test.ts pins
-// the current text so a change fails until its old text is added here.
+// Every text an earlier release wrote as doan.rules. Without them a changed text would leave each machine's earlier file
+// as someone else's; plan.test.ts pins the current text so a change fails until its old text is added here.
 export const EARLIER_CODEX_RULES: readonly string[] = [
   '# Written by Doan so Codex runs `doan` outside its sandbox without asking. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan"], decision="allow")\n',
   '# Written by Doan so Codex runs `doan` outside its sandbox without asking, and asks first for `doan export`, `config`, `onboarding` and `remove`. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan"], decision="allow")\n' +
     ["export", "config", "onboarding", "remove"].map(command => `prefix_rule(pattern=["doan", "${command}"], decision="prompt")\n`).join(""),
 ];
 
-// Claude Code Bash rules (Claude Code docs 'Configure permissions', 'Wildcard patterns'): a trailing ` *` matches any
-// arguments and the bare command, and `&&`, `;`, `|` split a command so each part needs its own rule. Only the three
-// work commands and `doan open`: an agent needs no prompt to report what it edits or to open a canvas the person asked
-// for, but every other doan command still asks. `update` goes last so a file that has the earlier three gets only it.
+// Claude Code Bash rules: a trailing ` *` matches any arguments and the bare command, and `&&`, `;`, `|` split a command.
+// `update` goes last so a file that has the earlier three gets only it.
 export const CLAUDE_ALLOW_RULES: readonly string[] = ["Bash(doan work start *)", "Bash(doan work done *)", "Bash(doan open *)", "Bash(doan work update *)"];
 export type ClaudeAllowMerge = { kind: "keep" } | { kind: "write"; text: string } | { kind: "refuse"; problem: "json" | "object" | "permissions" | "allow" };
 
@@ -143,9 +135,8 @@ function memberValue(text: string, open: number, key: string): number | null {
   return member ? skipSpace(text, skipSpace(text, stringEnd(text, member.at)) + 1) : null;
 }
 
-// The person's ~/.claude/settings.json with Doan's rules added; null is a missing file. JSON.parse decides; the write
-// inserts only the missing rules into the original text, since a parse/stringify round trip would change big
-// integers, out-of-range numbers and duplicate keys elsewhere in the file.
+// JSON.parse decides; the write inserts only the missing rules into the original text, since a round trip would change
+// big integers, out-of-range numbers and duplicate keys elsewhere in the file.
 export function mergeClaudeAllow(text: string | null): ClaudeAllowMerge {
   let settings: unknown = {};
   if (text !== null) { try { settings = JSON.parse(text); } catch { return { kind: "refuse", problem: "json" }; } }

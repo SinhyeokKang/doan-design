@@ -3,9 +3,8 @@ import { authStatus, readiness, recordedFacts } from "./state";
 import { PROVIDERS, validProvider, type AuthRejection, type AuthState, type AuthStatusDto, type AuthTransition, type Provider, type ToolFacts } from "./types";
 import { settlingStatus, type AuthPrompt, type CheckOutcome, type CheckStarted, type Started, type WriteOptions } from "./manager";
 
-// Kebab-case namespaces like ui-state. Only the main window calls these (senderAllowed: the Settings page and first run
-// are its pages); the prototype window gets a narrower snapshot on its own channel. They grant no conversation-run
-// rights.
+// Only the main window calls these (senderAllowed); the prototype window gets a narrower snapshot on its own channel.
+// They grant no conversation-run rights.
 export const AUTH_CHANNELS = {
   read: "agent-auth:read", check: "agent-auth:check", signIn: "agent-auth:sign-in", cancel: "agent-auth:cancel",
   submitCode: "agent-auth:submit-code", openLink: "agent-auth:open-link", signOut: "agent-auth:sign-out",

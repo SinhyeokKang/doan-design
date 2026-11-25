@@ -38,8 +38,8 @@ const CLAUDE_WINDOWS: [key: string, label: string, periodMins: number][] = [
   ["five_hour", "5-hour", 300], ["seven_day", "Weekly", WEEK_MINS], ["seven_day_opus", "Weekly · Opus", WEEK_MINS], ["seven_day_sonnet", "Weekly · Sonnet", WEEK_MINS],
 ];
 
-// Claude SDK usage (control request get_usage). A window with null utilization has nothing to show and is skipped.
-// limited only from locked_reason: at 99% the PoC saw it null with limits[].severity "critical", which is not a report.
+// Claude SDK usage (control request get_usage). A window with null utilization is skipped. limited comes only from
+// locked_reason: near the limit it is null while limits[].severity is "critical", which is not a report.
 export function claudeUsage(response: unknown, readAt: number): UsageReading {
   return reading(readAt, () => {
     const root = obj(response);
@@ -77,10 +77,8 @@ function durationLabel(mins: number | undefined, fallback: string): string {
   return `${mins}-minute`;
 }
 
-// Codex app-server account/rateLimits/read. rateLimitReachedType belongs to the snapshot, not to one window, so it
-// marks the fullest window(s): the one the provider is holding the account on. A full window (usedPercent 100 or more)
-// is limited too: a Codex 0.144.2 rollout refused the account ("You've hit your usage limit") while its snapshot held
-// used_percent 100 and rate_limit_reached_type null, so the reached type alone misses a held account.
+// Codex account/rateLimits/read. rateLimitReachedType marks the fullest window(s). A window at 100% is limited too: Codex
+// has refused an account at used_percent 100 with a null reached type.
 export function codexUsage(response: unknown, readAt: number): UsageReading {
   return reading(readAt, () => {
     const limits = obj(obj(response).rateLimits), windows: UsageWindow[] = [];
@@ -104,8 +102,8 @@ export function codexUsage(response: unknown, readAt: number): UsageReading {
 const COPILOT_LABELS: Record<string, string> = { chat: "Chat", completions: "Completions", premium_interactions: "Premium requests" };
 const kindLabel = (key: string) => COPILOT_LABELS[key] ?? (key.charAt(0).toUpperCase() + key.slice(1)).replaceAll("_", " ");
 
-// Copilot headless account.getQuota. A kind with hasQuota false or no entitlement (free premium_interactions in the
-// PoC) has remainingPercentage 0 and would read as 100% used, so it is left out, as are unlimited kinds.
+// Copilot headless account.getQuota. A kind with hasQuota false or no entitlement has remainingPercentage 0 and would
+// read as 100% used, so it is left out, as are unlimited kinds.
 export function copilotUsage(response: unknown, readAt: number): UsageReading {
   return reading(readAt, () => {
     const snapshots = obj(obj(response).quotaSnapshots), windows: UsageWindow[] = [];

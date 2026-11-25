@@ -11,7 +11,7 @@ export function judgeConnection(owner: ConversationOwner, state: AuthState, sess
   if (!state.verified) return { decision: "reject", cause: "unverified" };
   if (state.error?.code === "account_mismatch") return { decision: "reject", cause: "account_mismatch" };
   // Without a stable provider ID another login cannot be told apart, and email is never evidence. Every stored sign-in
-  // mints a new connectionId, so only the conversation's own connection is known to hold its login (user decision 2026-10-28).
+  // mints a new connectionId, so only the conversation's own connection is known to hold its login.
   if (owner.accountId === null || current.account.id === null) {
     if (owner.connectionId !== current.connectionId) return { decision: "reject", cause: "account_unverifiable" };
   } else if (owner.accountId !== current.account.id) return { decision: "reject", cause: "account_mismatch" };

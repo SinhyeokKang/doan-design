@@ -445,7 +445,7 @@ describe("add and remove", () => {
     expect(s.add("http://mcp.example.com/mcp")).toEqual({ ok: false, reason: "not_https" });
   });
 
-  // E1 defect 2: a server added by URL stayed Checking with Connect disabled until the page was entered again.
+  // A server added by URL must not stay Checking with Connect disabled until the page is entered again.
   it("a successful Add reads the new server's status in every signed-in provider, so it leaves Checking", async () => {
     readiness.claude = { ready: false, cause: "not_connected", action: "signIn" };
     const s = service();
@@ -914,8 +914,8 @@ describe("review fixes", () => {
     await s.idle();
   });
 
-  // A parser miss (a config it reads wrongly as empty, or one it cannot decode) never drops a known
-  // server. The reviewer's three fallback inputs, each with a URL server in the connectors file.
+  // A parser miss (a config it reads wrongly as empty, or one it cannot decode) never drops a known server. Each input has
+  // a URL server in the connectors file.
   it.each([
     ["not valid TOML outside the servers", "not = [ valid toml\n"],
     ["an unclosed multi-line string before the servers", 'instructions = """\n[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/mcp"\n'],

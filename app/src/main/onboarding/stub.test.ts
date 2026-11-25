@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const BUNDLED_STUB = readFileSync(join(__dirname, "SKILL.md"), "utf8");
-// The stub shipped from c994913 until design presets; existing installs hold these bytes.
+// An earlier stub without design presets; existing installs hold these bytes.
 const PRESET_LESS_STUB = readFileSync(join(__dirname, "fixtures/SKILL-c994913.md"), "utf8");
 test("the bundled stub points to design presets through the guide without listing them", () => {
   for (const text of ["doan skill", "doan design-skill", "doan design-skill <id>", "[doan:skill] end of guide"]) expect(BUNDLED_STUB).toContain(text);

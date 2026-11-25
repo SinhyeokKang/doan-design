@@ -44,8 +44,7 @@ export function inScope(rel: string, scope: readonly string[]): boolean {
   return !withheld(rel) && scope.some((entry) => rel === entry || rel.startsWith(`${entry}/`));
 }
 
-// Same rule as `repo.Withheld` in the CLI: a .git directory or a .env file, or anything under one, is never served,
-// whatever `.doan/config.json` lists (ARCHITECTURE §3 'Never served').
+// Same rule as `repo.Withheld` in the CLI, whatever `.doan/config.json` lists (ARCHITECTURE §3 'Never served').
 // Letter case is ignored because the volume usually ignores it.
 export function withheld(rel: string): boolean {
   return rel.split("/").some((segment) => {

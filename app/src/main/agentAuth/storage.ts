@@ -15,10 +15,8 @@ export class StorageError extends Error {
 export type VaultFiles = Record<string, Buffer>;
 export type SettingMerge = (current: string | null) => string | null;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
-// The provider process owns the profile and may leave a link, a FIFO or a huge file where its credential was; working
-// files are read with the open refusing a link (ELOOP) and a special or oversized file throwing without a code, so
-// none of them reads as absent. The cap is far above any credential (a few KB of JSON), low enough that a file the
-// provider grew cannot stall main or flood the vault.
+// A provider can leave a link, FIFO or huge file where its credential was: working files are read refusing links, and
+// a special or oversized file throws without a code, so none of them reads as absent.
 const WORKING_FILE_LIMIT = 16 * 1024 * 1024;
 function absent(error: unknown): boolean { return typeof error === "object" && error !== null && (error as NodeJS.ErrnoException).code === "ENOENT"; }
 // What readRegularFileNoFollowSync throws for a link, a special file or a file past its cap: not a file Doan can read.
@@ -123,9 +121,8 @@ export class AuthStorage {
     try { chmodSync(path, 0o700); accessSync(path, constants.X_OK); } catch (error) { throw new StorageError("write_failed", message(error)); }
     return path;
   }
-  // A string is the whole file, which Doan owns. A SettingMerge is for a file the provider writes too (Claude Code's
-  // settings.json): it gets the current text and returns the text to write, or null to leave the file alone, so the
-  // provider's own keys are never replaced.
+  // A string is the whole file, which Doan owns. A SettingMerge returns the text to write for a file the provider writes
+  // too, or null to leave it alone, so the provider's own keys are never replaced.
   writeSetting(provider: Provider, rel: string, text: string | SettingMerge, profile: string = provider): void {
     const path = this.working(provider, rel, profile);
     if (typeof text !== "string") return this.mergeSetting(path, text);
@@ -136,17 +133,15 @@ export class AuthStorage {
     catch (error) { if (!absent(error) && !notRegular(error)) throw new StorageError("unreadable", message(error)); }
     this.replace(path, bytes);
   }
-  // Claude Code saves this file too, so Doan never renames its merge over a file it has not just re-verified
-  // (agentSetup/swap.ts swapFile): a file that is not the one Doan read, by identity and bytes, stays and the next run
-  // merges into it. A missing file is created exclusively with link(2). A link is the person's: it is never replaced or
-  // written through, whether or not its target has the rules.
+  // Claude Code saves this file too, so Doan renames its merge only over the file it just re-verified (swapFile); a missing
+  // file is created exclusively with link(2), and a link is the person's and never replaced or written through.
   private mergeSetting(path: string, merge: SettingMerge): void {
     let seen: Stats | null = null;
     try { seen = lstatSync(path); } catch (error) { if (!absent(error)) throw new StorageError("unreadable", message(error)); }
     if (seen !== null && !seen.isFile()) return;
     let bytes: Buffer | null = null, current: string | null = null;
     if (seen !== null) {
-      // The file can be swapped after the lstat; one that is no longer a regular file stays, as it would have at lstat.
+      // The file can be swapped after the lstat; one that is not a regular file any more stays, as it would have at lstat.
       try { bytes = readRegularFileNoFollowSync(path, WORKING_FILE_LIMIT); current = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
       // Bytes that are not UTF-8 would be changed by a text round trip, so the file stays as it is.
       catch (error) { if (error instanceof TypeError || absent(error) || notRegular(error)) return; throw new StorageError("unreadable", message(error)); }

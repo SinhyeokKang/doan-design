@@ -3,7 +3,7 @@ import { codexMechanism, codexProfileArgs, cursorWorkerDir, codexRestart, codexT
 import { PERMISSION_MODES } from "../conversation/permissionMode";
 import type { Provider } from "./types";
 
-// The policy text that passed real provider runs (Cursor, Antigravity, Copilot, and Claude and Codex fenced), byte for byte.
+// The policy text that passed real provider runs, byte for byte.
 const BASE = `(version 1)
 (allow default)
 (deny file-read* file-write* (subpath (param "USERDATA")))
@@ -165,9 +165,8 @@ describe("resolveFencePaths", () => {
   });
 });
 
-// Processes Doan starts outside a conversation load files an agent in that provider's outer fence can write: Claude's
-// usage read and MCP connector commands the MCP servers its .claude.json names, every Copilot process the JavaScript in
-// its profile's package cache. They run in the outer fence.
+// Processes Doan starts outside a conversation load files an agent in that provider's outer fence can write (MCP
+// servers .claude.json names, Copilot's package cache), so they run in the outer fence.
 describe("profileFencedCommand", () => {
   const real = (path: string) => path.replace("/link", "");
   it("runs the command under sandbox-exec with Claude's policy and the resolved profile", () => {
@@ -195,7 +194,7 @@ describe("profileFencedCommand", () => {
 });
 
 // Every Copilot process imports the JavaScript in the profile's package cache, which its own fenced turn can rewrite;
-// the other providers' sign-in and status commands ran nothing planted in their profiles (probe).
+// the other providers' sign-in and status commands run nothing planted in their profiles.
 it("fences every process of Copilot and Cursor and of no other provider", () => {
   expect((["claude", "codex", "cursor", "antigravity", "copilot"] as const).filter(fencedEverywhere)).toEqual(["cursor", "copilot"]);
 });
@@ -270,19 +269,14 @@ describe("codexProfileArgs", () => {
       "-c", `permissions.doan-workspace={extends=":workspace",filesystem=${entries},${network}}`,
     ]);
   });
-  // Every Codex process loads <CODEX_HOME>/.env into its own environment (codex-cli 0.169.0, probe), and a planted PATH
-  // there decides what the harness's own unsandboxed children (git) run, so it is closed like the settings files.
-  // MCP servers and notify from config.toml run outside the Codex sandbox (codex-cli 0.166.0, probe), and an escalated
-  // command keeps only deny entries, so the settings files are denied rather than read-only.
+  // <CODEX_HOME>/.env sets every Codex process's environment, and config.toml's MCP servers and notify run outside the Codex
+  // sandbox; an escalated command keeps only deny entries, so these files are denied rather than read-only.
   it("denies the profile's own settings files", () => {
     const text = codexProfileArgs(codex, denied, sock).join(" ");
     for (const file of ["config.toml", "hooks.json", "managed_config.toml", ".env", "rules"]) expect(text).toContain(`"${profile}/${file}"="deny"`);
   });
-  // Sandboxed commands write nothing in the profile: Codex writes its rollouts, databases, caches and runtime helpers
-  // (tmp/) from its own process, outside the command sandbox (codex-cli 0.169.0 probe: a turn's commands, apply_patch
-  // included, ran and the rollout was recorded). The skills and plugins stay
-  // readable, since the model opens a skill's SKILL.md with shell tools; an approved escalated command keeps only deny
-  // entries, so it can write there: a known limit.
+  // Codex writes its own state from its process, outside the command sandbox, so sandboxed commands need no write here.
+  // Skills stay readable for shell tools, so an approved escalated command can write there: a known limit.
   it("keeps the whole profile readable and not writable to sandboxed commands", () => {
     const text = codexProfileArgs(codex, denied, sock).join(" ");
     expect(text).toContain(`"${profile}"="read"`);
@@ -303,12 +297,12 @@ describe("codexProfileArgs", () => {
     expect(text).not.toContain(`"${U}/runtime.json"`);
   });
   // Without network Codex opens no unix socket, for a sandboxed or an approved escalated command alike, so `doan`
-  // could not reach the app (user decision: network on, the app socket's directory allowed).
+  // could not reach the app.
   it("opens the network and the app socket's directory", () => {
     expect(codexProfileArgs(codex, denied, sock)[3]).toContain(`network={enabled=true,unix_sockets={"${sock}"="allow"}}`);
   });
-  // An approved escalated command keeps a profile's deny entries but not the narrower read and write ones under them
-  // (codex-cli 0.166.0), so a deny over userData as a whole took runtime.json from `doan handoff`.
+  // An approved escalated command keeps a profile's deny entries but not the narrower read and write ones under them,
+  // so a deny over userData as a whole would take runtime.json from `doan handoff`.
   it("denies neither userData nor an ancestor of an allowed path", () => {
     const text = codexProfileArgs(codex, denied, sock).join(" ");
     for (const path of [U, `${U}/agent-auth`, `${U}/agent-auth/profiles`, profile, `${U}/conversation-runtime.json`, `${U}/attachments`]) expect(text).not.toContain(`${JSON.stringify(path)}="deny"`);
@@ -352,8 +346,8 @@ describe("codexTurnPermission", () => {
   });
 });
 
-// cursor-agent (2026.10.22 and 2026.11.22) creates its local worker's socket folder when acp starts. The expected paths are
-// the ones the real CLI created (or was refused) in probes; the last one is the PoC's EPERM.
+// cursor-agent creates its local worker's socket folder when acp starts. The expected paths are the ones the real CLI
+// created (or was refused, the last one with EPERM).
 describe("cursorWorkerDir", () => {
   const none = () => false;
   it("names the folder under .cursor/projects by the workspace slug when the path is short", () => {

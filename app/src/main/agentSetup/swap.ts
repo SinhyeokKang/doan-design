@@ -1,19 +1,7 @@
 import { readRegularFileNoFollowSync } from "../regularFile";
 
-// Replacing one of Doan's own links in a folder the person owns, or the person's settings file Doan merged into.
-//
-// Node has no exclusive rename, so a replacement never renames onto the target: it moves the target aside to a
-// Doan-named entry in the same folder (rename(2) is atomic), checks that what it moved is the link Doan read and that
-// the folder is still the one Doan read, and only then creates the new link exclusively. A moved link or file that is
-// not Doan's goes back with an exclusive symlink or link; a moved folder is never renamed back, since that rename could
-// replace an empty folder that arrived meanwhile, so it stays at the aside name and the result says where. Agents may
-// see no link for that moment.
-//
-// Accepted residuals: the guarantee is that no entry present before Doan's check is changed or removed, and no arrival
-// an exclusive call can detect is replaced. A process running as the same user already has the same power over these
-// targets, so the windows that need one writing concurrently are not defended: replacing the aside entry before Doan
-// unlinks it, and swapping the folder for a link between the last folder check and the following call (Node has no
-// *at() calls to pin it).
+// A replacement never renames onto the target: it moves it aside, verifies what it moved, then creates exclusively.
+// Rules and accepted residuals: ARCHITECTURE §7 'Agent setup'.
 
 // `parent` is the folder's "dev:ino" when Doan read the target; null skips the folder check.
 export interface SwapArgs { path: string; want: string; old: string; aside: string; parent: string | null }
@@ -57,16 +45,8 @@ export function swapLink(fs: SwapFs, a: SwapArgs): SwapResult {
   return { kind: "ok" };
 }
 
-// The same rule for a regular file another program also writes (Claude Code's settings): the moved file stays only if
-// it is the very file Doan read, same dev:ino and bytes (compared as bytes, not decoded text), so a save that landed
-// after Doan's last look is put back, and one that lands while the name is empty is kept over Doan's merge. Either way
-// the result is `changed` and the next launch merges into the newer file. Saves that open the settings path, and saves
-// that rename a new file over it, are kept at every point of the swap.
-//
-// Accepted residual: a writer holding a descriptor it opened before the move-aside, which writes through it after the
-// moved file's bytes are checked and before Doan publishes its merge, writes into the aside entry; Doan publishes the
-// merge of the older bytes and that write is lost. Its later writes reach a file no longer at the settings path, as
-// after any save that replaces the file.
+// The same rule for a regular file another program also writes (Claude Code's settings), compared by dev:ino and bytes;
+// a newer save is kept and the result is `changed` (ARCHITECTURE §7 'Agent setup', including the accepted residual).
 export function swapFile(fs: SwapFs, a: FileSwapArgs): SwapResult {
   if (a.parent !== null && parentId(fs, a.path) !== a.parent) return { kind: "changed" };
   try { fs.renameSync(a.path, a.aside); } catch (error) { return code(error) === "ENOENT" ? { kind: "changed" } : { kind: "failed", code: code(error) }; }

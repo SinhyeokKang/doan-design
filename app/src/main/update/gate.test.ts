@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { installGate } from "./gate";
 
 // Only conversations hold Restart to Update back: a running turn, or one waiting on a permission request or a
-// question. Clones, agent sign-ins and MCP connections are cancelled by the quit as before.
+// question. Clones, agent sign-ins and MCP connections are cancelled by the quit, as on any quit.
 describe("installGate", () => {
   test("nothing running: the restart may start", () => {
     expect(installGate({ liveTurns: 0, pendingAnswers: 0 })).toEqual({ kind: "allowed" });

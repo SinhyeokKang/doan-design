@@ -12,9 +12,8 @@ import type { FolderEntry } from "../view";
 import type { Rect } from "./fit";
 import type { PrototypeSize } from "./mark";
 
-// The prototype window's IPC contract. `play` is the main window's request; `changed`, `snapshot`, `exportRunning` and
-// `visible` are events main sends the prototype window (`visible` is also its request for the first value), `closed` an
-// event main sends the main window; every other channel is a request from the prototype window's own main frame.
+// `changed`, `snapshot`, `exportRunning` and `visible` are events to the prototype window, `closed` to the main window,
+// `play` the main window's request; every other channel is a request from the prototype window's main frame.
 export const PROTOTYPE_CHANNELS = {
   play: "prototype:play",
   read: "prototype:read",
@@ -46,9 +45,8 @@ export const PROTOTYPE_CHANNELS = {
   showing: "prototype:showing",
   // A thread chip or a main-window-only button: main checks it against the playing canvas and asks the main window.
   reveal: "prototype:reveal",
-  // The composer's narrow reads, each with the event main pushes: provider readiness without the account's identity,
-  // the terminal work of the session the playing canvas would resume, and the New conversations default, Last used
-  // and buddy. A full account, settings or work read stays the main window's.
+  // The composer's narrow reads, each with its push: provider readiness without identity, the resumable session's work,
+  // and the composer settings. A full account, settings or work read stays the main window's.
   auth: "prototype:auth",
   authChanged: "prototype:authChanged",
   work: "prototype:work",
@@ -61,9 +59,8 @@ export const PROTOTYPE_CHANNELS = {
   // Whether a conversation is still indexed under the playing root (conversationScope.ts prototypeConversationListed):
   // `{root, conversationId}` → boolean | null.
   conversationListed: "prototype:conversationListed",
-  // A composer pick to remember as Last used. Main hands it to the main window, which owns ui-state and applies it
-  // as its own composer's (rememberChoice, preferenceAfterPick); a write from main would be lost to the main
-  // window's next whole-file save.
+  // Main hands it to the main window, which owns ui-state and applies it as its own composer's pick: a write from main
+  // would be lost to the main window's next whole-file save.
   remember: "prototype:remember",
   // The playing root's folder entry (its canvas rows) and its changes; the window reads it again when the view's root
   // changes.
@@ -86,8 +83,8 @@ export const PROTOTYPE_WINDOW_REQUESTS: readonly string[] = [
   PROTOTYPE_CHANNELS.rememberedConversation, PROTOTYPE_CHANNELS.conversationListed,
 ];
 
-// From the moment the host sets the iframe's src to the run's result. The slowest measured canvas answered in under
-// 200ms; the margin is for slow external scripts. A document that blocks its parser never answers at all.
+// From the moment the host sets the iframe's src. Canvases answer well within this; the margin is for slow external
+// scripts. A document that blocks its parser never answers at all.
 export const PROTOTYPE_LOAD_TIMEOUT_MS = 10_000;
 
 // `prototype:play` from the main window. `mark` is the selected frame's raw mark from the live layout, a size hint
@@ -99,9 +96,8 @@ export interface PlayRequest {
   mark: string;
 }
 
-// A frame the run's document lists for the drawer: a unique, non-empty ID with a valid mark, in document order.
-// `number` is its 1-based position among all `data-doan-frame` elements of that document outside `<template>`, the
-// order the board's layout lists, so the drawer numbers a frame as the main frame drawer does.
+// A unique, non-empty ID with a valid mark, in document order. `number` is its 1-based position among all
+// `data-doan-frame` elements outside `<template>`, so the drawer numbers a frame as the main frame drawer does.
 export interface PrototypeFrame {
   id: string;
   title?: string;
@@ -111,21 +107,15 @@ export interface PrototypeFrame {
 
 export type LostState = "missing" | "duplicate" | "unmarked" | "invalid";
 
-// A `data-doan-goto` link of the run's document outside `<template>`, in document order: its raw value and the raw ids
-// of the frames around it, outermost first, the element itself last when it is a frame. A value or id over 200 UTF-16
-// units is left out rather than cut (a link with such a value is not reported, such a frame is not in `frames`), so the
-// link groups are computed from raw ids as the shared fixture defines them.
+// A `data-doan-goto` link outside `<template>`: its raw value and the raw ids of the frames around it, outermost first.
+// A value or id over 200 UTF-16 units is left out rather than cut, so groups come from raw ids as the fixture defines.
 export interface PrototypeGoto {
   value: string;
   frames: string[];
 }
 
-// The prototype script in the run's document posts a RunMessage once and, when that went out before the `load`
-// handlers, one FramesMessage after them, both exactly as typed here (a RunMessage has `state`, a FramesMessage does
-// not). The host accepts only its current iframe's window, origin "null" and the current `gen`, then forwards the data
-// unchanged; main validates it again.
-// `prototype:result`, sent once per run by the host. `ready` and the lost states come from the prototype script in the
-// run's document (at DOMContentLoaded, or after the `load` handlers); `timeout` is the host's own 10 s timer.
+// The prototype script posts one RunMessage, and one FramesMessage after the `load` handlers when that went out earlier.
+// The host accepts only its current iframe, origin "null" and the current `gen`; main validates it again.
 export type RunMessage =
   | { gen: number; state: "ready"; size: string; frames: PrototypeFrame[]; gotos: PrototypeGoto[] }
   | { gen: number; state: LostState; frames: PrototypeFrame[]; gotos: PrototypeGoto[] }
@@ -156,11 +146,8 @@ export type PrototypeMode = "fit" | "responsive";
 
 export type PrototypePhase = "loading" | "ready" | "read-failed" | "init-failed" | "frame-unavailable" | "prototype-unavailable";
 
-// `prototype:changed` and the reply to `prototype:read`. A new `gen` with a new `run` means a new iframe. `run` stays
-// the last run's while a frame is lost, so the host keeps the frozen screen under the overlay; it is null only before
-// any run started. `title` is the frame's title, or its ID without one. `canvas` is the target canvas's label (its file
-// stem, as the sidebar names it), the last known one while the canvas is gone. `frames` is empty when the canvas is
-// gone.
+// A new `gen` with a new `run` means a new iframe. `run` stays the last run's while a frame is lost, so the frozen screen
+// stays under the overlay. `canvas` keeps the last known label while the canvas is gone; `frames` is then empty.
 export interface PrototypeView {
   gen: number;
   // The target's root and its canvas row's path (the last listed one while the canvas is gone): what Export sends back.
@@ -178,9 +165,8 @@ export interface PrototypeView {
   run: { url: string; markWidth: number; markHeight: number } | null;
   // Main keeps it across runs and close, for as long as the app runs.
   mode: PrototypeMode;
-  // A loading run was killed since the last ready one. The window's canvases share one renderer process, so every
-  // earlier iframe still on screen died with it: drop iframes older than `gen` and show the latest still image
-  // (re-sent under this `gen` before this view). False again once a run is ready.
+  // The window's canvases share one renderer process, so a killed loading run took every earlier iframe with it: drop
+  // those older than `gen` and show the latest still. False again once a run is ready.
   previousStopped: boolean;
   frames: PrototypeFrame[];
   // The current run's links, for the drawer's groups; kept and cleared with `frames`.
@@ -189,9 +175,8 @@ export interface PrototypeView {
   canGoForward: boolean;
   // Main keeps it across runs and close, for as long as the app runs.
   panel: PrototypePanel;
-  // The target canvas's row in its root's list: present (whatever the run's phase), being read, gone (also an
-  // unregistered root or a failed list) or its ID shared by two rows. The panel's composer refuses input while it is
-  // gone or shared.
+  // The target canvas's row in its root's list (gone also covers an unregistered root or a failed list). The composer
+  // refuses input while it is gone or shared.
   canvasRow: "present" | "loading" | "gone" | "duplicate";
 }
 
@@ -225,11 +210,7 @@ export type RevealPayload =
   | { kind: "handoff"; canvas: Canvas; conversationId?: string };
 
 // `prototype:revealRequest`, main to the main window once the request passed its checks and the window came forward.
-// `chip` is a person's chip: the canvas is its conversation's, which may not be the one the main window shows. `reply`
-// is an answer's chip as the main window's answer chips go (replyChipTarget). `settings` opens Settings > Agents at the
-// provider. `conversation` opens a conversation: on its canvas, or in its root's Overview without one. `handoff` opens
-// a canvas of the root, with its panel on the conversation when one is named. The main window decides whether it can
-// show it now (a dialog, a page lock or first run keeps everything as it is, with a toast).
+// The main window decides whether it can show it now (a dialog, a page lock or first run keeps everything, with a toast).
 export type PrototypeReveal =
   | { kind: "chip"; root: string; canvas: Canvas; conversationId: string; anchor: Anchor }
   | { kind: "reply"; root: string; conversationId: string; link: ReplyAnchor }
@@ -244,9 +225,8 @@ export interface PrototypeComposerSettings {
   buddy: BuddyId;
 }
 
-// `prototype:snapshot`: the iframe area of the window as PNG bytes, captured when a ready run turns failed or
-// unavailable and sent before that view. `gen` is the view's gen it belongs under. `box` is where the image was taken
-// in the content panel; the window shows it there, even after a mode switch or a window resize moved the frame.
+// Captured when a ready run turns failed or unavailable and sent before that view, under its `gen`. `box` is where it was
+// taken in the content panel; the window shows it there even after a mode switch or resize.
 export interface PrototypeSnapshot {
   gen: number;
   png: Uint8Array;
@@ -289,9 +269,7 @@ export interface PrototypeWindowApi {
   rememberChoice(choice: ComposerChoice): Promise<void>;
   readTargetEntry(): Promise<FolderEntry | null>;
   onTargetEntry(listener: (entry: FolderEntry | null) => void): () => void;
-  // Whether a conversation is still indexed under the playing root: a handoff card from the Overview names a project
-  // conversation the window does not list. null when root is not the playing root or main cannot tell; ask again on a
-  // `conversation:listChanged` of that root.
+  // null when root is not the playing root or main cannot tell; ask again on a `conversation:listChanged` of that root.
   conversationListed(request: { root: string; conversationId: string }): Promise<boolean | null>;
   // The main window's `conversation:list`, naming the canvas the window shows: main answers its rows only while it
   // plays that canvas, else `{error: "not_playing"}` (the view of the new target follows).

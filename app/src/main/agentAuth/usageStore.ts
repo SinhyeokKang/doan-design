@@ -3,9 +3,8 @@ import type { UsageReading } from "./usageTypes";
 
 interface Slot { connectionId: string; reading?: UsageReading; inFlight: boolean }
 
-// Main-memory usage per provider, keyed by the connection it was read for; never written to disk. A new connectionId
-// (sign-in, sign-out, a changed account) drops the old value, and a read that started under another connectionId is
-// dropped when it ends, so one account's usage never shows for the next.
+// Main-memory usage per provider, keyed by the connection it was read for; never written to disk. A read for another
+// connectionId is dropped, so one account's usage never shows for the next.
 export class UsageStore {
   private readonly slots = new Map<Provider, Slot>();
 

@@ -16,10 +16,8 @@ import { connectorState, type CheckOutcome, type ConnectorView, type McpFacts } 
 import { claudeMcpGetUrl, codexMcpServers, parseClaudeMcpGet, parseClaudeMcpList, parseCodexMcpList, type ListedServer } from "./status";
 import type { ConnectorStore } from "./store";
 
-// Why an attempt failed, kept on its row until that row's next Connect, Retry or Cancel.
-// busy: the provider's sign-in or sign-out holds it. not_ready: the agent cannot run. pending_logout: the previous
-// account's logout still failed. no_link: Claude's BROWSER hook received no acceptable link (a Claude `browser`
-// setting). approval_timeout: the browser approval did not come in time. storage_failed: a plaintext token file.
+// Kept on its row until that row's next Connect, Retry or Cancel. no_link: Claude's BROWSER hook received no acceptable
+// link (a Claude `browser` setting). storage_failed: a plaintext token file.
 export type McpFailure = "busy" | "not_ready" | "pending_logout" | "no_link" | "approval_timeout" | "storage_failed" | "failed" | "disconnect_failed";
 export type McpRefusal = "invalid" | "busy" | "not_found" | "file_unreadable" | "stale" | "open_failed";
 export type McpReply = { ok: true } | { ok: false; reason: McpRefusal };
@@ -60,9 +58,8 @@ export interface McpServiceOptions {
   baseArgs?: Record<McpProvider, string[]>;
   tmpdir?: string; newId?: () => string;
   limits?: Partial<typeof LIMITS>;
-  // The outer fence for every Claude command (profileFencedCommand): `claude mcp list` and `get` start the stdio servers
-  // the profile's .claude.json names, which an agent in the outer fence can write. Without it they run unfenced, which
-  // only tests use.
+  // The outer fence for every Claude command: `claude mcp list` and `get` start the stdio servers the profile's
+  // .claude.json names, which a fenced agent can write. Without it they run unfenced, which only tests use.
   fence?: { userData: string; exec?: string };
 }
 
@@ -105,11 +102,8 @@ const COMMANDS = {
   },
 } as const;
 
-// Settings > MCP Connectors in main (ARCHITECTURE §7 'MCP connectors'): Doan keeps the server list; each provider CLI
-// registers, signs in and stores tokens in the provider's Doan profile. One attempt per provider at a time, and every
-// command chain that can change a profile's registrations (attempts, retries, reconciles, the sign-out step) runs in
-// that provider's queue, so two of them never rewrite one profile's config. Status reads run beside the queue: neither
-// `claude mcp get` nor `codex mcp list` rewrites the config (checked at Claude Code 2.1.327 and Codex 0.169.0).
+// One attempt per provider, and every command chain that can change a profile's registrations runs in that provider's
+// queue (ARCHITECTURE §7 'MCP connectors'). Status reads run beside it: they never rewrite the config.
 export class McpService implements McpConversationFacts {
   private revision = 0;
   private attempts = new Map<McpProvider, Attempt>();
@@ -296,9 +290,8 @@ export class McpService implements McpConversationFacts {
   // Resolves when no attempt, read or retry is running.
   async idle(): Promise<void> { while (this.pending.size) await Promise.allSettled([...this.pending]); }
 
-  // The MCP step of an agent-auth sign-out or committed replacement (agentAuth AuthManager mcpLogout). Server names
-  // come from the provider's own list, so a broken connectors file does not stop the logout. Codex keys tokens by
-  // name and URL hash, not profile: a failed logout is recorded and blocks that server's Connect until a retry succeeds.
+  // The MCP step of an agent-auth sign-out or replacement. Server names come from the provider's own list, so a broken
+  // connectors file does not stop it; a failed Codex logout is recorded and blocks Connect until a retry succeeds.
   async logoutForAuth(provider: Provider, request: McpLogoutRequest): Promise<{ failed: string[] }> {
     if (!mcpProvider(provider)) return { failed: [] };
     const { previousAccountId, nextAccountId } = request;
@@ -345,11 +338,8 @@ export class McpService implements McpConversationFacts {
     }
   }
 
-  // Without the provider's list, the targets are the union of the profile config's doan- servers (when that read
-  // succeeds; it also finds servers the connectors file does not know) and every server Doan knows (presets, and the
-  // file's servers when it can be read), so a config parser miss can never drop a known server.
-  // Each is logged out; a failure is recorded and blocks Connect until a retry succeeds. The config is read before
-  // the provider logout, which may change the profile.
+  // Without the provider's list, every doan- server the profile config holds and every server Doan knows is logged out,
+  // so a parser miss never drops a known server. The config is read before the provider logout may change it.
   private async listForAuth(provider: McpProvider, request: McpLogoutRequest): Promise<{ servers: ListedServer[] }> {
     const run = await request.run([...COMMANDS[provider].list]).catch(() => null);
     const servers = run && (provider === "claude" ? parseClaudeMcpList(run.stdout, run.code ?? -1) : run.code === 0 ? codexMcpServers(run.stdout) : null);
@@ -426,9 +416,8 @@ export class McpService implements McpConversationFacts {
     if (!after.ok || !after.facts.registered || !after.facts.authenticated) throw new Failure("failed", after.exitCode);
   }
 
-  // `codex mcp add` starts the OAuth sign-in itself and opens the default browser; Doan opens nothing for Codex
-  // (POSTMORTEM 2026-10-30 'Doan opened a second Codex sign-in page'). A registration left by a cancelled or failed
-  // first attempt signs in with `codex mcp login` (ARCHITECTURE §7 'MCP connectors').
+  // `codex mcp add` starts the OAuth sign-in and opens the default browser itself, so Doan opens nothing for Codex
+  // (POSTMORTEM 2026-10-30). A registration left by a failed first attempt signs in with `codex mcp login`.
   private async codexConnect(attempt: Attempt, lease: Lease, server: ConnectorServer): Promise<void> {
     const listed = await this.codexList(attempt, lease);
     if (attempt.stopped) return;
@@ -552,10 +541,8 @@ export class McpService implements McpConversationFacts {
     } catch (error) { console.error(`doan: ${provider} MCP registrations were not reconciled: ${message(error)}`); }
   }
 
-  // Whether every pending logout asked for (one server, or all of the provider's) is gone. Claude's token sits in the
-  // live profile's keychain item; Codex's keychain key is the name and URL hash only, so its logout runs in a
-  // temporary CODEX_HOME holding just that server: the profile it was registered in may be gone (ARCHITECTURE §7 'MCP connectors').
-  // url: the server's URL, for a block the store holds without a record (an unreadable pending file).
+  // Claude's token sits in the live profile's keychain item; Codex's keychain key is name and URL hash only, so its logout
+  // runs in a temporary CODEX_HOME holding that server. url: for a block the store holds without a record.
   private async retryPending(provider: McpProvider, only: string | null, owner: Owner, url?: string): Promise<boolean> {
     let entries = this.options.store.pending(provider).filter(entry => only === null || entry.name === only);
     if (!entries.length && only !== null && url && this.options.store.blocked(provider, only)) entries = [{ provider, name: only, url }];
@@ -602,9 +589,8 @@ export class McpService implements McpConversationFacts {
   }
 
   private async read(provider: McpProvider, owner: Owner): Promise<void> {
-    // A Connect, Disconnect or Remove that succeeds meanwhile records what it established; a read that began before it
-    // may have run its commands before the change, so its result is dropped and the read that end() asked for (again)
-    // reads afresh.
+    // A read that began before a successful Connect, Disconnect or Remove may have run before the change, so its result is
+    // dropped and the read that end() asked for reads afresh.
     const started = this.generation(provider);
     this.changed();
     try {
@@ -628,9 +614,8 @@ export class McpService implements McpConversationFacts {
     }
   }
 
-  // Whether a server is registered, whatever its sign-in reads as: an unreachable server's health check gives Claude
-  // no status Doan knows, and it must still be removable. A registration carries its URL (null when the output names
-  // none). false: not registered; null: unreadable.
+  // Whether a server is registered, whatever its sign-in reads as, so an unreachable server stays removable. url is null
+  // when the output names none. false: not registered; null: unreadable.
   private async registered(owner: Owner, lease: Lease, provider: McpProvider, name: string): Promise<{ server: { url: string | null } | false | null; exitCode: number | null }> {
     if (provider === "codex") {
       const { servers, exitCode } = await this.codexList(owner, lease);

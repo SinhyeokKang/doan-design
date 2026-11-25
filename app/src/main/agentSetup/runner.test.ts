@@ -317,7 +317,7 @@ describe("the Claude Code allow rule", () => {
     expect(readFileSync(settings(), "utf8")).toBe(text);
   });
 
-  // RC2-2: a lossy UTF-8 read would turn FF into U+FFFD, parse, and write EF BF BD back. A BOM is kept and refused too.
+  // A lossy UTF-8 read would turn FF into U+FFFD, parse, and write EF BF BD back. A BOM is kept and refused too.
   it.each([
     ["bytes that are not UTF-8", Buffer.concat([Buffer.from('{"note":"'), Buffer.from([0xff]), Buffer.from('","permissions":{"allow":[]}}')])],
     ["a byte order mark", Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('{"permissions":{"allow":[]}}')])],
@@ -328,7 +328,7 @@ describe("the Claude Code allow rule", () => {
     expect(readFileSync(settings()).equals(bytes)).toBe(true);
   });
 
-  // RC2-3: the scan that finds where to insert must not stop setup on a file JSON.parse accepts.
+  // The scan that finds where to insert must not stop setup on a file JSON.parse accepts.
   it("merges into deep but valid settings and finishes the run", async () => {
     mkdirSync(join(home, ".claude"));
     const deep = `{"unrelated":${"[".repeat(10000)}0${"]".repeat(10000)},"permissions":{"allow":[]}}`;
@@ -413,7 +413,7 @@ describe("the Claude Code allow rule", () => {
     expect(JSON.parse(readFileSync(settings(), "utf8"))).toEqual({ theme: "light", permissions: { allow: CLAUDE_ALLOW_RULES } });
   });
 
-  // The review's timing: Claude Code saves after Doan's last look and before Doan publishes its merge.
+  // Claude Code saves after Doan's last look and before Doan publishes its merge.
   const newer = '{"model":"sonnet","permissions":{"allow":[],"deny":["Bash(rm *)"]}}';
   const leftovers = () => readdirSync(join(home, ".claude")).filter(name => name.startsWith(".doan-"));
 
@@ -435,7 +435,7 @@ describe("the Claude Code allow rule", () => {
     expect(JSON.parse(readFileSync(settings(), "utf8"))).toEqual({ model: "sonnet", permissions: { allow: CLAUDE_ALLOW_RULES, deny: ["Bash(rm *)"] } });
   });
 
-  // RC2-2: the moved file is compared as bytes, so a save that only differs where UTF-8 cannot decode is not lost.
+  // The moved file is compared as bytes, so a save that only differs where UTF-8 cannot decode is not lost.
   it("keeps a save after Doan's last look that a lossy UTF-8 read would see as unchanged", async () => {
     mkdirSync(join(home, ".claude"));
     const mine = Buffer.from('{"note":"\uFFFD","permissions":{"allow":[]}}');

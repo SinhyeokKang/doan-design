@@ -1,13 +1,7 @@
 import type { UpdateErrorCode, UpdateErrorSource } from "./types";
 
-// Sorts an error electron-updater emitted into the fixed codes the renderer may show. The shapes come from
-// electron-updater 6.8.11 and builder-util-runtime 9.7.0 (string `code`, HttpError's `statusCode`) and from Electron's
-// Squirrel.Mac bridge (an NSError description with its numeric `code` and `domain`).
-//
-// GitHubProvider wraps whatever failed while reading /releases/latest twice (ERR_UPDATER_LATEST_VERSION_NOT_FOUND inside
-// ERR_UPDATER_INVALID_RELEASE_FEED) with each cause's stack in the message, so the network and rate-limit tests read
-// the message before the codes. That wrapper appends the whole releases feed after "\nXML:\n"; its release notes are
-// text anyone can write, so only the part before it is read.
+// Shapes: electron-updater's string `code` and HttpError `statusCode`, Squirrel.Mac's NSError `code` and `domain`. Release
+// errors arrive wrapped twice with the whole feed appended after "\nXML:\n", so only the message before it is read.
 
 // Electron's net errors and Node's system errors for a connection that never got an answer.
 const OFFLINE_MESSAGE = /net::ERR_(INTERNET_DISCONNECTED|NAME_NOT_RESOLVED|NAME_RESOLUTION_FAILED|NETWORK_CHANGED|NETWORK_IO_SUSPENDED|ADDRESS_UNREACHABLE|CONNECTION_(REFUSED|RESET|CLOSED|ABORTED|FAILED|TIMED_OUT)|TIMED_OUT|PROXY_CONNECTION_FAILED)\b|^Request timed out$/m;

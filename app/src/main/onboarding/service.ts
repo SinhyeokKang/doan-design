@@ -13,10 +13,9 @@ import { PROJECT_WORK, ProjectAdder, projectLocks, type AdderProjects, type Proj
 import type { ProjectOutcome } from "./projects";
 
 
-// The first-run session the window and a local CLI share.
-// Electron-free: index.ts supplies the main window, the auth IPC and completion, and carries the socket and IPC.
+// The first-run session the window and a local CLI share. Electron-free: index.ts supplies the main window, the auth IPC
+// and completion.
 
-// The old wizard's onboarding:read|run|answer|close|get-open are different channels and go away with it.
 export const ONBOARDING_CHANNELS = {
   start: "onboarding:start", status: "onboarding:status", check: "onboarding:check", cancel: "onboarding:cancel",
   inspect: "onboarding:inspect", select: "onboarding:select", clone: "onboarding:clone", complete: "onboarding:complete",

@@ -34,9 +34,8 @@ function repo(dir: string, options: { remote?: string; config?: string; canvases
   return dir;
 }
 
-// The CLI's answers, read from the disk the way `doan ls` reads it: a valid config lists, a broken one errors,
-// `{cwd}` walks up to a set-up repo. A `.doan/unreadable` marker stands for a failure that is not about the config
-// (an unreadable canvas folder): the CLI answers with an envelope that names no config file.
+// The CLI's answers, read from the disk the way `doan ls` reads it. A `.doan/unreadable` marker stands for a failure that
+// is not about the config: the CLI answers with an envelope that names no config file.
 const unreadableReason = (dir: string) => `open ${dir}/.doan/canvases/sub: permission denied`;
 function cliLs(target: LsTarget): FolderState {
   const read = (dir: string): FolderState | null => {
@@ -359,9 +358,8 @@ describe("selectProject", () => {
     expect(c.deps.initialize).toHaveBeenCalledWith(cloned, "local", false);
   });
 
-  // The consent to the shown .git/ reaches init as --git-init. The CLI's repository codes become the socket's: a failed
-  // git init is the existing init_failed (its shipped notice), git_missing stays, and a .git Doan could not remove is
-  // cleanup_failed in main's own words naming it. In the home folder the refusal says Doan creates no repository there.
+  // The consent to the shown .git/ reaches init as --git-init. A failed git init is init_failed, git_missing stays, and a .git
+  // Doan could not remove is cleanup_failed; in the home folder the refusal says Doan creates no repository there.
   it("creates the repository only with the consent, and names a failed creation by the socket's codes", async () => {
     const fresh = temp();
     const d = deps();
@@ -379,10 +377,8 @@ describe("selectProject", () => {
     expect(await selectProject(temp(), true, null, refused("local_not_git", home), "local")).toEqual({ ok: false, code: "local_not_git" });
   });
 
-  // A cloned repository that brings its own setup is already a project, so init has nothing to do; the person chose
-  // Keep out of Git for this new checkout, so the choice is applied with `doan config --storage local`. Only the two
-  // storage codes keep their meaning there; anything else (a timeout, an unexpected reply)
-  // may have written or not, so it is a general failure that says so. Either way the clone stays and is added.
+  // A cloned repository with its own setup gets the chosen Keep out of Git through `doan config --storage local`. Only the
+  // two storage codes keep their meaning; anything else may have written or not. Either way the clone stays and is added.
   it("applies Keep out of Git to a clone that brings its own setup, and says the clone stayed when that fails", async () => {
     const cloned = repo(temp(), { config: "{\"v\":1}" });
     const d = deps([]);

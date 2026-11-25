@@ -33,9 +33,8 @@ describe("merged profile settings on a filesystem without hard links", () => {
   });
 });
 
-// A fenced Claude turn can write the profile folder (only settings.json and the settings folders are closed), so a file
-// it renamed onto Doan's staged or moved-aside name would be published or restored as settings.json. Doan's temporary
-// names live in the agent-auth folder, which the fence closes.
+// A fenced Claude turn can write the profile folder, so a file it renamed onto Doan's staged or moved-aside name would
+// become settings.json. Doan's temporary names live in the agent-auth folder, which the fence closes.
 it("keeps the settings merge's temporary names out of the profile folder", () => {
   const storage = new AuthStorage(root, fakeCipher());
   const dir = storage.profileDir("claude"), path = join(dir, "settings.json");

@@ -1,14 +1,13 @@
 import { PROVIDER_NAMES } from "../../renderer/agentAuthView";
 import { PROVIDERS, type Provider } from "../agentAuth/types";
 
-// Agent setup's result and the About notice built from it. The renderer imports this module, so it must not import
-// Node built-ins or main readers (rendererImports.test.ts).
+// The renderer imports this module, so it must not import Node built-ins or main readers (rendererImports.test.ts).
 
 export const PATH_LINE = 'export PATH="$HOME/.local/bin:$PATH"';
 
 export type SetupTarget = "current" | "skill" | "cli" | "system-cli" | "agents-skill" | "claude-skill" | "gemini-skill" | "codex-rule" | "claude-allow";
 export type Ineligible = "dev" | "outside-applications" | "translocated";
-// One skipped item. Later features may add reasons; consumers switch on `reason`.
+// Consumers switch on `reason`.
 export type SetupItem =
   | ({ target: SetupTarget; path: string; providers: Provider[] } & (
     | { reason: "foreign"; found: "file" | "folder" | "link" }
@@ -27,8 +26,7 @@ export type NoticePart = { text: string } | { code: string };
 export interface NoticeLine { agents: string | null; parts: NoticePart[]; command?: string }
 export interface AboutNotice { tone: "warning" | "neutral"; title: string; lines: NoticeLine[] }
 
-// About's fixed order: this copy, a run that crashed, CLI links, skill links, the Codex rule,
-// the Claude Code allow rule.
+// About's fixed order: this copy, a run that crashed, CLI links, skill links, the Codex rule, the Claude Code allow rule.
 const ORDER: (SetupItem["target"])[] = ["copy", "setup", "current", "cli", "system-cli", "skill", "agents-skill", "claude-skill", "gemini-skill", "codex-rule", "claude-allow"];
 const REOPEN = ", then reopen Doan.";
 const NOT_ELIGIBLE: Record<Ineligible, string> = {
@@ -78,8 +76,8 @@ function parts(item: Skipped, tilde: (path: string) => string): Pick<NoticeLine,
     case "claude-settings": return item.problem === "link"
       ? { parts: [path, { text: " is a link, so Doan left it alone. To let Claude Code run " }, { code: "doan work" }, { text: " and " }, { code: "doan open" }, { text: " without asking, add " }, { code: "Bash(doan work start *)" }, { text: ", " }, { code: "Bash(doan work done *)" }, { text: ", " }, { code: "Bash(doan open *)" }, { text: " and " }, { code: "Bash(doan work update *)" }, { text: " to " }, { code: "permissions.allow" }, { text: " in the file it links to." }] }
       : { parts: [...settingsProblem(item.problem, path), { text: ", so Doan couldn’t add the rules that let Claude Code run " }, { code: "doan work" }, { text: " and " }, { code: "doan open" }, { text: ` without asking. Fix the file${REOPEN}` }] };
-    // The PATH line takes effect in a new terminal; Doan need not reopen. The lone `doan` part is the command, which
-    // the draft shows as plain lowercase text (brand/appText.test.ts reads a bare `doan` literal as a code token).
+    // The PATH line takes effect in a new terminal; Doan need not reopen. The lone `doan` part is the command, as plain text:
+    // brand/appText.test.ts reads a bare `doan` literal as a code token.
     case "admin-cancelled": return {
       parts: [{ code: "~/.local/bin" }, { text: " isn’t on your shell’s PATH, and adding " }, { text: "doan" }, { text: " to " }, { code: "/usr/local/bin" }, { text: " was cancelled. Add this line to " },
         ...(item.rcFile ? [{ code: item.rcFile }, { text: ", then open a new terminal:" }] : [{ text: "your shell’s startup file, then open a new terminal:" }])],

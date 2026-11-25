@@ -7,10 +7,8 @@ import { OwnedGroup } from "../conversation/process";
 type PtyModule = typeof import("node-pty");
 const OUTPUT_GRACE_MS = 2000;
 
-// node-pty's spawn-helper must be executable. npm's darwin prebuild ships it 0644, so a dev tree (npm run dev, Vitest)
-// fails with "posix_spawnp failed"; electron-builder's rebuild for the packaged app makes it 0755.
-// Only a dev tree is fixed here: a packaged app never changes files inside its signed bundle,
-// and a Connect fails with this reason instead.
+// npm's darwin prebuild ships node-pty's spawn-helper 0644, so a dev tree fails with "posix_spawnp failed". Only a dev
+// tree is fixed here: a packaged app never changes files inside its signed bundle, and a Connect fails instead.
 export function ensureSpawnHelper(path: string, packaged: boolean): void {
   try { accessSync(path, constants.X_OK); return; } catch { /* Not executable. */ }
   if (packaged) throw new Error("spawn_helper_not_executable");
@@ -27,9 +25,7 @@ function spawnHelper(): string {
 }
 
 let loaded: PtyModule | null = null;
-// Loaded on first use, not at app start: node-pty is the one externalized dependency (native code), and only a
-// Claude MCP sign-in needs it. In the packaged app the require goes through app.asar and Electron serves the
-// unpacked native files.
+// Loaded on first use: node-pty is the one externalized native dependency, and only a Claude MCP sign-in needs it.
 function ptyModule(packaged: boolean): PtyModule {
   if (!loaded) {
     ensureSpawnHelper(spawnHelper(), packaged);
@@ -38,10 +34,8 @@ function ptyModule(packaged: boolean): PtyModule {
   return loaded;
 }
 
-// `claude mcp login` refuses to run without a terminal. The pty's child is its own process group leader (forkpty
-// calls setsid; pty.test.ts pins it), so the attempt's whole group is stopped with OwnedGroup(pid), as every process
-// Doan starts is (ARCHITECTURE §7 'Quit and process cleanup'); node-pty's kill() signals that one pid only.
-// Sign-in links arrive through the BROWSER hook.
+// `claude mcp login` refuses to run without a terminal. forkpty's setsid makes the child its own group leader (pty.test.ts),
+// so the group is stopped with OwnedGroup(pid) (ARCHITECTURE §7 'Quit and process cleanup'); kill() signals one pid only.
 export function ptySpawner(options: { packaged: boolean }): Spawn {
   return (command, args, { cwd, env }): AuthProcess => {
     const terminal = ptyModule(options.packaged).spawn(command, args, { name: "xterm-256color", cols: 120, rows: 30, cwd, env });

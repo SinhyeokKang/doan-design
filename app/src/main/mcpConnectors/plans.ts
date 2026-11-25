@@ -5,11 +5,8 @@ import { PRESETS, type McpProvider } from "./presets";
 // Only names Doan made are ever touched: the doan- prefix keeps the person's terminal registrations out of reach.
 const doan = (names: readonly string[]) => names.filter(name => CONNECTOR_NAME.test(name));
 
-// The doan- registrations a provider keeps that are neither a preset nor a URL server in the file: left by a Remove
-// while that provider had no Doan connection. A registration at another URL than the file's under the same name is
-// one of them too: such a Remove frees the name, and an Add on the same host takes it again. url null: the list gave
-// none, so only the name is compared. Nothing is removed while the file cannot be read, and a missing registration
-// is not added back (a server registers at its first Connect).
+// doan- registrations neither a preset nor a URL server in the file, or under a known name at another URL: left by a
+// Remove while signed out. url null: the list gave none. Nothing is removed while the file cannot be read.
 export function reconcilePlan(registered: readonly { name: string; url: string | null }[], file: ConnectorsRead): string[] {
   if (!file.ok) return [];
   const known = new Map([...PRESETS, ...file.file.servers].map(server => [server.name, server.url]));
@@ -37,9 +34,8 @@ function sameAccount(input: McpLogoutInput): boolean {
   return input.kind === "replace" && input.previousAccountId !== null && input.previousAccountId === input.nextAccountId;
 }
 
-// Claude sign-out adds no step: `claude auth logout` already clears its MCP tokens. Codex keys tokens by name and URL
-// hash, not profile, so its sign-out logs each server out first and a replacement logs out before the new profile
-// can reuse them. A Claude replacement logs the live profile out after commit.
+// A Claude sign-out adds no step: `claude auth logout` clears its MCP tokens. Codex keys tokens by name and URL hash, not
+// profile, so its sign-out and replacement log each server out first; a Claude replacement logs out after commit.
 export function mcpLogoutPlan(input: McpLogoutInput): { logout: string[] } {
   if ((input.provider === "claude" && input.kind === "signOut") || sameAccount(input)) return { logout: [] };
   return { logout: doan(input.servers) };
@@ -58,9 +54,8 @@ function tomlString(text: string): string {
   return `"${text.replace(/[\\"\u0000-\u001f\u007f]/g, ch => ch === "\\" ? "\\\\" : ch === '"' ? '\\"' : `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`)}"`;
 }
 
-// The block Doan writes into a Codex staging profile's config.toml (ARCHITECTURE §7 'MCP connectors'): `codex mcp add` would start a
-// new OAuth sign-in and open the default browser even when a token exists. The URL string is written as the provider
-// registered it: Codex derives the keychain key from that string, so re-serializing it could name another entry.
+// `codex mcp add` would start a new OAuth sign-in even when a token exists (ARCHITECTURE §7 'MCP connectors'). The URL
+// string is written as registered: Codex derives the keychain key from it, so re-serializing could name another entry.
 export function codexServerToml(name: string, url: string): string {
   if (!CONNECTOR_NAME.test(name)) throw new Error("Invalid MCP server name");
   // The URL parser drops tabs and line breaks silently; the string written is the one checked.

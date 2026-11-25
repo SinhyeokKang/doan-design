@@ -141,10 +141,8 @@ describe("plannedTargets", () => {
     ]);
   });
 
-  // Codex compares a rule's tokens with argv in order and applies the strictest matching rule (forbidden > prompt >
-  // allow, Codex docs 'Rules'); a command no rule matches follows the person's Codex settings. Only the read and signal
-  // commands an agent needs the app socket or no prompt for are allowed, so a writing command never runs outside the
-  // sandbox unasked, however its arguments are arranged.
+  // Codex applies the strictest matching rule (forbidden > prompt > allow, Codex docs 'Rules'), and a command no rule
+  // matches follows the person's Codex settings, so a writing command never runs outside the sandbox unasked.
   const decision = (argv: string[]): string => {
     const order = ["forbidden", "prompt", "allow"];
     const matched = [...codexRuleText().matchAll(/^prefix_rule\(pattern=(\[.*\]), decision="(\w+)"\)$/gm)]
@@ -299,7 +297,7 @@ describe("mergeClaudeAllow", () => {
     expect(mergeClaudeAllow(`{"permissions":{},"permissions":{"allow":${JSON.stringify(RULES)}}}`)).toEqual({ kind: "keep" });
   });
 
-  // RC2-3: JSON.parse accepts this, so the scan that finds where to insert must not run out of stack on it.
+  // JSON.parse accepts this, so the scan that finds where to insert must not run out of stack on it.
   it("adds the rules to deep but valid JSON", () => {
     const deep = `{"unrelated":${"[".repeat(10000)}0${"]".repeat(10000)},"permissions":{"allow":[]}}`;
     expect(written(deep)).toBe(`${deep.slice(0, -3)}"Bash(doan work start *)", "Bash(doan work done *)", "Bash(doan open *)", "Bash(doan work update *)"]}}`);

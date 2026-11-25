@@ -195,7 +195,7 @@ describe("auth transitions", () => {
     expect(checked).toMatchObject({ phase: "connected", verified: true, error: null, connection: { connectionId: "conn-1", profile: "claude-1" } });
     expect(readiness(checked, tools)).toEqual({ ready: true });
     expect(authStatus(checked, tools, 0).account).toEqual({ email: "bea@example.com" });
-    // The bound connection still resumes (user decision 2026-10-28); email is shown, never compared.
+    // The bound connection still resumes; email is shown, never compared.
     expect(judgeConnection({ ...owner, provider: "codex", accountId: null, workspaceId: null }, checked, free)).toEqual({ decision: "resume", rebind: false });
     expect(judgeConnection({ ...owner, provider: "codex", accountId: null, workspaceId: null, connectionId: "conn-0" }, checked, free)).toEqual({ decision: "reject", cause: "account_unverifiable" });
   });

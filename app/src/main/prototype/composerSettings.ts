@@ -1,7 +1,5 @@
-// The prototype window's composer settings (`prototype:composer` and its push). The main window's saves come here as
-// main parsed them, and the file stands in only until the first; a read of the file that finishes after a save takes
-// the save instead, and a push overtaken by a newer one is dropped, so the window never gets an older value last
-// (an earlier read can land after a newer value: POSTMORTEM 2026-10-26). Electron-free.
+// The main window's saves come here as main parsed them, and the file stands in only until the first; a late file read or
+// an overtaken push is dropped, so the window never gets an older value last (POSTMORTEM 2026-10-26). Electron-free.
 import type { UiState } from "../../restore/uiState";
 import type { Preferences } from "../preferences";
 import { prototypeComposerSettings } from "./conversationScope";
@@ -11,7 +9,6 @@ export interface ComposerSettingsDeps {
   // ui-state.json as on disk, which lags behind the main window's saves.
   read(): Promise<UiState | null>;
   preferences(): Preferences;
-  // The prototype window is open.
   open(): boolean;
   send(settings: PrototypeComposerSettings): void;
 }

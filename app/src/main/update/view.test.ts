@@ -3,7 +3,7 @@ import type { InstallGate, UpdateEligibility, UpdateSnapshot, UpdateState } from
 import { releaseNotesFailedLine, updateView } from "./view";
 
 // What Settings > About's Version row, the automatic-check row, the header button and the Doan menu item show for
-// each update state. The copy is the confirmed draft's (.doan/canvases/app-update.html).
+// each update state, as the draft canvas .doan/canvases/app-update.html words them.
 
 // Local times, so the expectations hold in any time zone.
 const NOW = new Date(2026, 10, 8, 16, 5).getTime();
@@ -197,8 +197,8 @@ describe("the header button and the Doan menu", () => {
     expect(view({ kind: "restartAborted", version: "0.1.1" }, { gate: blocked }).header?.popover).toEqual(BLOCKED);
   });
 
-  // A popover already open follows each push (the draft's popover-unblocked and popover-stopped-blocked frames):
-  // `opened` is what it shows now, while `popover` stays what a press opens instead of restarting.
+  // A popover already open follows each push: `opened` is what it shows now, while `popover` stays what a press opens
+  // instead of restarting.
   test("an open popover follows the gate: unblocked says it can restart, a stopped restart takes the blocking reason", () => {
     expect(view(ready).header?.opened).toEqual(READY_TO_RESTART);
     expect(view(ready).header?.popover).toBeNull();

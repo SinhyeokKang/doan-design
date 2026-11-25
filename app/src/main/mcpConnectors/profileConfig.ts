@@ -1,10 +1,8 @@
 import { CONNECTOR_NAME } from "./names";
 import type { ListedServer } from "./status";
 
-// The registrations a provider profile's own config holds, read when the provider's list cannot be:
-// a sign-out or replacement must still know which doan- servers to log out. Only server names and URLs are taken;
-// tokens are not in these files (they are in the OS keychain), and nothing else in them is used. null: the config
-// could not be read for certain, which is never "no servers": the caller then falls back to every server Doan knows.
+// A sign-out or replacement reads the profile's own config when the provider's list cannot be read. Only server names and
+// URLs are taken. null: not read for certain, never "no servers"; the caller falls back to every server Doan knows.
 
 const BARE_KEY = "[A-Za-z0-9_-]+", QUOTED_KEY = '"[^"\\\\]*"';
 const KEY = `(?:${BARE_KEY}|${QUOTED_KEY})(?:\\s*\\.\\s*(?:${BARE_KEY}|${QUOTED_KEY}))*`;
@@ -43,10 +41,8 @@ function value(text: string): { ok: true; string: string | null } | { ok: false 
   return /^[A-Za-z0-9_.:+-]+(?:[ T][0-9:.+-]+Z?)?\s*(?:#.*)?$/.test(text) ? { ok: true, string: null } : { ok: false };
 }
 
-// Codex `config.toml`: `[mcp_servers.<name>]` tables (bare or quoted name, sub-tables allowed) with a one-line `url`, as
-// `codex mcp add` and codexServerToml write them. Elsewhere only multi-line strings are tracked (so a `[` line inside
-// one is not a header); any other way of naming MCP servers (dotted keys, inline tables, arrays of tables, the bare
-// `[mcp_servers]` table) or an unreadable line inside a server table is a failure.
+// `[mcp_servers.<name>]` tables with a one-line `url`, as `codex mcp add` and codexServerToml write them; elsewhere only
+// multi-line strings are tracked. Any other way of naming MCP servers, or an unreadable server line, is a failure.
 export function codexConfigServers(text: string): ListedServer[] | null {
   // Total: whatever goes wrong while reading is the failure value, never an exception out of a sign-out.
   try { return codexServers(text); } catch { return null; }

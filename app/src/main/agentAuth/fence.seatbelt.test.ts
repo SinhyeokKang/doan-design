@@ -6,9 +6,8 @@ import { join } from "node:path";
 import { fenceArgs, resolveFencePaths, SANDBOX_EXEC } from "./fence";
 import type { Provider } from "./types";
 
-// The policy applied by the real Seatbelt, path by path: what the agent may write in its profile is the list its CLI
-// needs, and nothing that a later conversation reads as instructions, settings or code. A runner that is itself inside
-// a Seatbelt policy cannot apply another one (exit 71), so the suite skips there; CI's macOS runner applies it.
+// The policy applied by the real Seatbelt, path by path. A runner already inside a Seatbelt policy cannot apply another
+// one (exit 71), so the suite skips there; CI's macOS runner applies it.
 const usable = process.platform === "darwin" && spawnSync(SANDBOX_EXEC, ["-p", "(version 1)(allow default)", "/usr/bin/true"]).status === 0;
 
 const roots: string[] = []; afterAll(() => { roots.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
@@ -17,8 +16,8 @@ function world(provider: Provider) {
   const userData = join(base, "userData"), profile = join(userData, "agent-auth", "profiles", provider);
   for (const dir of [profile, join(userData, "attachments"), join(userData, "conversations")]) mkdirSync(dir, { recursive: true });
   writeFileSync(join(userData, "conversation-runtime.json"), "{}");
-  // The agent's own folder exists before any fenced process: Doan writes the doan skill stub into it first (for
-  // Antigravity under .gemini/config/), and Antigravity's token into .gemini/antigravity-acp/ (the vault's working copy).
+  // The agent's own folder exists before any fenced process: Doan writes the doan skill stub into it first, and
+  // Antigravity's token into .gemini/antigravity-acp/ (the vault's working copy).
   const folders = { claude: [], codex: [], copilot: [".copilot"], cursor: [".cursor"], antigravity: [".gemini/config", ".gemini/antigravity-acp"] }[provider];
   for (const folder of folders) mkdirSync(join(profile, folder), { recursive: true });
   return { userData, profile };
@@ -31,8 +30,7 @@ function written(provider: Provider, rels: readonly string[], { userData, profil
   expect(run.status).toBe(0);
   return run.stdout.split("\n").filter(Boolean);
 }
-// Other agents' folders in a dedicated HOME, which Copilot (~/.agents/skills) and Cursor (.agents, .claude with its
-// settings hooks, commands, skills and plugins, .codex and .grok skills) read as the person's own; a tool cache beside
+// Other agents' folders in a dedicated HOME, which Copilot and Cursor read as the person's own; a tool cache beside
 // them stays writable.
 const HOME_STORES = [".agents/skills/a/SKILL.md", ".claude/settings.json", ".claude/commands/a.md", ".claude/skills/a/SKILL.md", ".codex/skills/a/SKILL.md", ".grok/skills/a/SKILL.md", ".agents"];
 function expectWrites(provider: Provider, open: readonly string[], closed: readonly string[]) {
@@ -40,10 +38,8 @@ function expectWrites(provider: Provider, open: readonly string[], closed: reado
 }
 
 describe.runIf(usable)("the outer fence's writes in the agent's folder", () => {
-  // Claude Code 2.1.327 (isolated CLAUDE_CONFIG_DIR, a turn with a tool call): the session's transcript and shell
-  // snapshot, .claude.json and its backups; a signed-in profile adds the caches, the credential fallback and the cleanup
-  // marker. session-env/ holds the environment files hooks leave for a session, which its commands source again on a
-  // resume (probe), so it stays closed; the CLI runs without it.
+  // Claude's session transcript, shell snapshot, .claude.json and signed-in caches. session-env/ stays closed: hooks leave
+  // environment files there that the session's commands source again on resume.
   it("lets Claude write its sessions, transcripts and state and nothing a later turn reads as settings or instructions", () => {
     expectWrites("claude", [
       ".claude.json", ".claude.json.tmp.85251.42ac2059", "backups/.claude.json.backup.1", ".credentials.json", "projects/-repo/1b9d.jsonl", "projects/-repo/1b9d/subagents/a.jsonl",
@@ -69,8 +65,8 @@ describe.runIf(usable)("the outer fence's writes in the agent's folder", () => {
       lock.replace("eac6", "eac"), lock.replace("notion", "abcdefghijklmnopq"),
     ], { userData, profile })).toEqual([lock, "mcp-refresh-doan_127_0_0_1_0123456789abcdef.lock.lock"]);
   });
-  // codex-cli 0.169.0 in Full access (isolated CODEX_HOME): its stores and caches, its runtime helpers under tmp/, the
-  // temporary files it renames onto root files, and the SQLite databases at the root, whatever their version suffix.
+  // Codex in Full access: its stores and caches, runtime helpers under tmp/, temporary files it renames onto root files,
+  // and the SQLite databases at the root, whatever their version suffix.
   it("lets Codex write its stores and caches and none of its instruction or settings files", () => {
     expectWrites("codex", [
       "sessions/2026/11/19/rollout-a.jsonl", "archived_sessions/a.jsonl", "shell_snapshots/a.sh", "memories/a.md", "tmp/arg0/codex-arg0Ab/apply_patch", ".tmp/plugins.sync.lock", ".tmpAb12Cd",
@@ -80,8 +76,8 @@ describe.runIf(usable)("the outer fence's writes in the agent's folder", () => {
       "AGENTS.md", "AGENTS.override.md", "auth.json", "config.toml", "hooks.json", "managed_config.toml", ".env", "rules/doan.rules", "prompts/a.md", "skills/a/SKILL.md", "plugins/a/plugin.json", "x",
     ]);
   });
-  // Copilot 1.0.105 (dedicated HOME, version, status and an ACP session): its session state and store, logs, the
-  // config and settings files with their locks; the rest of the dedicated HOME is the agent's own commands' HOME.
+  // Copilot's session state and store, logs, and config and settings files with their locks; the rest of the dedicated
+  // HOME is the agent's own commands' HOME.
   it("lets Copilot write its sessions, logs and login and none of its instruction or plugin files", () => {
     expectWrites("copilot", [
       ".copilot/session-state/1b9d/workspace.yaml", ".copilot/session-store.db", ".copilot/session-store.db-wal", ".copilot/logs/process-1.log", ".copilot/plugin-data/_direct/a",
@@ -90,9 +86,8 @@ describe.runIf(usable)("the outer fence's writes in the agent's folder", () => {
       ".copilot/copilot-instructions.md", ".copilot/agents/a.md", ".copilot/skills/a/SKILL.md", ".copilot/hooks/a.json", ".copilot/mcp-config.json", ".copilot/installed-plugins/a/plugin.json", ".copilot/x",
     ]);
   });
-  // Cursor 2026.10.22 (dedicated HOME, version, status and an ACP session; a signed-in profile adds its sessions and
-  // tracking): its ACP sessions, state, caches and login. cli-config.json holds its permission allow list, which Cursor's
-  // own sandbox protects too; Cursor starts and opens its ACP server without writing it (probe).
+  // Cursor's ACP sessions, state, caches and login. cli-config.json holds its permission allow list; Cursor starts and
+  // opens its ACP server without writing it.
   it("lets Cursor write its sessions, state and login and none of its rules, skills, hooks or MCP files", () => {
     expectWrites("cursor", [
       ".cursor/acp-sessions/1b9d.json", ".cursor/ai-tracking/a.db", ".cursor/statsig-cache.json", ".cursor/agent-cli-state.json", ".cursor/auth.json",
@@ -102,9 +97,8 @@ describe.runIf(usable)("the outer fence's writes in the agent's folder", () => {
       ".cursor/plugins/a/plugin.json", ".cursor/sandbox.json", ".cursor/x",
     ]);
   });
-  // cursor-agent (2026.10.22 and 2026.11.22) creates its local worker's socket folder at start (mkdir -p). The fence does not let it: the
-  // folder shares .cursor/projects/<workspace>/ with the MCP approvals a later run reads, and a rule that allowed the
-  // mkdir would also allow a rename onto the same path. Doan creates it beforehand (prepare.ts).
+  // cursor-agent creates its worker socket folder at start (mkdir -p). It shares .cursor/projects/<workspace>/ with MCP
+  // approvals a later run reads, and a rule allowing the mkdir would allow a rename too, so Doan creates it (prepare.ts).
   it("lets Cursor's recursive mkdir pass on the worker folder Doan made, and write nothing in it or beside it", () => {
     const w = world("cursor");
     mkdirSync(join(w.profile, ".cursor", "projects", "p-988fa62"), { recursive: true });
@@ -118,8 +112,8 @@ describe.runIf(usable)("the outer fence's writes in the agent's folder", () => {
     expect(run(mkdir("p-1234567"))).not.toBe(0);
     expect(run(`require("node:fs").renameSync(process.env.PROFILE + "/stage", process.env.PROFILE + "/.cursor/projects/w-repo")`)).not.toBe(0);
   });
-  // Antigravity's ACP server 1.3.0 (a signed-in profile's entries and their times): conversations, brain and its
-  // token per turn, its own folder of transcripts and helpers, and per-conversation databases in config/.
+  // Antigravity's conversations, brain and token per turn, its own folder of transcripts and helpers, and
+  // per-conversation databases in config/.
   it("lets Antigravity write its conversations, brain and token and none of its config, memory or settings", () => {
     expectWrites("antigravity", [
       ".gemini/antigravity-acp/conversations/a.pb", ".gemini/antigravity-acp/brain/a/b.md", ".gemini/antigravity-acp/acp_token.json", ".gemini/antigravity/bin/webm_encoder",

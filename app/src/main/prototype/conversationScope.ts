@@ -1,8 +1,5 @@
-// The prototype window's conversation panel reaches only the conversations of the canvas it plays (PRODUCT §5 item 2
-// 'Prototype window'). Main checks every conversation request, event and reveal of the prototype role here against the
-// target as it is when the request arrives, so a request sent before another play is judged by the new target.
-// No Electron and no validators (ajv): the renderer imports this file's types, and a value import that reached ajv would
-// blank the window under its CSP (POSTMORTEM 2026-10-30).
+// Main checks every conversation request, event and reveal of the prototype role against the target as it is now
+// (PRODUCT §5 item 2 'Prototype window'). No validators: the renderer imports these types (POSTMORTEM 2026-10-30).
 import type { UiState } from "../../restore/uiState";
 import type { AuthSnapshot } from "../agentAuth/ipc";
 import type { ConversationHandoffNotice } from "../conversation/handoff";
@@ -28,9 +25,8 @@ export interface ScopedConversation {
   canvas?: Canvas;
 }
 
-// Every conversation method the panel's thread, composer, new conversation state and head menu call. delete reaches a
-// conversation of the playing canvas only, as every by-id method does; newDesign is not here: the window starts only
-// conversations of the playing canvas.
+// Every conversation method the panel calls; delete reaches only the playing canvas's conversations, like every by-id
+// method. newDesign is not here: the window starts only conversations of the playing canvas.
 export const PROTOTYPE_CONVERSATION_METHODS: ReadonlySet<string> = new Set([
   "read", "list", "resumeTarget", "start", "send", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "interrupt",
   "answerPermission", "answerQuestion", "markSeen", "models", "skills", "setPermissionMode", "scheduled", "delete",
@@ -44,9 +40,8 @@ function record(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
-// The playing canvas's listed row path, or null while it cannot be judged: the root's list is loading, the row is gone
-// or its ID is shared, or the root is not registered. Nothing is guessed then. The run's phase is not looked at, so a
-// lost frame or a failed load leaves the panel usable.
+// null while it cannot be judged (list loading, row gone, ID shared, root unregistered): nothing is guessed. The run's
+// phase is not looked at, so a lost frame or a failed load leaves the panel usable.
 function playingRow(playing: PlayingCanvas | null, entries: readonly FolderEntry[]): string | null {
   if (playing === null) return null;
   const resolved = resolveTarget(playing, entries, playing.path);
@@ -94,10 +89,8 @@ export function prototypeConversationScope(method: string, payload: unknown, pla
   return conversationInScope(request.conversationId, playing, row, conversations, entries) !== null;
 }
 
-// Whether a list request names a canvas other than the one playing (or nothing plays). The window's view waits behind
-// the still capture, so it asks for the canvas it still shows: main answers "not_playing", which the window neither shows
-// as a failure nor reads as that canvas's conversations being gone, and the view of the new target reads again. A
-// malformed request, or one for the playing canvas refused while its row cannot be judged, is not this.
+// The window's view waits behind the still capture, so it may ask for the canvas it still shows: main answers
+// "not_playing", which the window neither shows as a failure nor reads as the conversations being gone.
 export function prototypeListElsewhere(payload: unknown, playing: PlayingCanvas | null): boolean {
   const request = record(payload);
   const canvas = canvasValue(request?.canvas);
@@ -148,9 +141,8 @@ export function prototypeReceives(message: ConversationBroadcast, playing: Playi
   }
 }
 
-// A reveal the main window may act on, or null. A chip and an answer's chip belong to a conversation of the playing
-// canvas; an Open names a conversation or a listed canvas of the playing root (a handoff's project source and its
-// target are not on the playing canvas). Sign in needs no target.
+// A chip belongs to a conversation of the playing canvas; an Open names a conversation or listed canvas of the playing
+// root. Sign in needs no target.
 export function prototypeRevealRequest(payload: RevealPayload, playing: PlayingCanvas | null, conversations: readonly ScopedConversation[], entries: readonly FolderEntry[]): PrototypeReveal | null {
   if (payload.kind === "settings") return payload.provider === undefined ? { kind: "settings" } : { kind: "settings", provider: payload.provider };
   const row = playingRow(playing, entries);
@@ -211,10 +203,8 @@ export function prototypeComposerSettings(ui: UiState | null, preferences: Prefe
 // ui-state's conversation ids (restore/uiState.ts CONVERSATION_ID).
 const CONVERSATION_ID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
 
-// The conversation the main window last showed on the playing canvas: `conversationByCanvas[root][key]` of its saved
-// ui-state, the key being the canvas's id, else its path (the renderer's draftKey rule, so a moved canvas keeps it).
-// Null while the canvas cannot be judged (its id listed twice, not listed) and for anything but a conversation id. The
-// saved value is read field by field, so an older ui-state without the field reads as nothing remembered.
+// `conversationByCanvas[root][key]` of the saved ui-state, keyed like the renderer's draftKey. Read field by field, so
+// an older ui-state reads as nothing remembered; null while the canvas cannot be judged.
 export function prototypeRememberedConversation(saved: unknown, playing: PlayingCanvas | null, entries: readonly FolderEntry[]): string | null {
   const row = playingRow(playing, entries);
   if (playing === null || row === null) return null;
@@ -223,10 +213,8 @@ export function prototypeRememberedConversation(saved: unknown, playing: Playing
   return typeof id === "string" && CONVERSATION_ID.test(id) ? id : null;
 }
 
-// `prototype:conversationListed`: whether a conversation is indexed under the playing root, for a handoff card whose
-// source is a project conversation (it shows that conversation as deleted otherwise). The window may ask only about the
-// playing root, and learns this one fact; null when the request names another root, nothing plays, main's index cannot
-// be read or the request is malformed. A list change of the playing root (prototypeReceives) is the cue to ask again.
+// `prototype:conversationListed`: whether a conversation is indexed under the playing root, for a handoff card's source.
+// null for another root, nothing playing, an unreadable index or a malformed request.
 export function prototypeConversationListed(payload: unknown, playing: PlayingCanvas | null, conversations: readonly ScopedConversation[] | null): boolean | null {
   const request = record(payload);
   if (request === null || Object.keys(request).some(key => key !== "root" && key !== "conversationId")) return null;

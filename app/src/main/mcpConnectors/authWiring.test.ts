@@ -11,9 +11,8 @@ import { FakeCli } from "./fixtures/fakeCli";
 import { McpService } from "./service";
 import { ConnectorStore } from "./store";
 
-// The real AuthManager and McpService together. A sign-out or replacement must stop the provider's
-// MCP work even when that work holds no lease (a pending Codex logout runs in a temporary CODEX_HOME), while
-// conversations keep their own stop_required rule.
+// A sign-out or replacement must stop the provider's MCP work even when it holds no lease (a pending Codex logout runs
+// in a temporary CODEX_HOME), while conversations keep their own stop_required rule.
 
 const realTimeout = setTimeout;
 const flush = () => new Promise(resolve => realTimeout(resolve, 0));

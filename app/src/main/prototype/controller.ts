@@ -1,6 +1,5 @@
-// The one prototype window's state as main holds it: requests, list refreshes and run results go through the pure
-// transitions, their effects go to the window host in order, and the window gets the view whenever it changes.
-// Electron-free; prototypeWindow.ts is the host.
+// Requests, list refreshes and run results go through the pure transitions; their effects go to the window host in
+// order. Electron-free; prototypeWindow.ts is the host.
 import type { ExportReply } from "../canvasExport";
 import type { FolderEntry } from "../view";
 import type { WindowKind } from "../senderAllowed";
@@ -14,9 +13,8 @@ import * as transitions from "./windowState";
 import { CLOSED, type PrototypeState, type Resolve, type Step } from "./windowState";
 
 export interface PrototypeHost {
-  // `panel`: the conversation panel's width while it is open, else null. With the panel open the window fits the shown
-  // size plus the panel (prototypePanelFit) and answers the panel width it gave; null otherwise. `fit` is only the
-  // opening run's refit to a ready size that differs from its mark: a later frame keeps the window as it is.
+  // `panel`: the open conversation panel's width, else null; with it open the window fits the size plus the panel
+  // (prototypePanelFit). `fit` is only the opening run's refit: a later frame keeps the window as it is.
   create(size: PrototypeSize, panel: number | null): number | null;
   fit(size: PrototypeSize, panel: number | null): number | null;
   // Open the conversation panel: widen a narrow window (openPanelResize) and keep it at least 640; answers the width.
@@ -48,7 +46,7 @@ export interface Still {
 }
 
 // `played`: the window opened or moved to the frame; `activated`: it was playing already and only came forward;
-// `refused`: the canvas is no longer a target (its row went, or its ID is now shared).
+// `refused`: the canvas is not a target any more (its row went, or its ID is now shared).
 export type CliPlayResult = "played" | "activated" | "refused";
 
 export interface PrototypeController {
@@ -70,7 +68,6 @@ export interface PrototypeController {
   playing(): PlayingCanvas | null;
   // The frame the window plays now; null while closed.
   playingFrame(): string | null;
-  // The conversation panel is open now.
   panelOpen(): boolean;
   // Counts changes of the playing canvas (to another, back to an earlier one, or to none); another frame of the same
   // canvas, a reload and the panel leave it. A report about what the panel shows holds only within one.
@@ -112,10 +109,8 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
     queue = next;
   };
 
-  // Leaving a ready run by any path (a reload, a source change, a restore, Retry, another target, a failure or a lost
-  // frame) takes a still of its screen. A reload keeps the old iframe showing until the new run is ready; if that run
-  // then fails, the renderer stops the old one behind this still, and a capture taken then would hold the loading
-  // overlay. Started before the step's effects, so none of them can reach the image.
+  // Leaving a ready run by any path takes a still of its screen, started before the step's effects: if a reload's run
+  // then fails, the old iframe is stopped behind this still, and a later capture would hold the loading overlay.
   const leavingReady = (previous: PrototypeState): Promise<Still | null> | null => {
     if (!previous.open || previous.phase !== "ready" || previous.run === null || !state.open) return null;
     if (state.gen === previous.gen && state.phase === "ready") return null;
@@ -133,9 +128,8 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
       later(async () => {
         const taken = await still;
         if (!state.open || windows !== takenIn) return;
-        // Kept even when a later step moved the gen on: a kill right after leaving ready re-sends this still, with the
-        // box it was taken at. A still that could not be read clears the last one, so another frame's screen is never
-        // re-sent in its place.
+        // Kept even when the gen moved on: a kill right after leaving ready re-sends this still. A still that could not be read
+        // clears the last one, so another frame's screen is never re-sent in its place.
         latest = taken;
         if (taken !== null && state.gen === gen) host.sendSnapshot({ gen, ...taken });
       });

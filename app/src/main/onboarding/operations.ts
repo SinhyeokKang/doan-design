@@ -49,9 +49,8 @@ export const OPERATION_MESSAGES: Record<OnboardingOperationErrorCode, string> = 
   completion_unsupported_version: "Setup was saved by a newer version of Doan. Open this project with that version, or update Doan.",
 };
 
-// A setup's own account in place of the code's fixed message (ProjectOutcome `message`): the .git a failed repository
-// creation left behind, which the person removes or keeps, and why no repository is made in the home folder. The
-// setup screens show these words as they are (draft keep-out-git-init, frame setup-panel).
+// A setup's own account in place of the code's fixed message: the .git a failed repository creation left behind, and why
+// no repository is made in the home folder. The setup screens show these words as they are.
 export const repositoryLeftoverMessage = (root: string) => `Setup failed, and Doan couldn’t remove the Git repository it created at ${root}/.git. Remove it or keep it, then try again.`;
 export const HOME_REFUSAL = "Doan doesn’t create a Git repository in your home folder. Choose Include in Git, or choose a folder inside it.";
 
@@ -69,7 +68,7 @@ function argumentsKey(request: OnboardingRequest): string {
 export type WriteRequest = Exclude<OnboardingRequest, { op: "start" | "status" }>;
 export interface Tracked {
   operation: OnboardingOperation; attemptId: string | null; cancelling: boolean; prompted: boolean;
-  // Folder work: a clone's cancel, the moment it no longer takes one, and the end of its work for quit.
+  // Folder work: a clone's cancel, the moment it stops taking one, and the end of its work for quit.
   abort?: AbortController; committed?: boolean; done?: Promise<void>;
 }
 // detail: the failure's own account for the window only (the CLI's message for project_unreadable); see forWindow.

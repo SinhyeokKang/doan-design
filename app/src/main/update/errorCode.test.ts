@@ -2,9 +2,8 @@ import { describe, expect, test } from "vitest";
 import { updateErrorCode, updateErrorSource } from "./errorCode";
 import { UPDATE_ERROR_CODES } from "./types";
 
-// The fixtures are the errors electron-updater 6.8.11 (builder-util-runtime 9.7.0) and Electron 45's Squirrel.Mac
-// bridge actually raise: their message shapes and codes come from those packages' sources. The renderer only ever
-// gets the code.
+// The errors electron-updater and Electron's Squirrel.Mac bridge raise, with message shapes and codes from those
+// packages' sources. The renderer only ever gets the code.
 
 // builder-util-runtime `newError`: an Error with a string `code`.
 const newError = (message: string, code: string) => Object.assign(new Error(message), { code });
@@ -14,7 +13,6 @@ function httpError(statusCode: number, statusMessage: string, description: strin
   error.name = "HttpError";
   return error;
 }
-// A Node system error.
 const systemError = (message: string, code: string) => Object.assign(new Error(message), { code, errno: -1, syscall: "write" });
 // Electron's native autoUpdater error: Squirrel's NSError description with its numeric code and domain.
 const squirrelError = (message: string, code: number, domain: string) => Object.assign(new Error(message), { code, domain });
