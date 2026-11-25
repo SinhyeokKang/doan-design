@@ -50,12 +50,29 @@ export function handoffArrival(screen: HandoffScreen, notice: HandoffNotice, lis
   return expired ? "toast" : "wait";
 }
 
+const CARD_STATUS = "Handed off to this conversation";
+export interface HandoffCardView {
+  kind: "canvas" | "overview";
+  name: string;
+  // Both cards look alike, so the status says the direction: the bold name is the source.
+  status: string;
+  // The card group's accessible name: "<name>, <status>".
+  label: string;
+  open: boolean;
+  openLabel: string;
+}
 // listed: the source canvas is still listed, or for an Overview source its conversation still exists. The card sits on
 // the target canvas, whose header already names the project, so the Overview goes unnamed.
+export function handoffCardView(source: { canvas?: Canvas }, project: string, listed: boolean): HandoffCardView {
+  const name = source.canvas ? fileName(source.canvas.path) : "Overview";
+  const status = listed ? CARD_STATUS : `${CARD_STATUS} · ${source.canvas ? `No longer in ${project}` : "Conversation deleted"}`;
+  return { kind: source.canvas ? "canvas" : "overview", name, status, label: `${name}, ${status}`, open: listed,
+    openLabel: source.canvas ? `Open ${name}` : "Open the source conversation in the Overview" };
+}
+// The one-line head of the card's markup until it draws handoffCardView.
 export function handoffCardHead(source: { canvas?: Canvas }, project: string, listed: boolean): string {
-  if (!source.canvas) return listed ? "Handed off from Overview" : "Handed off from Overview · Conversation deleted";
-  const name = fileName(source.canvas.path);
-  return listed ? `Handed off from ${name}` : `Handed off from ${name} · No longer in ${project}`;
+  const view = handoffCardView(source, project, listed);
+  return `Handed off from ${view.name}${view.status.slice(CARD_STATUS.length)}`;
 }
 // The toast shows on any screen, so an Overview source names its project.
 export function handoffToastText(notice: ConversationHandoffNotice, project: string): string {
