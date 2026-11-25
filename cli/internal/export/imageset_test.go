@@ -18,8 +18,9 @@ func TestInlineImageSetStrings(t *testing.T) {
 	if want := []Refusal{{p, "../assets/none.png", ReasonMissing}}; !reflect.DeepEqual(res.Refused, want) {
 		t.Fatalf("refused = %+v, want %+v", res.Refused, want)
 	}
-	if n := bytes.Count(res.HTML, []byte(`url("`+dataURI("image/png", exporttest.HeroPNG)+`")`)); n != 2 {
-		t.Fatalf("hero inlined %d times, want 2:\n%s", n, res.HTML)
+	hero := dataURI("image/png", exporttest.HeroPNG)
+	if !bytes.Contains(res.HTML, []byte(`image-set(url("`+hero+`") 1x,`)) || !bytes.Contains(res.HTML, []byte(`-webkit-image-set(url(&quot;`+hero+`&quot;) 1x)`)) {
+		t.Fatalf("hero not inlined in both:\n%s", res.HTML)
 	}
 	if bytes.Contains(res.HTML, []byte("assets/images/hero.png")) {
 		t.Fatalf("relative path left in the export:\n%s", res.HTML)

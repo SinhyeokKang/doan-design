@@ -80,6 +80,9 @@ func quoted(s string, i int) (string, int) {
 type lexer struct {
 	s string
 	i int
+	// A string directly inside image-set() is a <url>, so it is a 'u' token. imageSet is one past the index of
+	// the "(" that opens the call, paren the open parentheses, and setParen the call's depth or 0.
+	imageSet, paren, setParen int
 }
 
 func (l *lexer) next() (token, bool) {
@@ -103,6 +106,9 @@ func (l *lexer) next() (token, bool) {
 		if s[i] == '\'' || s[i] == '"' {
 			v, end := quoted(s, i)
 			l.i = end
+			if l.setParen > 0 && l.paren == l.setParen {
+				return token{'u', v, start, end}, true
+			}
 			return token{'s', v, start, end}, true
 		}
 		if ident(s[i]) {
@@ -138,8 +144,27 @@ func (l *lexer) next() (token, bool) {
 				l.i = i
 				return token{'u', v, start, i}, true
 			}
+			if n := lower(name); n == "image-set" || n == "-webkit-image-set" {
+				l.imageSet = i + 1
+			}
 			l.i = i
 			return token{'i', name, start, i}, true
+		}
+		switch s[i] {
+		case '(':
+			l.paren++
+			if l.imageSet == i+1 {
+				l.setParen = l.paren
+			}
+		case ')':
+			if l.paren == l.setParen {
+				l.setParen = 0
+			}
+			if l.paren > 0 {
+				l.paren--
+			}
+		case '{', '}':
+			l.paren, l.setParen = 0, 0
 		}
 		l.i = i + 1
 		return token{s[i], s[i : i+1], i, i + 1}, true
