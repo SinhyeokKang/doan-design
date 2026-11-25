@@ -94,9 +94,9 @@ describe("Copilot edit line counts from recorded frames", () => {
       // Delete and add on the same path, one result per diff item; together +2 -4.
       overwrite: [edit(p, config), lines(p, config, 0, 4), lines(p, config, 2, 0)],
       delete: [edit(p, "/repo/old.txt"), lines(p, "/repo/old.txt", 0, 3)],
-      // One activity per tool call, under the path the last request named; each result carries that activity's path,
-      // never its diff item's, so both attach to the one step (+1 -1 each).
-      multipath: [edit(p, config), lines(p, config, 1, 1), lines(p, config, 1, 1)],
+      // One activity per tool call, under the path the last request named; only the diff item on that path is counted
+      // (notes.txt's is not).
+      multipath: [edit(p, config), lines(p, config, 1, 1)],
       deny: [],
       fail: [],
     },
@@ -155,6 +155,10 @@ describe("ACP edit line counts: synthetic updates", () => {
     const long = "x\n".repeat(20_001);
     expect(trail(run([call("e"), update("e", { status: "completed", content: [diff("", long), { type: "diff", path: "/repo/a.txt", oldText: "a" }, { type: "content", content: { type: "text", text: "ok" } }] })]).events))
       .toEqual([edit("e", "/repo/a.txt")]);
+  });
+  it("counts only the diff items on the step's own path (synthetic)", () => {
+    expect(trail(run([call("e"), update("e", { status: "completed", content: [diff("a\n", "b\n"), diff("x\n", "", "/repo/b.txt"), diff("", "c\nd\n")] })]).events))
+      .toEqual([edit("e", "/repo/a.txt"), lines("e", "/repo/a.txt", 1, 1), lines("e", "/repo/a.txt", 2, 0)]);
   });
   it("carries no path on the result of an activity that has none (synthetic)", () => {
     expect(trail(run([call("e", { locations: [] }), update("e", { status: "completed", content: [diff("a\n", "b\n", "/repo/b.txt")] })]).events)).toEqual([edit("e", null), lines("e", null, 1, 1)]);

@@ -53,6 +53,19 @@ it("runs a recorded Cursor turn: streamed text, completed tool calls as activiti
   await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
 });
 
+// The recorded Cursor turn completes an edit with diff content; only a Copilot run records lines from it, since
+// Antigravity's diff is the proposal it asks about and Cursor's was never shown to be the applied change. The numbers
+// only show that the Copilot run counts that diff (its odd texts give +2 -1).
+it.each([["copilot", true], ["cursor", false], ["antigravity", false]] as const)("records edit lines from a completed diff for a %s run: %s", async (runtime, counts) => {
+  const { runner, events, exited } = await open("cursor", "allow", { runtime });
+  await runner.send("hi", "turn-1");
+  expect(events.at(-1)).toEqual({ type: "turn.done" });
+  const results = events.filter(e => e.type === "activity.result");
+  if (counts) expect(results).toEqual([{ type: "activity.result", callId: "call-564f938d-938d-4979-89e4-b78f6d606b62-1\nfc_16371e8d-cd73-9ea2-a824-02ba3c8d3b8b_1", path: "/repo/hello.txt", lines: { added: 2, removed: 1 } }]);
+  else expect(results).toEqual([]);
+  await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
+});
+
 it("reports a denied Copilot edit as no activity and still completes the turn", async () => {
   let answered = 0;
   const events: EventPayload[] = []; const exited = vi.fn();

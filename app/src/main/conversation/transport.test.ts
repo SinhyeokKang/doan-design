@@ -891,9 +891,25 @@ describe("Codex edit line counts: synthetic frames", () => {
     expect(events.some(e => e.type === "activity.result" || (e.type === "activity" && "callId" in e))).toBe(false);
     expect(events.at(-1)).toEqual({ type: "turn.done" });
   });
+  it("counts no change the item's activities did not name: it started with none and completed with a path (synthetic)", () => {
+    const { events } = replayCodex([frame("item/started", "f1", "inProgress", []), frame("item/completed", "f1", "completed", [change("/repo/a.txt", "update", hunk)]), done]);
+    expect(trail(events)).toEqual([edit("f1", "-")]);
+  });
+  it("drops a completed change whose path holds a NUL, and the turn goes on (synthetic)", () => {
+    const { events } = replayCodex([frame("item/started", "f1", "inProgress", [change("/repo/a.txt", "update", hunk)]), frame("item/completed", "f1", "completed", [change("/repo/a\0.txt", "update", hunk)]), done]);
+    expect(trail(events)).toEqual([edit("f1", "/repo/a.txt")]);
+    expect(events.at(-1)).toEqual({ type: "turn.done" });
+  });
+  it("counts an item once though its completion repeats (synthetic)", () => {
+    const changes = [change("/repo/a.txt", "update", hunk)];
+    const { events, state } = replayCodex([frame("item/started", "f1", "inProgress", changes), frame("item/completed", "f1", "completed", changes), frame("item/completed", "f1", "completed", changes), done]);
+    expect(trail(events)).toEqual([edit("f1", "/repo/a.txt"), lines("f1", "/repo/a.txt", 1, 1)]);
+    expect(state.codexEdits).toBeUndefined();
+  });
   it("records nothing once the turn ended (synthetic)", () => {
     const changes = [change("/repo/a.txt", "update", hunk)];
     const ended = replayCodex([frame("item/started", "f1", "inProgress", changes), done]);
     expect(normalizeCodex(ended.state, frame("item/completed", "f1", "completed", changes), ctx).events).toEqual([]);
+    expect(ended.state.codexEdits).toBeUndefined();
   });
 });
