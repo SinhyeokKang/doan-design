@@ -98,6 +98,8 @@ body{padding:var(--space-8);background:var(--surface-inset)}
 .motion-col{display:grid;gap:var(--space-3);align-content:start;width:347px}
 .motion-col h3{font-size:var(--type-label-size);line-height:var(--type-label-line-height);font-weight:var(--type-weight-medium)}
 .motion-col p{color:var(--text-subtle);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.motion-panel .conversation-thread{position:relative}
+.motion-panel .jump-latest{position:absolute;left:50%;bottom:var(--space-3);transform:translateX(-50%);box-shadow:var(--shadow-sm);z-index:3}
 .lag-meter{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);font-variant-numeric:tabular-nums}
 
 /* Entry (chosen: A): rises 16 px (space-4) and fades in over time-thread-enter (300 ms) with ease-enter: longer and
@@ -121,7 +123,7 @@ body{padding:var(--space-8);background:var(--surface-inset)}
 <symbol id="i-new" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></g></symbol>
 <symbol id="i-hide" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/><path d="m8 9 3 3-3 3"/></g></symbol>
 </svg>
-<header class="intro"><span class="doan-chip">thread-motion · draft · 3 frames · entry A, reveal B</span>
+<header class="intro"><span class="doan-chip">thread-motion · draft · 4 frames · entry A, reveal B</span>
 <h1>The thread moves smoothly: a sent message enters, a reply unfolds, the view follows.</h1>
 <p>Scope: <code>docs/features/thread-motion/</code> (spec ‘확정한 결정’ and ‘완료 조건’, design ‘진입 모션’, ‘출력 점진 표시’, ‘스크롤 따라가기’ and ‘드래프트 요청’). All motion is new, not in code. Every tile replays on its own (a click on the board selects instead of pressing); in Play prototype the buttons work too. Chosen (2026-11-25): entry A, the rise (16 px over 300 ms, time-thread-enter); reveal B, words that fade in over 300 ms, at a 400 ms lag cap. Compared and dropped: a flight from the composer, settling in place, paced words without a fade, and whole blocks. <code>stream</code> keeps today’s chunked jumps beside B for comparison; it is not compared by <code>/design-sync</code>. <code>/design-sync</code> will compare the entry animation by computed style; the reveal and the follow are compared by their constants (in this file’s style comment and script) and a recording.</p>
 <p>Fixed by the feature documents: every message this window sends enters (direct, Send now, a queue going out, a new conversation’s first); the reveal never lets the oldest hidden character get older than 400 ms, finishes the tail in 150 ms on <code>message.done</code>, and shows everything at once on Stop, failure, turn end, an item after the reply, a selection or a window coming back; while the reply grows the view stays pinned to the bottom every frame, and only a jump (an entering message, a new item) is followed with an exponential ease (τ 40 ms, about 220 ms); a person’s wheel, scrollbar drag or scroll key stops following. Under reduced motion the entry only fades, the reply shows as it arrives and the view jumps.</p>
@@ -134,7 +136,9 @@ body{padding:var(--space-8);background:var(--surface-inset)}
 <div class="tiles" data-doan-frame="entry" data-doan-prototype="1376x640" data-doan-title="Entry · a sent message comes into the thread"><div class="motion-col"><h3>A · Rise (chosen)</h3><p>The bubble rises 16 px and fades in over 300 ms (time-thread-enter, ease-enter): the dialogs’ rise, longer and slower.</p><div class="board-controls"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-entry="a" data-target="entry-a">Send a message</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-entry="a" data-target="entry-a" data-count="2">Send two queued</button></div><div class="motion-panel" id="entry-a"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div><div class="stand-composer" data-composer><span class="typed"></span><button type="button" class="doan-icon-button" data-ui-variant="accent" data-ui-size="sm" aria-label="Send"><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path d="m5 12 7-7 7 7M12 19V5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></div></div></div></section>
 <section class="specimen"><div class="caption"><span>02</span><h2>Reveal · a streamed reply unfolds <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>The same reply arrives in uneven chunks (a burst of three lines, a code block, small pieces). Stop shows the rest at once; the end finishes the tail in 150 ms. A “2 steps” row lands after the reply to show a jump being eased and the reply flushed first.</p></div>
 <div class="tiles" data-doan-frame="stream" data-doan-prototype="1376x1240" data-doan-title="Reveal · a streamed reply unfolds"><div class="motion-col"><h3>Today · as shipped</h3><p>Each provider chunk shows whole in the next frame and the view jumps to the bottom: lines pop in and the thread moves in steps.</p><div class="board-controls"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-stream="now" data-target="stream-now">Play the reply</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-stop="stream-now">Stop</button><span class="lag-meter" data-lag="stream-now"></span></div><div class="motion-panel" id="stream-now"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div></div></div><div class="motion-col"><h3>B · Words that fade in (chosen)</h3><p>A, and each newly shown run of words goes from transparent to full over 300 ms (time-thread-enter, ease-out), so the last words of the line trail in softly while the text before them stays solid. Code fades in line by line the same way. The oldest hidden character is never older than 400 ms.</p><div class="board-controls"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-stream="b" data-target="stream-b">Play the reply</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-stop="stream-b">Stop</button><span class="lag-meter" data-lag="stream-b"></span></div><div class="motion-panel" id="stream-b"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div></div></div></div></section>
-<section class="specimen"><div class="caption"><span>03</span><h2>Reduced motion · the fade stays, the movement goes <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>Under <code>prefers-reduced-motion: reduce</code>: a sent message only fades in (150 ms), the reply shows each chunk as it arrives, and the view jumps to the bottom. Drawn here whatever the viewer’s setting.</p></div>
+<section class="specimen"><div class="caption"><span>03</span><h2>Scroll · how the view follows <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>The board cannot wheel, so the person’s scroll is simulated. Following stops at a person’s wheel, scrollbar drag or scroll key, and waits about 100 ms after the last wheel event (trackpad momentum) before it may resume once the person is back at the bottom. A jump to a card stops following until the person returns.</p></div>
+<div class="tiles" data-doan-frame="scroll" data-doan-prototype="1376x620" data-doan-title="Scroll · how the view follows"><div class="motion-col"><h3>Today · a new item jumps</h3><p>Each new item moves the view to the bottom in one step.</p><span class="lag-meter" data-state="scroll-jump"></span><div class="motion-panel" id="scroll-jump"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div></div></div><div class="motion-col"><h3>Eased follow · a new item</h3><p>The view eases to the new bottom (τ 40 ms, about 220 ms); a second item mid-ease only moves the target.</p><span class="lag-meter" data-state="scroll-ease"></span><div class="motion-panel" id="scroll-ease"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div></div></div><div class="motion-col"><h3>The person scrolls up mid-reply</h3><p>Following stops at once; Jump to latest shows while the reply grows below; Jump eases back and pins again.</p><span class="lag-meter" data-state="scroll-human"></span><div class="motion-panel" id="scroll-human"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div></div></div><div class="motion-col"><h3>A card arrives mid-reply</h3><p>The reply shows whole at once, the view eases to the card’s top, and following waits until the person comes back.</p><span class="lag-meter" data-state="scroll-card"></span><div class="motion-panel" id="scroll-card"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div></div></div></div></section>
+<section class="specimen"><div class="caption"><span>04</span><h2>Reduced motion · the fade stays, the movement goes <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>Under <code>prefers-reduced-motion: reduce</code>: a sent message only fades in (150 ms), the reply shows each chunk as it arrives, and the view jumps to the bottom. Drawn here whatever the viewer’s setting.</p></div>
 <div class="tiles" data-doan-frame="reduced" data-doan-prototype="1376x600" data-doan-title="Reduced motion · the fade stays, the movement goes"><div class="motion-col"><h3>Every option</h3><p>Send, then play the reply.</p><div class="board-controls"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-entry="fade" data-target="reduced-panel">Send a message</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-stream="reduced" data-target="reduced-stream">Play the reply</button></div><div class="motion-panel" id="reduced-panel"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div><div class="stand-composer" data-composer><span class="typed"></span><button type="button" class="doan-icon-button" data-ui-variant="accent" data-ui-size="sm" aria-label="Send"><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path d="m5 12 7-7 7 7M12 19V5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></div></div><div class="motion-col"><h3>The reply</h3><p>Each chunk shows as it arrives; the view jumps.</p><div class="motion-panel" id="reduced-stream"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div></div></div></div></section>
 <script>// Board only: replays the motion options. The implementation's constants are the ones named here.
 (() => {
@@ -314,6 +318,86 @@ body{padding:var(--space-8);background:var(--surface-inset)}
   };
   ["now", "b"].forEach(v => loopStream(v, "stream-" + v));
   loopStream("reduced", "reduced-stream");
+  // ── Scroll demos (frame `scroll`) ──
+  const ITEMS = [
+    '<div class="activity"><button type="button" class="activity-head" aria-expanded="false"><span>3 steps</span><svg class="chev" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2"/></svg></button></div>',
+    '<div class="msg-agent md"><p>I moved the illustration above the heading and shortened the copy so it fits the 280 panel on one line.</p></div>',
+    '<div class="msg-agent md"><p>The action keeps the prominent variant; the secondary link now reads “Use another card”.</p></div>',
+    '<div class="msg-user"><div class="bubble">Looks good. Check the 347 width too</div></div>',
+    '<div class="msg-agent md"><p>At 347 the heading stays on one line and the action sits 24 px under the copy.</p></div>',
+  ];
+  const addItem = (p, html) => { const it = document.createElement("div"); it.className = "thread-item"; it.innerHTML = html; p.thread.appendChild(it); return it; };
+  const label = (id, text) => { const el = document.querySelector(`[data-state="${id}"]`); if (el) el.textContent = text; };
+  // (1) A new item lands: today's jump beside the eased follow.
+  const loopItems = (id, ease) => {
+    const p = parts(id), f = follower(p.scroller); let n = 0;
+    setInterval(() => {
+      if (n % ITEMS.length === 0) reset(p);
+      addItem(p, ITEMS[n % ITEMS.length]); n++;
+      if (ease) f.ease(); else f.jump();
+    }, 1400);
+  };
+  loopItems("scroll-jump", false); loopItems("scroll-ease", true);
+  // A person's scroll, simulated: the board cannot wheel, so it moves scrollTop itself and marks the input as human.
+  const humanScroll = (scroller, by, ms) => new Promise(done => {
+    const from = scroller.scrollTop, start = performance.now();
+    const t = (now) => { const k = Math.min(1, (now - start) / ms); scroller.scrollTop = from + by * (1 - Math.pow(1 - k, 3)); if (k < 1) requestAnimationFrame(t); else done(); };
+    requestAnimationFrame(t);
+  });
+  const jumpButton = (p, show) => {
+    let b = p.root.querySelector(".jump-latest");
+    if (show && !b) {
+      b = document.createElement("button"); b.type = "button"; b.className = "doan-button jump-latest"; b.dataset.uiSize = "sm"; b.dataset.uiVariant = "panel";
+      b.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M19 12l-7 7-7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Jump to latest';
+      p.root.querySelector(".conversation-thread").appendChild(b);
+    }
+    if (!show && b) b.remove();
+  };
+  // (2) The person scrolls up while the reply grows: following stops, Jump to latest shows; Jump eases back and pins.
+  const growReply = (p, words, perTick, onTick) => {
+    const it = addItem(p, '<div class="msg-agent md"><p></p></div>'), para = it.querySelector("p");
+    let i = 0; const iv = setInterval(() => { para.textContent += (i ? " " : "") + words.slice(i, i + perTick).join(" "); i += perTick; onTick?.(); if (i >= words.length) clearInterval(iv); }, 120);
+    return () => clearInterval(iv);
+  };
+  const WORDS = ("I checked the empty state at 347 and 280. The heading stays on one line at both widths, the illustration scales down to 96 px at 280, and the action keeps its full width. I also moved the secondary link under the action so the two never wrap side by side, and kept the 12 px side margin on both. Next I can draw the error state for a declined card with the same layout, or add the loading skeleton first.").split(" ");
+  const demoHuman = async () => {
+    const p = parts("scroll-human"), f = follower(p.scroller);
+    for (;;) {
+      reset(p); jumpButton(p, false); addItem(p, ITEMS[0]); f.jump();
+      let pinned = true; label("scroll-human", "Following: pinned to the bottom");
+      const stop = growReply(p, WORDS, 2, () => { if (pinned) p.scroller.scrollTop = p.scroller.scrollHeight; });
+      await new Promise(r => setTimeout(r, 1500));
+      pinned = false; label("scroll-human", "The person scrolls up: following stops at once");
+      await humanScroll(p.scroller, -140, 420);
+      jumpButton(p, true); label("scroll-human", "Behind: Jump to latest; the reply keeps growing below");
+      await new Promise(r => setTimeout(r, 2200));
+      jumpButton(p, false); label("scroll-human", "Jump to latest: eases back and pins again");
+      f.ease(); await new Promise(r => setTimeout(r, 300)); pinned = true;
+      await new Promise(r => setTimeout(r, 2200)); stop();
+      await new Promise(r => setTimeout(r, 1200));
+    }
+  };
+  demoHuman();
+  // (3) A permission card arrives while the reply still unfolds: the reply shows whole at once, the view goes to the
+  // card's top, and following waits until the person comes back to the bottom.
+  const NOTICE = '<div class="doan-notice thread-notice" role="alert"><span class="strip-agent doan-alert-icon"><img class="logo" src="../assets/provider-logos/claude.png" alt=""></span><span class="strip-text"><b>Claude Code needs your answer</b><span>Write .doan/canvases/checkout-flow.html</span></span><span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="prominent">Allow</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Deny</button></span></div>';
+  const demoCard = async () => {
+    const p = parts("scroll-card"), f = follower(p.scroller);
+    for (;;) {
+      reset(p); addItem(p, ITEMS[0]); f.jump();
+      const it = addItem(p, '<div class="msg-agent md"><p></p></div>'), para = it.querySelector("p");
+      label("scroll-card", "The reply unfolds, pinned to the bottom");
+      let i = 0; const iv = setInterval(() => { para.textContent = WORDS.slice(0, i += 2).join(" "); p.scroller.scrollTop = p.scroller.scrollHeight; }, 120);
+      await new Promise(r => setTimeout(r, 1300)); clearInterval(iv);
+      para.textContent = WORDS.join(" ");
+      const card = addItem(p, NOTICE);
+      label("scroll-card", "A permission card: the reply shows whole, the view eases to the card");
+      const target = card.offsetTop - 8, from = p.scroller.scrollTop, start = performance.now();
+      await new Promise(done => { const t = (now) => { const pos = p.scroller.scrollTop + (Math.min(target, p.scroller.scrollHeight - p.scroller.clientHeight) - p.scroller.scrollTop) * (1 - Math.exp(-16 / 40)); p.scroller.scrollTop = pos; if (Math.abs(p.scroller.scrollTop - Math.min(target, p.scroller.scrollHeight - p.scroller.clientHeight)) > 0.5 && now - start < 600) requestAnimationFrame(t); else done(); }; requestAnimationFrame(t); });
+      await new Promise(r => setTimeout(r, 3200));
+    }
+  };
+  demoCard();
 })();
 </script>
 </body></html>
