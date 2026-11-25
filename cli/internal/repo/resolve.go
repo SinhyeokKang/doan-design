@@ -105,7 +105,7 @@ func (r *Resolver) Resolve(base, p string) (State, string, error) {
 	return Inside, filepath.ToSlash(rel), nil
 }
 
-// rootAlias rebases resolved on the root when its leading segments name the root in another spelling, else "". It
+// rootAlias returns resolved relative to the root when its leading segments name the root in another spelling, else "". It
 // compares file identity, so it reads no directory outside the repo and a sibling such as repo beside Repo stays outside.
 func (r *Resolver) rootAlias(resolved string) (string, error) {
 	if r.rootInfo == nil {

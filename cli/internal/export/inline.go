@@ -55,8 +55,8 @@ func Inline(root string, config repo.Config, canvasPath string, src []byte) (Res
 	return InlineLimit(root, config, canvasPath, src, MaxBytes)
 }
 
-// InlineLimit inlines only files the app would serve; out-of-scope references, local frames, missing files the canvas names
-// and external <use>s are refused, while a missing file named in CSS stays as written. It stops with TooLarge past limit.
+// InlineLimit inlines only files the app would serve and refuses out-of-scope references, local frames, missing files the
+// canvas names and non-fragment <use>s. Refusals and TooLarge come back in Result; the error is for file-system failures only.
 func InlineLimit(root string, config repo.Config, canvasPath string, src []byte, limit int64) (Result, error) {
 	res, _, err := inline(repo.NewResolver(root), root, config, canvasPath, src, limit)
 	return res, err

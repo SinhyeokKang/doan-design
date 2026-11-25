@@ -404,8 +404,8 @@ func readOnboardingReply(line []byte, op, token, runtimePath string) (map[string
 	return obj, nil, false
 }
 
-// ownBundle finds the Doan app containing this CLI by layout, Info.plist bundle id and contained executable. It is
-// membership, not authenticity (the app is unsigned); no argument or environment can point it elsewhere.
+// ownBundle finds the Doan app containing this CLI by layout, Info.plist bundle id and contained executable. It is membership,
+// not authenticity (no signature is checked); no argument or environment can point it elsewhere.
 func ownBundle(executable func() (string, error)) (string, bool) {
 	if executable == nil {
 		return "", false

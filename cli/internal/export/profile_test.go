@@ -39,7 +39,7 @@ func largeStylesheetRepo() map[string]string {
 	return stylesheetRepo(24<<20, 1000, 600)
 }
 
-// stylesheetRepo is that rule at another size: rule i is `.r<7 digits>{color:rgb(1,2,3);padding:1px}` or, every stride-th
+// stylesheetRepo is largeStylesheetRepo's rule at any size: rule i is `.r<7 digits>{color:rgb(1,2,3);padding:1px}` or, every stride-th
 // until urlCount, a url() to ../big/i<2 digits>.svg; one /*xxx…*/ comment fills the rest of cssBytes.
 func stylesheetRepo(cssBytes, urlCount, stride int) map[string]string {
 	const assets = 10

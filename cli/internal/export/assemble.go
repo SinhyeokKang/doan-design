@@ -35,8 +35,8 @@ type Meta struct {
 
 var byteOrderMark = []byte("\xef\xbb\xbf")
 
-// Assemble puts the canvas into a sandboxed iframe's srcdoc with the measure script first in its head.
-// shell.html's placeholders are filled in one pass, so a canvas or name that contains one is never expanded.
+// Assemble puts the canvas into a sandboxed iframe's srcdoc with the measure script first in its head. c is the canvas file
+// as parsed (frames are judged from it, not from canvasHTML); placeholders fill in one pass, so a value holding one is not expanded.
 func Assemble(m Meta, c canvas.Canvas, canvasHTML []byte) ([]byte, error) {
 	if m.Width < 1 {
 		return nil, errors.New("canvas width must be a positive integer")

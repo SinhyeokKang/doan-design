@@ -533,8 +533,8 @@ func CustomUses(text string, mode Mode) CustomUse {
 			u.HopNeeds[from][name] = append(u.HopNeeds[from][name], c)
 		}
 	}
-	// registering is the @property block being read, or "", and seen its "url", "inherits" and "initial-value"
-	// descriptors. The browser drops a rule without inherits, or without initial-value unless syntax is "*".
+	// registering is the @property block being read, or ""; seen has "url" (syntax accepts <url>), "inherits" and "initial-value".
+	// The browser drops a rule without inherits, or without initial-value unless syntax is "*".
 	registering := ""
 	seen := map[string]bool{}
 	register := func() {

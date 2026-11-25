@@ -122,8 +122,8 @@ func pageProto(t *testing.T, page []byte) (srcdoc, font string, proto map[string
 	return g.Srcdoc, g.Font, meta.Prototype
 }
 
-// The file the player downloads is byte for byte the one `doan export --frame <id> --prototype` writes, for every frame,
-// with slices small enough to split surrogate pairs. The player's code runs, not a copy of it.
+// For these LF-only, valid UTF-8 canvases the player's download is byte for byte the `doan export --frame <id> --prototype` file,
+// for every frame, with slices small enough to split surrogate pairs. The player's code runs, not a copy of it.
 func TestPlayerJoinsTheCLIsPrototypeFile(t *testing.T) {
 	var requests []map[string]any
 	var wants []string

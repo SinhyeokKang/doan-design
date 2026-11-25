@@ -92,8 +92,8 @@ func served(p string, scope []string) bool {
 
 var errNotRegular = errors.New("not a regular file")
 
-// ReadFile opens every segment of rel below "/" with O_NOFOLLOW, so a segment swapped for a symlink after resolution
-// fails instead of leading the read outside the scope (as the app server's O_NOFOLLOW_ANY).
+// ReadFile reads rel, a repo-relative real path under root, opening every segment with O_NOFOLLOW: a segment swapped for a symlink
+// after resolution fails instead of leading the read outside the scope (as the app server's O_NOFOLLOW_ANY).
 func ReadFile(root, rel string) ([]byte, error) {
 	data, _, err := readFile(root, rel, -1)
 	return data, err

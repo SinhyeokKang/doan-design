@@ -55,8 +55,8 @@ func (t *CustomText) merge(other CustomText) {
 	t.URLs = append(t.URLs, other.URLs...)
 }
 
-// CustomUsers records which folders put each custom property into a real property: Chromium resolves a relative
-// url() there, not where it is declared. Only rules Elements can match count; the cascade is ignored, so it may over-list.
+// CustomUsers records which folders use each custom property: Chromium resolves an unregistered one's relative url() there,
+// not where declared. Only rules Elements can match count; other selector parts and the cascade are ignored, so it may over-list.
 type CustomUsers struct {
 	// Elements is the canvas's (canvas.Elements); nil counts every rule.
 	Elements *Elements

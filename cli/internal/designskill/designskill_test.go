@@ -553,7 +553,7 @@ func TestDocumentPresetSkipsOnlyNonvisualWrappers(t *testing.T) {
 	}
 }
 
-// These pin short concepts the document preset's tuning depends on, not whole sentences, so rewording a rule keeps
+// This test pins short concepts the document preset's tuning depends on, not whole sentences, so rewording a rule keeps
 // them green. Behavior is judged by the real-agent scenarios; the output budget by skillOutputBudget.
 func TestDocumentPresetKeepsTuningConcepts(t *testing.T) {
 	body := strings.ToLower(documentPreset(t))
@@ -584,7 +584,7 @@ func documentPreset(t *testing.T) string {
 	return string(b)
 }
 
-// These pin short concepts too, like TestDocumentPresetKeepsTuningConcepts.
+// This test pins short concepts too, like TestDocumentPresetKeepsTuningConcepts.
 func TestDocumentPresetKeepsEvalConcepts(t *testing.T) {
 	c, err := Load()
 	if err != nil {

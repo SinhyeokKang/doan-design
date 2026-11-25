@@ -1,5 +1,5 @@
-// Package exporttest builds seed repositories for export tests, as a regular package so the export package and
-// the CLI command tests share one fixture.
+// Package exporttest builds seed repositories for export tests. It is a regular package, imported only from tests, so the export
+// package and the CLI command tests share one fixture.
 package exporttest
 
 import (

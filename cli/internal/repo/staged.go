@@ -11,8 +11,8 @@ import (
 	"syscall"
 )
 
-// WriteStaged writes data to a temporary file in dir and calls publish to rename it into place. The file is removed on
-// failure or SIGINT/SIGTERM before publish returns, so publish returns an error only when it did not rename.
+// WriteStaged writes data to a temporary file in dir for publish to rename into place; publish must return an error only if
+// it did not rename. The file is removed on failure, and on SIGINT/SIGTERM before publish returns, then the process exits 128+signal.
 func WriteStaged(dir, pattern string, perm os.FileMode, data []byte, publish func(temp string) error) error {
 	return writeStagedWith(dir, pattern, perm, data, (*os.File).Write, publish)
 }

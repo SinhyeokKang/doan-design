@@ -103,8 +103,8 @@ func defaultServeDirs(root string) ([]string, error) {
 	return dirs, nil
 }
 
-// Withheld reports whether any segment is .git or starts with .env, in any letter case: never served, whatever
-// .doan/config.json lists (ARCHITECTURE §3 'Never served').
+// Withheld reports whether any segment is .git or starts with .env, ignoring case as the volume usually does: never served,
+// whatever .doan/config.json lists (ARCHITECTURE §3 'Never served').
 func Withheld(p string) bool {
 	for _, segment := range strings.Split(p, "/") {
 		segment = strings.ToLower(segment)

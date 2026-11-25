@@ -242,8 +242,8 @@ func TestSkillGuideMatchesCLIRules(t *testing.T) {
 	}
 }
 
-// Codex's exec tool keeps at most 6,000 tokens of output (about 24,000 B at 4 B/token) and cuts the middle, which the
-// end marker cannot detect. 22,000 B leaves room for denser tokenization, a longer bundle path and a release version.
+// Codex's exec tool keeps at most 6,000 tokens of output (about 24,000 B at 4 B/token) and cuts the middle, which the end marker
+// cannot detect. The budget is 5,500 tokens (22,000 B), leaving room for denser tokenization, a longer bundle path and a release version.
 const skillOutputBudget = 22000
 
 func TestSkillGuideFitsToolOutputCap(t *testing.T) {

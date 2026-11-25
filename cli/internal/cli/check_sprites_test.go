@@ -76,8 +76,8 @@ func checkAndExport(t *testing.T, root, canvasPath string) (checkUses, exportUse
 	return trimmedSet(uses), trimmedSet(refusedUses), trimmedSet(ambiguous), trimmedSet(refusedAmbiguous)
 }
 
-// check and export judge <use> and custom property url()s with the same canvas functions, and check reaches every stylesheet
-// export reads: export never refuses for these what check is quiet about, and with the same reach they agree exactly.
+// check and export judge <use> and custom property url()s with the same canvas functions. check reaches every stylesheet export
+// reads, so export never refuses for these a canvas check is quiet about; with the same reach they agree exactly.
 func TestCheckAndExportAgreeOnSpritesAndCustomURLs(t *testing.T) {
 	for _, tt := range []struct {
 		name       string

@@ -392,8 +392,8 @@ func Run(in Input) []Finding {
 	return findings
 }
 
-// ambiguousURLs reports each custom-property url() that its users' folders, among the canvas and the stylesheets it
-// reaches, resolve to different paths. export refuses the same url()s with the same canvas functions.
+// ambiguousURLs reports each custom-property url() its users' folders resolve to different paths. check reaches every stylesheet
+// export reads (ARCHITECTURE §3 'Custom property `url()`s resolve from their user'), and export refuses the same url()s.
 func ambiguousURLs(c canvas.Canvas, in Input, add func(Finding), cssSeen map[[3]string]bool) {
 	users := canvas.CustomUsers{Elements: c.Elements}
 	users.Add(path.Dir(c.Path), c.Custom.Uses)
