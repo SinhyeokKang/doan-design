@@ -44,6 +44,7 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
   const live = useRef({ onLock });
   live.current = { onLock };
   const locked = useRef(false);
+  const removeFrame = useRef(0);
   // Reported as the dialog changes, not after a render: a move between the two must already see the lock.
   const setDialog = (next: Dialog | null) => {
     current.current = next;
@@ -66,6 +67,8 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
     void readEntry();
     return () => {
       offWatch(); offAuth();
+      // A Remove alert opening after unmount would take a lock nothing releases.
+      cancelAnimationFrame(removeFrame.current);
       current.current = null;
       if (locked.current) { locked.current = false; live.current.onLock(false); }
     };
@@ -170,7 +173,7 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
     setDialog({ kind: "add", value: open.value, error: addError(reply), busy: false });
   };
   // Remove asks first; the alert opens a frame later so the closing menu's focus return does not land after it.
-  const askRemove = (row: McpRowView) => requestAnimationFrame(() => setDialog({ kind: "remove", provider: row.provider, name: row.name, label: row.label, busy: false, failed: false }));
+  const askRemove = (row: McpRowView) => { removeFrame.current = requestAnimationFrame(() => setDialog({ kind: "remove", provider: row.provider, name: row.name, label: row.label, busy: false, failed: false })); };
   // Refused while the request is out: cancelling would stop nothing (as conversation Delete's alert).
   const closeRemove = () => {
     const open = current.current;

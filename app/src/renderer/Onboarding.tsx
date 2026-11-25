@@ -753,14 +753,16 @@ export function BuddyIntro({ selection, preferences, onClose }: { selection: Bud
 
 // Mounted once per main onboarding session; the CLI may drive the same session, and its completion closes this window too.
 // `buddy` is App's buddy selection, so a save that answers after first run closed still applies.
-export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout, buddy, preferences }: {
-  session: string; projects: readonly string[]; homeDirectory: string | null; onClose: (root: string | null) => void; mainCheckout: (path: string) => boolean;
+export function Wizard({ session, projects, autoRegistered = [], homeDirectory, onClose, mainCheckout, buddy, preferences }: {
+  session: string; projects: readonly string[]; autoRegistered?: readonly string[]; homeDirectory: string | null; onClose: (root: string | null) => void; mainCheckout: (path: string) => boolean;
   buddy: BuddySelection; preferences: PreferencesSnapshot | null;
 }) {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
   const [agents] = useState(() => new AgentStepSession({ api: window.doan, openInstall, openInstallPage, hasFocus: () => document.hasFocus(), changed: redraw, signIn: agentSignIn() }));
   const projectsRef = useRef(projects);
   projectsRef.current = projects;
+  const autoRef = useRef(autoRegistered);
+  autoRef.current = autoRegistered;
   const homeRef = useRef(homeDirectory);
   homeRef.current = homeDirectory;
   const mainRef = useRef(mainCheckout);
@@ -768,7 +770,7 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
   const closed = useRef(false);
   const finish = (root: string | null) => { if (closed.current) return; closed.current = true; onClose(root); };
   const [project] = useState(() => new ProjectStepSession({
-    api: window.doan, sessionId: session, projects: () => projectsRef.current, homeDirectory: () => homeRef.current, mainCheckout: path => mainRef.current(path),
+    api: window.doan, sessionId: session, projects: () => projectsRef.current, autoRegistered: () => autoRef.current, homeDirectory: () => homeRef.current, mainCheckout: path => mainRef.current(path),
     requestId: () => crypto.randomUUID(), changed: redraw, completed: root => finish(root),
   }));
   const [scene, setScene] = useState(() => initialScene(false));

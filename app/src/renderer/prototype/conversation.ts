@@ -3,6 +3,7 @@ import type { Anchor, Canvas } from "../../main/conversation/types";
 import type { PrototypeView } from "../../main/prototype/ipc";
 import { sameTarget, toMessage, type FieldSegment } from "../anchorField";
 import type { CanvasView } from "../canvasRun";
+import { frameTitle } from "../canvasTree";
 import { openButtonBadge } from "../rightPanelOpen";
 
 // lost: main cannot name the target's canvas row; the panel then takes no message.
@@ -45,7 +46,7 @@ export function playingFrameChip(view: PrototypeView | null, last: PlayingFrameC
   const id = view.frame;
   const row = view.frames.find(frame => frame.id === id);
   const title = row ? row.title : last?.frame.id === id ? last.frame.title : undefined;
-  const name = title ?? id;
+  const name = frameTitle(title) ?? id;
   return { frame: { id, ...(title !== undefined ? { title } : {}) }, name, description: `Frame ${name} is sent with each message.` };
 }
 

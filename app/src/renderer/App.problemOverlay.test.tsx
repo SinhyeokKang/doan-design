@@ -303,6 +303,31 @@ test("a Set Up from the overlay that succeeds removes the overlay and puts focus
   expect(focused.at(-1)).toBe("composer");
 });
 
+// Main publishes the set-up folder before Set Up replies, so App closes the dialog first; the dialog's late reply
+// must not arm the modal focus return again, or the next unrelated folder change takes focus from the person.
+test.each([
+  ["success", (dialog: { onClose(): void }) => dialog.onClose(), [listed("/w/a")], undefined],
+  ["rerooted", (dialog: { onRerooted(root: string, message: string): void }) => dialog.onRerooted("/w/b", "This folder is inside /w/b."), [listed("/w/b")], { from: "/w/a", root: "/w/b" }],
+] as const)("a %s Set Up reply after the folder list closed the dialog moves no focus later", (name, reply, after, focus) => {
+  render(); folders([uninitialized()]);
+  toOverview();
+  const button = element("setUp", ["problem-overlay", "workspace"]);
+  dom(button);
+  overlay()!.onAction("setUp"); render();
+  const dialog = find<{ onClose(): void; onRerooted(root: string, message: string): void }>(ProjectSetupDialog)[0]!.props;
+  Object.assign(button, { isConnected: false });
+  dom(BODY);
+  folders([...after], focus);
+  expect(find(ProjectSetupDialog)).toHaveLength(0);
+  // The person types somewhere else; then the reply lands.
+  dom(element("field", ["ov-main", "workspace"]));
+  reply(dialog as never); render();
+  focused.length = 0;
+  folders([...after, listed("/w/c")]);
+  expect(focused).toEqual([]);
+  if (name === "rerooted") expect(harness.toast.show).toHaveBeenCalledWith("This folder is inside /w/b.");
+});
+
 test("a Set Up closed by an outside change with the window in the background focuses the composer again on activation", () => {
   // POSTMORTEM 2026-11-17: activation restores focus to the Set Up button that went, and with it gone to Hide sidebar.
   render(); folders([uninitialized()]);
@@ -356,6 +381,82 @@ test("first run finished by an agent's CLI with the window in the background foc
   win.dispatchEvent(new Event("focus"));
   vi.runAllTimers();
   expect(focused).toEqual(["homeComposer", "homeComposer"]);
+});
+
+// `doan open` can arrive while the window is behind: the renderer moves to the screen before main raises the window, and
+// activation then restores the element focused before (POSTMORTEM 2026-11-17 'Window activation put focus on Hide
+// sidebar'). Each screen's entry focus is made again on activation.
+test("going Home with the window in the background focuses Home's composer again on activation", () => {
+  render(); folders([listed("/w/a")]);
+  toOverview();
+  const win = activatableWindow();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  dom(BODY, { ".home-shell .composer-input": element("homeComposer", ["home-shell"]) }, false);
+  focused.length = 0;
+  (find<{ goHome(): void }>(ShellSidebar)[0]!.props).goHome(); render();
+  expect(focused).toEqual(["homeComposer"]);
+  focused.length = 0;
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(focused).toEqual(["homeComposer", "homeComposer"]);
+});
+
+test("entering a workspace with the window in the background focuses its sidebar row again on activation, only while it is still shown", () => {
+  render(); folders([listed("/w/a"), listed("/w/c")]);
+  const win = activatableWindow();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  dom(BODY, { '.side [role="treeitem"][tabindex="0"]': element("row", ["side"]) }, false);
+  focused.length = 0;
+  toOverview();
+  expect(focused).toEqual(["row"]);
+  focused.length = 0;
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(focused).toEqual(["row", "row"]);
+});
+
+// POSTMORTEM 2026-11-20: the replay focuses only while the scene it was made for still shows. A move that hands no focus
+// of its own (the Settings page; an entry that leaves focus in a conversation card) keeps the earlier replay pending.
+test("a Home entry made in the background focuses nothing on activation once the Settings page shows", () => {
+  render(); folders([listed("/w/a")]);
+  toOverview();
+  const win = activatableWindow();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  dom(BODY, { ".home-shell .composer-input": element("homeComposer", ["home-shell"]) }, false);
+  (find<{ goHome(): void }>(ShellSidebar)[0]!.props).goHome(); render();
+  listeners.openSettingsPage!({} as never); render();
+  focused.length = 0;
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(focused).not.toContain("homeComposer");
+});
+
+test("a workspace entry made in the background focuses nothing on activation once the Settings page shows", () => {
+  render(); folders([listed("/w/a")]);
+  const win = activatableWindow();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  dom(BODY, { '.side [role="treeitem"][tabindex="0"]': element("row", ["side"]) }, false);
+  toOverview();
+  listeners.openSettingsPage!({} as never); render();
+  focused.length = 0;
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(focused).not.toContain("row");
+});
+
+test("a workspace entry made in the background focuses nothing on activation once another project is loaded", () => {
+  render(); folders([listed("/w/a"), listed("/w/c")]);
+  const win = activatableWindow();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  dom(BODY, { '.side [role="treeitem"][tabindex="0"]': element("row", ["side"]) }, false);
+  toOverview("/w/a");
+  // The next entry finds focus already in a conversation card and hands none of its own.
+  dom(element("card", ["workspace", "conversation-thread"]), { '.side [role="treeitem"][tabindex="0"]': element("row", ["side"]) }, false);
+  toOverview("/w/c");
+  focused.length = 0;
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(focused).not.toContain("row");
 });
 
 test("Remove from Doan on the overlay asks first, then goes Home from the Overview and from the canvas page", async () => {

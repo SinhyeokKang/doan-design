@@ -49,6 +49,8 @@ export interface ProjectStepDeps {
   homeDirectory(): string | null;
   // From the folder list's git facts; no git runs.
   mainCheckout?(path: string): boolean;
+  // Auto-registered roots never add a project, so they never name the default parent.
+  autoRegistered?(): readonly string[];
   requestId(): string;
   changed(): void;
   completed(root: string): void;
@@ -278,7 +280,10 @@ export class ProjectStepSession {
     const code: ProjectError = made.kind === "exists" ? "folder_exists" : made.kind === "inside_project" ? "folder_inside_project" : "folder_create_failed";
     this.set({ error: { code, path: made.path, source: "folder", ...(made.kind === "exists" ? { directory: made.directory } : {}), ...(made.kind === "inside_project" ? { project: made.project } : {}) } });
   }
-  private defaultParent(): string { return defaultProjectParent(this.deps.projects(), this.deps.homeDirectory()); }
+  private defaultParent(): string {
+    const auto = this.deps.autoRegistered?.() ?? [];
+    return defaultProjectParent(this.deps.projects().filter(root => !auto.includes(root)), this.deps.homeDirectory());
+  }
   private async act(work: () => Promise<void>): Promise<void> {
     if (this.busy() || !this.live) return;
     const token = {};

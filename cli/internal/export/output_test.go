@@ -65,12 +65,12 @@ func TestExportOutputIsPinned(t *testing.T) {
 		config             repo.Config
 		want               string
 	}{
-		{"full", seed, exporttest.Full, seedConfig(t, seed), "a6fcfe38875c9b725fdc01fa005c7a8d42b4c78377ba9092d33aab1e11774a0e"},
-		{"empty", seed, exporttest.Empty, seedConfig(t, seed), "6be32828d72e6226c8575f406274f2f0d2a97cab9628c44737d3d74e31301bd0"},
-		{"nested", seed, exporttest.Nested, seedConfig(t, seed), "0157cd4123e0c0270fe3d14975445b8a84db6a44daf48c93e77b22e0bff67b08"},
-		{"linked", linked, exporttest.Linked, repo.Config{V: 1, Serve: []string{".doan/assets"}}, "70dde39b0757bba727ae5e5261be2b5889f1f725c73a0d40ba77baaf16c1080f"},
-		{"mixed", mixed, mixedCanvas, repo.Config{V: 1, Serve: []string{}}, "15745c9a5dfca009a151f80efdec1316192fad7368bf26994c539f5bc336b2ff"},
-		{"stylesheet", small, largeCanvas, repo.Config{V: 1, Serve: []string{}}, "2761108a7d047385d4891e9691acd58ff373a1b368c109192917363874cd95fd"},
+		{"full", seed, exporttest.Full, seedConfig(t, seed), "3a41020e739bdc9bb6a9c61cbd5a3487aeff1d15608c2167c4b760438b706bcf"},
+		{"empty", seed, exporttest.Empty, seedConfig(t, seed), "23003cf81f2b3f15a3dce771ef40ce5b9eabbf3ae29032a0e858c1b8ccc11290"},
+		{"nested", seed, exporttest.Nested, seedConfig(t, seed), "81aa58a897dfcd70eb824f663475c9919a7e450dcff1c5bc6d9b5d2fa2700196"},
+		{"linked", linked, exporttest.Linked, repo.Config{V: 1, Serve: []string{".doan/assets"}}, "ac066bbb37b6092ae5e5a3f0f5e7fc37db4d0645bf20b0a821c25091992db8ef"},
+		{"mixed", mixed, mixedCanvas, repo.Config{V: 1, Serve: []string{}}, "bf4d4218a2468b7522846c76f781994f9a82b8e80370099ea131281288c9152a"},
+		{"stylesheet", small, largeCanvas, repo.Config{V: 1, Serve: []string{}}, "b6332f39f5cfef216c25b1e000abdb4562089120a247336f6b3a1f657ee53a09"},
 	} {
 		if got := pageDigest(exportPage(t, c.root, c.config, c.canvas)); got != c.want {
 			t.Errorf("%s: page sha256 = %s, want %s", c.name, got, c.want)
@@ -99,10 +99,10 @@ var mixedRepo = map[string]string{
 // mark, and no <head> or <html> to place the measure script after.
 func TestAssembleOutputIsPinned(t *testing.T) {
 	for _, c := range []struct{ name, canvas, want string }{
-		{"bom", "\xef\xbb\xbf<!doctype html><p title='\"&amp;'>{{NAME}}</p>", "317e58471812b111747d5eb27ae8d6940269c24480242ed6154c9e3c172ab34a"},
-		{"bare", "<p>a & \"b\"</p>", "bd08a1a26d40a3d73f68569fafa20c25a30a5aa2873b45c2842bc18ab5a52c3d"},
-		{"empty", "", "1c196a91a1c54287b19a76300c40235bd0a78c0eb9b117cb5b4a00ac9031bfe9"},
-		{"frames", "<!doctype html><html><head></head><body><div data-doan-frame=\"a\" data-doan-title=\"A &amp; <b>\" data-doan-prototype=\"1x1\"><a data-doan-goto=\"b\"></a></div><div data-doan-frame=\"b\" data-doan-prototype=\"1x1\"></div><div data-doan-frame=\"c\"></div></body></html>", "e2d782d78c880b9ea645bf39656045a7a31fc56636df974e0f405e50b1417663"},
+		{"bom", "\xef\xbb\xbf<!doctype html><p title='\"&amp;'>{{NAME}}</p>", "25915217efc08b8229011ccb04bd95db18e053e3621b42ff68080ad027fb955c"},
+		{"bare", "<p>a & \"b\"</p>", "533edc8c53fd4456b5b971374acc6b1c20759c88aaf3807ccaa819614045e1b6"},
+		{"empty", "", "6b593c246fac96dd06694bf81c9ebefe6e71b7fb527213854c45b461b6ee4b00"},
+		{"frames", "<!doctype html><html><head></head><body><div data-doan-frame=\"a\" data-doan-title=\"A &amp; <b>\" data-doan-prototype=\"1x1\"><a data-doan-goto=\"b\"></a></div><div data-doan-frame=\"b\" data-doan-prototype=\"1x1\"></div><div data-doan-frame=\"c\"></div></body></html>", "f9dd5983a38b258337f0e47141802c960ff4c2531b7095a2d00dc18ecdcfc8a0"},
 	} {
 		model, err := canvas.Parse(".doan/canvases/pinned.html", []byte(c.canvas))
 		if err != nil {

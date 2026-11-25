@@ -30,7 +30,8 @@ export type ListView = readonly ConversationSummary[] | "loading" | "error";
 export interface Thread { events: ConversationEvent[]; read: "loading" | "error" | "retrying" | "ready"; liveAfter: number; failures?: number }
 // message: what the thread draws once Send now moves it there. turnId: the failed turn whose own message this row
 // sends again at the usage limit's reset.
-export interface QueuedMessage { id: string; text: string; message?: { text: string; anchors: readonly Anchor[]; attachments: readonly SentFile[] }; turnId?: string }
+// command: queued as a provider command (DockedRequest.command), which main sends alone.
+export interface QueuedMessage { id: string; text: string; message?: { text: string; anchors: readonly Anchor[]; attachments: readonly SentFile[] }; turnId?: string; command?: true }
 // pressed: Send now's press order while main has not answered. The item keeps its place, so a refusal puts its row
 // back where it was.
 type Held = QueuedMessage & { pressed?: number };
@@ -153,8 +154,9 @@ export class ConversationStore {
   // Marks the queued rows as main's flush will send them (queue.ts); syncQueues skips it, so the mark outlives sent rows.
   private markQueue(conversationId: string): void {
     const queue = this.queues.get(conversationId), provider = this.providerOf(conversationId) ?? this.summaryOf(conversationId)?.provider;
-    const items = (queue?.items ?? []).filter(item => item.pressed === undefined).map(item => item.message ?? { text: item.text, anchors: [], attachments: [] });
-    if (items.length) this.queueMarks.set(conversationId, { text: queuedText(items, item => provider !== undefined && commandName(provider, item.text) !== null), after: this.lastSeq(conversationId) });
+    const items = (queue?.items ?? []).filter(item => item.pressed === undefined).map(item => ({ ...item.message ?? { text: item.text, anchors: [], attachments: [] }, command: item.command === true }));
+    // main's asIs: the provider's table, or an ACP command the composer marked as it queued it.
+    if (items.length) this.queueMarks.set(conversationId, { text: queuedText(items, item => item.command || (provider !== undefined && commandName(provider, item.text) !== null)), after: this.lastSeq(conversationId) });
     else this.queueMarks.delete(conversationId);
   }
   private summaryOf(conversationId: string): ConversationSummary | undefined {
@@ -525,7 +527,7 @@ export function dropAttachment(calls: Pick<StoreCalls, "removeAttachment" | "rel
 }
 // Mirrors main/conversation/queue.ts nextQueued and combineQueued, which the renderer cannot import (attachments.ts
 // reaches Node modules).
-function queuedText(items: readonly { text: string; anchors: readonly Anchor[] }[], isCommand: (item: { text: string }) => boolean): string {
+function queuedText<T extends { text: string; anchors: readonly Anchor[] }>(items: readonly T[], isCommand: (item: T) => boolean): string {
   const end = items.findIndex(isCommand);
   const next = end === 0 ? items.slice(0, 1) : items.slice(0, end === -1 ? items.length : end);
   let offset = 0;

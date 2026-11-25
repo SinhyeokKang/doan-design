@@ -58,7 +58,14 @@ let resizes: (() => void)[];
 let keydowns: ((event: unknown) => void)[];
 let win: { innerWidth: number };
 let api: Record<string, ReturnType<typeof vi.fn>>;
-let doc: { title: string; activeElement: unknown; body: object; hidden: boolean; addEventListener(type: string, listener: (event: unknown) => void): void; removeEventListener(type: string, listener: (event: unknown) => void): void; querySelector(): null; hasFocus(): boolean };
+let doc: { title: string; activeElement: unknown; body: object; hidden: boolean; addEventListener(type: string, listener: (event: unknown) => void): void; removeEventListener(type: string, listener: (event: unknown) => void): void; querySelector(): null; querySelectorAll(): unknown[]; hasFocus(): boolean };
+// The window's focus and pointerdown listeners, which the activation hand-off (activationFocus.ts) adds.
+let activation: Record<"focus" | "pointerdown", ((event: unknown) => void)[]>;
+// The window comes forward: its focus event, then the task after the platform's own focus restore.
+function activate() {
+  for (const listener of [...activation.focus]) listener({});
+  vi.advanceTimersByTime(0);
+}
 class FakeElement { isConnected = true; focus = vi.fn(); }
 let running: (target: { root: string; path: string; frame: string }) => void;
 let shell: Shell;
@@ -101,14 +108,15 @@ beforeEach(() => {
     addEventListener: (type: string, listener: (event: unknown) => void) => { if (type === "keydown") keydowns.push(listener); },
     removeEventListener: (type: string, listener: (event: unknown) => void) => { if (type === "keydown") keydowns = keydowns.filter(item => item !== listener); },
   };
-  doc = { title: "", activeElement: null, body: {}, hidden: false, ...keys, querySelector: () => null, hasFocus: () => true };
+  doc = { title: "", activeElement: null, body: {}, hidden: false, ...keys, querySelector: () => null, querySelectorAll: () => [], hasFocus: () => true };
+  activation = { focus: [], pointerdown: [] };
   vi.stubGlobal("HTMLElement", FakeElement);
   // The toast's clock reads performance.now, which the fake timers leave alone.
   vi.stubGlobal("performance", { now: () => Date.now() });
   vi.stubGlobal("document", doc);
   win = { innerWidth: 640,
-    addEventListener: (type: string, listener: (event: unknown) => void) => { if (type === "message") messages.push(listener); if (type === "resize") resizes.push(listener as () => void); keys.addEventListener(type, listener); },
-    removeEventListener: (type: string, listener: (event: unknown) => void) => { messages = messages.filter(item => item !== listener); resizes = resizes.filter(item => item !== listener); keys.removeEventListener(type, listener); } } as never;
+    addEventListener: (type: string, listener: (event: unknown) => void) => { if (type === "message") messages.push(listener); if (type === "resize") resizes.push(listener as () => void); if (type === "focus" || type === "pointerdown") activation[type].push(listener); keys.addEventListener(type, listener); },
+    removeEventListener: (type: string, listener: (event: unknown) => void) => { messages = messages.filter(item => item !== listener); resizes = resizes.filter(item => item !== listener); if (type === "focus" || type === "pointerdown") activation[type] = activation[type].filter(item => item !== listener); keys.removeEventListener(type, listener); } } as never;
   vi.stubGlobal("window", win);
   let blobs = 0;
   vi.stubGlobal("URL", Object.assign(class extends URL {}, { createObjectURL: vi.fn(() => `blob:${++blobs}`), revokeObjectURL: vi.fn() }));
@@ -160,13 +168,13 @@ describe("forwarded reports", () => {
     const own = {}, stale = {};
     const s = show(view());
     s.frames!.set(1, { contentWindow: own } as never);
-    const ready = { gen: 1, state: "ready", size: "390x844", frames: [] };
+    const ready = { gen: 1, state: "ready", size: "390x844", frames: [], gotos: [] };
     for (const listener of messages) listener({ source: stale, origin: "null", data: ready });
     expect(api.reportResult).not.toHaveBeenCalled();
     for (const listener of messages) listener({ source: own, origin: "null", data: ready });
     expect(api.reportResult).toHaveBeenCalledExactlyOnceWith(ready);
-    for (const listener of messages) listener({ source: own, origin: "null", data: { gen: 1, frames: [] } });
-    expect(api.reportFrames).toHaveBeenCalledExactlyOnceWith({ gen: 1, frames: [] });
+    for (const listener of messages) listener({ source: own, origin: "null", data: { gen: 1, frames: [], gotos: [] } });
+    expect(api.reportFrames).toHaveBeenCalledExactlyOnceWith({ gen: 1, frames: [], gotos: [] });
   });
 
   test("a ready run still sends its late drawer list; a run that left the screen is not heard", () => {
@@ -174,7 +182,7 @@ describe("forwarded reports", () => {
     const s = show(view());
     s.frames!.set(1, { contentWindow: own } as never);
     show(view({ phase: "ready" }));
-    for (const listener of messages) listener({ source: own, origin: "null", data: { gen: 1, frames: [] } });
+    for (const listener of messages) listener({ source: own, origin: "null", data: { gen: 1, frames: [], gotos: [] } });
     expect(api.reportFrames).toHaveBeenCalledOnce();
     show(view({ gen: 2, phase: "read-failed" }));
     expect(messages).toHaveLength(0);
@@ -292,6 +300,33 @@ describe("focus on a new state", () => {
     s.content!.current = { contains: () => false } as never;
     doc.activeElement = { name: "Back" };
     show(view({ gen: 2, phase: "prototype-unavailable" }));
+    expect(heading.focus).toHaveBeenCalledOnce();
+  });
+
+  // POSTMORTEM 2026-11-17 and its 2026-11-20 recurrence: activation restores focus to the removed iframe's place.
+  test("a state that arrives while the window is in the background takes the title again on activation", () => {
+    const s = show(view({ phase: "ready" }));
+    const heading = { focus: vi.fn() };
+    s.heading!.current = heading as never;
+    s.content!.current = { contains: () => true } as never;
+    doc.hasFocus = () => false;
+    show(view({ phase: "frame-unavailable" }));
+    expect(heading.focus).toHaveBeenCalledOnce();
+    activate();
+    expect(heading.focus.mock.calls.length).toBeGreaterThan(1);
+    expect(heading.focus).toHaveBeenLastCalledWith({ preventScroll: true });
+  });
+
+  test("the replay finds only the scene that still owns focus", () => {
+    const s = show(view({ phase: "ready" }));
+    const heading = { focus: vi.fn() };
+    s.heading!.current = heading as never;
+    s.content!.current = { contains: () => true } as never;
+    doc.hasFocus = () => false;
+    show(view({ phase: "frame-unavailable" }));
+    // A run starts again before activation: its loading view has no scene, so the old title is not the destination.
+    show(view({ gen: 2 }));
+    activate();
     expect(heading.focus).toHaveBeenCalledOnce();
   });
 
@@ -674,6 +709,28 @@ describe("Export", () => {
     expect(render() && toastParts()).toBeNull();
   });
 
+  // The toast's action held focus and went with the toast while the window was in the background (POSTMORTEM 2026-11-17).
+  test("focus a closing toast hands back is handed again on activation", async () => {
+    show(view({ phase: "ready" }));
+    const answer = pending();
+    shell.onExport();
+    answer({ kind: "exported", external: 0, reveal: "id-1" });
+    await settle();
+    const element = shell.toast as ReactElement<{ ref(node: unknown): (() => void) | undefined; onFocus(event: unknown): void }>;
+    const before = new FakeElement();
+    const node = { contains: (target: unknown) => target === node };
+    element.props.onFocus({ currentTarget: node, relatedTarget: before });
+    const detach = element.props.ref(node)!;
+    doc.activeElement = node;
+    doc.hasFocus = () => false;
+    detach();
+    doc.activeElement = doc.body;
+    await settle();
+    expect(before.focus).toHaveBeenCalledOnce();
+    activate();
+    expect(before.focus.mock.calls.length).toBeGreaterThan(1);
+  });
+
   test("Show in Finder asks main with the reply's id", async () => {
     show(view({ phase: "ready" }));
     const answer = pending();
@@ -738,6 +795,21 @@ describe("Export", () => {
     answer({ kind: "cancelled" });
     await settle();
     expect(before.focus).toHaveBeenCalledOnce();
+  });
+
+  test("a return made while the window is in the background is made again on activation", async () => {
+    show(view({ phase: "ready" }));
+    const before = new FakeElement();
+    doc.activeElement = before;
+    const answer = pending();
+    shell.onExport();
+    doc.activeElement = doc.body;
+    doc.hasFocus = () => false;
+    answer({ kind: "cancelled" });
+    await settle();
+    expect(before.focus).toHaveBeenCalledOnce();
+    activate();
+    expect(before.focus.mock.calls.length).toBeGreaterThan(1);
   });
 
   test("focus put elsewhere meanwhile stays there", async () => {
@@ -956,6 +1028,17 @@ describe("Delete from the head menu", () => {
     expect(dialog()).toBeFalsy();
     expect(trigger.focus).toHaveBeenCalledOnce();
     expect(toastText()).toBeNull();
+  });
+
+  test("a delete that ends while the window is in the background returns focus again on activation", async () => {
+    api.deleteConversation = vi.fn(async () => undefined);
+    const { trigger, dialog } = asked();
+    doc.hasFocus = () => false;
+    dialog()!.props.confirm();
+    await settle();
+    expect(trigger.focus).toHaveBeenCalledOnce();
+    activate();
+    expect(trigger.focus.mock.calls.length).toBeGreaterThan(1);
   });
 
   test("Cancel closes the alert onto the head's menu button and asks main nothing", () => {

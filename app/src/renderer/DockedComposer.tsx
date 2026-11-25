@@ -39,13 +39,15 @@ import { runModeAnnouncement, type PermissionPickerView } from "./permissionPick
 import type { SettingsTarget } from "./settingsSections";
 import { withPlayingFrame, type PlayingFrame, type PlayingFrameChip } from "./prototype/conversation";
 import { useActivationFocus } from "./activationFocus";
+import { CAPTURE_TERMINAL } from "./canvasCapture";
 
 // The docked composer's host (Overview, canvas panel) owns the conversation, the drafts map, the lists and every call to main; this component
 // decides shape, the Send slot, the reason line and focus.
 
 // files: the attachments' names, sizes and kinds, for the thread to draw a queued message Send now moves there; main
 // takes only the ids.
-export interface DockedRequest { text: string; anchors: readonly Anchor[]; attachments: { id: string }[]; files?: SentFile[] }
+// command: the request is a provider command, which goes out alone.
+export interface DockedRequest { text: string; anchors: readonly Anchor[]; attachments: { id: string }[]; files?: SentFile[]; command?: true }
 
 // The canvas page's way into the shown composer's field. `insert` puts a chip at the field's
 // caret and shows the 32-place line itself when the chip would pass the limit.
@@ -423,7 +425,7 @@ export function DockedComposer(props: DockedComposerProps) {
     const files = draft.attachments.flatMap((a): SentFile[] => !a.id || a.path === undefined ? []
       : a.kind === "directory" ? [{ name: a.name, kind: a.kind, path: a.path }] : [{ name: a.name, size: a.size ?? 0, kind: a.kind, path: a.path, ...(a.lines === undefined ? {} : { lines: a.lines }), ...(a.excerpt === undefined ? {} : { excerpt: a.excerpt }) }]);
     // A command goes out alone: no preset or skill line, chip or playing frame, and no attachments, which stay here.
-    const request: DockedRequest = plan && plan.kind !== "message" && plan.kind !== "unsupported" ? { text: plan.text, anchors: [], attachments: [] }
+    const request: DockedRequest = plan && plan.kind !== "message" && plan.kind !== "unsupported" ? { text: plan.text, anchors: [], attachments: [], command: true }
       : { text: message.text, anchors: message.anchors, attachments: draft.attachments.flatMap(a => a.id ? [{ id: a.id }] : []), ...(files.length ? { files } : {}) };
     setSending(current => new Map(current).set(at, mine));
     // Queue with no turn running is the usage limit's: main's send queues the message for the reset.
@@ -577,7 +579,7 @@ export function DockedComposer(props: DockedComposerProps) {
       {drop.cover}
     </ComposerCard>
     <div className="composer-tray">
-      {props.fixed ? <FixedTip label="Attachments can’t be added to a terminal session"><button type="button" className="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders" aria-disabled="true"><Plus aria-hidden="true" /></button></FixedTip>
+      {props.fixed ? <FixedTip label={CAPTURE_TERMINAL}><button type="button" className="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders" aria-disabled="true"><Plus aria-hidden="true" /></button></FixedTip>
         : <AttachButton tray disabled={isSending || locked} onClick={() => props.onAttach(reportFor(key))} />}
       {props.pick && <PickButton pick={props.pick} />}
       {props.fixed && fixedProvider ? <>

@@ -603,7 +603,7 @@ export function queuedText(request: DockedRequest): string {
 }
 // The row shows the line; the request itself is kept for the thread, where Send now moves the message.
 export function queuedMessage(itemId: string, request: DockedRequest): QueuedMessage {
-  return { id: itemId, text: queuedText(request), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } };
+  return { id: itemId, text: queuedText(request), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] }, ...(request.command ? { command: true as const } : {}) };
 }
 
 // The chips the canvas panel's field takes and pastes as chips: the open canvas's.

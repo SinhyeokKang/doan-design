@@ -24,8 +24,8 @@ function shouldFocusHeading(origin: Element | null) {
   return !active || active === document.body || active === origin || active.closest(".add-panel") !== null;
 }
 
-export function AddProjectsPage({ header, sidebar, projects, homeDirectory, mainCheckout, choose, onState, onCancel, onAdded }: {
-  header: ReactNode; sidebar: ReactNode; projects: readonly string[]; homeDirectory: string | null; mainCheckout: (path: string) => boolean;
+export function AddProjectsPage({ header, sidebar, projects, autoRegistered = [], homeDirectory, mainCheckout, choose, onState, onCancel, onAdded }: {
+  header: ReactNode; sidebar: ReactNode; projects: readonly string[]; autoRegistered?: readonly string[]; homeDirectory: string | null; mainCheckout: (path: string) => boolean;
   // Raised by File > Add Projects… while the page shows; it runs Choose folder.
   choose: number;
   onState(report: AddPageReport): void; onCancel(): void; onAdded(root: string): void;
@@ -88,22 +88,22 @@ export function AddProjectsPage({ header, sidebar, projects, homeDirectory, main
           actions: [{ name: "retry", variant: "prominent" }], busy: readState === "retrying" }}
           headingRef={problemHeading} details={false} pressed="retry" announcement={announcement} onAction={() => read(true)} />
       </>}
-      {sessionId !== null && <PageBody readOrigin={readOrigin} sessionId={sessionId} projects={projects} homeDirectory={homeDirectory} mainCheckout={mainCheckout} choose={choose} chosen={chosen} onState={onState} onCancel={onCancel} onAdded={onAdded} />}
+      {sessionId !== null && <PageBody readOrigin={readOrigin} sessionId={sessionId} projects={projects} autoRegistered={autoRegistered} homeDirectory={homeDirectory} mainCheckout={mainCheckout} choose={choose} chosen={chosen} onState={onState} onCancel={onCancel} onAdded={onAdded} />}
     </main>
   </div>;
 }
 
-function PageBody({ readOrigin, sessionId, projects, homeDirectory, mainCheckout, choose, chosen, onState, onCancel, onAdded }: {
-  readOrigin: RefObject<Element | null>; sessionId: string; projects: readonly string[]; homeDirectory: string | null; mainCheckout: (path: string) => boolean; choose: number; chosen: RefObject<number>;
+function PageBody({ readOrigin, sessionId, projects, autoRegistered, homeDirectory, mainCheckout, choose, chosen, onState, onCancel, onAdded }: {
+  readOrigin: RefObject<Element | null>; sessionId: string; projects: readonly string[]; autoRegistered: readonly string[]; homeDirectory: string | null; mainCheckout: (path: string) => boolean; choose: number; chosen: RefObject<number>;
   onState(report: AddPageReport): void; onCancel(): void; onAdded(root: string): void;
 }) {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
-  const live = useRef({ projects, homeDirectory, mainCheckout, onState, onAdded });
-  live.current = { projects, homeDirectory, mainCheckout, onState, onAdded };
+  const live = useRef({ projects, autoRegistered, homeDirectory, mainCheckout, onState, onAdded });
+  live.current = { projects, autoRegistered, homeDirectory, mainCheckout, onState, onAdded };
   const reported = useRef<AddPageReport | null>(null);
   const [session] = useState(() => {
     const created: ProjectStepSession = new ProjectStepSession({
-      api: addPageApi(window.doan), use: "addPage", sessionId, projects: () => live.current.projects, homeDirectory: () => live.current.homeDirectory,
+      api: addPageApi(window.doan), use: "addPage", sessionId, projects: () => live.current.projects, autoRegistered: () => live.current.autoRegistered, homeDirectory: () => live.current.homeDirectory,
       mainCheckout: path => live.current.mainCheckout(path), requestId: () => crypto.randomUUID(), completed: root => live.current.onAdded(root),
       // Reported as the session changes, not after a render: a click between the two must already see the lock.
       changed: () => {

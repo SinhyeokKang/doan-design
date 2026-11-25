@@ -6,7 +6,7 @@ import { useBuddyIntroLock } from "./buddyIntroLock";
 import type { BuddyPaint } from "./buddyPaint";
 import type { BuddyId } from "./buddies";
 import { commitVisit, emptyHistory, fallbackWorktree, historyTarget, loadedProjectRow, projectExpanded, projectsTab, reconcileProjects, selectProjectRoot, shownFolders, type Visit } from "./shellNavigation";
-import { afterRemoved, type RemovedState } from "./afterRemoved";
+import { afterRemoved } from "./afterRemoved";
 import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } from "./sidebarGroups";
 import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
@@ -186,6 +186,30 @@ export function mergeCanvasMemory(saved: Readonly<Record<string, Readonly<Record
   return merged;
 }
 
+// What the person folded, unfolded or opened and closed in the sidebar before ui-state was read, by project key.
+export interface ShellTouched { fold: ReadonlySet<string>; groups: ReadonlyMap<string, ReadonlySet<GroupId>> }
+
+// The read sidebar projects under the run's: a project the run holds keeps its roots and selection; its fold and each
+// group are the person's where they changed them before the read, else the read's.
+export function mergeShellProjects(saved: Readonly<Record<string, ShellProject>>, current: Readonly<Record<string, ShellProject>>, touched: ShellTouched): Record<string, ShellProject> {
+  const merged = { ...saved };
+  for (const [key, project] of Object.entries(current)) {
+    const read = saved[key];
+    if (!read) { merged[key] = project; continue; }
+    const selection = project.selectedRoot ? { selectedRoot: project.selectedRoot, ...(project.selectedAt !== undefined ? { selectedAt: project.selectedAt } : {}) }
+      : read.selectedRoot && project.roots.includes(read.selectedRoot) ? { selectedRoot: read.selectedRoot, ...(read.selectedAt !== undefined ? { selectedAt: read.selectedAt } : {}) } : {};
+    const folded = touched.fold.has(key);
+    const changed = touched.groups.get(key);
+    const closed = (["ds", "canvases"] as const).filter(id => (changed?.has(id) ? project.groups : read.groups)?.[id] === false);
+    merged[key] = {
+      roots: project.roots, ...selection,
+      expanded: folded ? project.expanded : read.expanded, ...(folded && project.collapsed ? { collapsed: true } : {}),
+      ...(closed.length ? { groups: Object.fromEntries(closed.map(id => [id, false])) as NonNullable<ShellProject["groups"]> } : {}),
+    };
+  }
+  return merged;
+}
+
 // First run's project handoff puts focus in the Home composer, ahead of the focus held before the wizard.
 export function wizardCloseFocus(root: string | null): "composer" | "previous" { return root ? "composer" : "previous"; }
 
@@ -222,6 +246,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const [loadedRoot, setLoadedRoot] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string[]>([]);
   const [setup, setSetup] = useState<string | null>(null);
+  // A Set Up reply can come after the folder list closed the dialog; that late reply must not close it again.
+  const setupRef = useRef(setup); setupRef.current = setup;
   // main's plan for the canvas is null until it answers; `seq` drops a closed dialog's late plan. Set through
   // `changeTrashing`, so a reply that lands before the next render sees the dialog as it is.
   const [trashing, setTrashing] = useState<{ root: string; row: CanvasRow; plan: TrashPlanReply | null; seq: number; move: TrashMove } | null>(null);
@@ -331,7 +357,6 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const overlayRetries = useRef(new Map<string, symbol>());
   const [, redrawRetry] = useState(0);
   const shellRef = useRef(shellProjects); shellRef.current = shellProjects;
-  const expandedRef = useRef(expanded); expandedRef.current = expanded;
   // Why the open canvas was closed (its ID now shared by another canvas), shown on its project's Overview until another
   // canvas opens or the Overview is left, so the person learns why the canvas page went away.
   const [overviewNotice, setOverviewNotice] = useState<{ root: string; text: string } | null>(null);
@@ -376,6 +401,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       return request.permissionMode ? rememberPermission(next, request.runtime, request.permissionMode) : next;
     }),
     followedMode: (provider, mode) => live.current.followMode(provider, mode),
+    seenFailed: (id, seq) => { overviewRun.current?.seenFailed(id, seq); canvasRun.current?.seenFailed(id, seq); },
     changed: () => { setRunTick(tick => tick + 1); overviewRun.current?.sync(); canvasRun.current?.sync(); },
   });
   // The Overview's main conversation and its composer's lists, for the run; the root it shows, as committed.
@@ -400,6 +426,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const conversationByCanvas = useRef<Record<string, Record<string, string>>>({});
   // Roots removed before that read: the read's memory for them is dropped by the merge.
   const canvasMemoryRemoved = useRef(new Set<string>());
+  const shellTouched = useRef({ fold: new Set<string>(), groups: new Map<string, Set<GroupId>>() });
+  const touchFold = (key: string) => { if (!memoryRead.current) shellTouched.current.fold.add(key); };
   // A canvas whose id another listed canvas shares has no memory: neither of the two can tell it is the one meant.
   const sharedCanvasId = (root: string, canvas: Canvas) => {
     const listed = entriesRef.current.find(entry => entry.path === root);
@@ -590,16 +618,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
         rerootSeq.current += 1;
         setReroot({ ...focus, seq: rerootSeq.current });
       }
-      const removed = entriesRef.current.filter(entry => !next.some(row => row.path === entry.path)).map(entry => entry.path);
+      // From main's whole list: a hidden auto-registered worktree is still registered and keeps its memory.
+      const removed = allEntriesRef.current.filter(entry => !all.some(row => row.path === entry.path)).map(entry => entry.path);
       if (removed.length) {
-        setExpanded(previous => Object.fromEntries(Object.entries(previous).filter(([root]) => !removed.includes(root))));
-        setShellProjects(previous => Object.fromEntries(Object.entries(previous).flatMap(([key, project]) => {
-          const roots = project.roots.filter(root => !removed.includes(root));
-          return roots.length ? [[key, { roots, expanded: project.expanded, ...(project.selectedRoot && roots.includes(project.selectedRoot) ? { selectedRoot: project.selectedRoot, ...(project.selectedAt !== undefined ? { selectedAt: project.selectedAt } : {}) } : {}), ...(project.groups ? { groups: project.groups } : {}) }]] : [];
-        })));
-        const previous = historyRef.current;
-        const nextHistory = { visits: previous.visits.filter(visit => !removed.includes(visit.root)), cursor: previous.visits.slice(0, previous.cursor + 1).filter(visit => !removed.includes(visit.root)).length - 1 };
-        historyRef.current = nextHistory; setHistory(nextHistory);
+        forgetRemovedState(removed);
         forgetConversations(removed);
       }
       entriesRef.current = next;
@@ -695,22 +717,27 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   };
   useEffect(() => {
     controller.current?.setWorkspaceActive(screen === "workspace");
+    // `doan open` can move the screen while the window is behind, so each entry focus is made again on activation, and
+    // only while the same screen shows.
     if (screen === "home") {
-      document.querySelector<HTMLElement>(".home-shell .composer-input")?.focus();
+      handFocus.current(() => { if (currentScreen.current === "home") document.querySelector<HTMLElement>(".home-shell .composer-input")?.focus(); });
     } else if (screen === "workspace") {
+      const root = loadedRoot;
+      const hand = (focus: () => void) => handFocus.current(() => { if (currentScreen.current === "workspace" && loadedRootRef.current === root) focus(); });
       // A problem scene takes focus first: what it covers is inert (PRODUCT §5 item 3 'Problem states'); the scene's
       // own effect gives it to the heading.
       if (sceneRef.current) { homeRun.current.takeFocus(); chipFocus.current = false; return; }
       // A Home send lands in the Overview's composer field.
-      if (homeRun.current.takeFocus() === "composer") { const field = document.querySelector<HTMLElement>(".workspace .ov-main .composer-input"); if (field) { field.focus(); return; } }
+      const field = ".workspace .ov-main .composer-input", chip = ".workspace .ov-main .wt-chip";
+      if (homeRun.current.takeFocus() === "composer" && document.querySelector(field)) { hand(() => document.querySelector<HTMLElement>(field)?.focus()); return; }
       // A worktree picked from the Overview's branch chip lands on the new Overview's chip.
-      if (chipFocus.current) { chipFocus.current = false; const chip = document.querySelector<HTMLElement>(".workspace .ov-main .wt-chip"); if (chip) { chip.focus(); return; } }
+      if (chipFocus.current) { chipFocus.current = false; if (document.querySelector(chip)) { hand(() => document.querySelector<HTMLElement>(chip)?.focus()); return; } }
       // An entry to a waiting request focused its card in the same commit; child effects run first, so this default
       // would otherwise take the focus to the sidebar row right after.
       const active = document.activeElement;
       if (active instanceof HTMLElement && active.isConnected && active.closest(".workspace .conversation-thread")) return;
       const previous = workspaceFocus.current;
-      (previous?.isConnected && previous.closest(".workspace") ? previous : document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]'))?.focus();
+      hand(() => (previous?.isConnected && previous.closest(".workspace") ? previous : document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]'))?.focus());
     }
   }, [screen, loadedRoot]);
   useEffect(() => {
@@ -742,6 +769,18 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       if (active) {
         conversationByRoot.current = mergeConversationMemory(state?.conversationByRoot, conversationByRoot.current, memoryTouched.current);
         conversationByCanvas.current = mergeCanvasMemory(state?.conversationByCanvas, conversationByCanvas.current, canvasMemoryRemoved.current);
+        // Merged here, not in the restore, which a navigation before the read cancels.
+        const read = afterRemoved({ shellProjects: state?.shellProjects ?? {}, expanded: state?.expanded ?? {}, history: emptyHistory() }, [...canvasMemoryRemoved.current]);
+        setExpanded(previous => ({ ...read.expanded, ...previous }));
+        // The canvas shown before the read keeps its group open (PRODUCT §5 item 1), whatever the read closed.
+        const shown = lastShown.current, open = groupToOpen(null, shown);
+        const shownKey = shown && groupProjects(entriesRef.current, new Map(entriesRef.current.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : []))).find(card => card.rows.some(row => row.path === shown.root))?.key;
+        setShellProjects(previous => {
+          const merged = mergeShellProjects(read.shellProjects, previous, shellTouched.current);
+          return open && shownKey && merged[shownKey]?.groups?.[open] === false ? { ...merged, [shownKey]: withGroups(merged[shownKey], groups => openGroup(groups, open)) } : merged;
+        });
+        const remembered = controller.current?.memory() ?? {};
+        for (const [root, item] of Object.entries(state?.lastByRoot ?? {})) if (!(root in remembered) && !canvasMemoryRemoved.current.has(root)) controller.current?.remember(root, item);
         memoryRead.current = true; setMemoryTick(tick => tick + 1); overviewRun.current?.sync(); canvasRun.current?.sync();
       }
       if (active && state?.settingsSection && !sectionChosen.current) setSettings({ ...settingsRef.current, section: state.settingsSection });
@@ -766,11 +805,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       return () => clearTimeout(timer);
     }
     setRestore("done");
-    if (!restore.state) return;
-    setExpanded(restore.state.expanded);
-    setShellProjects(restore.state.shellProjects ?? {});
-    for (const [root, item] of Object.entries(restore.state.lastByRoot)) controller.current?.remember(root, item);
-    if (plan.kind === "home") return;
+    if (!restore.state || plan.kind === "home") return;
     // The workspace opens its remembered canvas and view, as a worktree switch does.
     controller.current?.remember(plan.root, plan.canvas?.view ? { canvas: plan.canvas.path, view: plan.canvas.view } : null);
     const listed = allEntries.find(entry => entry.path === plan.root);
@@ -829,7 +864,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const group = groups.find(group => group.rows.some(row => row.path === root));
     const selected = group && shellRef.current[group.key]?.selectedRoot;
     if (selected && selected !== root && entriesRef.current.find(entry => entry.path === root)?.autoRegistered) beforeAuto.current.set(root, selected);
-    if (group) setShellProjects(previous => { const groups = previous[group.key]?.groups; return { ...previous, [group.key]: { roots: group.rows.map(row => row.path), expanded: previous[group.key]?.expanded ?? false, selectedRoot: root, selectedAt: Date.now(), ...(groups ? { groups } : {}) } }; });
+    if (group) setShellProjects(previous => { const { collapsed, groups } = previous[group.key] ?? {}; return { ...previous, [group.key]: { roots: group.rows.map(row => row.path), expanded: previous[group.key]?.expanded ?? false, selectedRoot: root, selectedAt: Date.now(), ...(collapsed ? { collapsed } : {}), ...(groups ? { groups } : {}) } }; });
   };
   const enter = (root: string) => {
     if (locked()) return;
@@ -969,6 +1004,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const entry = entries.find(entry => entry.path === loadedRoot);
   const groupSignature = JSON.stringify(cards.map(card => ({ key: card.key, roots: card.rows.map(row => row.path) })));
   const names = projectNames(entries.map(entry => entry.path));
+  const autoRoots = entries.flatMap(entry => entry.autoRegistered ? [entry.path] : []);
   // Home conversations are decided by HomeRun; App wires its navigation, toasts and dialogs.
   const projectLabel = (root: string) => cards.find(card => card.rows.some(row => row.path === root))?.name ?? names.get(root) ?? root;
   const projectLabelRef = useRef(projectLabel); projectLabelRef.current = projectLabel;
@@ -1013,15 +1049,17 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     // A locked page ignores only the move to a workspace: the row still unfolds another project, and
     // never folds one, as unlocked; the chevron folds. The loaded project is already unfolded or folded by hand.
     if (locked()) {
-      if (!loadedRoot || !group.rows.some(row => row.path === loadedRoot))
+      if (!loadedRoot || !group.rows.some(row => row.path === loadedRoot)) {
+        touchFold(key);
         setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path), expanded: true } }));
+      }
       return;
     }
     const loaded = loadedRoot !== null && group.rows.some(row => row.path === loadedRoot);
     // Home and the Add Projects page show the sidebar without a current project: from Home its row opens the Overview,
     // from the page it goes back to the loaded workspace.
     if (loaded) {
-      if (shellRef.current[key]?.collapsed) setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path), expanded: true, collapsed: false } }));
+      if (shellRef.current[key]?.collapsed) { touchFold(key); setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path), expanded: true, collapsed: false } })); }
       const move = loadedProjectRow({ screen: currentScreen.current, overviewShown: shownOverviewRef.current === loadedRoot });
       if (move === "enter") enter(loadedRoot);
       // Over the covered Overview a changed conversation would not show: the row takes focus to the scene (PRODUCT §5 item 1).
@@ -1040,6 +1078,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     // Another project's row opens its Overview from anywhere, never its last canvas, and never folds it: only its
     // chevron does. A problem root's Overview shows under its overlay.
     controller.current?.openWorkspace(root, next => {
+      touchFold(key);
       setShellProjects(previous => ({ ...previous, [key]: { ...memory, expanded: true } }));
       askSlot(next);
       completeNavigation(next);
@@ -1048,6 +1087,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The project row's chevron: fold or unfold only, the loaded project included.
   const discloseProject = (key: string) => {
     const group = cards.find(card => card.key === key); if (!group) return;
+    touchFold(key);
     setShellProjects(previous => {
       const memory = { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) };
       const open = projectExpanded(memory, loadedRoot);
@@ -1064,6 +1104,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // A locked page keeps the disclosure, as project expansion does.
   const toggleShellGroup = (key: string, id: GroupId) => {
     const group = cards.find(card => card.key === key); if (!group) return;
+    if (!memoryRead.current) shellTouched.current.groups.set(key, new Set(shellTouched.current.groups.get(key)).add(id));
     setShellProjects(previous => ({ ...previous, [key]: withGroups({ ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) }, groups => toggleGroup(groups, id)) }));
   };
   // Whatever opened it, a newly shown canvas opens its group; a group closed while it stays shown stays closed.
@@ -1467,13 +1508,19 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (result.kind === "removed") forgetRemoved(paths);
     return result;
   }
+  // The sidebar's part of a removal, also for roots main's list dropped. Refs and setters only: `onFolders` keeps the
+  // first render's copy.
+  function forgetRemovedState(paths: readonly string[]) {
+    const none = emptyHistory();
+    setShellProjects(previous => afterRemoved({ shellProjects: previous, expanded: {}, history: none }, paths).shellProjects);
+    setExpanded(previous => afterRemoved({ shellProjects: {}, expanded: previous, history: none }, paths).expanded);
+    const current = historyRef.current, next = afterRemoved({ shellProjects: {}, expanded: {}, history: current }, paths).history;
+    if (next !== current) { historyRef.current = next; setHistory(next); }
+  }
   // What the window forgets about roots it or `doan remove` (folders:removed) took out; going Home is the entries effect's.
   // A second pass for the same roots sets no state.
   function forgetRemoved(paths: readonly string[]) {
-    const current: RemovedState = { shellProjects: shellRef.current, expanded: expandedRef.current, history: historyRef.current };
-    const next = afterRemoved(current, paths);
-    setShellProjects(next.shellProjects); setExpanded(next.expanded);
-    if (next.history !== current.history) { historyRef.current = next.history; setHistory(next.history); }
+    forgetRemovedState(paths);
     for (const root of paths) controller.current?.remember(root, null);
     // Only while something is left to forget, so a second pass bumps no memory tick and saves nothing: before ui-state
     // is read every removal is marked (memoryTouched), and after it a root's conversation memory or Overview draft.
@@ -2645,7 +2692,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     origin={page.origin} homeDirectory={homeDirectory} arrival={projectSettings.arrival} onState={projectSettingsReport} onGone={() => leavePage({ kind: "gone" })}
     onRerooted={projectSettingsRerooted} onAction={(name, root, notice) => void action(name, root, notice)}
     onRemove={() => void removeProject([projectSettings.root])} />}
-  {onPage && <AddProjectsPage key={page.seq} header={topBar(true)} sidebar={sidebar(true)} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
+  {onPage && <AddProjectsPage key={page.seq} header={topBar(true)} sidebar={sidebar(true)} projects={entries.map(entry => entry.path)} autoRegistered={autoRoots} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)} choose={page.chooseSeq} onState={pageReport} onCancel={() => leavePage({ kind: "cancel" })} onAdded={pageAdded} />}
   <main ref={shellRoot} className={`app-shell workspace${overlaid ? " overlaid" : ""}${strip ? " with-strip" : ""}`}
     style={{ visibility: screen !== "workspace" ? "hidden" : "visible" }}
@@ -2703,7 +2750,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     {problem && <ProblemOverlay key={`problem\n${loadedRoot}`} view={problem} details={detailsOpen} detail={detailText} pressed={retryPending ? "retry" : pressed && pressed.root === loadedRoot ? pressed.name : null}
       announcement={announcement ? `${announcement.text}${announcement.seq % 2 ? "" : "\u00a0"}` : ""} onAction={overlayAction} />}
   </main>
-  {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} kept={projectKeepsLocal(allEntries, setup)} notGit={allEntries.some(entry => entry.path === setup && entry.kind === "uninitialized" && entry.notGit === true)} onClose={() => { pressEnded(setup, "setUp"); setSetup(null); modalClosed(); }} onRerooted={(root, message) => { choose(root); setSetup(null); setHighlight([root]); toast.show(message); modalClosed(); }} />}
+  {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} kept={projectKeepsLocal(allEntries, setup)} notGit={allEntries.some(entry => entry.path === setup && entry.kind === "uninitialized" && entry.notGit === true)} onClose={() => { pressEnded(setup, "setUp"); if (setupRef.current !== setup) return; setSetup(null); modalClosed(); }} onRerooted={(root, message) => { setHighlight([root]); toast.show(message); if (setupRef.current !== setup) return; choose(root); setSetup(null); modalClosed(); }} />}
   {quickOpen && <QuickOpen entries={entries} conversations={conversationLists} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
   {run.removing && <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="project-remove-title" aria-describedby="project-remove-body" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); cancelRemove(); }}
     onKeyDown={event => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); cancelRemove(); } }}>
@@ -2728,7 +2775,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   <PrototypeClosedFocus controller={controller} toolbar={playButton} />
   <PrototypePlaying onChange={setPlaying} />
   <StarPrompt onboarding={wizard !== null || buddyIntro.open} pickOrCapture={state.picking || state.capturing} restoreFocus={restoreFloatingFocus} />
-  {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
+  {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} autoRegistered={autoRoots} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)} buddy={buddySelection} preferences={preferences}
     onClose={root => {
       setWizard(null);

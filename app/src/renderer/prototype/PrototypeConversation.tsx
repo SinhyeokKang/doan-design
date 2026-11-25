@@ -25,9 +25,10 @@ export function PrototypeConversationPanel({ run, calls, now, onNotice = () => {
   const thumbnailHub = useThumbnailHub(calls);
   const view = run.currentView(), target = run.target();
   if (!view || !target) return null;
-  // The sidebar names a project by its folder; this window has no sidebar list to ask.
-  const project = view.root.split("/").filter(Boolean).at(-1) ?? view.root;
   const entry: FolderEntry = run.entry() ?? { path: view.root, kind: "loading" };
+  // Named as the main window names its group (homeCards.ts `groupProjects`): by the main worktree's folder, else the root's.
+  const named = entry.kind === "list" ? entry.git?.main ?? view.root : view.root;
+  const project = named.split("/").filter(Boolean).at(-1) ?? named;
   const settings = run.settings();
   const blocked = target.lost === "gone" ? canvasUnlistedText(project) : target.lost === "duplicate" ? DUPLICATE_CANVAS_TEXT : null;
   const reveal = (request: RevealPayload) => { void calls.reveal(request).catch(console.error); };

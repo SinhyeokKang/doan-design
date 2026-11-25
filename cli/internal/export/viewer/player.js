@@ -43,6 +43,11 @@ function linkToastText(value) {
     : "Can’t go to “" + value + "”. Ask the sender to fix this link and send an updated file.";
 }
 
+// The app's frame name (canvasTree.ts frameName): the trimmed title, else the id.
+function frameName(frame) {
+  return frame.title?.trim() || frame.id;
+}
+
 
 // The window's toast: one at a time, at its bottom right, with the app's timer (toastState.ts,
 // generated), held while the pointer is over it or the page is hidden. show() returns its id, which
@@ -355,8 +360,7 @@ function startPlayer() {
   const listedFrame = (id) => listed.frames.find((frame) => frame.id === id);
   const nameOf = (id) => {
     const frame = listedFrame(id);
-    if (frame !== undefined) return frame.title ?? frame.id;
-    return fileFrames.get(id)?.name ?? id;
+    return frameName(frame ?? { id, title: fileFrames.get(id)?.name });
   };
   const markOf = (id) => viewerApp.parsePrototypeMark(listedFrame(id)?.size ?? fileFrames.get(id)?.mark ?? null);
 

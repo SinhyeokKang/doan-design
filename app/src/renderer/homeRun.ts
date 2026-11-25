@@ -38,6 +38,8 @@ export interface HomeRunHost {
   sent(request: StartInput): void;
   // Main moved a conversation out of Plan (a plan approval); other mode changes are picks already remembered.
   followedMode?(provider: Provider, mode: PermissionModeId): void;
+  // main refused or failed a seen mark: the runs that asked for it may ask again for the same seq.
+  seenFailed?(conversationId: string, seq: number): void;
   changed(): void;
 }
 // The request last toasted, so each permission request is toasted once.
@@ -570,8 +572,11 @@ export class HomeRun {
   private history(conversationId: string): Promise<{ events: ConversationEvent[] } | null> {
     let read = this.histories.get(conversationId);
     if (!read) {
-      read = window.doan.readConversation({ conversationId }).then(reply => "error" in reply ? null : reply, () => null);
-      this.histories.set(conversationId, read);
+      const reading: Promise<{ events: ConversationEvent[] } | null> = window.doan.readConversation({ conversationId }).then(reply => "error" in reply ? null : reply, () => null);
+      // A failed read is not kept, so the next claim reads again.
+      void reading.then(result => { if (result === null && this.histories.get(conversationId) === reading) this.histories.delete(conversationId); });
+      this.histories.set(conversationId, reading);
+      read = reading;
     }
     return read;
   }
@@ -653,7 +658,7 @@ export class HomeRun {
   }
   private async sendSeen(conversationId: string, root: string, seq: number): Promise<void> {
     const reply = await window.doan.markConversationSeen({ conversationId, seq }).catch(() => ({ error: "unknown" }));
-    if (reply && "error" in reply) this.undoSeen(conversationId);
+    if (reply && "error" in reply) { this.undoSeen(conversationId); this.host.seenFailed?.(conversationId, seq); }
     // Only a read that starts from now on shows main's marker.
     else if (this.seen.has(conversationId)) this.seen.set(conversationId, { root, from: (this.readCount.get(root) ?? 0) + 1 });
     const later = this.laterSeen.get(conversationId);

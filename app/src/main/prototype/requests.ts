@@ -7,74 +7,15 @@ import { parseReplyAnchor, type ReplyAnchor } from "../conversation/replyAnchor"
 import type { FolderEntry } from "../view";
 import type { WindowKind } from "../senderAllowed";
 import { PROTOTYPE_PANEL_MIN_WIDTH } from "./fit";
-import type { ExportTarget, FramesMessage, GotoMessage, LostState, PanelRequest, PrototypeFrame, PrototypeGoto, PrototypeMode, RevealPayload, RunReport } from "./ipc";
+import type { ExportTarget, FramesMessage, GotoMessage, PanelRequest, PrototypeMode, RevealPayload, RunReport } from "./ipc";
 import { parsePrototypeMark, type PrototypeSize } from "./mark";
+import { framesReport, gen, id, MAX_REPORT_STRING, record, runReport } from "./reports";
 import { canvasKeyFor, type PrototypeTarget } from "./targets";
 
 // Validation of `prototype:*` request payloads. The sender guard has already checked the window role; each parser
 // checks it again so a handler wired to the wrong role still refuses.
 
-// The board's `layout` message clips frame IDs and titles at 200 UTF-16 units, so no longer ID can be selected.
-export const MAX_REPORT_STRING = 200;
-export const MAX_REPORT_FRAMES = 1000;
-// The links a run reports, and the frames around one link: the script leaves out a link past either rather than cut.
-export const MAX_REPORT_GOTOS = 1000;
-export const MAX_GOTO_FRAMES = 1000;
-
-const LOST: ReadonlySet<string> = new Set<LostState>(["missing", "duplicate", "unmarked", "invalid"]);
-
-function record(value: unknown, keys: readonly string[]): Record<string, unknown> | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-  const own = Object.keys(value);
-  if (own.length !== keys.length || !keys.every(key => own.includes(key))) return null;
-  return value as Record<string, unknown>;
-}
-
-function id(value: unknown): value is string {
-  return typeof value === "string" && value !== "" && value.length <= MAX_REPORT_STRING;
-}
-
-function gen(value: unknown): value is number {
-  return Number.isSafeInteger(value) && (value as number) > 0;
-}
-
-function frameList(value: unknown): PrototypeFrame[] | null {
-  if (!Array.isArray(value) || value.length > MAX_REPORT_FRAMES) return null;
-  const seen = new Set<string>();
-  const frames: PrototypeFrame[] = [];
-  // Numbers count every frame of the document, listed or not, so they only ever grow down the list.
-  let last = 0;
-  for (const raw of value) {
-    if (typeof raw !== "object" || raw === null) return null;
-    const entry = record(raw, "title" in raw ? ["id", "title", "size", "number"] : ["id", "size", "number"]);
-    if (entry === null || !id(entry.id) || seen.has(entry.id) || parsePrototypeMark(entry.size) === null) return null;
-    if (entry.title !== undefined && (typeof entry.title !== "string" || entry.title.length > MAX_REPORT_STRING)) return null;
-    if (!Number.isSafeInteger(entry.number) || (entry.number as number) <= last) return null;
-    last = entry.number as number;
-    seen.add(entry.id);
-    frames.push({ id: entry.id, ...(entry.title === undefined ? {} : { title: entry.title as string }), size: entry.size as string, number: last });
-  }
-  return frames;
-}
-
-// Values and ids are raw: an empty one is a link or frame the drawer's groups leave out, not a malformed report.
-function gotoList(value: unknown): PrototypeGoto[] | null {
-  if (!Array.isArray(value) || value.length > MAX_REPORT_GOTOS) return null;
-  const gotos: PrototypeGoto[] = [];
-  for (const raw of value) {
-    const entry = record(raw, ["value", "frames"]);
-    if (entry === null || typeof entry.value !== "string" || entry.value.length > MAX_REPORT_STRING) return null;
-    if (!Array.isArray(entry.frames) || entry.frames.length > MAX_GOTO_FRAMES) return null;
-    // for…of reads every index, holes as undefined: a structured clone keeps a sparse array's holes, which every() skips.
-    const frames: string[] = [];
-    for (const frame of entry.frames as unknown[]) {
-      if (typeof frame !== "string" || frame.length > MAX_REPORT_STRING) return null;
-      frames.push(frame);
-    }
-    gotos.push({ value: entry.value, frames });
-  }
-  return gotos;
-}
+export { MAX_GOTO_FRAMES, MAX_REPORT_FRAMES, MAX_REPORT_GOTOS, MAX_REPORT_STRING } from "./reports";
 
 // The row and canvas key a play names in main's own list: the main window's Play and `doan open --prototype` alike. A
 // canvas ID two rows share is no target, as the board refuses it.
@@ -148,35 +89,11 @@ export function parseModeRequest(kind: unknown, value: unknown): PrototypeMode |
 }
 
 export function parseRunReport(kind: unknown, value: unknown): RunReport | null {
-  if (!windowRequest(kind) || typeof value !== "object" || value === null) return null;
-  const state = (value as { state?: unknown }).state;
-  if (state === "timeout") {
-    const message = record(value, ["gen", "state"]);
-    return message !== null && gen(message.gen) ? { gen: message.gen, state } : null;
-  }
-  if (state === "ready") {
-    const message = record(value, ["gen", "state", "size", "frames", "gotos"]);
-    if (message === null || !gen(message.gen)) return null;
-    const size = parsePrototypeMark(message.size);
-    const frames = frameList(message.frames);
-    const gotos = gotoList(message.gotos);
-    return size === null || frames === null || gotos === null ? null : { gen: message.gen, state, size, frames, gotos };
-  }
-  if (typeof state !== "string" || !LOST.has(state)) return null;
-  const message = record(value, ["gen", "state", "frames", "gotos"]);
-  if (message === null || !gen(message.gen)) return null;
-  const frames = frameList(message.frames);
-  const gotos = gotoList(message.gotos);
-  return frames === null || gotos === null ? null : { gen: message.gen, state: state as LostState, frames, gotos };
+  return windowRequest(kind) ? runReport(value) : null;
 }
 
 export function parseFramesReport(kind: unknown, value: unknown): FramesMessage | null {
-  if (!windowRequest(kind)) return null;
-  const message = record(value, ["gen", "frames", "gotos"]);
-  if (message === null || !gen(message.gen)) return null;
-  const frames = frameList(message.frames);
-  const gotos = gotoList(message.gotos);
-  return frames === null || gotos === null ? null : { gen: message.gen, frames, gotos };
+  return windowRequest(kind) ? framesReport(value) : null;
 }
 
 // `prototype:export`: the target the window showed when Export was pressed, compared with what plays when main gets it.

@@ -100,6 +100,7 @@ beforeEach(() => {
   vi.stubGlobal("window", { doan: api, addEventListener: vi.fn(), removeEventListener: vi.fn() });
   vi.stubGlobal("document", doc);
   vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
+  vi.stubGlobal("cancelAnimationFrame", () => {});
   vi.stubGlobal("HTMLElement", class {});
   running = new Set();
   watch = new McpConnectorsWatch({ api: api as never, running: provider => running.has(provider), pageShown: () => true, toast: vi.fn(), openPage: vi.fn() });
@@ -510,6 +511,19 @@ test("a failure stays on its row when the page is opened again", async () => {
   hooks.states = []; hooks.refs = []; hooks.effects = [];
   await settle();
   expect(all(tree).some(element => element.props.className === "doan-notice error" && words(element.props.children).startsWith("Codex stopped waiting for Notion"))).toBe(true);
+});
+
+test("leaving the page before the Remove alert's frame runs cancels it, so no ownerless lock stays", async () => {
+  await settle();
+  const frames = new Map<number, () => void>();
+  let next = 0;
+  vi.stubGlobal("requestAnimationFrame", (run: () => void) => { frames.set(++next, run); return next; });
+  vi.stubGlobal("cancelAnimationFrame", (id: number) => { frames.delete(id); });
+  const item = all(tree).find(element => element.type === DropdownMenu.Item && element.props["data-mcp-remove"] === "codex:doan-mcp-example-com")!;
+  (item.props.onSelect as () => void)();
+  for (const effect of hooks.effects) effect?.cleanup?.();
+  for (const run of frames.values()) run();
+  expect(props.onLock).not.toHaveBeenCalled();
 });
 
 test("Cancel in the URL dialog and in the Remove alert returns focus to the button that opened it", async () => {

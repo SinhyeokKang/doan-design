@@ -162,6 +162,8 @@ export class CanvasController {
   // `seq` orders the renderer's commands against the script's own clicks; each new document starts again at 0.
   private seq = 0;
   private hoverSeq = 0;
+  // Set when a layout comes from a new document; that layout may return before the seq reset and the end of loading.
+  private hoverResend = false;
   private selectedRect: CanvasRect | null = null;
   private hoverRect: CanvasRect | null = null;
   private treeHover: CanvasRect | null = null;
@@ -196,6 +198,8 @@ export class CanvasController {
   private pickEnded: PickResult | null = null;
   // To tell the Frames drawer's reply from a click.
   private pickFrameCommand: { seq: number; id: string } | null = null;
+  // A drawer pick made while the canvas loads, sent at its first layout unless the person acted since (intent).
+  private pickAfterLoad: { id: string; intent: number } | null = null;
   private locating: { anchor: Anchor; generation: number; request: number; settled: (result: LocateResult) => void; timer: ReturnType<typeof setTimeout> } | null = null;
   // The controller outlives the Overview and empty states, which rebuild `state`. A tool chosen mid-drag waits for its
   // end: lowering the layer first would drop the pointerup on the iframe, which selects.
@@ -820,6 +824,7 @@ export class CanvasController {
       this.state.status = "failed";
       this.pendingFrame?.found?.(false);
       this.pendingFrame = null;
+      this.pickAfterLoad = null;
       this.pendingLocate = null;
       this.applySelectionEffect({ kind: "loadFailed" });
       this.endPick({ kind: "cancelled" });
@@ -839,6 +844,7 @@ export class CanvasController {
     this.resetText();
     this.clearJump();
     this.pendingFrame = null;
+    this.pickAfterLoad = null;
     this.pendingLocate = null;
     this.state.currentFrame = null;
     this.resetAnchors();
@@ -978,12 +984,17 @@ export class CanvasController {
     this.frame?.contentWindow?.postMessage(message, "*");
   }
 
+  // Not to an iframe still loading, as for sendHoverCommand: the seq would run ahead of the new document's clicks.
   private sendCommand(message: object): void {
+    if (this.loading) return;
     this.seq += 1;
     this.post({ ...message, seq: this.seq });
   }
 
+  // Not to an iframe still loading: its script cannot hear it, and the hover seq would run ahead of the new document and
+  // drop its hovers. The first layout sends what changed meanwhile (resendHover).
   private sendHoverCommand(message: object): void {
+    if (this.loading) return;
     this.hoverSeq += 1;
     this.post({ ...message, seq: this.hoverSeq });
   }
@@ -1276,8 +1287,8 @@ export class CanvasController {
       this.lastHref === null || !sameDocument(this.lastHref, message.href)) return;
     if ("cancelled" in message) { this.cancelPick(); return; }
     // Only frames and what is in them can be chips; a forged or stray reply outside every frame keeps picking
-    // (targetAnchor itself takes any frame or element).
-    if ("target" in message && message.target.frame === undefined) return;
+    // (targetAnchor itself takes any named frame or element).
+    if ("target" in message && !message.target.frame?.id) return;
     const frames = this.state.layout?.frames ?? [];
     const anchor = "target" in message ? targetAnchor(message.target) : pointAnchor(message.point, frames);
     if (anchor === null) return;
@@ -1418,9 +1429,11 @@ export class CanvasController {
     if (this.altHeld) this.drawMarks();
   };
 
+  // stopDrag drops the drag before the lost capture reaches layerUp, so the canvas's drag is released here.
   private releaseInput(): void {
     this.spaceHeld = false;
     this.stopCaptureDrag();
+    if (this.drag?.mode === "asking" || this.drag?.mode === "text") this.post({ type: "text-release", epoch: this.textEpoch });
     this.finishDrag();
   }
 
@@ -1491,9 +1504,7 @@ export class CanvasController {
     // Chromium recomputes the cursor over the iframe only when the iframe's own cursor value changes, and reliably only
     // after a frame without the layer has been drawn; a resting pointer keeps the canvas's cursor, so it shows the hand.
     if (show !== this.layerShown) {
-      // Not to an iframe still loading: the hover seq would run ahead of the new document and drop its hovers. Its first
-      // layout sends it if the layer is up.
-      if (!this.loading) this.sendHoverCommand({ type: "hover-hand", hand: show });
+      this.sendHoverCommand({ type: "hover-hand", hand: show });
       const frame = this.frame;
       if (!show && frame !== null) {
         requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -1634,8 +1645,7 @@ export class CanvasController {
       // A held Space and a drag end with the document, even one the canvas replaced itself in the same iframe. Not on the
       // anchor document's change: the iframe's load event forgets that one while the document stays.
       if (this.spaceHeld || this.drag !== null) { this.spaceHeld = false; this.finishDrag(); }
-      // Hand keeps the layer up through the canvas's own reload, and the new document has no hand of its own.
-      if (this.layerShown) this.sendHoverCommand({ type: "hover-hand", hand: true });
+      this.hoverResend = true;
     }
     const before = this.layoutDisplayKey();
     const previousCurrent = this.state.currentFrame;
@@ -1681,6 +1691,8 @@ export class CanvasController {
       this.state.status = null;
       if (this.reanchor !== null) this.sendCommand({ type: "select-anchor", ...this.reanchor });
     }
+    // After the seq reset above and once loading is over, so the new document hears it from seq 1.
+    if (this.hoverResend || first) this.resendHover();
     // A reloaded document hears no pointer move until the pointer moves.
     if (first && this.refindOnLoad) { this.refindOnLoad = false; this.refindHover(); }
     this.state.layout = message;
@@ -1694,6 +1706,12 @@ export class CanvasController {
       this.jumpTo = index >= 0 ? index : null;
       this.pendingFrame = null;
       target.found?.(index >= 0);
+    }
+    if (first && this.pickAfterLoad !== null) {
+      const { id, intent } = this.pickAfterLoad;
+      this.pickAfterLoad = null;
+      const index = message.frames.findIndex(frame => frame.id === id);
+      if (intent === this.transitionIntent && index >= 0) this.pickFrame(index, id);
     }
     if (this.jumpTo !== null) {
       const target = message.frames[this.jumpTo];
@@ -1713,6 +1731,14 @@ export class CanvasController {
     }
     this.state.currentFrame = this.state.unlisted ? null : currentFrame(message.frames, this.view, this.viewportSize());
     if (first || previousCurrent !== this.state.currentFrame || documentChanged || before !== this.layoutDisplayKey() || linked || beforeSelection !== this.state.selection || previousPicking !== this.state.picking || previousCapturing !== this.state.capturing) this.publish();
+  }
+
+  // A new document has no hand, ⌥ or ⌘ of its own; Hand keeps the layer up through the canvas's own reload.
+  private resendHover(): void {
+    this.hoverResend = false;
+    if (this.layerShown) this.sendHoverCommand({ type: "hover-hand", hand: true });
+    if (this.altHeld) this.sendHoverCommand({ type: "hover-alt", alt: true });
+    if (this.metaHeld) this.sendHoverCommand({ type: "hover-meta", meta: true });
   }
 
   private markShown(href: string): boolean {
@@ -1749,10 +1775,19 @@ export class CanvasController {
     this.transition(() => {
       const at = resolve();
       if (at < 0) return;
+      if (this.loading) {
+        this.pendingFrame = { id };
+        this.pickAfterLoad = { id, intent: this.transitionIntent };
+        return;
+      }
       this.jump(at);
-      this.sendCommand({ type: "pick-frame", index: at, id });
-      this.pickFrameCommand = { seq: this.seq, id };
+      this.pickFrame(at, id);
     }, () => resolve() >= 0);
+  }
+
+  private pickFrame(index: number, id: string): void {
+    this.sendCommand({ type: "pick-frame", index, id });
+    this.pickFrameCommand = { seq: this.seq, id };
   }
 
   private clearJump(): void {

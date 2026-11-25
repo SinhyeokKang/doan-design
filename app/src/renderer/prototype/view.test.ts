@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { PrototypePhase, PrototypeView } from "../../main/prototype/ipc";
+import { PROTOTYPE_LOAD_TIMEOUT_MS, type PrototypePhase, type PrototypeView } from "../../main/prototype/ipc";
 import { covered, drawerGroups, drawerLabel, exportAvailability, linkMove, linkToast, liveText, LOADING_LABEL, modeTooltip, stateScene, TIMEOUT_DETAIL, windowTitle } from "./view";
 
 const frames = [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }, { id: "account", size: "390x844", number: 3 }];
@@ -15,6 +15,11 @@ describe("windowTitle", () => {
 });
 
 describe("stateScene", () => {
+  test("the timeout detail states the host's own limit", () => {
+    expect(TIMEOUT_DETAIL).toBe(`The frame didn’t finish loading within ${PROTOTYPE_LOAD_TIMEOUT_MS / 1000} seconds.`);
+    expect(TIMEOUT_DETAIL).toBe("The frame didn’t finish loading within 10 seconds.");
+  });
+
   test("names each cause with its own title; failures retry, lost targets only close", () => {
     expect(stateScene(view({ phase: "read-failed", detail: "EACCES" }))).toEqual({ icon: "read", heading: "Couldn’t open this prototype", body: "Doan couldn’t read the canvas file for this frame.", failure: true, detail: "EACCES" });
     expect(stateScene(view({ phase: "init-failed" }))).toEqual({ icon: "init", heading: "Couldn’t start this prototype", body: "The frame was read, but Doan couldn’t set it up in this window.", failure: true, detail: TIMEOUT_DETAIL });
@@ -74,6 +79,11 @@ describe("drawerGroups", () => {
     const frames = [{ id: "home", size: "390x844", number: 1 }, { id: "checkout", title: "Checkout", size: "390x844", number: 2 }, { id: "done", title: "Done", size: "390x844", number: 4 }];
     const groups = drawerGroups(view({ frames, gotos: [{ value: "done", frames: ["checkout"] }] }));
     expect(groups.map(group => [group.label, group.rows.map(row => row.id)])).toEqual([["Checkout and 1 more", ["checkout", "done"]], ["Frames without links", ["home"]]]);
+  });
+
+  test("an empty or blank title names the row by its id, a padded one trimmed", () => {
+    const frames = [{ id: "a", title: "", size: "390x844", number: 1 }, { id: "b", title: "  ", size: "390x844", number: 2 }, { id: "c", title: " C ", size: "390x844", number: 3 }];
+    expect(drawerGroups(view({ frames })).flatMap(group => group.rows).map(row => row.name)).toEqual(["a", "b", "C"]);
   });
 
   test("no row is current once the playing frame left the list", () => {

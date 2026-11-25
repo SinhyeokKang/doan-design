@@ -11,7 +11,8 @@ export function afterRemoved(state: RemovedState, paths: readonly string[]): Rem
   const shellProjects = !touched ? state.shellProjects : Object.fromEntries(Object.entries(state.shellProjects).flatMap(([key, project]) => {
     if (!project.roots.some(gone)) return [[key, project]];
     const roots = project.roots.filter(root => !gone(root));
-    return roots.length ? [[key, { roots, expanded: project.expanded, ...(project.selectedRoot && roots.includes(project.selectedRoot) ? { selectedRoot: project.selectedRoot, ...(project.selectedAt !== undefined ? { selectedAt: project.selectedAt } : {}) } : {}), ...(project.groups ? { groups: project.groups } : {}) }]] : [];
+    const { selectedRoot, selectedAt, ...rest } = project;
+    return roots.length ? [[key, { ...rest, roots, ...(selectedRoot && roots.includes(selectedRoot) ? { selectedRoot, ...(selectedAt !== undefined ? { selectedAt } : {}) } : {}) }]] : [];
   }));
   const expanded = !Object.keys(state.expanded).some(gone) ? state.expanded : Object.fromEntries(Object.entries(state.expanded).filter(([root]) => !gone(root)));
   const { visits, cursor } = state.history;

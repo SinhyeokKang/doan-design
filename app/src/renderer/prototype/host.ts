@@ -1,5 +1,6 @@
 import type { Rect } from "../../main/prototype/fit";
 import type { FramesMessage, GotoMessage, PrototypePhase, RunMessage } from "../../main/prototype/ipc";
+import { framesReport, runReport } from "../../main/prototype/reports";
 
 // Pure, so the window's order of events is tested without one.
 
@@ -73,14 +74,14 @@ function gotoMessage(data: object): GotoMessage | null {
 
 export type Forward = { kind: "result"; message: RunMessage } | { kind: "frames"; message: FramesMessage } | { kind: "goto"; message: GotoMessage };
 
-// Only the current iframe's own window, at a sandboxed canvas's opaque origin, for the current gen; main validates
-// every field again.
+// Only the current iframe's own window, at a sandboxed canvas's opaque origin, for the current gen, and only a report in
+// the prototype script's shape, so IPC never copies an object the canvas sized; main validates every field again.
 export function forwardedMessage(event: { source: unknown; origin: string; data: unknown }, run: { gen: number; window: unknown } | null): Forward | null {
   if (run === null || event.source === null || event.source !== run.window || event.origin !== "null") return null;
   const data = event.data;
   if (typeof data !== "object" || data === null || Array.isArray(data) || (data as { gen?: unknown }).gen !== run.gen) return null;
-  if ("state" in data) return { kind: "result", message: data as RunMessage };
-  if (!("goto" in data)) return { kind: "frames", message: data as FramesMessage };
+  if ("state" in data) return runReport(data) === null ? null : { kind: "result", message: data as RunMessage };
+  if (!("goto" in data)) return framesReport(data) === null ? null : { kind: "frames", message: data as FramesMessage };
   const message = gotoMessage(data);
   return message === null ? null : { kind: "goto", message };
 }

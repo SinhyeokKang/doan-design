@@ -1,4 +1,4 @@
-import type { LayoutMessage } from "./canvasMessage";
+import { MAX_FRAMES, type LayoutMessage } from "./canvasMessage";
 import type { CanvasState } from "./CanvasController";
 import { frameLabel } from "./canvasView";
 import { playableFrames } from "../main/prototype/playability";
@@ -78,6 +78,7 @@ export function frameDrawerView(state: BoardState): FrameDrawerView {
     buttonLabel: viewing ? `${viewing.number}. ${viewing.name}` : "Frames",
     ariaLabel: viewing ? `Frame ${viewing.number}: ${viewing.name}` : "Frames",
     rows,
-    truncatedNote: layout.truncated ? TRUNCATED_NOTE : null,
+    // `truncated` also marks a clipped id or title; only a full list means frames went unlisted.
+    truncatedNote: layout.truncated && layout.frames.length >= MAX_FRAMES ? TRUNCATED_NOTE : null,
   };
 }

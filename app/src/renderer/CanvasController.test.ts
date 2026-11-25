@@ -722,6 +722,45 @@ describe("selection", () => {
       } finally { h.controller.dispose(); }
     });
 
+    // A loading iframe cannot hear the selection channel either: a command sent then would only move the app's seq
+    // past the new document's first clicks.
+    it("waits for the reloaded document's first layout, then picks the frame by id", () => {
+      const h = selectionHarness();
+      try {
+        h.layout({ document: "doc", frames: [frame("intro", 0), frame("hero", 20)] });
+        h.controller.command("reload");
+        h.controller.selectFrame(1, "hero");
+        expect(picks(h).filter(m => m.type === "pick-frame")).toEqual([]);
+        h.layout({ document: "doc2", frames: [frame("hero", 20), frame("intro", 0)] });
+        expect(picks(h).filter(m => m.type === "pick-frame")).toEqual([{ type: "pick-frame", seq: 1, index: 0, id: "hero" }]);
+        h.select(1, { target: { rect: { x: 0, y: 20, width: 10, height: 10 }, tag: "section", frame: { id: "hero" }, frameIndex: 0, path: [{ label: "hero", selector: '[data-doan-frame="hero"]' }] } });
+        expect(h.state().selection?.frame?.id).toBe("hero");
+      } finally { h.controller.dispose(); }
+    });
+
+    it("Esc while it loads cancels the waiting pick", () => {
+      const h = selectionHarness();
+      try {
+        h.layout({ document: "doc", frames: [frame("intro", 0), frame("hero", 20)] });
+        h.controller.command("reload");
+        h.controller.selectFrame(1, "hero");
+        h.key("Escape");
+        h.layout({ document: "doc2", frames: [frame("intro", 0), frame("hero", 20)] });
+        expect(picks(h).filter(m => m.type === "pick-frame")).toEqual([]);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("a frame gone from the reloaded document is not picked", () => {
+      const h = selectionHarness();
+      try {
+        h.layout({ document: "doc", frames: [frame("intro", 0), frame("hero", 20)] });
+        h.controller.command("reload");
+        h.controller.selectFrame(1, "hero");
+        h.layout({ document: "doc2", frames: [frame("intro", 0)] });
+        expect(picks(h).filter(m => m.type === "pick-frame")).toEqual([]);
+      } finally { h.controller.dispose(); }
+    });
+
     it("does nothing when the picked id is gone", () => {
       const h = selectionHarness();
       try {
@@ -2201,6 +2240,22 @@ describe("Escape and a blank click without a selection (L-17)", () => {
     }
   });
 
+  // The new document's clicks count from seq 1, so a clear the loading iframe never hears must not move the app's seq.
+  it("sends no clear to the loading canvas, so the reloaded document's first click selects", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.controller.command("reload");
+      h.host.dispatchEvent(escapeKey());
+      h.controller.selectFrame(1, "hero");
+      expect(h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(m => m.type === "clear" || m.type === "pick-frame")).toEqual([]);
+      h.layout({ document: "doc2" });
+      const picked = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(m => m.type === "pick-frame");
+      h.select(picked.length + 1);
+      expect(h.state().selection).toMatchObject({ tag: "span" });
+    } finally { h.controller.dispose(); }
+  });
+
   it("clears a selection the reloaded canvas looks for at once", () => {
     const h = selectionHarness();
     try {
@@ -2594,7 +2649,7 @@ describe("picking", () => {
   });
 
   // A pick must give the same chip as the bubble's Add to message (App's targetAnchor of the selection);
-  // a note makes no chip, so the bubble is unavailable for it.
+  // a note makes no chip, so the bubble is unavailable for it. Main refuses an empty frame id, so its frame counts as none.
   it("the selection's anchor for Add to message is the pick's anchor for the same target, and a note has none to add", () => {
     const ready = { enabled: true, reason: null };
     const element = { doanId: "pay", selector: '[data-doan-id="pay"]', html: "<button>Pay</button>", text: "Pay" };
@@ -2603,17 +2658,19 @@ describe("picking", () => {
       // A frame inside a frame: the script names the innermost one.
       nested: { rect: { x: 1, y: 22, width: 8, height: 4 }, tag: "button", frame: { id: "card" }, frameIndex: 2, element, path: [{ label: "hero", selector: '[data-doan-frame="hero"]' }, { label: "card", selector: '[data-doan-frame="card"]' }] },
       note: { rect: { x: 40, y: 40, width: 30, height: 10 }, tag: "p", element: { selector: "body > p:nth-of-type(1)", html: "<p>Note</p>" }, path: [] },
+      emptyFrame: { rect: { x: 41, y: 41, width: 8, height: 4 }, tag: "button", frame: { id: "" }, frameIndex: 3, element, path: [] },
+      emptyFrameItself: { rect: { x: 40, y: 40, width: 30, height: 10 }, tag: "section", frame: { id: "" }, frameIndex: 3, path: [] },
     };
     for (const [name, target] of Object.entries(targets)) {
       const h = harness();
       try {
-        h.layout({ document: "doc", frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }, { id: "card", x: 0, y: 21, width: 9, height: 6 }] });
+        h.layout({ document: "doc", frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }, { id: "card", x: 0, y: 21, width: 9, height: 6 }, { id: "", x: 40, y: 40, width: 30, height: 10 }] });
         h.select(1, { target });
         const selected = targetAnchor(h.state().selection);
         const results = started(h);
         picked(h, { target });
         const add = bubbleAddAvailability({ capturing: false, anchor: selected, picker: ready, unlisted: null });
-        if (name === "note") {
+        if (name === "note" || name.startsWith("emptyFrame")) {
           expect(results, name).not.toHaveBeenCalled();
           expect(h.state().picking, name).toBe(true);
           expect(add, name).toEqual({ enabled: false, reason: ADD_TO_MESSAGE_OUTSIDE_FRAMES });
@@ -4233,6 +4290,58 @@ describe("hand tool", () => {
       try {
         h.layout({ document: "doc2" });
         expect(hands(h)).toEqual([]);
+      } finally { h.controller.dispose(); }
+    });
+
+    // The new document starts its hover seq at 0, so the resend must follow the app's own reset to 0.
+    it("tells a document at another href the canvas navigated to at the seq that document starts from", () => {
+      const h = harness();
+      try {
+        press(h, "KeyH");
+        h.layout({ href: h.other.url, document: "doc2" });
+        expect(posted(h).filter(m => m.type === "hover-hand").at(-1)).toEqual({ type: "hover-hand", hand: true, seq: 1 });
+        press(h, "KeyV");
+        expect(posted(h).at(-1)).toEqual({ type: "hover-hand", hand: false, seq: 2 });
+      } finally { h.controller.dispose(); }
+    });
+  });
+
+  // A reloading iframe cannot hear the hover channel, so what changed meanwhile goes to the new document at its first
+  // layout, from seq 1, and the hovers it then sends still show.
+  describe("the hover channel while a reload loads", () => {
+    const hoverAt = (h: H, seq: number) => h.receive({ type: "hover", seq, rect: { x: 0, y: 0, width: 4, height: 4 } });
+
+    // Hand's layer and a held ⌥ hide the hover mark, so those cases look once they are over. A held Space ends with
+    // the document, so it leaves nothing to resend.
+    it.each<[string, (h: H) => void, Record<string, unknown>[], (h: H) => void]>([
+      ["⌘", h => press(h, "MetaLeft", { key: "Meta" }), [{ type: "hover-meta", meta: true, seq: 1 }], () => {}],
+      ["⌥", h => press(h, "AltLeft", { key: "Alt" }), [{ type: "hover-alt", alt: true, seq: 1 }], h => release(h, "AltLeft", { key: "Alt" })],
+      ["H", h => press(h, "KeyH"), [{ type: "hover-hand", hand: true, seq: 1 }], h => press(h, "KeyV")],
+      ["Space", h => press(h, "Space"), [], () => {}],
+    ])("%s pressed while it loads", (_name, act, resent, settle) => {
+      const h = harness();
+      try {
+        h.controller.command("reload");
+        act(h);
+        expect(posted(h)).toEqual([]);
+        h.layout({ document: "doc2" });
+        expect(posted(h).filter(m => String(m.type).startsWith("hover-"))).toEqual(resent);
+        hoverAt(h, resent.length);
+        settle(h);
+        expect(h.markOf("hover")?.hidden).toBe(false);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("a key pressed and released while it loads leaves nothing to resend", () => {
+      const h = harness();
+      try {
+        h.controller.command("reload");
+        press(h, "MetaLeft", { key: "Meta" });
+        release(h, "MetaLeft", { key: "Meta" });
+        h.layout({ document: "doc2" });
+        expect(posted(h).filter(m => String(m.type).startsWith("hover-"))).toEqual([]);
+        hoverAt(h, 0);
+        expect(h.markOf("hover")?.hidden).toBe(false);
       } finally { h.controller.dispose(); }
     });
   });
@@ -6733,6 +6842,30 @@ describe("hand text drag", () => {
       await range(h);
       expect(painted(h)).toHaveLength(1);
       expect(copied(h)).toBe("Copy me");
+    } finally { h.controller.dispose(); }
+  });
+
+  // ⌘Tab mid-drag: the window's blur ends the drag, and the lost capture that follows finds no drag to release.
+  it("the app losing focus mid-drag releases the canvas's drag, so the keys and the wheel work after coming back", async () => {
+    const h = harness();
+    try {
+      hand(h);
+      pointer(h, "pointerdown", { clientX: 100, clientY: 100 });
+      hit(h, lastProbe(h, "text-press"), true);
+      pointer(h, "pointermove", { clientX: 160, clientY: 100 });
+      await range(h, { dragging: true, text: undefined });
+      (h.doc as { hasFocus: () => boolean }).hasFocus = () => false;
+      h.host.dispatchEvent(new Event("blur"));
+      pointer(h, "lostpointercapture");
+      expect(ofType(h, "text-release")).toEqual([{ type: "text-release", epoch: expect.any(Number) }]);
+      // The canvas answers the release with the range it ended on.
+      await range(h);
+      expect(painted(h)).toHaveLength(1);
+      (h.doc as { hasFocus: () => boolean }).hasFocus = () => true;
+      h.controller.wheel({ dx: 10, dy: 0, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
+      expect(ofType(h, "text-point")).toEqual([]);
+      key(h, "keydown", "KeyV");
+      expect(h.state().tool).toBe("select");
     } finally { h.controller.dispose(); }
   });
 

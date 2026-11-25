@@ -72,8 +72,19 @@ export function drawnPose(pose: Pose, rig: BuddyRig): Pose {
 
 const UNIFORMS = ["time", "squash", "lift", "tilt", "hatTilt", "layer", "energy", "look", "eyeOpen", "skin", "eyeTex"] as const;
 
-// Null without WebGL; throws when a shader does not compile or link, after releasing the context.
-function surface(canvas: HTMLCanvasElement, buddy: Buddy): { target: DoanyTarget; textures: Promise<unknown> } | null {
+export interface SurfacePose { time: number; squash: number; lift: number; tilt: number; hatTilt: number; energy: number; eyeOpen: number; look: readonly [number, number] }
+export interface BuddySurface {
+  draw: (pose: SurfacePose) => void;
+  resize: (size: number) => void;
+  lost: () => boolean;
+  release: () => void;
+  // Any of the three failing leaves the still image, as the draft does.
+  textures: Promise<unknown>;
+}
+
+// Home's and the docked buddy's one WebGL shell, so the golden trace pins both. Null without WebGL; throws when a shader
+// does not compile or link, after releasing the context.
+export function buddySurface(canvas: HTMLCanvasElement, shaders: { vertex: string; fragment: string }, assets: { body: string; accessory: string }): BuddySurface | null {
   const gl = canvas.getContext("webgl", { alpha: true, antialias: true, premultipliedAlpha: false });
   if (!gl) return null;
   const release = () => { gl.getExtension("WEBGL_lose_context")?.loseContext(); };
@@ -85,8 +96,8 @@ function surface(canvas: HTMLCanvasElement, buddy: Buddy): { target: DoanyTarget
       return shader;
     };
     const program = gl.createProgram();
-    gl.attachShader(program, compile(gl.VERTEX_SHADER, vertexFor(buddy.rig)));
-    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragmentFor(buddy.rig)));
+    gl.attachShader(program, compile(gl.VERTEX_SHADER, shaders.vertex));
+    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, shaders.fragment));
     gl.linkProgram(program);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(program) ?? "");
     gl.useProgram(program);
@@ -119,11 +130,10 @@ function surface(canvas: HTMLCanvasElement, buddy: Buddy): { target: DoanyTarget
         };
         img.onerror = () => reject(Error("Could not load " + path)); img.src = path;
       });
-    const target: DoanyTarget = {
+    return {
       draw(pose) {
         gl.viewport(0, 0, canvas.width, canvas.height); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); gl.useProgram(program);
-        const { time, squash, lift, tilt, hatTilt, energy, eyeOpen } = drawnPose(pose, buddy.rig);
-        for (const [key, value] of Object.entries({ time, squash, lift, tilt, hatTilt, energy, eyeOpen })) gl.uniform1f(locations[key as keyof typeof locations], value);
+        for (const key of ["time", "squash", "lift", "tilt", "hatTilt", "energy", "eyeOpen"] as const) gl.uniform1f(locations[key], pose[key]);
         gl.uniform2f(locations.look, pose.look[0], pose.look[1]);
         gl.uniform1i(locations.skin, 0);
         // The eye sits on unit 1 for both layers; the layers' own textures bind to unit 0.
@@ -131,21 +141,32 @@ function surface(canvas: HTMLCanvasElement, buddy: Buddy): { target: DoanyTarget
         for (let layer = 0; layer < 2; layer++) { gl.uniform1f(locations.layer, layer); gl.bindTexture(gl.TEXTURE_2D, textures[layer]!); gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0); }
       },
       resize(size) { canvas.width = size; canvas.height = size; },
-      isContextLost: () => gl.isContextLost(),
-      onLost(listener) {
-        const lost = (event: Event) => { event.preventDefault(); listener(); };
-        canvas.addEventListener("webglcontextlost", lost);
-        return () => canvas.removeEventListener("webglcontextlost", lost);
-      },
+      lost: () => gl.isContextLost(),
       release,
+      textures: Promise.all([texture(assets.body), texture(assets.accessory), texture(EYE_TEXTURE)]).then(([body, accessory, eyeTexture]) => { textures.push(body, accessory); eye = eyeTexture; }),
     };
-    // Any of the three failing leaves the still image, as the draft does.
-    return { target, textures: Promise.all([texture(buddy.assets.body), texture(buddy.assets.accessory), texture(EYE_TEXTURE)]).then(([body, accessory, eyeTexture]) => { textures.push(body, accessory); eye = eyeTexture; }) };
   } catch (error) {
-    // Home mounts Doany on every visit; a context left behind on each failure would reach Chromium's limit.
+    // Both buddies mount again and again; a context left behind on each failure would reach Chromium's limit.
     release();
     throw error;
   }
+}
+
+function surface(canvas: HTMLCanvasElement, buddy: Buddy): { target: DoanyTarget; textures: Promise<unknown> } | null {
+  const shell = buddySurface(canvas, { vertex: vertexFor(buddy.rig), fragment: fragmentFor(buddy.rig) }, buddy.assets);
+  if (!shell) return null;
+  const target: DoanyTarget = {
+    draw(pose) { shell.draw(drawnPose(pose, buddy.rig)); },
+    resize: shell.resize,
+    isContextLost: shell.lost,
+    onLost(listener) {
+      const lost = (event: Event) => { event.preventDefault(); listener(); };
+      canvas.addEventListener("webglcontextlost", lost);
+      return () => canvas.removeEventListener("webglcontextlost", lost);
+    },
+    release: shell.release,
+  };
+  return { target, textures: shell.textures };
 }
 
 // What keepBuddy hears from a mount: WebGL is gone (ready: after it had drawn), or a lost context is back.

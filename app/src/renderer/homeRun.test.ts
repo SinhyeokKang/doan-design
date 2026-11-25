@@ -431,6 +431,25 @@ test("after a reload the strip reads the conversation the list names; a turn the
   expect(h.run.knows("c1")).toBe(true);
 });
 
+test("a failed history read does not keep the conversation off the strip: the next list reads it again", async () => {
+  lists({ [ROOT]: [summary({ unseen: true })] });
+  doan.readConversation!.mockResolvedValueOnce({ error: "unknown" }).mockRejectedValueOnce(new Error("gone"))
+    .mockResolvedValue({ events: [event("c1", { type: "turn.done" })], lastSeq: 1, turn: "idle" });
+  const h = harness();
+  h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
+  h.run.entriesChanged();
+  await flush(); await flush();
+  expect(h.run.strip(ROOT)).toBeNull();
+  h.run.listChanged(ROOT);
+  await flush(); await flush();
+  expect(h.run.strip(ROOT)).toBeNull();
+  h.run.listChanged(ROOT);
+  await flush(); await flush();
+  expect(h.run.knows("c1")).toBe(true);
+  expect(h.run.strip(ROOT)).not.toBeNull();
+  expect(doan.readConversation).toHaveBeenCalledTimes(3);
+});
+
 test("a switch between projects never draws the previous project's strip (POSTMORTEM 2026-10-25)", async () => {
   lists({ [ROOT]: [summary({ conversationId: "a1", phase: "running" })], [OTHER]: [] });
   doan.readConversation!.mockResolvedValue({ events: [event("a1", { type: "turn.started" })], lastSeq: 1, turn: "starting" });
@@ -483,6 +502,25 @@ test("a failed seen marker brings the slot back", async () => {
   h.run.dismiss("c1");
   await flush(); await flush();
   expect(h.run.slots().get(ROOT)?.kind).toBe("unseen");
+});
+
+test("a failed seen mark through a run tells the runs which seq failed; a saved one does not", async () => {
+  lists({ [ROOT]: [summary({ unseen: true })] });
+  doan.markConversationSeen!.mockResolvedValueOnce({ error: "bad_request" }).mockRejectedValueOnce(new Error("gone"));
+  const h = harness();
+  const seenFailed = vi.fn();
+  h.host.seenFailed = seenFailed;
+  h.run.entriesChanged();
+  await flush(); await flush();
+  h.run.markSeenThrough("c1", 4);
+  await flush();
+  expect(seenFailed).toHaveBeenCalledExactlyOnceWith("c1", 4);
+  h.run.markSeenThrough("c1", 5);
+  await flush();
+  expect(seenFailed).toHaveBeenLastCalledWith("c1", 5);
+  h.run.markSeenThrough("c1", 6);
+  await flush();
+  expect(seenFailed).toHaveBeenCalledTimes(2);
 });
 
 // A canvas conversation is seen only in its canvas's open panel (markSeenThrough);

@@ -29,6 +29,7 @@ import { prototypeHeaderRows as appPrototypeHeaderRows, prototypeViewportBox as 
 import { drawerKey as appDrawerKey, groupDrawer as appGroupDrawer } from "../renderer/frameDrawerList";
 import { bubbleItems as appBubbleItems } from "../renderer/bubbleItems";
 import { measureLines as appMeasureLines } from "../renderer/measure";
+import { frameName as appFrameName } from "../renderer/canvasTree";
 import { drawerPlayRequest as appDrawerPlayRequest, playDrawer as appPlayDrawer, playRequest as appPlayRequest, playTooltip as appPlayTooltip, sizeBubblePlay as appSizeBubblePlay, type PlayState } from "../renderer/prototypePlay";
 import { sizeLabel as appSizeLabel } from "../renderer/selection";
 import { closedFocusTarget as appClosedFocusTarget } from "../renderer/prototypePlay";
@@ -2831,7 +2832,8 @@ describe("viewerApp.js: the app's judgments, generated", () => {
     for (const mark of ["390x844", "0x1", "390x844\\n", null]) expect(app.parsePrototypeMark(mark)).toEqual(appParsePrototypeMark(mark));
     expect(app.PROTOTYPE_LOAD_TIMEOUT_MS).toBe(PROTOTYPE_LOAD_TIMEOUT_MS);
     expect([app.LOADING_LABEL, app.RETRY, app.CLOSE]).toEqual([LOADING_LABEL, RETRY, CLOSE]);
-    for (const view of [{ frames, frame: "home", gotos }, { frames, frame: "gone", gotos: [] }, { frames: [], frame: "home", gotos: [] }]) {
+    const blank = [{ id: "a", title: "", size: "390x844", number: 1 }, { id: "b", title: "  ", size: "390x844", number: 2 }, { id: "c", title: " C ", size: "390x844", number: 3 }];
+    for (const view of [{ frames, frame: "home", gotos }, { frames, frame: "gone", gotos: [] }, { frames: [], frame: "home", gotos: [] }, { frames: blank, frame: "a", gotos: [] }]) {
       expect(app.drawerGroups(view)).toEqual(appDrawerGroups(view));
     }
     expect(app.drawerLabel({ canvas: "checkout" })).toBe(appDrawerLabel({ canvas: "checkout" }));
@@ -2859,9 +2861,16 @@ describe("viewerApp.js: the app's judgments, generated", () => {
 
 // Play reopens this file as a player window (`#doan-play=<id>`); what it decides is the app's (viewerApp.js). These pin
 // the browser's own rules; player.js defines only names at load, so it is read with no globals.
-const pc: Lib = playerJs ? runInNewContext(`${playerJs}\n({ PLAYER_COPY, linkToastText, READING_DELAY_MS })`, {}) as Lib : {};
+const pc: Lib = playerJs ? runInNewContext(`${playerJs}\n({ PLAYER_COPY, linkToastText, READING_DELAY_MS, frameName })`, {}) as Lib : {};
 
 describe("the browser player's rules", () => {
+  // The window title, the name button and the move announcement name a frame as the app does (canvasTree.ts frameName).
+  test("a frame is named by its trimmed title, else its id", () => {
+    for (const frame of [{ id: "pay", title: "Pay" }, { id: "pay", title: " Pay " }, { id: "pay", title: "" }, { id: "pay", title: "   " }, { id: "pay" }]) {
+      expect(pc.frameName?.(frame), JSON.stringify(frame)).toBe(appFrameName(frame));
+    }
+  });
+
   test("the reading line waits as long as the app's", () => {
     const app = readFileSync(new URL("../renderer/prototype/PrototypeWindow.tsx", import.meta.url), "utf8");
     const delay = Number(/const READING_DELAY_MS = (\d+);/.exec(app)?.[1]);

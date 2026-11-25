@@ -646,3 +646,25 @@ test("a canvas row whose list shows elsewhere (held above it) uses its own slot,
   expect(panelOpen()).toBe(true);
   expect(sidebarConversations().conversations.shown).toBe("c2");
 });
+
+// POSTMORTEM 2026-11-20 'The prototype hid an unread ending': a refused seen write leaves the shown ending eligible, so the
+// next check sends the same end again instead of leaving the unread mark until the next turn end.
+test.each([
+  ["the Overview", () => openOverview(), () => overview()!.run.focusChanged()],
+  ["the canvas panel", () => openCanvasPanel([onCanvas("c1", { lastActivityAt: "2026-11-01T00:02:00.000Z", unseen: true }), onCanvas("c2")]), () => title()!.run.focusChanged()],
+] as const)("a refused seen mark in %s is sent again for the same end on the next check", async (_name, open, check) => {
+  const ev = (conversationId: string, seq: number, payload: Record<string, unknown>) => ({ v: 1, conversationId, seq, turnId: "t1", at: "2026-11-01T00:00:00.000Z", ...payload });
+  doan.readConversation!.mockImplementation(async ({ conversationId }: { conversationId: string }) => ({
+    events: [ev(conversationId, 1, { type: "user.message", text: "Draw it", anchors: [] }), ev(conversationId, 2, { type: "turn.started" }), ev(conversationId, 3, { type: "turn.done" })], lastSeq: 3, turn: "idle",
+  }));
+  doan.markConversationSeen!.mockResolvedValueOnce({ error: "unknown" });
+  await open();
+  expect(doan.markConversationSeen).toHaveBeenCalledOnce();
+  const sent = doan.markConversationSeen!.mock.calls[0]![0];
+  await flushAll();
+  check(); await flushAll();
+  expect(doan.markConversationSeen).toHaveBeenCalledTimes(2);
+  expect(doan.markConversationSeen!.mock.calls[1]![0]).toEqual(sent);
+  check(); await flushAll();
+  expect(doan.markConversationSeen).toHaveBeenCalledTimes(2);
+});

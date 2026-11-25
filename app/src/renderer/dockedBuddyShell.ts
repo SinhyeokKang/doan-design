@@ -2,11 +2,11 @@
 // One imperative node moves between the surface slots with append, so the canvas keeps its WebGL context. It runs on
 // its own requestAnimationFrame, never renders React, and parks whenever another step could change nothing.
 import type { VisibleCalls } from "./visibleClock";
-import { EYE_TEXTURE, buddy as registry, type BuddyId } from "./buddies";
+import { buddy as registry, type BuddyId } from "./buddies";
 import { canvasSize } from "./doanyMotion";
 import { onDevicePixelRatio } from "./devicePixels";
 // After a lost context a rebuild waits for the GPU to come back, on Home's schedule (the reason is in Doany.tsx).
-import { RETRIES, RETRY_MS } from "./Doany";
+import { buddySurface, RETRIES, RETRY_MS, type BuddySurface } from "./Doany";
 import {
   advanceDocked, createDockedState, dockedGeometry, dockedNeedsTime, setDockedBuddy, REST_SECONDS, SIZE, xOn,
   type DockedEvent, type DockedFrame, type DockedInputs, type DockedState, type SurfaceName,
@@ -30,78 +30,14 @@ const FRAME_MS = 1000 / 60 - 4;
 export interface WorkspaceInputs { overview: boolean; folded: boolean; folding: boolean; covered: boolean; hint: boolean }
 const NO_WORKSPACE: WorkspaceInputs = { overview: false, folded: false, folding: false, covered: false, hint: false };
 
-const UNIFORMS = ["time", "squash", "lift", "tilt", "hatTilt", "layer", "energy", "look", "eyeOpen", "skin", "eyeTex"] as const;
+interface Target extends Omit<BuddySurface, "draw"> { draw(frame: DockedFrame): void }
 
-interface Target { draw(frame: DockedFrame): void; resize(size: number): void; lost(): boolean; release(): void; textures: Promise<unknown> }
-
-// Null without WebGL; throws when a shader does not compile or link, after releasing the context. Settings match
-// Doany.tsx's.
+// Null without WebGL; throws when a shader does not compile or link, after releasing the context.
 function glTarget(canvas: HTMLCanvasElement, id: BuddyId): Target | null {
-  const gl = canvas.getContext("webgl", { alpha: true, antialias: true, premultipliedAlpha: false });
-  if (!gl) return null;
-  const release = () => { gl.getExtension("WEBGL_lose_context")?.loseContext(); };
-  try {
-    const { vertex, fragment } = dockedShaders(registry(id).rig);
-    const compile = (type: number, source: string) => {
-      const shader = gl.createShader(type)!;
-      gl.shaderSource(shader, source); gl.compileShader(shader);
-      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw Error(gl.getShaderInfoLog(shader) ?? "");
-      return shader;
-    };
-    const program = gl.createProgram();
-    gl.attachShader(program, compile(gl.VERTEX_SHADER, vertex));
-    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragment));
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(program) ?? "");
-    gl.useProgram(program);
-    const at = {} as Record<(typeof UNIFORMS)[number], WebGLUniformLocation | null>;
-    for (const key of UNIFORMS) at[key] = gl.getUniformLocation(program, key);
-    const points: number[] = [], indices: number[] = [], n = 64;
-    for (let y = 0; y <= n; y++) for (let x = 0; x <= n; x++) points.push(x / n, y / n);
-    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const i = y * (n + 1) + x; indices.push(i, i + 1, i + n + 1, i + 1, i + n + 2, i + n + 1); }
-    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(points), gl.STATIC_DRAW);
-    const uv = gl.getAttribLocation(program, "aUV"); gl.enableVertexAttribArray(uv); gl.vertexAttribPointer(uv, 2, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
-    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    const layers: WebGLTexture[] = [];
-    let eye: WebGLTexture | null = null;
-    // Relative to the renderer's public folder, so the packaged app's file URL resolves it next to index.html.
-    const texture = (path: string) => new Promise<WebGLTexture>((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        try {
-          const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-          resolve(t);
-        } catch (error) { reject(error); }
-      };
-      img.onerror = () => reject(Error("Could not load " + path)); img.src = path;
-    });
-    const { assets } = registry(id);
-    return {
-      draw(frame) {
-        const p = frame.pose;
-        gl.viewport(0, 0, canvas.width, canvas.height); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); gl.useProgram(program);
-        for (const key of ["time", "squash", "lift", "tilt", "hatTilt", "energy", "eyeOpen"] as const) gl.uniform1f(at[key], p[key]);
-        gl.uniform2f(at.look, p.lookX, p.lookY);
-        gl.uniform1i(at.skin, 0);
-        if (eye) { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, eye); gl.uniform1i(at.eyeTex, 1); gl.activeTexture(gl.TEXTURE0); }
-        for (let layer = 0; layer < 2; layer++) { gl.uniform1f(at.layer, layer); gl.bindTexture(gl.TEXTURE_2D, layers[layer]!); gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0); }
-      },
-      resize(size) { canvas.width = size; canvas.height = size; },
-      lost: () => gl.isContextLost(),
-      release,
-      textures: Promise.all([texture(assets.body), texture(assets.accessory), texture(EYE_TEXTURE)]).then(([body, accessory, eyeTexture]) => { layers.push(body, accessory); eye = eyeTexture; }),
-    };
-  } catch (error) {
-    // A context left behind on each failure would reach Chromium's limit over repeated workspace visits.
-    release();
-    throw error;
-  }
+  const { rig, assets } = registry(id);
+  const shell = buddySurface(canvas, dockedShaders(rig), assets);
+  if (!shell) return null;
+  return { ...shell, draw: ({ pose }) => { shell.draw({ ...pose, look: [pose.lookX, pose.lookY] }); } };
 }
 
 // A buddy change replaces only this. failed: WebGL is gone for this rig; it shows the still image until rebuilt.

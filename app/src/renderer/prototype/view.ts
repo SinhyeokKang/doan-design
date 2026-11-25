@@ -1,4 +1,5 @@
-import type { GotoMessage, PrototypeMode, PrototypePhase, PrototypeView } from "../../main/prototype/ipc";
+import { PROTOTYPE_LOAD_TIMEOUT_MS, type GotoMessage, type PrototypeMode, type PrototypePhase, type PrototypeView } from "../../main/prototype/ipc";
+import { frameName } from "../canvasTree";
 import { groupDrawer, type DrawerGroup } from "../frameDrawerList";
 
 // Pure, so every state's copy and rule is tested without a window.
@@ -6,8 +7,8 @@ import { groupDrawer, type DrawerGroup } from "../frameDrawerList";
 export const LOADING_LABEL = "Loading prototype";
 export const RETRY = "Retry", CLOSE = "Close", DETAILS = "Details";
 export const EMPTY_DRAWER = "No frames in this canvas are marked for prototyping. Ask an agent to mark one.";
-// init-failed comes only from the host's own 10 s timer, so the window can say why when main sends no detail.
-export const TIMEOUT_DETAIL = "The frame didn’t finish loading within 10 seconds.";
+// init-failed comes only from the host's own timer, so the window can say why when main sends no detail.
+export const TIMEOUT_DETAIL = `The frame didn’t finish loading within ${PROTOTYPE_LOAD_TIMEOUT_MS / 1000} seconds.`;
 
 export function windowTitle(view: PrototypeView | null): string {
   return view === null ? "Prototype" : `${view.title} — Prototype`;
@@ -65,7 +66,7 @@ export function modeTooltip(mode: PrototypeMode, run: { markWidth: number; markH
 
 // The playing frame is current while it is still listed.
 export function drawerGroups(view: Pick<PrototypeView, "frames" | "frame" | "gotos">): DrawerGroup[] {
-  return groupDrawer(view.frames.map(frame => ({ key: frame.id, id: frame.id, number: frame.number, name: frame.title ?? frame.id, current: frame.id === view.frame, mark: frame.size })), view.gotos);
+  return groupDrawer(view.frames.map(frame => ({ key: frame.id, id: frame.id, number: frame.number, name: frameName(frame), current: frame.id === view.frame, mark: frame.size })), view.gotos);
 }
 
 export function drawerLabel(view: Pick<PrototypeView, "canvas">): string {

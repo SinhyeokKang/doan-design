@@ -2,7 +2,7 @@ import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas } from "../main/conversation/types";
 import { deleteAvailability, type DeleteAvailability } from "./conversationDelete";
-import { conversationWork, scheduledOf } from "./conversationList";
+import { conversationWork, scheduledOf, UNSEEN_LABEL } from "./conversationList";
 import { draftKey } from "./dockedRules";
 import type { Slot } from "./homeConversations";
 
@@ -30,7 +30,7 @@ export function shortAgo(at: string, now: number): ShortTime | null {
 }
 
 export interface ConversationStatus { kind: Slot["kind"]; label: string }
-const STATUS_LABELS: Record<Exclude<Slot["kind"], "scheduled">, string> = { permission: "Needs your answer", working: "Working", unseen: "Conversation finished — unread" };
+const STATUS_LABELS: Record<Exclude<Slot["kind"], "scheduled">, string> = { permission: "Needs your answer", working: "Working", unseen: UNSEEN_LABEL };
 
 // From the sidebar slot's rule (conversationWork), so a row and its slot never disagree. Unlike the sidebar, every
 // conversation counts here, not only those started from Home.

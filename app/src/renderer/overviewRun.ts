@@ -132,6 +132,10 @@ export class OverviewRun {
     this.host.changed();
   }
   focusChanged(): void { this.checkSeen(); }
+  // A failed write leaves this ending eligible the next time the shown conversation is checked.
+  seenFailed(conversationId: string, seq: number): void {
+    if (this.seenEnd.get(conversationId) === seq) this.seenEnd.delete(conversationId);
+  }
 
   // A conversation switch does not enter Back/Forward (App's).
   select(root: string, conversationId: string | null): void {

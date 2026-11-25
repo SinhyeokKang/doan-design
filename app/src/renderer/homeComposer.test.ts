@@ -1,13 +1,14 @@
 import { expect, test } from "vitest";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
-import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
+import { PROVIDERS, type AccountIdentity, type AuthState, type AuthStatusDto, type Provider, type ToolFacts } from "../main/agentAuth/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { MAX_ATTACHMENTS as MAIN_MAX_ATTACHMENTS, MAX_IMAGE_BYTES } from "../main/attachments";
 import { threadItems } from "./threadItems";
+import { validateSendExtras } from "../main/conversation/ipc";
 import { LIMITS } from "../main/conversation/messageText";
 import {
-  attachmentChipView, attachmentLimit, chosenAttachments, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProject, defaultProvider, fixedPreference,
+  attachmentChipView, attachmentLimit, chosenAttachments, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, FAST_PROVIDERS, fastToSend, defaultProject, defaultProvider, fixedPreference,
   GREETINGS, greetingText, foldRows, olderOrder, lockedOlderSide, heldScrollTop, NO_OLDER, olderLabel, olderOpened, olderToggled, groupIcon, groupLabel, isSubmitKey, steerKey, takesSuggestion, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
   draftProblem, presetPlaceholder, rootForProject, searchDrawer, selectableProvider, sendAvailability, sendRefusal, slashQuery, startErrorView, suggestedPresets,
   suggestedPrompts, TEXT_LIMIT, attachRefusal, markRefused, queueAttachmentSummary, readyAttachment, recordedAttachment, sentFileView,
@@ -1070,4 +1071,12 @@ test("a queue shows Pasted text only and keeps its line count in the tooltip and
   expect(queueAttachmentSummary([record], null)).toEqual({ name: "Pasted text", more: null, pastedText: true, items: [{ name: "Pasted text, 12 lines", path: "Checkout spec" }], label: "Attachments: Pasted text, 12 lines — Checkout spec" });
   const { lines: _lines, ...noLines } = record;
   expect(queueAttachmentSummary([noLines], null)).toMatchObject({ name: "Pasted text", items: [{ name: "Pasted text", path: "Checkout spec" }], label: "Attachments: Pasted text — Checkout spec" });
+});
+
+// main's Fast gate (validateSendExtras) is a literal check; this keeps the renderer's list the same set.
+test("the providers that offer Fast are the ones main's send accepts Fast for", () => {
+  for (const provider of PROVIDERS) {
+    const send = () => validateSendExtras({ fast: false }, "/w", provider, "doan", {});
+    if (FAST_PROVIDERS.includes(provider)) expect(send()).toMatchObject({ fast: false }); else expect(send).toThrow("bad_request");
+  }
 });

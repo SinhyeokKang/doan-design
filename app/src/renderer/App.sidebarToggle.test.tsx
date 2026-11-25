@@ -91,7 +91,7 @@ function reset() {
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), onFoldersSaveFailed: vi.fn(() => () => {}), openSettings: vi.fn(async () => true),
   };
   vi.stubGlobal("window", { doan, addEventListener: (name: string, listener: (event: never) => void) => { windowListeners[name] = listener; }, removeEventListener: vi.fn() });
-  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
+  vi.stubGlobal("document", { hasFocus: () => true, documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
   vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
   vi.stubGlobal("HTMLElement", class {});
 }
@@ -234,7 +234,7 @@ class FakeElement { constructor(readonly inside: boolean) {} closest(selector: s
 function focusScene(active: FakeElement) {
   const shown = { closest: () => null, focus: vi.fn() }, inert = { closest: () => ({}), focus: vi.fn() };
   vi.stubGlobal("Element", FakeElement);
-  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: active, body: {}, querySelector: () => null, querySelectorAll: (selector: string) => selector === ".shell-sidebar-toggle" ? [inert, shown] : [] });
+  vi.stubGlobal("document", { hasFocus: () => true, documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: active, body: {}, querySelector: () => null, querySelectorAll: (selector: string) => selector === ".shell-sidebar-toggle" ? [inert, shown] : [] });
   return { shown, inert };
 }
 
@@ -290,7 +290,7 @@ test("a hidden sidebar places the auto-placed panels in their own columns", asyn
 test("fullscreen marks the root element so the header drops the traffic-light space", async () => {
   const attributes = new Map<string, string>();
   const root = { setAttribute: (name: string, value: string) => attributes.set(name, value), removeAttribute: (name: string) => attributes.delete(name), style: { setProperty: vi.fn() } };
-  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, documentElement: root, querySelector: () => null, querySelectorAll: () => [] });
+  vi.stubGlobal("document", { hasFocus: () => true, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, documentElement: root, querySelector: () => null, querySelectorAll: () => [] });
   await start();
   expect(doan.onFullScreen).toHaveBeenCalledOnce();
   expect(attributes.has("data-fullscreen")).toBe(false);

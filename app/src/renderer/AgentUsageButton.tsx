@@ -4,6 +4,7 @@ import { Popover } from "radix-ui";
 import { RotateCw, Settings } from "lucide-react";
 import type { UsageEntry } from "../main/agentAuth/usageTypes";
 import { AlertIcon } from "./AlertIcon";
+import { useActivationFocus } from "./activationFocus";
 import { usageDescription } from "./agentUsage";
 import { foldedRing, ringViews, rowView, shownUsage, usageBusy, usageFolds, type RingView, type RowView, type WindowView } from "./agentUsageView";
 import type { CanvasPress } from "./ComposerParts";
@@ -144,13 +145,15 @@ export function AgentUsageButton({ openSettings, canvasPress }: { openSettings()
     const timer = setTimeout(() => setTick(tick => tick + 1), Math.min(nextReset - Date.now(), 2 ** 31 - 1));
     return () => clearTimeout(timer);
   }, [nextReset]);
-  // The last provider signed out under the open popover: the button goes, so focus goes to the current tab.
+  // The last provider signed out under the open popover: the button goes, so focus goes to the current tab. A usage push
+  // can do this while the window is behind, so the hand-off is made again on activation.
+  const handFocus = useActivationFocus();
   useEffect(() => {
     if (!gone || !open) return;
     keepFocus.current = true;
     setOpen(false);
-    header.current?.querySelector<HTMLElement>('.shell-modes [aria-current="page"]')?.focus();
-  }, [gone, open]);
+    handFocus(() => header.current?.querySelector<HTMLElement>('.shell-modes [aria-current="page"]')?.focus());
+  }, [gone, open, handFocus]);
   useHeaderNoDrag(open, button);
   // A press in the canvas iframe never reaches the app's document, so Radix cannot see it as an outside press.
   useEffect(() => {

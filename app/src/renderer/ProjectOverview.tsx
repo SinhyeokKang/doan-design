@@ -16,7 +16,7 @@ import { messageLine } from "../main/conversation/messageText";
 import { useProjectSkills } from "./useProjectSkills";
 import { AlertIcon } from "./AlertIcon";
 import { plainText, textSegments } from "./anchorField";
-import { queuedText, startNewConversation, steerPhaseOf } from "./CanvasConversationPanel";
+import { queuedMessage, startNewConversation, steerPhaseOf } from "./CanvasConversationPanel";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import { focusFieldEnd } from "./chipField";
 import { SuggestionButton } from "./ComposerParts";
@@ -299,7 +299,9 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         root, mode: "newDesign", runtime: chosen, text: request.text,
         ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(picker.effort?.fast?.on ? { fast: true } : {}), ...(permissionMode && permissionMode !== "default" ? { permissionMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
       };
-      const last: LastRequest = { root, text: plainText(draft.segments), preset: draft.preset, attachments: [...draft.attachments], provider: chosen, model, effort };
+      // A command remembers only its text, as Home's does: its preset and attachments stay in this draft.
+      const last: LastRequest = request.command ? { root, text: request.text, preset: null, attachments: [], provider: chosen, model, effort }
+        : { root, text: plainText(draft.segments), preset: draft.preset, attachments: [...draft.attachments], provider: chosen, model, effort };
       const revision = run.revision(root);
       const outcome = await props.onStart(start, last);
       if ("ok" in outcome && outcome.conversationId) {
@@ -328,7 +330,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     if (reply && ("error" in reply || "scheduled" in reply)) unmark?.();
     if (reply && "error" in reply) return reply;
     if (reply && "scheduled" in reply) {
-      run.queued(root, mode.conversationId, { id: reply.scheduled.itemId, text: queuedText(request), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });
+      run.queued(root, mode.conversationId, queuedMessage(reply.scheduled.itemId, request));
       return { ok: true, itemId: reply.scheduled.itemId };
     }
     run.sent(root, mode.conversationId, revision);
@@ -339,7 +341,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     const reply = await window.doan.queueConversation({ conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors], ...(request.attachments.length ? { attachments: request.attachments } : {}) }).catch(() => ({ error: "unknown" as const }));
     if ("error" in reply) return sendRefusal(reply);
     // The row keeps the request's text; the request itself is kept for the thread, where Send now moves it.
-    run.queued(root, mode.conversationId, { id: reply.itemId, text: queuedText(request), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });
+    run.queued(root, mode.conversationId, queuedMessage(reply.itemId, request));
     return { ok: true, itemId: reply.itemId };
   };
 
