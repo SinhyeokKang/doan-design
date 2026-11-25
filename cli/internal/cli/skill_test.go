@@ -361,7 +361,7 @@ func TestSkillGuideOpenCommand(t *testing.T) {
 		"`--prototype` plays that marked frame alone in its window (`prototype: true`)",
 		"Returns `{opened, frame}` where `frame` is `found`, `missing` (no such frame; say only the canvas opened) or `none`",
 		"On failure: `canvas_not_found`",
-		"`project_not_open` (name the folder; they add it with File > Add Projects…, then ask again)",
+		"`project_not_open` (as for `doan active`)",
 		"`busy` (`message` says what blocks; they finish it, then ask again)",
 		"`app_launch_failed` (Doan did not open)",
 		"`app_not_running` (as for `doan active`)",
