@@ -1235,7 +1235,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   useLayoutEffect(() => {
     shown.current = Array.isArray(items) ? pendingAsks(items).map(ask => ({ ...ask, unsent: Object.values(draftOf(ask.requestId).choices).some(choice => choice.text.trim() !== "") })) : [];
   });
-  // A scroll the follow did not write is the person's (or the browser's); a frame then re-pins it near the bottom.
+  // A scroll the follow did not write is the person's (or a clamp); a frame then re-pins it near the bottom. Scroll
+  // anchoring is off on the scroller (styles.css), or it would move the view as a reply grows above.
   const onScroll = () => {
     const node = scroller.current;
     if (!node) return;

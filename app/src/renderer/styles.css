@@ -1194,7 +1194,8 @@ body:has(.shell-top) { background: transparent; }
 /* doan-conversation: the conversation thread (.doan/canvases/doan-conversation.html, frames thread-*). Scoped to the
    thread so its short names (.activity, .marker, .md) never reach other screens. doan-project places it. */
 .conversation-thread { position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%; }
-.conversation-thread .thread-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+/* The follow writes the scroll itself; the browser's scroll anchoring would move it as a reply grows above. */
+.conversation-thread .thread-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-anchor: none; }
 .conversation-thread .thread { display: flex; flex-direction: column; gap: var(--space-6); }
 .conversation-thread .thread-item { display: flex; flex-direction: column; min-width: 0; }
 /* The caret ends the reply's last line (ConversationThread streamingCaret): one line tall and top-aligned, so it never
