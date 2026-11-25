@@ -39,3 +39,11 @@ it("stores an ACP tool call's activity whose title or location holds U+0000", ()
   const { events } = normalizeAcp(initialAcp("t", true), update, "/repo");
   expect(stored(events)).toEqual([{ type: "activity", kind: "edit", summary: "Edit a<U+0000>", callId: "call" }]);
 });
+
+// Only U+0000 is escaped: an activity line keeps an emoji's variation selector, a joiner or a bidi mark as written.
+it("keeps every other character of a tool's activity summary as written", () => {
+  const description = "✏️ Update header 👩‍💻 \u200f";
+  const claude = normalizeClaude(initialTransport(), assistant("Task", { description }), "/repo").events;
+  const acp = normalizeAcp(initialAcp("t"), { sessionUpdate: "tool_call", toolCallId: "call", kind: "think", status: "completed", title: description }, "/repo").events;
+  expect(stored([...claude, ...acp]).map(event => event.type === "activity" && event.summary)).toEqual([description, description]);
+});
