@@ -1353,6 +1353,11 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .thread-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 160px; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 /* Above the docked buddy's slot (2), which shares its stacking context, like the queue pills. */
 .conversation-thread .jump-latest { position: absolute; left: 50%; bottom: var(--space-3); transform: translateX(-50%); box-shadow: var(--shadow-sm); z-index: 3; }
+/* Forced colours paint every fill as Canvas and drop shadows, so shapes drawn only by a fill need a real edge. */
+@media (forced-colors: active) {
+  .conversation-thread :is(.bubble, .md-code, .md blockquote, .md-table, .msg-files .attach-chip) { border: 1px solid CanvasText; }
+  .conversation-thread .jump-latest { border: 1px solid ButtonText; }
+}
 /* turn-activity: the turn indicator in the reply's place (.doan/canvases/turn-activity.html, frame states). One line of
    fixed height, so a stage change never moves the thread: a long path ends in an ellipsis and the time keeps its place.
    The words are --text-metadata under a narrow white sweep (the panel colour mixed 55 %, 30 % of the words' width);
