@@ -132,11 +132,11 @@ const frames = () => {
 // nextHeight once the iframe takes it (POSTMORTEM 2026-11-20).
 let laidOut = false;
 const failedSheets = new WeakSet();
+const stylesheetPending = () => document.readyState !== "complete" && Array.from(document.querySelectorAll('link[rel~="stylesheet" i][href]:not([rel~="alternate" i])')).some(
+  (link) => !link.sheet && !link.disabled && !failedSheets.has(link) && (!link.media || matchMedia(link.media).matches));
 const send = () => {
   if (!laidOut) {
-    if (document.readyState !== "complete" && Array.from(document.querySelectorAll('link[rel~="stylesheet" i][href]:not([rel~="alternate" i])')).some(
-      (link) => !link.sheet && !link.disabled && !failedSheets.has(link) && (!link.media || matchMedia(link.media).matches),
-    )) return;
+    if (stylesheetPending()) return;
     laidOut = true;
   }
   inspection.layout();
