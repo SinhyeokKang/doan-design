@@ -190,7 +190,7 @@ Context, not deviations: the Overview column is 720 centred in a wider window (5
 
 ## Edit line counts
 
-Reference: `.doan/canvases/thread-edit-lines.html` (frames `steps`, `heads`, `widths`; `copy` is the wording reference). The draft is copied into a fixture repo `acme-web` as its own canvas and read in the app's canvas iframe, at 1238 × 900 (panel 347, then the 280 minimum) and at 1440 × 900 for the Overview's 720 column. No provider signed in: the histories were seeded as files (v2 index plus `activity` + `activity.result` events). 2,850 property rows were compared; every difference is listed below.
+Reference: `.doan/canvases/thread-edit-lines.html` (frames `steps`, `heads`, `widths`; `copy` is the wording reference). The draft is copied into a fixture repo `acme-web` as its own canvas and read in the app's canvas iframe, at 1238 × 900 (panel 347, then the 280 minimum) and at 1440 × 900 for the Overview's 720 column. No provider signed in: the histories were seeded as files (v2 index plus `activity` + `activity.result` events). Every difference is listed below.
 
 ### Measured contracts
 
@@ -212,7 +212,7 @@ Context, not deviations: the draft page's board-only `:where(svg){flex:none}` on
 ### Not verified
 
 - A running head and a step whose result has not arrived (`steps` (5), `heads` (4)): they need a live turn; markup and the head rule are unit-tested only. Counts arriving while the thread is open and the scroll height then: the deferred `/runtime-test` with a real provider.
-- Dark mode and forced colours of the two diff colours; the prototype window's conversation panel (same component and rules as the canvas panel).
+- The prototype window's conversation panel (same component and rules as the canvas panel).
 
 ### Regression pointers
 
