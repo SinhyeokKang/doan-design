@@ -151,10 +151,14 @@ async function onDrafts(list = listA()) { await overview(list); showCanvas(draft
 
 // The receiving card and the canvas cards show their canvases' images from the window's hub, as the Overview's list does.
 test("the canvas panel's thread and the Overview's get the window's thumbnail hub", async () => {
-  await onDrafts();
-  expect(panel()!.thumbnailHub).toBe(HUB);
   await overview();
   expect(overviewProps()!.thumbnailHub).toBe(HUB);
+  showCanvas(drafts); await flushAll();
+  handoff();
+  harness.controller!.destination!.mockReturnValue({ root: "/w/a", canvas: C });
+  showCanvas(checkout);
+  lastOpen()[3].opened(); render();
+  expect(panel()!.thumbnailHub).toBe(HUB);
 });
 
 test("on the source canvas the handoff moves through Quick Open's path: one visit, the panel on the card", async () => {

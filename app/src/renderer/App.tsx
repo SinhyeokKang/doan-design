@@ -2751,7 +2751,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       list={run.listState(overview.path)} seen={run.seenPending()} composerLink={overviewComposerLink}
       prefs={homeMemory} defaults={preferences ? preferences.preferences.newConversation : undefined} now={clock} onRemember={rememberPick}
       onWorktree={root => { chipFocus.current = true; showShellOverview(root); }} onOpenCanvas={(canvas, conversationId) => openConversationCanvas(overview.path, canvas, conversationId, { kind: "card" })}
-      onReplyChip={link => replyChip(overview.path, link)}
+      onReplyChip={link => replyChip(overview.path, link)} thumbnailHub={thumbnailHub}
       onRetryList={() => run.retryList(overview.path)} listRetry={run.listRetry(overview.path)} onStart={(request, last) => run.start(request, last, { stay: true })}
       onSendConversation={(provider, request) => run.send(overview.path, provider, request)}
       onAction={(name, root) => action(name, root)}
@@ -2777,7 +2777,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
           onOpenHandoff={(canvas, id) => openConversationCanvas(panelTarget.root, canvas, id, { kind: "card" })}
           onOpenOverview={id => openOverviewConversation(panelTarget.root, id)}
-          conversationListed={id => !Array.isArray(panelList) || panelList.some(c => c.conversationId === id)} work={work} />}
+          conversationListed={id => !Array.isArray(panelList) || panelList.some(c => c.conversationId === id)} work={work} thumbnailHub={thumbnailHub} />}
       </ConversationPanel></>}
     {/* Its own key space: the Overview beside it is keyed by the same root, and siblings sharing a key remount on every render. */}
     {problem && <ProblemOverlay key={`problem\n${loadedRoot}`} view={problem} details={detailsOpen} detail={detailText} pressed={retryPending ? "retry" : pressed && pressed.root === loadedRoot ? pressed.name : null}

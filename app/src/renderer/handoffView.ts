@@ -69,11 +69,6 @@ export function handoffCardView(source: { canvas?: Canvas }, project: string, li
   return { kind: source.canvas ? "canvas" : "overview", name, status, label: `${name}, ${status}`, open: listed,
     openLabel: source.canvas ? `Open ${name}` : "Open the source conversation in the Overview" };
 }
-// The one-line head of the card's markup until it draws handoffCardView.
-export function handoffCardHead(source: { canvas?: Canvas }, project: string, listed: boolean): string {
-  const view = handoffCardView(source, project, listed);
-  return `Handed off from ${view.name}${view.status.slice(CARD_STATUS.length)}`;
-}
 // The toast shows on any screen, so an Overview source names its project.
 export function handoffToastText(notice: ConversationHandoffNotice, project: string): string {
   const source = notice.source.canvas ? fileName(notice.source.canvas.path) : `${project} Overview`;

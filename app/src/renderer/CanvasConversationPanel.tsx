@@ -11,6 +11,7 @@ import type { Anchor, Canvas } from "../main/conversation/types";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { messageLine, type FrameName } from "../main/conversation/messageText";
 import type { CanvasRow, FolderEntry } from "../main/view";
+import type { ThumbnailHub } from "./thumbnails";
 import type { WorkItem } from "../main/workState";
 import type { HomeMemory } from "../restore/uiState";
 import type { DoanApi } from "../preload";
@@ -118,6 +119,8 @@ export interface CanvasConversationProps {
   canvasPress?: CanvasPress | undefined;
   // The prototype window's playing frame, pinned on its composer and put first in every message.
   playing?: PlayingFrameChip | null;
+  // The window's thumbnails, for the thread's canvas and handoff cards.
+  thumbnailHub?: ThumbnailHub;
 }
 
 const NEW_PLACEHOLDER = "Ask, / for presets";
@@ -545,7 +548,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onOpenLink={url => void openReplyLink(target => calls.openLink(target), url, props.onNotice)}
         onCopy={text => Promise.resolve(copyText(text))}
         onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
-        {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} openCanvasPath={target.canvas.path} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
+        {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} openCanvasPath={target.canvas.path} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS}
+        now={props.now} {...(props.thumbnailHub ? { thumbnails: { hub: props.thumbnailHub, root } } : {})} />
         : view.kind === "wait" || conversationId ? <ConversationLoading /> : <>
           {newView?.listError && listFailedNotice(run.listRetry(), () => run.retryList())}
           {card && <CommandCardNotice card={card} onAction={cardAction} onDismiss={dismissCard} />}

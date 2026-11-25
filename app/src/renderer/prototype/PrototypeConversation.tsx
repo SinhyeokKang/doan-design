@@ -13,6 +13,7 @@ import { announcedAgain } from "../listRetry";
 import { LIST_FAILED_TEXT, listRetryItem } from "../ListRetryButton";
 import type { PrototypeConversationCalls, PrototypeConversationRun } from "./conversationRun";
 import { NameTip } from "../NameTip";
+import { useThumbnailHub } from "../thumbnails";
 
 // The prototype window's conversation panel: the canvas panel's body, under the panel shell's head, on the conversation
 // this window's own canvas run shows. Its thread chips, Sign in and Open buttons belong to the main window: they go to
@@ -21,6 +22,8 @@ import { NameTip } from "../NameTip";
 export function PrototypeConversationPanel({ run, calls, now, onNotice = () => {} }: {
   run: PrototypeConversationRun; calls: PrototypeConversationCalls; now: number; onNotice?(text: string): void;
 }) {
+  // Main answers this window's thumbnails for the playing root only.
+  const thumbnailHub = useThumbnailHub(calls);
   const view = run.currentView(), target = run.target();
   if (!view || !target) return null;
   // The sidebar names a project by its folder; this window has no sidebar list to ask.
@@ -54,7 +57,7 @@ export function PrototypeConversationPanel({ run, calls, now, onNotice = () => {
     onOpenOverview={conversationId => reveal({ kind: "conversation", conversationId })}
     conversationListed={conversationId => run.conversationListed(conversationId)}
     onOpenHandoff={(canvas, conversationId) => reveal({ kind: "handoff", canvas, ...(conversationId ? { conversationId } : {}) })}
-    work={run.work()} playing={run.playing()} />;
+    work={run.work()} playing={run.playing()} thumbnailHub={thumbnailHub} />;
 }
 
 // The menu's value for New conversation: conversation ids are never empty.

@@ -619,7 +619,8 @@ describe("canvas cards and the handoff card", () => {
   // A Drawing card keeps its meta line, empty or not, so it is as tall as Drawn.
   const NO_META = '<span class="cc-meta"></span>';
   const SEP = '<span class="sep" aria-hidden="true">·</span>';
-  const time = (lead: string, title: string, text: string) => `<span>${lead} <time [^>]*title="${title}"[^>]*>${text}</time></span>`;
+  // The absolute time is the shared tooltip's (no native title); its words are canvasCardMeta's, pinned in canvasCardText.test.ts.
+  const time = (lead: string, at: Date, text: string) => `<span>${lead} <time dateTime="${at.toISOString()}" data-state="closed" data-slot="tooltip-trigger">${text}</time></span>`;
   const html = (items: ConversationThreadProps["items"], patch: Partial<ConversationThreadProps> = {}) => threadHtml(items, { now: NOW, ...patch });
 
   test("Drawing: a labelled group with the hidden spinner, the canvas icon, the name over its status, and Open", () => {
@@ -658,7 +659,7 @@ describe("canvas cards and the handoff card", () => {
     const out = canvasCard(card(), context([[CHECKOUT.path, { kind: "ready", url: "blob:1" }]]));
     const banner = `<div class="cc-banner" data-path="${CHECKOUT.path}" aria-hidden="true"><img src="blob:1" alt=""/></div>`;
     expect(out).toMatch(cardMarkup("checkout-flow.html", "Drawn", svg("check"), OPEN("Open checkout-flow.html"),
-      `<span class="cc-meta"><span>3 frames</span>${SEP}${time("Edited", "2026-11-25 14:02", "2m ago")}</span>`, banner));
+      `<span class="cc-meta"><span>3 frames</span>${SEP}${time("Edited", at(2), "2m ago")}</span>`, banner));
   });
 
   test("a renamed canvas keeps its meta: the row is found by ID, not by path", () => {
@@ -674,13 +675,13 @@ describe("canvas cards and the handoff card", () => {
     // Drawing: no image and no frame count yet; the modified time stays.
     const drawing = canvasCard(card({ drawing: true }), context([[CHECKOUT.path, { kind: "ready", url: "blob:1" }]]));
     expect(drawing).not.toContain("blob:1");
-    expect(drawing).toMatch(new RegExp(`<span class="cc-meta">${time("Edited", "2026-11-25 14:02", "2m ago")}</span>`));
+    expect(drawing).toMatch(new RegExp(`<span class="cc-meta">${time("Edited", at(2), "2m ago")}</span>`));
   });
 
   test("a canvas outside .doan/canvases/ names its folder first; no frames and no modified time leave what is known", () => {
     const BUTTON = { path: ".doan/ds/button.html", id: "button" };
     const out = html([card({ canvas: BUTTON })], { canvasRows: [row(BUTTON)] });
-    expect(out).toMatch(new RegExp(`<span class="cc-meta"><span>.doan/ds</span>${SEP}<span>3 frames</span>${SEP}${time("Edited", "2026-11-25 14:02", "2m ago")}</span>`));
+    expect(out).toMatch(new RegExp(`<span class="cc-meta"><span>.doan/ds</span>${SEP}<span>3 frames</span>${SEP}${time("Edited", at(2), "2m ago")}</span>`));
     const { mtimeMs: _, ...bare } = row(CHECKOUT, { frames: [] });
     expect(html([card()], { canvasRows: [bare] })).toContain('<span class="cc-meta"><span>No frames</span></span>');
   });
@@ -755,7 +756,7 @@ describe("canvas cards and the handoff card", () => {
 
   test("the handoff card: a labelled focusable group, the source's banner and head row, its meta and the text as agent Markdown, a {{1}} kept as typed", () => {
     const out = html([handoff({ text: "Pick up **Payment**.\n\nThe person wrote “{{1}}”." })], { canvasRows: ROWS });
-    const meta = `<span class="cc-meta"><span>3 frames</span>${SEP}${time("Handed off", "2026-11-25 13:59", "5m ago")}</span>`;
+    const meta = `<span class="cc-meta"><span>3 frames</span>${SEP}${time("Handed off", at(-1), "5m ago")}</span>`;
     // The handoff's time stands in for the modified time.
     expect(out).toMatch(handoffMarkup("drafts.html", "Handed off to this conversation", OPEN("Open drafts.html"), meta, EMPTY_BANNER));
     const banner = `<div class="cc-banner" data-path="${DRAFTS.path}" aria-hidden="true"><img src="blob:2" alt=""/></div>`;
@@ -768,7 +769,7 @@ describe("canvas cards and the handoff card", () => {
   test("the handoff card's source gone: the tail, no Open, the faint icon and no frame count; the handoff's time stays", () => {
     const out = handoffCard(handoff(), context([[DRAFTS.path, { kind: "ready", url: "blob:2" }]]), false);
     expect(out).toMatch(handoffMarkup("drafts.html", "Handed off to this conversation · No longer in doan-design", "",
-      `<span class="cc-meta">${time("Handed off", "2026-11-25 13:59", "5m ago")}</span>`, EMPTY_BANNER));
+      `<span class="cc-meta">${time("Handed off", at(-1), "5m ago")}</span>`, EMPTY_BANNER));
     expect(out).not.toContain("blob:2");
   });
 
@@ -787,7 +788,7 @@ describe("canvas cards and the handoff card", () => {
     const fromOverview = handoff({ origin: { kind: "handoff", conversationId: "c0" } });
     const opened: string[] = [];
     const listed = (id: string) => id === "c0";
-    const meta = `<span class="cc-meta">${time("Handed off", "2026-11-25 13:59", "5m ago")}</span>`;
+    const meta = `<span class="cc-meta">${time("Handed off", at(-1), "5m ago")}</span>`;
     expect(html([fromOverview], { conversationListed: listed, onOpenOverview: id => opened.push(id) }))
       .toMatch(handoffMarkup("Overview", "Handed off to this conversation", OPEN("Open the source conversation in the Overview"), meta, "", "layout-grid"));
     expect(html([fromOverview], { conversationListed: () => false, onOpenOverview: id => opened.push(id) }))

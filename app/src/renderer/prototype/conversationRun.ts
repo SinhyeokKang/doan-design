@@ -9,6 +9,7 @@ import { ConversationStore, type ListView, type StoreCalls } from "../conversati
 import { LIST_RETRY_IDLE, type ListRetry } from "../listRetry";
 import { DockedSupport, type DockedSupportCalls } from "../dockedSupport";
 import { canvasStrongestSignal, type CanvasSignal } from "../rightPanelOpen";
+import type { ThumbnailCalls } from "../thumbnails";
 import type { VisibleCalls } from "../visibleClock";
 import { conversationButton, playingFrameChip, prototypeHeadTitle, prototypeShown, type ConversationButton, type PlayingFrameChip, type PrototypeConversationTarget, type PrototypeShown } from "./conversation";
 
@@ -19,7 +20,7 @@ import { conversationButton, playingFrameChip, prototypeHeadTitle, prototypeShow
 // panel or drafts.
 
 // Everything the panel calls: `window.doanPrototype`'s members of the same names as `window.doan`'s, and its own.
-export type PrototypeConversationCalls = ConversationCalls & StoreCalls & DockedSupportCalls & ResumeCalls & VisibleCalls
+export type PrototypeConversationCalls = ConversationCalls & StoreCalls & DockedSupportCalls & ResumeCalls & VisibleCalls & ThumbnailCalls
   & Pick<DoanApi, "deleteConversation" | "markConversationSeen" | "onConversationEvent" | "onConversationStage" | "onConversationBoundary" | "onConversationListChanged" | "getWork" | "onWorkChanged">
   & Pick<PrototypeWindowApi, "listConversations" | "setShowing" | "reveal" | "rememberChoice" | "readComposerSettings" | "onComposerSettings" | "readTargetEntry" | "onTargetEntry" | "rememberedConversation" | "conversationListed">;
 
