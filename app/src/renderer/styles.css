@@ -1203,6 +1203,11 @@ body:has(.shell-top) { background: transparent; }
 @keyframes thread-caret { 50% { opacity: 0; } }
 /* The person's message: a light accent bubble, plain text that keeps its line breaks. */
 .conversation-thread .msg-user { align-self: flex-end; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1h); max-width: 80%; min-width: 0; }
+/* A message sent from this window rises in. Transform and opacity only: the thread's height and its follow never move. */
+@keyframes thread-enter { from { opacity: 0; transform: translateY(var(--space-4)); } }
+@keyframes thread-enter-fade { from { opacity: 0; } }
+.conversation-thread .msg-user.thread-enter { animation: thread-enter var(--time-thread-enter) var(--ease-enter) both; }
+@media (prefers-reduced-motion: reduce) { .conversation-thread .msg-user.thread-enter { animation-name: thread-enter-fade; animation-duration: var(--time-state); animation-timing-function: var(--ease-state); } }
 .conversation-thread .bubble { padding: var(--space-2) var(--space-4); border-radius: var(--radius-row); background: var(--surface-accent-subtle); color: var(--text-standard); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; user-select: text; }
 .conversation-thread .bubble-preset { display: inline-flex; align-items: center; gap: var(--space-1h); color: var(--text-accent-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); font-weight: var(--type-weight-medium); }
 .conversation-thread .bubble-preset svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }

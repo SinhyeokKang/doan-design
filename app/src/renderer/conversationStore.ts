@@ -17,6 +17,8 @@ import { messageLine } from "../main/conversation/messageText";
 import { REPLACE_DRAFT, type ReplaceDraftConfirm } from "./homeConversations";
 import { stripRequestLines } from "../main/conversation/requestLines";
 import { STALE_MODE_CARD, type CommandCard } from "./commandView";
+import { commandName } from "../main/conversation/providerCommands";
+import type { LocalSend } from "./threadMotion";
 import type { DoanApi } from "../preload";
 
 // What the Overview's main conversation and the canvas panel share: the threads
@@ -101,6 +103,11 @@ export class ConversationStore {
   // The card of a built-in Doan does not run, by draft key: this run only, shared by every screen showing the draft.
   private cards = new Map<string, CommandCard>();
   private pendingSends = new Map<string, { message: SendingMessage; after: number }[]>();
+  // What this window sent, by conversation, for the thread's entry motion; a thread spends a mark once it drew the
+  // history's message for it. queueMarks: the one message the queue goes out as after the turn, kept after its rows
+  // go, since the rows may leave before that message arrives.
+  private sends = new Map<string, LocalSend[]>();
+  private queueMarks = new Map<string, LocalSend>();
 
   constructor(private host: ConversationStoreHost, private calls: StoreCalls) {}
 
@@ -141,15 +148,49 @@ export class ConversationStore {
       this.host.changed();
     };
   }
+  // A send from this window: its mark draws nothing. after: the conversation's last seq (0 for a new conversation).
+  // The returned call drops it, for a send main refused or scheduled.
+  markSent(conversationId: string, text: string, after = this.lastSeq(conversationId)): () => void {
+    const mark: LocalSend = { text, after };
+    this.sends.set(conversationId, [...this.sends.get(conversationId) ?? [], mark]);
+    return () => this.spendSends(conversationId, [mark]);
+  }
+  localSends(conversationId: string): readonly LocalSend[] {
+    const sends = this.sends.get(conversationId) ?? [], queue = this.queueMarks.get(conversationId);
+    return queue ? [...sends, queue] : sends;
+  }
+  spendSends(conversationId: string, marks: readonly LocalSend[]): void {
+    const left = (this.sends.get(conversationId) ?? []).filter(mark => !marks.includes(mark));
+    if (left.length) this.sends.set(conversationId, left); else this.sends.delete(conversationId);
+    const queue = this.queueMarks.get(conversationId);
+    if (queue && marks.includes(queue)) this.queueMarks.delete(conversationId);
+  }
+  private lastSeq(conversationId: string): number {
+    return Math.max(0, ...(this.threads.get(conversationId)?.events ?? []).map(event => event.seq));
+  }
+  // The rows still queued go out after the turn as main's flush sends them: combined, a command alone (queue.ts).
+  // syncQueues does not call it, so the mark outlives rows main already sent.
+  private markQueue(conversationId: string): void {
+    const queue = this.queues.get(conversationId), provider = this.providerOf(conversationId) ?? this.summaryOf(conversationId)?.provider;
+    const items = (queue?.items ?? []).filter(item => item.pressed === undefined).map(item => item.message ?? { text: item.text, anchors: [], attachments: [] });
+    if (items.length) this.queueMarks.set(conversationId, { text: queuedText(items, item => provider !== undefined && commandName(provider, item.text) !== null), after: this.lastSeq(conversationId) });
+    else this.queueMarks.delete(conversationId);
+  }
+  private summaryOf(conversationId: string): ConversationSummary | undefined {
+    const root = this.queues.get(conversationId)?.root, list = root === undefined ? null : this.host.list(root);
+    return Array.isArray(list) ? list.find(item => item.conversationId === conversationId) : undefined;
+  }
   queued(root: string, conversationId: string, item: QueuedMessage): void {
     const queue = this.queues.get(conversationId);
     this.queues.set(conversationId, { root, items: [...queue?.items ?? [], item], after: this.host.readsStarted(root), turn: this.currentTurn(conversationId) });
+    this.markQueue(conversationId);
     this.host.changed();
   }
   unqueued(conversationId: string, itemId: string): void {
     const queue = this.queues.get(conversationId);
     if (!queue) return;
     this.queues.set(conversationId, { ...queue, items: queue.items.filter(item => item.id !== itemId) });
+    this.markQueue(conversationId);
     this.host.changed();
   }
   // Send now: one queued message into the running turn. Its row leaves the queue at the press and the message shows at
@@ -159,9 +200,12 @@ export class ConversationStore {
   // A refusal also says whether the turn still runs as the store reads it then: an end event merged before the screen
   // drew it decides, not the last draw (only a running turn's refusal is said under the row).
   async sendQueuedNow(conversationId: string, itemId: string): Promise<void | { error: string; turnRuns?: boolean }> {
-    if (!this.markQueued(conversationId, itemId, true)) return { error: "stale" };
+    const item = this.queues.get(conversationId)?.items.find(entry => entry.id === itemId);
+    if (!item || !this.markQueued(conversationId, itemId, true)) return { error: "stale" };
+    const unmark = this.markSent(conversationId, item.message?.text ?? item.text);
     const reply = await this.calls.sendQueuedNow({ conversationId, itemId }).catch(() => ({ error: "unknown" }));
     if (!reply || !("error" in reply)) { this.unqueued(conversationId, itemId); return reply; }
+    unmark();
     this.markQueued(conversationId, itemId, false);
     return { error: reply.error, turnRuns: this.turnRuns(conversationId) };
   }
@@ -182,6 +226,7 @@ export class ConversationStore {
     // has in flight), so only a read started from now can say main sent it.
     const after = sending ? queue.after : this.host.readsStarted(queue.root);
     this.queues.set(conversationId, { ...queue, after, items: queue.items.map(entry => entry === item ? sending ? { ...rest, pressed: ++this.presses } : rest : entry) });
+    this.markQueue(conversationId);
     this.host.changed();
     return true;
   }
@@ -220,6 +265,7 @@ export class ConversationStore {
       if (this.deletedIds.has(conversationId)) return;
       const items = reply.map((item): QueuedMessage => ({ id: item.itemId, text: messageLine(stripRequestLines(item.text), item.anchors), message: { text: item.text, anchors: item.anchors, attachments: item.attachments }, ...(item.turnId ? { turnId: item.turnId } : {}) }));
       this.queues.set(conversationId, { root, items, after: this.host.readsStarted(root), turn: this.currentTurn(conversationId) });
+      this.markQueue(conversationId);
       this.host.changed();
     });
   }
@@ -270,6 +316,8 @@ export class ConversationStore {
     this.questions.delete(conversationId);
     this.stages.delete(conversationId);
     this.queues.delete(conversationId);
+    this.sends.delete(conversationId);
+    this.queueMarks.delete(conversationId);
     this.schedules.delete(conversationId);
     this.taking.delete(conversationId);
     this.taken.delete(conversationId);
@@ -515,6 +563,19 @@ export function dropAttachment(calls: Pick<StoreCalls, "removeAttachment" | "rel
   const id = attachment.id; if (!id) return;
   const removed = calls.removeAttachment(id);
   void (attachment.held ? removed.then(() => calls.releaseAttachments([id])) : removed).catch(console.error);
+}
+// The text main's flush sends for these queued messages: main/conversation/queue.ts nextQueued and combineQueued,
+// which the renderer cannot import (attachments.ts reaches Node modules). A command goes alone; the messages before the
+// next command go together, a blank line apart, each one's {{n}} moved past the anchors before it.
+function queuedText(items: readonly { text: string; anchors: readonly Anchor[] }[], isCommand: (item: { text: string }) => boolean): string {
+  const end = items.findIndex(isCommand);
+  const next = end === 0 ? items.slice(0, 1) : items.slice(0, end === -1 ? items.length : end);
+  let offset = 0;
+  return next.map(item => {
+    const text = item.text.replace(/\{\{([1-9][0-9]*)\}\}/g, (_match, n: string) => `{{${Number(n) + offset}}}`);
+    offset += item.anchors.length;
+    return text;
+  }).join("\n\n");
 }
 // A draft dropped or replaced whole gives back every file it held: a pasted image is deleted, a returned queue's id
 // released (main attachments.ts remove).

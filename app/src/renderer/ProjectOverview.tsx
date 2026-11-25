@@ -306,6 +306,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
       const revision = run.revision(root);
       const outcome = await props.onStart(start, last);
       if ("ok" in outcome && outcome.conversationId) {
+        run.store.markSent(outcome.conversationId, request.text, 0);
         support.clearPick(key);
         if (permissionMode) support.startedIn(draftKey({ kind: "existing", conversationId: outcome.conversationId, provider: chosen }), permissionMode);
         run.started(root, outcome.conversationId, chosen, revision);
@@ -322,10 +323,12 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     const waits = waitsForReset(summary);
     // A message that waits for the reset becomes a queued row instead.
     const settle = waits ? null : run.store.sendPending(mode.conversationId, { id: crypto.randomUUID(), text: request.text, anchors: request.anchors, attachments: request.files ?? [] });
+    const unmark = waits ? null : run.store.markSent(mode.conversationId, request.text);
     const reply = await props.onSendConversation(mode.provider, {
       conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
       ...(waits ? {} : { ...(changedModel && model ? { model, ...(effort ? { effort } : {}) } : {}), ...changedFast, ...(sentMode ? { permissionMode: sentMode } : {}) }), ...(request.attachments.length ? { attachments: request.attachments } : {}),
     }).catch(() => ({ error: "unknown" })).finally(() => settle?.());
+    if (reply && ("error" in reply || "scheduled" in reply)) unmark?.();
     if (reply && "error" in reply) return reply;
     if (reply && "scheduled" in reply) {
       run.queued(root, mode.conversationId, { id: reply.scheduled.itemId, text: queuedText(request), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });
@@ -434,7 +437,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onOpenLink={url => void openReplyLink(target => window.doan.openLink(target), url, text => props.onNotice?.(text))}
         onCopy={text => Promise.resolve(copyText(text))}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS}
-        now={props.now} {...(props.thumbnailHub ? { thumbnails: { hub: props.thumbnailHub, root } } : {})} />
+        now={props.now} {...(props.thumbnailHub ? { thumbnails: { hub: props.thumbnailHub, root } } : {})}
+        localSends={run.store.localSends(conversationId)} onSpendSends={marks => run.store.spendSends(conversationId, marks)} stopping={summary?.stopping === true} />
         : waiting || conversationId ? <ConversationLoading /> : <div className="ov-col ov-new">
           {list === "error" && listFailedNotice(listRetry, props.onRetryList)}
           {card && <CommandCardNotice card={card} onAction={cardAction} onDismiss={dismissCard} />}
