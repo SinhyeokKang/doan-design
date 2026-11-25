@@ -139,6 +139,16 @@ describe("the headless body in the prototype window", () => {
     expect(render().props.blocked).toBe("Another canvas has the same ID, so this conversation can’t continue. Run doan check in a terminal to find it.");
   });
 
+  // PRODUCT §5 item 1: a project group is named by its main worktree's folder, as the main window names it.
+  test("a linked worktree's canvas names the project by its main worktree's folder", async () => {
+    const twin = "/w/acme-feature";
+    (calls.readTargetEntry as Mock).mockResolvedValue({ path: twin, kind: "list", servedRev: 0, canvases: [{ ...CHECKOUT, url: "u" }], git: { common: "/w/acme/.git", main: ROOT, branch: "feature", worktrees: [ROOT, twin] } });
+    await playing({ root: twin, canvasRow: "gone" });
+    const panel = render();
+    expect(panel.props.project).toBe("acme");
+    expect(panel.props.blocked).toBe("This canvas isn’t listed in acme, so its conversation can’t continue.");
+  });
+
   // A failed list read does not hold Send in this window; the failure line offers Retry.
   test("a failed list read shows the failure line with Retry, and the composer can still send", async () => {
     calls.listConversations = vi.fn(async () => ({ error: "unknown" }));
