@@ -145,7 +145,7 @@ export function acpQuestion(params: Record<string, unknown>, requestId: string):
 export interface AcpTransport extends TransportState { turn: string; segment: number; text: string; tools: Record<string, AcpTool>; thinking?: true; countsEdits?: true }
 // diffs: the last diff content a running call's updates carried; it may come before the completion, which can carry none.
 interface AcpTool { kind: string; path: string; title: string; diffs?: AcpDiff[] }
-interface AcpDiff { oldText: string; newText: string }
+interface AcpDiff { path: string; oldText: string; newText: string }
 export function initialAcp(turn: string, countsEdits = false): AcpTransport {
   return { terminal: false, stop: null, messageId: `${turn}:0`, textBlock: null, completedMessages: [], activities: [], fileSummaries: {}, turn, segment: 0, text: "", tools: {}, ...(countsEdits ? { countsEdits: true } : {}) };
 }
@@ -154,7 +154,7 @@ export function initialAcp(turn: string, countsEdits = false): AcpTransport {
 function acpDiffs(content: unknown): AcpDiff[] | undefined {
   if (!Array.isArray(content) || !content.some(item => object(item) && item.type === "diff")) return undefined;
   const diffs: AcpDiff[] = [];
-  for (const item of content) if (object(item) && item.type === "diff" && typeof item.newText === "string") diffs.push({ oldText: str(item.oldText), newText: item.newText });
+  for (const item of content) if (object(item) && item.type === "diff" && typeof item.newText === "string") diffs.push({ path: str(item.path), oldText: str(item.oldText), newText: item.newText });
   return diffs;
 }
 function flush(state: AcpTransport): TransportResult & { state: AcpTransport } {
@@ -249,8 +249,11 @@ export function normalizeAcp(state: AcpTransport, update: Record<string, unknown
   const event: EventPayload = tool.path
     ? { type: "activity", kind: activityKind, path: tool.path, insideDesign: canvasDir(posix.relative(root, posix.resolve(root, tool.path))) !== null, summary, ...call }
     : { type: "activity", kind: activityKind, summary, ...call };
-  // One result per diff item: a two-file patch brings one for each file, an overwrite a delete and an add on one path.
-  const results = callId ? (diffs ?? []).flatMap(diff => editResult(callId, tool.path, countTextChange(diff.oldText, diff.newText))) : [];
+  // One result per diff item on the step's own path (every item when the step has none): a call that patches several
+  // files is still one step, named by one of them, so only that file's lines are its own. An overwrite brings a delete
+  // and an add on that path.
+  const counted = (diffs ?? []).filter(diff => !tool.path || diff.path === tool.path);
+  const results = callId ? counted.flatMap(diff => editResult(callId, tool.path, countTextChange(diff.oldText, diff.newText))) : [];
   return { state: { ...next, activities: [...woke.state.activities, id] }, events: [...flushed.events, event, ...results], stage: ended };
 }
 function finishAcp(state: AcpTransport, event: EventPayload): TransportResult & { state: AcpTransport } {
