@@ -9,7 +9,7 @@ import type { ProjectInitResult } from "../shell";
 import { EXCLUDE_LABEL } from "../storage";
 import { openDecision } from "../view";
 import { runClone, type CloneRequest, type CloneResult } from "./clone";
-import { HOME_REFUSAL, repositoryLeftoverMessage } from "./operations";
+import { setupRefusal } from "./operations";
 import type { RemoteRead } from "./gitConfig";
 import { findCandidates, folderMatch, type GitHubRepository } from "./repository";
 
@@ -204,8 +204,8 @@ export async function selectProject(path: string, initialize: boolean, repo: Git
 // A refused setup, by the CLI's literal code (ARCHITECTURE §12 'Storage'), read whatever was asked: plain init in a
 // project already out of Git can fail on the exclude file too.
 function setupFailure(code: string, root: string, deps: ProjectDeps): ProjectOutcome {
-  if (code === "cleanup_failed") return { ok: false, code, message: repositoryLeftoverMessage(root) };
-  if (code === "local_not_git" && homeOrAbove(root, deps.home())) return { ok: false, code, message: HOME_REFUSAL };
+  const own = setupRefusal(code, root, deps.home());
+  if (own) return { ok: false, code: own.code, message: `${own.message} ${own.guidance}` };
   return failed(code === "local_not_git" || code === "local_exclude_failed" || code === "git_missing" ? code : "init_failed");
 }
 
