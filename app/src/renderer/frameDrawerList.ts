@@ -14,7 +14,7 @@ export function focusedRowAfter(rows: readonly DrawerListRow[], focusedKey: stri
   return (rows.find(row => row.current) ?? rows[0])?.key ?? null;
 }
 
-// As in the sidebar tree.
+// Arrows stop at the ends, as in the sidebar tree.
 export function drawerKeyTarget(rows: readonly DrawerListRow[], focusedKey: string | null, key: string): string | null {
   if (rows.length === 0) return null;
   const index = Math.max(0, rows.findIndex(row => row.key === focusedKey));
@@ -80,8 +80,8 @@ function listTakesKey(event: { key: string; metaKey: boolean; ctrlKey: boolean; 
 }
 export interface DrawerKey { prevent: boolean; pick?: string; move?: string; typed: Typed }
 
-// Even a key the typeahead cannot match, so the canvas tools' V and H never fire while the list is open. Esc is
-// Radix's.
+// The open list takes every unmodified printable key, so V and H never reach the canvas tools while it is open.
+// Esc is Radix's.
 export function drawerKey(rows: readonly DrawerListRow[], focusedKey: string | null, event: { key: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean }, typed: Typed, now: number): DrawerKey {
   const { key } = event;
   if (key === "Tab") return { prevent: true, typed };

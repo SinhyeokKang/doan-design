@@ -20,7 +20,7 @@ export function cooldownClock(remainingMs: number): string {
   return `${two(Math.floor(seconds / 3600))}:${two(Math.floor(seconds / 60) % 60)}:${two(seconds % 60)}`;
 }
 
-// So each redraw lands on a boundary.
+// The wait until the shown second changes, so each redraw lands on a boundary.
 export function nextTick(remainingMs: number): number {
   return remainingMs % 1000 || 1000;
 }

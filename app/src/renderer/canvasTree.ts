@@ -40,7 +40,7 @@ export function typeaheadNext(visibleKeys: readonly string[], currentIndex: numb
   return search(needle, Math.max(currentIndex, 0));
 }
 
-// Its own row keeps its state, and the folders it moved into open.
+// The moved canvas's row keeps its state, and the folders it moved into open.
 export function moveExpanded(paths: readonly string[], from: string, to: string): string[] {
   const next = new Set(paths.filter(path => path !== from));
   const parts = to.split("/");

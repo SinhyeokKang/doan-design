@@ -239,7 +239,7 @@ export function fastReason(reason: FastUnusedReason): string { return FAST_REASO
 const EFFORT_LABELS: Record<string, string> = { minimal: "Minimal", low: "Low", medium: "Medium", high: "High", xhigh: "Extra high", max: "Max" };
 function effortLabel(id: string): string { return EFFORT_LABELS[id] ?? id.charAt(0).toUpperCase() + id.slice(1); }
 
-// Claude Code's default, Codex's isDefault, an ACP agent's current model.
+// isDefault: the provider's own default (Claude Code's default, Codex's isDefault, an ACP agent's current model).
 export type ModelRow =
   | { kind: "model"; id: string; label: string; effort: boolean; selected: boolean; isDefault: boolean; older?: true }
   | { kind: "default"; label: "Default"; selected: boolean };
@@ -334,7 +334,7 @@ function effortView(provider: Provider, model: ModelOption, choice: ModelChoice)
   const label = picked ? effortLabel(picked) : known ? effortLabel(known) : "Effort";
   const named = picked ? label : known ? `${label}, default` : "default";
   const fast = choice.fast !== undefined ? fastView(provider, model, choice.fast) : null;
-  // Settings shows label as its row's text.
+  // label stays the level alone, without ariaLabel's default or Fast words: Settings shows it as its row's text.
   return {
     label, ariaLabel: fast && !fast.unavailable ? `Effort: ${named}, Fast ${fast.on ? "on" : "off"}` : `Effort: ${named}`, placeholder: !picked && !known,
     menuLabel: `Effort for ${model.label}`, title: `Effort · ${model.label}`,
@@ -649,7 +649,7 @@ const REFUSALS: Record<string, (name: string, kind: AttachmentRefusalKind) => st
 // An unknown code reads as unreadable.
 export function attachRefusal(error: string, name: string, kind: AttachmentRefusalKind = "file"): string { return (REFUSALS[error] ?? REFUSALS.unreadable!)(name, kind); }
 
-// Also a recorded path main could not issue again.
+// A chip for what main checked, or for a recorded path main could not issue again.
 export function readyAttachment(key: string, info: AttachmentInfo): AttachmentDraft {
   return { key, id: info.id, name: info.name, kind: info.kind, pasted: info.pasted, status: "ready", ...("size" in info ? { size: info.size } : {}), path: info.path, ...(info.lines === undefined ? {} : { lines: info.lines }), ...(info.excerpt === undefined ? {} : { excerpt: info.excerpt }) };
 }

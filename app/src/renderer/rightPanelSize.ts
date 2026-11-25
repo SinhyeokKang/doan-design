@@ -5,7 +5,7 @@ export interface PanelBounds {
   max: number;
 }
 
-// Its head, composer and cards still fit at 280.
+// The narrowest either right panel goes: its head, composer and cards still fit at 280.
 export const PANEL_MIN = 280;
 export const OVERVIEW_PANEL_DEFAULT = 280;
 const DEFAULT_FLOOR = 320;
@@ -43,7 +43,7 @@ export function inspectorBounds(shellWidth: number, conversationWidth = 0): Pane
   return max >= PANEL_MIN ? { min: PANEL_MIN, max } : null;
 }
 
-// So a narrow window costs the inspector, never the conversation the person is talking in.
+// The conversation is sized first, so a narrow window costs the inspector, never the conversation in use.
 export function canvasPanelsLayout({ windowWidth, shellWidth, conversation, inspector }: CanvasPanelsInput): CanvasPanelsLayout {
   const alone = panelBounds(windowWidth, shellWidth);
   const conversationWidth = conversation.open ? panelWidth(conversation.width, alone, canvasPanelDefault(windowWidth)) : 0;

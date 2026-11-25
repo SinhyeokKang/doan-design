@@ -24,7 +24,7 @@ export class McpConnectorsWatch {
   private listeners = new Set<() => void>();
   // Kept by a row while it is Removing.
   private settled = new Map<string, ConnectorAction>();
-  // Until a later open works or the row leaves Connecting.
+  // Rows whose last Open again failed, until a later open works or the row leaves Connecting.
   private openFailures = new Set<string>();
   constructor(private readonly deps: McpConnectorsWatchDeps) {}
 

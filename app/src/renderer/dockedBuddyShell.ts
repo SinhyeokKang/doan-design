@@ -19,7 +19,7 @@ export const FLOATING = "[data-radix-popper-content-wrapper], .slash-popover, .d
 // popover only wakes the parked loop and refreshes the floating list: the slash popover opens inside the card where no
 // other observer sees it.
 export const SLOT_ATTRIBUTES = ["data-accepts", "data-queue", "data-waiting", "data-notice", "data-popover"];
-// So following new agent output (the thread sets its own scrollTop) does not end the rest.
+// A thread scroll ends the rest only this soon after the person's input, so following new agent output does not.
 const PERSON_SCROLL_MS = 1000;
 // One 60 Hz interval less a margin no vsync jitter reaches, so 60 Hz drops nothing and 120 Hz advances every other
 // callback. The core still gets each real timestamp; an input change applies on the very next callback.
@@ -235,7 +235,7 @@ export class DockedBuddyShell {
     live.rebuilt = false;
     this.wake();
   }
-  // Only while a lost ready rig left retries.
+  // A failed rig retries only while a lost ready rig left retries.
   private retryLater(live: Live) {
     if (live.retry || live.retries <= 0) return;
     const wait = RETRY_MS * 2 ** (RETRIES - live.retries);
@@ -249,7 +249,7 @@ export class DockedBuddyShell {
 
   private listen(live: Live) {
     const wake = () => this.wake();
-    // It never wakes the loop: a parked one would change nothing visible, so the event waits in the queue, once.
+    // The pointer over the thread never wakes the loop: a parked one would change nothing visible, so it waits queued.
     const move = (event: PointerEvent) => { if (closest(event.target, ".thread-scroll") && live.events.at(-1) !== "thread") live.events.push("thread"); };
     // Focus alone does not end a rest: the app hands focus back to the field.
     const typed = (event: Event) => { if (closest(event.target, ".docked .composer-input")) { live.activityAt = Date.now(); live.events.push("input"); this.wake(); } };

@@ -44,7 +44,7 @@ export interface CanvasFrameRect {
   // The ID was cut at 200 UTF-16 units, so it is not the frame's: it cannot play, and link groups must leave it out
   // rather than take the cut ID for another frame's.
   cut?: true;
-  // It always comes earlier.
+  // The enclosing frame always comes earlier in `frames`.
   parent?: number;
   x: number;
   y: number;
@@ -163,7 +163,7 @@ export interface AnchorsMessage {
 // seq. A pick lives only as long as its `document`.
 export type PickedMessage = { type: "picked"; href: string; document: string; pick: number } & ({ target: SelectTarget } | { point: { x: number; y: number } } | { cancelled: true });
 
-// Until then the app keeps clicks off the canvas.
+// The canvas took a pick-start; until this arrives the app keeps clicks off the canvas.
 export interface PickStartedMessage { type: "pick-started"; href: string; document: string; pick: number }
 
 // A range from a replaced document or sent before a clear (`epoch`) is dropped. Empty `rects` is no range; `text`
@@ -177,7 +177,7 @@ export interface ElementTreeAnchor { selector: string; doanId?: string; frame?: 
 export interface ElementTreeNode { depth: number; name: string; kind: ElementKind; anchor: ElementTreeAnchor; rect: CanvasRect; selected?: true }
 export interface ElementTreeMessage { type: "element-tree"; href: string; document: string; seq: number; viewport: number; nodes: ElementTreeNode[]; truncated: boolean }
 
-// It carries nothing, so a forged one can do no more than close the app's lists and move focus to the canvas area.
+// A press carries nothing, so a forged one can do no more than close the app's lists and move focus to the canvas.
 export interface PressMessage { type: "press" }
 // At most once a second.
 export interface ActivityMessage { type: "activity" }

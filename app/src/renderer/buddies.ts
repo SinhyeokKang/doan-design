@@ -2,7 +2,7 @@
 // too.
 
 export type BuddyId = "doany" | "puri" | "dungdung" | "popo" | "dori";
-// Everywhere but first run's Cover Flow row.
+// The default order; first run's Cover Flow uses FIRST_RUN_ORDER.
 export const BUDDY_IDS: readonly BuddyId[] = ["doany", "puri", "dungdung", "popo", "dori"];
 // Doany, the default, sits in the middle so all five show on the first visit.
 export const FIRST_RUN_ORDER: readonly BuddyId[] = ["popo", "puri", "doany", "dungdung", "dori"];

@@ -86,8 +86,8 @@ export function continueList(segments: readonly FieldSegment[], caret: number): 
   return spliceUnits(segments, caret, caret, textSegments(`\n${line.slice(0, item.lead)}${marker}`));
 }
 
-// Its children move with it. When the new number would have 4 digits the item keeps its marker, since the depth change
-// is what the key asked for.
+// An item's children move with it. When the new number would have 4 digits the item keeps its marker, since the depth
+// change is what the key asked for.
 export function indentItem(segments: readonly FieldSegment[], caret: number, dir: 1 | -1): FieldEdit | null {
   const { lines, starts, items } = layout(segments);
   const i = lineOf(starts, caret), item = items[i];

@@ -42,7 +42,7 @@ interface CanvasState {
   target: CanvasTarget;
   // undefined until the first pick; null is the new conversation state.
   shown?: string | null;
-  // So a start or send reply that lands after a newer choice leaves it alone.
+  // Moves with what shows, so a start or send reply that lands after a newer choice leaves it alone.
   revision: number;
   // asked: the list was read again for it once; after: reads started before the request.
   request: { conversationId: string; after: number; asked: boolean; scroll: ScrollTo | null } | null;
@@ -60,7 +60,7 @@ interface CanvasState {
   defaultNew?: ReadonlySet<string>;
 }
 
-// So a moved canvas keeps what it showed and its draft.
+// A canvas is keyed by its id when it has one, so a moved canvas keeps what it showed and its draft.
 export function canvasKey(target: CanvasTarget): string {
   return draftKey({ kind: "new", root: target.root, canvas: target.canvas });
 }
@@ -73,7 +73,7 @@ export class CanvasRun {
   private scroll: { conversationId: string; to: ScrollTo; seq: number } | null = null;
   private scrolls = 0;
   private resumeAsks = 0;
-  // Until main answers; their draft is the message being sent.
+  // Starts from this panel until main answers; their draft is the message being sent.
   private starting = new Map<string, number>();
   // The host's list still names one until its next read, and deleted() picks before the store forgets it.
   private gone = new Set<string>();
@@ -185,7 +185,8 @@ export class CanvasRun {
     }
     this.host.changed();
   }
-  // Unless the person chose something else while it was sent (`revision` is the panel's then).
+  // Shows at once, before any list has it, unless the person chose something else while it was sent (`revision` is
+  // the panel's at the send).
   started(target: CanvasTarget, conversationId: string, provider: Provider, revision: number): void {
     this.store.started(conversationId, provider);
     const s = this.canvases.get(canvasKey(target));
@@ -308,8 +309,8 @@ export class CanvasRun {
     if (shown === null && (s.shown !== null || s.defaultNew)) s.defaultNew = this.listedIds(root);
     this.setShown(s, shown);
   }
-  // Not while this panel's own start from that draft is in flight: a draft whose send can be in flight never moves. A
-  // handoff's conversation takes it only while that draft is empty.
+  // Follows even during this panel's start, but that draft does not move: one whose send can be in flight never does.
+  // A draft or such a start holds back a handoff's conversation (`held`).
   private followNew(s: CanvasState, known: ReadonlySet<string>, list: readonly ConversationSummary[]): boolean {
     const key = canvasKey(s.target);
     const held = this.starting.has(key) || hasDraft(this.store.drafts.get(key));
@@ -342,7 +343,7 @@ export class CanvasRun {
       this.host.changed();
     });
   }
-  // Then it is also the canvas's last seen conversation on this device, once a list names it there.
+  // A seen conversation also becomes the canvas's last seen one on this device, once a list names it there.
   private checkSeen(): void {
     const s = this.shownState();
     const id = s?.shown;

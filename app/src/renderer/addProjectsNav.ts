@@ -62,7 +62,7 @@ export function pageEscape(event: { target: unknown; isComposing: boolean; keyCo
   return { kind: "escape", editing: typing(event.target) || event.isComposing || event.keyCode === 229, overlay };
 }
 
-// Neither result may be dropped, so the page cannot be left meanwhile.
+// Selecting writes the project and a clone runs to its end; neither result may be dropped, so the page cannot be left.
 export function leaveLocked(phase: Pick<ProjectPhase, "kind">): boolean {
   return phase.kind === "selecting" || phase.kind === "cloning";
 }

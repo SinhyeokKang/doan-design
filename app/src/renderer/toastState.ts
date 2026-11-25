@@ -8,7 +8,7 @@ export interface Toast {
   action?: string;
   // The toast stays until the action settles it.
   busy?: true;
-  // It is visible and read there, so the modal does not hold its clock.
+  // A toast drawn inside a modal dialog is visible and read there, so the modal does not hold its clock.
   dialog?: HTMLDialogElement;
 }
 
@@ -17,12 +17,12 @@ export type ToastEnd = { id: string; reason: "expired" | "action" | "replaced" }
 export interface ToastState {
   toast: Toast | null;
   remainingMs: number;
-  // Also stops while the window is hidden or an App modal owns input.
+  // The timer stops while hovered, focused, hidden, or an App modal owns input.
   hovered: boolean;
   focused: boolean;
   hidden: boolean;
   modal: boolean;
-  // So the caller can act on its ending without re-deriving it.
+  // The toast the last event ended, so the caller can act on it without re-deriving it.
   ended?: ToastEnd;
   // A replacement keeps the key, so it changes only the content and does not enter again.
   slot: number;

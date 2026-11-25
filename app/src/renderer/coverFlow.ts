@@ -17,8 +17,8 @@ export function stepTarget(order: readonly BuddyId[], selected: BuddyId, step: -
   return order[Math.max(0, Math.min(order.length - 1, order.indexOf(selected) + step))]!;
 }
 
-// Only the card the row snaps to is picked, so cards passed over are never saved. A fast swipe with momentum sends
-// about 3,000 px, a gentle one a few hundred.
+// Only the card the row snaps to is picked, so cards passed over are never saved. Tuned so a fast swipe with
+// momentum (about 3,000 px) does not feel slow.
 export const WHEEL_PX_PER_CARD = 600;
 // Momentum events come every ~16 ms and never pause past ~60 ms, so 160 ms of quiet ends the scroll.
 export const WHEEL_QUIET = 160;

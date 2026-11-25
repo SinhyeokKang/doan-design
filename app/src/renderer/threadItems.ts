@@ -21,8 +21,8 @@ export type ThreadItem =
   | { kind: "agent"; key: string; messageId: string; text: string; streaming: boolean }
   | { kind: "noReply"; key: string }
   | { kind: "fast"; key: string; seq: number; text: string; turnedOff: boolean }
-  // head is the running tool's words while it is the running turn's last item (activityRun). total: the known counts'
-  // sum, never on a running head.
+  // head: "N steps", or the tool's words while this is the running turn's last item and the indicator names a tool
+  // (activityRun). total: the known counts' sum, never on a running head.
   | { kind: "activity"; key: string; running: boolean; head: string; total?: EditLines; steps: ActivityStep[] }
   | { kind: "permission"; key: string; seq: number; requestId: string; summary: string; reason?: string; options: PermissionOption[]; status: "pending" | "answered" | "expired"; answer: PermissionOption | null }
   // answers: what main kept of an answered one, by question id.
@@ -33,8 +33,8 @@ export type ThreadItem =
   // "missed": a new canvas the turn edited and asked no handoff for. The key is the turn's and the path's, so the card
   // stays the same element through every status.
   | { kind: "canvasCard"; key: string; canvas: Canvas; drawing: boolean; drawn: boolean; handoff?: CardHandoff }
-  // Its first message is the earlier agent's text, never the person's, so it is not read for a preset line or {{n}}
-  // markers.
+  // A handoff's first message is the earlier agent's text, never the person's, so it is not read for a preset line
+  // or {{n}} markers.
   | { kind: "handoffCard"; key: string; seq: number; origin: HandoffOrigin; text: string; at: string }
   // After a /compact or /clear turn that ran.
   | { kind: "boundary"; key: string; label: string };

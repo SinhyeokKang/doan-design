@@ -19,7 +19,7 @@ export interface SidebarConversation {
   deletable: DeleteAvailability;
 }
 
-// None while fewer than two. Membership is the sidebar slot's own (`slotKeyOf`), so two rows sharing an ID give an
+// Empty while fewer than two. Membership is the sidebar slot's own (`slotKeyOf`), so two rows sharing an ID give an
 // empty list rather than another canvas's conversations.
 export function viewedCanvasConversations(list: readonly ConversationSummary[] | "loading" | "error", root: string, viewedPath: string | null,
   rows: readonly Canvas[], seen: ReadonlySet<string>, now: number, frozen: readonly string[] | null = null): SidebarConversation[] {

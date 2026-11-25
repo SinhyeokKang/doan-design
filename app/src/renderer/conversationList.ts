@@ -36,7 +36,7 @@ function listed(canvas: Canvas, rows: readonly Canvas[]): Canvas | null {
   return canvas.id ? null : rows.find(row => !row.id && row.path === canvas.path) ?? null;
 }
 
-// Its canvas row while listed, else its project row.
+// A conversation's slot sits on its canvas row while listed, else on its project row.
 export function slotKeyOf(root: string, c: ConversationSummary, rows: readonly Canvas[]): string {
   const row = c.canvas ? listed(c.canvas, rows) : null;
   return slotKey(root, row?.path);

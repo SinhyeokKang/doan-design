@@ -47,7 +47,7 @@ export function pickWork(target: WorkingCanvas | null, presence: Pick<AgentPrese
   return best;
 }
 
-// Also with no work, so the controller sees a change of canvas as entering it.
+// Built with no work too, so the controller sees a canvas change as entering it.
 export function canvasWorkTarget(target: WorkingCanvas | null, picked: PickedWork | null, conversations: readonly ConversationWork[], terminal: readonly WorkItem[]): CanvasWorkTarget | null {
   if (!target) return null;
   const on = (item: { root: string; path: string }) => item.root === target.root && item.path === target.canvas.path;

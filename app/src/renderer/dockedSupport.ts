@@ -5,8 +5,7 @@ import type { DoanApi } from "../preload";
 import { draftKey } from "./dockedRules";
 import type { ModelsState, PresetListReply } from "./homeComposer";
 
-// Read once for the run as Home's are. App owns one, so leaving and coming back does not read them again or lose a
-// pick.
+// Accounts, presets, model lists and picks: App owns one, so leaving does not re-read them or lose a pick.
 
 // A provider switch drops permissionMode and fast: modes are remembered per provider, and Full access never carries.
 // permissionFrom: the stored mode a pick in an existing conversation was made over, until main reports it back.

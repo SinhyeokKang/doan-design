@@ -2,19 +2,17 @@ import type { Provider } from "../main/agentAuth/types";
 import type { ConversationEvent, PermissionOption, PermissionRequest, QuestionRequest } from "../main/conversation/types";
 import { PROVIDER_NAMES } from "./agentAuthView";
 
-// Until the conversation panel replaces it.
-
 export type StripState =
   | { kind: "starting" }
   | { kind: "working"; activity: string | null }
   | { kind: "permission"; requestId: string; summary: string; options: PermissionOption[] }
-  // Answered in the conversation; here only skipped or stopped.
+  // The first sentence only; answered in the conversation, here only skipped or stopped.
   | { kind: "question"; requestId: string; question: string }
   | { kind: "failed"; code: string; model?: string }
   | { kind: "interrupted"; reason: "user" | "appQuit" | "crashed" }
   | { kind: "done" };
 
-// The same signals, toasts and turn rules.
+// A permission request and a question share signals, toasts and turn rules.
 export function asksPerson(kind: StripState["kind"]): kind is "permission" | "question" {
   return kind === "permission" || kind === "question";
 }
@@ -67,7 +65,7 @@ const FAILURES: Record<string, (p: string) => { title: string; body: string }> =
 // process_exited, unknown and codes without a row of their own.
 const STOPPED = (p: string) => ({ title: `${p} stopped unexpectedly`, body: "Edit your request on Home and send it again." });
 
-// Its line shows only while that same request is shown; the next press clears it (PRODUCT §5 item 1).
+// A refused Skip or answer's line shows only while that request is shown; the next press clears it (PRODUCT §5 item 1).
 export interface StripSendError { requestId: string; how: "skip" | "answer" }
 // Shared with the thread's question card, which tells a refused Skip apart the same way.
 export const SKIP_FAILED_TEXT = "Couldn’t skip the question. Try again.";

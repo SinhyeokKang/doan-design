@@ -48,7 +48,7 @@ export class AgentSignIn {
   // A main event and an invoke reply have no guaranteed order, so a prompt cannot be judged until the reply lands.
   private starting = 0;
   private held: AuthPromptEvent[] = [];
-  // Until it settles: its ready change is announced at once.
+  // Sign-ins this renderer started, until they settle: their ready change is announced at once.
   private ownedBy = new Map<Provider, string>();
   private cancelled = new Set<Provider>();
   // ended: a sign-in ended there, so the change is news even if the rows' screen has gone by then; a settled check is
@@ -215,7 +215,7 @@ export class AgentSignIn {
     this.context(event.provider, { prompt: event.attemptId });
     if (this.ownedIds.includes(event.attemptId)) this.autoOpen(event);
     else if (this.starting > 0) this.held.push(event);
-    // Otherwise the attempt was started elsewhere (the CLI, owned by this window too): main opens its link.
+    // An attempt started elsewhere (the CLI, owned by this window too) gets its link opened by main.
   }
   private autoOpen(event: AuthPromptEvent): void {
     if (!AUTO_OPEN.includes(event.provider) || this.opened.has(event.attemptId) || loopback(event.url)) return;

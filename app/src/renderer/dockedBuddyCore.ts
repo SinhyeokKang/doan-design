@@ -272,7 +272,7 @@ function decide(st: DockedState, v: View, inputs: DockedInputs, dt: number, rand
   st.idleLeft -= dt;
   if (st.idleLeft <= 0) idleTrip(st, v, random);
 }
-// Else to a new random x on the same surface, so a click always gets a visible answer.
+// A click trips to the other surface when allowed, else to a new x on the same one, so it always gets a visible answer.
 function pokeTrip(st: DockedState, v: View, random: () => number) {
   const other = st.surface === "dock" ? "tools" : "dock";
   const go = v.ok(other) ? other : st.surface;
@@ -308,7 +308,7 @@ function advanceTrip(st: DockedState, inputs: DockedInputs, v: View) {
     else { const u = Math.min(1, (elapsed - .34)/.22); st.conceal = peek*(1 - smooth(u)); if (u === 1) done(st); }
   }
 }
-// Without a hide or reveal.
+// First step: at rest on the current surface, without a hide or reveal.
 function mount(st: DockedState, v: View, inputs: DockedInputs) {
   st.mounted = true;
   const w = want(st, v), s = v.s;

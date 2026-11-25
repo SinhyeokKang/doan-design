@@ -35,7 +35,7 @@ export interface BuddySelection {
   failure: BuddyFailure | null;
   // A failure notice's Retry shows busy meanwhile (DESIGN 'Busy action').
   saving: boolean;
-  // It may already have ended; null with no change time.
+  // When the buddy lock ends (possibly already); null with no change time.
   lockedUntil: number | null;
   // changedAt is saved in the same patch, so the buddy and its lock are written together or not at all.
   select(id: BuddyId, changedAt?: string): Promise<boolean>;

@@ -165,12 +165,12 @@ export class CanvasController {
   private selectedRect: CanvasRect | null = null;
   private hoverRect: CanvasRect | null = null;
   private treeHover: CanvasRect | null = null;
-  // Its own seq, apart from selection, hover and pick; only the answer to the last request reaches the listener.
+  // The element-tree channel has its own seq, apart from selection, hover and pick; only the latest answer counts.
   private treeSeq = 0;
   private treeAsked: { document: string; seq: number } | null = null;
   private treeListener: ((message: ElementTreeMessage) => void) | null = null;
   private altHeld = false;
-  // So the app losing focus can take ⌘ back (⌘Tab sends no keyup).
+  // Whether the canvas was told ⌘ is down, so the app losing focus can take it back (⌘Tab sends no keyup).
   private metaHeld = false;
   // The Escape a toolbar tooltip took, and whether anything after the tooltip handled it (toolbarEscape).
   private tooltipEscape: { event: KeyboardEvent; handledAfter: boolean } | null = null;
@@ -223,11 +223,11 @@ export class CanvasController {
   private snapshots = 0;
   private snapshotFrames = new Set<number>();
   private canvasPage = true;
-  // Their React owners live outside the controller, so it reads the document.
+  // Open menus, lists, popovers and dialogs hold following off; their React owners live outside, so it reads the DOM.
   overlayOpen: () => boolean = () => pageOverlayOpen(document);
   // An older cursor reading does not move focus.
   private clickTag = 0;
-  // They close on a press in the canvas, which the app's document never sees.
+  // The composer's preset lists: they close on a canvas press, which the app's document never sees.
   private pressListeners = new Set<() => void>();
   // `textEpoch` is the last clear-text sent to the current document; a range posted before that clear carries a
   // smaller one.
@@ -611,7 +611,7 @@ export class CanvasController {
     this.publish();
   }
 
-  // A held Space and a pick leave `tool` alone, so they keep it. Does not publish: callers do.
+  // Switching to Hand drops the selection; a held Space and a pick leave `tool` alone, so they keep it. Callers publish.
   private enterTool(tool: CanvasTool): void {
     const toHand = this.tool === "select" && tool === "hand";
     this.tool = tool;
@@ -1242,7 +1242,8 @@ export class CanvasController {
     this.syncFrameInput();
   }
 
-  // Pans and zooms then land on the board's margin handlers, so they keep working.
+  // Off until the document acknowledges a pick, since a click there would still select; pans and zooms then land on
+  // the board's margin handlers.
   private syncFrameInput(): void {
     if (this.frame) this.frame.style.pointerEvents = this.state.picking && !this.pickAcked ? "none" : "";
   }
@@ -1468,7 +1469,7 @@ export class CanvasController {
     }, (error: unknown) => { console.error("pointer:get failed", error); });
   }
 
-  // Not under the capture layer: in Hand both would be up at once.
+  // False under the capture layer, or in Hand the drag layer and the capture layer would both be up.
   private boardDrawn(): boolean {
     return !this.state.picking && !this.captureHeld() && this.boardShown();
   }
@@ -1630,8 +1631,8 @@ export class CanvasController {
       // The new document counts its clears from 0.
       this.textEpoch = 0;
       this.resetText();
-      // Also when the canvas replaces its own document, which keeps the iframe. Not on the anchor document's change: the
-      // iframe's load event forgets that one while the document stays.
+      // A held Space and a drag end with the document, even one the canvas replaced itself in the same iframe. Not on the
+      // anchor document's change: the iframe's load event forgets that one while the document stays.
       if (this.spaceHeld || this.drag !== null) { this.spaceHeld = false; this.finishDrag(); }
       // Hand keeps the layer up through the canvas's own reload, and the new document has no hand of its own.
       if (this.layerShown) this.sendHoverCommand({ type: "hover-hand", hand: true });
@@ -2072,7 +2073,7 @@ export class CanvasController {
     event.preventDefault();
   };
 
-  // So only one selection shows. A caret moving, as typing does, is no selection.
+  // A new app text selection clears the canvas range, so only one shows. A caret moving, as typing does, is none.
   private appSelection = (event: Event): void => {
     if (!this.hasText()) return;
     const target: unknown = event.target;

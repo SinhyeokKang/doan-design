@@ -20,8 +20,8 @@ function interactiveTarget(target: unknown): boolean {
   return typeof role === "string" && CONTROL_ROLES.has(role);
 }
 
-// Radix's typeahead prevents nothing, so `defaultPrevented` alone misses a key in an open menu. A native <dialog> may
-// stay mounted closed, so only an open one counts.
+// A new floating menu or list needs `.doan-menu` or a listed role, or must join this selector (ARCHITECTURE §3
+// 'Canvas view'). Closed ones are unmounted, except a native <dialog>, which counts only while open.
 export const OPEN_OVERLAY = '.doan-menu, [role="menu"], [role="listbox"], .preset-popover, dialog[open], [role="dialog"]:not(dialog), [role="alertdialog"]:not(dialog)';
 
 function inOpenOverlay(target: unknown): boolean {

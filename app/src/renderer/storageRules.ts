@@ -16,7 +16,7 @@ export function keptLocal(candidate: { changes: readonly OnboardingChange[]; sto
 }
 
 export interface StorageSectionView {
-  // None when the mode is unknown.
+  // The radio shown chosen; null when the mode is unknown.
   checked: StorageChoice | null;
   disabled: Record<StorageChoice, boolean>;
   // "info": outside Git, what Keep out of Git does instead; "home": why it stays closed in the home folder.

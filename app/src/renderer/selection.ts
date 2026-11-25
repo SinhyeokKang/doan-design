@@ -73,7 +73,7 @@ export function mainSelection(open: { folder: string; canvas: string; row: Pick<
   return selection;
 }
 
-// They then neither ask about the draft nor take Esc's default action.
+// Without a selection or one being found, Esc and a blank click change nothing: no draft prompt, no preventDefault.
 export function shouldGuardEscape(selection: SelectionView | null, reanchor: AnchorRequest | null): boolean {
   return selection !== null || reanchor !== null;
 }

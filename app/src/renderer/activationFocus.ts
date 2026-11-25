@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 
-// Activation restores the element the platform remembered, or the first focusable control, so `refocus` runs at once
-// and again after that restore (`defer`). A pointer press chooses focus itself, so it cancels the hold.
+// Activation overrides focus moved in the background by restoring its own element, so `refocus` runs at once and
+// after that restore (`defer`). A pointer press chooses focus itself and cancels the hold.
 export function refocusOnActivation(win: EventTarget, hasFocus: () => boolean, refocus: () => void, defer: (run: () => void) => void = run => { setTimeout(run, 0); }): () => void {
   if (hasFocus()) return () => {};
   let live = true;
@@ -18,8 +18,8 @@ export function refocusOnActivation(win: EventTarget, hasFocus: () => boolean, r
 
 const DIALOGS = '[role="dialog"], [role="alertdialog"], dialog[open]';
 
-// Unless a dialog opened meanwhile (it holds focus by its own rule). `focus` finds its target again each time, since
-// the control may have been redrawn.
+// Runs `focus` now and again on window activation if it lacked focus, unless a dialog opened meanwhile. `focus` finds
+// its target each time, since the control may have been redrawn.
 export function focusThroughActivation(focus: () => void, win?: EventTarget, doc: { hasFocus(): boolean; querySelectorAll(selector: string): ArrayLike<unknown> } = document, defer?: (run: () => void) => void): () => void {
   focus();
   if (doc.hasFocus()) return () => {};

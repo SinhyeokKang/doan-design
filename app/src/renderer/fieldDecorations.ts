@@ -5,8 +5,8 @@ import { fieldListItems } from "./composerLists";
 import { posFromUnit } from "./fieldDoc";
 import type { FieldRun } from "./skillWords";
 
-// Depth spaces take no width; the line's padding draws the depth. The marker gap is letter-spacing, not padding, so a
-// caret at the body start stays outside every decoration (styles.css 'Composer field lists').
+// Lists are decorations over typed text; the marker gap and the plain space after it keep a body-start caret and
+// composition outside them (ARCHITECTURE §7 'Chip field'; styles.css 'Composer field lists').
 
 // ChipField measures once per string and caches.
 export type Measure = (text: string) => number;
@@ -28,7 +28,6 @@ export function fieldDraws(segments: readonly FieldSegment[], runs: readonly Fie
   const inlines: FieldInlineDraw[] = [];
   for (const run of runs) {
     if (run.kind === "skill") inlines.push({ kind: "skill", start: run.start, end: run.end });
-    // Its one space stays plain text.
     else if (run.kind === "mark") inlines.push({ kind: "mark", start: run.start, end: run.end - 1, list: run.list });
     else inlines.push({ kind: "depth", start: run.start, end: run.end, spaceWidth: measure(" ") });
   }
@@ -37,7 +36,7 @@ export function fieldDraws(segments: readonly FieldSegment[], runs: readonly Fie
 
 export function fieldDecorations(doc: PMNode, segments: readonly FieldSegment[], runs: readonly FieldRun[], measure: Measure): DecorationSet {
   const { lines, inlines } = fieldDraws(segments, runs, measure);
-  // Its line's padding and its own letter-spacing read it (styles.css).
+  // Marker widths: the line's padding and the marker's letter-spacing read them (styles.css).
   const marks = new Map(lines.map(line => [line.line, line.markWidth]));
   const starts: number[] = [];
   doc.forEach((_line, offset) => { starts.push(offset); });

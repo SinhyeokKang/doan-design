@@ -44,7 +44,7 @@ type OwnState = Omit<AgentStepState, "auth" | "contexts">;
 // Copilot's check spends a model request, so only its Retry checks.
 const AUTO_CHECK = new Set(["unverified", "tools_missing", "tools_failed"]);
 
-// It never judges readiness itself (authListView does), and it cancels only attempts this renderer started.
+// The Agent step never judges readiness itself (authListView does), and cancels only attempts this renderer started.
 export class AgentStepSession {
   private own: OwnState = { dialog: null, announcement: null, focus: null, install: null, continuing: false };
   private live = false;
@@ -112,7 +112,7 @@ export class AgentStepSession {
     this.signIn.windowFocused();
   }
 
-  // So a caller can wait for the result.
+  // Install, Update and Open install page return their request, so a caller can wait for its result.
   command(provider: Provider, command: AuthCommand): Promise<void> | void {
     if (!this.live) return;
     const attempt = this.status(provider)?.attempt;

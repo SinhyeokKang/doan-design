@@ -30,7 +30,7 @@ export interface DoanyRig {
   intersect(isIntersecting: boolean): void;
   pointer(clientX: number, clientY: number): void;
   hop(): void;
-  // So the caller prevents its default (repeats included).
+  // Returns whether the key is a hop key, so the caller prevents its default (repeats included).
   key(key: string, repeat?: boolean): boolean;
   typing(): void;
   reducedChange(): void;

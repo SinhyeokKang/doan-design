@@ -63,8 +63,8 @@ export function reconcileProjects(saved: Record<string, ShellProject>, groups: r
   }));
 }
 
-// From Home and the Project Settings page the row opens the Overview rather than re-entering the last canvas (PRODUCT
-// §5 item 3 'Project Overview').
+// Project Settings shows Home's sidebar, so there as on Home the row opens the Overview, never the last canvas;
+// other pages go back to the loaded workspace as it was.
 export function loadedProjectRow(at: { screen: string; overviewShown: boolean }): "enter" | "overview" | "slot" {
   if (at.screen === "home" || at.screen === "projectSettings") return "overview";
   if (at.screen !== "workspace") return "enter";

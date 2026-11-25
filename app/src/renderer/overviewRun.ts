@@ -41,8 +41,8 @@ export type OverviewView = { kind: "wait" } | { kind: "new" } | { kind: "convers
 interface RootState {
   // undefined until a pick; a null conversation is the new conversation state.
   current?: { conversationId: string | null; listed: boolean };
-  // So a reply that lands after a newer choice leaves it alone. intent moves only with the person's or an entry's
-  // choice, not with what a list read did.
+  // Moves with what the root shows, so a later reply leaves a newer choice alone. intent moves only with the person's
+  // or an entry's choice, not with what a list read did.
   revision: number;
   intent: number;
   leftAt?: number;
@@ -192,8 +192,8 @@ export class OverviewRun {
     return this.visible === root && s?.revision === revision && s.current?.conversationId === conversationId;
   }
   live(root: string, conversationId: string): boolean { return this.store.live(root, conversationId); }
-  // A newer revision, so a start or send reply sent before cannot replace that; a request still waiting for it is
-  // dropped. The store's records go through its own deleted, which App calls as well.
+  // A root that showed it gets the new state at a newer revision, so an earlier reply cannot replace that; waiting
+  // requests are dropped. The store's records go through its own deleted.
   deleted(conversationId: string): void {
     for (const s of this.roots.values()) {
       if (s.request?.conversationId === conversationId) s.request = null;

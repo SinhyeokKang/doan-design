@@ -63,7 +63,7 @@ export function handoffToastText(notice: ConversationHandoffNotice, project: str
   const source = notice.source.canvas ? fileName(notice.source.canvas.path) : `${project} Overview`;
   return "targets" in notice ? `${source} handed off to ${notice.targets.length} canvases` : `${source} handed off to ${fileName(notice.target.canvas.path)}`;
 }
-// After the shipped deep-link refusal.
+// The toast's Open once the target is no longer listed.
 export function handoffGoneText(path: string, project: string): string {
   return `Couldn’t open ${fileName(path)}. The canvas isn’t in ${project}.`;
 }

@@ -42,7 +42,7 @@ export function queueStatusLine(resetsAt: string, now: number, clock: Clock): { 
   return phrase ? { kind: "scheduled", text: `Sends when the limit resets ${phrase}.` } : { kind: "sending", text: "Sending" };
 }
 
-// null after the reset, when it is the shipped Queue.
+// null after the reset, when the button is the ordinary Queue.
 export function queueButtonHint(resetsAt: string | null, now: number, clock: Clock): { tip: string; description: string } | null {
   const phrase = resetsAt !== null && Date.parse(resetsAt) > now ? resetTimeText(resetsAt, now, clock) : null;
   return phrase ? { tip: `Queue — sends when the limit resets ${phrase}`, description: `Sends when the limit resets ${phrase}.` } : null;

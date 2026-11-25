@@ -84,7 +84,7 @@ export type ProjectPhase =
 export interface ProjectStepState {
   phase: ProjectPhase;
   url: string;
-  // So an edited URL says it must be checked again.
+  // The last inspected URL, so an edited URL says it must be checked again.
   inspectedUrl: string | null;
   // detail: main's own account, given to the window only. source decides where the choose screen shows it; the caller
   // sets it, since the same codes come from both.
@@ -222,7 +222,7 @@ export class ProjectStepSession {
     });
   }
   clone(): Promise<void> { return this.act(() => this.runClone()); }
-  // It never sets a folder up: a candidate with planned changes goes to the setup screen instead.
+  // Use this folder never sets a folder up: a candidate with planned changes goes to the setup screen instead.
   select(): Promise<void> { return this.act(() => this.runSelect()); }
   // Consent is an explicit token, valid only for the inspection that button was shown for, so a setup never runs
   // without this click.
@@ -317,7 +317,7 @@ export class ProjectStepSession {
     const p = this.state.phase;
     if (this.deps.use !== "addPage" && p.kind === "candidates" && p.candidates.length === 1 && p.candidates[0]!.changes.length === 0) await this.runSelect();
   }
-  // So a stale candidate list is inspected again rather than retried.
+  // The inspection the candidates came from, so a stale list is inspected again rather than retried.
   private source: Inspect | null = null;
   // A URL with several local checkouts is not a choice; worktrees are switched later from the shell.
   private pickCheckout(candidates: ProjectCandidate[]): ProjectCandidate {

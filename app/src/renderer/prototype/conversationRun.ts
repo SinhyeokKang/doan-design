@@ -203,7 +203,7 @@ export class PrototypeConversationRun {
   settings(): PrototypeComposerSettings | null { return this.settingsValue; }
   seen(): ReadonlySet<string> { return new Set(this.seenMarks.keys()); }
   headTitle(): string { return prototypeHeadTitle(this.shown(), canvasConversationTitle(this.run, this.listView).title); }
-  // As the main window's: its conversation's own mark, in this window's order, is that signal's kind.
+  // The strongest signal across the canvas's conversations, as in the main window: the badge target's own mark.
   button(): ConversationButton {
     const signal = this.signal();
     const summary = signal && Array.isArray(this.listView) ? this.listView.find(c => c.conversationId === signal.conversationId) : undefined;

@@ -22,7 +22,7 @@ export function turnOf(events: readonly ConversationEvent[], live: boolean): Tur
   let lastSeq = started.seq, ended = false;
   for (const event of events) {
     if (event.turnId !== started.turnId) continue;
-    // Neither is the agent acting, so neither ages a stage.
+    // These events can land while another tool runs and are not the agent acting, so they age no stage.
     if (event.type !== "canvas.drawn" && event.type !== "activity.result") lastSeq = Math.max(lastSeq, event.seq);
     if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") ended = true;
   }
@@ -105,8 +105,8 @@ export function newerStage(held: StageSignal | null, incoming: StageSignal, curr
   return incoming;
 }
 
-// So short tools between model requests do not flicker. Replying, waiting and none show at once, and so does the first
-// stage after none or waiting.
+// A new stage shows after holding this long, so short tools do not flicker. Replying, waiting and none show at once,
+// as does the first stage after none or waiting.
 export const SETTLE_MS = 300;
 export interface Settled { shown: TurnStatus; pending: TurnStatus | null; since: number }
 const hidden = (status: TurnStatus) => status.kind === "none" || status.kind === "waiting";
@@ -155,7 +155,7 @@ export function backgroundLine(input: { background: { turnId: string; stopping?:
 }
 
 export const BACKGROUND_STOP_FAILED = "Couldn’t stop the background work. Try again.";
-// It names its done turn, so a press that reaches main after a newer send stops nothing there. null when the stop
+// The stop names its done turn, so a press reaching main after a newer send stops nothing there. null when the stop
 // went through.
 export async function stopBackground(request: { conversationId: string; turnId: string }, interrupt: (request: { conversationId: string; turnId: string }) => Promise<void | { error: string }>): Promise<string | null> {
   try {

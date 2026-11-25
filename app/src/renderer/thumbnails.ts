@@ -152,7 +152,7 @@ export class ThumbnailHub {
   acquire(root: string, listener: (items: ReadonlyMap<string, ThumbnailState>) => void): ThumbnailLease {
     const existing = this.roots.get(root);
     const shared = existing ?? this.share(root);
-    // Its rows and visible paths stay until this viewer reports its own, so nothing is dropped and asked again.
+    // The leaving viewer's rows and paths stay until this one reports its own, so nothing is dropped and asked again.
     const viewer = shared.leaving?.viewer ?? String(++this.viewers);
     if (shared.leaving) clearTimeout(shared.leaving.timer);
     shared.leaving = null;
@@ -177,7 +177,7 @@ export class ThumbnailHub {
     };
   }
 
-  // None for a root no viewer holds.
+  // Empty for a root no viewer holds.
   items(root: string): ReadonlyMap<string, ThumbnailState> {
     return this.roots.get(root)?.items ?? NO_ITEMS;
   }

@@ -255,7 +255,7 @@ export function resultKey(result: SearchResult): string {
   return JSON.stringify(result.kind === "frame" ? [result.root, result.path, result.frameId, result.frameIndex] : [result.root, result.path]);
 }
 
-// Its accessible name spells the time out as the Conversation menu's label does.
+// A conversation result's accessible name spells the time out as the Conversation menu's label does.
 export function resultParts(result: SearchResult, title: string | undefined, now: number = Date.now()): { icon: SearchResult["kind"]; name: string; detail: string; accessibleName: string } {
   const where = title ? ` · ${title}` : "";
   if (result.kind === "conversation") {

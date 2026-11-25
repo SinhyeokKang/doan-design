@@ -29,7 +29,7 @@ const REASONS: Record<string, (project: string) => string> = {
   has_conversation: () => "It already has a conversation.",
   same_canvas: () => "It’s this conversation’s own canvas.",
 };
-// These reasons already say it, so a gone canvas adds no tail to them.
+// These reasons already say the canvas is not a single listed one, so a gone canvas adds no tail to them.
 const SAYS_GONE = new Set(["not_listed", "canvas_not_found"]);
 
 export function canvasCardText(card: CanvasCard, ctx: { project: string; provider: Provider; listed(canvas: Canvas): boolean }): CanvasCardView {

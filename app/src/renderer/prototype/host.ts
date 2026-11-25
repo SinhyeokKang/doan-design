@@ -3,7 +3,7 @@ import type { FramesMessage, GotoMessage, PrototypePhase, RunMessage } from "../
 
 // Pure, so the window's order of events is tested without one.
 
-// So a run still on screen is not resized to the next run's mark while that one loads.
+// Each iframe keeps its run's mark, so a run on screen is not resized to the next run's mark while that one loads.
 export interface RunFrame { gen: number; url: string; markWidth: number; markHeight: number }
 export interface HostLayers {
   // While a run loads, the previous run stays visible and live above it.
@@ -62,7 +62,7 @@ export function currentRun(layers: HostLayers, gen: number | null): RunFrame | n
   return newest !== undefined && newest.gen === gen ? newest : null;
 }
 
-// Its toast quotes the value before main checks it, so only the prototype script's exact shape is taken.
+// A followed link's toast quotes its value before main checks it, so only the prototype script's exact shape is taken.
 function gotoMessage(data: object): GotoMessage | null {
   const keys = Object.keys(data);
   if (keys.length !== 2 || !keys.includes("gen") || !keys.includes("goto")) return null;

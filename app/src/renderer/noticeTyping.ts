@@ -1,4 +1,3 @@
-// Tunable.
 export const ERASE_MS = 20;
 export const TYPE_MS = 35;
 export const TYPING_CAP_MS = 1000;
@@ -77,7 +76,7 @@ export class NoticeTyping {
     }
   }
 
-  // Even when it is the change's own target (set would keep it running).
+  // Ends any running change on `text` at once, even its own target (set would keep it running).
   settle(text: string): void {
     this.target = text;
     this.stop();

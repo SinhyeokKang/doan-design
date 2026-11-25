@@ -10,7 +10,7 @@ import {
   agentProblem, composeRequest, draftProblem, presetPlaceholder, startErrorView, type AttachmentDraft, type ModelPickerView, type PresetSummary,
 } from "./homeComposer";
 
-// Its host owns the conversation, the lists and every call to main; these functions only decide.
+// The docked composer's rules: its host owns the conversation, lists and calls to main; these only decide.
 
 // resume: Send continues the canvas's terminal session, whose provider, model and effort are its own.
 export type DockedMode =
@@ -106,8 +106,8 @@ export function hasDraft(draft: DockedDraft | undefined): draft is DockedDraft {
 }
 export const sameDraft = (a: DockedDraft, b: DockedDraft) => sameSegments(a.segments, b.segments) && (a.preset?.id ?? null) === (b.preset?.id ?? null)
   && a.attachments.map(item => item.key).join("\n") === b.attachments.map(item => item.key).join("\n");
-// Only while the person has not changed it meanwhile. A start moves what stays to the conversation it started, unless
-// that draft already holds something.
+// An accepted send settles its draft to `left` only if unchanged since; a start moves `left` to the new
+// conversation unless that draft already holds something.
 export function settleSent(drafts: ReadonlyMap<string, DockedDraft>, at: string, sent: DockedDraft, left: DockedDraft, to?: string): ReadonlyMap<string, DockedDraft> {
   if (!sameDraft(drafts.get(at) ?? EMPTY_DRAFT, sent)) return drafts;
   if (to !== undefined && to !== at && hasDraft(left) && !hasDraft(drafts.get(to))) return new Map(drafts).set(to, left).set(at, EMPTY_DRAFT);
@@ -140,7 +140,7 @@ const OTHER_SIGN_IN: Record<string, (p: string) => string> = {
   account_changed: p => `This conversation’s session belongs to another ${p} account, so it can’t continue here. To continue it, sign out, then sign in to that account in Settings > Agents.`,
   // Only the organization differs; signing in to that organization brings the conversation back.
   workspace_changed: p => `This conversation’s session belongs to another organization of your ${p} account, so it can’t continue here. To continue it, sign in to the organization this conversation started in.`,
-  // It may be the same account, so never "another account".
+  // The account may be the same, so never "another account".
   sign_in_changed: p => `This conversation’s session belongs to an earlier ${p} sign-in, so it can’t continue here.`,
 };
 const SEND_ERRORS: Record<string, (p: string) => string> = {

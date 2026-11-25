@@ -13,7 +13,8 @@ export function listKeyTarget(keys: readonly string[], focused: string | null, k
   }
 }
 
-// Else the next row of the previous order still listed, else the nearest one before it, else the panel title.
+// The focused row while listed, else the next still-listed row of the previous order, else the one before, else the
+// title.
 export function focusAfterLeave(previous: readonly string[], current: readonly string[], focused: string): { kind: "row"; key: string } | { kind: "title" } {
   if (current.includes(focused)) return { kind: "row", key: focused };
   const listed = new Set(current), at = previous.indexOf(focused);

@@ -25,8 +25,8 @@ import type { DoanApi } from "../preload";
 // shows. Which conversation shows, seen marks and navigation stay with each screen's run.
 
 export type ListView = readonly ConversationSummary[] | "loading" | "error";
-// liveAfter: a permission request after the history's last seq arrived while the thread was open. failures: Retries
-// failed in a row (the notice reads its line again on each, DESIGN 'Busy action').
+// liveAfter: the history's last seq (MAX_SAFE_INTEGER while loading); an event after it arrived while the thread was
+// open. failures: Retries failed in a row (the notice reads its line again on each, DESIGN 'Busy action').
 export interface Thread { events: ConversationEvent[]; read: "loading" | "error" | "retrying" | "ready"; liveAfter: number; failures?: number }
 // message: what the thread draws once Send now moves it there. turnId: the failed turn whose own message this row
 // sends again at the usage limit's reset.
@@ -62,11 +62,11 @@ export class ConversationStore {
   private queues = new Map<string, { root: string; items: Held[]; after: number; turn: string | null }>();
   private presses = 0;
   private taking = new Set<string>();
-  // By the reads started then: the list still says so until a later read.
+  // Returned drafts taken, by reads started at the take: the list still reports them until a later read.
   private taken = new Map<string, number>();
   // main hands a start message over once, so once a run is enough.
   private startsAsked = new Map<string, symbol>();
-  // Before a list names them.
+  // Of conversations started here, until a list names them.
   private providers = new Map<string, Provider>();
   private listeners = new Set<(conversationId: string, change: "read" | "event") => void>();
   // A streamed delta reaches the hosts only this way, since it leaves the store's host alone.
@@ -87,7 +87,7 @@ export class ConversationStore {
   // main rebuilds a read's boundaries from Doan's command turns, so they outlive a restart; this run's signals may name
   // the same turn in either order.
   private bounds = new Map<string, Map<string, BoundaryKind>>();
-  // This run only, shared by every screen showing the draft.
+  // Cards of built-ins Doan does not run, by draft key: this run only, shared by every screen showing the draft.
   private cards = new Map<string, CommandCard>();
   private pendingSends = new Map<string, { message: SendingMessage; after: number }[]>();
   // For the thread's entry motion. queueMarks outlive the queue's rows, which may leave before that message arrives.
@@ -150,7 +150,7 @@ export class ConversationStore {
   private lastSeq(conversationId: string): number {
     return Math.max(0, ...(this.threads.get(conversationId)?.events ?? []).map(event => event.seq));
   }
-  // Combined, a command alone (queue.ts). syncQueues does not call it, so the mark outlives rows main already sent.
+  // Marks the queued rows as main's flush will send them (queue.ts); syncQueues skips it, so the mark outlives sent rows.
   private markQueue(conversationId: string): void {
     const queue = this.queues.get(conversationId), provider = this.providerOf(conversationId) ?? this.summaryOf(conversationId)?.provider;
     const items = (queue?.items ?? []).filter(item => item.pressed === undefined).map(item => item.message ?? { text: item.text, anchors: [], attachments: [] });
@@ -245,7 +245,8 @@ export class ConversationStore {
     const c = Array.isArray(list) ? list.find(item => item.conversationId === conversationId) : undefined;
     return c?.scheduledAt ? `${c.scheduledAt}\n${c.queued}` : null;
   }
-  // Its Edit and resend would send that message twice, so it hides until the row is removed.
+  // The failed turn's message waits queued for the reset; Edit and resend would send it twice, so it hides until that
+  // row is removed.
   resendHidden(conversationId: string): boolean {
     const ends = (this.threads.get(conversationId)?.events ?? []).filter(event => event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted");
     const end = ends.at(-1);
@@ -459,7 +460,7 @@ export class ConversationStore {
   private tell(conversationId: string, change: "read" | "event"): void {
     for (const listener of this.listeners) listener(conversationId, change);
   }
-  // Once, while the conversation shows.
+  // Moves a queue main handed back into the draft, once, while the conversation shows.
   takeDraft(root: string, conversationId: string): void {
     if (this.host.takesDrafts?.() === false) return;
     const list = this.host.list(root);
@@ -485,7 +486,7 @@ export class ConversationStore {
       if (reply.reason === "command_mode_stale") this.showCard(`conversation:${conversationId}`, { ...STALE_MODE_CARD });
     });
   }
-  // From an earlier run; once, when that draft shows.
+  // A first message an earlier run's quit stopped goes into the new conversation's draft, once, when it shows.
   takeStartDraft(root: string, canvas?: Canvas): void {
     const request = { root, ...(canvas ? { canvas } : {}) };
     const key = draftKey({ kind: "new", ...request });

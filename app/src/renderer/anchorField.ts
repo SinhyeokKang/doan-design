@@ -38,7 +38,7 @@ export function fromMessage(text: string, anchors: readonly Anchor[]): FieldSegm
 
 // Units: every UTF-16 code unit of text is one and a chip is exactly one, so a caret never stands inside a chip.
 
-// So two fields with the same content compare equal.
+// Adjacent text joins and empty text drops, so two fields with the same content compare equal.
 export function normalize(segments: readonly FieldSegment[]): FieldSegment[] {
   const out: FieldSegment[] = [];
   for (const segment of segments) {

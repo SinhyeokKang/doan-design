@@ -50,7 +50,7 @@ export function planSend(text: string, preset: PresetRef | null, skills: readonl
   return { kind: "message", text: composeRequest(text, preset, skills, attachments), sendsAttachments: true };
 }
 
-// The others keep the shipped turn progress.
+// null: the turn keeps the ordinary progress words.
 export function commandRunningLabel(provider: Provider, name: string): string | null {
   if (name === "compact") return "Compacting…";
   if (provider === "claude" && name === "clear") return "Clearing context…";
@@ -103,7 +103,7 @@ export function threadCommands(provider: Provider, events: readonly Conversation
   return { turns, boundaries, usageStale: after !== -1 && !order.slice(after + 1).some(turnId => measured.has(turnId)) };
 }
 
-// null keeps the shipped words.
+// null: the turn keeps the ordinary progress words.
 export function commandTurnLabel(provider: Provider, commands: ThreadCommands, turnId: string): string | null {
   const name = commands.turns.get(turnId);
   return name ? commandRunningLabel(provider, name) : null;

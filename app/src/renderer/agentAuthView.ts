@@ -6,7 +6,7 @@ import type { SettingsTarget } from "./settingsSections";
 // Shared by onboarding, Settings, Home and conversations. States come from agent-auth DTOs only, never re-judged here.
 export const PROVIDER_NAMES: Record<Provider, string> = { claude: "Claude Code", codex: "Codex", cursor: "Cursor", antigravity: "Antigravity", copilot: "GitHub Copilot" };
 const VENDORS: Record<Provider, string> = { claude: "Anthropic", codex: "OpenAI", cursor: "Cursor", antigravity: "Google", copilot: "GitHub" };
-// These sign-in CLIs open the default browser themselves.
+// The sign-in CLIs of these providers open the default browser themselves.
 const OPENS_OWN_BROWSER: readonly Provider[] = ["codex", "cursor", "copilot"];
 export const MAX_PASTE = 16384;
 
@@ -22,7 +22,7 @@ export interface ProviderView {
   // States with a notice put their buttons in the notice instead.
   button: AuthButton | null; helper: string | null; notice: Notice | null;
   paste: { prompt: string; button: AuthButton } | null;
-  // Unless the row already offers one.
+  // Settings only: a connected row's extra Sign out, unless the row already offers one.
   signOut: AuthButton | null;
 }
 // prompt: the attemptId of the last sign-in link received. autoCheck: the consumer checks unverified connections itself
@@ -177,7 +177,7 @@ export function connectionLine(provider: Provider, facts: Pick<AuthStatusDto, "p
   return view.notice?.title ?? view.notice?.body ?? view.detail ?? "Not available right now";
 }
 
-// First run shows it only to recover.
+// Settings keeps Sign out on every connected row, once; first run shows it only to recover.
 function withSignOut(status: AuthStatusDto, ctx: ProviderContext, view: ProviderView): ProviderView {
   if (!ctx.settings || status.account === null) return view;
   if ([view.button, ...(view.notice?.actions ?? [])].some(b => b?.command === "signOut")) return view;

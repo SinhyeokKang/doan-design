@@ -66,7 +66,7 @@ function state(entry: UsageEntry, now: number): string {
   return value !== null ? `${name} ${Math.round(value)}% used` : `${name} usage resetting`;
 }
 
-// Its name stays "Agent usage". Antigravity is never shown.
+// The usage button's description; its name stays "Agent usage". Antigravity is never shown.
 export function usageDescription(entries: readonly UsageEntry[], now: number): string {
   return entries.filter(entry => entry.provider !== "antigravity")
     .sort((a, b) => PROVIDERS.indexOf(a.provider) - PROVIDERS.indexOf(b.provider))

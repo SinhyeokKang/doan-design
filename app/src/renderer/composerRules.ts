@@ -38,7 +38,7 @@ export function steerAllPlan(input: { sendNow: boolean; rows: number; draft: boo
 export type FocusAction =
   | { kind: "answered"; requestId: string }
   | { kind: "stopped" }
-  // Also when the "Replace your draft?" dialog closed either way.
+  // Edit and resend filled the composer, or the "Replace your draft?" dialog closed either way.
   | { kind: "restored" }
   | { kind: "draftDialog" }
   | { kind: "sent" };

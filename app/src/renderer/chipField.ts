@@ -13,7 +13,7 @@ import { fieldDecorations, type Measure } from "./fieldDecorations";
 import { docFromSegments, FILLER, fieldSchema, fixFillers, posFromUnit, segmentsFromDoc, sliceFromSegments, unitFromPos } from "./fieldDoc";
 import { fieldRuns, fieldSkillRuns, insertSkillText, replaceSlashSkill, sameSkillNames, skillAnnouncements } from "./skillWords";
 
-// The composer field on ProseMirror (ARCHITECTURE §7, 'Chip field'). The caret never rests inside a list item's depth
+// The composer field on ProseMirror (ARCHITECTURE §7 'Chip field'). The caret never rests inside a list item's depth
 // spaces or marker; edits the field decides itself are transactions built from the segments (`edit`).
 
 // Chromium keeps custom DataTransfer types in its own pasteboard entry, so they travel between Doan fields (also across
@@ -23,7 +23,7 @@ const TYPING_MERGE_MS = 1000;
 
 export type ChipInsert = "inserted" | "pending" | "limit" | "refused";
 export interface ChipFieldHooks {
-  // Also the live text during a composition, so the host's shape follows it.
+  // Every change, the live text during a composition included, so the host's shape follows it.
   onChange(segments: FieldSegment[]): void;
   onInput(): void;
   onAnnounce(text: string): void;
@@ -34,7 +34,7 @@ export interface ChipFieldHooks {
   commandNames?(): ReadonlySet<string>;
   // The place limit counts them with the field's own.
   reserved?(): readonly FieldSegment[];
-  // Its attributes are not read back, so a describing id the host puts on the chip changes no segment.
+  // The chip's attributes are not read back, so a describing id the host puts on it changes no segment.
   onChipClick?(anchor: Anchor, chip: HTMLElement): void;
 }
 
@@ -50,7 +50,7 @@ const ICONS: Record<"frame" | "element" | "point", [string, Record<string, strin
 };
 const KIND_PREFIX = { frame: "Frame", element: "Element", point: "Point" } as const;
 
-// So focusFieldEnd, whose host holds only the element, goes through the field.
+// The field on each element, so focusFieldEnd, whose host holds only the element, goes through it.
 const fields = new WeakMap<HTMLElement, ChipField>();
 
 export class ChipField {
@@ -58,7 +58,7 @@ export class ChipField {
   private names: ReadonlySet<string> = new Set();
   private announced: string[] = [];
   private pending: Anchor[] = [];
-  // Until the same key comes again as an ordinary key.
+  // The Shift+Enter or Tab that ended a composition, until that key comes again as an ordinary key.
   private press: Press | null = null;
   private compositionTimer: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;

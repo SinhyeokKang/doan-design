@@ -46,7 +46,7 @@ function button(command: McpCommand, label: string, variant: Button["variant"], 
 }
 const alert = (body: string, actions: McpButton[]): Notice<McpCommand> => ({ role: "alert", spinner: false, body, actions });
 
-// Also said inside the Remove alert when that is still open.
+// The row's Remove failure, also said inside the Remove alert while that is open.
 export const removeFailedText = (label: string) => `Couldn’t remove ${label} from Doan’s agents. Try again.`;
 
 export function mcpFailureText(failure: McpFailure, provider: McpProvider, label: string): string {

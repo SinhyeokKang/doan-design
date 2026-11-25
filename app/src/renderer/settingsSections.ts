@@ -7,7 +7,7 @@ export const SETTINGS_SECTIONS: readonly { id: SettingsSection; title: string }[
 ];
 const IDS: readonly unknown[] = SETTINGS_SECTIONS.map(section => section.id);
 
-// Also reads the old Settings window's tab: its Projects tab moved to the project menu, so it opens Agents.
+// The old Settings window's Projects tab moved to the project menu, so that value opens Agents.
 export function parseSettingsSection(value: unknown): SettingsSection | null {
   if (value === "projects") return "agents";
   return IDS.includes(value) ? value as SettingsSection : null;

@@ -8,7 +8,7 @@ export interface AgentPresence {
   conversationId: string;
   kind: "working" | "waiting";
   label: string;
-  // So a kept presence is never shown on another canvas.
+  // The conversation's canvas, so a kept presence is never shown on another canvas.
   canvas: Canvas;
 }
 

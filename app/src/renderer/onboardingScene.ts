@@ -1,7 +1,6 @@
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 
-// No Skip.
 export type Scene = "welcome" | "buddy" | "agent" | "project" | "home";
 // Results started on an earlier scene are dropped.
 export interface Fence { generation: number }
@@ -65,7 +64,7 @@ export function advance<T extends Fence>(fence: T): T { return { ...fence, gener
 export function newerAuth(current: AuthSnapshot | null, incoming: AuthSnapshot): AuthSnapshot {
   return current && current.revision >= incoming.revision ? current : incoming;
 }
-// Continue with another provider ready cancels them.
+// This window's running sign-ins, which Continue with another provider ready cancels.
 export function ownedSignIns(auth: AuthSnapshot | null, owned: readonly string[]): { provider: Provider; attemptId: string }[] {
   return (auth?.providers ?? []).flatMap(p => p.attempt?.kind === "signIn" && !p.attempt.cancelling && owned.includes(p.attempt.id) ? [{ provider: p.provider, attemptId: p.attempt.id }] : []);
 }

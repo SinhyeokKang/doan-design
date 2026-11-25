@@ -13,7 +13,7 @@ function matches(node: Drawn, part: string): boolean {
 }
 const matchesAny = (node: Drawn, selector: string) => selector.split(",").some(part => matches(node, part.trim()));
 
-// Its closest() matches the class and role selectors the app uses on the way out, as the DOM's does.
+// The innermost element's closest() matches the class and role selectors the app uses, as the DOM's does.
 export function drawn(chain: readonly Drawn[]) {
   const role = chain.at(-1)?.role;
   return {

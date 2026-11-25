@@ -3,8 +3,7 @@ import type { FolderFocus } from "../main/shell";
 import type { FolderEntry } from "../main/view";
 import type { AddPageOrigin } from "./addProjectsNav";
 
-// Named apart from the page component beyond capitalization: macOS is case-insensitive, and a TS helper once hid its
-// TSX component.
+// Named apart from the page component beyond capitalization: macOS resolves paths case-insensitively.
 
 export type ProjectSettingsView = "settings" | "problem";
 // null: still loading, which keeps whatever the page shows.

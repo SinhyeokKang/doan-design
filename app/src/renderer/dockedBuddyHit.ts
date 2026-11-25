@@ -4,7 +4,7 @@
 import { FLOOR, SIZE, WINDOW, type Presence } from "./dockedBuddyCore";
 
 export interface Box { left: number; right: number; top: number; bottom: number }
-// Its top edge is the floor.
+// A surface's padding box; its top edge is the floor.
 export interface SurfaceEdge { left: number; right: number; top: number }
 
 // Only the buddy is clipped, never the composer, popovers or toolbar controls.

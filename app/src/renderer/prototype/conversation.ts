@@ -31,7 +31,7 @@ export function withPlayingFrame(segments: readonly FieldSegment[], frame: Playi
   const first = segments[0];
   if (first?.kind === "chip" && sameTarget(first.anchor, { frame })) return toMessage(segments);
   const chip = chipOf(frame);
-  // So the message and its title read as words.
+  // A space after the chip, so the message and its title read as words.
   const gap: FieldSegment[] = first && !(first.kind === "text" && /^\s/.test(first.text)) ? [{ kind: "text", text: " " }] : [];
   return toMessage([chip, ...gap, ...segments]);
 }
@@ -52,8 +52,8 @@ export function playingFrameChip(view: PrototypeView | null, last: PlayingFrameC
 export type ConversationBadge = "permission" | "working" | "unseen";
 export interface ConversationButton { label: "Show conversation"; badge: ConversationBadge | null; name: string }
 
-// Working too: the window has no agent indicator, and the frame reloads with no visible reason while an agent edits.
-// One badge at a time: waiting, then working, then unread.
+// The main window's badge marks plus working: this window has no agent indicator and the frame reloads while an
+// agent edits. One badge: waiting, then working, then unread.
 export function conversationButton(current: ConversationSummary | undefined, seen: ReadonlySet<string> = new Set()): ConversationButton {
   const show = "Show conversation" as const;
   const mark = openButtonBadge(current, false, seen);

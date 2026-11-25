@@ -33,7 +33,7 @@ function frameName(state: PlayState, index: number): string {
   return label.title ?? label.id;
 }
 
-// Its accessible name stays "Play prototype".
+// The toolbar Play's tooltip; its accessible name stays "Play prototype".
 export function playTooltip(state: PlayState): string {
   const play = canvasPlayability(state);
   if (play.kind === "disabled") return play.reason;

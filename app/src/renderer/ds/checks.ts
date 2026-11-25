@@ -1,4 +1,4 @@
-// They read repository text only, so tests can pin the design system without a browser.
+// These checks read repository text only, so tests can pin the design system without a browser.
 
 export interface SourceFile { path: string; text: string }
 

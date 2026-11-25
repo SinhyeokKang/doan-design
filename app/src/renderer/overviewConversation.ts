@@ -108,8 +108,8 @@ export interface OverviewCurrent { root: string; conversationId: string | null; 
 export interface DraftMove { from: string; to: string }
 export type OverviewChange = { kind: "keep" } | { kind: "gone"; draft: DraftMove };
 
-// Its draft moves to the root's new conversation key, so the typed text, composition included, stays in the same
-// field.
+// A gone conversation's draft moves to the root's new conversation key, so the typed text, composition included,
+// stays in the same field.
 export function overviewAfterListChange(current: OverviewCurrent, change: { root: string; list: readonly ConversationSummary[] }): OverviewChange {
   const id = current.conversationId;
   if (change.root !== current.root || id === null) return { kind: "keep" };

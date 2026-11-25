@@ -36,11 +36,11 @@ export interface HomeRunHost {
   removeNow(paths: string[], group?: true): Promise<void | RemoveResult>;
   toast(message: string, action?: string, run?: () => void): void;
   sent(request: StartInput): void;
-  // Any other change of a stored mode is a pick the composer already remembered.
+  // Main moved a conversation out of Plan (a plan approval); other mode changes are picks already remembered.
   followedMode?(provider: Provider, mode: PermissionModeId): void;
   changed(): void;
 }
-// So each permission request is toasted once.
+// The request last toasted, so each permission request is toasted once.
 interface Extras { toasted: string | null }
 interface Pending { conversationId: string; root: string; moves: number; sawModal: boolean }
 interface RemovalTarget { conversationId: string; turnId: string; waiting: boolean; root: string; worktree: string; title: string }
@@ -253,7 +253,7 @@ export class HomeRun {
     return "opened";
   }
 
-  // This run keeps its own conversations whatever the list says, so the strip would go on naming it.
+  // This run keeps its own conversations whatever the list says, so without this the strip would go on naming it.
   deleted(conversationId: string): void {
     this.deletedIds.add(conversationId);
     this.conversations = this.conversations.filter(item => item.conversationId !== conversationId);
@@ -283,7 +283,7 @@ export class HomeRun {
     }
     this.restoreTo({ ...request, provider, model: summary?.model ?? null, effort: summary?.effort ?? null });
   }
-  // So a reload does not bring it back.
+  // Dismiss records the conversation as seen in main, so a reload does not bring it back.
   dismiss(conversationId: string): void {
     this.dismissed = new Set(this.dismissed).add(conversationId);
     this.markSeen(conversationId);
@@ -292,8 +292,8 @@ export class HomeRun {
 
   entriesChanged(): void { this.syncRoots(); }
 
-  // Their slot moved to the project row and no canvas panel can show them. Otherwise a conversation is seen only where
-  // it shows, through markSeenThrough.
+  // Marks seen the endings of canvas conversations whose canvas left: their slot moved to the project row. Others are
+  // seen only where they show, through markSeenThrough.
   visit(keys: readonly string[]): void {
     for (const [root, list] of this.lists) {
       for (const c of list) {
@@ -538,7 +538,8 @@ export class HomeRun {
       return path === undefined ? rest : { ...rest, canvas: path };
     });
     for (const id of this.claimed) this.refresh(id);
-    // So the Dot does not flash. The rows come from the committed view: a switch may not have run App's effect yet.
+    // Endings on the viewed row are marked seen before drawing, so the Dot does not flash. The rows come from the
+    // committed view: a switch may not have run App's effect yet.
     const view = this.host.view();
     if (view.screen === "workspace" && view.loadedRoot) this.visit([slotKey(view.loadedRoot), ...(view.canvas ? [slotKey(view.loadedRoot, view.canvas)] : [])]);
     this.claimFor(root, list);
