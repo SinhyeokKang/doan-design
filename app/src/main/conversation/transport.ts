@@ -132,10 +132,10 @@ function failed(state: TransportState, detail: string, code: FailureCode = trans
 // A Codex TurnError. modelNotFound names the model only in its message, which gives the ID (a model Doan never sent);
 // without a readable ID the turn fails as any other error does.
 function codexFailed(state: TransportState, error: unknown): TransportResult {
-  const detail = storableText(object(error) ? text(error.message) : "");
+  const detail = object(error) ? text(error.message) : "";
   const model = object(error) && error.codexErrorInfo === "modelNotFound" ? /'([^'\s]+)' model\b/.exec(detail)?.[1] : undefined;
   if (!model) return failed(state, detail);
-  return finish(state, { type: "turn.failed", code: "model_unavailable", model, detail: detail.slice(0, 4096) });
+  return finish(state, { type: "turn.failed", code: "model_unavailable", model: storableText(model), detail: storableText(detail).slice(0, 4096) });
 }
 function text(value: unknown): string { return typeof value === "string" ? value : ""; }
 // Fallbacks when an item carries nothing readable: provider item types (commandExecution, fileChange, Bash) are wire

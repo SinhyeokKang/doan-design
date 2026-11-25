@@ -273,8 +273,8 @@ export function acpFailureCode(detail: string, phase: "open" | "prompt"): Failur
   // AcpConnection's own deadline for a request: "<method> timed out".
   if (/^(?:initialize|authenticate|session\/[\w-]+) timed out$/.test(detail)) return "process_exited";
   // Cursor's and Antigravity's "Authentication required", Copilot CLI's "Please sign in".
-  // Whole words: "design in" or "assign in" is no sign-in.
-  if (/\b(?:authentication required|not logged in|unauthorized|sign in)\b/i.test(detail)) return "not_logged_in";
+  // "sign in" as whole words: "design in" or "assign in" is no sign-in.
+  if (/authentication required|not logged in|unauthorized|\bsign in\b/i.test(detail)) return "not_logged_in";
   // cursor-agent's session/load for a session it never saved: "Session not found".
   if (/session.*(not found|unavailable)/i.test(detail)) return "session_unavailable";
   if (phase === "prompt") return transportError(detail);
