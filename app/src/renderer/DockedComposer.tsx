@@ -322,12 +322,14 @@ export function DockedComposer(props: DockedComposerProps) {
   }, [slash, rowKeys]);
   useEffect(() => { if (slashOpen) props.onSkillsWanted(); }, [slashOpen]);
 
+  // A send's reply or a turn's end can come with the window in the background, so their focus is made again on
+  // activation (POSTMORTEM 2026-11-17).
+  const handFocus = useActivationFocus();
   const focus = (after: FocusAction) => queueMicrotask(() => {
     const target = focusAfter(after, { pending: [] });
     if (target.kind === "field") field.current?.focus(target.caretAtEnd ? "end" : undefined);
   });
-  // A send's reply can come after the person switched away, so its focus is made again on activation (POSTMORTEM
-  // 2026-11-17), and only while the same draft shows.
+  // Only while the same draft shows.
   const focusSent = (at: string) => handFocus(() => { if (at === shown.current) focus({ kind: "sent" }); });
   const pickedSkill = useRef(false);
   const chooseRow = (id: string, kind: PresetRow["kind"], fromSlash: boolean) => {
@@ -528,9 +530,6 @@ export function DockedComposer(props: DockedComposerProps) {
   const slotAction = useRef<ComposerAction>(action);
   const slotNode = slotAction.current === "stop" && action === "send" && !availability.enabled ? root.current?.querySelector(".composer-send") ?? null : null;
   const stopLeft = slotNode !== null && typeof document !== "undefined" && document.activeElement === slotNode;
-  // A turn can end with the window in the background, so the field takes focus again on activation (POSTMORTEM
-  // 2026-11-17).
-  const handFocus = useActivationFocus();
   useLayoutEffect(() => {
     slotAction.current = action;
     if (stopLeft) handFocus(() => field.current?.focus());
