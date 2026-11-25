@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { ConversationEvent } from "../main/conversation/types";
 import { threadItems, withSending } from "./threadItems";
+import { combineQueued } from "../main/conversation/queue";
 import { FINISH_MS, FOLLOW_START, MAX_LAG_MS, TAU_MS, WHEEL_HOLD_MS, entering, followStep, nextFollow, revealBoundary, revealStep, type FollowState } from "./threadMotion";
 
 const ROOT = "/Users/ada/code/doan";
@@ -51,13 +52,31 @@ describe("entering", () => {
     expect(entering([], items([message("t1", "Draw a login screen")]), [{ text: "Draw a login screen", after: 0 }])).toEqual(new Set(["u1"]));
   });
 
-  test("several queued messages going out together all enter, each mark used once", () => {
+  test("queued messages going out together enter once, as the one combined message main sends", () => {
     seq = 0;
     const before = [message("t1", "First"), ev("t1", { type: "turn.started" }), ev("t1", { type: "turn.done" })];
-    const after = [...before, message("t2", "Second"), message("t2", "Third"), message("t2", "Third")];
-    expect(entering(items(before), items(after), [{ text: "Second", after: 3 }, { text: "Third", after: 3 }, { text: "Third", after: 3 }])).toEqual(new Set(["u4", "u5", "u6"]));
-    // One mark for two identical messages: only the first enters.
-    expect(entering(items(before), items(after), [{ text: "Third", after: 3 }])).toEqual(new Set(["u5"]));
+    const queued = [{ text: "Make {{1}} blue", anchors: [{ element: { selector: "#a" } }], attachments: [] }, { text: "And {{1}} red", anchors: [{ element: { selector: "#b" } }], attachments: [] }];
+    const combined = combineQueued(queued);
+    if (!combined.ok) throw new Error("combine");
+    expect(combined.text).toBe("Make {{1}} blue\n\nAnd {{2}} red");
+    const after = [...before, message("t2", combined.text, { anchors: combined.anchors })];
+    expect(entering(items(before), items(after), [{ text: combined.text, after: 3 }])).toEqual(new Set(["u4"]));
+    // A mark per queued message never matches the combined message.
+    expect(entering(items(before), items(after), queued.map(q => ({ text: q.text, after: 3 })))).toEqual(new Set());
+  });
+
+  test("identical messages each need their own mark", () => {
+    seq = 0;
+    const after = [message("t1", "Again"), message("t1", "Again")];
+    expect(entering([], items(after), [{ text: "Again", after: 0 }])).toEqual(new Set(["u1"]));
+    expect(entering([], items(after), [{ text: "Again", after: 0 }, { text: "Again", after: 0 }])).toEqual(new Set(["u1", "u2"]));
+  });
+
+  test("a render that opens the conversation (empty prev) never enters a Send now item: it is already on screen", () => {
+    seq = 0;
+    const running = [message("t1", "First"), ev("t1", { type: "turn.started" })];
+    const send = { id: "s1", text: "Also the footer", anchors: [], attachments: [] };
+    expect(entering([], withSending(items(running), [send]), [{ text: "Also the footer", after: 2 }])).toEqual(new Set());
   });
 
   test("Send now enters once: on its q item, not again when the history's item shows beside it or after it", () => {
@@ -151,69 +170,110 @@ describe("revealStep", () => {
 describe("revealBoundary", () => {
   test("cuts at a word's end, with its following space", () => {
     const text = "The action now reads Add a card.";
-    expect(revealBoundary(text, 0, 6)).toBe(11);
-    expect(text.slice(0, revealBoundary(text, 0, 6))).toBe("The action ");
-    expect(revealBoundary(text, 0, 4)).toBe(4);
-    expect(revealBoundary(text, 0, text.length)).toBe(text.length);
+    expect(revealBoundary(text, 0, 6, false)).toBe(11);
+    expect(text.slice(0, revealBoundary(text, 0, 6, false))).toBe("The action ");
+    expect(revealBoundary(text, 0, 4, false)).toBe(4);
+    expect(revealBoundary(text, 0, text.length, false)).toBe(text.length);
   });
 
   test("never below from nor past the text", () => {
-    expect(revealBoundary("one two", 5, 2)).toBe(5);
-    expect(revealBoundary("one two", 0, 99)).toBe(7);
+    expect(revealBoundary("one two", 5, 2, false)).toBe(5);
+    expect(revealBoundary("one two", 0, 99, false)).toBe(7);
   });
 
   test("the received text's last word shows even if more of it may come", () => {
-    expect(revealBoundary("Add a ca", 0, 7)).toBe(8);
+    expect(revealBoundary("Add a ca", 0, 7, false)).toBe(8);
   });
 
   test("inside a code block it reveals whole lines", () => {
     const text = "Here:\n\n```html\n<button>\n  Add a card\n</button>\n```\n\nDone.";
     const open = text.indexOf("```html");
     // Within the fence line: the whole fence line.
-    expect(text.slice(0, revealBoundary(text, 0, open + 2))).toBe("Here:\n\n```html\n");
+    expect(text.slice(0, revealBoundary(text, 0, open + 2, false))).toBe("Here:\n\n```html\n");
     const inside = text.indexOf("Add");
-    expect(text.slice(0, revealBoundary(text, 0, inside + 1))).toBe("Here:\n\n```html\n<button>\n  Add a card\n");
+    expect(text.slice(0, revealBoundary(text, 0, inside + 1, false))).toBe("Here:\n\n```html\n<button>\n  Add a card\n");
     // After the closing fence, words again.
-    expect(text.slice(0, revealBoundary(text, 0, text.indexOf("Done") + 1))).toBe(text);
+    expect(text.slice(0, revealBoundary(text, 0, text.indexOf("Done") + 1, false))).toBe(text);
   });
 
   test("a code line that has not ended yet is held", () => {
     const text = "```\nconst a = 1;\nconst b";
-    expect(revealBoundary(text, 0, text.length)).toBe(text.indexOf("const b"));
-    expect(revealBoundary(text, text.length - 2, text.length)).toBe(text.length - 2);
+    expect(revealBoundary(text, 0, text.length, false)).toBe(text.indexOf("const b"));
+    expect(revealBoundary(text, text.length - 2, text.length, false)).toBe(text.length - 2);
   });
 
   test("an unfinished link at the end is held, a doan: chip link too", () => {
     for (const text of ["See [the payment", "See [the payment screen]", "See [the payment screen](https://exa", "See [Payment](doan:canvas/payment.html#fr"]) {
-      expect(revealBoundary(text, 0, text.length)).toBe(4);
+      expect(revealBoundary(text, 0, text.length, false)).toBe(4);
     }
-    expect(revealBoundary("See [Payment](doan:canvas/payment.html#frame) now", 0, 6)).toBe("See [Payment](doan:canvas/payment.html#frame) ".length);
+    expect(revealBoundary("See [Payment](doan:canvas/payment.html#frame) now", 0, 6, false)).toBe("See [Payment](doan:canvas/payment.html#frame) ".length);
   });
 
   test("a finished link shows whole, never part of its label", () => {
     const text = "See [the payment screen](https://example.com) and more";
-    expect(text.slice(0, revealBoundary(text, 0, 7))).toBe("See [the payment screen](https://example.com)");
+    expect(text.slice(0, revealBoundary(text, 0, 7, false))).toBe("See [the payment screen](https://example.com)");
   });
 
   test("a bracket that is not a link does not hold", () => {
     const text = "Items [a] and [b] then more";
-    expect(revealBoundary(text, 0, text.length)).toBe(text.length);
+    expect(revealBoundary(text, 0, text.length, false)).toBe(text.length);
+  });
+
+  test("a bracket that cannot start a link does not hold", () => {
+    for (const text of ["Values in [0, 1) are valid, and this sentence keeps going", "Use `arr[` to read the item and keep going", "The array is a[i and more words"]) {
+      expect(revealBoundary(text, 0, text.length, false)).toBe(text.length);
+    }
+  });
+
+  test("a titled link is held while unfinished and never cut once finished", () => {
+    const open = 'See [a](https://x.com "Ti';
+    expect(revealBoundary(open, 0, open.length, false)).toBe(4);
+    const done = 'See [a](https://x.com "Title") more';
+    expect(done.slice(0, revealBoundary(done, 0, 6, false))).toBe('See [a](https://x.com "Title")');
+  });
+
+  test("once message.done has the whole text, nothing is held", () => {
+    for (const text of ["See [the payment", "Sizes:\n\n| Screen | Width |", "```\nconst a = 1;\nconst b"]) {
+      expect(revealBoundary(text, 0, text.length, true)).toBe(text.length);
+    }
+  });
+
+  test("text without spaces reveals by word, never splitting a surrogate pair", () => {
+    const cjk = "这是一个测试句子，我们来看看。";
+    const cut = revealBoundary(cjk, 0, 3, false);
+    expect(cut).toBe(4);
+    const emoji = "😀😀😀😀😀😀";
+    for (let to = 1; to < emoji.length; to++) expect(revealBoundary(emoji, 0, to, false) % 2).toBe(0);
+  });
+
+  test("a fence closes only with the same character, at least as long, and nothing after it", () => {
+    const tilde = "~~~\n```\n~~~\nprose after a tilde fence that keeps going";
+    expect(revealBoundary(tilde, 0, tilde.length, false)).toBe(tilde.length);
+    const nested = "````md\n```js\nx\n```\nstill code";
+    expect(revealBoundary(nested, 0, nested.length, false)).toBe(nested.indexOf("still"));
+    const info = "```\na\n``` not a close\nstill code";
+    expect(revealBoundary(info, 0, info.length, false)).toBe(info.indexOf("still"));
+  });
+
+  test("a table with CRLF line ends shows row by row", () => {
+    const rows = "| a | b |\r\n| --- | --- |\r\n| x | 1 |\r\n| y | 2";
+    expect(rows.slice(0, revealBoundary(rows, 0, rows.length, false))).toBe("| a | b |\r\n| --- | --- |\r\n| x | 1 |\r\n");
   });
 
   test("a table at the end is held until its header and delimiter rows arrive, then shows row by row", () => {
     const head = "Sizes:\n\n";
-    expect(revealBoundary(`${head}| Screen | Width |`, 0, 40)).toBe(head.length);
-    expect(revealBoundary(`${head}| Screen | Width |\n| --- |`, 0, 40)).toBe(head.length);
+    expect(revealBoundary(`${head}| Screen | Width |`, 0, 40, false)).toBe(head.length);
+    expect(revealBoundary(`${head}| Screen | Width |\n| --- |`, 0, 40, false)).toBe(head.length);
     const ready = `${head}| Screen | Width |\n| --- | ---: |\n`;
-    expect(revealBoundary(ready, 0, ready.length)).toBe(ready.length);
+    expect(revealBoundary(ready, 0, ready.length, false)).toBe(ready.length);
     const rows = `${ready}| Panel | 347 |\n| Narrow | 2`;
-    expect(rows.slice(0, revealBoundary(rows, 0, rows.length))).toBe(`${ready}| Panel | 347 |\n`);
-    expect(rows.slice(0, revealBoundary(rows, ready.length, ready.length + 3))).toBe(`${ready}| Panel | 347 |\n`);
+    expect(rows.slice(0, revealBoundary(rows, 0, rows.length, false))).toBe(`${ready}| Panel | 347 |\n`);
+    expect(rows.slice(0, revealBoundary(rows, ready.length, ready.length + 3, false))).toBe(`${ready}| Panel | 347 |\n`);
   });
 
   test("a line starting with a pipe that is not followed by a delimiter row is ordinary text", () => {
     const text = "| not a table\nJust words here";
-    expect(revealBoundary(text, 0, text.length)).toBe(text.length);
+    expect(revealBoundary(text, 0, text.length, false)).toBe(text.length);
   });
 });
 
@@ -303,6 +363,14 @@ describe("nextFollow", () => {
     for (const key of ["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "]) {
       expect(nextFollow(FOLLOW_START, { type: "input", kind: "key", key, at: 0 }).pinned).toBe(false);
     }
+  });
+
+  test("release (the card it scrolled to stopped waiting) lets it follow again at the bottom", () => {
+    const toCard = nextFollow(FOLLOW_START, { type: "scrollToItem" });
+    const released = nextFollow(toCard, { type: "release" });
+    expect(released.held).toBe(false);
+    expect(settle(released, 5000, 0).pinned).toBe(true);
+    expect(settle(released, 5000, 100).pinned).toBe(false);
   });
 
   test("Jump to latest follows again at once, also after scrollToItem", () => {
