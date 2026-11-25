@@ -150,7 +150,8 @@ test("the Share confirmation names a path inside the worktree repo-relative and 
   expect(sharedPathLabel("/w/a", "design/brand")).toBe("design/brand");
 });
 
-// ARCHITECTURE §7 'Settings IPC' 'Storage writes'.
+// ARCHITECTURE §7 'Settings IPC' 'Storage writes'. Options are disabled while Saving, so focus goes to the chosen
+// radio; a failed mode write names no path, so the CLI's message shows as it is.
 describe("Doan files writes", () => {
   test("return focus to the chosen radio, whether or not the pressed one is still there", () => {
     expect(projectSettingsFocusAfter({ section: "storage", pressedAlive: true })).toEqual({ kind: "storageChosen" });

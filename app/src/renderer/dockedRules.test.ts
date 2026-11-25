@@ -137,7 +137,7 @@ describe("dockedRefusal", () => {
     expect(dockedRefusal("rate_limited", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code reached a usage limit. Send again after it resets." });
     expect(dockedRefusal("bad_request", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Couldn’t send your message. Try again." });
     expect(dockedRefusal("session_in_use", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code is still using this session. Try again when it finishes." });
-    // the code alone does not tell an expired sign-in from none.
+    // The code alone does not tell an expired sign-in from none.
     expect(dockedRefusal("not_logged_in", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Sign in to Claude Code in Settings > Agents, then send again." });
   });
   // Cursor keeps no session for a first turn its plan limit stopped, so that conversation cannot continue even after the

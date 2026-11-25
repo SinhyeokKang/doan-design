@@ -664,7 +664,7 @@ test("a send main has not answered shows as sending until its turn's own message
   // An earlier turn's event does not stand for it.
   h.store.event(event({ type: "turn.done" }));
   expect(h.store.sending(A)).toEqual([message]);
-  // Its turn's own message took its place.
+  // The sent message's own turn message takes the sending entry's place.
   h.store.event(event({ type: "user.message", text: "Make it blue", anchors: [CTA], turnId: "t2" }));
   expect(h.store.sending(A)).toEqual([]);
   settle();

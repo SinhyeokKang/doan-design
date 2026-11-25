@@ -5,7 +5,7 @@ import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider } from "../main/agentAuth/types";
 
-// Main pairs the default row with its model's name, so the opus row is gone.
+// Main's paired list: Claude Code's default row carries its model's name and there is no separate opus row.
 const CLAUDE: ModelsState = { models: [
   { id: "default", label: "Opus 5.5", default: true, efforts: ["low", "medium", "high", "max"] },
   { id: "sonnet", label: "Sonnet 5.5", default: false, efforts: ["low", "high"] },

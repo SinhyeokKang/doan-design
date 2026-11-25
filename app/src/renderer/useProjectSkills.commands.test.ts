@@ -53,7 +53,7 @@ test("an ACP agent without a conversation reads nothing and lists nothing", asyn
   expect(result.passthrough).toEqual([]);
 });
 
-// Their commands are the fixed allowlist of the folder's read, the same in every conversation of the root.
+// Claude Code's and Codex's commands are the fixed allowlist of the folder's read, the same in every conversation of the root.
 test("Claude Code and Codex read by the root alone, with or without a conversation", async () => {
   const result = await render("codex", "c2");
   expect(list).toHaveBeenCalledWith({ root: "/code/doan", provider: "codex" });

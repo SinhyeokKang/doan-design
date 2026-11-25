@@ -300,7 +300,7 @@ test("thumbnail hub: a root's images can be read before acquiring, and a root no
   await h.asks[0]!.reply(h.ready);
   expect(h.hub.items("/code/acme-web").get(a.path)).toEqual({ kind: "ready", url: "blob:1" });
   lease.release();
-  // Still held while it waits, for the viewer that takes its place.
+  // The image is still held while the root waits for the viewer that takes its place.
   expect(h.hub.items("/code/acme-web").get(a.path)).toEqual({ kind: "ready", url: "blob:1" });
   vi.advanceTimersByTime(LEAVE_MS);
   expect(h.hub.items("/code/acme-web").size).toBe(0);

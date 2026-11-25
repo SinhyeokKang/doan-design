@@ -352,7 +352,7 @@ test("the effort capsule shows only for a model with levels; an unchosen level n
 const LUNA = { id: "gpt-6-luna", label: "GPT-6-Luna", default: true, efforts: ["low", "medium", "high", "xhigh"], defaultEffort: "medium" };
 const TERRA = { id: "gpt-5.6-terra", label: "GPT-5.6-Terra", default: false, efforts: ["low", "medium", "high"] };
 const CODEX_MODELS: ModelsState = { models: [LUNA, TERRA] };
-// Main pairs the default row with its model's name, so the opus row is gone.
+// Main's paired list: Claude Code's default row carries its model's name and there is no separate opus row.
 const CLAUDE_DEFAULT = { id: "default", label: "Opus 5.5", default: true, efforts: ["low", "medium", "high", "max"] };
 const PAIRED: ModelsState = { models: [CLAUDE_DEFAULT, SONNET, HAIKU] };
 

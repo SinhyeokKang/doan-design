@@ -64,7 +64,7 @@ test("selecting and cloning lock the page, cancelling included; other phases do 
     expect(leaveLocked({ kind })).toBe(false);
 });
 
-// only text you can type into counts, so Escape on the candidates' radios leaves the page.
+// Only text you can type into counts, so Escape on the candidates' radios leaves the page.
 test("a radio, a checkbox or a select is not editing; text fields and textareas are", () => {
   for (const target of [{ tagName: "INPUT", type: "radio" }, { tagName: "INPUT", type: "checkbox" }, { tagName: "SELECT" }, { tagName: "BUTTON" }])
     expect(pageEscape({ target, isComposing: false, keyCode: 27 }, false), target.tagName).toEqual(escape);

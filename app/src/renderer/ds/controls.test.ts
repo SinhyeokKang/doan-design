@@ -113,7 +113,7 @@ test("every shared hover and pressed fill skips a data-disabled or busy button a
 test("panel rests on the panel white for a notice's inset fill, hovers one step darker, takes subtle's pressed fill and the shared disabled fill", () => {
   const css = read("./controls.css");
   expect(css).toContain(':is(.doan-button, .doan-icon-button)[data-ui-variant="panel"] { background: var(--surface-panel); }');
-  // Its hover comes after the shared opaque hover of the same weight, so it wins.
+  // The panel hover comes after the shared opaque hover of the same weight, so it wins.
   const hover = ':is(.doan-button, .doan-icon-button)[data-ui-variant="panel"]:hover:not(:disabled, [data-disabled], [aria-busy="true"]) { background: var(--affordance-panel-hover); }';
   expect(css.indexOf(hover)).toBeGreaterThan(css.indexOf(':hover:not(:disabled, [data-disabled], [aria-busy="true"]) { background: var(--affordance-subtle-hover); }'));
   expect(read("../tokens.css")).toContain("--affordance-panel-hover: var(--neutral-3);");
@@ -250,8 +250,8 @@ test("menus share the quiet scrollbar and keep its track inside their corners", 
   expect(css).toContain('.doan-menu[data-ui-size="compact"]::-webkit-scrollbar-track { margin: var(--radius-row); }');
 });
 
-// :focus-visible, not :focus-within (open dialogs and menus always hold focus). A menu passes the colour down
-// as an inherited property: Electron 45 does not repaint a thumb whose own :hover rule changes.
+// DESIGN 'Scrollbars': menus count only item focus (Radix focuses the menu on open) and only the colour changes.
+// The menu inherits that colour because Electron 45 does not repaint a thumb whose own :hover rule changes.
 test("scrollbar thumbs show only while the scroller is hovered or holds keyboard focus", () => {
   const css = read("./surfaces.css");
   expect(rule(css, ".doan-scroll:is(:hover, :focus-visible, :has(:focus-visible))")).toBe("scrollbar-color: var(--scrollbar-thumb-quiet) transparent;");

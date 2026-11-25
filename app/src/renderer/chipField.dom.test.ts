@@ -437,8 +437,8 @@ test("⌘← and ⌘→ stop at a wrapped row's start (the body start) and end, 
 
 test("Shift+↓, a drag, three clicks and two clicks select as on plain lines", { timeout: 60_000 }, async () => {
   await open("one two\nthree four\nfive");
-  // Chromium keeps the caret's x across rows and takes the nearer side of the character there; an x within
-  // half a pixel of a midpoint lands on either side by device pixel ratio.
+  // Chromium keeps the caret's x across rows and takes the nearer side of the character there; an x near a midpoint
+  // varies with the device pixel ratio, so start where none is near.
   await call("place", 5); await press("Shift+ArrowDown");
   expect(await sel()).toEqual({ anchor: 5, focus: 13 });
   // Three clicks take the line with its line break, so typing replaces the whole line; two clicks take the word only.
@@ -674,8 +674,8 @@ test("a spelling suggestion replaces its word inside an item without breaking th
 test("copy, the selected text and the accessibility value keep the typed text", { timeout: 60_000 }, async () => {
   await open(NESTED);
   await call("place", 0, NESTED.length);
-  // A real ⌘C would overwrite the person's system clipboard (POSTMORTEM 2026-10-27): the field's own
-  // copy handler writes to the event's DataTransfer instead.
+  // A real ⌘C overwrites the person's clipboard, so the field's own copy handler writes to the event's DataTransfer
+  // (POSTMORTEM 2026-10-27 'Runtime clipboard capture constructed an item with no MIME types').
   expect((await call<string[]>("copy"))[0]).toBe(NESTED);
   // Lines are blocks, but the selected text adds no line break of its own and has no bullet.
   expect(await frame.evaluate(() => document.getSelection()!.toString())).toBe(NESTED);

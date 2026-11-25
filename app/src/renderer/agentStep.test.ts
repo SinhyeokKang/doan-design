@@ -576,7 +576,7 @@ test("a resolved update says so, and moves focus to Continue when the step can a
   expect(h.session.state.focus).toMatchObject({ target: "continue" });
 });
 
-// a version that could not be read is not proof of an install or update; only the next state (Sign in,
+// A version that could not be read is not proof of an install or update; only the next state (Sign in,
 // Connected) is announced, and a cleared state cannot announce later.
 test.each([
   ["install", { cli: "missing" }, { version: "unknown" }],

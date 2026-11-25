@@ -983,7 +983,7 @@ test("choosing another mode on the setup screen plans again for it, so the git i
   const h = harness();
   await onSetup(h, REPO);
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: planOf("i-local", CREATE, "local") })));
-  // It says it plans again, so the screen can give the radio focus back once the radios are enabled again.
+  // True means it plans again, so the screen can give the radio focus back once the radios are enabled again.
   expect(h.session.setStorage("local")).toBe(true);
   await flush(); await flush();
   expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ path: "/code/new", storage: "local" });
@@ -1236,7 +1236,7 @@ describe("New folder", () => {
     expect(projectNoticeSlot(h.session.state)).toBe("card");
     await h.session.chooseAnotherName();
     expect(h.api.newOnboardingFolder).toHaveBeenLastCalledWith("/Volumes/work", expect.any(String));
-    // That panel was cancelled: the notice stays as it was.
+    // The second save panel was cancelled: the notice stays as it was.
     expect(h.session.state.error).toMatchObject({ code: "folder_exists" });
     h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/Volumes/work/landing-page"]]) })));
     h.queue.select!.push(ok(op("project_select", { project: { root: "/Volumes/work/landing-page" } })));

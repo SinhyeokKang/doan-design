@@ -107,7 +107,7 @@ test("only a turnedOff Fast-not-used event received live turns Last used off", (
   expect(shouldTurnOffFast(event({ type: "turn.done" }), true)).toBe(false);
 });
 
-// A composer pick that leaves the model alone shows only the provider's default, so Model Default stays unfixed.
+// Under Model Default, a pick that leaves the model alone shows only the provider's default, so no model is fixed.
 test("a pick that leaves the model alone never fixes the provider's default model", () => {
   expect(preferenceAfterPick({ provider: "codex" }, { provider: "codex", model: "gpt-6-luna", effort: null, permissionMode: "plan" })).toEqual({ provider: "codex", permissionMode: "plan" });
   expect(preferenceAfterPick({ provider: "codex" }, { provider: "codex", model: "gpt-6-luna", effort: "high", effortPicked: true })).toEqual({ provider: "codex", effort: "high" });

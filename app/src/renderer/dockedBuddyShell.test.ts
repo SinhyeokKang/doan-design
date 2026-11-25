@@ -223,7 +223,7 @@ test("the still image shows until the textures load, and again when they fail or
   env.canvas().dispatch("webglcontextlost");
   env.frame();
   expect([env.still().hidden, env.canvas().hidden, env.host().dataset.state]).toEqual([false, true, "static"]);
-  // Its rebuilt rig would take the next setups' frames and textures.
+  // Stop this shell, or its rebuilt rig would take the next setups' frames and textures.
   env.shell.stop();
 
   // A context lost while the textures still load: their late success must not uncover the dead canvas.
@@ -250,7 +250,7 @@ test("a context lost after it was ready rebuilds the rig once the context is res
   const lost = env.canvas();
   lost.dispatch("webglcontextlost");
   env.run(3);
-  // Not at once: a context made while the GPU process restarts can fail or be lost again.
+  // No rebuild at once: a context made while the GPU process restarts can fail or be lost again.
   expect(gl.made.length).toBe(1);
   expect(env.host().dataset.state).toBe("static");
   lost.dispatch("webglcontextrestored");

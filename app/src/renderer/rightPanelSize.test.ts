@@ -169,7 +169,7 @@ test("a folded inspector takes no width and reserves nothing from the conversati
   const layout = canvasPanelsLayout({ ...shown(1280), conversation: open, inspector: closed });
   expect(layout.inspector.width).toBe(0);
   expect(layout.conversation).toEqual({ width: 358, bounds: { min: 280, max: 640 } });
-  // It would fit, so Show inspector is available.
+  // The inspector would fit, so Show inspector is available.
   expect(layout.inspectorFits).toBe(true);
   expect(canvasPanelsLayout({ ...shown(1140), conversation: open, inspector: closed }).inspectorFits).toBe(false);
 });

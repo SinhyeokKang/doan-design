@@ -845,7 +845,7 @@ test("an Edit and resend restore dropped for newer typing releases its issued at
   expect(textOf(h.run.drafts.get(`conversation:${A}`))).toBe("newer");
 });
 
-// App marks the conversation deleting before conversation:delete, then on success calls each deleted.
+// App marks the conversation deleting before conversation:delete, then on success calls each run's and the store's deleted.
 function deleteShown() {
   const h = harness();
   histories.set(A, ended(A));
@@ -922,7 +922,7 @@ test("a deleted conversation an entry asked for is dropped, so the list is not r
   h.host.reread(ROOT);
   h.run.request(ROOT, A, null);
   confirmDelete(h, A);
-  // That read, started before the request, answers without it.
+  // The first read, started before the request, answers without it.
   h.lists.set(ROOT, [summary(B)]);
   vi.spyOn(h.host, "readsApplied").mockReturnValue(h.host.readsStarted(ROOT));
   h.run.sync();

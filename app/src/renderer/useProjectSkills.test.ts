@@ -72,7 +72,7 @@ test("a turn end during a pending read reads once more after it and shows that r
   await settle();
   hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = [];
   expect(useProjectSkills(window.doan, "/code/doan", "claude", "idle").skills).toEqual([{ name: "made" }]);
-  // Only one more: ends that came while the read was pending are one read, not one each.
+  // Only one more read: ends that came while the read was pending are one read, not one each.
   await settle();
   expect(list).toHaveBeenCalledTimes(2);
 });

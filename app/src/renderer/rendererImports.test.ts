@@ -29,7 +29,7 @@ const EXTRA_ROOTS = [
   join(SRC, "main/conversation/question.ts"), join(SRC, "main/conversation/questionAnswer.ts"),
   // Agent usage: the ring value, usage text and description the usage button imports by value.
   join(SRC, "renderer/agentUsage.ts"),
-  // The update rows, header button and menu item import by value.
+  // The update row, header button and menu item views, which Settings > About and the header import by value.
   join(SRC, "main/update/view.ts"),
 ];
 

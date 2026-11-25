@@ -514,7 +514,7 @@ test("New chosen while the list loads sends once the terminal session answers, w
   expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: false } });
 });
 
-// App marks the conversation deleting before conversation:delete, then on success calls each deleted.
+// App marks the conversation deleting before conversation:delete, then on success calls each run's and the store's deleted.
 const confirmDelete = (h: ReturnType<typeof harness>, id: string) => { h.run.deleted(id); h.store.deleted(id); };
 
 test("deleting the shown conversation shows the next one by the shared rule; with none left, the new conversation state", () => {
@@ -780,7 +780,7 @@ test("a removed root's canvases keep nothing: added again, a canvas shows its de
   expect(h.run.view()).toEqual({ kind: "conversation", conversationId: A });
 });
 
-// canvasRowMenu trashBlock reads it: main lists a canvas's first conversation only once it accepts it.
+// Move to Trash (canvasRowMenu trashBlock) reads this: main lists a canvas's first conversation only once it accepts it.
 test("a start from the panel is in flight for its canvas only, until main answers", () => {
   const h = harness();
   expect(h.run.startingOn(checkout)).toBe(false);

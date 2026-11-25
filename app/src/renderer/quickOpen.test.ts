@@ -163,7 +163,7 @@ describe("quick open matching", () => {
 
   it("searches 1000 canvases with 50 frames each within a small multiple of a linear scan", () => {
     // A ratio of the fastest interleaved samples (each repeated SAMPLE_RUNS times), so load spikes hit both alike. The
-    // baseline does no scoring or sorting; RATIO_LIMIT leaves headroom over about 12x seen under load.
+    // baseline does no scoring or sorting; RATIO_LIMIT leaves headroom for that and for load.
     const index = searchIndex([folder("/repo", Array.from({ length: 1000 }, (_, i) => canvas(`.doan/canvases/card-${i}.html`, {
       frames: Array.from({ length: 50 }, (_, j) => ({ id: `card-${j}`, title: `Card payment ${j}` })),
     })))]);

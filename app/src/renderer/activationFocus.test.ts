@@ -26,7 +26,7 @@ test("the next window focus puts focus back at once and again after the platform
   expect(refocus).toHaveBeenCalledTimes(1);
   deferred.forEach(run => run());
   expect(refocus).toHaveBeenCalledTimes(2);
-  // Only that activation: later focus events are the person's own.
+  // Only the first activation refocuses: later focus events are the person's own.
   win.dispatchEvent(new Event("focus"));
   expect(refocus).toHaveBeenCalledTimes(2);
 });

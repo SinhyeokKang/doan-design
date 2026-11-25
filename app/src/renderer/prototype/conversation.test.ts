@@ -106,7 +106,7 @@ describe("playingFrameChip", () => {
 
   test("while the next frame loads, the chip is already that frame", () => {
     expect(playingFrameChip(view({ phase: "loading", frame: "account", title: "account" }), playingFrameChip(view(), null))?.frame).toEqual({ id: "account" });
-    // Its title known from the list the window still has.
+    // The title comes from the list the window still has.
     expect(playingFrameChip(view({ phase: "loading", frame: "checkout", frames }), null)?.name).toBe("Checkout");
   });
 

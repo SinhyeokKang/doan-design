@@ -316,7 +316,7 @@ describe("selection", () => {
       } finally { h.controller.dispose(); }
     });
 
-    // No flip above the selection and no hold over the floating tools.
+    // Intended even when it ends up under the floating tools or past the area's bottom: no flip, no hold.
     it("keeps the bubble below the selection however little room is left under it", () => {
       const { h, dims } = setup();
       const tall = (height: number) => ({ ...frameTarget("intro"), rect: { x: 0, y: 0, width: 320, height } });
@@ -372,6 +372,7 @@ describe("selection", () => {
     expect(rule(low, ".mark")).toContain("border-width: 1px");
     expect(rule(low, ".mark:not(.jump-point)")).toContain("margin: -1px");
     expect(rule(low, ".dims")).toContain("top: calc(100% + 1px + 5px)");
+    // No above-the-line variant exists.
     expect(css).not.toContain(".dims.above");
   });
 
@@ -1534,7 +1535,8 @@ describe("anchors channel", () => {
 });
 
 
-// POSTMORTEM 2026-10-23: opening stays synchronous, so Loading shows within the call.
+// POSTMORTEM 2026-10-23 'Draft guards changed existing transition timing':
+// opening stays synchronous, so Loading shows within the call.
 it("opens another canvas synchronously", () => {
   const h = selectionHarness();
   try {
@@ -1544,7 +1546,8 @@ it("opens another canvas synchronously", () => {
   } finally { h.controller.dispose(); }
 });
 
-// POSTMORTEM 2026-10-23: opening, selecting, reloading and following a move all happen within the call.
+// POSTMORTEM 2026-10-23 'Draft guards changed existing transition timing':
+// opening, selecting, reloading and following a move all happen within the call.
 describe("canvas open, select, reload and move without a draft guard", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -4191,7 +4194,7 @@ describe("hand tool", () => {
         frames();
         expect(cursor()).toBe(start);
         release(h, "Space");
-        // Not before a frame without the layer has been drawn.
+        // The change waits until a frame without the layer has been drawn.
         h.nextFrame();
         expect(cursor()).toBe(start);
         h.nextFrame();
@@ -6295,7 +6298,8 @@ describe("canvas text", () => {
     });
   });
 
-  // A canvas can post any text-range untouched, so a new range is believed only with the OS cursor over the canvas area.
+  // A canvas can post a text-range nobody dragged, so a new one (a drag's start, or text with no start the app saw)
+  // is believed only with the OS cursor over the canvas area.
   describe("believed only with the cursor over the canvas area", () => {
     const outside = (h: H) => { h.cursor.at = { x: 900, y: 300 }; };
     const selection = (h: H) => { const s = { rangeCount: 1, isCollapsed: false, collapseToEnd: vi.fn() }; Object.assign(h.host, { getSelection: () => s }); return s; };

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { textCopy } from "./canvasTextCopy";
 
-// A handler that already copied (composer field, copyText), a hidden canvas page or an open menu or dialog wins.
+// No canvas text is copied after another handler (composer field, copyText), off the canvas page or under a menu or dialog.
 describe("textCopy", () => {
   const ready = { canvasText: "Copy me", defaultPrevented: false, onCanvasPage: true, overlayOpen: false };
 
