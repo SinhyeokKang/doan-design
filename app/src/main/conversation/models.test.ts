@@ -1,6 +1,7 @@
 import { expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { CLAUDE_FAST_REASONS, claudeFastOutcome } from "./transport";
 import { applyClaudeFastUnavailable, ModelCatalog, olderIds, parseAcpModels, parseAcpModes, parseClaudeModels, parseCodexModels, type ModelList, type ModelOption } from "./models";
 import type { Prepared } from "./service";
 import type { Provider } from "../agentAuth/types";
@@ -193,7 +194,7 @@ it("marks every Claude Fast row unavailable for account reasons without mutating
       { ...rows[0], fast: { unavailable: reason } }, { ...rows[1], fast: { description: "kept", unavailable: reason } }, rows[2],
     ]);
   }
-  for (const reason of [undefined, null, "model", "cooldown", "sdk_opt_in_required", "unknown", {}, 1]) expect(applyClaudeFastUnavailable(reason, rows)).toBe(rows);
+  for (const reason of [undefined, null, "model", "cooldown", "sdk_opt_in_required", "unknown", "toString", "__proto__", {}, 1]) expect(applyClaudeFastUnavailable(reason, rows)).toBe(rows);
   expect(rows[0]?.fast).toEqual({}); expect(rows[1]?.fast).toEqual({ description: "kept" });
 });
 it("accepts Fast only from an available model in this run's received root and provider list", async () => {
@@ -307,4 +308,16 @@ it("classifies a kept Claude row by its own resolvedModel, never a dropped dupli
     { id: "alias", label: "First alias", default: false },
     { id: "m-2", label: "m-2", default: false },
   ]);
+});
+
+// A turn turns Fast off for every reason Claude Code keeps; a list read marks rows only for the account-wide ones, since
+// model_not_allowed is about the model the read ran on, not every Fast row.
+it("reads Claude's Fast reasons as a turn does, except model_not_allowed", () => {
+  const rows: ModelOption[] = [{ id: "a", label: "A", default: true, fast: {} }];
+  const reasons = Object.keys(CLAUDE_FAST_REASONS);
+  expect(reasons).toContain("model_not_allowed");
+  for (const reason of reasons) {
+    const turn = claudeFastOutcome({ fast_mode_state: "off", fast_mode_disabled_reason: reason }, true);
+    expect(applyClaudeFastUnavailable(reason, rows)).toEqual(reason === "model_not_allowed" ? rows : [{ ...rows[0], fast: { unavailable: turn?.reason } }]);
+  }
 });

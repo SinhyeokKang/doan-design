@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { MAX_ATTACHMENTS } from "../attachments";
 import { canonicalDirectory, openRegular, readRegular } from "./io";
 import { combineQueued } from "./queue";
-import { LIMITS, validAnchor } from "./prompt";
+import { anchorTokens, LIMITS } from "./prompt";
 import { absolutePath, object } from "./sessions";
-import { validCanvas, validId } from "./store";
+import { validAttachment, validCanvas, validId } from "./store";
 import type { Anchor, AttachmentRecord, Canvas } from "./types";
 // A message sent while its conversation worked, waiting to go out with the others after the turn. sending: its send has
 // started and is not accepted yet; it stays on disk until then, so a crash returns it as a draft instead of losing it.
@@ -30,25 +30,9 @@ function fits(value: DraftParts): boolean {
   return value.text.length <= LIMITS.text && value.anchors.length <= LIMITS.anchors && value.attachments.length <= MAX_ATTACHMENTS;
 }
 function text(value: unknown): value is string { return typeof value === "string" && value.length > 0 && value.length <= LIMITS.text && !value.includes("\0"); }
-// Like prompt.ts anchorTokens: every {{n}} names one of the anchors, each once.
-function anchored(value: string, anchors: readonly unknown[]): boolean {
-  if (anchors.length > LIMITS.anchors || !anchors.every(validAnchor)) return false;
-  const seen = new Set<number>(); let invalid = false;
-  const rest = value.replace(/\{\{([^{}]*)\}\}/g, (_match, n: string) => {
-    if (!/^[1-9][0-9]*$/.test(n) || Number(n) > anchors.length) invalid = true;
-    seen.add(Number(n)); return "";
-  });
-  // oxlint-disable-next-line typescript/no-unnecessary-condition -- the replace callback sets this
-  return !invalid && !rest.includes("{{") && !rest.includes("}}") && seen.size === anchors.length;
-}
-function attachment(value: unknown): value is AttachmentRecord {
-  if (!object(value) || !text(value.name) || typeof value.path !== "string" || !absolutePath(value.path)) return false;
-  if (value.kind === "directory") return !("size" in value);
-  return typeof value.size === "number" && Number.isSafeInteger(value.size) && value.size >= 0 && (value.kind === "image" || value.kind === "file");
-}
 function parts(value: unknown): value is DraftParts {
-  return object(value) && text(value.text) && Array.isArray(value.anchors) && anchored(value.text, [...value.anchors]) &&
-    Array.isArray(value.attachments) && value.attachments.length <= MAX_ATTACHMENTS && [...value.attachments].every(attachment);
+  return object(value) && text(value.text) && Array.isArray(value.anchors) && anchorTokens(value.text, [...value.anchors]) !== null &&
+    Array.isArray(value.attachments) && value.attachments.length <= MAX_ATTACHMENTS && [...value.attachments].every(validAttachment);
 }
 function queuedItems(value: unknown): value is QueuedItem[] {
   return Array.isArray(value) && [...value].every(item => object(item) && typeof item.itemId === "string" && item.itemId.length > 0 && item.itemId.length <= 64 &&

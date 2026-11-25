@@ -117,7 +117,7 @@ it("does not log a start whose new session ID collides with another owner", asyn
 });
 it("retains a failed opening reservation until the opener confirms process exit", async () => {
   const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir); let exit = () => {};
-  const opening: OpenRunner = vi.fn(async (_input, _emit, exited) => { exit = exited; throw new Error("startup failed"); });
+  const opening: OpenRunner = vi.fn(async (_input, _emit, exited, registerStop) => { exit = exited; registerStop(async () => {}); throw new Error("startup failed"); });
   const service = new ConversationService(new ConversationStore(dir), async () => ({ runtime: "codex", configDir: "/profile", cwd: "/repo", sessionId: "s", command: "/fake", env: {} }), opening, () => {});
   await expect(service.start(request)).rejects.toThrow("startup failed");
   await expect(service.start(request)).rejects.toThrow("session_in_use"); expect(opening).toHaveBeenCalledOnce();
@@ -128,6 +128,78 @@ it("releases preparation failures without spawning and preserves existing histor
   expect(h.open).not.toHaveBeenCalled(); const first = await h.service.start(request); h.service.receive(first.conversationId, { type: "turn.done" });
   const before = h.store.read(first.conversationId); h.prepare.mockRejectedValueOnce(new Error("session_unavailable"));
   await expect(h.service.send(first.conversationId, "no", [])).rejects.toThrow("session_unavailable"); expect(h.store.read(first.conversationId)).toEqual(before);
+});
+// A runner refused before it spawned (no registerStop) leaves no process whose exit would free the session.
+describe("a runner refused before it spawned", () => {
+  function refusing() {
+    const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir); const store = new ConversationStore(dir);
+    const runners: Runner[] = []; const exits: (() => void)[] = []; let refuse = false;
+    const open = vi.fn<OpenRunner>(async (input, _emit, exited, registerStop) => {
+      if (refuse) { refuse = false; throw new Error("not_logged_in"); }
+      exits.push(exited); registerStop(async () => {});
+      const runner: Runner = { sessionId: input.sessionId ?? "new-session", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) };
+      runners.push(runner); return runner;
+    });
+    const prepare = vi.fn<Prepare>(async () => ({ runtime: "codex" as const, configDir: "/profile", cwd: "/repo", sessionId: "same-session", command: "/fake", env: {} }));
+    const service = new ConversationService(store, prepare, open, () => {}, undefined, 50);
+    return { service, store, open, prepare, runners, exits, refuseNext: () => { refuse = true; } };
+  }
+  it("frees the session for the next send", async () => {
+    const h = refusing(); const id = (await h.service.start(request)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); h.exits[0]!();
+    h.refuseNext(); await expect(h.service.send(id, "refused", [])).rejects.toThrow("not_logged_in");
+    await h.service.send(id, "again", []);
+    expect(h.open).toHaveBeenCalledTimes(3); expect(h.runners[1]!.send).toHaveBeenCalledOnce();
+  });
+  it("frees the session for the next start", async () => {
+    const h = refusing(); h.refuseNext();
+    await expect(h.service.start(request)).rejects.toThrow("not_logged_in");
+    await h.service.start(request);
+    expect(h.open).toHaveBeenCalledTimes(2); expect(h.store.list()).toHaveLength(1);
+  });
+  // A spawn failure reported through exited() already released the session; a later send may hold it by the time the
+  // open rejects.
+  it("leaves the session to a send made after the refused one reported its exit", async () => {
+    const h = refusing(); const id = (await h.service.start(request)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); h.exits[0]!();
+    let reject!: () => void;
+    h.open.mockImplementationOnce(async (_input, _emit, exited) => { exited(); await new Promise<void>(resolve => { reject = resolve; }); throw new Error("process_exited"); });
+    const refused = h.service.send(id, "refused", []);
+    await vi.waitFor(() => expect(reject).toBeDefined());
+    await h.service.send(id, "again", []);
+    reject(); await expect(refused).rejects.toThrow("process_exited");
+    // A new start whose generated session collides is refused only by the second send's reservation.
+    h.prepare.mockResolvedValueOnce({ runtime: "codex", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} });
+    h.open.mockImplementationOnce(async (_input, _emit, _exited, registerStop) => { registerStop(async () => {}); return { sessionId: "same-session", send: async () => {}, answer: () => false, stop: async () => {}, close: async () => {} }; });
+    await expect(h.service.start({ ...request, mode: "new", runtime: "codex" })).rejects.toThrow("session_in_use");
+  });
+});
+// A closing Codex server would answer the next turn with process_exited; the send waits for it and opens another.
+describe("a Codex server closed between turns", () => {
+  it("is not reused after a send that opened it failed", async () => {
+    const h = fixture(); const id = (await h.service.start(request)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); h.exits[0]!();
+    await expect(h.service.send(id, "a", [], {}, { recheck: () => { throw new Error("attachment_missing"); }, sent: () => {} })).rejects.toThrow("attachment_missing");
+    expect(h.runners[1]!.close).toHaveBeenCalledOnce();
+    const resend = h.service.send(id, "b", []);
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(h.runners[1]!.send).not.toHaveBeenCalled();
+    h.exits[1]!(); await resend;
+    expect(h.runners[2]!.send).toHaveBeenCalledOnce();
+  });
+  it("is not reused after a sign-out stopped it", async () => {
+    const h = fixture();
+    h.prepare.mockImplementation(async () => ({ runtime: "codex" as const, configDir: "/profile", cwd: "/repo", sessionId: "same-session", command: "/fake", env: {},
+      owner: { kind: "doan" as const, provider: "codex" as const, connectionId: "c1", accountId: null, workspaceId: null, profile: "codex" } }));
+    const id = (await h.service.start(request)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); await h.service.stopRuns("codex");
+    expect(h.runners[0]!.close).toHaveBeenCalledOnce();
+    const resend = h.service.send(id, "b", []);
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(h.runners[0]!.send).toHaveBeenCalledOnce();
+    h.exits[0]!(); await resend;
+    expect(h.runners[1]!.send).toHaveBeenCalledOnce();
+  });
 });
 it("keeps a colliding generated ID unavailable after the original owner exits", async () => {
   const h = fixture(); h.prepare.mockResolvedValue({ runtime: "codex", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} });

@@ -37,14 +37,14 @@ function withRunning(state: TransportState, id: string): TransportState {
 }
 // Claude Code's reasons Fast cannot serve that hold on: the turn turns Fast off. Any other reason
 // is recorded without one and leaves Fast on.
-const CONTINUING: Readonly<Record<string, FastUnusedReason>> = { free: "plan", extra_usage_disabled: "extra_usage", model_not_allowed: "model", preference: "policy" };
+export const CLAUDE_FAST_REASONS: Readonly<Record<string, FastUnusedReason>> = { free: "plan", extra_usage_disabled: "extra_usage", model_not_allowed: "model", preference: "policy" };
 // A Claude result of a turn that asked for Fast and ran without it; null when it did not ask, ran with Fast, or the
 // result carries no state (an older CLI).
 export function claudeFastOutcome(result: unknown, requested: boolean): FastUnused | null {
   if (!requested || !object(result)) return null;
   if (result.fast_mode_state === "cooldown") return { type: "fast.unused", reason: "cooldown" };
   if (result.fast_mode_state !== "off") return null;
-  const reason = typeof result.fast_mode_disabled_reason === "string" && Object.hasOwn(CONTINUING, result.fast_mode_disabled_reason) ? CONTINUING[result.fast_mode_disabled_reason] : undefined;
+  const reason = typeof result.fast_mode_disabled_reason === "string" && Object.hasOwn(CLAUDE_FAST_REASONS, result.fast_mode_disabled_reason) ? CLAUDE_FAST_REASONS[result.fast_mode_disabled_reason] : undefined;
   return reason ? { type: "fast.unused", reason, turnedOff: true } : { type: "fast.unused" };
 }
 // The turn's context value goes out in the terminal's own batch, right before it, so frames after the terminal cannot
@@ -249,11 +249,14 @@ function withFileSummary(summaries: Record<string, string>, id: string, summary:
   return { ...Object.fromEntries(kept), [id]: summary };
 }
 type ActivityEvent = Extract<EventPayload, { type: "activity" }>;
+// The store refuses U+0000 and one refused event fails the turn's whole write; activity text keeps every other character.
+export function storableText(text: string): string { return text.replaceAll("\0", "<U+0000>"); }
 function activity(kind: ActivityKind, path: string, line: string, root: string, callId?: string): ActivityEvent {
-  // Paths and tool names come from the agent unbounded; the strip shows one line and every event is stored.
-  const summary = line.slice(0, 512);
+  // Paths and tool names come from the agent unbounded; the strip shows one line and every event is stored. A path with
+  // U+0000 goes for storableText's reason.
+  const summary = storableText(line).slice(0, 512);
   const id = callId ? { callId } : {};
-  if (!path) return { type: "activity", kind, summary, ...id };
+  if (!path || path.includes("\0")) return { type: "activity", kind, summary, ...id };
   const resolved = posix.resolve(root, path);
   return { type: "activity", kind, path, insideDesign: canvasDir(posix.relative(root, resolved)) !== null, summary, ...id };
 }
@@ -674,10 +677,17 @@ export function claudePermission(requestId: string, tool: string, input: Record<
 }
 // Codex's execpolicy prefix as one command line; a word with a space or a quote keeps its JSON quotes.
 function commandPrefix(words: readonly string[]): string { return words.map(word => /[\s"'\\]/.test(word) ? JSON.stringify(word) : word).join(" "); }
+// app-server numbers its requests from 0 in every process, so the request's turn makes the id unique in the
+// conversation; the dispatcher answers with the wire id it keeps beside it.
 export function codexPermission(raw: unknown, fileSummaries: Readonly<Record<string, string>> = {}, labels: Readonly<Record<string, string>> = PRESET_LABELS): PendingPermission | null {
   if (!object(raw) || (typeof raw.id !== "number" && typeof raw.id !== "string") || !object(raw.params)) return null;
-  const params = raw.params;
-  if (raw.method === MCP_ELICITATION) { const approval = codexMcpApproval(raw, labels); return approval?.kind === "permission" ? approval.permission : null; }
+  const params = raw.params, turn = object(params.turn) ? params.turn.id : params.turnId;
+  if (typeof turn !== "string" || !turn) return null;
+  const requestId = `${turn}:${typeof raw.id}:${raw.id}`;
+  if (raw.method === MCP_ELICITATION) {
+    const approval = codexMcpApproval(raw, labels);
+    return approval?.kind === "permission" ? { ...approval.permission, event: { ...approval.permission.event, requestId } } : null;
+  }
   if (raw.method === "item/permissions/requestApproval" && object(params.permissions)) {
     const response = (permissions: unknown, scope: "turn" | "session") => ({ id: raw.id, result: { permissions, scope } });
     const choices = [
@@ -686,7 +696,7 @@ export function codexPermission(raw: unknown, fileSummaries: Readonly<Record<str
       choice("always", "Allow for this session", "allowAlways", response(params.permissions, "session")),
     ];
     const summary = codexPermissionSummary(params.permissions, text(params.cwd));
-    return { event: { type: "permission.request", requestId: `${typeof raw.id}:${raw.id}`, tool: "permissions", summary, ...permissionReason(text(params.reason), summary), options: choices.map(c => c.option) }, choices };
+    return { event: { type: "permission.request", requestId, tool: "permissions", summary, ...permissionReason(text(params.reason), summary), options: choices.map(c => c.option) }, choices };
   }
   if (raw.method !== "item/fileChange/requestApproval" && raw.method !== "item/commandExecution/requestApproval") return null;
   const response = (decision: unknown) => ({ id: raw.id, result: { decision } });
@@ -714,7 +724,7 @@ export function codexPermission(raw: unknown, fileSummaries: Readonly<Record<str
   }
   const files = raw.method === "item/fileChange/requestApproval";
   const summary = clip((files ? fileSummaries[text(params.itemId)] || GENERIC_SUMMARY.edit : commandText(params) || GENERIC_SUMMARY.command), PERMISSION_SUMMARY_MAX);
-  return { event: { type: "permission.request", requestId: `${typeof raw.id}:${raw.id}`, tool: files ? "fileChange" : "commandExecution", summary, ...permissionReason(text(params.reason), summary), options: choices.map(c => c.option) }, choices };
+  return { event: { type: "permission.request", requestId, tool: files ? "fileChange" : "commandExecution", summary, ...permissionReason(text(params.reason), summary), options: choices.map(c => c.option) }, choices };
 }
 export function permissionAnswer(request: PendingPermission, optionId: string): { response: unknown; event: EventPayload } | null {
   const chosen = request.choices.find(c => c.option.id === optionId);

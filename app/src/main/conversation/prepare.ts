@@ -4,7 +4,7 @@ import { probeShell, runProcess } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
 import { agentEnv, promptSuggestionEnv } from "./environment";
 import { launchEnv } from "../launchEnv";
-import { canonicalDirectory, claudeOccupancy, codexOccupancy, codexSessionExists, openRegular, readSessionTail } from "./io";
+import { canonicalDirectory, claudeOccupancy, claudeProjectFind, codexOccupancy, codexSessionExists, openRegular, readSessionTail } from "./io";
 import { PROVIDER_AUTH } from "../agentAuth/providers";
 import { insideRoot, parseCliVersion, pickSession, versionStatus } from "./sessions";
 import { judgeConnection } from "../agentAuth/connection";
@@ -71,17 +71,9 @@ export function createPrepare(userData: string, appRuntime: string, inherited: N
   };
 }
 export function claudeSessionExists(config: string, id: string): boolean {
-  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(id)) return false;
-  try {
-    const base = join(config, "projects"), names = readdirSync(base); if (names.length > 4096) return false;
-    for (const name of names) {
-      const dir = join(base, name); if (canonicalDirectory(dir) !== dir) return false;
-      // Existence is an identity check (a regular file, opened without blocking on a FIFO), not a read: Claude Code owns
-      // the transcript and bounds neither its size nor its bytes.
-      try { closeSync(openRegular(join(dir, `${id}.jsonl`))); return true; } catch { /* A missing session in one project is not a fallback session. */ }
-    }
-  } catch { return false; }
-  return false;
+  // Existence is an identity check (a regular file, opened without blocking on a FIFO), not a read: Claude Code owns the
+  // transcript and bounds neither its size nor its bytes. A missing session in one project is not a fallback session.
+  return claudeProjectFind(config, id, path => { try { closeSync(openRegular(path)); return true; } catch { return false; } }) !== null;
 }
 
 export interface AccountRuntime {

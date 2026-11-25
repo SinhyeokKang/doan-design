@@ -49,7 +49,7 @@ describe("threadItems", () => {
     expect(crashed.slice(1)).toEqual([
       { kind: "agent", key: "mt1:m1", messageId: "m1", text: "Half", streaming: false },
       { kind: "activity", key: "a4", running: false, head: "1 step", steps: [{ key: "s4", kind: "command", verb: "Ran a command", path: null }] },
-      { kind: "permission", key: "pr1", seq: 5, requestId: "r1", summary: "Run doan check", options, status: "expired", answer: null },
+      { kind: "permission", key: "pt1:r1", seq: 5, requestId: "r1", summary: "Run doan check", options, status: "expired", answer: null },
       { kind: "end", key: "xt1", seq: null, end: { kind: "interrupted", reason: "crashed" } },
     ]);
   });
@@ -142,8 +142,8 @@ describe("threadItems", () => {
     expect(threadItems(events, ROOT, true).slice(1).map(i => i.kind === "permission" && i.status)).toEqual(["pending", "pending"]);
     events.push(ev("t1", { type: "permission.resolved", requestId: "r1", optionId: "a" }), ev("t1", { type: "turn.failed", code: "process_exited" }));
     const items = threadItems(events, ROOT, true);
-    expect(items[1]).toMatchObject({ key: "pr1", status: "answered", answer: { id: "a", label: "Allow once", kind: "allow" } });
-    expect(items[2]).toMatchObject({ key: "pr2", status: "expired", answer: null });
+    expect(items[1]).toMatchObject({ key: "pt1:r1", status: "answered", answer: { id: "a", label: "Allow once", kind: "allow" } });
+    expect(items[2]).toMatchObject({ key: "pt1:r2", status: "expired", answer: null });
     expect(items[3]).toEqual({ kind: "end", key: "e6", seq: 6, end: { kind: "failed", code: "process_exited" } });
   });
 
@@ -173,7 +173,7 @@ describe("threadItems", () => {
     const options = [{ id: "a", label: "Allow once", kind: "allow" }, { id: "d", label: "Deny", kind: "deny" }];
     const events = [...turn("t1"), ev("t1", { type: "permission.request", requestId: "r1", tool: "mcp", summary: "Run search on Linear", options }),
       ev("t1", { type: "permission.resolved", requestId: "r1", optionId: "expired" }), ev("t1", { type: "interrupted", reason: "user" })];
-    expect(threadItems(events, ROOT, true)[1]).toMatchObject({ key: "pr1", status: "expired", answer: null });
+    expect(threadItems(events, ROOT, true)[1]).toMatchObject({ key: "pt1:r1", status: "expired", answer: null });
   });
 
   test("a finished turn without any reply says so; nothing after a turn's end counts", () => {
@@ -357,9 +357,9 @@ describe("withSending", () => {
     const options = [{ id: "a", label: "Allow once", kind: "allow" }];
     const events = [...turn("t1"), ev("t1", { type: "activity", kind: "read", summary: "Read", path: "a.html" }),
       ev("t1", { type: "permission.request", requestId: "r1", tool: "Bash", summary: "Run doan check", options })];
-    expect(withSending(threadItems(events, ROOT, true), sending).map(item => item.key)).toEqual(["u1", "a3", "qq1", "qq2", "pr1"]);
+    expect(withSending(threadItems(events, ROOT, true), sending).map(item => item.key)).toEqual(["u1", "a3", "qq1", "qq2", "pt1:r1"]);
     events.push(ev("t1", { type: "permission.resolved", requestId: "r1", optionId: "a" }));
-    expect(withSending(threadItems(events, ROOT, true), sending).map(item => item.key)).toEqual(["u1", "a3", "pr1", "qq1", "qq2"]);
+    expect(withSending(threadItems(events, ROOT, true), sending).map(item => item.key)).toEqual(["u1", "a3", "pt1:r1", "qq1", "qq2"]);
   });
 
   test("nothing sending leaves the items as they are", () => {
@@ -436,9 +436,23 @@ describe("questions", () => {
     const options = [{ id: "a", label: "Allow once", kind: "allow" }];
     const events = [...turn("t1"), ev("t1", { type: "permission.request", requestId: "p1", tool: "Bash", summary: "Run", options }),
       ev("t1", { type: "question.request", requestId: "q1", questions: [layout] }), ev("t1", { type: "permission.request", requestId: "p2", tool: "Bash", summary: "Run", options })];
-    expect(pendingAsks(threadItems(events, ROOT, true))).toEqual([{ requestId: "p1", key: "pp1" }, { requestId: "q1", key: "Qq1" }, { requestId: "p2", key: "pp2" }]);
+    expect(pendingAsks(threadItems(events, ROOT, true))).toEqual([{ requestId: "p1", key: "pt1:p1" }, { requestId: "q1", key: "Qq1" }, { requestId: "p2", key: "pt1:p2" }]);
     events.push(ev("t1", { type: "permission.resolved", requestId: "p1", optionId: "a" }));
     expect(pendingAsks(threadItems(events, ROOT, true)).map(ask => ask.requestId)).toEqual(["q1", "p2"]);
+  });
+
+  // A new Codex app-server numbers its requests from 0 again, so a history can hold one id in two turns.
+  test("two turns' permission requests that share an id draw as two cards, each settled by its own turn", () => {
+    seq = 0;
+    const options = [{ id: "a", label: "Allow once", kind: "allow" }];
+    const request = (turnId: string, summary: string) => ev(turnId, { type: "permission.request", requestId: "number:0", tool: "commandExecution", summary, options });
+    const events = [...turn("t1"), request("t1", "ls"), ev("t1", { type: "permission.resolved", requestId: "number:0", optionId: "a" }), ev("t1", { type: "turn.done" }),
+      ...turn("t2", "Again"), request("t2", "npm test")];
+    const items = threadItems(events, ROOT, true).filter(item => item.kind === "permission");
+    expect(items).toMatchObject([{ key: "pt1:number:0", summary: "ls", status: "answered" }, { key: "pt2:number:0", summary: "npm test", status: "pending" }]);
+    expect(pendingAsks(threadItems(events, ROOT, true))).toEqual([{ requestId: "number:0", key: "pt2:number:0" }]);
+    events.push(ev("t2", { type: "permission.resolved", requestId: "number:0", optionId: "expired" }));
+    expect(threadItems(events, ROOT, true).filter(item => item.kind === "permission")).toMatchObject([{ status: "answered" }, { status: "expired" }]);
   });
 });
 
