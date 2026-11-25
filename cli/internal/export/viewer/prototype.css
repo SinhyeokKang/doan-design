@@ -65,6 +65,9 @@ svg { display: block; flex: none; }
 }
 .doan-alert-icon { flex: none; margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
 .doan-notice.doan-panel { background: var(--surface-panel); }
+@media (forced-colors: active) {
+  .doan-notice.doan-panel { outline: 1px solid CanvasText; outline-offset: -1px; }
+}
 
 /* Where the export viewer puts its no-JavaScript line (.vw-noscript). */
 .proto-line { position: absolute; z-index: 1; top: var(--space-4); left: var(--space-4); right: var(--space-4); }

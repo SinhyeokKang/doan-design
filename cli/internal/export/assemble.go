@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"unicode"
 
 	nethtml "golang.org/x/net/html"
 
@@ -176,9 +175,9 @@ func protoFrames(frames []ProtoFrame) []protoFrame {
 	return out
 }
 
-// frameName is the app's title.trim() || id. JavaScript trims Unicode White_Space without U+0085, plus U+FEFF.
+// frameName is the app's title.trim() || id.
 func frameName(id, title string) string {
-	if t := strings.TrimFunc(title, func(r rune) bool { return r == '\uFEFF' || r != '\u0085' && unicode.IsSpace(r) }); t != "" {
+	if t := jsTrim(title); t != "" {
 		return t
 	}
 	return id

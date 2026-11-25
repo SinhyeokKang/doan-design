@@ -81,7 +81,7 @@ func TestSkillGuideActive(t *testing.T) {
 	for _, parts := range [][]string{
 		{"`doan active --json`", "selection"},
 		{"`selection`", "ask the user"},
-		{"`project_not_open`", "add this project in Doan (File > Add Projects…)", "work in the worktree that is open in Doan"},
+		{"`project_not_open`", "follow `error.nextSteps`", "another checkout or worktree", "not the path in the message"},
 		{"frame", "`doan ls`", "script"},
 		{"3", "`app_not_running`", "`app_protocol_mismatch`", "`project_not_open`"},
 	} {
@@ -361,7 +361,7 @@ func TestSkillGuideOpenCommand(t *testing.T) {
 		"`--prototype` plays that marked frame alone in its window (`prototype: true`)",
 		"Returns `{opened, frame}` where `frame` is `found`, `missing` (no such frame; say only the canvas opened) or `none`",
 		"On failure: `canvas_not_found`",
-		"`project_not_open` (name the folder; they add it with File > Add Projects…, then ask again)",
+		"`project_not_open` (as for `doan active`)",
 		"`busy` (`message` says what blocks; they finish it, then ask again)",
 		"`app_launch_failed` (Doan did not open)",
 		"`app_not_running` (as for `doan active`)",

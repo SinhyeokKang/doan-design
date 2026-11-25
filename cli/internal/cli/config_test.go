@@ -319,7 +319,17 @@ func TestConfigRejectsWithheldServeNameThroughLink(t *testing.T) {
 	if err := os.Symlink("docs", filepath.Join(root, ".env-docs")); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{".env-docs", ".env-docs/page.css", filepath.Join(realPath(t, root), ".env-docs")} {
+	// A link inside the repository back to its root is itself a typed name below the root.
+	if err := os.Symlink(".", filepath.Join(root, ".env-root")); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(t.TempDir(), "alias")
+	if err := os.Symlink(root, alias); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{".env-docs", ".env-docs/page.css", filepath.Join(realPath(t, root), ".env-docs"),
+		".env-root/docs", filepath.Join(alias, ".env-docs"), filepath.Join(alias, ".env-docs/page.css"),
+		filepath.Join(alias, ".env-root/docs")} {
 		t.Run(path, func(t *testing.T) {
 			before := readFile(t, root, ".doan/config.json")
 			failure := runJSON(t, root, 2, "config", "--add-serve", path)["error"].(map[string]any)
@@ -331,5 +341,5 @@ func TestConfigRejectsWithheldServeNameThroughLink(t *testing.T) {
 			}
 		})
 	}
-	result(t, root, 0, "config", "--add-serve", "docs")
+	result(t, root, 0, "config", "--add-serve", filepath.Join(alias, "docs"))
 }

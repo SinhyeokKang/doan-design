@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SinhyeokKang/doan-design/cli/internal/canvas"
 	"github.com/SinhyeokKang/doan-design/cli/internal/formats"
 	"github.com/SinhyeokKang/doan-design/cli/internal/repo"
 	"golang.org/x/sys/unix"
@@ -156,7 +155,7 @@ func recordSessions(ctx Context, root string, files []canvasFile) {
 	}
 	for _, file := range files {
 		c := map[string]any{"path": file.Model.Path}
-		if !file.Model.IDDup && canvas.IDPattern.MatchString(file.Model.ID) {
+		if file.Model.ValidID() {
 			c["id"] = file.Model.ID
 		}
 		hash := fmt.Sprintf("sha256:%x", sha256.Sum256(file.Data))
