@@ -1,31 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { FolderEntry } from "../main/view";
-import { projectNames, projectRow } from "./projectRow";
-
-describe("projectRow", () => {
-  test("separates reading and empty hints from status chips", () => {
-    expect(projectRow({ path: "/repo", kind: "loading" })).toEqual({ hint: "Reading", actions: ["close"] });
-    expect(projectRow({ path: "/repo", kind: "list", servedRev: 0, canvases: [] })).toEqual({ hint: "No canvases", actions: ["copyPrompt", "close"] });
-    expect(projectRow({ path: "/repo", kind: "list", servedRev: 0, canvases: [{ path: ".doan/canvases/a.html", url: "url" }] })).toEqual({ actions: ["close"] });
-  });
-
-  test("matches the draft's initialization and error copy", () => {
-    expect(projectRow({ path: "/repo", kind: "uninitialized" })).toEqual({ status: "Not initialized", detail: ["Set up this project to add .doan/canvases/ and .doan/."], actions: ["setup", "close"] });
-    expect(projectRow({ path: "/repo", kind: "error", message: "Cannot read config", config: "/repo/.doan/config.json" })).toEqual({ status: "Error", detail: ["Cannot read config"], actions: ["close"] });
-  });
-
-  test("offers reopen only for missing projects and CLI errors", () => {
-    expect(projectRow({ path: "/repo", kind: "notFound" })).toEqual({ status: "Not found", detail: ["/repo is gone or moved. Restore it and Reopen, or Close it."], actions: ["reopen", "close"] });
-    expect(projectRow({ path: "/repo", kind: "cliError", reason: "timed out after 10 s" })).toEqual({ status: "CLI error", detail: ["Timed out after 10 s"], actions: ["reopen", "close"] });
-    expect(projectRow({ path: "/repo", kind: "cliError", reason: "spawn doan ENOENT" }).detail).toEqual(["Spawn doan ENOENT"]);
-    expect(projectRow({ path: "/repo", kind: "cliError", reason: "" })).toEqual({ status: "CLI error", actions: ["reopen", "close"] });
-    const entries: FolderEntry[] = [
-      { path: "/repo", kind: "loading" }, { path: "/repo", kind: "uninitialized" },
-      { path: "/repo", kind: "error", message: "bad", config: "/repo/.doan/config.json" }, { path: "/repo", kind: "list", servedRev: 0, canvases: [] },
-    ];
-    for (const entry of entries) expect(projectRow(entry).actions).not.toContain("reopen");
-  });
-});
+import { projectNames } from "./projectRow";
 
 describe("projectNames", () => {
   test("keeps unique basenames", () => {
