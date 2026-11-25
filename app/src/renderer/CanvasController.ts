@@ -1281,8 +1281,8 @@ export class CanvasController {
       this.lastHref === null || !sameDocument(this.lastHref, message.href)) return;
     if ("cancelled" in message) { this.cancelPick(); return; }
     // Only frames and what is in them can be chips; a forged or stray reply outside every frame keeps picking
-    // (targetAnchor itself takes any frame or element).
-    if ("target" in message && message.target.frame === undefined) return;
+    // (targetAnchor itself takes any frame or element). An empty frame id is no frame (targetAnchor).
+    if ("target" in message && !message.target.frame?.id) return;
     const frames = this.state.layout?.frames ?? [];
     const anchor = "target" in message ? targetAnchor(message.target) : pointAnchor(message.point, frames);
     if (anchor === null) return;

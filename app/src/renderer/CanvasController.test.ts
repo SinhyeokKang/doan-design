@@ -2594,7 +2594,7 @@ describe("picking", () => {
   });
 
   // A pick must give the same chip as the bubble's Add to message (App's targetAnchor of the selection);
-  // a note makes no chip, so the bubble is unavailable for it.
+  // a note makes no chip, so the bubble is unavailable for it. Main refuses an empty frame id, so its frame counts as none.
   it("the selection's anchor for Add to message is the pick's anchor for the same target, and a note has none to add", () => {
     const ready = { enabled: true, reason: null };
     const element = { doanId: "pay", selector: '[data-doan-id="pay"]', html: "<button>Pay</button>", text: "Pay" };
@@ -2603,17 +2603,19 @@ describe("picking", () => {
       // A frame inside a frame: the script names the innermost one.
       nested: { rect: { x: 1, y: 22, width: 8, height: 4 }, tag: "button", frame: { id: "card" }, frameIndex: 2, element, path: [{ label: "hero", selector: '[data-doan-frame="hero"]' }, { label: "card", selector: '[data-doan-frame="card"]' }] },
       note: { rect: { x: 40, y: 40, width: 30, height: 10 }, tag: "p", element: { selector: "body > p:nth-of-type(1)", html: "<p>Note</p>" }, path: [] },
+      emptyFrame: { rect: { x: 41, y: 41, width: 8, height: 4 }, tag: "button", frame: { id: "" }, frameIndex: 3, element, path: [] },
+      emptyFrameItself: { rect: { x: 40, y: 40, width: 30, height: 10 }, tag: "section", frame: { id: "" }, frameIndex: 3, path: [] },
     };
     for (const [name, target] of Object.entries(targets)) {
       const h = harness();
       try {
-        h.layout({ document: "doc", frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }, { id: "card", x: 0, y: 21, width: 9, height: 6 }] });
+        h.layout({ document: "doc", frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }, { id: "card", x: 0, y: 21, width: 9, height: 6 }, { id: "", x: 40, y: 40, width: 30, height: 10 }] });
         h.select(1, { target });
         const selected = targetAnchor(h.state().selection);
         const results = started(h);
         picked(h, { target });
         const add = bubbleAddAvailability({ capturing: false, anchor: selected, picker: ready, unlisted: null });
-        if (name === "note") {
+        if (name === "note" || name.startsWith("emptyFrame")) {
           expect(results, name).not.toHaveBeenCalled();
           expect(h.state().picking, name).toBe(true);
           expect(add, name).toEqual({ enabled: false, reason: ADD_TO_MESSAGE_OUTSIDE_FRAMES });

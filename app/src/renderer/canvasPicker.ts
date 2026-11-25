@@ -44,14 +44,15 @@ export function pointAnchor(click: { x: number; y: number }, frames: readonly Pi
     // The smallest frame holding the click is the innermost; a later frame wins a tie, as it draws on top.
     if (!best || frame.width * frame.height <= best.width * best.height) best = frame;
   }
-  if (!best) return null;
+  // Main refuses an empty frame id (validAnchor), so such a frame is outside every frame.
+  if (!best?.id) return null;
   const dx = Math.round(click.x - best.x), dy = Math.round(click.y - best.y);
   return { frame: { id: best.id, ...(best.title ? { title: best.title } : {}) }, point: { frameId: best.id, dx, dy } };
 }
 
-// Only what an agent can find in the HTML.
+// Only what an agent can find in the HTML. An empty frame id counts as no frame, as in pointAnchor.
 export function targetAnchor(target: Omit<SelectTarget, "rect">): Anchor | null {
-  const frame = target.frame && { id: target.frame.id, ...(target.frame.title === undefined ? {} : { title: target.frame.title }) };
+  const frame = target.frame?.id && { id: target.frame.id, ...(target.frame.title === undefined ? {} : { title: target.frame.title }) };
   if (!target.element) return frame ? { frame } : null;
   const { doanId, selector, text } = target.element;
   const element = { ...(doanId === undefined ? {} : { doanId }), selector, ...(text === undefined ? {} : { text }), tag: target.tag };
