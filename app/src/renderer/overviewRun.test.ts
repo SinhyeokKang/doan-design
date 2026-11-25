@@ -613,6 +613,25 @@ test("the main conversation is seen only while it shows with the window focused,
   expect(h.host.markSeen).toHaveBeenCalledTimes(2);
 });
 
+// A refused write (HomeRun's seenFailed) makes the same end eligible again; a failure for an older end does not.
+test("a failed seen mark is sent again for the same end on the next check, and only for the end that failed", async () => {
+  const h = harness();
+  histories.set(A, ended(A));
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { unseen: true })]);
+  await flush();
+  expect(h.host.markSeen).toHaveBeenCalledExactlyOnceWith(A, 4);
+  h.run.seenFailed(A, 3);
+  h.run.focusChanged();
+  expect(h.host.markSeen).toHaveBeenCalledTimes(1);
+  h.run.seenFailed(A, 4);
+  h.run.focusChanged();
+  expect(h.host.markSeen).toHaveBeenCalledTimes(2);
+  expect(h.host.markSeen).toHaveBeenLastCalledWith(A, 4);
+  h.run.focusChanged();
+  expect(h.host.markSeen).toHaveBeenCalledTimes(2);
+});
+
 // The Overview showing A, whose turn ended.
 function shownSetup(focused: boolean) {
   const h = harness();

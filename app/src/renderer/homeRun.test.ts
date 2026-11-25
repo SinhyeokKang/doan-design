@@ -504,6 +504,25 @@ test("a failed seen marker brings the slot back", async () => {
   expect(h.run.slots().get(ROOT)?.kind).toBe("unseen");
 });
 
+test("a failed seen mark through a run tells the runs which seq failed; a saved one does not", async () => {
+  lists({ [ROOT]: [summary({ unseen: true })] });
+  doan.markConversationSeen!.mockResolvedValueOnce({ error: "bad_request" }).mockRejectedValueOnce(new Error("gone"));
+  const h = harness();
+  const seenFailed = vi.fn();
+  h.host.seenFailed = seenFailed;
+  h.run.entriesChanged();
+  await flush(); await flush();
+  h.run.markSeenThrough("c1", 4);
+  await flush();
+  expect(seenFailed).toHaveBeenCalledExactlyOnceWith("c1", 4);
+  h.run.markSeenThrough("c1", 5);
+  await flush();
+  expect(seenFailed).toHaveBeenLastCalledWith("c1", 5);
+  h.run.markSeenThrough("c1", 6);
+  await flush();
+  expect(seenFailed).toHaveBeenCalledTimes(2);
+});
+
 // A canvas conversation is seen only in its canvas's open panel (markSeenThrough);
 // visiting its canvas row or project marks nothing.
 test("visiting the bound canvas or its project leaves a canvas conversation's ending unseen", async () => {

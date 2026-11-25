@@ -391,6 +391,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       return request.permissionMode ? rememberPermission(next, request.runtime, request.permissionMode) : next;
     }),
     followedMode: (provider, mode) => live.current.followMode(provider, mode),
+    seenFailed: (id, seq) => { overviewRun.current?.seenFailed(id, seq); canvasRun.current?.seenFailed(id, seq); },
     changed: () => { setRunTick(tick => tick + 1); overviewRun.current?.sync(); canvasRun.current?.sync(); },
   });
   // The Overview's main conversation and its composer's lists, for the run; the root it shows, as committed.
