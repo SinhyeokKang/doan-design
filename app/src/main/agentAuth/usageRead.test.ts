@@ -130,14 +130,16 @@ describe("an RPC usage read whose answer arrives after the leader exits", () => 
     let exitWith!: (code: number | null) => void, goneWith!: () => void;
     const exit = new Promise<number | null>(resolve => { exitWith = resolve; }), gone = new Promise<void>(resolve => { goneWith = resolve; });
     const send = (value: object) => { for (const listener of listeners) listener(JSON.stringify(value) + "\n"); };
+    // As spawnAuthProcess: stopping the group still lets output already in the pipe drain before gone.
+    let draining = false;
     return {
       exit, gone, onOutput: listener => { listeners.push(listener); },
-      stop: () => { exitWith(null); goneWith(); },
+      stop: () => { exitWith(null); if (!draining) goneWith(); },
       write: text => {
         const r = JSON.parse(text) as { id?: number; method: string };
         if (r.method === "initialize") setTimeout(() => send({ id: r.id, result: { userAgent: "fake" } }), 0);
         if (r.method === "account/rateLimits/read") {
-          exitWith(0);
+          draining = true; exitWith(0);
           setTimeout(() => { send({ id: r.id, result: JSON.parse(fixture("codex")) }); setTimeout(goneWith, 10); }, delayMs);
         }
       },

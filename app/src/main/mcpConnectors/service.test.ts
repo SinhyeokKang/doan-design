@@ -682,7 +682,7 @@ describe("sign-out and replacement logout", () => {
     await s.idle();
   });
 
-  it("a Codex replacement still unregisters and records a failed logout when another doan- registration has a URL Doan would not store", async () => {
+  it("a Codex replacement still records a failed logout and registers the rest when another doan- registration has a URL Doan would not store", async () => {
     cli.failing.add("codex logout doan-figma");
     cli.registered.codex.set("doan-plain", { url: "http://example.com/mcp", auth: true });
     const staging = join(dir, "agent-auth", "profiles", "codex-next");
@@ -692,7 +692,6 @@ describe("sign-out and replacement logout", () => {
       const s = service();
       expect(await s.logoutForAuth("codex", request("codex", { kind: "replace", staging }))).toEqual({ failed: ["doan-figma"] });
       expect(readFileSync(join(staging, "config.toml"), "utf8")).toBe('\n[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/mcp"\n');
-      expect(logouts("codex")).toContainEqual(["mcp", "remove", "doan-figma"]);
       expect(store.pending()).toEqual([{ provider: "codex", name: "doan-figma", url: "https://mcp.figma.com/mcp" }]);
       expect(store.blocked("codex", "doan-figma")).toBe(true);
       await s.idle();

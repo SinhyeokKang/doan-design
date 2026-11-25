@@ -349,7 +349,7 @@ describe("UsageService visibility", () => {
   });
   it("shown during a background start before the tool facts are read, reads nothing and shows no readiness cause until main's start", async () => {
     let visible = false;
-    const h = setup({ visible: () => visible, readiness: () => ({ ready: false, cause: "version_unknown", action: "retry" }) as Readiness });
+    const h = setup({ visible: () => visible, readiness: () => ({ ready: false, cause: "version_unknown", action: "retry" }) });
     h.auth.states.set("claude", connected("claude", "c1"));
     const usage = h.make();
     visible = true; usage.visibilityChanged(); await usage.settled();
