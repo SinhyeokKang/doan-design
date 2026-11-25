@@ -1,4 +1,5 @@
 import { dirname } from "node:path";
+import { QUIT_WAIT_MS } from "../agentAuth/manager";
 import type {
   OnboardingChange, OnboardingInspection, OnboardingOperation, OnboardingOperationErrorCode, OnboardingProject, OnboardingProjectCloneRequest,
   OnboardingProjectInspectRequest, OnboardingProjectSelectRequest, OnboardingResponse, OnboardingStorage,
@@ -48,8 +49,7 @@ export interface ProjectSession {
 
 // Folder work that ends this fast answers its final state; anything slower answers running and is read with status.
 const QUICK_REPLY_MS = 1000;
-// Bounded like agent-auth's quit: a clone's group is stopped within about 2.5 s.
-const QUIT_WAIT_MS = 5000;
+// Bounded like agent-auth's quit (QUIT_WAIT_MS): a clone's group is stopped within about 2.5 s.
 // The most a clone can need: whether the repository brings its own setup is known only after the clone. A clone is a
 // new repository, so kept out of Git it always needs the exclude entry.
 const CLONE_CHANGES: Record<OnboardingStorage, OnboardingChange[]> = {
