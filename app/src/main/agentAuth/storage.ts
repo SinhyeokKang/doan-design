@@ -15,8 +15,8 @@ export class StorageError extends Error {
 export type VaultFiles = Record<string, Buffer>;
 export type SettingMerge = (current: string | null) => string | null;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
-// Working files are read refusing links; a link, FIFO or oversized file throws without a code, so it never reads as
-// absent. The cap is far above any credential, low enough that a grown file cannot stall main or flood the vault.
+// Working files are read refusing links (ELOOP; special or oversized files throw without a code), so none reads as absent.
+// The cap is far above any credential, low enough that a grown file cannot stall main or flood the vault.
 const WORKING_FILE_LIMIT = 16 * 1024 * 1024;
 function absent(error: unknown): boolean { return typeof error === "object" && error !== null && (error as NodeJS.ErrnoException).code === "ENOENT"; }
 // What readRegularFileNoFollowSync throws for a link, a special file or a file past its cap: not a file Doan can read.

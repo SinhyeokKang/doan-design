@@ -77,8 +77,8 @@ function agentParams(provider: Provider, profile: string): [string, string][] {
   const folder = name ? `${profile}/${name}` : profile;
   return [["AGENT_FOLDER", folder], ...(name ? HOME_STORES.map((store, i): [string, string] => [`HOME_STORE_${i + 1}`, `${profile}/${store}`]) : []), ...dirs.map((dir, i): [string, string] => [`AGENT_DIR_${i + 1}`, `${folder}/${dir}`]), ...files.map((file, i): [string, string] => [`AGENT_FILE_${i + 1}`, `${folder}/${file}`])];
 }
-// The folder can sit under projects/, beside MCP approvals a later run reads, and Seatbelt cannot tell a mkdir from a
-// rename, so Doan creates it outside the fence (prepare.ts). The path rule mirrors the CLI's, 83/91 cut and hash included.
+// cursor-agent's worker socket folder can sit under projects/, beside MCP approvals a later run reads, and Seatbelt cannot
+// tell a mkdir from a rename, so Doan creates it outside the fence (prepare.ts). The path rule mirrors the CLI's, cut and hash included.
 export function cursorWorkerDir(at: { home: string; cwd: string; tmpdir: string | undefined }, exists: (path: string) => boolean = existsSync): string {
   const data = join(at.home, ".cursor"), tmp = (at.tmpdir || "/tmp").replace(/(.)\/$/, "$1");
   const base = [join(data, "projects"), data, join(tmp, ".cursor")].find(path => path.length <= 83) ?? "/tmp/.cursor";

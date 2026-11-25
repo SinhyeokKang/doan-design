@@ -225,7 +225,7 @@ export class UsageService {
 }
 
 // Doan-account Claude and Codex runs read at turn end; a legacy external run (the person's own profile) and ACP runs do not.
-// A Cursor run reads only when session/load answers "not found", to tell its plan limit; "used up" is a window at 100 %.
+// A Cursor run reads only when session/load answers "not found", to tell its plan limit from a gone session; "used up" is a window at 100 %.
 export function withTurnUsage(prepared: Prepared, usage: Pick<UsageService, "turnEnd" | "limitWindows">, cursorSummary: (profileDir: string) => Promise<unknown>): Prepared {
   const owner = prepared.owner;
   if (owner && prepared.runtime === "cursor") return { ...prepared, limitReached: async () => {

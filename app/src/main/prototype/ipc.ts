@@ -114,8 +114,8 @@ export interface PrototypeGoto {
   frames: string[];
 }
 
-// Posted once, plus one FramesMessage after `load` handlers if later; the host tells them apart by `state`. It accepts only
-// its current iframe, origin "null" and current `gen`, forwards the data unchanged, and main validates it again.
+// The prototype script posts one RunMessage (with `state`), then a FramesMessage (no `state` or `goto`) if it ran before
+// the `load` handlers. The host accepts only its current iframe, origin "null" and `gen`, forwards it unchanged; main re-validates.
 export type RunMessage =
   | { gen: number; state: "ready"; size: string; frames: PrototypeFrame[]; gotos: PrototypeGoto[] }
   | { gen: number; state: LostState; frames: PrototypeFrame[]; gotos: PrototypeGoto[] }
