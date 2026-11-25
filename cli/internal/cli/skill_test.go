@@ -81,7 +81,7 @@ func TestSkillGuideActive(t *testing.T) {
 	for _, parts := range [][]string{
 		{"`doan active --json`", "selection"},
 		{"`selection`", "ask the user"},
-		{"`project_not_open`", "add this project in Doan (File > Add Projects…)", "work in the worktree that is open in Doan"},
+		{"`project_not_open`", "follow `error.nextSteps`", "another checkout or worktree", "not the path in the message"},
 		{"frame", "`doan ls`", "script"},
 		{"3", "`app_not_running`", "`app_protocol_mismatch`", "`project_not_open`"},
 	} {
