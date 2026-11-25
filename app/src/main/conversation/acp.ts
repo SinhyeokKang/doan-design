@@ -105,7 +105,7 @@ export function acpPermission(params: Record<string, unknown>, requestId: string
   const tool = object(params.toolCall) ? params.toolCall : {};
   const title = str(tool.title);
   const summary = clip(acpOperation(tool, root) || title || GENERIC_SUMMARY[ACTIVITY[str(tool.kind)] ?? "other"], PERMISSION_SUMMARY_MAX);
-  return { event: { type: "permission.request", requestId, tool: typeof tool.kind === "string" ? tool.kind : "other", summary, ...permissionReason(title, summary), options: choices.map(c => c.option) }, choices };
+  return { event: { type: "permission.request", requestId, tool: typeof tool.kind === "string" ? storableText(tool.kind) : "other", summary, ...permissionReason(title, summary), options: choices.map(c => c.option) }, choices };
 }
 // What an ACP request lets run, when its tool call names it: the command (Copilot's title is a fixed phrase and the
 // command is only in rawInput), else every path it touches. Cursor's requests carry neither; their title is the command.
@@ -125,11 +125,12 @@ export function acpQuestion(params: Record<string, unknown>, requestId: string):
   const L = QUESTION_LIMITS;
   const tool = object(params.toolCall) ? params.toolCall : {};
   const question = tool.title;
-  if (typeof question !== "string" || !question || question.length > L.text) return null;
+  // U+0000 is refused like a length, as Claude's questions are; the permission request escapes it (storableText).
+  if (typeof question !== "string" || !question || question.length > L.text || question.includes("\0")) return null;
   if (!Array.isArray(params.options) || params.options.length < 2 || params.options.length > L.options) return null;
   const options = params.options.filter(object);
   if (options.length !== params.options.length) return null;
-  if (!options.every(o => o.kind === "allow_once" && typeof o.optionId === "string" && o.optionId.length <= 512 && typeof o.name === "string" && o.name && o.name.length <= L.label)) return null;
+  if (!options.every(o => o.kind === "allow_once" && typeof o.optionId === "string" && o.optionId.length <= 512 && typeof o.name === "string" && o.name && o.name.length <= L.label && !o.name.includes("\0"))) return null;
   const labels = options.map(o => o.name as string);
   if (new Set(labels).size !== labels.length) return null;
   return {
@@ -199,7 +200,7 @@ export function normalizeAcp(state: AcpTransport, update: Record<string, unknown
   if (kind === "agent_message_chunk") {
     const woke = awake(state);
     const content = object(update.content) ? update.content : {};
-    const text = content.type === "text" ? str(content.text) : "";
+    const text = content.type === "text" ? storableText(str(content.text)) : "";
     if (!text) return { state: woke.state, events: [], ...(woke.stage ? { stage: woke.stage } : {}) };
     return { state: { ...woke.state, text: woke.state.text + text }, events: [{ type: "message.delta", messageId: woke.state.messageId, text }], ...(woke.stage ? { stage: woke.stage } : {}) };
   }
@@ -272,13 +273,14 @@ export function acpFailureCode(detail: string, phase: "open" | "prompt"): Failur
   // AcpConnection's own deadline for a request: "<method> timed out".
   if (/^(?:initialize|authenticate|session\/[\w-]+) timed out$/.test(detail)) return "process_exited";
   // Cursor's and Antigravity's "Authentication required", Copilot CLI's "Please sign in".
-  if (/authentication required|not logged in|unauthorized|sign in/i.test(detail)) return "not_logged_in";
+  // "sign in" as whole words: "design in" or "assign in" is no sign-in.
+  if (/authentication required|not logged in|unauthorized|\bsign in\b/i.test(detail)) return "not_logged_in";
   // cursor-agent's session/load for a session it never saved: "Session not found".
   if (/session.*(not found|unavailable)/i.test(detail)) return "session_unavailable";
   if (phase === "prompt") return transportError(detail);
   return /timed out/i.test(detail) ? "process_exited" : "session_unavailable";
 }
 export function acpPromptFailed(state: AcpTransport, detail: string): TransportResult & { state: AcpTransport } {
-  return finishAcp(state, { type: "turn.failed", code: acpFailureCode(detail, "prompt"), ...(detail ? { detail: detail.slice(0, 4096) } : {}) });
+  return finishAcp(state, { type: "turn.failed", code: acpFailureCode(detail, "prompt"), ...(detail ? { detail: storableText(detail).slice(0, 4096) } : {}) });
 }
 export function acpEnded(state: AcpTransport): TransportResult & { state: AcpTransport } { return finishAcp(state, { type: "turn.failed", code: "process_exited" }); }

@@ -134,6 +134,16 @@ describe("DraftStore limits", () => {
     store.add(B, item("f1", "files", { attachments: Array(10).fill(file) }));
     expect(() => store.add(B, item("f2", "one more", { attachments: [file] }))).toThrow("queue_limit");
   });
+  // A repeated {{n}} widens with its renumbering, so the order the queue is stored in decides its length.
+  it("checks an item put ahead of the queue in the order it is stored", () => {
+    const store = new DraftStore(directory());
+    const marks = Array.from({ length: 9 }, (_, i) => `{{${i + 1}}}`).join(" ");
+    store.add(A, item("q1", "{{1}}{{1}}" + "a".repeat(20_000), { anchors: [anchor] }));
+    expect(() => store.add(A, item("q2", marks + "b".repeat(12_702), { anchors: Array(9).fill(anchor) }), true)).toThrow("queue_limit");
+    store.add(A, item("q2", marks + "b".repeat(12_701), { anchors: Array(9).fill(anchor) }), true);
+    expect(store.giveBackQueued(A, "interrupted")).toBe(true);
+    expect(store.returned(A)!.text).toHaveLength(32_768);
+  });
   it("refuses an item that would take the file past the size the reader reads", () => {
     const dir = directory(), store = new DraftStore(dir, { fileBytes: 2_000 });
     store.add(A, item("q1", "a".repeat(800)));
@@ -361,6 +371,39 @@ describe("DraftStore held messages", () => {
     writeFileSync(join(dir, "drafts.json"), JSON.stringify({ v: 1, queued: {}, returned: { [A]: { text: "kept", anchors: [], attachments: [], reason: "turn_failed" } } }));
     expect(new DraftStore(dir).take(A)).toMatchObject({ text: "kept" });
   });
+  // The next start joins a held send with its conversation's draft and queue, so the writer counts it too.
+  it("refuses a queued item that would not fit one message with its conversation's held send, and reads the rest back whole", () => {
+    const dir = directory(), store = new DraftStore(dir);
+    store.hold(C, { conversationId: A, text: "sent", anchors: [], attachments: Array(6).fill(file) });
+    expect(() => store.add(A, { itemId: "q1", text: "queued", anchors: [], attachments: Array(6).fill(file) })).toThrow("queue_limit");
+    expect(store.queued(A)).toEqual([]);
+    store.add(A, { itemId: "q1", text: "queued", anchors: [], attachments: Array(4).fill(file) });
+    store.add(B, { itemId: "q2", text: "other", anchors: [], attachments: Array(6).fill(file) });
+    new DraftStore(dir);
+    const third = new DraftStore(dir);
+    expect(third.take(A)).toEqual({ text: "sent\n\nqueued", anchors: [], attachments: Array(10).fill(file), reason: "restarted" });
+    expect(third.take(B)).toMatchObject({ text: "other" });
+  });
+  it("counts a held send's text with the queue as one message", () => {
+    const dir = directory(), store = new DraftStore(dir);
+    store.hold(C, { conversationId: A, text: "x".repeat(20_000), anchors: [], attachments: [] });
+    expect(() => store.add(A, { itemId: "q1", text: "y".repeat(12_767), anchors: [], attachments: [] })).toThrow("queue_limit");
+    store.add(A, { itemId: "q1", text: "y".repeat(12_766), anchors: [], attachments: [] });
+    new DraftStore(dir);
+    expect(new DraftStore(dir).take(A)!.text).toHaveLength(32_768);
+  });
+  it("keeps a held send and drops a queued item that no longer fits beside it when an older file has both", () => {
+    const dir = directory();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    writeFileSync(join(dir, "drafts.json"), JSON.stringify({ v: 1, returned: {},
+      queued: { [A]: [{ itemId: "q1", text: "too many", anchors: [], attachments: Array(6).fill(file) }, { itemId: "q2", text: "small", anchors: [], attachments: [] }] },
+      sending: { [C]: { conversationId: A, text: "sent", anchors: [], attachments: Array(6).fill(file) } } }));
+    new DraftStore(dir);
+    expect(error).toHaveBeenCalledWith("doan: a queued message does not fit its conversation's draft; dropped");
+    const next = new DraftStore(dir);
+    expect(next.take(A)).toEqual({ text: "sent\n\nsmall", anchors: [], attachments: Array(6).fill(file), reason: "restarted" });
+    expect(() => next.add(A, { itemId: "q3", text: "later", anchors: [], attachments: [] })).not.toThrow();
+  });
   it("never throws when a held message cannot be saved", () => {
     const store = new DraftStore(directory());
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -418,5 +461,33 @@ describe("DraftStore discarded starts", () => {
     vi.spyOn(store as unknown as { write(): void }, "write").mockImplementation(() => { throw new Error("ENOSPC"); });
     expect(() => store.discardCanvasStarts("/repo", { path: ".doan/canvases/a.html", id: "a" })).not.toThrow();
     expect(() => store.discardRootStarts(["/repo"])).not.toThrow();
+  });
+});
+
+// A handoff's queue goes behind the conversation that took the work over, which the person may already have used.
+describe("DraftStore moved queue", () => {
+  const C = "33333333-3333-4333-8333-333333333333";
+  const item = (itemId: string, text: string, attachments: typeof file[] = []) => ({ itemId, text, anchors: [], attachments });
+  it("moves only what fits beside the target's draft, held send and queue, and gives the rest back to the source", () => {
+    const dir = directory(), store = new DraftStore(dir);
+    store.add(B, item("b1", "mine", Array(6).fill(file)));
+    store.add(A, item("q1", "big", Array(6).fill(file)));
+    store.add(A, item("q2", "small"));
+    expect(store.move(A, B)).toEqual({ moved: [item("q2", "small")], returned: [item("q1", "big", Array(6).fill(file))] });
+    expect(store.queued(B).map(entry => entry.itemId)).toEqual(["b1", "q2"]);
+    expect(store.queued(A)).toEqual([]);
+    expect(store.returned(A)).toEqual({ text: "big", anchors: [], attachments: Array(6).fill(file), reason: "queue_limit" });
+    new DraftStore(dir);
+    const third = new DraftStore(dir);
+    expect(third.take(A)).toMatchObject({ text: "big" });
+    expect(third.take(B)).toMatchObject({ text: "mine\n\nsmall" });
+  });
+  it("counts the target's held send", () => {
+    const dir = directory(), store = new DraftStore(dir);
+    store.hold(C, { conversationId: B, text: "sent", anchors: [], attachments: Array(6).fill(file) });
+    store.add(A, item("q1", "big", Array(6).fill(file)));
+    expect(store.move(A, B)).toEqual({ moved: [], returned: [item("q1", "big", Array(6).fill(file))] });
+    new DraftStore(dir);
+    expect(new DraftStore(dir).take(B)).toMatchObject({ text: "sent", attachments: Array(6).fill(file) });
   });
 });

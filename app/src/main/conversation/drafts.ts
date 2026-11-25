@@ -133,19 +133,25 @@ export class DraftStore {
       } else this.file.starts[key] = { ...where, text, anchors, attachments };
     }
     this.file.sending = {};
-    for (const [id, items] of left) this.merge(id, joined(items), "restarted");
+    // A send held behind its queue (handoffWait), or a queue written before held sends were counted, can pass one message,
+    // which the start after this one could not read; so a queued item that does not fit is dropped, as a held send is.
+    for (const [id, items] of left) for (const { text, anchors, attachments } of items) {
+      const earlier = this.file.returned[id];
+      if (fits(joined([...earlier ? [earlier] : [], { text, anchors, attachments }]))) this.merge(id, { text, anchors, attachments }, "restarted");
+      else console.error("doan: a queued message does not fit its conversation's draft; dropped");
+    }
     this.file.queued = {};
     this.save();
   }
   // The messages still waiting, without those whose send has started.
   queued(id: string): readonly QueuedItem[] { return (this.file.queued[id] ?? []).filter(item => !item.sending); }
-  // Refused (queue_limit) before any change when draft, queue and item would not fit one message or the file limit; throws
+  // Refused (queue_limit) before any change when draft, held send, queue and item would not fit one message or the file limit; throws
   // when the queue cannot be saved. first: ahead of the waiting ones (a usage-limited turn's own message).
   add(id: string, item: QueuedItem, first = false): void {
     if (this.broken || id in this.unread.queued || id in this.unread.returned) throw new Error("Conversation drafts are damaged");
-    const before = this.file.queued[id], earlier = this.file.returned[id];
-    if (!fits(joined([...(earlier ? [earlier] : []), ...before ?? [], item]))) throw new Error("queue_limit");
-    this.file.queued[id] = first ? [item, ...before ?? []] : [...before ?? [], item];
+    const before = this.file.queued[id], after = first ? [item, ...before ?? []] : [...before ?? [], item];
+    if (!this.fitsQueue(id, after)) throw new Error("queue_limit");
+    this.file.queued[id] = after;
     try {
       if (this.bytes() > this.fileBytes) throw new Error("queue_limit");
       this.write();
@@ -191,16 +197,28 @@ export class DraftStore {
     if (left.length) this.file.queued[id] = left; else delete this.file.queued[id];
     this.save();
   }
-  // A handoff's queue: the waiting messages go behind the conversation that took the work over, in one write.
-  // Those on their way out stay with their send.
-  move(from: string, to: string): QueuedItem[] {
+  // A handoff's queue: the waiting messages go behind the conversation that took the work over, in one write. Those on
+  // their way out stay with their send. One that would not fit there as add() judges (the person may have used the
+  // target since its start) joins the source's returned draft instead, which the source's own bound already covers.
+  move(from: string, to: string): { moved: QueuedItem[]; returned: QueuedItem[] } {
     const items = this.queued(from);
-    if (!items.length) return [];
-    this.file.queued[to] = [...this.file.queued[to] ?? [], ...items];
+    if (!items.length) return { moved: [], returned: [] };
     const left = (this.file.queued[from] ?? []).filter(item => item.sending);
     if (left.length) this.file.queued[from] = left; else delete this.file.queued[from];
+    const moved: QueuedItem[] = [], returned: QueuedItem[] = [];
+    const damaged = this.broken || to in this.unread.queued || to in this.unread.returned;
+    for (const item of items) {
+      const before = this.file.queued[to];
+      if (!damaged && this.fitsQueue(to, [...before ?? [], item])) {
+        this.file.queued[to] = [...before ?? [], item];
+        if (this.bytes() <= this.fileBytes) { moved.push(item); continue; }
+        this.restore(to, before);
+      }
+      this.merge(from, { text: item.text, anchors: item.anchors, attachments: item.attachments }, "queue_limit");
+      returned.push(item);
+    }
     this.save();
-    return [...items];
+    return { moved, returned };
   }
   // The whole queue back as one draft (messages on their way out first, as queued), in one write; false when empty.
   giveBackQueued(id: string, reason: string): boolean {
@@ -261,6 +279,12 @@ export class DraftStore {
   private merge(id: string, draft: DraftParts, reason: string): void {
     const earlier = this.file.returned[id];
     this.file.returned[id] = { ...(earlier ? joined([earlier, draft]) : draft), reason };
+  }
+  // The conversation's returned draft, held sends and this queue, joined in the order the next start merges them, fit one message.
+  private fitsQueue(id: string, queue: readonly QueuedItem[]): boolean {
+    const earlier = this.file.returned[id];
+    const held = Object.values(this.file.sending).filter(message => "conversationId" in message && message.conversationId === id);
+    return fits(joined([...(earlier ? [earlier] : []), ...held, ...queue]));
   }
   private restore(id: string, items: QueuedItem[] | undefined): void { if (items) this.file.queued[id] = items; else delete this.file.queued[id]; }
   private save(): void { try { this.write(); } catch (error) { console.error("doan: conversation drafts could not be saved", error); } }
