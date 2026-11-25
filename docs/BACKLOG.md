@@ -1,6 +1,6 @@
 # Backlog
 
-What Doan has not settled or not shown yet: product questions without a decision, product surfaces not verified in the real app, and known defects without a fix. PRODUCT.md and ARCHITECTURE.md describe the product as it is; this file is where an idea, a gap or a defect waits until a feature takes it up (`/feature`) or a fix lands (`/ship`). Remove an item when that happens; git keeps its history. Items are not plans: a planned change lives in its `docs/features/<slug>/`.
+What Doan has not settled or not shown yet: product questions without a decision, product surfaces not verified in the real app, and known defects without a fix. PRODUCT.md and ARCHITECTURE.md describe the product as it is; this file is where an idea, a gap or a defect waits until a feature takes it up (`/feature`) or a fix lands (`/deliver`). Remove an item when that happens; git keeps its history. Items are not plans: a planned change lives in its `docs/features/<slug>/`.
 
 ## Undecided
 
