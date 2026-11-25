@@ -514,6 +514,31 @@ describe("watchFolder classifies changes", () => {
     await expectChange(w, () => writeFileSync(join(root, "web", "dist", "a.css"), "c{}"), SERVED);
   });
 
+  // A build tool's clean step wipes an intermediate directory of a served file while the levels above it stay.
+  test("a served file whose intermediate directory is deleted and created again is watched again", async () => {
+    const root = repo();
+    mkdirSync(join(root, "src", "styles"), { recursive: true });
+    writeFileSync(join(root, "src", "styles", "tokens.css"), "a{}");
+    const w = await watchScope(root, [".doan/canvases", "src/styles/tokens.css"]);
+    await expectChange(w, () => rmSync(join(root, "src", "styles"), { recursive: true }), SERVED);
+    await expectChange(w, () => {
+      mkdirSync(join(root, "src", "styles"));
+      writeFileSync(join(root, "src", "styles", "tokens.css"), "b{}");
+    }, SERVED);
+    await expectChange(w, () => atomicSave(join(root, "src", "styles", "tokens.css"), "c{}"), SERVED);
+  });
+
+  test("a sibling of a served path's ancestor is ignored", async () => {
+    const root = repo();
+    mkdirSync(join(root, "src", "styles"), { recursive: true });
+    writeFileSync(join(root, "src", "styles", "tokens.css"), "a{}");
+    const w = await watchScope(root, [".doan/canvases", "src/styles/tokens.css"]);
+    await expectQuiet(w, () => {
+      writeFileSync(join(root, "src", "main.ts"), "x");
+      mkdirSync(join(root, "src", "other"));
+    });
+  });
+
   test("a path that leaves the scope is no longer watched", async () => {
     const root = repo();
     mkdirSync(join(root, "assets"));
