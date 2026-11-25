@@ -46,7 +46,7 @@ lead는 링크 1을 시작하기 전에 아래를 사용자와 한 번에 확인
 | 링크 | 세션·worktree | 시작 | PR·머지 | 상태 |
 |---|---|---|---|---|
 | handoff-card-emphasis | conductor `term_5911532b-fa28-4a97-bd15-c7f419c527c7` · `/Users/sinhyeok/orca/workspaces/doan-design/handoff-card-emphasis-orch` (`feat/handoff-card-emphasis`) | 2026-11-25 17:08 | PR #392 · 머지 `9d4559e59` | 완료 |
-| thread-motion | — | — | — | 대기 |
+| thread-motion | conductor `term_0da4a947-4c8e-433a-8f57-9544d7871f42` · `/Users/sinhyeok/orca/workspaces/doan-design/thread-motion-orch` (`feat/thread-motion`) | 2026-11-25 | — | 진행 중 |
 
 ## 인계 기록
 
