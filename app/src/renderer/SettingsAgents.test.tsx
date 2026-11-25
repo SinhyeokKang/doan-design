@@ -399,6 +399,27 @@ test("an arrival with a provider focuses its row group and flashes it for 2.4 s"
   expect(focus).toHaveBeenCalledTimes(1);
 });
 
+// Sign in pressed in the prototype window brings the main window forward and arrives here before it is active;
+// activation then restores the focus it had before (POSTMORTEM 2026-11-17 'Window activation put focus on Hide
+// sidebar'), so the row group's focus is made again on activation, to the group drawn then.
+test("a provider arrival with the window in the background focuses its row group again on activation", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const win = Object.assign(new EventTarget(), { doan: api });
+  vi.stubGlobal("window", win);
+  const doc: Record<string, unknown> = { activeElement: null, body: {}, hasFocus: () => false, querySelectorAll: () => [], querySelector: (selector: string) => selector.includes('data-provider="codex"') ? shown : null };
+  const group = () => { const node = { focus: vi.fn(() => { doc.activeElement = node; }), isConnected: true, matches: () => false, querySelector: () => null }; return node; };
+  let shown = group();
+  const first = shown;
+  vi.stubGlobal("document", doc);
+  await settle({ arrival: { provider: "codex", seq: 1 } });
+  expect(first.focus).toHaveBeenCalledOnce();
+  shown = group();
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(first.focus).toHaveBeenCalledOnce();
+  expect(shown.focus).toHaveBeenCalledTimes(2);
+});
+
 // Click handlers return void; settle the session updates before checking install results, including stale failures.
 // Row notices and their buttons are components (NoticeView, ActionButton); drawn here as React would.
 const NOTICE_PARTS = new Set(["NoticeView", "ActionButton"]);

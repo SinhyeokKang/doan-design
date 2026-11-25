@@ -796,6 +796,23 @@ test("after Share, focus returns to Add file or folder once the write has settle
   unmount();
 });
 
+// The write can settle after the person moved to another app; activation then restores the focus the window had before
+// (POSTMORTEM 2026-11-17 'Window activation put focus on Hide sidebar'), so the return is made again on activation.
+test("a write that settles with the window in the background returns focus again when the window activates", async () => {
+  await open();
+  const add = node(); focusOn(add);
+  (button("Add file or folder").props.ref as { current: unknown }).current = add;
+  click("Add file or folder"); render(); await flush(); render();
+  focusOn(document.body);
+  const activate = inBackground();
+  try {
+    (confirmation()!.props.answer as (allow: boolean) => void)(true); render(); await flush(); render();
+    expect(add.focus).toHaveBeenCalledTimes(1);
+    activate();
+    expect(add.focus).toHaveBeenCalledTimes(3);
+  } finally { vi.useRealTimers(); unmount(); }
+});
+
 test("a read in flight when the worktree turns into a config error leaves Retry usable", async () => {
   let answer: (value: unknown) => void = () => {};
   doan.readConfig!.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));

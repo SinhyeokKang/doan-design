@@ -290,6 +290,36 @@ test("the bubble going with focus on Add to message hands it to the toolbar's Pi
   expect(picker.focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
 });
 
+// An agent's write can reload the canvas and lose the selection while the prototype window is in front; activation then
+// restores the gone bubble button's focus to the first control (POSTMORTEM 2026-11-17 'Window activation put focus on
+// Hide sidebar'), so the hand-off is made again, unless the selection, and with it the bubble's button, came back.
+test.each(["Play", "Add to message"] as const)("the bubble going with focus on %s while the window is in the background hands focus again on activation", async which => {
+  await bubbleWithComposer();
+  const picker = element("Picker"), toolbarPlay = element("toolbar Play");
+  pane().picker.button!.current = picker;
+  (pane() as unknown as { player: { button: { current: unknown } } }).player.button.current = toolbarPlay;
+  const target = which === "Play" ? toolbarPlay : picker;
+  const lose = () => (which === "Play" ? (harness.controller as unknown as { bubblePlay: { onFocusLost(): void } }).bubblePlay : hook()).onFocusLost();
+  Object.assign(document, { hasFocus: () => false });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    lose();
+    expect(target.focus).toHaveBeenCalledOnce();
+    windowListeners.focus!(new Event("focus") as never);
+    vi.runAllTimers();
+    expect(target.focus).toHaveBeenCalledTimes(3);
+    // The selection came back before activation and the controller returned focus to the bubble's own button.
+    target.focus.mockClear();
+    lose();
+    const back = { ...element(which), closest: () => null };
+    if (which === "Play") harness.controller!.bubblePlayButton!.mockReturnValue(back);
+    else bubble()!.button.current = back;
+    windowListeners.focus!(new Event("focus") as never);
+    vi.runAllTimers();
+    expect(target.focus).toHaveBeenCalledOnce();
+  } finally { vi.useRealTimers(); }
+});
+
 test("the controller reads App's Add to message button", async () => {
   await bubbleWithComposer();
   const add = element("Add to message");
