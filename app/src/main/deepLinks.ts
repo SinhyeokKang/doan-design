@@ -1,4 +1,6 @@
 import type { OpenFrameResult, OpenRequest, OpenResponse } from "../formats/types";
+import { groupProjects } from "../renderer/homeCards";
+import type { FolderEntry } from "./view";
 
 export interface OpenLink { root: string; canvas: string; frame?: string }
 export type OpenLinkResult = ({ kind: "navigate" } & OpenLink) | { kind: "malformed" } | { kind: "unregistered-root" } | { kind: "canvas-not-listed"; project: string };
@@ -38,13 +40,11 @@ export function resolveOpenTarget(link: OpenLink, entries: readonly LinkFolder[]
   if (entry.kind === "list" && entry.canvases?.some(row => row.path === link.canvas)) return { kind: "listed", ...link };
   return { kind: entry.kind === "loading" ? "loading" : "canvas-not-listed", project: projectName(entry, entries) };
 }
-// Match the sidebar card name, including worktrees whose main root is not itself registered.
 function projectName(entry: LinkFolder, entries: readonly LinkFolder[]): string {
-  const key = (row: LinkFolder) => (row.kind === "list" ? row.git?.common : row.lastCommon) ?? row.path;
-  const group = entries.filter(row => key(row) === key(entry));
-  const main = group.find(row => row.kind === "list" && row.git?.main)?.git?.main;
-  const path = main ?? group[0]!.path;
-  return path.split("/").filter(Boolean).at(-1) ?? path;
+  const lastCommon = new Map(entries.flatMap(row => row.lastCommon ? [[row.path, row.lastCommon]] : []));
+  // `groupProjects` reads only fields LinkFolder holds.
+  const cards = groupProjects(entries as readonly FolderEntry[], lastCommon);
+  return cards.find(card => card.rows.some(row => row.path === entry.path))!.name;
 }
 // A link reaches here only once no root is loading (index.ts readyOpenLinks); one re-read since is refused as unlisted.
 export function resolveOpenLink(text: string, entries: readonly LinkFolder[]): OpenLinkResult {

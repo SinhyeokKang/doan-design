@@ -40,7 +40,7 @@ export interface Shell {
   // Locate: `to` takes `from`'s place, or only `from` goes when `to` is stored.
   replace(from: string, to: string): Promise<void>;
   // Re-reads every root without a loading state (the branch may have changed:
-  // the watcher does not see `.git/HEAD`).
+  // the watcher's git signal does not re-run `doan ls`).
   rereadAll(): void;
   // The same for these stored roots only: a mode written for one root changes what its whole group shows.
   reread(paths: readonly string[]): void;

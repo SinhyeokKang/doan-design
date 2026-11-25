@@ -1,5 +1,14 @@
 import { EventEmitter } from "node:events";
 import { beforeEach, expect, expectTypeOf, test, vi } from "vitest";
+import { ADD_PAGE_CHANNELS } from "../main/addPage";
+import { AUTH_CHANNELS } from "../main/agentAuth/ipc";
+import { USAGE_CHANNELS } from "../main/agentAuth/usageIpc";
+import { conversationMethods, type ConversationMethod } from "../main/conversation/ipc";
+import type { ConversationBroadcast } from "../main/prototype/conversationScope";
+import { DESIGN_SKILL_CHANNELS } from "../main/designSkills";
+import { MCP_CHANNELS } from "../main/mcpConnectors/ipc";
+import { ONBOARDING_CHANNELS } from "../main/onboarding/service";
+import { PROTOTYPE_CHANNELS } from "../main/prototype/ipc";
 import type { InspectRefused, InspectReply } from "../main/inspector";
 import type { DoanApi } from "./index";
 
@@ -374,14 +383,11 @@ test("delivers this window's sign-in links until unsubscribed", () => {
   expect(emitter.listenerCount("agent-auth:prompt")).toBe(0);
 });
 
-test("design skills read through two fixed channels and pass the id as data", async () => {
+test("design skills list through a fixed channel with no data", async () => {
   const reply = { v: 1, ok: true, result: { version: "dev", presets: [] } };
   mocks.invoke.mockResolvedValueOnce(reply);
   expect(await api.designSkills.list()).toBe(reply);
   expect(mocks.invoke).toHaveBeenLastCalledWith("design-skills:list");
-  await api.designSkills.get("clarify");
-  expect(mocks.invoke).toHaveBeenLastCalledWith("design-skills:get", { id: "clarify" });
-  expect(Object.keys(api.designSkills).sort()).toEqual(["get", "list"]);
 });
 
 test("Add Projects page calls use their own fixed channels and pass the request as data", async () => {
@@ -456,7 +462,6 @@ test("settings page calls use fixed channels and pass their requests as data", a
 // Requests carry no data: main decides from its own state what a check, a restart or Release Notes does.
 test("update calls use fixed channels and send no data", async () => {
   const calls: [() => Promise<unknown>, unknown[]][] = [
-    [() => api.readUpdate(), ["update:get"]],
     [() => api.checkForUpdates(), ["update:check"]],
     [() => api.installUpdate(), ["update:install"]],
     [() => api.openReleaseNotes(), ["update:openNotes"]],
@@ -787,4 +792,91 @@ test("pasted text and restored metadata use the shared attachment channels", asy
   expect(mocks.invoke).toHaveBeenLastCalledWith("attachments:add-pasted-text", { text: "first\nsecond", lines: 2, excerpt: "first" });
   await api.attachmentsFromPaths(["/tmp/pasted-text-x.txt"], [{ lines: 2, excerpt: "first" }]);
   expect(mocks.invoke).toHaveBeenLastCalledWith("attachments:fromPaths", { paths: ["/tmp/pasted-text-x.txt"], metadata: [{ lines: 2, excerpt: "first" }] });
+});
+
+test("offers no call the renderer does not use", () => {
+  for (const name of ["checkOnboardingAgent", "readUpdate"]) expect(api, name).not.toHaveProperty(name);
+  expect(Object.keys(api.designSkills)).toEqual(["list"]);
+});
+
+// A sandboxed preload cannot import main's values, so it spells each channel; these tables pin the spelling. A new key in
+// a request table's constant fails the typecheck until it is covered here or excluded.
+type Call = (target: DoanApi) => unknown;
+type Listen = (target: DoanApi) => () => void;
+const ids = { sessionId: "s", requestId: "r" };
+const auth: Record<Exclude<keyof typeof AUTH_CHANNELS, "changed" | "prompt">, Call> = {
+  read: a => a.readAgentAuth(), check: a => a.checkAgentAuth("claude"), signIn: a => a.signInAgent("claude"), signOut: a => a.signOutAgent("claude"),
+  cancel: a => a.cancelAgentSignIn("claude", "a1"), submitCode: a => a.submitAgentSignInCode("claude", "a1", "c"), openLink: a => a.openAgentSignInLink("claude", "a1"),
+};
+const mcp: Record<Exclude<keyof typeof MCP_CHANNELS, "changed">, Call> = {
+  list: a => a.readMcpConnectors(), add: a => a.addMcpServer("https://mcp.example.com"), connect: a => a.connectMcpServer("claude", "n"),
+  disconnect: a => a.disconnectMcpServer("claude", "n"), remove: a => a.removeMcpServer("n"), cancel: a => a.cancelMcpConnect("claude", "n"), openLink: a => a.openMcpLink("claude", "n"),
+};
+// check is the CLI's, over the app socket; no window calls it.
+const onboarding: Record<Exclude<keyof typeof ONBOARDING_CHANNELS, "check" | "changed">, Call> = {
+  start: a => a.startOnboardingSession(), status: a => a.readOnboardingSession({ sessionId: "s" }), cancel: a => a.cancelOnboardingOperation({ ...ids, operationId: "o" }),
+  inspect: a => a.inspectOnboardingProject({ ...ids, path: "/p" }), select: a => a.selectOnboardingProject({ ...ids, inspectionId: "i", path: "/p", initialize: true }),
+  clone: a => a.cloneOnboardingProject({ ...ids, inspectionId: "i", destination: "/p" }), complete: a => a.completeOnboarding(ids),
+};
+const addPage: Record<Exclude<keyof typeof ADD_PAGE_CHANNELS, "changed" | "open">, Call> = {
+  read: a => a.readAddPage(), inspect: a => a.inspectAddPageProject({ ...ids, path: "/p" }), select: a => a.selectAddPageProject({ ...ids, inspectionId: "i", path: "/p", initialize: true }),
+  clone: a => a.cloneAddPageProject({ ...ids, inspectionId: "i", destination: "/p" }), cancel: a => a.cancelAddPageOperation({ ...ids, operationId: "o" }),
+};
+// The window reads preset lists only.
+const designSkills: Record<Exclude<keyof typeof DESIGN_SKILL_CHANNELS, "get">, Call> = { list: a => a.designSkills.list() };
+const usage: Record<Exclude<keyof typeof USAGE_CHANNELS, "changed">, Call> = { read: a => a.readAgentUsage() };
+const request = { conversationId: "c" };
+const conversation: Record<ConversationMethod, Call> = {
+  resumeTarget: a => a.conversationResumeTarget({ root: "/r", canvas: { path: "a" } }), start: a => a.startConversation({ root: "/r", mode: "new", runtime: "claude", text: "x" }),
+  send: a => a.sendConversation({ ...request, text: "x" }), interrupt: a => a.interruptConversation(request),
+  answerPermission: a => a.answerConversationPermission({ ...request, requestId: "r", optionId: "o" }),
+  answerQuestion: a => a.answerConversationQuestion({ ...request, requestId: "r", outcome: "skipped" }), read: a => a.readConversation(request),
+  models: a => a.listConversationModels({ root: "/r", runtime: "claude" }), skills: a => a.listConversationSkills({ root: "/r", provider: "claude" }),
+  list: a => a.listConversations({ root: "/r" }), markSeen: a => a.markConversationSeen({ ...request, seq: 1 }), queue: a => a.queueConversation({ ...request, text: "x" }),
+  removeQueued: a => a.removeQueuedMessage({ ...request, itemId: "i" }), sendQueuedNow: a => a.sendQueuedNow({ ...request, itemId: "i" }),
+  takeDraft: a => a.takeConversationDraft(request), takeStartDraft: a => a.takeStartDraft({ root: "/r" }),
+  setPermissionMode: a => a.setConversationPermissionMode({ ...request, permissionMode: "plan" }), delete: a => a.deleteConversation(request), scheduled: a => a.scheduledMessages(request),
+};
+const prototype: [string, Call][] = [[PROTOTYPE_CHANNELS.play, a => a.playPrototype({ root: "/r", path: "p", frame: "f", mark: "1x1" })], [PROTOTYPE_CHANNELS.playing, a => a.readPrototypePlaying()]];
+const pinned = <K extends string>(channels: Record<K, string>, calls: Partial<Record<NoInfer<K>, Call>>): [string, Call][] =>
+  (Object.entries(calls) as [K, Call][]).map(([key, call]) => [channels[key], call]);
+
+test("every request goes to the channel main's constant names", async () => {
+  const table: [string, Call][] = [
+    ...pinned(AUTH_CHANNELS, auth), ...pinned(MCP_CHANNELS, mcp), ...pinned(ONBOARDING_CHANNELS, onboarding), ...pinned(ADD_PAGE_CHANNELS, addPage),
+    ...pinned(DESIGN_SKILL_CHANNELS, designSkills), ...pinned(USAGE_CHANNELS, usage),
+    ...conversationMethods.map((method): [string, Call] => [`conversation:${method}`, conversation[method]]), ...prototype,
+    // A second caller of a channel.
+    ["conversation:interrupt", a => a.interruptProjectTurn({ conversationId: "c", turnId: "t" })],
+  ];
+  for (const [channel, call] of table) {
+    mocks.invoke.mockClear();
+    await call(api);
+    expect(mocks.invoke.mock.calls[0]?.[0]).toBe(channel);
+  }
+});
+
+test("every event is subscribed on the channel main's constant names", () => {
+  const broadcasts: Record<ConversationBroadcast["channel"], Listen> = {
+    "conversation:event": a => a.onConversationEvent(() => {}), "conversation:stage": a => a.onConversationStage(() => {}),
+    "conversation:boundary": a => a.onConversationBoundary(() => {}), "conversation:listChanged": a => a.onConversationListChanged(() => {}),
+    "conversation:handoff": a => a.onConversationHandoff(() => {}),
+  };
+  const table: [string, Listen][] = [
+    [AUTH_CHANNELS.changed, a => a.onAgentAuth(() => {})], [AUTH_CHANNELS.prompt, a => a.onAgentSignInPrompt(() => {})],
+    [MCP_CHANNELS.changed, a => a.onMcpConnectors(() => {})], [ONBOARDING_CHANNELS.changed, a => a.onOnboardingSession(() => {})],
+    [ADD_PAGE_CHANNELS.changed, a => a.onAddPageSession(() => {})], [ADD_PAGE_CHANNELS.open, a => a.onOpenAddProjects(() => {})],
+    [USAGE_CHANNELS.changed, a => a.onAgentUsage(() => {})], [PROTOTYPE_CHANNELS.closed, a => a.onPrototypeClosed(() => {})],
+    [PROTOTYPE_CHANNELS.revealRequest, a => a.onPrototypeReveal(() => {})], [PROTOTYPE_CHANNELS.playing, a => a.onPrototypePlaying(() => {})],
+    [PROTOTYPE_CHANNELS.lastUsed, a => a.onPrototypeLastUsed(() => {})], ...Object.entries(broadcasts),
+  ];
+  // The read some subscriptions start with.
+  const reads: Record<string, string> = { [AUTH_CHANNELS.changed]: AUTH_CHANNELS.read, [MCP_CHANNELS.changed]: MCP_CHANNELS.list, [USAGE_CHANNELS.changed]: USAGE_CHANNELS.read };
+  for (const [channel, listen] of table) {
+    mocks.invoke.mockClear();
+    const stop = listen(api);
+    expect(emitter.eventNames(), channel).toEqual([channel]);
+    expect(mocks.invoke.mock.calls.map(call => call[0]), channel).toEqual(channel in reads ? [reads[channel]] : []);
+    stop();
+  }
 });

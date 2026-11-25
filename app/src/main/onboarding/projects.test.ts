@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, test, vi } from "vitest";
 import type { LsTarget } from "../cli";
-import type { FolderState } from "../folderState";
+import { initOutcome, type FolderState } from "../folderState";
 import { PROMPT_MS, withFifo } from "../fifo.fixture";
 import type { ProjectInitResult } from "../shell";
 import { readGitRemotes } from "./gitConfig";
@@ -375,6 +375,17 @@ describe("selectProject", () => {
     expect(await selectProject(home, true, null, refused("local_not_git", home), "local")).toEqual({ ok: false, code: "local_not_git",
       message: "Doan doesn’t create a Git repository in your home folder. Choose Include in Git, or choose a folder inside it." });
     expect(await selectProject(temp(), true, null, refused("local_not_git", home), "local")).toEqual({ ok: false, code: "local_not_git" });
+  });
+
+  // The Set Up dialog shows the same refusal as a message and its guidance.
+  it("words a leftover .git and a home folder refusal as the Set Up dialog does", async () => {
+    for (const code of ["cleanup_failed", "local_not_git"]) {
+      const folder = temp();
+      const d = { ...deps([], () => ({ kind: "error", code, message: "m", guidance: "g" })).deps, home: () => folder };
+      const dialog = initOutcome({ exitCode: 2, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: false, error: { code, message: "m", nextSteps: [] } }) }, { folder, home: folder });
+      if (dialog.kind !== "error") throw new Error(dialog.kind);
+      expect(await selectProject(folder, true, null, d, "local", true), code).toEqual({ ok: false, code, message: `${dialog.message} ${dialog.guidance}` });
+    }
   });
 
   // A cloned repository with its own setup gets the chosen Keep out of Git through `doan config --storage local`. Only the

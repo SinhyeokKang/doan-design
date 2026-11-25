@@ -31,6 +31,11 @@ describe("allowedCommands", () => {
     expect(allowedCommands("copilot", "1.0.104", new Map([["compact", ""]]))).toEqual([]);
     expect(allowedCommands("cursor", "2026.10.21", new Map([["copy-request-id", ""]]))).toEqual([]);
   });
+  it("compares the version core, so a build suffix does not hide the commands", () => {
+    expect(allowedCommands("claude", "2.1.326+build.7")).toEqual(CLAUDE_ROWS);
+    expect(allowedCommands("codex", "0.170.0-alpha.1+build.7")).toHaveLength(2);
+    expect(allowedCommands("claude", "2.1.325+build.7")).toEqual([]);
+  });
   // A provider that is not connected has no run that read its version: there is nothing to list.
   it("lists no commands for a provider whose version was not read", () => {
     for (const p of ["claude", "codex", "cursor", "copilot"] as const) expect(allowedCommands(p, undefined, new Map([["compact", ""]])), p).toEqual([]);

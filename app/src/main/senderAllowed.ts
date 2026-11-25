@@ -22,7 +22,7 @@ const mainOnly = new Set([
   // The header drops the traffic-light space in fullscreen.
   "window:fullscreen",
   // The first-run session the CLI shares; the prototype window has no first run.
-  "onboarding:start", "onboarding:status", "onboarding:check", "onboarding:cancel", "onboarding:inspect", "onboarding:select", "onboarding:clone", "onboarding:complete",
+  "onboarding:start", "onboarding:status", "onboarding:cancel", "onboarding:inspect", "onboarding:select", "onboarding:clone", "onboarding:complete",
   // Preset reads for the home (the prototype window's composer has its own entry below).
   "design-skills:list", "design-skills:get",
   // Home attachments (the prototype window's composer has its own entry below).

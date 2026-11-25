@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   checkLatestMacYml,
   checkReleaseVersion,
+  checkSignedEntitlements,
+  entitledHelpers,
   compareEntitlements,
   compareFuses,
   parseCodesignDetails,
@@ -170,6 +172,51 @@ describe("compareEntitlements", () => {
 
   it("treats a binary without entitlements as matching", () => {
     expect(compareEntitlements(committedEntitlements, "")).toEqual([]);
+  });
+});
+
+describe("checkSignedEntitlements", () => {
+  const read = (output, status = 0) => checkSignedEntitlements(committedEntitlements, { status, output });
+
+  it("accepts the committed entitlements after codesign's own lines", () => {
+    expect(read(`Executable=/tmp/Doan\n${signedEntitlements}`)).toEqual([]);
+  });
+
+  it("accepts a binary codesign read that carries no entitlements", () => {
+    expect(read("Executable=/tmp/spawn-helper\n")).toEqual([]);
+  });
+
+  it("reports a key the committed plist does not grant", () => {
+    const fallback = signedEntitlements.replace("</dict>", "<key>com.apple.security.cs.disable-library-validation</key><true/></dict>");
+    expect(read(fallback)).toEqual(["com.apple.security.cs.disable-library-validation"]);
+  });
+
+  it("fails when the binary does not exist", () => {
+    expect(checkSignedEntitlements(committedEntitlements, null)).toEqual(["not found"]);
+  });
+
+  it("fails when codesign cannot read the binary", () => {
+    expect(read("/tmp/doan: code object is not signed at all\n", 1)).toEqual([
+      "codesign exited 1: /tmp/doan: code object is not signed at all",
+    ]);
+  });
+});
+
+describe("entitledHelpers", () => {
+  const spawnHelper = "/D.app/Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper";
+
+  it("picks the Helper apps and every spawn-helper, wherever it sits", () => {
+    expect(entitledHelpers(["Doan Helper.app", "Doan Helper (GPU).app", "Electron Framework.framework"], ["/D.app/Contents/MacOS/Doan", spawnHelper])).toEqual([
+      { name: "Helper apps", paths: ["Doan Helper.app", "Doan Helper (GPU).app"] },
+      { name: "spawn-helper", paths: [spawnHelper] },
+    ]);
+  });
+
+  it("reports an empty group for a package without them", () => {
+    expect(entitledHelpers(["Electron Framework.framework"], ["/D.app/Contents/MacOS/Doan"])).toEqual([
+      { name: "Helper apps", paths: [] },
+      { name: "spawn-helper", paths: [] },
+    ]);
   });
 });
 
