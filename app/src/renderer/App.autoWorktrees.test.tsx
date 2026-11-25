@@ -467,3 +467,13 @@ test("a group the person closed before the startup read stays closed beside the 
   await readLater({ screen: "home", expanded: {}, lastByRoot: {}, shellProjects: { [KEY]: { roots: [MAIN, OTHER, W], expanded: false, groups: { ds: false } } } });
   expect(sidebar().projects[KEY]?.groups).toEqual({ ds: false, canvases: false });
 });
+
+// PRODUCT §5 item 1: opening a canvas opens its group, also when the read closed that group.
+test("a canvas opened before the startup read keeps its group open though the read had it closed", async () => {
+  const DS = ".doan/ds/color.html";
+  render();
+  folders([list(MAIN, [A, DS]), other(), wt()]);
+  enter(MAIN); show(MAIN, DS);
+  await readLater({ screen: "home", expanded: {}, lastByRoot: {}, shellProjects: { [KEY]: { roots: [MAIN, OTHER, W], expanded: false, groups: { ds: false, canvases: false } } } });
+  expect(sidebar().projects[KEY]?.groups).toEqual({ canvases: false });
+});

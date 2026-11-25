@@ -771,7 +771,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
         // Merged here, not in the restore, which a navigation before the read cancels.
         const read = afterRemoved({ shellProjects: state?.shellProjects ?? {}, expanded: state?.expanded ?? {}, history: emptyHistory() }, [...canvasMemoryRemoved.current]);
         setExpanded(previous => ({ ...read.expanded, ...previous }));
-        setShellProjects(previous => mergeShellProjects(read.shellProjects, previous, shellTouched.current));
+        // The canvas shown before the read keeps its group open (PRODUCT §5 item 1), whatever the read closed.
+        const shown = lastShown.current, open = groupToOpen(null, shown);
+        const shownKey = shown && groupProjects(entriesRef.current, new Map(entriesRef.current.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : []))).find(card => card.rows.some(row => row.path === shown.root))?.key;
+        setShellProjects(previous => {
+          const merged = mergeShellProjects(read.shellProjects, previous, shellTouched.current);
+          return open && shownKey && merged[shownKey]?.groups?.[open] === false ? { ...merged, [shownKey]: withGroups(merged[shownKey], groups => openGroup(groups, open)) } : merged;
+        });
         const remembered = controller.current?.memory() ?? {};
         for (const [root, item] of Object.entries(state?.lastByRoot ?? {})) if (!(root in remembered) && !canvasMemoryRemoved.current.has(root)) controller.current?.remember(root, item);
         memoryRead.current = true; setMemoryTick(tick => tick + 1); overviewRun.current?.sync(); canvasRun.current?.sync();
