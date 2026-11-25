@@ -875,8 +875,8 @@ async function start(): Promise<void> {
   // After the store, which made and checked the conversations directory.
   const conversationDrafts = new DraftStore(join(userData, "conversations"));
   conversationDraftStore = conversationDrafts;
-  // What main keeps for roots that left the list, by Remove, Locate or a vanished auto-registered worktree (shell.ts
-  // autoRemoved): one place, so a store keyed by root is wired into all of them at once. `before`: the list before.
+  // What main keeps for roots that left the list, by Remove, Locate, a vanished auto-registered worktree or an upward
+  // re-root (shell.ts `left`): one place, so a store keyed by root is wired into all of them at once. `before`: the list before.
   function rootsLeft(paths: string[], before: FolderEntry[]): void {
     if (selection && paths.includes(selection.root)) selection = null;
     // Background work a done turn left in a removed project stops without asking, as on sign-out.
@@ -919,9 +919,9 @@ async function start(): Promise<void> {
     response: record => documents.response(record),
     git: root => seen.gitChanged(root),
     saveFailed: () => send("folders:save-failed"),
-    // A vanished auto-registered worktree is cleaned up as Remove's roots are (rootsLeft); its work items go with the
-    // list's retainWorkRoots above.
-    autoRemoved: rootsLeft,
+    // A vanished auto-registered worktree or a re-rooted stored root is cleaned up as Remove's roots are; work items go
+    // with the list's retainWorkRoots above.
+    left: rootsLeft,
     // A root saved through a symlink is read as its real path once its seen canvases and UI memory have moved to it,
     // in this order and before the renderer reads ui-state.json (folderStore RootMigration).
     migrate: async aliases => seenStore.copyRoots(aliases) && await moveUiStateRoots(join(userData, "ui-state.json"), aliases),

@@ -31,7 +31,7 @@ export interface Thumbnails {
   // A closed window reports nothing more, so what it showed stops counting as visible.
   viewerClosed(viewer: WindowKind): void;
   // Every folder update: forgets canvases that left the list, re-checks a folder whose served files changed or only the
-  // rows whose revision moved, and cleans the cache once at start.
+  // rows whose revision moved, and cleans the cache once, the first time every root lists.
   entriesChanged(entries: readonly FolderEntry[]): void;
   // Removed projects lose their cache files; `before` is the list before removal.
   removed(roots: readonly string[], before: readonly FolderEntry[]): Promise<void>;
@@ -325,7 +325,9 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
       }
       for (const root of revs.keys()) if (!entries.some((entry) => entry.path === root)) revs.delete(root);
       for (const root of signatures.keys()) if (!entries.some((entry) => entry.path === root)) signatures.delete(root);
-      if (!cleaned && entries.every((entry) => entry.kind !== "loading")) {
+      // Keys hash root and path, so a root that does not list yet hides which files are its own: collect waits for every
+      // root to list rather than delete a registered root's cache.
+      if (!cleaned && entries.every((entry) => entry.kind === "list")) {
         cleaned = true;
         void collect(entries);
       }

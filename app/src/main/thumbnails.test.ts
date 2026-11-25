@@ -650,7 +650,7 @@ test("startup collection leaves an active temporary write intact while removing 
   await vi.waitFor(() => expect(writeGate.temp.startsWith(f.dir)).toBe(true));
   const temp = writeGate.temp;
   expect(existsSync(temp)).toBe(true);
-  thumbnails.entriesChanged([...f.entries, { path: "/slow", kind: "notFound" }]);
+  thumbnails.entriesChanged([...f.entries]);
   await vi.waitFor(() => expect(existsSync(orphan)).toBe(false));
   writeGate.dir = "";
   writeGate.release();

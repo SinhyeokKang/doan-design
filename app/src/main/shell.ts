@@ -97,13 +97,14 @@ function sameScope(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((entry, i) => entry === b[i]);
 }
 
-// Electron-free: the window, dialog and IPC live in index.ts. `autoRemoved` runs before the list goes out, so main
-// clears that root's state as on Remove; `migrate` runs before folders.json is rewritten or any folder is read.
+// Electron-free: the window, dialog and IPC live in index.ts. `left` (a vanished auto-registered root, or a stored root
+// re-rooted upward) runs before the list goes out, so main clears that root's state as on Remove; `migrate` runs before
+// folders.json is rewritten or any folder is read.
 export interface ShellHooks {
   response?(record: ResponseRecord): void;
   // HEAD, FETCH_HEAD or ORIG_HEAD in the root's gitdir changed (watch.ts `git`), for the read state's git signal.
   git?(root: string): void;
-  autoRemoved?(paths: string[], before: FolderEntry[]): void;
+  left?(paths: string[], before: FolderEntry[]): void;
   migrate?: RootMigration;
   // The person's home folder: Doan creates no repository there or above it, so such a folder is never planned notGit.
   home?: string;
@@ -157,7 +158,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
         const before = entries();
         detach(folder);
         const write = store.replace(next);
-        hooks?.autoRemoved?.([folder.path], before);
+        hooks?.left?.([folder.path], before);
         onChange(entries());
         logWrite(await write);
         return false;
@@ -170,6 +171,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       if (folders.get(folder.path) !== folder || read !== folder.reads) return false;
       if (view.kind === "list" && view.root !== folder.path) {
         const next = reconcileFolders(store.list(), folder.path, view);
+        const before = entries();
         detach(folder);
         // The new root is hand-added, even over a mark an interrupted write left.
         if (!folders.has(view.root)) {
@@ -181,6 +183,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
         folders.clear();
         for (const item of ordered) if (item) folders.set(item.path, item);
         const write = store.replace(next.folders);
+        hooks?.left?.([folder.path], before);
         onChange(entries(), { from: folder.path, root: view.root });
         logWrite(await write);
         return view;
