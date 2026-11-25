@@ -1103,20 +1103,48 @@ describe("the board iframe's ancestors never clip with four equal radii", () => 
     }
   });
 
-  // The exported player's run iframe is as large as the app's, so its chain splits the clip the same way.
+  // The exported player's run iframe is as large as the app's, so its chain splits the clip the same way. The chain is
+  // read from the player template up from #pw-stage, plus the box and iframe player.js puts in the stage.
+  const playerChain = (): Element[] => {
+    const template = /<template id="player">([\s\S]*?)<\/template>/.exec(shellHtml.replace(/<!--[\s\S]*?-->/g, ""))?.[1] ?? "";
+    const open: Element[] = [];
+    for (const [tagText, close, name, attributes] of template.matchAll(/<(\/?)([a-z][\w-]*)([^>]*)>/gi)) {
+      const tag = name!.toLowerCase();
+      if (close) { open.splice(open.map(e => e.tag).lastIndexOf(tag)); continue; }
+      const element = { tag, id: /\sid="([^"]*)"/.exec(attributes!)?.[1], classes: /\sclass="([^"]*)"/.exec(attributes!)?.[1]?.split(/\s+/) ?? [] };
+      if (element.id === "pw-stage") {
+        const box = { tag: "div", classes: ["pw-box"] }, frame = { tag: "iframe", classes: ["pw-frame"] };
+        return [frame, box, element, ...open.reverse(), ...page];
+      }
+      if (!tagText.endsWith("/>") && !/^(meta|link|br|img|input|hr|source|wbr|path|circle|rect|line)$/.test(tag)) open.push(element);
+    }
+    return [];
+  };
+
   test("export player: the panel paints its corners without clipping, the content rounds only its top corners and the stage only its bottom ones", () => {
-    expect(declared(shellCss, { tag: "div", id: "pw-panel", classes: ["pw-panel"], attributes: ["class", "id"] }, clipping)).toEqual([]);
-    expect(declared(shellCss, { tag: "div", id: "pw-content", classes: ["pw-content"], attributes: ["class", "id", "data-mode"] }, bottomRadius)).toEqual([]);
-    expect(declared(shellCss, { tag: "div", id: "pw-content", classes: ["pw-content"], attributes: ["class", "id", "data-mode"] }, clipping)).not.toEqual([]);
-    expect(declared(shellCss, { tag: "div", id: "pw-stage", classes: ["pw-stage"], attributes: ["class", "id"] }, topRadius)).toEqual([]);
-    expect(declared(shellCss, { tag: "div", id: "pw-stage", classes: ["pw-stage"], attributes: ["class", "id"] }, clipping)).not.toEqual([]);
+    // player.js puts the iframe in a .pw-box it appends to the stage, and prepends the template's content to body.
+    expect(playerJs).toContain('box.className = "pw-box";');
+    expect(playerJs).toContain('iframe.className = "pw-frame";');
+    expect(playerJs).toContain("box.append(iframe);");
+    expect(playerJs).toContain("stage.append(box);");
+    expect(playerJs).toContain('document.body.prepend($("player").content.cloneNode(true));');
+    const chain = playerChain();
+    expect(chain.map(e => e.tag + (e.id ? `#${e.id}` : "") + e.classes.map(c => `.${c}`).join(""))).toEqual(
+      ["iframe.pw-frame", "div.pw-box", "div#pw-stage.pw-stage", "div#pw-content.pw-content", "div#pw-panel.pw-panel", "div#pw.pw", "body", "html"]);
+    const [, , stage, content, panel] = chain;
+    expect(declared(shellCss, panel!, clipping)).toEqual([]);
+    expect(declared(shellCss, content!, bottomRadius)).toEqual([]);
+    expect(declared(shellCss, content!, clipping)).not.toEqual([]);
+    expect(declared(shellCss, stage!, topRadius)).toEqual([]);
+    expect(declared(shellCss, stage!, clipping)).not.toEqual([]);
     expect(declarations(shellCss, ".pw-panel")).toContain("border-radius: var(--radius-container)");
     expect(declarations(shellCss, ".pw-content")).toEqual(expect.arrayContaining(["border-top-left-radius: inherit", "border-top-right-radius: inherit"]));
     expect(declarations(shellCss, ".pw-stage")).toEqual(expect.arrayContaining(["border-bottom-left-radius: var(--radius-container)", "border-bottom-right-radius: var(--radius-container)"]));
-    for (const element of [{ tag: "iframe", classes: ["pw-frame"], attributes: ["class", "sandbox", "name", "srcdoc", "style"] }, { tag: "div", classes: ["pw-box"], attributes: ["class", "style"] },
-      { tag: "div", id: "pw", classes: ["pw", "name-row"], attributes: ["class", "id", "style"] }, ...page]) {
+    for (const element of chain.filter(e => e !== stage && e !== content && e !== panel)) {
       expect(declared(shellCss, element, radius), JSON.stringify(element)).toEqual([]);
     }
+    // A name-row player is the same element with one more class.
+    expect(declared(shellCss, { tag: "div", id: "pw", classes: ["pw", "name-row"] }, radius)).toEqual([]);
   });
 });
 
