@@ -15,6 +15,9 @@
 - T5 `/runtime-test`의 실제 provider 턴은 Codex로 한다. 실제 `~/.codex/auth.json`을 임시 `CODEX_HOME`에 복사해 격리된 앱에서 한 턴만 돌리고, 끝나면(실패해도) 임시 홈을 지운다. 새 로그인은 만들지 않는다. — 체인 시작 점검에서 사용자 승인. Codex를 고른 근거: 자격 증명이 파일 하나라 Keychain 복제 없이 임시 홈에 격리된다(공유 provider 프로필 복사는 Claude Code·Codex를 로그아웃 상태로 보이게 한다는 lead 메모).
 - T6의 PRODUCT, ARCHITECTURE, BACKLOG 승격과 기능 디렉터리 삭제는 conductor가 문서별 커밋으로 한다. `docs/design/conversation.md`는 `/design-sync`를 하는 UI 워커(B3)가 고친다. — conductor 판단, 근거: `/orchestrate` §4·§5.
 
+- 끝의 미완성 표는 머리 행과 구분 행(`|---|`)이 모두 올 때까지 잡아 두고, 그 뒤로는 완성된 행(줄) 단위로 펼친다. 마지막 행이 줄바꿈 전이면 잡아 둔다. — conductor 판단(B2 질문), 근거: design.md '경계'의 목적은 텍스트에서 표로 바뀌는 깜빡임과 큰 점프를 없애는 것이고, 표 전체를 한 번에 보이면 점프가 다시 생긴다.
+- B3는 답 전체를 매 프레임 다시 그리는 구조로 시작한다. design.md '출력 점진 표시'의 "끝난 블록 memo를 기본으로" 대신 PoC 결론을 따른다. 다만 PoC의 저부하 run은 로그가 덮어써져 전사본만 남았고 다른 run은 기계 부하로 기준을 넘었으므로, spec 완료 조건 8은 B3가 실제 구현으로 부하가 낮을 때 다시 재서 판정한다. 넘으면 그때 블록 단위로 나눈다. — conductor 판단, 근거: design.md 'PoC 결과', `.scratch/thread-motion/results-quiet-1005.txt`.
+
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
