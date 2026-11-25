@@ -11,7 +11,7 @@ import { stepCount } from "./editLinesLabel";
 // The person's text in order, with each anchor token `{{n}}` kept where it was typed.
 export type MessagePart = { text: string } | { anchor: number };
 // sentence: a step whose text is a sentence and wraps instead of staying on one line (Codex's MCP startup lines).
-// lines: what an applied edit added and removed, once its activity.result arrived; absent while unknown.
+// lines: absent until the edit's activity.result arrives.
 export interface ActivityStep { key: string; kind: "edit" | "read" | "command" | "other"; verb: string; path: string | null; sentence?: true; lines?: EditLines }
 // model: the model a model_unavailable end named.
 // detail: a usage limit's provider wording, which may name when the limit resets.
@@ -26,8 +26,7 @@ export type ThreadItem =
   // A Claude turn that asked for Fast and did not run it: one line in the turn, under the reply.
   | { kind: "fast"; key: string; seq: number; text: string; turnedOff: boolean }
   // A run of activities folds into one line: "N steps", or the running tool's words while it is the running turn's last
-  // item and the turn indicator names a tool (activityRun). total: the sum of the steps' known line counts, only on a head
-  // that is its step count; a running head never shows one.
+  // item and the turn indicator names a tool (activityRun). total: the known counts' sum, never on a running head.
   | { kind: "activity"; key: string; running: boolean; head: string; total?: EditLines; steps: ActivityStep[] }
   | { kind: "permission"; key: string; seq: number; requestId: string; summary: string; reason?: string; options: PermissionOption[]; status: "pending" | "answered" | "expired"; answer: PermissionOption | null }
   // An agent's question. answers: what main kept of an answered one, by question id.
@@ -149,7 +148,6 @@ export function runningHead(last: ActivityStep): string {
 }
 // Re-exported where turnStatus.ts reads it; it lives beside the head's accessible name.
 export { stepCount };
-// A head that is its step count: the total of the steps whose counts are known, none when no step has one.
 export function countHead(steps: readonly ActivityStep[]): { head: string; total?: EditLines } {
   const known = steps.flatMap(step => step.lines ? [step.lines] : []);
   if (known.length === 0) return { head: stepCount(steps.length) };
@@ -183,9 +181,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
   let turn: string | null = null, group: { item: Extract<ThreadItem, { kind: "activity" }>; turnId: string } | null = null;
   const groups: { item: Extract<ThreadItem, { kind: "activity" }>; turnId: string }[] = [];
   const turnOf = new Map<string, string>(), askTurn = new Map<string, string>();
-  // A turn's edit steps by their call: main writes a result's path as exactly its activity's stored path (none when the
-  // activity has none), and one Codex call edits several files, so the key is the call and that raw path, never the
-  // root-relative one a step shows.
+  // Keyed by call and the activity's stored path, never the root-relative path a step shows.
   const edits = new Map<string, { step: ActivityStep; path: string | undefined }[]>();
   // Each turn's cards in the order their paths first appeared, placed once every event is read: canvas.drawn and
   // handoff.missed come after the turn's end too, possibly after the next message, so a card goes by its turn, not by its
@@ -293,8 +289,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         }
         break;
       }
-      // Results of one key add up: an ACP tool call may report a path's removal and its rewrite apart. One with no edit
-      // of its turn, or before its edit, counts nowhere.
+      // Same-key results add up: an ACP call may report a path's removal and rewrite apart.
       case "activity.result": {
         const target = edits.get(`${event.turnId}\0${event.callId}`)?.find(edit => edit.path === event.path)?.step;
         if (target) target.lines = { added: (target.lines?.added ?? 0) + event.lines.added, removed: (target.lines?.removed ?? 0) + event.lines.removed };

@@ -267,23 +267,20 @@ function activity(kind: ActivityKind, path: string, line: string, root: string, 
   const resolved = posix.resolve(root, path);
   return { type: "activity", kind, path, insideDesign: canvasDir(posix.relative(root, resolved)) !== null, summary, ...id };
 }
-// A provider's call id as an edit's activity.callId, or undefined for one the store refuses (empty, past the label
-// limit, holding a NUL): a refused event ends the whole turn, while a missing id only leaves the step without numbers.
+// An id the store would refuse ends the whole turn, while a dropped one only leaves the step without numbers.
 export function callIdOf(id: string): string | undefined {
   return id && id.length <= LIMITS.label && !id.includes("\0") ? id : undefined;
 }
 // A whole file's lines, as git counts them: a last line without a newline is still a line.
 function contentLines(text: string): number { return text ? text.split("\n").length - (text.endsWith("\n") ? 1 : 0) : 0; }
-// path is exactly the one the edit's activity stored ("" for none), so the thread matches a result to its step by the
-// call id and that path alone.
+// path must be the edit activity's stored path ("" for none): the thread matches a result by call id and that path.
 export function editResult(callId: string, path: string, lines: EditLines | null): EventPayload[] {
   return lines ? [{ type: "activity.result", callId, ...(path ? { path } : {}), lines }] : [];
 }
-// tool_use_result belongs to the whole frame, so the caller reads it only for a frame with one result. A denied or
-// failed edit brings an "Error: …" string instead of the object.
+// Read only for a frame with one tool_result; a denied or failed edit carries an "Error: …" string here.
 function claudeEditLines(result: unknown): EditLines | null {
   if (!object(result) || !Array.isArray(result.structuredPatch)) return null;
-  // A new file's patch is empty (Claude Code 2.1.284 and 2.1.332); its content is all added.
+  // A new file's patch is empty; its content is all added.
   if (result.type === "create" && result.structuredPatch.length === 0 && typeof result.content === "string") return { added: contentLines(result.content), removed: 0 };
   return countStructuredPatch(result.structuredPatch);
 }
@@ -296,8 +293,7 @@ function codexChangeLines(change: Record<string, unknown>): EditLines | null {
   if (kind === "delete") return { added: 0, removed: contentLines(change.diff) };
   return null;
 }
-// Only a completed item was applied: a declined one still carries its diff. stored: the paths the item's activities
-// stored; each is matched by one change at most, and a change on any other path has no step to show it.
+// A declined item still carries its diff, so only a completed one counts. Each stored path takes one change at most.
 function codexEditResults(item: Record<string, unknown>, callId: string, stored: readonly string[]): EventPayload[] {
   if (item.status !== "completed" || !Array.isArray(item.changes)) return [];
   const left = [...stored];
@@ -638,7 +634,6 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
       state = { ...state, activities: [...state.activities, id], fileSummaries, ...edits };
       events = made.events;
     }
-    // An item completes once; its stored paths go with it.
     if (!started && state.codexEdits && Object.hasOwn(state.codexEdits, id)) {
       const { [id]: stored, ...rest } = state.codexEdits;
       const { codexEdits: _, ...without } = state;

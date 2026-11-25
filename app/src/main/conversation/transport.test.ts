@@ -721,8 +721,7 @@ describe("Fast outcome", () => {
   });
 });
 
-// Edit line counts (activity.callId and activity.result), pinned by the frames recorded per provider version
-// (fixtures/claude-edit-results.json, fixtures/codex-file-changes.json; README 'thread-edit-lines'). A trail line is
+// Recorded edit turns (fixtures/claude-edit-results.json, codex-file-changes.json). A trail line is
 // "activity <kind> <callId|-> <path|->" or "result <callId> <path|-> +<added> -<removed>".
 function trail(events: readonly EventPayload[]): string[] {
   return events.flatMap(e => e.type === "activity" ? [`activity ${e.kind} ${e.callId ?? "-"} ${e.path ?? "-"}`]
@@ -756,7 +755,7 @@ describe("Claude edit line counts from recorded frames", () => {
       // A new file's structuredPatch is empty; its content's lines are the added ones (no newline after the last here).
       write: [edit(t(1), hello), lines(t(1), hello, 3, 0)],
       overwrite: [read(t(1), config), edit(t(2), config), lines(t(2), config, 2, 4)],
-      // The first two edits failed (is_error) before the files were read, then both went through.
+      // The first two edits failed (is_error) and were retried.
       parallel: [edit(t(1), notes), edit(t(2), colors), read(t(3), notes), read(t(4), colors), edit(t(5), notes), lines(t(5), notes, 1, 1), edit(t(6), colors), lines(t(6), colors, 1, 1)],
       deny: [read(t(1), notes), edit(t(2), notes)],
       fail: [edit(t(1), notes)],

@@ -50,11 +50,9 @@ export type EventPayload =
   | { type: "turn.started" }
   | { type: "message.delta"; messageId: string; text: string }
   | { type: "message.done"; messageId: string; text: string }
-  // callId: the provider's id for an edit's call, which its activity.result names; absent on other kinds and on an id the
-  // store would refuse.
+  // callId: edits only; the key of their activity.result (ARCHITECTURE 'Edit line counts').
   | { type: "activity"; kind: "edit" | "read" | "command" | "other"; path?: string; insideDesign?: boolean; summary: string; callId?: string }
-  // The lines an applied edit added and removed, keyed by its activity's callId (and path, since one Codex call edits
-  // several files). An earlier build fails a whole history that holds one.
+  // An older Doan cannot read a history that holds one.
   | { type: "activity.result"; callId: string; path?: string; lines: EditLines }
   | PermissionRequest
   | { type: "permission.resolved"; requestId: string; optionId: string }
@@ -113,11 +111,9 @@ export interface TransportState {
   fastUnused?: FastUnused;
   // Claude only: the failure code an assistant frame's `error` named (claudeFrame); a failed result takes it over its text.
   claudeFailure?: FailureCode;
-  // Claude only: the edit calls (Write, Edit, MultiEdit) whose result has not come yet, by tool_use id, each with the path
-  // its activity stored ("" for none). activities holds every tool's id, so only these results are counted.
+  // Claude only: pending edit tool_use ids → their activity's stored path ("" for none); `activities` holds every tool.
   claudeEdits?: Record<string, string>;
-  // Codex only: the fileChange items whose completion has not come yet, by item id, with the path each of the item's
-  // activities stored ("" for none). A result names only one of these, which the store already took.
+  // Codex only: pending fileChange item ids → their activities' stored paths ("" for none).
   codexEdits?: Record<string, string[]>;
   // Claude only: the index of the thinking block now streaming, whose stop ends the thinking stage.
   thinkingBlock?: number;

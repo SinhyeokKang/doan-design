@@ -543,8 +543,7 @@ function UserMessage({ entry, frames, disabled, onLocate, home }: { entry: Extra
   </div>;
 }
 
-// An edit's line counts as one inline run with a real space, so a copied step ends in "+12 −3". The spoken name sits on
-// the run as role="img": an sr-only span would enter the copied text, and a plain span's aria-label is no name.
+// role="img" names the run without the name entering copied text, as an sr-only span would.
 function EditLinesRun({ lines }: { lines: EditLines }) {
   const label = editLinesLabel(lines), [added, removed] = label.text.split(" ");
   return <span className="lines" role="img" aria-label={label.name}><span className="add">{added}</span> <span className="del">{removed}</span></span>;

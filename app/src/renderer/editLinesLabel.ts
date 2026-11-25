@@ -5,8 +5,7 @@ export const stepCount = (n: number) => n === 1 ? "1 step" : `${n} steps`;
 const NUMBER = new Intl.NumberFormat("en-US");
 const linesAdded = (n: number) => `${NUMBER.format(n)} ${n === 1 ? "line" : "lines"} added`;
 
-// text is what the step and head show (U+2212 for the minus, zero kept); name is what a screen reader reads for it,
-// since it would read the signs as symbols.
+// name: a screen reader would read the signs of text as symbols.
 export function editLinesLabel(lines: EditLines): { text: string; name: string } {
   return {
     text: `+${NUMBER.format(lines.added)} −${NUMBER.format(lines.removed)}`,
@@ -14,7 +13,6 @@ export function editLinesLabel(lines: EditLines): { text: string; name: string }
   };
 }
 
-// The collapsed head's accessible name; a row without line counts keeps the step count alone.
 export function editHeadName(steps: number, lines: EditLines | undefined): string {
   return lines ? `${stepCount(steps)}, ${editLinesLabel(lines).name}` : stepCount(steps);
 }

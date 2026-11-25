@@ -202,7 +202,7 @@ frame only `type`, `subtype`, `status`, `permissionMode`, `parent_tool_use_id`, 
 `session-1`. Frame order and every `permissionMode` and `status` value are as recorded.
 
 `claude-edit-results.json`, `codex-file-changes.json`, `acp-copilot-edits.json` and `acp-antigravity-edits.json`
-(2026-11-25, thread-edit-lines T0) are reduced from raw frames recorded by a probe that launched each provider the way
+(recorded 2026-11-25) are reduced from raw frames recorded by a probe that launched each provider the way
 Doan's runners do, outside the app: Claude Code through the Agent SDK `query` (`pathToClaudeCodeExecutable`,
 `includePartialMessages`, `settingSources` user, project and local; Haiku), `codex app-server` (initialize,
 `thread/start`, `turn/start` with `gpt-5.6-luna`, effort low), and `copilot --acp --stdio` and the Antigravity ACP server

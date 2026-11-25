@@ -28,9 +28,8 @@ export function turnOf(events: readonly ConversationEvent[], live: boolean): Tur
   let lastSeq = started.seq, ended = false;
   for (const event of events) {
     if (event.turnId !== started.turnId) continue;
-    // main writes canvas.drawn when a folder refresh lists the canvas, and an edit's activity.result when the tool's
-    // result frame arrives, possibly while another tool runs: neither is the agent acting, so a stage sent before it
-    // still says what the agent does.
+    // canvas.drawn and activity.result can land while another tool runs; neither is the agent acting, so neither ages
+    // a stage.
     if (event.type !== "canvas.drawn" && event.type !== "activity.result") lastSeq = Math.max(lastSeq, event.seq);
     if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") ended = true;
   }

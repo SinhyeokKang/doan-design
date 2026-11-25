@@ -4,9 +4,6 @@ import codexChanges from "./fixtures/codex-file-changes.json";
 import copilotEdits from "./fixtures/acp-copilot-edits.json";
 import { countStructuredPatch, countTextChange, countUnifiedDiff, EDIT_DISTANCE_MAX, EDIT_LINES_MAX } from "./editLines";
 
-// How an applied edit's added and removed lines are counted from what each provider reports: a unified diff (Codex), a
-// structured patch (Claude Code) or the text before and after (ACP). null means the count is unknown, and the step then
-// shows no numbers.
 const lines = (n: number, tag = "line") => Array.from({ length: n }, (_, i) => `${tag} ${i}\n`).join("");
 
 describe("countUnifiedDiff", () => {
@@ -121,7 +118,7 @@ describe("countTextChange", () => {
     const fits = lines(EDIT_LINES_MAX / 2 - 1);
     expect(countTextChange(fits, fits + "x\n")).toEqual({ added: 1, removed: 0 });
   });
-  // The count runs synchronously in main while a turn streams, so its worst case must stay short.
+  // Counting runs synchronously in main, so its worst case must stay short.
   it("gives up on a whole 5,000-line canvas rewritten, within 50 ms", () => {
     const before = lines(5_000, "old"), after = lines(5_000, "new");
     const runs = Array.from({ length: 3 }, () => {
@@ -131,7 +128,7 @@ describe("countTextChange", () => {
     });
     expect(Math.min(...runs)).toBeLessThan(50);
   });
-  // Lines that share a long prefix make each comparison as long as the line, so the time must not grow with line length.
+  // The time must not grow with line length (lines sharing a long prefix).
   it("stays within 50 ms for long lines that share a prefix", () => {
     const prefix = "p".repeat(1_000);
     const before = Array.from({ length: 9_800 }, (_, i) => `${prefix}${i}\n`).join("");
@@ -155,8 +152,7 @@ describe("countTextChange", () => {
   });
 });
 
-// Inputs taken from the providers' recorded edit turns (fixtures/README.md); each expected count is that turn's real
-// change, the probe repo's `git diff --numstat`.
+// Inputs from recorded edit turns (fixtures/README.md); each expected count is that turn's `git diff --numstat`.
 type Recorded = Record<string, Record<string, { frames: Record<string, any>[] }>>;
 const recorded = (fixture: unknown, version: string, kind: string) => (fixture as Recorded)[version]![kind]!.frames;
 const change = (added: number, removed: number) => ({ added, removed });
@@ -190,8 +186,7 @@ describe("recorded Codex file changes", () => {
     expect(count("overwrite")).toEqual([{ type: "update", path: "/repo/config.txt", lines: change(2, 4) }]);
     expect(count("multipath")).toEqual([{ type: "update", path: "/repo/config.txt", lines: change(1, 1) }, { type: "update", path: "/repo/notes.txt", lines: change(1, 1) }]);
   });
-  // add and delete carry the file's whole content, not a diff: read as a diff it is unknown, so the normalizer must
-  // switch on the kind and count the content's lines.
+  // add and delete carry the whole content, not a diff, so the normalizer must switch on the kind.
   it.each(["0.158.0", "0.171.0"])("reads %s's add and delete as whole content, not as a diff", version => {
     const [add] = changes(version, "write"), [del] = changes(version, "delete");
     expect([add!.kind.type, del!.kind.type]).toEqual(["add", "delete"]);

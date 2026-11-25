@@ -6,8 +6,7 @@ import { ConversationStore } from "./store";
 import { LIMITS } from "./prompt";
 import type { EventPayload } from "./types";
 
-// How the history keeps an edit's call id and the line counts of its applied result. A value the store refuses ends
-// the whole turn (appendAll throws), so these pin exactly what the normalizers may produce.
+// A value the store refuses ends the whole turn (appendAll throws), so these pin what the normalizers may produce.
 describe("activity.callId and activity.result history lines", () => {
   const roots: string[] = [];
   afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -80,8 +79,7 @@ describe("activity.callId and activity.result history lines", () => {
     writeFileSync(log, line(1, { type: "turn.started" }) + line(2, { ...edit, callId }));
     expect(() => store.read("c")).toThrow("Invalid conversation event");
   });
-  // What an earlier Doan meets once this build wrote a result: an event type it does not know fails the whole history,
-  // and appending to it leaves the file as it was.
+  // As an older Doan: an unknown event type fails the whole history, and an append leaves the file as it was.
   it("fails a whole history holding an unknown event type and never rewrites it", () => {
     const { store, log } = setup();
     const text = line(1, { type: "turn.started" }) + line(2, { ...edit, callId: "toolu_01" }) + line(3, { ...result, type: "activity.later" }) + line(4, { type: "turn.done" });

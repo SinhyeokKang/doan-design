@@ -1,14 +1,12 @@
 import type { EditLines } from "./types";
 
-// The count runs synchronously in main while a turn streams (only main receives the texts), so both limits keep the
-// worst case at O((N+M)·D) short enough not to stall it; past them the count is unknown.
+// Counting runs synchronously in main; past these caps the count is unknown (ARCHITECTURE 'Edit line counts').
 export const EDIT_LINES_MAX = 20_000;
 export const EDIT_DISTANCE_MAX = 1_000;
 
 const HUNK = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/;
 
-// A hunk is read by its header's counts, so a removed line whose text starts with "--" (or an added one with "++") is
-// never taken for the next file's header. Lines outside hunks are headers; a binary diff has no hunk and stays unknown.
+// Hunks are bounded by their headers' counts, so a "--" or "++" content line is never read as a file header.
 export function countUnifiedDiff(text: string): EditLines | null {
   const rows = text.split("\n");
   if (rows.at(-1) === "") rows.pop();
@@ -31,7 +29,6 @@ export function countUnifiedDiff(text: string): EditLines | null {
   return hunks > 0 && left === 0 && right === 0 ? { added, removed } : null;
 }
 
-// Claude Code's structuredPatch: hunks whose lines carry a +, - or space prefix.
 export function countStructuredPatch(hunks: unknown): EditLines | null {
   if (!Array.isArray(hunks)) return null;
   let added = 0, removed = 0;
@@ -48,10 +45,8 @@ export function countStructuredPatch(hunks: unknown): EditLines | null {
   return { added, removed };
 }
 
-// Lines become integer ids, so a comparison costs the same however long the lines are (a long shared prefix would
-// otherwise make every comparison as long as the line). CRLF and LF read as the same line end. A last line without a
-// newline counts as a different line from the same text with one, as git counts it: its key alone ends in "\n", which
-// no split line holds.
+// Integer ids keep a comparison independent of line length. A last line without a newline gets its own key (it alone
+// ends in "\n"), so gaining or losing that newline counts as a change, as git counts it.
 function lineIds(text: string, ids: Map<string, number>): Int32Array {
   const rows = text.replaceAll("\r\n", "\n").split("\n");
   const last = rows.pop()!;
@@ -63,8 +58,7 @@ function lineIds(text: string, ids: Map<string, number>): Int32Array {
   });
 }
 
-// The lines between two texts, from the edit distance D alone (forward Myers after trimming the common ends):
-// added = M − LCS and removed = N − LCS, where LCS = (N + M − D) / 2.
+// Forward Myers yields only the distance D: LCS = (N + M − D) / 2.
 export function countTextChange(oldText: string, newText: string): EditLines | null {
   const ids = new Map<string, number>();
   const a = lineIds(oldText, ids), b = lineIds(newText, ids);

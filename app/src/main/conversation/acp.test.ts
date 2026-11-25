@@ -47,8 +47,7 @@ it("leaves every other shape to the permission request", () => {
   expect(acpPermission(asked(), "req", "/repo")?.event).toMatchObject({ type: "permission.request", summary: "Which color should the header be?", options: [{ id: "allow" }] });
 });
 
-// Edit line counts (activity.callId and activity.result) over ACP. A trail line is "activity <kind> <callId|-> <path|->"
-// or "result <callId> <path|-> +<added> -<removed>".
+// A trail line is "activity <kind> <callId|-> <path|->" or "result <callId> <path|-> +<added> -<removed>".
 function trail(events: readonly EventPayload[]): string[] {
   return events.flatMap(e => e.type === "activity" ? [`activity ${e.kind} ${e.callId ?? "-"} ${e.path ?? "-"}`]
     : e.type === "activity.result" ? [`result ${e.callId} ${e.path ?? "-"} +${e.lines.added} -${e.lines.removed}`] : []);
@@ -94,8 +93,7 @@ describe("Copilot edit line counts from recorded frames", () => {
       // Delete and add on the same path, one result per diff item; together +2 -4.
       overwrite: [edit(p, config), lines(p, config, 0, 4), lines(p, config, 2, 0)],
       delete: [edit(p, "/repo/old.txt"), lines(p, "/repo/old.txt", 0, 3)],
-      // One activity per tool call, under the path the last request named; only the diff item on that path is counted
-      // (notes.txt's is not).
+      // One activity per call, under the last requested path; only that path's diff item counts.
       multipath: [edit(p, config), lines(p, config, 1, 1)],
       deny: [],
       fail: [],
