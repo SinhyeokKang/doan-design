@@ -37,12 +37,12 @@ describe("Codex wire dispatcher", () => {
   });
   it("sends only offered permission replies and rejects stale replies after interruption", () => {
     const h = harness(); h.rpc.receive({ id: 7, method: "item/fileChange/requestApproval", params: { threadId: "s", turnId: "t" } });
-    expect(h.rpc.answer("number:7", "decline")).toBe(true);
+    expect(h.rpc.answer("t:number:7", "decline")).toBe(true);
     expect(h.writes).toEqual([{ id: 7, result: { decision: "decline" } }]);
-    expect(h.events.at(-1)).toEqual({ type: "permission.resolved", requestId: "number:7", optionId: "decline" });
-    expect(h.rpc.answer("number:7", "accept")).toBe(false);
+    expect(h.events.at(-1)).toEqual({ type: "permission.resolved", requestId: "t:number:7", optionId: "decline" });
+    expect(h.rpc.answer("t:number:7", "accept")).toBe(false);
     h.rpc.receive({ id: "8", method: "item/fileChange/requestApproval", params: { threadId: "s", turnId: "t" } });
-    h.rpc.expire(); expect(h.rpc.answer("string:8", "accept")).toBe(false);
+    h.rpc.expire(); expect(h.rpc.answer("t:string:8", "accept")).toBe(false);
     expect(h.writes.at(-1)).toMatchObject({ id: "8", error: { code: -32601 } });
   });
   // app-server numbers its requests from 0 in every process, so a later server's first request repeats an earlier id.
@@ -78,8 +78,8 @@ it("expires permissions and rejects pending RPCs before one transport failure", 
   rpc.receive({ id: 7, method: "item/fileChange/requestApproval", params: { threadId: "s", turnId: "t" } });
   const pending = expect(rpc.request("test", {})).rejects.toThrow("process_exited");
   dead = true; rpc.end(); rpc.end(); await pending;
-  expect(events.slice(1)).toEqual([{ type: "permission.resolved", requestId: "number:7", optionId: "expired" }, { type: "turn.failed", code: "process_exited" }]);
-  expect(rpc.answer("number:7", "accept")).toBe(false);
+  expect(events.slice(1)).toEqual([{ type: "permission.resolved", requestId: "t:number:7", optionId: "expired" }, { type: "turn.failed", code: "process_exited" }]);
+  expect(rpc.answer("t:number:7", "accept")).toBe(false);
 });
 it("keeps a stop requested before the native turn reply when transport ends", () => {
   const events: EventPayload[] = [];
@@ -180,17 +180,17 @@ describe("Codex MCP elicitation wiring", () => {
     ["acceptForSession", { action: "accept", content: {}, _meta: { persist: "session" } }],
   ])("asks with the connector's name and sends the answer for %s once", (option, result) => {
     const h = mcp(); h.rpc.receive(elicitation);
-    expect(h.events).toEqual([expect.objectContaining({ type: "permission.request", requestId: "number:7", tool: "mcpToolCall", summary: "Run ping on Echo" })]);
+    expect(h.events).toEqual([expect.objectContaining({ type: "permission.request", requestId: "thread-9279:number:7", tool: "mcpToolCall", summary: "Run ping on Echo" })]);
     expect(h.writes).toEqual([]);
-    expect(h.rpc.answer("number:7", option)).toBe(true);
-    expect(h.rpc.answer("number:7", option)).toBe(false);
+    expect(h.rpc.answer("thread-9279:number:7", option)).toBe(true);
+    expect(h.rpc.answer("thread-9279:number:7", option)).toBe(false);
     expect(h.writes).toEqual([{ id: 7, result }]);
-    expect(h.events.at(-1)).toEqual({ type: "permission.resolved", requestId: "number:7", optionId: option });
+    expect(h.events.at(-1)).toEqual({ type: "permission.resolved", requestId: "thread-9279:number:7", optionId: option });
     h.rpc.receive(done); expect(h.events.at(-1)).toEqual({ type: "turn.done" }); expect(h.cleanup).not.toHaveBeenCalled();
   });
   it("refuses the always option Codex offers, which would write a lasting approval", () => {
     const h = mcp(); h.rpc.receive(elicitation);
-    expect(h.rpc.answer("number:7", "always")).toBe(false); expect(h.writes).toEqual([]);
+    expect(h.rpc.answer("thread-9279:number:7", "always")).toBe(false); expect(h.writes).toEqual([]);
   });
   it("declines a form elicitation at once and keeps the turn running", () => {
     const h = mcp(); h.rpc.receive(withParams(8, { _meta: { codex_approval_kind: "form" } }));
@@ -216,23 +216,23 @@ describe("Codex MCP elicitation wiring", () => {
   it("answers an unanswered approval once when the turn ends", () => {
     const h = mcp(); h.rpc.receive(elicitation); h.rpc.receive(done);
     expect(h.writes).toEqual([{ id: 7, error: { code: -32601, message: "Unsupported request or unavailable owner." } }]);
-    expect(h.events.slice(1)).toEqual([{ type: "turn.done" }, { type: "permission.resolved", requestId: "number:7", optionId: "expired" }]);
-    expect(h.rpc.answer("number:7", "accept")).toBe(false); expect(h.writes).toHaveLength(1);
+    expect(h.events.slice(1)).toEqual([{ type: "turn.done" }, { type: "permission.resolved", requestId: "thread-9279:number:7", optionId: "expired" }]);
+    expect(h.rpc.answer("thread-9279:number:7", "accept")).toBe(false); expect(h.writes).toHaveLength(1);
   });
   // A stopped turn is no longer asked anything; Stop already answered what it was asking.
   it("declines an approval that comes after Stop at once and never holds it", () => {
     const h = mcp(); h.rpc.stop("user"); h.rpc.receive(elicitation);
     expect(h.writes).toEqual([{ id: 7, result: { action: "decline" } }]);
     expect(h.events).toEqual([]);
-    expect(h.rpc.answer("number:7", "accept")).toBe(false); expect(h.writes).toHaveLength(1);
+    expect(h.rpc.answer("thread-9279:number:7", "accept")).toBe(false); expect(h.writes).toHaveLength(1);
     h.rpc.receive({ method: "turn/completed", params: { threadId: thread, turn: { id: turn, status: "interrupted" } } });
     expect(h.events).toEqual([{ type: "interrupted", reason: "user" }]); expect(h.writes).toHaveLength(1);
   });
   it("answers the approval being asked once at Stop, and a late answer writes nothing", () => {
     const h = mcp(); h.rpc.receive(elicitation); h.rpc.stop("user");
     expect(h.writes).toEqual([{ id: 7, error: { code: -32601, message: "Unsupported request or unavailable owner." } }]);
-    expect(h.events.at(-1)).toEqual({ type: "permission.resolved", requestId: "number:7", optionId: "expired" });
-    expect(h.rpc.answer("number:7", "accept")).toBe(false); expect(h.writes).toHaveLength(1);
+    expect(h.events.at(-1)).toEqual({ type: "permission.resolved", requestId: "thread-9279:number:7", optionId: "expired" });
+    expect(h.rpc.answer("thread-9279:number:7", "accept")).toBe(false); expect(h.writes).toHaveLength(1);
   });
   it("fails the protocol on a repeated request id instead of answering twice", () => {
     const h = mcp(); h.rpc.receive(elicitation); h.rpc.receive(elicitation);

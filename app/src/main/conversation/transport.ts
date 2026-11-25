@@ -674,10 +674,17 @@ export function claudePermission(requestId: string, tool: string, input: Record<
 }
 // Codex's execpolicy prefix as one command line; a word with a space or a quote keeps its JSON quotes.
 function commandPrefix(words: readonly string[]): string { return words.map(word => /[\s"'\\]/.test(word) ? JSON.stringify(word) : word).join(" "); }
+// app-server numbers its requests from 0 in every process, so the request's turn makes the id unique in the
+// conversation; the dispatcher answers with the wire id it keeps beside it.
 export function codexPermission(raw: unknown, fileSummaries: Readonly<Record<string, string>> = {}, labels: Readonly<Record<string, string>> = PRESET_LABELS): PendingPermission | null {
   if (!object(raw) || (typeof raw.id !== "number" && typeof raw.id !== "string") || !object(raw.params)) return null;
-  const params = raw.params;
-  if (raw.method === MCP_ELICITATION) { const approval = codexMcpApproval(raw, labels); return approval?.kind === "permission" ? approval.permission : null; }
+  const params = raw.params, turn = object(params.turn) ? params.turn.id : params.turnId;
+  if (typeof turn !== "string" || !turn) return null;
+  const requestId = `${turn}:${typeof raw.id}:${raw.id}`;
+  if (raw.method === MCP_ELICITATION) {
+    const approval = codexMcpApproval(raw, labels);
+    return approval?.kind === "permission" ? { ...approval.permission, event: { ...approval.permission.event, requestId } } : null;
+  }
   if (raw.method === "item/permissions/requestApproval" && object(params.permissions)) {
     const response = (permissions: unknown, scope: "turn" | "session") => ({ id: raw.id, result: { permissions, scope } });
     const choices = [
@@ -686,7 +693,7 @@ export function codexPermission(raw: unknown, fileSummaries: Readonly<Record<str
       choice("always", "Allow for this session", "allowAlways", response(params.permissions, "session")),
     ];
     const summary = codexPermissionSummary(params.permissions, text(params.cwd));
-    return { event: { type: "permission.request", requestId: `${typeof raw.id}:${raw.id}`, tool: "permissions", summary, ...permissionReason(text(params.reason), summary), options: choices.map(c => c.option) }, choices };
+    return { event: { type: "permission.request", requestId, tool: "permissions", summary, ...permissionReason(text(params.reason), summary), options: choices.map(c => c.option) }, choices };
   }
   if (raw.method !== "item/fileChange/requestApproval" && raw.method !== "item/commandExecution/requestApproval") return null;
   const response = (decision: unknown) => ({ id: raw.id, result: { decision } });
@@ -714,7 +721,7 @@ export function codexPermission(raw: unknown, fileSummaries: Readonly<Record<str
   }
   const files = raw.method === "item/fileChange/requestApproval";
   const summary = clip((files ? fileSummaries[text(params.itemId)] || GENERIC_SUMMARY.edit : commandText(params) || GENERIC_SUMMARY.command), PERMISSION_SUMMARY_MAX);
-  return { event: { type: "permission.request", requestId: `${typeof raw.id}:${raw.id}`, tool: files ? "fileChange" : "commandExecution", summary, ...permissionReason(text(params.reason), summary), options: choices.map(c => c.option) }, choices };
+  return { event: { type: "permission.request", requestId, tool: files ? "fileChange" : "commandExecution", summary, ...permissionReason(text(params.reason), summary), options: choices.map(c => c.option) }, choices };
 }
 export function permissionAnswer(request: PendingPermission, optionId: string): { response: unknown; event: EventPayload } | null {
   const chosen = request.choices.find(c => c.option.id === optionId);
