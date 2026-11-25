@@ -150,3 +150,39 @@
 ## 리뷰어
 
 클러스터 12개와 공백 1개, 모두 Claude다. 각 리뷰어가 맡은 클러스터에서 4관점을 모두 봤다. 리드가 소스에서 다시 확인한 발견은 R2-M1, R2-M3, R2-cli-export-canvas-1이다.
+
+---
+
+## 라운드 2 처리 결과 (2026-11-26)
+
+| PR | 브랜치 | 처리 |
+|---|---|---|
+| #403 | fix/r2-auth | R2-M1, R2-mcp-onboarding-1. R2-M2는 재현되지 않아 제외했다(Electron 45.3.4 재귀 `rmSync`를 링크 교체와 1,000회 경합시켜도 링크를 따라가지 않음). |
+| #404 | feat/r2-cli | R2-cli-export-canvas-1·2·4·5, R2-cli-core-1·2·3, `ValidID` 헬퍼. R2-M6은 재현되지 않아 제외했다(Electron 45 probe 48개 레이아웃에서 `<image>`로 등록한 url은 사용하는 쪽에서 해석되어, 지금 `css.go`와 Chromium이 일치함). |
+| #405 | feat/r2-main | R2-M3(`move()` 한도 포함), R2-conv-transport-1·2·3, R2-main-core-1, R2-main-canvas-2 |
+| #406 | fix/r2-eval | R2-eval-1·2·3 |
+| #407 | feat/r2-renderer | R2-M4, R2-M5(전 위치), R2-renderer-canvas-2·4, R2-renderer-conversation-2·3, R2-renderer-shell-2, R2-main-canvas-1, R2-gaps-1·2·3 |
+
+남은 것은 다음과 같다.
+- R2-renderer-canvas-2 잔여: 캔버스 안에서 ⌘를 떼면 main `canvasScript.ts`의 Meta 키 보고가 필요하다. Low이고 후속 후보다.
+- R2-M2 부수 관찰: 경합 중 `rmSync`가 1,000회 중 5회 throw했다.
+- 펜스 안에 심은 `chmod 000` 폴더(라운드 1부터 남은 것).
+- `<image> | none` 등록에 `image-set()` 값을 주면 Chromium은 그리지 않는데, export는 그 값을 넣는다.
+
+R2-gaps-4(팔레트 토큰)는 보고서에만 남겼다.
+
+## 두 라운드 merge 뒤 리드 검증 (lead.md 6단계)
+
+develop `10e16ee`에서 확인했다. 앱은 격리된 userData와 HOME으로 띄웠고, 실제 사용자 상태는 바뀌지 않았다.
+
+| 항목 | 결과 | 근거 |
+|---|---|---|
+| M16 eval 러너를 Doan 대화 환경에서 실행 | 통과 | `DOAN_APP_CONVERSATION=1 DOAN_CONVERSATION_ID=… DOAN_HANDOFF=…`로 `node eval/run.ts --self-test --scenarios W1,O1,W4`를 돌려 exit 0, self-test PASS, real-state 변화 없음 |
+| M1 시작 복원이 취소될 때 저장값 보존 | 통과 | root `ls`를 5초 지연시키고 Settings로 이동한 뒤 종료했다. `shellProjects`·`expanded`·`lastByRoot`가 그대로 남았다(`.scratch/runtime-test/audit-app/m1*`) |
+| M10 숨긴 auto worktree의 draft와 대화 기억 | 통과 | `.doan`을 숨겼다가 되돌린 뒤에도 draft와 `conversationByRoot`가 유지됐다(`m10*`) |
+| M5 Locate: held start 폐기 | 통과 | `drafts.json` starts에서 옛 root 항목만 빠졌다 |
+| M5 Locate: 썸네일 캐시 삭제 | **실패** | 옛 root의 캐시 파일이 남았다. 원인은 `entriesChanged`가 `rootsLeft`보다 먼저 키를 지우는 순서다. BACKLOG 'Known defects'에 올렸다(수정 후보) |
+| M15 export 첫 layout 게이트 | 통과 | Chromium에서 지연 스타일시트로 시험했다. 게이트를 끈 대조본은 18/18회 잘렸고 수정본은 18/18회 정상이었다 |
+| `image-set()` export | 통과 | data URL로 inline되고 렌더링도 확인했다 |
+| M14 export 플레이어 clip | 판별 불가 | 수정본은 끝까지 그린다. 하지만 headless에서는 수정 전 사본도 정상이라 효과를 보이지 못했다. BACKLOG 'Not verified'로 넘겼다 |
+| 실제 provider, 네이티브 창 활성화, 서명된 dmg가 필요한 항목 | 미검증 | BACKLOG 'Not verified'에 목록을 적었다 |
