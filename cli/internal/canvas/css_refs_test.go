@@ -105,6 +105,22 @@ func TestImageSetStringsAreReferences(t *testing.T) {
 	}
 }
 
+// A string cut by a newline is a bad string, which makes the declaration invalid, so it is no reference. A string cut by the
+// end of the text is still a string (CSS Syntax "consume a string token"), so it stays one.
+func TestImageSetBadStringIsNoReference(t *testing.T) {
+	for _, text := range []string{"a{b:image-set(\"bad.png\n 1x)}", "a{b:image-set('bad.png\r\n 1x)}", "a{b:image-set(\"bad.png\f)}"} {
+		if refs := CSSRefs(text, Stylesheet); len(refs) != 0 {
+			t.Errorf("%q: CSSRefs = %+v", text, refs)
+		}
+		if urls := ScanCSS(text, Stylesheet).URLs; len(urls) != 0 {
+			t.Errorf("%q: ScanCSS URLs = %q", text, urls)
+		}
+	}
+	if urls := ScanCSS(`a{b:image-set("eof.png`, Stylesheet).URLs; !reflect.DeepEqual(urls, []string{"eof.png"}) {
+		t.Errorf("string at the end of the text: %q", urls)
+	}
+}
+
 func TestImageSetExternalURL(t *testing.T) {
 	c := mustParse(t, "x", []byte(`<style>a{background:image-set("https://cdn/x.png" 1x)}</style><div style="background:-webkit-image-set('//cdn/y.png' 1x)"></div>`))
 	if !reflect.DeepEqual(c.ExternalURLs, []string{"//cdn/y.png", "https://cdn/x.png"}) {
