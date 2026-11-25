@@ -162,6 +162,8 @@ export class CanvasController {
   // `seq` orders the renderer's commands against the script's own clicks; each new document starts again at 0.
   private seq = 0;
   private hoverSeq = 0;
+  // Set when a layout comes from a new document; that layout may return before the seq reset and the end of loading.
+  private hoverResend = false;
   private selectedRect: CanvasRect | null = null;
   private hoverRect: CanvasRect | null = null;
   private treeHover: CanvasRect | null = null;
@@ -983,7 +985,10 @@ export class CanvasController {
     this.post({ ...message, seq: this.seq });
   }
 
+  // Not to an iframe still loading: its script cannot hear it, and the hover seq would run ahead of the new document and
+  // drop its hovers. The first layout sends what changed meanwhile (resendHover).
   private sendHoverCommand(message: object): void {
+    if (this.loading) return;
     this.hoverSeq += 1;
     this.post({ ...message, seq: this.hoverSeq });
   }
@@ -1491,9 +1496,7 @@ export class CanvasController {
     // Chromium recomputes the cursor over the iframe only when the iframe's own cursor value changes, and reliably only
     // after a frame without the layer has been drawn; a resting pointer keeps the canvas's cursor, so it shows the hand.
     if (show !== this.layerShown) {
-      // Not to an iframe still loading: the hover seq would run ahead of the new document and drop its hovers. Its first
-      // layout sends it if the layer is up.
-      if (!this.loading) this.sendHoverCommand({ type: "hover-hand", hand: show });
+      this.sendHoverCommand({ type: "hover-hand", hand: show });
       const frame = this.frame;
       if (!show && frame !== null) {
         requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -1634,8 +1637,7 @@ export class CanvasController {
       // A held Space and a drag end with the document, even one the canvas replaced itself in the same iframe. Not on the
       // anchor document's change: the iframe's load event forgets that one while the document stays.
       if (this.spaceHeld || this.drag !== null) { this.spaceHeld = false; this.finishDrag(); }
-      // Hand keeps the layer up through the canvas's own reload, and the new document has no hand of its own.
-      if (this.layerShown) this.sendHoverCommand({ type: "hover-hand", hand: true });
+      this.hoverResend = true;
     }
     const before = this.layoutDisplayKey();
     const previousCurrent = this.state.currentFrame;
@@ -1681,6 +1683,8 @@ export class CanvasController {
       this.state.status = null;
       if (this.reanchor !== null) this.sendCommand({ type: "select-anchor", ...this.reanchor });
     }
+    // After the seq reset above and once loading is over, so the new document hears it from seq 1.
+    if (this.hoverResend || first) this.resendHover();
     // A reloaded document hears no pointer move until the pointer moves.
     if (first && this.refindOnLoad) { this.refindOnLoad = false; this.refindHover(); }
     this.state.layout = message;
@@ -1713,6 +1717,14 @@ export class CanvasController {
     }
     this.state.currentFrame = this.state.unlisted ? null : currentFrame(message.frames, this.view, this.viewportSize());
     if (first || previousCurrent !== this.state.currentFrame || documentChanged || before !== this.layoutDisplayKey() || linked || beforeSelection !== this.state.selection || previousPicking !== this.state.picking || previousCapturing !== this.state.capturing) this.publish();
+  }
+
+  // A new document has no hand, ⌥ or ⌘ of its own; Hand keeps the layer up through the canvas's own reload.
+  private resendHover(): void {
+    this.hoverResend = false;
+    if (this.layerShown) this.sendHoverCommand({ type: "hover-hand", hand: true });
+    if (this.altHeld) this.sendHoverCommand({ type: "hover-alt", alt: true });
+    if (this.metaHeld) this.sendHoverCommand({ type: "hover-meta", meta: true });
   }
 
   private markShown(href: string): boolean {

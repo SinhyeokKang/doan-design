@@ -4235,6 +4235,58 @@ describe("hand tool", () => {
         expect(hands(h)).toEqual([]);
       } finally { h.controller.dispose(); }
     });
+
+    // The new document starts its hover seq at 0, so the resend must follow the app's own reset to 0.
+    it("tells a document at another href the canvas navigated to at the seq that document starts from", () => {
+      const h = harness();
+      try {
+        press(h, "KeyH");
+        h.layout({ href: h.other.url, document: "doc2" });
+        expect(posted(h).filter(m => m.type === "hover-hand").at(-1)).toEqual({ type: "hover-hand", hand: true, seq: 1 });
+        press(h, "KeyV");
+        expect(posted(h).at(-1)).toEqual({ type: "hover-hand", hand: false, seq: 2 });
+      } finally { h.controller.dispose(); }
+    });
+  });
+
+  // A reloading iframe cannot hear the hover channel, so what changed meanwhile goes to the new document at its first
+  // layout, from seq 1, and the hovers it then sends still show.
+  describe("the hover channel while a reload loads", () => {
+    const hoverAt = (h: H, seq: number) => h.receive({ type: "hover", seq, rect: { x: 0, y: 0, width: 4, height: 4 } });
+
+    // Hand's layer and a held ⌥ hide the hover mark, so those cases look once they are over. A held Space ends with
+    // the document, so it leaves nothing to resend.
+    it.each<[string, (h: H) => void, Record<string, unknown>[], (h: H) => void]>([
+      ["⌘", h => press(h, "MetaLeft", { key: "Meta" }), [{ type: "hover-meta", meta: true, seq: 1 }], () => {}],
+      ["⌥", h => press(h, "AltLeft", { key: "Alt" }), [{ type: "hover-alt", alt: true, seq: 1 }], h => release(h, "AltLeft", { key: "Alt" })],
+      ["H", h => press(h, "KeyH"), [{ type: "hover-hand", hand: true, seq: 1 }], h => press(h, "KeyV")],
+      ["Space", h => press(h, "Space"), [], () => {}],
+    ])("%s pressed while it loads", (_name, act, resent, settle) => {
+      const h = harness();
+      try {
+        h.controller.command("reload");
+        act(h);
+        expect(posted(h)).toEqual([]);
+        h.layout({ document: "doc2" });
+        expect(posted(h).filter(m => String(m.type).startsWith("hover-"))).toEqual(resent);
+        hoverAt(h, resent.length);
+        settle(h);
+        expect(h.markOf("hover")?.hidden).toBe(false);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("a key pressed and released while it loads leaves nothing to resend", () => {
+      const h = harness();
+      try {
+        h.controller.command("reload");
+        press(h, "MetaLeft", { key: "Meta" });
+        release(h, "MetaLeft", { key: "Meta" });
+        h.layout({ document: "doc2" });
+        expect(posted(h).filter(m => String(m.type).startsWith("hover-"))).toEqual([]);
+        hoverAt(h, 0);
+        expect(h.markOf("hover")?.hidden).toBe(false);
+      } finally { h.controller.dispose(); }
+    });
   });
 
   // The iframe's load event forgets the anchor document, so only a new token counts.
